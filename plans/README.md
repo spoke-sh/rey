@@ -1,0 +1,21 @@
+# Plans
+
+Plans turn the architecture and roadmap into checkable implementation slices.
+They describe current repository state, open decisions, tasks, proof, and
+completion criteria.
+
+## Active
+
+- [0001 — Foundation and first delta proof](0001-foundation.md)
+
+## Completed
+
+None.
+
+## Plan Rules
+
+- Keep a top-level completion checklist.
+- Use checkboxes for milestones and acceptance criteria.
+- Mark only repository-proven facts complete.
+- Link consequential decisions and captured command evidence.
+- Move a plan to completed only when every required acceptance item is checked.

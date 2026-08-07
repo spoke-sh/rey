@@ -1,0 +1,114 @@
+# Rey Roadmap
+
+This roadmap describes delivery order, not implemented behavior. Checkable work
+and proof belong in `plans/`.
+
+## Phase 0 — Foundation
+
+- Establish the constitution, architecture, diff, proof, interface, and
+  development contracts.
+- Pin the reproducible Rust toolchain and root task surface.
+- Record the environment-aware, diff-directed runtime, DataFrame, optional
+  Spoke, and proof boundaries.
+- Scaffold the narrow Cargo ownership map only after those choices are legible.
+
+## Phase 1 — Standalone Environment And Delta
+
+- Discover a bounded local workspace and reviewed tools as a typed capability
+  snapshot.
+- Snapshot one Git repository's refs, commit graph, semantic index, and declared
+  worktree status.
+- Poll one Git delta into an idempotent component activation and retained cursor.
+- Materialize bounded typed frames from small reviewed fixtures.
+- Compare keyed Polars DataFrames with explicit direction and schema handling.
+- Retain typed schema, row, and cell changes.
+- Render compatible deltas as Tabular Diff 0.8 and a complete structured form.
+- Emit a content-addressed proof manifest and detect stale or tampered inputs.
+- Retain a local-only evidence bundle with honest durability metadata.
+- Prove zero-Spoke operation, capability drift, deterministic artifacts,
+  limits, null behavior, typed empty frames, and duplicate-key rejection.
+
+## Phase 2 — Optional First-Class Spoke Observation
+
+- Discover and validate a routed Spoke deployment as an optional provider.
+- Bind frames to exact file, object, document, table, and query revisions needed
+  by the first slice.
+- Materialize one Arrow query relation without a local storage bypass.
+- Persist one frame, delta, trace, and proof bundle through public Spoke
+  contracts.
+- Prove restart, revision drift, missing capability, limit, and routed-error
+  behavior.
+- Prove that Spoke absence preserves standalone behavior and that a
+  Spoke-required claim fails closed rather than weakening itself.
+
+## Phase 3 — Diff-Directed Applications
+
+- Declare applications, independently activatable components, spaces, lens
+  dependencies, claims, and total runtime budgets.
+- Derive a frontier from unresolved deltas.
+- Admit deterministic read-only probes against frozen inputs.
+- Re-evaluate invalidated lenses and stop on convergence, failure,
+  inconclusiveness, cancellation, or budget exhaustion.
+- Prove that incremental invalidation matches full bounded recomputation.
+- Add bounded recurring Git polling, activation coalescing, and resumable cursor
+  processing.
+
+## Phase 4 — Admitted Mutation
+
+- Define effect classes and allowed targets.
+- Admit an explicit local tool or submit a registered tool through Spoke compute
+  with exact capability preconditions and idempotency where supported.
+- Preserve the run, attempt, tool, capture, guarantee, and failure lineage the
+  selected provider can prove.
+- Re-observe the target rather than trusting process exit status.
+- Gate mutation and acceptance on fresh scoped proofs.
+
+## Phase 5 — Codebase Spaces
+
+- Project files, symbols, references, dependencies, diagnostics, tests, and
+  changes as related frames bound to exact code revisions.
+- Add code-aware lenses and conservative invalidation.
+- Explore graph, lexical, and vector dimensions through Spoke's composed query
+  plane as those contracts are available.
+- Prove bounded remediation loops against reviewed codebase fixtures.
+
+## Phase 6 — Rey–Spoke Co-Evolution
+
+- Use standalone Rey to inspect and diagnose the Spoke repository when no
+  healthy Spoke runtime exists.
+- Activate external-client conformance from exact Spoke commit/ref/index deltas.
+- Maintain external-client conformance spaces for Spoke query, compute,
+  persistence, and lineage.
+- Turn missing or awkward Spoke capabilities into typed frontier evidence.
+- Discover newly delivered Spoke capabilities and rerun the same claims.
+- Use Rey to improve Rey through Spoke-backed codebase spaces without making
+  either repository a boot dependency of the other.
+
+## Phase 7 — Agent Policies
+
+- Fix the provider-neutral policy request/proposal contract.
+- Add one agent adapter without coupling core semantics to its provider.
+- Require evidence citations and frozen preconditions in proposals.
+- Compare agent, deterministic, and human policies over the same spaces and
+  budgets.
+- Preserve model and prompt lineage needed for audit without treating rationale
+  as proof.
+
+## Phase 8 — Scale And Deployment
+
+- Benchmark full versus incremental recomputation with named workloads.
+- Introduce durable frontier checkpoints and resumable traces where evidence
+  justifies them.
+- Evaluate a long-running Rey service only with explicit multi-user identity,
+  authorization, scheduling, and failure contracts.
+- Map the same runtime semantics onto local and managed deployment topologies.
+
+## Deferred Until Explicitly Planned
+
+- untrusted-code sandbox claims;
+- autonomous production mutation;
+- model training or serving;
+- a second durable service beside Spoke;
+- a custom distributed query engine;
+- universal proof or formal-verification claims; and
+- compatibility commitments before the first pre-alpha contract stabilizes.

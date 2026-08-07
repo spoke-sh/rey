@@ -1,0 +1,202 @@
+# Frames And Diffs
+
+This document defines Rey's target semantic contracts for frames, typed deltas,
+and diff renderings. Physical schemas and serialized formats remain provisional
+until accepted by an ADR and proved by fixtures.
+
+## Direction
+
+Every comparison is directed from `SOURCE` to `TARGET`. Callers may supply more
+specific labels such as `BASELINE` and `CANDIDATE` or `EXPECTED` and `OBSERVED`.
+
+- A deletion exists in `SOURCE` and not in `TARGET`.
+- An insertion exists in `TARGET` and not in `SOURCE`.
+- A modification has the same aligned entity in both frames and at least one
+  unequal comparable value.
+
+Direction and labels are semantic metadata. They must remain visible in
+structured artifacts and cannot depend on color or command prose.
+
+## Frame Contract
+
+A frame is a bounded typed relation with enough metadata to reproduce or audit
+its observation:
+
+| Field | Meaning |
+| --- | --- |
+| identity | Content-derived frame id and semantic format version |
+| space | Owning space id and revision |
+| lens | Lens id, revision, and implementation digest |
+| schema | Ordered column names, logical types, nullability, and schema revision |
+| keys | Unique comparison key columns and ordering semantics |
+| capabilities | Frozen provider/tool snapshot and guarantees used to create the frame |
+| sources | Exact Spoke bindings or strongest immutable local identities available |
+| normalizers | Ordered versioned transformations applied before comparison |
+| limits | Requested and effective evaluation bounds |
+| completeness | Complete, truncated, partial, unavailable, or failed observation state |
+| data | Bounded Polars DataFrame, normally interchanged as Arrow |
+| lineage | Relevant queries, checkpoints, runs, attempts, captures, and request ids |
+
+Wall-clock observation time may be useful lineage, but it is not part of
+semantic identity unless a lens explicitly declares time as an input.
+
+An empty frame retains its complete declared schema and keys. It is not an
+untyped absence.
+
+## Compatibility
+
+Two frames are directly comparable only when:
+
+- their relation semantics are compatible;
+- their schema versions can be aligned under an explicit rule;
+- required key columns exist with compatible types;
+- keys are unique within each unordered relation;
+- ordering expectations agree when row or column order is meaningful;
+- normalizers and equality rules are known; and
+- both completeness states permit the requested claim.
+
+Schema insertion, deletion, and an explicitly declared rename can be valid
+changes. An inferred rename is unsafe because two unrelated columns may happen
+to contain similar values.
+
+Incompatible types, duplicate keys, missing keys, unknown completeness, or
+unapproved schema evolution return an explicit incompatible or inconclusive
+assessment. They never fall back to positional guessing.
+
+## Keys And Ordering
+
+Relational rows are unordered by default and require one or more unique key
+columns. Composite keys compare their typed tuple values. Null keys are rejected
+unless a relation contract explicitly defines stable null-key identity.
+
+Ordered comparison is opt-in for relations where position carries meaning. The
+frame records the order expression or stable ordinal source. Reordering must not
+be inferred from nondeterministic collection order.
+
+Column order is part of schema identity but not necessarily equality. A lens
+declares whether a column move is semantically meaningful.
+
+## Normalization And Equality
+
+Normalization exists to remove declared representational variance, not to hide
+behavioral differences. Each normalizer has a stable id, revision,
+implementation digest, input/output type contract, and parameters.
+
+Examples include canonical path separators, stable timestamp precision, or
+sorting a set-valued list. Removing ownership, status, causality, security, or
+error information merely to obtain a passing diff is invalid.
+
+Equality is type-aware. Initial semantics should cover nulls, booleans,
+integers, floating-point policy, strings, binary values, temporal values,
+lists, structs, and categoricals explicitly. Approximate numeric or vector
+comparison is a distinct declared predicate with tolerances; it is not default
+cell equality.
+
+## Typed Delta
+
+The authoritative delta retains:
+
+- format version and content identity;
+- source and target frame ids, labels, schemas, and source bindings;
+- key and ordering definitions;
+- normalizer and equality definitions;
+- schema changes;
+- inserted and deleted keyed rows;
+- modified rows with typed before/after cells;
+- reordering where meaningful;
+- unchanged/context counts without requiring all unchanged rows to be stored;
+- requested and effective limits;
+- completeness and assessment status; and
+- deterministic summaries intended for navigation.
+
+A delta assessment is `equal`, `different`, `incompatible`, or `inconclusive`.
+Runtime or transport errors are recorded separately and may cause an
+inconclusive observation. Similarity is a diagnostic summary and never changes
+the assessment.
+
+The exact Arrow representation for heterogeneous before/after values remains an
+open design item. Until selected, implementations must not stringify values and
+then claim typed round-trip behavior.
+
+## Tabular Diff 0.8 Projection
+
+For compatible tables Rey projects a typed delta into the
+[Frictionless Data Tabular Diff Format 0.8](https://specs.frictionlessdata.io/tabular-diff/).
+The projection uses the standard action and schema markers:
+
+| Marker | Meaning |
+| --- | --- |
+| `@@` | Header row containing column names |
+| `!` | Schema row describing column changes |
+| `+++` | Row or column inserted in `TARGET` |
+| `---` | Row or column present in `SOURCE` and deleted from `TARGET` |
+| `->`, `-->`, ... | Modified row and collision-safe before/after separator |
+| blank | Unchanged context |
+| `...` | Omitted unchanged context |
+| `:` | Reordered row or column when ordering matters |
+
+Tabular Diff converts modified cells to text and has conventions for preserving
+null versus the string `NULL`. Rey follows those conventions in the portable
+projection while retaining original typed values in its structured delta.
+
+The terminal table and CSV artifact are renderings of the same Tabular Diff
+relation. ANSI color may enhance a terminal but never appears in stored
+evidence or carries unique meaning.
+
+## Other Evidence Shapes
+
+DataFrames are central to typed collections, but one artificial mega-table is
+not the goal:
+
+- ordered source text and logs may use a line-oriented patch;
+- nested configuration may use a typed path/value comparison;
+- binary content may compare identity and metadata while retaining raw
+  artifacts separately;
+- vector observations may use explicit distance and tolerance relations; and
+- a transition spanning several frames retains a set of individual deltas with
+  an aggregate index rather than flattening unrelated schemas.
+
+Every non-tabular delta still has direction, exact source identities, bounded
+evidence, and a structured summary that can participate in a frontier frame.
+
+Git comparisons retain typed repository semantics in addition to optional text
+patches. Commit/ref deltas preserve OIDs, parent/reachability facts, path modes,
+and movement classification. Index deltas compare logical entries and stages so
+a stat-cache-only raw index rewrite does not appear as staged-content change.
+See [Git Context and Activation](GIT.md).
+
+## Invalidation
+
+A delta identifies changed source entities and fields. Capability-snapshot
+deltas also identify provider, tool, version, trust, or guarantee drift. Git
+deltas identify ref movement, commit reachability, semantic index, and declared
+worktree changes. Lens, trigger, and action dependency metadata maps those
+changes onto potentially affected observations. Invalidation is conservative:
+false-positive re-evaluation is acceptable, but suppressing a semantically
+affected lens is incorrect.
+
+Initial implementations may recompute a full bounded lens. Later incremental
+execution must prove parity against full recomputation for insertions,
+deletions, modifications, schema changes, and dependency changes.
+
+## Required Proof Fixtures
+
+The first diff engine must include fixtures for:
+
+- equal frames;
+- inserted and deleted rows;
+- modified typed cells;
+- inserted, deleted, and declared-renamed columns;
+- typed empty source and target frames;
+- compound keys and duplicate-key rejection;
+- nulls versus empty strings and literal `NULL` strings;
+- deterministic object/list normalization;
+- meaningful and meaningless ordering;
+- incompatible schemas and types;
+- truncated or failed observations;
+- zero-Spoke and Spoke-connected frames with explicit capability metadata;
+- provider/tool appearance, disappearance, and version or digest drift;
+- Git fast-forward, rewind, rewrite, merge, incomplete-history, and semantic
+  index deltas;
+- bounded context omission; and
+- byte-for-byte deterministic structured and Tabular Diff artifacts.

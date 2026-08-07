@@ -1,0 +1,17 @@
+# Architecture Decisions
+
+Accepted decisions constrain current implementation. Proposed decisions may
+guide experiments but do not outrank the architecture until accepted.
+
+| Decision | Status | Summary |
+| --- | --- | --- |
+| [0001](0001-diff-directed-runtime.md) | Accepted | Deltas direct compute; deterministic runtime and policy remain separate |
+| [0002](0002-dataframes-typed-deltas-and-tabular-diff.md) | Accepted | Polars frames, Arrow interchange, authoritative typed deltas, and Tabular Diff projection |
+| [0003](0003-spoke-and-proof-boundary.md) | Accepted; narrowed by 0005 | Connected Spoke owns durable reasoning/compute; Rey owns scoped proof and transition semantics |
+| [0004](0004-rust-and-nix-development-foundation.md) | Accepted | Rust-first implementation and pinned Nix/Just/Crane development foundation |
+| [0005](0005-environment-awareness-and-optional-spoke.md) | Accepted | Bounded capability discovery, standalone operation, and optional Spoke amplification |
+| [0006](0006-rey-spoke-recursive-improvement.md) | Accepted | Rey as Spoke's first external runtime application and conformance feedback loop |
+| [0007](0007-git-polling-and-delta-activation.md) | Accepted | Git commit/ref/index snapshots as pollable frames and idempotent activation sources |
+
+When a decision changes, add a superseding decision and link both documents.
+Do not silently rewrite the context that led to an accepted choice.
