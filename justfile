@@ -1,61 +1,50 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set positional-arguments
 
-rust_workspace := `test -f Cargo.toml && printf present || true`
-
 _default:
   @printf '%s\n' \
     'Rey development tasks:' \
     '  just setup          Verify the pinned toolchain' \
-    '  just dev [args]     Run Rey once the runtime is scaffolded' \
-    '  just check          Check docs, Rust when present, and flake evaluation' \
-    '  just test           Run tests when the Cargo workspace is present' \
-    '  just build          Build when the Cargo workspace is present' \
+    '  just rey [args]     Run the Rey CLI' \
+    '  just check          Check formatting, lints, and flake evaluation' \
+    '  just test           Run workspace and documentation tests' \
+    '  just build          Build the Rust workspace' \
     '  just fmt            Format Rust and Nix sources'
 
 setup:
   @rustc --version
   @cargo --version
   @just --version
-  @if [ -n "{{rust_workspace}}" ]; then \
-    cargo fetch --locked; \
-  else \
-    printf '%s\n' 'No Cargo workspace is scaffolded yet; dependency fetch skipped.'; \
-  fi
+  @cargo fetch --locked
 
-dev *args:
-  @if [ -f crates/rey/Cargo.toml ]; then \
-    cargo run -p rey --bin rey -- "$@"; \
-  else \
-    printf '%s\n' 'The Rey runtime is not scaffolded yet; see plans/0001-foundation.md.' >&2; \
-    exit 1; \
-  fi
+rey *args:
+  @cargo run -p rey --bin rey -- "$@"
 
 check:
   @git diff --check
-  @if [ -n "{{rust_workspace}}" ]; then \
-    cargo fmt --all -- --check; \
-    cargo clippy --workspace --all-targets --all-features -- -D warnings; \
+  @cargo fmt --all -- --check
+  @cargo clippy --workspace --all-targets --all-features -- -D warnings
+  @if command -v nix >/dev/null 2>&1; then \
+    nix flake check "path:$PWD" --no-build; \
   else \
-    printf '%s\n' 'No Cargo workspace is scaffolded yet; Rust checks skipped.'; \
+    printf '%s\n' 'Nix is unavailable; flake evaluation skipped.'; \
   fi
-  @nix flake check --no-build
 
 test:
-  @if [ -n "{{rust_workspace}}" ]; then \
+  @if command -v cargo-nextest >/dev/null 2>&1; then \
     cargo nextest run --workspace --all-features; \
-    cargo test --workspace --all-features --doc; \
   else \
-    printf '%s\n' 'No Cargo workspace is scaffolded yet; tests skipped.'; \
+    cargo test --workspace --all-features; \
   fi
+  @cargo test --workspace --all-features --doc
 
 build:
-  @if [ -n "{{rust_workspace}}" ]; then \
-    cargo build --workspace --all-features; \
-  else \
-    printf '%s\n' 'No Cargo workspace is scaffolded yet; build skipped.'; \
-  fi
+  @cargo build --workspace --all-features
 
 fmt:
-  @if [ -n "{{rust_workspace}}" ]; then cargo fmt --all; fi
-  @nix fmt -- flake.nix
+  @cargo fmt --all
+  @if command -v nix >/dev/null 2>&1; then \
+    nix fmt -- flake.nix; \
+  else \
+    printf '%s\n' 'Nix is unavailable; Nix formatting skipped.'; \
+  fi

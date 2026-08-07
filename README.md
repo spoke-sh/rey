@@ -15,10 +15,25 @@ Rey is also Spoke's first external runtime application. Rey exercises Spoke as
 a real client, uses Spoke to explore and improve both projects, and turns the
 resulting gaps into evidence that directs the next Spoke capability.
 
-Rey is currently a pre-alpha foundation repository. It contains the initial
-contracts and a pinned Rust development environment, but no runtime code. No
-documented command, crate, file format, or Spoke integration should be treated
-as implemented until the repository contains corresponding code and tests.
+Rey is currently pre-alpha. Its first executable slice can inspect an explicit
+local workspace, probe the allowlisted `git` and `rg` tools under hard process
+bounds, and project a contained Git repository observation into a typed
+capability frame. It runs with zero Spoke. Delta scheduling, activation,
+mutation, proof, and connected Spoke behavior remain design contracts, not
+implemented commands.
+
+## Try The First Slice
+
+```sh
+nix develop
+just setup
+just rey environment inspect --format table
+```
+
+Use `--format json` for the bounded document or `--format arrow` for an Arrow
+IPC stream. `--format auto` selects a table on a terminal and Arrow when stdout
+is redirected. The current command is observation-only and uses `.` as its
+explicit workspace unless `--workspace` is supplied.
 
 ## The Idea
 
@@ -246,9 +261,11 @@ Rey is not:
 
 ## Current Status
 
-The repository currently contains foundational documents, a pinned Nix Rust
-development shell, and an honest root task surface. It has no Cargo workspace
-or runtime yet. The active foundation plan covers environment discovery, a
-Git snapshot-to-activation slice, a zero-Spoke Frame-to-Delta-to-Proof slice,
-and the same evidence flow amplified through routed Spoke integration. See
-[Plan 0001](plans/0001-foundation.md).
+The repository now contains a five-crate Rust workspace, the `rey environment
+inspect` command, capability-frame JSON/table/Arrow output, bounded process
+supervision, and a read-only partial Git repository/index snapshot. The Git
+index digest deliberately reports incomplete flag semantics and is not yet an
+activation cursor. The active foundation plan next covers complete Git polling
+and activation, a zero-Spoke Frame-to-Delta-to-Proof slice, and the same
+evidence flow amplified through routed Spoke integration. See [Plan
+0001](plans/0001-foundation.md).

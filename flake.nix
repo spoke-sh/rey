@@ -36,6 +36,47 @@
         ];
       };
 
+      craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+      cargoSource = craneLib.cleanCargoSource ./.;
+      commonCargoArgs = {
+        pname = "rey-workspace";
+        version = "0.1.0";
+        src = cargoSource;
+        strictDeps = true;
+        cargoExtraArgs = "--locked --workspace --all-features";
+      };
+      cargoArtifacts = craneLib.buildDepsOnly (commonCargoArgs
+        // {
+          pname = "rey-workspace-deps";
+        });
+      workspacePackage = craneLib.buildPackage (commonCargoArgs
+        // {
+          inherit cargoArtifacts;
+          cargoBuildExtraArgs = "--bins";
+          doCheck = false;
+          doInstallCargoArtifacts = true;
+        });
+      workspaceTests = craneLib.cargoTest (commonCargoArgs
+        // {
+          cargoArtifacts = workspacePackage;
+          nativeBuildInputs = [
+            pkgs.bash
+            pkgs.coreutils
+            pkgs.git
+          ];
+        });
+      reyPackage =
+        pkgs.runCommand "rey" {
+          meta = {
+            description = "Environment-aware diff-directed compute runtime";
+            homepage = "https://github.com/spoke-sh/rey";
+            license = with pkgs.lib.licenses; [asl20 mit];
+            mainProgram = "rey";
+          };
+        } ''
+          install -Dm755 ${workspacePackage}/bin/rey "$out/bin/rey"
+        '';
+
       shellHook = ''
         export RUST_BACKTRACE="''${RUST_BACKTRACE:-1}"
         export CARGO_TARGET_DIR="''${REY_CARGO_TARGET_DIR:-''${XDG_CACHE_HOME:-$HOME/.cache}/cargo-target/rey}"
@@ -80,15 +121,35 @@
         '';
       };
     in {
-      packages.dev = reyDev;
-
-      apps.dev = {
-        type = "app";
-        program = "${reyDev}/bin/rey-dev";
-        meta.description = "Run Rey development tasks through just";
+      packages = {
+        default = reyPackage;
+        rey = reyPackage;
+        dev = reyDev;
       };
 
-      checks.dev-wrapper = reyDev;
+      apps = {
+        default = {
+          type = "app";
+          program = "${reyPackage}/bin/rey";
+          meta.description = "Run Rey";
+        };
+        rey = {
+          type = "app";
+          program = "${reyPackage}/bin/rey";
+          meta.description = "Run Rey";
+        };
+        dev = {
+          type = "app";
+          program = "${reyDev}/bin/rey-dev";
+          meta.description = "Run Rey development tasks through just";
+        };
+      };
+
+      checks = {
+        rey = reyPackage;
+        workspace-tests = workspaceTests;
+        dev-wrapper = reyDev;
+      };
 
       devShells = {
         default = pkgs.mkShell {

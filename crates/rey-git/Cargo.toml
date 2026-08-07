@@ -1,0 +1,20 @@
+[package]
+name = "rey-git"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+base64.workspace = true
+rey-core = { path = "../rey-core" }
+rey-environment = { path = "../rey-environment" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

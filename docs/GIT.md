@@ -2,8 +2,12 @@
 
 This document defines Rey's target Git provider and delta-trigger contracts.
 Git is both a source of exact code identities and a pollable change substrate
-for software-development applications. Concrete schemas and implementation
-library choices remain Plan 0001 work.
+for software-development applications. The first Plan 0001 slice implements a
+read-only contained repository observation through bounded direct Git argv. It
+records repository/worktree identity, object format, bare/shallow state, HEAD,
+and a partial logical index-entry digest. Ref frames, graph traversal,
+worktree status, polling, triggers, activations, and complete index flag
+semantics remain Plan 0001 work.
 
 ## Purpose
 

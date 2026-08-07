@@ -19,9 +19,9 @@ inputs or evaluator code make an earlier certificate stale.
 - [x] Accepted decisions fix the environment-aware, diff-directed, DataFrame,
   optional Spoke, proof, co-evolution, and development boundaries.
 - [x] A pinned Nix flake provides default and CI Rust development shells.
-- [x] The root Just tasks report the unscaffolded runtime honestly.
-- [ ] A Cargo workspace and narrow first-slice crates are scaffolded.
-- [ ] A bounded environment probe emits a typed capability snapshot with no
+- [x] The root Just tasks expose honest lifecycle behavior for repository state.
+- [x] A Cargo workspace and narrow first-slice crates are scaffolded.
+- [x] A bounded environment probe emits a typed capability snapshot with no
   Spoke present.
 - [ ] A Git snapshot and semantic index delta produce one deterministic,
   replay-safe application activation.
@@ -39,7 +39,7 @@ inputs or evaluator code make an earlier certificate stale.
 - [x] Add architecture, environment, Git, diff, proof, interface, development,
   and roadmap documents.
 - [x] Add plan and architecture-decision indexes.
-- [x] Accept ADRs 0001–0007.
+- [x] Accept ADRs 0001–0009.
 - [x] Add a locked stable Rust flake with default and CI shells.
 - [x] Add `.envrc`, `.gitignore` rules, and the six root Just lifecycle tasks.
 - [x] Capture successful foundation verification commands below.
@@ -63,9 +63,9 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
 
 ## Milestone 2 — Freeze First-Slice Schemas
 
-- [ ] Select initial Polars and Arrow crate versions/features in an ADR.
-- [ ] Define canonical frame metadata and content identity.
-- [ ] Define the environment provider, capability snapshot, trust, operation,
+- [x] Select initial Polars and Arrow crate versions/features in an ADR.
+- [x] Define canonical frame metadata and content identity.
+- [x] Define the environment provider, capability snapshot, trust, operation,
   guarantee, and discovery-error schemas.
 - [ ] Define Git repository/worktree, ref, commit/parent, path-change, semantic
   index, worktree-status, poll cursor, trigger, and activation schemas.
@@ -78,37 +78,52 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
 - [ ] Define structured, Arrow, JSON, terminal, and Tabular Diff output bounds.
 - [ ] Define claim, check, evidence manifest, input digest, status, and
   certificate schemas.
-- [ ] Select canonical serialization and hashing rules.
+- [x] Select canonical serialization and hashing rules.
 - [ ] Decide which semantic fields invalidate frames, deltas, and proofs.
 - [ ] Decide the initial local evidence bundle and Spoke artifact mappings plus
   their distinct publication guarantees.
 
 ## Milestone 3 — Scaffold
 
-- [ ] Add a Cargo workspace using the flake-provided stable toolchain.
-- [ ] Add `rey` as the CLI/composition crate without collecting domain logic.
-- [ ] Add only the capability crates needed for the first slice from the target
+- [x] Add a Cargo workspace using the flake-provided stable toolchain.
+- [x] Add `rey` as the CLI/composition crate without collecting domain logic.
+- [x] Add only the capability crates needed for the first slice from the target
   ownership map.
-- [ ] Add a narrow `rey-git` provider without coupling core runtime semantics to
+- [x] Add a narrow `rey-git` provider without coupling core runtime semantics to
   one Git CLI or library implementation.
-- [ ] Keep the Spoke adapter optional so core workspace tests have no running
+- [x] Keep the Spoke adapter optional so core workspace tests have no running
   Spoke requirement.
-- [ ] Keep shared contracts narrow and dependency direction one-way.
-- [ ] Add locked dependency-only, workspace package, workspace test, `rey`
+- [x] Keep shared contracts narrow and dependency direction one-way.
+- [x] Add locked dependency-only, workspace package, workspace test, `rey`
   package, and app outputs through Crane.
-- [ ] Wire every root task to real Cargo behavior without silent skips.
-- [ ] Add formatting, Clippy, nextest, doc-test, and Nix checks.
+- [x] Wire every root task to real Cargo behavior without silent skips.
+- [x] Add formatting, Clippy, nextest, doc-test, and Nix checks.
+
+First executable proof captured on 2026-08-07:
+
+```text
+nix develop path:$PWD#ci --command just check
+nix develop path:$PWD#ci --command just test
+# 16 tests passed through nextest; all five crate doc-test suites passed
+nix develop path:$PWD#ci --command just build
+nix flake check path:$PWD
+# packaged rey, offline workspace tests, and dev wrapper built successfully
+nix flake check path:$PWD --all-systems --no-build
+# x86_64-linux, aarch64-linux, and aarch64-darwin outputs evaluated
+nix run path:$PWD -- environment inspect --format json
+# standalone rey.capabilities.v1 snapshot contained five local provider rows
+```
 
 ## Milestone 4 — Environment Capability Snapshot
 
 - [ ] Add built-in, explicit-workspace, known-tool, and optional Spoke provider
   contracts behind bounded discovery.
-- [ ] Resolve only configured roots and known executable names/paths.
-- [ ] Bound metadata and version probes by time and bytes.
-- [ ] Record provider/tool path, version, digest or provenance, trust,
+- [x] Resolve only configured roots and known executable names/paths.
+- [x] Bound metadata and version probes by time and bytes.
+- [x] Record provider/tool path, version, digest or provenance, trust,
   operations, enforcement, limits, and errors in one typed frame.
 - [ ] Freeze the snapshot for action admission and detect provider/tool drift.
-- [ ] Prove zero-Spoke startup and explicit standalone selection.
+- [x] Prove zero-Spoke startup and explicit standalone selection.
 - [ ] Prove optional Spoke appearance/disappearance without changing a local
   claim's meaning.
 - [ ] Prove required-capability failure before side effects.
@@ -117,7 +132,7 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
 
 ## Milestone 5 — Git Poll And Activation
 
-- [ ] Discover one explicit repository/worktree without running hooks or
+- [x] Discover one explicit repository/worktree without running hooks or
   mutating the index.
 - [ ] Record object format, common repository identity, worktree identity,
   HEAD, watched refs, shallow/sparse/split-index facts, and completeness.
@@ -196,17 +211,18 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
 
 ## Milestone 9 — CLI And Acceptance
 
-- [ ] Expose implemented environment inspection and capability-diff commands.
+- [x] Expose the implemented environment-inspection command.
+- [ ] Expose a capability-diff command.
 - [ ] Expose implemented Git inspect, diff, and one-shot poll commands.
 - [ ] Expose only the implemented frame, diff, and proof commands.
-- [ ] Preserve machine data on stdout and diagnostics on stderr.
-- [ ] Support bounded terminal, Arrow, JSON, structured delta, and Tabular Diff
-  output where the corresponding schema is implemented.
+- [x] Preserve machine data on stdout and diagnostics on stderr.
+- [x] Support bounded terminal, Arrow, and JSON output for the implemented
+  capability schema. Structured delta and Tabular Diff output remain pending.
 - [ ] Define and test categorized exit codes for pass, fail, inconclusive,
   stale, invalid input, and runtime failure.
 - [ ] Add fixture, property, determinism, resource-limit, and routed integration
   tests.
-- [ ] Make `just check`, `just test`, `just build`, and `nix flake check` pass.
+- [x] Make `just check`, `just test`, `just build`, and `nix flake check` pass.
 
 ## Acceptance Criteria
 

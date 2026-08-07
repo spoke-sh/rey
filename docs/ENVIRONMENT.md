@@ -3,7 +3,11 @@
 This document defines Rey's target environment-discovery and capability
 contracts. Environment awareness lets Rey use the best context surfaces
 available without making Spoke or any host tool an invisible boot dependency.
-Concrete schemas and provider implementations remain Plan 0001 work.
+ADR 0008 and the first Plan 0001 slice now implement the version-1 capability
+relation for built-in frames, one explicit workspace, allowlisted `git` and
+`rg` identity probes, and a contained Git repository observation. Optional
+Spoke discovery, action admission, capability deltas, and other tool adapters
+remain Plan 0001 work.
 
 ## Terms
 
@@ -69,10 +73,13 @@ error_code
 error_detail
 ```
 
-Exact Polars/Arrow types, nested-field representation, and schema version are an
-open ADR item. The logical schema must distinguish unknown, unavailable, and
-unsupported values. An absent enforcement claim is never encoded as an
-enforced zero or unbounded permission.
+ADR 0008 fixes `rey.capabilities` version `1`. Scalar fields are Polars string,
+unsigned integer, or nullable string columns. Array-valued logical fields use
+canonical compact JSON arrays in string columns for this schema version. A
+future Arrow list/struct representation requires a schema revision. The schema
+distinguishes unknown, unavailable, and unsupported values. An absent
+enforcement claim is never encoded as an enforced zero or unbounded
+permission.
 
 Locations are provider-scoped. A local path, Spoke path, URL, object URI, and
 logical tool name are not interchangeable strings.

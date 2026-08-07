@@ -36,24 +36,24 @@ Procedural guidance for humans and agents working on Rey.
 
 ## Current Development Interface
 
-Rey has a pinned Nix Rust toolchain and a root Just task surface. It does not
-yet have a Cargo workspace or runtime executable. Do not report an explicitly
-skipped Rust task as implementation proof.
+Rey has a pinned Nix Rust toolchain, a five-crate Cargo workspace, an
+environment-inspection executable, and a root Just task surface. Do not report
+planned delta, proof, activation, or Spoke behavior as implemented.
 
 Enter the environment and use:
 
 ```sh
 nix develop
 just setup
-just dev
+just rey
 just check
 just test
 just build
 just fmt
 ```
 
-`setup` and `check` work now. `test` and `build` report that no Cargo workspace
-exists, while `dev` fails explicitly until the runtime is scaffolded. See
+All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
+`check`, `test`, and `build` execute real workspace verification. See
 `docs/DEVELOPMENT.md` for the exact behavior. Documentation changes should pass
 `just check` and manual link/repository-truth review.
 

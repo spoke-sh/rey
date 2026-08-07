@@ -1,9 +1,10 @@
 # Rey Interfaces
 
-This document sketches Rey's target user, environment, policy, and Spoke
-interfaces. The repository does not yet contain a `rey` executable. Command
-names, flags, schemas, media types, and exit codes remain provisional until an
-accepted ADR and implementation tests fix them.
+This document sketches Rey's user, environment, policy, and Spoke interfaces.
+The implemented surface is currently limited to `rey environment inspect` and
+the capability relation fixed by ADR 0008. Other command names, flags, schemas,
+media types, and exit codes remain provisional until an accepted ADR and
+implementation tests fix them.
 
 ## Interface Principles
 
@@ -63,9 +64,17 @@ rey proofs verify <proof-id-or-path>
 rey proofs show <proof-id>
 ```
 
-The first executable should expose only commands backed by implemented
-contracts. Help must label experimental commands and must not imply that a
-planned Spoke capability is available.
+The executable currently exposes only:
+
+```text
+rey environment inspect [--workspace <path>]
+  [--format auto|table|arrow|json]
+  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
+  [--max-capture-bytes <n>]
+```
+
+It always selects the standalone profile. Help must not imply that a planned
+Spoke capability is available.
 
 ## Formats
 
