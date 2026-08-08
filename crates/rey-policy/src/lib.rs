@@ -8,9 +8,9 @@ use rey_dataframe::{Frame, FrameError, FrameMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const REASONING_SURFACE_SCHEMA: &str = "rey.reasoning-surface.v1";
+pub const REASONING_SURFACE_SCHEMA: &str = "rey.reasoning-surface.v2";
 pub const REASONING_SURFACE_RELATION: &str = "rey.reasoning-surface-rows";
-pub const REASONING_SURFACE_SCHEMA_VERSION: &str = "1";
+pub const REASONING_SURFACE_SCHEMA_VERSION: &str = "2";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ReasoningSurfaceInputs {
@@ -20,6 +20,7 @@ pub struct ReasoningSurfaceInputs {
     pub trace_id: SemanticDigest,
     pub committed_transition_id: SemanticDigest,
     pub transition_id: SemanticDigest,
+    pub scheduling_decision_id: SemanticDigest,
     pub frontier_frame_id: SemanticDigest,
     pub capability_snapshot_id: SemanticDigest,
     pub projection: ContractIdentity,
@@ -199,6 +200,7 @@ impl ReasoningSurface {
             &inputs.trace_id,
             &inputs.committed_transition_id,
             &inputs.transition_id,
+            &inputs.scheduling_decision_id,
             &inputs.frontier_frame_id,
             &inputs.capability_snapshot_id,
         ] {
@@ -326,6 +328,10 @@ impl ReasoningSurface {
             (
                 "rey.transition-id".to_owned(),
                 self.inputs.transition_id.to_string(),
+            ),
+            (
+                "rey.scheduling-decision-id".to_owned(),
+                self.inputs.scheduling_decision_id.to_string(),
             ),
             (
                 "rey.frontier-frame-id".to_owned(),
@@ -683,6 +689,7 @@ fn semantic_string_bytes(
         &inputs.trace_id,
         &inputs.committed_transition_id,
         &inputs.transition_id,
+        &inputs.scheduling_decision_id,
         &inputs.frontier_frame_id,
         &inputs.capability_snapshot_id,
     ] {
@@ -749,6 +756,7 @@ fn surface_digest(surface: &ReasoningSurface) -> SemanticDigest {
     hasher.add_str(surface.inputs.trace_id.as_str());
     hasher.add_str(surface.inputs.committed_transition_id.as_str());
     hasher.add_str(surface.inputs.transition_id.as_str());
+    hasher.add_str(surface.inputs.scheduling_decision_id.as_str());
     hasher.add_str(surface.inputs.frontier_frame_id.as_str());
     hasher.add_str(surface.inputs.capability_snapshot_id.as_str());
     add_contract(&mut hasher, &surface.inputs.projection);
@@ -938,6 +946,7 @@ mod tests {
             trace_id: digest("trace"),
             committed_transition_id: digest("committed-transition"),
             transition_id: digest("transition"),
+            scheduling_decision_id: digest("scheduling-decision"),
             frontier_frame_id: digest("frontier"),
             capability_snapshot_id: digest("capabilities"),
             projection: contract("projection"),
@@ -1019,6 +1028,10 @@ mod tests {
             surface.surface_id.to_string()
         );
         assert_eq!(frame.metadata().row_count, 2);
+        assert_eq!(
+            frame.metadata().attributes["rey.scheduling-decision-id"],
+            surface.inputs.scheduling_decision_id.to_string()
+        );
         let decoded = Frame::from_arrow_stream(&frame.to_arrow_stream().unwrap()).unwrap();
         assert_eq!(decoded.metadata(), frame.metadata());
         assert!(decoded.dataframe().equals_missing(frame.dataframe()));
@@ -1134,6 +1147,29 @@ mod tests {
             surface.verify(),
             Err(ReasoningSurfaceError::SurfaceDigest { .. })
         ));
+    }
+
+    #[test]
+    fn scheduling_decision_participates_in_surface_identity() {
+        let left = surface();
+        let mut changed_inputs = inputs();
+        changed_inputs.scheduling_decision_id = digest("other-scheduling-decision");
+        let right = ReasoningSurface::new(
+            changed_inputs,
+            ReasoningSurfaceLimits::default(),
+            2,
+            SurfaceCompleteness::Complete,
+            vec![
+                row("row-a", "delta-a", "evidence-a", "action-a"),
+                row("row-b", "delta-b", "evidence-b", "action-b"),
+            ],
+            vec![evidence("evidence-a", 10), evidence("evidence-b", 20)],
+            vec![contract("action-a"), contract("action-b")],
+            Vec::new(),
+        )
+        .unwrap();
+
+        assert_ne!(left.surface_id, right.surface_id);
     }
 
     #[test]

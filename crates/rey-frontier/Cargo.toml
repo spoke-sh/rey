@@ -1,0 +1,17 @@
+[package]
+name = "rey-frontier"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+polars.workspace = true
+rey-core = { path = "../rey-core" }
+rey-dataframe = { path = "../rey-dataframe" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

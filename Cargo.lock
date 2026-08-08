@@ -2465,6 +2465,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rey-frontier"
+version = "0.1.0"
+dependencies = [
+ "polars",
+ "rey-core",
+ "rey-dataframe",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "rey-git"
 version = "0.1.0"
 dependencies = [

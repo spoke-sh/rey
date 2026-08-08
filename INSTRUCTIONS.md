@@ -9,17 +9,19 @@ Procedural guidance for humans and agents working on Rey.
 3. `docs/ARCHITECTURE.md` for ownership and data flow.
 4. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
    convergence, or scheduling.
-5. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
+5. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
+   scheduling contracts.
+6. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
    or capability admission.
-6. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
+7. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
    cursors, triggers, or application activation.
-7. `docs/DIFFS.md` before changing frames, comparison, normalization, or
+8. `docs/DIFFS.md` before changing frames, comparison, normalization, or
    renderings.
-8. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
-9. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
-10. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
-11. `plans/README.md` and the active plan before implementation work.
-12. `docs/decisions/README.md` for accepted choices that constrain the work.
+9. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
+10. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
+11. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
+12. `plans/README.md` and the active plan before implementation work.
+13. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 
@@ -38,13 +40,14 @@ Procedural guidance for humans and agents working on Rey.
 
 ## Current Development Interface
 
-Rey has a pinned Nix Rust toolchain, a nine-crate Cargo workspace, an
+Rey has a pinned Nix Rust toolchain, a ten-crate Cargo workspace, an
 environment-inspection and capability-delta/certificate executable, bounded
-local-only proof bundles, pure runtime-state and reasoning-surface contracts,
-and a root Just task surface. Do not generalize the implemented
-capability-specific delta, required-capability certificate, host-filesystem
-bundle, runtime reducer, or policy surface into generic scheduling, provider
-execution, activation, Spoke durability, or Spoke process-lineage behavior.
+local-only proof bundles, pure runtime-state, frontier/progress/scheduling, and
+reasoning-surface contracts, and a root Just task surface. Do not generalize
+the implemented capability-specific delta, required-capability certificate,
+host-filesystem bundle, runtime reducer, frontier selector, or policy surface
+into generic derivation, recurring scheduling, provider execution, activation,
+Spoke durability, or Spoke process-lineage behavior.
 
 Enter the environment and use:
 

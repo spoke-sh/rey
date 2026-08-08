@@ -1,6 +1,6 @@
 # ADR 0013: Runtime State And Reasoning Surface Contracts
 
-- Status: Accepted
+- Status: Accepted; v1 schema selections superseded by ADR 0014
 - Date: 2026-08-07
 
 ## Context
@@ -146,6 +146,11 @@ Those behaviors must consume these contracts and remain independently bounded
 and testable.
 
 ## Consequences
+
+ADR 0014 later preserves these lifecycle and surface invariants while cutting
+the runtime and reasoning surface to v2 so a scheduling decision is recorded
+before orientation. This document remains the rationale and historical v1
+contract.
 
 - Illegal lifecycle jumps and mismatched transition identities fail before a
   scheduler or executor exists.

@@ -23,10 +23,11 @@ JSON, typed Arrow, summary, or Tabular Diff 0.8 output, and evaluate and verify
 a required-capability certificate. The same proof can be published as a
 bounded content-addressed local bundle with explicit filesystem-only retention
 guarantees. Pure library contracts now formalize the runtime transition state
-machine and bounded delta-directed reasoning surface. It runs with zero Spoke.
-Frontier scheduling, provider retrieval/execution, activation, mutation,
-Spoke-backed proof bundles, and connected Spoke behavior remain design
-contracts, not implemented commands.
+machine, canonical frontier and progress relations, deterministic bounded work
+selection, and the delta-directed reasoning surface. They run with zero Spoke.
+Application-specific frontier derivation, recurring scheduling, provider
+retrieval/execution, activation, mutation, Spoke-backed proof bundles, and
+connected Spoke behavior remain design contracts, not implemented commands.
 
 ## Try The First Slice
 
@@ -92,6 +93,9 @@ value:
           ranked frontier                     scoped proof
                │                             and lineage
                ▼
+      bounded work selection
+               │
+               ▼
        retrieve exact evidence
                │
        bounded reasoning surface
@@ -136,8 +140,8 @@ Rey begins with twelve concepts:
   It always names frozen inputs and an effect class.
 - A **delta** is the typed, directed difference between compatible frames. It
   retains keys, types, comparison rules, and both source revisions.
-- A **frontier** is the bounded set of unresolved deltas eligible to direct the
-  next computation.
+- A **frontier** is the bounded relation of unresolved delta- or claim-directed
+  work eligible to direct the next computation.
 - An **activation** is an idempotent match between a declared source-delta
   trigger and one independently runnable application component.
 - A **policy** proposes the next action from a frontier. A policy may be an
@@ -289,6 +293,8 @@ Rey is not:
 - [Architecture](docs/ARCHITECTURE.md) — component ownership and data flow.
 - [Runtime Transitions and Reasoning Surfaces](docs/RUNTIME.md) — lifecycle,
   delta roles, surface bounds, and current contract truth.
+- [Frontier, Progress, and Scheduling](docs/FRONTIER.md) — canonical work,
+  directional progress, stale guards, and deterministic bounded selection.
 - [Environment and Capabilities](docs/ENVIRONMENT.md) — local/remote discovery,
   zero-Spoke behavior, and provider guarantees.
 - [Git Context and Activation](docs/GIT.md) — commit/ref/index polling and
@@ -307,7 +313,7 @@ Rey is not:
 
 ## Current Status
 
-The repository now contains a nine-crate Rust workspace and a zero-Spoke
+The repository now contains a ten-crate Rust workspace and a zero-Spoke
 capability Snapshot-to-Delta-to-Certificate loop. `rey environment inspect`
 emits capability JSON/table/Arrow; `diff` emits typed structured JSON or Arrow,
 summary JSON, and Tabular Diff 0.8 CSV; `prove` and `verify` bind required
@@ -319,9 +325,11 @@ status.
 Bounded process supervision and a read-only partial Git repository/index
 snapshot are also implemented. The Git index digest deliberately reports
 incomplete flag semantics and is not yet an activation cursor. Pure contract
-crates now reject illegal runtime transitions and validate canonical bounded
-reasoning surfaces without scheduling or executing work. The active foundation
-plan covers complete Git polling and routed Spoke proof work; the isolated
-runtime-contract slice is complete. See [Plan 0001](plans/0001-foundation.md)
-and
-[Plan 0002](plans/0002-runtime-contracts.md).
+crates now reject illegal runtime transitions, derive convergence only from
+complete frontier evidence, compare frontier progress, select bounded ready
+work deterministically, and bind that decision into the reasoning surface.
+They do not derive domain work, retrieve providers, or execute actions. The
+active foundation plan covers complete Git polling and routed Spoke proof work.
+See [Plan 0001](plans/0001-foundation.md),
+[Plan 0002](plans/0002-runtime-contracts.md), and
+[Plan 0003](plans/0003-frontier-scheduling.md).

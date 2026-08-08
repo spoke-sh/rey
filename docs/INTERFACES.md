@@ -288,16 +288,39 @@ worktree.changed
 Exact configuration and output schemas remain provisional. See [Git Context
 and Activation](GIT.md).
 
+## Frontier And Scheduling Contracts
+
+The implemented library contracts have no CLI surface. `rey.frontier.v1`
+binds exact application/component/space, trace, committed-record, capability,
+derivation, prioritization, coverage, and limit inputs. Its canonical
+`rey.frontier-rows` version `1` relation is keyed by stable `work_id` and
+retains a derived row identity, delta/claim/lens/action citations, readiness,
+blockers, priority, and estimated cost.
+
+`rey.frontier-progress.v1` compares compatible source and target frontiers in
+that direction. Its `rey.frontier-progress-changes` version `1` relation
+reports resolved, introduced, or updated work with source/target row ids;
+unchanged work remains a summary count.
+
+`rey.scheduling-decision.v1` rejects stale expected record, frontier, and
+capability identities and selects ready work by declared priority descending,
+cost ascending, then stable work id. The `rey.scheduled-work` version `1`
+relation retains selection rank and exact frontier row identity. These are
+deterministic selection contracts, not provider reads, action proposals, an
+execution queue, or a recurring scheduler. See
+[Frontier, Progress, and Scheduling](FRONTIER.md) and
+[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md).
+
 ## Reasoning Surface Contract
 
 Before requesting a policy proposal, the runtime constructs a bounded
 delta-directed reasoning surface. The implemented
-`rey.reasoning-surface.v1` envelope contains:
+`rey.reasoning-surface.v2` envelope contains:
 
 - surface schema, identity, and projection-contract revision;
 - application, component, space, and trace identities;
-- committed and active transitions, frontier frame, cited frontier rows, and
-  applicable transition/residual delta identities;
+- committed and active transitions, scheduling decision, frontier frame, cited
+  frontier rows, and applicable transition/residual delta identities;
 - exact retrieved evidence addresses, source bindings, and provider revisions;
 - a bounded typed projection of changed and unresolved entities;
 - exact versioned admissible action contract references;
@@ -307,7 +330,7 @@ delta-directed reasoning surface. The implemented
 - the actual retrieval-iteration count; and
 - complete, partial, or truncated status with explicit omissions.
 
-Its canonical `rey.reasoning-surface-rows` version `1` DataFrame contains:
+Its canonical `rey.reasoning-surface-rows` version `2` DataFrame contains:
 
 ```text
 frontier_row_id · entity_kind · entity_id
@@ -327,9 +350,10 @@ into a Spoke source, give a cited capability execution authority, or make the
 surface the sole copy of native source content.
 
 The reasoning-surface schema is a verified library contract fixed by
-[ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md),
-not an implemented CLI format. Generic progress and policy-proposal schemas
-remain target contracts.
+[ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md) and
+cut over to decision-bound v2 by
+[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), not an
+implemented CLI format. The policy-proposal schema remains a target contract.
 
 ## Policy Contract
 

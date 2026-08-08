@@ -295,10 +295,11 @@ nix run path:$PWD -- environment verify-bundle proof.bundle
 
 ## Deferred
 
-Long-running Git polling, reasoning-surface retrieval/materialization, generic
-progress comparison, frontier scheduling, multi-step loops, agent policies,
-mutation, local and Spoke compute actions, full codebase lenses, incremental
-physical execution, a Rey service, multi-user operation, and managed deployment
-remain later plans. Plan 0002 implements only the pure lifecycle and bounded
-surface contracts fixed by ADRs 0012 and 0013; it does not claim those runtime
-behaviors are implemented in Plan 0001.
+Long-running Git polling, reasoning-surface retrieval/materialization,
+application-specific frontier derivation/invalidation, recurring scheduling,
+multi-step loops, agent policies, mutation, local and Spoke compute actions,
+full codebase lenses, incremental physical execution, a Rey service,
+multi-user operation, and managed deployment remain later plans. Plan 0002
+implements the pure lifecycle and bounded surface contracts; Plan 0003 adds
+canonical frontier/progress and deterministic work-selection contracts. Neither
+claims those runtime behaviors are implemented in Plan 0001.

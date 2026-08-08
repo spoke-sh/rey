@@ -246,7 +246,7 @@ committed transition and its derived frontier:
 
 ```text
 committed delta/frontier
-  -> retrieve -> project
+  -> schedule -> retrieve -> project
   -> propose -> admit -> probe|mutate
   -> observe -> compare -> evaluate
   -> commit transition
@@ -309,17 +309,19 @@ One transition follows this protocol after a committed frontier is available:
 
 1. freeze the current activation/frontier, source revisions, and relevant frame
    ids;
-2. retrieve declared exact read-only evidence and project the bounded reasoning
+2. select bounded ready frontier work under exact record, frontier, capability,
+   scheduler, and budget inputs;
+3. retrieve declared exact read-only evidence and project the bounded reasoning
    surface, recording omissions and effective limits;
-3. receive a policy proposal citing that surface and frontier evidence;
-4. validate action identity, capability snapshot, allowed effect,
+4. receive a policy proposal citing that surface and frontier evidence;
+5. validate action identity, capability snapshot, allowed effect,
    preconditions, and remaining budget;
-5. submit or perform the action through its owning contract;
-6. retain action, run, attempt, output, and failure lineage;
-7. materialize affected post-action lenses;
-8. compute transition and applicable residual deltas;
-9. evaluate claims, progress, and the next frontier; and
-10. commit the transition record before selecting another action.
+6. submit or perform the action through its owning contract;
+7. retain action, run, attempt, output, and failure lineage;
+8. materialize affected post-action lenses;
+9. compute transition and applicable residual deltas;
+10. evaluate claims, progress, and the next frontier; and
+11. commit the transition record before selecting another action.
 
 An action can complete successfully while its transition fails semantically.
 For example, a compiler process may exit zero while the dependency graph or
@@ -420,7 +422,7 @@ The first design proposes these Rust ownership boundaries:
 | `rey-git` | repository identity, commit/ref/index frames, polling cursors, triggers, and activations |
 | `rey-diff` | compatibility, alignment, typed changes, summaries, and Tabular Diff projection |
 | `rey-runtime` | lifecycle state, spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
-| `rey-frontier` | dependency invalidation, prioritization inputs, and convergence evaluation |
+| `rey-frontier` | canonical frontier/progress relations, prioritization inputs, convergence evaluation, and bounded deterministic selection |
 | `rey-proof` | claims, evidence manifests, certificates, verification, and staleness |
 | `rey-policy` | bounded reasoning surfaces plus provider-neutral proposal and admissible-action contracts |
 | `rey-spoke` | Optional Spoke provider, exact source bindings, compute runs, and artifact persistence |
@@ -465,8 +467,10 @@ partial read-only Git observation, verified capability snapshot loading, an
 exact capability comparator, typed structured and Arrow deltas, Tabular Diff
 projection, required-capability certificate evaluation and verification, and
 bounded content-addressed local proof bundles with explicit filesystem-only
-guarantees. `rey-runtime` now implements only the pure formal state reducer,
-and `rey-policy` implements only the bounded reasoning-surface document and
-DataFrame projection fixed by ADR 0013. Generic frontier derivation,
+guarantees. `rey-runtime` implements the pure formal state reducer through an
+explicit scheduling phase; `rey-frontier` implements canonical frontier,
+progress, and bounded selection contracts; and `rey-policy` implements the
+bounded reasoning-surface document and DataFrame projection.
+Application-specific frontier derivation and invalidation, recurring
 scheduling, provider retrieval/execution, policy proposals, Git activation,
 and the Spoke provider remain target architecture.

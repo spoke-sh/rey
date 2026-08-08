@@ -20,10 +20,10 @@ improvement loop: Rey exposes public-contract gaps in Spoke, and new Spoke
 capabilities become discoverable Rey providers. Do not create a build, package,
 storage, or startup cycle between the repositories.
 
-The repository currently contains foundational documents and a pinned Rust
-development shell, but no Cargo workspace or runtime. Do not infer that a
-crate, binary, format encoder, Spoke adapter, or runtime test exists until the
-workspace proves it.
+The repository currently contains foundational documents, a pinned Rust
+development shell, and a ten-crate Cargo workspace. Executable behavior remains
+narrow: inspect current files and tests before inferring that a provider,
+adapter, scheduler loop, action executor, or Spoke integration exists.
 
 ## Read This First
 
@@ -32,14 +32,15 @@ workspace proves it.
 3. `INSTRUCTIONS.md`
 4. `docs/ARCHITECTURE.md`
 5. `docs/RUNTIME.md`
-6. `docs/ENVIRONMENT.md`
-7. `docs/GIT.md`
-8. `docs/DIFFS.md`
-9. `docs/PROOFS.md`
-10. `docs/INTERFACES.md`
-11. `docs/DEVELOPMENT.md`
-12. `plans/README.md` and the active plan
-13. `docs/decisions/README.md`
+6. `docs/FRONTIER.md`
+7. `docs/ENVIRONMENT.md`
+8. `docs/GIT.md`
+9. `docs/DIFFS.md`
+10. `docs/PROOFS.md`
+11. `docs/INTERFACES.md`
+12. `docs/DEVELOPMENT.md`
+13. `plans/README.md` and the active plan
+14. `docs/decisions/README.md`
 
 ## Core Principles
 
@@ -88,8 +89,8 @@ become a process. The active plan may refine it before scaffolding.
 Resolve ambiguity in this order:
 
 1. `CONSTITUTION.md`
-2. `docs/ARCHITECTURE.md`, `docs/RUNTIME.md`, `docs/ENVIRONMENT.md`,
-   `docs/GIT.md`, `docs/DIFFS.md`, `docs/PROOFS.md`, and
+2. `docs/ARCHITECTURE.md`, `docs/RUNTIME.md`, `docs/FRONTIER.md`,
+   `docs/ENVIRONMENT.md`, `docs/GIT.md`, `docs/DIFFS.md`, `docs/PROOFS.md`, and
    `docs/INTERFACES.md`
 3. accepted ADRs
 4. active plans

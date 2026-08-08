@@ -4,7 +4,7 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const RUNTIME_STATE_SCHEMA: &str = "rey.runtime-state.v1";
+pub const RUNTIME_STATE_SCHEMA: &str = "rey.runtime-state.v2";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RuntimeLimits {
@@ -30,6 +30,7 @@ impl Default for RuntimeLimits {
 pub enum RuntimePhase {
     Bootstrapping,
     Ready,
+    Scheduling,
     Orienting,
     AwaitingProposal,
     Admitting,
@@ -45,6 +46,7 @@ impl RuntimePhase {
         match self {
             Self::Bootstrapping => "bootstrapping",
             Self::Ready => "ready",
+            Self::Scheduling => "scheduling",
             Self::Orienting => "orienting",
             Self::AwaitingProposal => "awaiting_proposal",
             Self::Admitting => "admitting",
@@ -212,8 +214,18 @@ pub enum RuntimeEvent {
         evidence_state: EvidenceState,
         disposition: CommitDisposition,
     },
-    BeginOrientation {
+    BeginScheduling {
         transition_id: SemanticDigest,
+    },
+    SchedulingCompleted {
+        transition_id: SemanticDigest,
+        decision_id: SemanticDigest,
+    },
+    SchedulingStopped {
+        transition_id: SemanticDigest,
+        decision_id: SemanticDigest,
+        semantic_outcome: SemanticOutcome,
+        reason: StopReason,
     },
     ReasoningSurfaceReady {
         transition_id: SemanticDigest,
@@ -264,7 +276,9 @@ impl RuntimeEvent {
     const fn name(&self) -> &'static str {
         match self {
             Self::BootstrapCommitted { .. } => "bootstrap_committed",
-            Self::BeginOrientation { .. } => "begin_orientation",
+            Self::BeginScheduling { .. } => "begin_scheduling",
+            Self::SchedulingCompleted { .. } => "scheduling_completed",
+            Self::SchedulingStopped { .. } => "scheduling_stopped",
             Self::ReasoningSurfaceReady { .. } => "reasoning_surface_ready",
             Self::OrientationFailed { .. } => "orientation_failed",
             Self::ProposalReceived { .. } => "proposal_received",
@@ -294,6 +308,7 @@ pub struct RuntimeState {
     pub committed_record_id: Option<SemanticDigest>,
     pub frontier_id: Option<SemanticDigest>,
     pub active_transition_id: Option<SemanticDigest>,
+    pub scheduling_decision_id: Option<SemanticDigest>,
     pub reasoning_surface_id: Option<SemanticDigest>,
     pub proposal_id: Option<SemanticDigest>,
     pub cancellation_requested: bool,
@@ -328,6 +343,7 @@ impl RuntimeState {
             committed_record_id: None,
             frontier_id: None,
             active_transition_id: None,
+            scheduling_decision_id: None,
             reasoning_surface_id: None,
             proposal_id: None,
             cancellation_requested: false,
@@ -380,7 +396,7 @@ impl RuntimeState {
                 next.evidence_state = evidence_state;
                 apply_disposition(&mut next, disposition);
             }
-            RuntimeEvent::BeginOrientation { transition_id }
+            RuntimeEvent::BeginScheduling { transition_id }
                 if self.phase == RuntimePhase::Ready =>
             {
                 if self.frontier_id.is_none() {
@@ -388,9 +404,10 @@ impl RuntimeState {
                         "ready state requires a committed frontier",
                     ));
                 }
-                next.phase = RuntimePhase::Orienting;
+                next.phase = RuntimePhase::Scheduling;
                 next.evidence_state = EvidenceState::Pending;
                 next.active_transition_id = Some(transition_id);
+                next.scheduling_decision_id = None;
                 next.reasoning_surface_id = None;
                 next.proposal_id = None;
                 next.cancellation_requested = false;
@@ -402,6 +419,39 @@ impl RuntimeState {
                 next.semantic_outcome = None;
                 next.pending_stop_reason = None;
                 next.stop_reason = None;
+            }
+            RuntimeEvent::SchedulingCompleted {
+                transition_id,
+                decision_id,
+            } if self.phase == RuntimePhase::Scheduling => {
+                require_transition(self, &transition_id)?;
+                next.scheduling_decision_id = Some(decision_id);
+                next.phase = RuntimePhase::Orienting;
+            }
+            RuntimeEvent::SchedulingStopped {
+                transition_id,
+                decision_id,
+                semantic_outcome,
+                reason,
+            } if self.phase == RuntimePhase::Scheduling => {
+                require_transition(self, &transition_id)?;
+                if reason == StopReason::Converged {
+                    return Err(RuntimeError::InvalidEvent(
+                        "scheduling cannot establish convergence from a ready frontier",
+                    ));
+                }
+                if !matches!(
+                    semantic_outcome,
+                    SemanticOutcome::Unresolved | SemanticOutcome::Inconclusive
+                ) {
+                    return Err(RuntimeError::InvalidEvent(
+                        "scheduling stop can report only unresolved or inconclusive work",
+                    ));
+                }
+                next.scheduling_decision_id = Some(decision_id);
+                next.semantic_outcome = Some(semantic_outcome);
+                next.pending_stop_reason = Some(reason);
+                next.phase = RuntimePhase::Committing;
             }
             RuntimeEvent::ReasoningSurfaceReady {
                 transition_id,
@@ -547,6 +597,7 @@ impl RuntimeState {
                 next.committed_record_id = Some(record_id);
                 next.evidence_state = evidence_state;
                 next.active_transition_id = None;
+                next.scheduling_decision_id = None;
                 next.reasoning_surface_id = None;
                 next.proposal_id = None;
                 next.pending_stop_reason = None;
@@ -602,6 +653,7 @@ impl RuntimeState {
             self.committed_record_id.as_ref(),
             self.frontier_id.as_ref(),
             self.active_transition_id.as_ref(),
+            self.scheduling_decision_id.as_ref(),
             self.reasoning_surface_id.as_ref(),
             self.proposal_id.as_ref(),
         ]
@@ -646,7 +698,21 @@ impl RuntimeState {
             RuntimePhase::Bootstrapping => {
                 if self.event_sequence != 0
                     || self.baseline_id.is_some()
+                    || self.committed_transition_id.is_some()
+                    || self.committed_record_id.is_some()
+                    || self.frontier_id.is_some()
                     || self.active_transition_id.is_some()
+                    || self.scheduling_decision_id.is_some()
+                    || self.reasoning_surface_id.is_some()
+                    || self.proposal_id.is_some()
+                    || self.cancellation_requested
+                    || self.execution_outcome.is_some()
+                    || self.observation_outcome.is_some()
+                    || !self.observation_ids.is_empty()
+                    || !self.transition_delta_ids.is_empty()
+                    || !self.residual_delta_ids.is_empty()
+                    || self.semantic_outcome.is_some()
+                    || self.pending_stop_reason.is_some()
                     || self.evidence_state != EvidenceState::Pending
                     || self.stop_reason.is_some()
                 {
@@ -657,8 +723,22 @@ impl RuntimeState {
             }
             RuntimePhase::Ready => {
                 if self.baseline_id.is_none()
+                    || self.committed_record_id.is_none()
                     || self.frontier_id.is_none()
                     || self.active_transition_id.is_some()
+                    || self.scheduling_decision_id.is_some()
+                    || self.reasoning_surface_id.is_some()
+                    || self.proposal_id.is_some()
+                    || !matches!(
+                        self.semantic_outcome,
+                        Some(
+                            SemanticOutcome::Unresolved
+                                | SemanticOutcome::Progressing
+                                | SemanticOutcome::Unchanged
+                                | SemanticOutcome::Regressing
+                        )
+                    )
+                    || self.pending_stop_reason.is_some()
                     || !self.evidence_state.permits_continuation()
                     || self.stop_reason.is_some()
                 {
@@ -667,8 +747,20 @@ impl RuntimeState {
                     ));
                 }
             }
-            RuntimePhase::Orienting => {
+            RuntimePhase::Scheduling => {
                 require_active_pending(self)?;
+                if self.frontier_id.is_none()
+                    || self.scheduling_decision_id.is_some()
+                    || self.reasoning_surface_id.is_some()
+                    || self.proposal_id.is_some()
+                {
+                    return Err(RuntimeError::InvalidState(
+                        "scheduling cannot already contain a decision, surface, or proposal",
+                    ));
+                }
+            }
+            RuntimePhase::Orienting => {
+                require_scheduled_frontier(self)?;
                 if self.reasoning_surface_id.is_some() || self.proposal_id.is_some() {
                     return Err(RuntimeError::InvalidState(
                         "orientation cannot already contain a surface or proposal",
@@ -676,7 +768,7 @@ impl RuntimeState {
                 }
             }
             RuntimePhase::AwaitingProposal => {
-                require_active_pending(self)?;
+                require_scheduled_frontier(self)?;
                 if self.reasoning_surface_id.is_none() || self.proposal_id.is_some() {
                     return Err(RuntimeError::InvalidState(
                         "awaiting-proposal state requires a surface and no proposal",
@@ -684,7 +776,7 @@ impl RuntimeState {
                 }
             }
             RuntimePhase::Admitting | RuntimePhase::Executing => {
-                require_active_pending(self)?;
+                require_scheduled_frontier(self)?;
                 if self.reasoning_surface_id.is_none() || self.proposal_id.is_none() {
                     return Err(RuntimeError::InvalidState(
                         "admission and execution require a surface and proposal",
@@ -692,7 +784,7 @@ impl RuntimeState {
                 }
             }
             RuntimePhase::Observing => {
-                require_active_pending(self)?;
+                require_scheduled_frontier(self)?;
                 if self.execution_outcome.is_none() {
                     return Err(RuntimeError::InvalidState(
                         "observing state requires a terminal provider execution outcome",
@@ -700,7 +792,7 @@ impl RuntimeState {
                 }
             }
             RuntimePhase::Evaluating => {
-                require_active_pending(self)?;
+                require_scheduled_frontier(self)?;
                 if self.execution_outcome.is_none() || self.observation_outcome.is_none() {
                     return Err(RuntimeError::InvalidState(
                         "evaluating state requires execution and observation outcomes",
@@ -708,7 +800,7 @@ impl RuntimeState {
                 }
             }
             RuntimePhase::Committing => {
-                require_active_pending(self)?;
+                require_scheduled(self)?;
                 if self.semantic_outcome.is_none() {
                     return Err(RuntimeError::InvalidState(
                         "committing state requires a semantic outcome",
@@ -718,6 +810,7 @@ impl RuntimeState {
             RuntimePhase::Stopped => {
                 if self.baseline_id.is_none()
                     || self.active_transition_id.is_some()
+                    || self.scheduling_decision_id.is_some()
                     || self.stop_reason.is_none()
                     || self.evidence_state == EvidenceState::Pending
                 {
@@ -735,6 +828,26 @@ fn require_active_pending(state: &RuntimeState) -> Result<(), RuntimeError> {
     if state.active_transition_id.is_none() || state.evidence_state != EvidenceState::Pending {
         return Err(RuntimeError::InvalidState(
             "active phase requires a transition with pending evidence",
+        ));
+    }
+    Ok(())
+}
+
+fn require_scheduled(state: &RuntimeState) -> Result<(), RuntimeError> {
+    require_active_pending(state)?;
+    if state.scheduling_decision_id.is_none() {
+        return Err(RuntimeError::InvalidState(
+            "post-scheduling phase requires a scheduling decision",
+        ));
+    }
+    Ok(())
+}
+
+fn require_scheduled_frontier(state: &RuntimeState) -> Result<(), RuntimeError> {
+    require_scheduled(state)?;
+    if state.frontier_id.is_none() {
+        return Err(RuntimeError::InvalidState(
+            "pre-evaluation phase requires the committed frontier",
         ));
     }
     Ok(())
@@ -930,6 +1043,7 @@ fn state_digest(state: &RuntimeState) -> SemanticDigest {
     add_optional_digest(&mut hasher, state.committed_record_id.as_ref());
     add_optional_digest(&mut hasher, state.frontier_id.as_ref());
     add_optional_digest(&mut hasher, state.active_transition_id.as_ref());
+    add_optional_digest(&mut hasher, state.scheduling_decision_id.as_ref());
     add_optional_digest(&mut hasher, state.reasoning_surface_id.as_ref());
     add_optional_digest(&mut hasher, state.proposal_id.as_ref());
     hasher.add_bool(state.cancellation_requested);
@@ -1002,7 +1116,7 @@ mod tests {
     use super::*;
 
     fn digest(value: &str) -> SemanticDigest {
-        let mut hasher = SemanticHasher::new("rey.runtime-test.v1");
+        let mut hasher = SemanticHasher::new("rey.runtime-test.v2");
         hasher.add_str(value);
         hasher.finish()
     }
@@ -1024,14 +1138,23 @@ mod tests {
         .unwrap()
     }
 
-    #[test]
-    fn complete_transition_reaches_the_next_committed_frontier() {
-        let transition_id = digest("transition-1");
-        let state = ready_state()
-            .apply(RuntimeEvent::BeginOrientation {
+    fn scheduled_state(state: RuntimeState, transition_id: &SemanticDigest) -> RuntimeState {
+        state
+            .apply(RuntimeEvent::BeginScheduling {
                 transition_id: transition_id.clone(),
             })
             .unwrap()
+            .apply(RuntimeEvent::SchedulingCompleted {
+                transition_id: transition_id.clone(),
+                decision_id: digest("scheduling-decision"),
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn complete_transition_reaches_the_next_committed_frontier() {
+        let transition_id = digest("transition-1");
+        let state = scheduled_state(ready_state(), &transition_id)
             .apply(RuntimeEvent::ReasoningSurfaceReady {
                 transition_id: transition_id.clone(),
                 surface_id: digest("surface"),
@@ -1083,11 +1206,7 @@ mod tests {
     #[test]
     fn process_success_does_not_skip_observation_and_evaluation() {
         let transition_id = digest("transition");
-        let state = ready_state()
-            .apply(RuntimeEvent::BeginOrientation {
-                transition_id: transition_id.clone(),
-            })
-            .unwrap()
+        let state = scheduled_state(ready_state(), &transition_id)
             .apply(RuntimeEvent::ReasoningSurfaceReady {
                 transition_id: transition_id.clone(),
                 surface_id: digest("surface"),
@@ -1123,11 +1242,7 @@ mod tests {
     #[test]
     fn cancellation_still_requires_a_terminal_execution_and_observation() {
         let transition_id = digest("transition");
-        let state = ready_state()
-            .apply(RuntimeEvent::BeginOrientation {
-                transition_id: transition_id.clone(),
-            })
-            .unwrap()
+        let state = scheduled_state(ready_state(), &transition_id)
             .apply(RuntimeEvent::ReasoningSurfaceReady {
                 transition_id: transition_id.clone(),
                 surface_id: digest("surface"),
@@ -1177,11 +1292,7 @@ mod tests {
     #[test]
     fn converged_evaluation_stops_only_after_commit() {
         let transition_id = digest("transition");
-        let state = ready_state()
-            .apply(RuntimeEvent::BeginOrientation {
-                transition_id: transition_id.clone(),
-            })
-            .unwrap()
+        let state = scheduled_state(ready_state(), &transition_id)
             .apply(RuntimeEvent::ReasoningSurfaceReady {
                 transition_id: transition_id.clone(),
                 surface_id: digest("surface"),
@@ -1246,11 +1357,7 @@ mod tests {
     #[test]
     fn missing_evidence_cannot_continue() {
         let transition_id = digest("transition");
-        let state = ready_state()
-            .apply(RuntimeEvent::BeginOrientation {
-                transition_id: transition_id.clone(),
-            })
-            .unwrap()
+        let state = scheduled_state(ready_state(), &transition_id)
             .apply(RuntimeEvent::OrientationFailed {
                 transition_id: transition_id.clone(),
                 reason: StopReason::EvidenceMissing,
@@ -1270,18 +1377,92 @@ mod tests {
 
     #[test]
     fn mismatched_transition_identity_is_rejected() {
+        let expected = digest("expected");
         let state = ready_state()
-            .apply(RuntimeEvent::BeginOrientation {
-                transition_id: digest("expected"),
+            .apply(RuntimeEvent::BeginScheduling {
+                transition_id: expected,
             })
             .unwrap();
         assert!(matches!(
-            state.apply(RuntimeEvent::ReasoningSurfaceReady {
+            state.apply(RuntimeEvent::SchedulingCompleted {
                 transition_id: digest("other"),
-                surface_id: digest("surface"),
+                decision_id: digest("decision"),
             }),
             Err(RuntimeError::TransitionIdentity { .. })
         ));
+    }
+
+    #[test]
+    fn orientation_requires_a_recorded_scheduling_decision() {
+        let transition_id = digest("transition");
+        let state = ready_state()
+            .apply(RuntimeEvent::BeginScheduling {
+                transition_id: transition_id.clone(),
+            })
+            .unwrap();
+        assert_eq!(state.phase, RuntimePhase::Scheduling);
+        assert!(matches!(
+            state.apply(RuntimeEvent::ReasoningSurfaceReady {
+                transition_id: transition_id.clone(),
+                surface_id: digest("surface"),
+            }),
+            Err(RuntimeError::IllegalEvent { .. })
+        ));
+
+        let decision_id = digest("decision");
+        let state = state
+            .apply(RuntimeEvent::SchedulingCompleted {
+                transition_id,
+                decision_id: decision_id.clone(),
+            })
+            .unwrap();
+        assert_eq!(state.phase, RuntimePhase::Orienting);
+        assert_eq!(state.scheduling_decision_id, Some(decision_id));
+    }
+
+    #[test]
+    fn scheduling_stop_preserves_unresolved_work_and_commits_explicitly() {
+        let transition_id = digest("transition");
+        let state = ready_state()
+            .apply(RuntimeEvent::BeginScheduling {
+                transition_id: transition_id.clone(),
+            })
+            .unwrap();
+        assert!(matches!(
+            state.apply(RuntimeEvent::SchedulingStopped {
+                transition_id: transition_id.clone(),
+                decision_id: digest("bad-decision"),
+                semantic_outcome: SemanticOutcome::Converged,
+                reason: StopReason::Converged,
+            }),
+            Err(RuntimeError::InvalidEvent(_))
+        ));
+
+        let state = state
+            .apply(RuntimeEvent::SchedulingStopped {
+                transition_id: transition_id.clone(),
+                decision_id: digest("budget-decision"),
+                semantic_outcome: SemanticOutcome::Unresolved,
+                reason: StopReason::BudgetExhausted,
+            })
+            .unwrap();
+        assert_eq!(state.phase, RuntimePhase::Committing);
+        assert_eq!(state.frontier_id, Some(digest("frontier-0")));
+
+        let state = state
+            .apply(RuntimeEvent::TransitionCommitted {
+                transition_id,
+                record_id: digest("budget-record"),
+                evidence_state: EvidenceState::Retained,
+                disposition: CommitDisposition::Stop {
+                    reason: StopReason::BudgetExhausted,
+                },
+            })
+            .unwrap();
+        assert_eq!(state.phase, RuntimePhase::Stopped);
+        assert_eq!(state.semantic_outcome, Some(SemanticOutcome::Unresolved));
+        assert_eq!(state.stop_reason, Some(StopReason::BudgetExhausted));
+        assert!(state.scheduling_decision_id.is_none());
     }
 
     #[test]
@@ -1353,7 +1534,7 @@ mod tests {
             })
             .unwrap();
         assert!(matches!(
-            state.apply(RuntimeEvent::BeginOrientation {
+            state.apply(RuntimeEvent::BeginScheduling {
                 transition_id: digest("transition"),
             }),
             Err(RuntimeError::EventLimit { .. })
@@ -1374,30 +1555,27 @@ mod tests {
                     evidence_state: EvidenceState::Retained,
                     disposition: CommitDisposition::Continue,
                 })
-                .unwrap()
-                .apply(RuntimeEvent::BeginOrientation {
-                    transition_id: transition_id.clone(),
-                })
-                .unwrap()
-                .apply(RuntimeEvent::ReasoningSurfaceReady {
-                    transition_id: transition_id.clone(),
-                    surface_id: digest("bounded-surface"),
-                })
-                .unwrap()
-                .apply(RuntimeEvent::ProposalReceived {
-                    transition_id: transition_id.clone(),
-                    proposal_id: digest("bounded-proposal"),
-                })
-                .unwrap()
-                .apply(RuntimeEvent::ProposalAdmitted {
-                    transition_id: transition_id.clone(),
-                })
-                .unwrap()
-                .apply(RuntimeEvent::ExecutionFinished {
-                    transition_id: transition_id.clone(),
-                    outcome: ExecutionOutcome::Succeeded,
-                })
                 .unwrap();
+        let state = scheduled_state(state, &transition_id)
+            .apply(RuntimeEvent::ReasoningSurfaceReady {
+                transition_id: transition_id.clone(),
+                surface_id: digest("bounded-surface"),
+            })
+            .unwrap()
+            .apply(RuntimeEvent::ProposalReceived {
+                transition_id: transition_id.clone(),
+                proposal_id: digest("bounded-proposal"),
+            })
+            .unwrap()
+            .apply(RuntimeEvent::ProposalAdmitted {
+                transition_id: transition_id.clone(),
+            })
+            .unwrap()
+            .apply(RuntimeEvent::ExecutionFinished {
+                transition_id: transition_id.clone(),
+                outcome: ExecutionOutcome::Succeeded,
+            })
+            .unwrap();
         assert!(matches!(
             state.apply(RuntimeEvent::ObservationCompleted {
                 transition_id,
