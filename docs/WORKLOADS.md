@@ -226,28 +226,48 @@ required · passed · failed · inconclusive · blocked
 running · queued · stale · optional
 ```
 
-The progress bar in `rey workloads list` is a human projection of those exact
-counts. It must expose both passing and evaluated coverage, for example:
+The human `rey workloads list` view first aggregates qualification, scenario,
+run, and inventory dimensions across the portfolio. It then renders one card
+per workload with a derived journey, passing and evaluated coverage, explicit
+evaluation counts, qualification state, exact candidate and qualified graph
+identities, retained test evidence, freshness, and latest run state. For
+example:
 
 ```text
-WORKLOAD  GRAPH       SCENARIOS                         QUALIFICATION
-index     blake3:...  [======!!..] 6/10 pass, 8/10 eval failing
+WORKLOAD PORTFOLIO
+  Qualification          1/2 qualified · 1 failing · 0 inconclusive · 0 stale
+  Scenarios              3/4 passing · 4/4 evaluated · 0 stale · 0 optional
+  Runs                   1 passed · 0 blocked · 1 not run
+  Inventory              2 total · 2 tested · 0 untested
+
+rey.fixture.text-mismatch
+  Journey                REVISE GRAPH
+  Scenario conformance   ██████████░░░░░░░░░░   50%  1/2 passing · 2/2 evaluated
+  Evaluation             1 passed · 1 failed · 0 inconclusive · 0 stale · 0 optional
+  Qualification          FAILING
+  Graph                  rey.fixture.text-mismatch.graph@1
+  Candidate              blake3:...
+  Qualified              none
+  Test evidence          blake3:... · fresh
+  Last run               not run
 ```
 
-The bar cannot rely on color for meaning, and structured output carries the
-underlying counts rather than rendered glyphs. A failed or inconclusive
-scenario may count as evaluated but never as passed. A stale result is shown as
-stale evidence and counts as untested for the current graph. No percentage or
-bar is a proof of semantic progress across graph revisions.
+The bar cannot rely on color for meaning: labels, counts, percentages, and
+glyphs remain legible with color disabled or redirected. Structured output
+continues to carry the underlying per-workload counts rather than portfolio
+rendering glyphs. A failed or inconclusive scenario may count as evaluated but
+never as passed. A stale result is shown as stale evidence and counts as
+untested for the current graph. No percentage or bar is a proof of semantic
+progress across graph revisions.
 
 Qualification is convergence only for the workload's declared required
 scenario scope. It is not universal code coverage, production safety, or proof
 that optional behavior was exercised.
 
-The list bar uses the catalog's exact campaign-head graph revision. If no test
+The list card uses the catalog's exact campaign-head graph revision. If no test
 campaign exists, it uses the current qualified graph; if neither exists, the
 workload is untested. Candidate and qualified graph identities are separate
-columns, so a failing candidate never makes an older qualified graph appear to
+fields, so a failing candidate never makes an older qualified graph appear to
 have failed.
 
 ## Catalog, Results, And Staleness

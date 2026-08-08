@@ -385,7 +385,7 @@ fn local_bundle_limit_failure_publishes_nothing() {
 }
 
 #[test]
-fn workload_list_is_read_only_machine_clean_and_reports_exact_graphs() {
+fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     let workspace = TempDir::new().unwrap();
     let output = run_rey(&[
         "workloads",
@@ -426,9 +426,83 @@ fn workload_list_is_read_only_machine_clean_and_reports_exact_graphs() {
         "table",
     ]);
     assert!(table.status.success());
+    assert!(table.stderr.is_empty());
     let table = String::from_utf8(table.stdout).unwrap();
-    assert!(table.contains("progress"));
-    assert_eq!(table.matches("\t[..]\t0/0\tuntested\tuntested").count(), 2);
+    assert!(table.starts_with("\nWORKLOAD PORTFOLIO\n"));
+    assert!(
+        table.contains(
+            "Qualification          0/2 qualified · 0 failing · 0 inconclusive · 0 stale"
+        )
+    );
+    assert!(
+        table.contains("Scenarios              0/4 passing · 0/4 evaluated · 0 stale · 0 optional")
+    );
+    assert!(table.contains("Runs                   0 passed · 0 blocked · 2 not run"));
+    assert!(table.contains("Inventory              2 total · 0 tested · 2 untested"));
+    assert_eq!(table.matches("Journey                TEST").count(), 2);
+    assert_eq!(
+        table
+            .matches("░░░░░░░░░░░░░░░░░░░░    0%  0/2 passing · 0/2 evaluated")
+            .count(),
+        2
+    );
+    assert!(table.contains("Graph                  rey.fixture.text-normalize.graph@1"));
+    assert!(table.contains("Candidate              blake3:"));
+    assert_eq!(table.matches("Qualification          UNTESTED").count(), 2);
+    assert_eq!(table.matches("Test evidence          none").count(), 2);
+    assert!(!table.contains('\t'));
+    assert!(!table.contains("\u{1b}["));
+
+    let tested = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+    ]);
+    assert_eq!(tested.status.code(), Some(2));
+    let executed = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "run",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+        "--input",
+        " rey ",
+    ]);
+    assert!(executed.status.success());
+
+    let evolved = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(evolved.status.success());
+    assert!(evolved.stderr.is_empty());
+    let evolved = String::from_utf8(evolved.stdout).unwrap();
+    assert!(
+        evolved.contains(
+            "Qualification          1/2 qualified · 1 failing · 0 inconclusive · 0 stale"
+        )
+    );
+    assert!(
+        evolved
+            .contains("Scenarios              3/4 passing · 4/4 evaluated · 0 stale · 0 optional")
+    );
+    assert!(evolved.contains("Runs                   1 passed · 0 blocked · 1 not run"));
+    assert!(evolved.contains("Inventory              2 total · 2 tested · 0 untested"));
+    assert!(evolved.contains("Journey                RUN COMPLETE"));
+    assert!(evolved.contains("Journey                REVISE GRAPH"));
+    assert!(evolved.contains("████████████████████  100%  2/2 passing · 2/2 evaluated"));
+    assert!(evolved.contains("██████████░░░░░░░░░░   50%  1/2 passing · 2/2 evaluated"));
+    assert!(evolved.contains("Evaluation             1 passed · 1 failed"));
+    assert!(evolved.contains("Qualification          QUALIFIED"));
+    assert!(evolved.contains("Qualification          FAILING"));
+    assert!(evolved.contains("Test evidence          blake3:"));
+    assert!(evolved.contains("Last run               passed"));
+    assert!(!evolved.contains("\u{1b}["));
 }
 
 #[test]

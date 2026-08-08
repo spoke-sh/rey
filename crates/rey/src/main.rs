@@ -384,7 +384,9 @@ fn workload_list(store: &LocalWorkloadStore, args: WorkloadListArgs) -> Result<E
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
-        WorkloadOutputFormat::Table => write_workload_list(&mut stdout, &list)?,
+        WorkloadOutputFormat::Table => {
+            write_workload_list(&mut stdout, &list, TerminalStyle::stdout())?;
+        }
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
@@ -485,30 +487,333 @@ fn test_batch_exit(batch: &WorkloadTestBatch) -> ExitCode {
     }
 }
 
-fn write_workload_list(output: &mut impl Write, list: &WorkloadList) -> Result<(), CliError> {
-    writeln!(
+#[derive(Clone, Copy, Debug)]
+struct TerminalStyle {
+    enabled: bool,
+}
+
+impl TerminalStyle {
+    fn stdout() -> Self {
+        Self {
+            enabled: io::stdout().is_terminal()
+                && std::env::var_os("NO_COLOR").is_none()
+                && std::env::var_os("TERM").is_none_or(|term| term != "dumb"),
+        }
+    }
+
+    fn paint(self, code: &str, value: &str) -> String {
+        if self.enabled {
+            format!("\u{1b}[{code}m{value}\u{1b}[0m")
+        } else {
+            value.to_owned()
+        }
+    }
+
+    fn bold(self, value: &str) -> String {
+        self.paint("1", value)
+    }
+
+    fn cyan_bold(self, value: &str) -> String {
+        self.paint("1;36", value)
+    }
+
+    fn green(self, value: &str) -> String {
+        self.paint("32", value)
+    }
+
+    fn yellow(self, value: &str) -> String {
+        self.paint("33", value)
+    }
+
+    fn red(self, value: &str) -> String {
+        self.paint("31", value)
+    }
+
+    fn dim(self, value: &str) -> String {
+        self.paint("2", value)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct WorkloadPortfolioSummary {
+    total: u64,
+    tested: u64,
+    untested: u64,
+    qualified: u64,
+    failing: u64,
+    inconclusive: u64,
+    stale_workloads: u64,
+    required_scenarios: u64,
+    passed_scenarios: u64,
+    evaluated_scenarios: u64,
+    stale_scenarios: u64,
+    optional_scenarios: u64,
+    passed_runs: u64,
+    blocked_runs: u64,
+    unrun: u64,
+}
+
+impl WorkloadPortfolioSummary {
+    fn derive(workloads: &[WorkloadSummary]) -> Self {
+        let mut summary = Self::default();
+        for workload in workloads {
+            summary.total = summary.total.saturating_add(1);
+            match workload.qualification {
+                rey::workloads::QualificationState::Untested => {
+                    summary.untested = summary.untested.saturating_add(1);
+                }
+                rey::workloads::QualificationState::Qualified => {
+                    summary.tested = summary.tested.saturating_add(1);
+                    summary.qualified = summary.qualified.saturating_add(1);
+                }
+                rey::workloads::QualificationState::Failing => {
+                    summary.tested = summary.tested.saturating_add(1);
+                    summary.failing = summary.failing.saturating_add(1);
+                }
+                rey::workloads::QualificationState::Inconclusive => {
+                    summary.tested = summary.tested.saturating_add(1);
+                    summary.inconclusive = summary.inconclusive.saturating_add(1);
+                }
+                rey::workloads::QualificationState::Stale => {
+                    summary.tested = summary.tested.saturating_add(1);
+                    summary.stale_workloads = summary.stale_workloads.saturating_add(1);
+                }
+            }
+            summary.required_scenarios =
+                summary.required_scenarios.saturating_add(workload.required);
+            summary.passed_scenarios = summary.passed_scenarios.saturating_add(workload.passed);
+            summary.evaluated_scenarios = summary
+                .evaluated_scenarios
+                .saturating_add(workload.evaluated);
+            summary.stale_scenarios = summary.stale_scenarios.saturating_add(workload.stale);
+            summary.optional_scenarios =
+                summary.optional_scenarios.saturating_add(workload.optional);
+            match workload.last_run_status {
+                Some(RunStatus::Passed) => {
+                    summary.passed_runs = summary.passed_runs.saturating_add(1);
+                }
+                Some(RunStatus::Blocked) => {
+                    summary.blocked_runs = summary.blocked_runs.saturating_add(1);
+                }
+                None => summary.unrun = summary.unrun.saturating_add(1),
+            }
+        }
+        summary
+    }
+}
+
+fn write_workload_list(
+    output: &mut impl Write,
+    list: &WorkloadList,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    let portfolio = WorkloadPortfolioSummary::derive(&list.workloads);
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("WORKLOAD PORTFOLIO"))?;
+    write_portfolio_field(
         output,
-        "workload\tgraph_revision\tgraph_digest\tprogress\tpassed/evaluated\tqualification\tfreshness\tlast_run"
+        "Qualification",
+        &format!(
+            "{}/{} qualified · {} failing · {} inconclusive · {} stale",
+            portfolio.qualified,
+            portfolio.total,
+            portfolio.failing,
+            portfolio.inconclusive,
+            portfolio.stale_workloads,
+        ),
     )?;
-    for workload in &list.workloads {
-        writeln!(
+    write_portfolio_field(
+        output,
+        "Scenarios",
+        &format!(
+            "{}/{} passing · {}/{} evaluated · {} stale · {} optional",
+            portfolio.passed_scenarios,
+            portfolio.required_scenarios,
+            portfolio.evaluated_scenarios,
+            portfolio.required_scenarios,
+            portfolio.stale_scenarios,
+            portfolio.optional_scenarios,
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Runs",
+        &format!(
+            "{} passed · {} blocked · {} not run",
+            portfolio.passed_runs, portfolio.blocked_runs, portfolio.unrun,
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Inventory",
+        &format!(
+            "{} total · {} tested · {} untested",
+            portfolio.total, portfolio.tested, portfolio.untested,
+        ),
+    )?;
+    if list.workloads.is_empty() {
+        writeln!(output, "  {}", style.dim("No workloads found"))?;
+        return Ok(());
+    }
+
+    for (index, workload) in list.workloads.iter().enumerate() {
+        writeln!(output)?;
+        writeln!(output, "{}", style.bold(&workload.workload.id))?;
+        write_portfolio_field(output, "Purpose", &workload.title)?;
+        write_portfolio_field(output, "Journey", &render_journey(workload, style))?;
+        write_portfolio_field(
             output,
-            "{}\t{}\t{}\t{}\t{}/{}\t{}\t{}\t{}",
-            workload.workload.id,
-            workload.candidate_graph.revision,
-            workload.candidate_graph.semantic_digest,
-            progress_bar(workload),
-            workload.passed,
-            workload.evaluated,
-            workload.qualification.as_str(),
-            workload.freshness.as_str(),
-            workload.last_run_status.map_or("-", |status| match status {
-                RunStatus::Passed => "passed",
-                RunStatus::Blocked => "blocked",
-            }),
+            "Scenario conformance",
+            &render_scenario_conformance(workload, style),
         )?;
+        write_portfolio_field(
+            output,
+            "Evaluation",
+            &format!(
+                "{} passed · {} failed · {} inconclusive · {} stale · {} optional",
+                workload.passed,
+                workload.failed,
+                workload.inconclusive,
+                workload.stale,
+                workload.optional,
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Qualification",
+            &render_qualification(workload, style),
+        )?;
+        write_portfolio_field(
+            output,
+            "Graph",
+            &format!(
+                "{}@{}",
+                workload.candidate_graph.id, workload.candidate_graph.revision
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Candidate",
+            workload.candidate_graph.semantic_digest.as_str(),
+        )?;
+        write_portfolio_field(
+            output,
+            "Qualified",
+            &workload.qualified_graph.as_ref().map_or_else(
+                || style.dim("none"),
+                |graph| graph.semantic_digest.to_string(),
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Test evidence",
+            &workload.last_test_result_id.as_ref().map_or_else(
+                || style.dim("none"),
+                |result_id| {
+                    format!(
+                        "{} · {}",
+                        result_id,
+                        render_freshness(workload.freshness, style)
+                    )
+                },
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Last run",
+            &render_last_run(workload.last_run_status, style),
+        )?;
+        if index + 1 < list.workloads.len() {
+            writeln!(
+                output,
+                "{}",
+                style.dim("  ────────────────────────────────────────────────────────────")
+            )?;
+        }
     }
     Ok(())
+}
+
+fn write_portfolio_field(
+    output: &mut impl Write,
+    label: &str,
+    value: &str,
+) -> Result<(), CliError> {
+    writeln!(output, "  {label:<22} {value}")?;
+    Ok(())
+}
+
+fn render_journey(summary: &WorkloadSummary, style: TerminalStyle) -> String {
+    match summary.qualification {
+        rey::workloads::QualificationState::Untested => style.cyan_bold("TEST"),
+        rey::workloads::QualificationState::Failing => style.red("REVISE GRAPH"),
+        rey::workloads::QualificationState::Inconclusive => style.yellow("RESTORE EVIDENCE"),
+        rey::workloads::QualificationState::Stale => style.yellow("RETEST"),
+        rey::workloads::QualificationState::Qualified => match summary.last_run_status {
+            Some(RunStatus::Passed) => style.green("RUN COMPLETE"),
+            Some(RunStatus::Blocked) | None => style.cyan_bold("RUN READY"),
+        },
+    }
+}
+
+fn render_scenario_conformance(summary: &WorkloadSummary, style: TerminalStyle) -> String {
+    let percent = scenario_percent(summary.passed, summary.required);
+    let raw_bar = score_bar(percent, 20);
+    let bar = match summary.qualification {
+        rey::workloads::QualificationState::Qualified => style.green(&raw_bar),
+        rey::workloads::QualificationState::Failing => style.red(&raw_bar),
+        rey::workloads::QualificationState::Inconclusive
+        | rey::workloads::QualificationState::Stale => style.yellow(&raw_bar),
+        rey::workloads::QualificationState::Untested => style.dim(&raw_bar),
+    };
+    format!(
+        "{bar}  {percent:>3}%  {}/{} passing · {}/{} evaluated",
+        summary.passed, summary.required, summary.evaluated, summary.required,
+    )
+}
+
+fn scenario_percent(passed: u64, required: u64) -> u64 {
+    passed
+        .saturating_mul(100)
+        .saturating_add(required / 2)
+        .checked_div(required)
+        .unwrap_or(0)
+}
+
+fn score_bar(percent: u64, width: u64) -> String {
+    let bounded = percent.min(100);
+    let filled = bounded.saturating_mul(width).saturating_add(50) / 100;
+    format!(
+        "{}{}",
+        "█".repeat(filled as usize),
+        "░".repeat(width.saturating_sub(filled) as usize)
+    )
+}
+
+fn render_qualification(summary: &WorkloadSummary, style: TerminalStyle) -> String {
+    match summary.qualification {
+        rey::workloads::QualificationState::Qualified => style.green("QUALIFIED"),
+        rey::workloads::QualificationState::Failing => style.red("FAILING"),
+        rey::workloads::QualificationState::Inconclusive => style.yellow("INCONCLUSIVE"),
+        rey::workloads::QualificationState::Stale => style.yellow("STALE"),
+        rey::workloads::QualificationState::Untested => style.dim("UNTESTED"),
+    }
+}
+
+fn render_freshness(freshness: rey::workloads::WorkloadFreshness, style: TerminalStyle) -> String {
+    match freshness {
+        rey::workloads::WorkloadFreshness::Fresh => style.green("fresh"),
+        rey::workloads::WorkloadFreshness::Stale => style.yellow("stale"),
+        rey::workloads::WorkloadFreshness::Untested => style.dim("untested"),
+    }
+}
+
+fn render_last_run(status: Option<RunStatus>, style: TerminalStyle) -> String {
+    match status {
+        Some(RunStatus::Passed) => style.green("passed"),
+        Some(RunStatus::Blocked) => style.yellow("blocked"),
+        None => style.dim("not run"),
+    }
 }
 
 fn progress_bar(summary: &WorkloadSummary) -> String {

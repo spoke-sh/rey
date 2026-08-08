@@ -71,6 +71,15 @@ table on a terminal and JSON when redirected. `--workspace` defaults to `.`;
 relative `--state-dir` values resolve below the canonical workspace and an
 absolute value selects an explicit separate local boundary.
 
+The `list` table is a portfolio document rather than a flattened relation. Its
+portfolio header derives qualification, scenario, run, and inventory totals;
+each workload card exposes purpose, journey, passing and evaluated scenario
+coverage, evaluation counts, qualification, exact graph identities, retained
+test evidence and freshness, and last-run state. ANSI styling is enabled only
+for an interactive terminal and is never the sole carrier of meaning. Forced
+table output through a pipe remains ANSI-free. The JSON schema is unchanged;
+portfolio aggregates are derived from its authoritative per-workload counts.
+
 The structured schemas are `rey.workload-list.v1`,
 `rey.workload-status-batch.v1`, `rey.workload-test-batch.v1`, and
 `rey.workload-run-result.v1`. Test results contain verified
