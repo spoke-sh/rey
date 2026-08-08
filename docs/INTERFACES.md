@@ -1,10 +1,10 @@
 # Rey Interfaces
 
 This document sketches Rey's user, environment, policy, and Spoke interfaces.
-The implemented surface is currently limited to `rey environment inspect` and
-the capability relation fixed by ADR 0008. Other command names, flags, schemas,
-media types, and exit codes remain provisional until an accepted ADR and
-implementation tests fix them.
+The implemented surface is limited to `rey environment inspect` and the
+capability snapshot/delta/certificate loop fixed by ADRs 0008 and 0010. Other
+command names, flags, schemas, media types, and exit codes remain provisional
+until an accepted ADR and implementation tests fix them.
 
 ## Interface Principles
 
@@ -64,17 +64,34 @@ rey proofs verify <proof-id-or-path>
 rey proofs show <proof-id>
 ```
 
-The executable currently exposes only:
+The executable currently exposes:
 
 ```text
 rey environment inspect [--workspace <path>]
   [--format auto|table|arrow|json]
   [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
   [--max-capture-bytes <n>]
+
+rey environment diff <source-snapshot> <target-snapshot>
+  [--source-label <label>] [--target-label <label>]
+  [--max-input-bytes <n>] [--max-capabilities <n>]
+  [--max-changes <n>]
+  [--diff-format structured|tabular-diff|summary]
+  [--format json|arrow]
+
+rey environment prove <source-snapshot> <target-snapshot>
+  --require-capability <capability-id>...
+  [--source-label <label>] [--target-label <label>]
+  [--max-input-bytes <n>] [--max-capabilities <n>]
+  [--max-changes <n>]
+
+rey environment verify <certificate> <source-snapshot> <target-snapshot>
+  [--max-input-bytes <n>] [--max-capabilities <n>]
 ```
 
-It always selects the standalone profile. Help must not imply that a planned
-Spoke capability is available.
+These commands operate on the standalone capability schema. Help must not imply
+that a planned Spoke capability is available. `--format arrow` is valid only
+for the structured delta; summary is JSON and Tabular Diff is CSV.
 
 ## Formats
 
@@ -105,9 +122,12 @@ typed delta and its human projection are not identical:
 - `summary` emits navigation counts and scores without claiming to contain all
   proof evidence.
 
-Exact media types and Arrow schemas remain a Plan 0001 decision. Tabular Diff
-CSV must be portable and ANSI-free. Terminal color is applied after semantic
-rendering.
+The implemented capability change Arrow relation is
+`rey.capability-changes.v1`; its frame attributes bind source and target
+snapshot ids and labels, comparator identity, and delta id. Tabular Diff uses
+`text/csv; charset=utf-8; profile=tabular-diff-0.8`, is portable and ANSI-free,
+and is not authoritative input for proof or replay. Generic frame-delta media
+types and schemas remain Plan 0001 work.
 
 ## Standard Streams
 
@@ -118,9 +138,11 @@ rendering.
 - Policy subprocess protocols, if selected, use dedicated framed channels or
   files rather than mixing control messages with artifact stdout.
 
-Command tests must verify byte-exact stdout, stderr separation, bounded output,
-and categorized exit behavior. Exact numeric exit codes remain open until the
-first CLI ADR.
+Command tests verify byte-exact stdout, stderr separation, bounded input, and
+categorized exit behavior. Implemented certificate commands return `0` for
+passed/verified, `2` for failed, `3` for inconclusive, and `4` for stale.
+Invalid input and runtime failure return `1`; Clap retains its own argument
+parsing exit behavior.
 
 ## Identities
 

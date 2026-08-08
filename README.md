@@ -15,12 +15,14 @@ Rey is also Spoke's first external runtime application. Rey exercises Spoke as
 a real client, uses Spoke to explore and improve both projects, and turns the
 resulting gaps into evidence that directs the next Spoke capability.
 
-Rey is currently pre-alpha. Its first executable slice can inspect an explicit
-local workspace, probe the allowlisted `git` and `rg` tools under hard process
-bounds, and project a contained Git repository observation into a typed
-capability frame. It runs with zero Spoke. Delta scheduling, activation,
-mutation, proof, and connected Spoke behavior remain design contracts, not
-implemented commands.
+Rey is currently pre-alpha. Its executable standalone slice can inspect an
+explicit local workspace, probe the allowlisted `git` and `rg` tools under hard
+process bounds, and project a contained Git repository observation into a
+typed capability frame. It can compare two verified snapshots, emit structured
+JSON, typed Arrow, summary, or Tabular Diff 0.8 output, and evaluate and verify
+a required-capability certificate. It runs with zero Spoke. Delta scheduling,
+activation, mutation, durable proof bundles, and connected Spoke behavior
+remain design contracts, not implemented commands.
 
 ## Try The First Slice
 
@@ -34,6 +36,24 @@ Use `--format json` for the bounded document or `--format arrow` for an Arrow
 IPC stream. `--format auto` selects a table on a terminal and Arrow when stdout
 is redirected. The current command is observation-only and uses `.` as its
 explicit workspace unless `--workspace` is supplied.
+
+The next loop can be exercised entirely through files selected by the caller:
+
+```sh
+just rey environment inspect --format json > baseline.json
+just rey environment inspect --format json > candidate.json
+just rey environment diff baseline.json candidate.json
+just rey environment diff baseline.json candidate.json \
+  --diff-format tabular-diff
+just rey environment prove baseline.json candidate.json \
+  --require-capability frame.arrow-stream > certificate.json
+just rey environment verify certificate.json baseline.json candidate.json
+```
+
+Snapshot inputs are bounded and their schema, canonical order, composite-key
+uniqueness, completeness, and semantic digest are recomputed before use. Proof
+commands return `0` for passed/verified, `2` for failed, `3` for inconclusive,
+and `4` for stale; invalid input or runtime failure returns `1`.
 
 ## The Idea
 
@@ -261,11 +281,14 @@ Rey is not:
 
 ## Current Status
 
-The repository now contains a five-crate Rust workspace, the `rey environment
-inspect` command, capability-frame JSON/table/Arrow output, bounded process
-supervision, and a read-only partial Git repository/index snapshot. The Git
-index digest deliberately reports incomplete flag semantics and is not yet an
-activation cursor. The active foundation plan next covers complete Git polling
-and activation, a zero-Spoke Frame-to-Delta-to-Proof slice, and the same
-evidence flow amplified through routed Spoke integration. See [Plan
-0001](plans/0001-foundation.md).
+The repository now contains a seven-crate Rust workspace and a zero-Spoke
+capability Snapshot-to-Delta-to-Certificate loop. `rey environment inspect`
+emits capability JSON/table/Arrow; `diff` emits typed structured JSON or Arrow,
+summary JSON, and Tabular Diff 0.8 CSV; `prove` and `verify` bind required
+capabilities to exact snapshots, comparator/evaluator contracts, and limits.
+Bounded process supervision and a read-only partial Git repository/index
+snapshot are also implemented. The Git index digest deliberately reports
+incomplete flag semantics and is not yet an activation cursor. The active
+foundation plan next covers local proof retention, complete Git polling and
+activation, and the same evidence flow amplified through routed Spoke
+integration. See [Plan 0001](plans/0001-foundation.md).

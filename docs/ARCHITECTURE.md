@@ -394,5 +394,11 @@ path or silently widen Spoke access.
 
 ## Current Status
 
-None of the runtime components in this document are implemented. The repository
-currently provides foundational documents and a pinned Rust development shell.
+The standalone capability path is implemented across `rey-core`,
+`rey-dataframe`, `rey-environment`, `rey-git`, `rey-diff`, `rey-proof`, and the
+`rey` composition/CLI crate. It includes bounded environment observation, a
+partial read-only Git observation, verified capability snapshot loading, an
+exact capability comparator, typed structured and Arrow deltas, Tabular Diff
+projection, and required-capability certificate evaluation and verification.
+The generic runtime/frontier/policy layers, Git activation, durable local proof
+bundles, and Spoke provider remain target architecture.

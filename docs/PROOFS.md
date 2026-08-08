@@ -115,9 +115,31 @@ Verification recomputes this identity. A mismatch yields `stale` even when the
 stored manifest says `passed`. Changing presentation-only color or a
 non-semantic timestamp need not invalidate proof.
 
+If changed inputs exceed the retained certificate's evaluation bounds, the
+verifier can still classify the exact snapshot mismatch as `stale`, but it
+reports that no recomputed input digest is available because no authoritative
+delta exists beyond the bound.
+
 Remote or later-stage evidence depends on the proof inputs that authorized it.
 If a local baseline proof becomes stale, downstream assessments that cite its
 old input digest are stale as well.
+
+### Implemented Required-Capability Certificate
+
+ADR 0010 implements one deliberately narrow claim:
+`rey.environment.required-capabilities.v1`. Each named capability passes when
+at least one target row reports it available, fails when complete evidence
+shows it absent or unavailable, and is inconclusive when an error or incomplete
+unknown absence prevents a decision. The conjunction fails on any known false,
+then is inconclusive on any remaining unknown.
+
+The certificate binds verified source and target snapshot ids, the exact
+capability delta, normalized requirements, labels, limits, and versioned
+comparator and evaluator contract digests. Verification checks the certificate
+digest, recomputes the delta and check results, and reports `stale` when a
+snapshot or current contract input changes. The certificate is emitted to
+stdout only; it does not yet claim a local retention profile, signatures,
+Spoke durability, or a generic proof manifest.
 
 ## Coverage And Completeness
 

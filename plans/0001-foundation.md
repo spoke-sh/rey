@@ -25,9 +25,12 @@ inputs or evaluator code make an earlier certificate stale.
   Spoke present.
 - [ ] A Git snapshot and semantic index delta produce one deterministic,
   replay-safe application activation.
-- [ ] Two typed fixture frames produce a deterministic structured delta.
-- [ ] The same delta produces a valid bounded Tabular Diff 0.8 artifact.
-- [ ] A scoped proof manifest verifies and detects stale or tampered inputs.
+- [x] Two typed capability fixture frames produce a deterministic structured
+  delta.
+- [x] The same capability delta produces a valid bounded Tabular Diff 0.8
+  artifact.
+- [x] A scoped required-capability certificate verifies and detects stale or
+  tampered inputs.
 - [ ] A local-only proof bundle exposes its exact retention guarantees.
 - [ ] One frame/delta/proof bundle round-trips through routed Spoke contracts.
 - [ ] The first Rey–Spoke conformance delta can direct work in either project.
@@ -39,7 +42,7 @@ inputs or evaluator code make an earlier certificate stale.
 - [x] Add architecture, environment, Git, diff, proof, interface, development,
   and roadmap documents.
 - [x] Add plan and architecture-decision indexes.
-- [x] Accept ADRs 0001–0009.
+- [x] Accept ADRs 0001–0010.
 - [x] Add a locked stable Rust flake with default and CI shells.
 - [x] Add `.envrc`, `.gitignore` rules, and the six root Just lifecycle tasks.
 - [x] Capture successful foundation verification commands below.
@@ -71,15 +74,17 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
   index, worktree-status, poll cursor, trigger, and activation schemas.
 - [ ] Define application and independently activatable component declarations,
   dependency edges, entry points, and budgets.
-- [ ] Define comparison compatibility, unique composite keys, ordering,
-  normalization, and completeness behavior.
-- [ ] Define the typed delta Arrow and serialized schemas without losing
-  heterogeneous before/after types.
-- [ ] Define structured, Arrow, JSON, terminal, and Tabular Diff output bounds.
-- [ ] Define claim, check, evidence manifest, input digest, status, and
+- [x] Define capability comparison compatibility, unique composite keys,
+  ordering, normalization, and completeness behavior.
+- [x] Define capability typed-delta Arrow and serialized schemas without losing
+  before/after types.
+- [x] Define capability structured, Arrow, JSON, summary, and Tabular Diff
+  output bounds.
+- [x] Define the required-capability claim, checks, input digest, status, and
   certificate schemas.
 - [x] Select canonical serialization and hashing rules.
-- [ ] Decide which semantic fields invalidate frames, deltas, and proofs.
+- [x] Decide which capability semantic fields invalidate frames, deltas, and
+  proofs.
 - [ ] Decide the initial local evidence bundle and Spoke artifact mappings plus
   their distinct publication guarantees.
 
@@ -126,7 +131,8 @@ nix run path:$PWD -- environment inspect --format json
 - [x] Prove zero-Spoke startup and explicit standalone selection.
 - [ ] Prove optional Spoke appearance/disappearance without changing a local
   claim's meaning.
-- [ ] Prove required-capability failure before side effects.
+- [x] Prove required-capability failure before side effects in the standalone
+  certificate command.
 - [ ] Test missing tools, duplicate candidates, malformed versions, timeouts,
   path changes, and unsupported enforcement.
 
@@ -156,33 +162,52 @@ nix run path:$PWD -- environment inspect --format json
 
 ## Milestone 6 — Local Frame And Delta
 
-- [ ] Load two bounded reviewed Arrow or fixture relations with exact schemas.
-- [ ] Validate declared unique keys before alignment.
-- [ ] Compare equal, inserted, deleted, modified, and schema-changed relations.
-- [ ] Preserve typed before/after values and deterministic source/target labels.
-- [ ] Retain typed schemas for empty source and target frames.
-- [ ] Reject duplicate keys, incompatible schemas, invalid normalizers, and
-  incomplete required observations explicitly.
-- [ ] Emit deterministic structured delta and summary artifacts.
-- [ ] Render bounded, ANSI-free Tabular Diff 0.8 CSV plus a terminal view.
-- [ ] Prove that color and context elision do not change semantics.
+- [x] Load two bounded reviewed capability snapshot fixtures with exact schemas.
+- [x] Validate declared unique composite keys before alignment.
+- [x] Compare equal, inserted, deleted, and modified capability relations and
+  reject incompatible snapshot schemas.
+- [x] Preserve typed before/after values and deterministic source/target labels.
+- [x] Retain typed Arrow schema and lineage for an empty capability delta.
+- [x] Reject duplicate keys and invalid schemas, and report incomplete
+  observations as inconclusive.
+- [x] Emit deterministic structured capability delta and summary artifacts.
+- [x] Render bounded, ANSI-free Tabular Diff 0.8 CSV.
+- [x] Prove that context elision does not change capability delta semantics.
+- [ ] Generalize these contracts to arbitrary compatible typed frames,
+  including schema changes, normalizers, and terminal rendering.
 
 ## Milestone 7 — Proof And Staleness
 
-- [ ] Evaluate an equality claim over the fixture frames and delta.
-- [ ] Emit canonical evidence and proof manifests with content digests.
-- [ ] Verify a certificate without trusting its stored status.
-- [ ] Distinguish passed, failed, inconclusive, pending, and stale.
+- [x] Evaluate a required-capability claim over fixture snapshots and delta.
+- [x] Emit a canonical scoped certificate with content digests.
+- [x] Verify a certificate without trusting its stored status.
+- [x] Distinguish passed, failed, inconclusive, and stale for the implemented
+  scoped claim.
+- [ ] Add pending to the future retained/asynchronous proof lifecycle.
+- [x] Bind capability source/target snapshots, normalized claim, limits, and
+  comparator/evaluator contracts into the proof input digest.
 - [ ] Make source, schema, key, normalizer, comparator, evaluator, fixture, and
   limit changes invalidate proof inputs.
 - [ ] Make provider, tool, version, digest/provenance, trust, and guarantee
   changes invalidate dependent proof inputs.
 - [ ] Make Git source snapshots, semantic index, trigger/component revision,
   and cursor/activation inputs invalidate dependent proof state.
-- [ ] Detect missing and tampered evidence.
+- [x] Detect tampered snapshot and certificate evidence.
 - [ ] Keep similarity, coverage, completeness, and status distinct.
 - [ ] Write and verify a content-addressed local bundle without claiming Spoke
   durability or process lineage.
+
+Capability delta/certificate proof captured on 2026-08-07:
+
+```text
+nix develop path:$PWD#ci --command just check
+nix develop path:$PWD#ci --command just test
+# 28 tests passed through nextest; all seven crate doc-test suites passed
+nix develop path:$PWD#ci --command just build
+nix flake check path:$PWD
+nix flake check path:$PWD --all-systems --no-build
+nix run path:$PWD -- environment inspect --format json
+```
 
 ## Milestone 8 — Optional Routed Spoke Proof
 
@@ -212,33 +237,37 @@ nix run path:$PWD -- environment inspect --format json
 ## Milestone 9 — CLI And Acceptance
 
 - [x] Expose the implemented environment-inspection command.
-- [ ] Expose a capability-diff command.
+- [x] Expose a capability-diff command.
 - [ ] Expose implemented Git inspect, diff, and one-shot poll commands.
-- [ ] Expose only the implemented frame, diff, and proof commands.
+- [x] Expose only the implemented inspection, capability-diff, and scoped proof
+  commands.
 - [x] Preserve machine data on stdout and diagnostics on stderr.
 - [x] Support bounded terminal, Arrow, and JSON output for the implemented
-  capability schema. Structured delta and Tabular Diff output remain pending.
-- [ ] Define and test categorized exit codes for pass, fail, inconclusive,
-  stale, invalid input, and runtime failure.
-- [ ] Add fixture, property, determinism, resource-limit, and routed integration
-  tests.
+  capability schema, plus structured/Arrow/summary/Tabular Diff delta output.
+- [x] Define and test categorized exit codes for pass, fail, inconclusive,
+  stale, and invalid input/runtime failure.
+- [ ] Add property tests and routed Spoke integration tests; deterministic
+  fixtures and focused resource-limit tests exist for the standalone slice.
 - [x] Make `just check`, `just test`, `just build`, and `nix flake check` pass.
 
 ## Acceptance Criteria
 
-- [ ] Identical frozen inputs produce byte-identical semantic artifacts.
+- [x] Identical frozen capability inputs produce byte-identical structured
+  semantic artifacts.
 - [ ] Direction, labels, keys, schemas, types, normalizers, limits, and source
   revisions survive every supported representation.
-- [ ] Duplicate keys and incompatible or incomplete inputs never produce a
-  guessed passing delta.
+- [x] Duplicate keys and incompatible or incomplete capability inputs never
+  produce a guessed passing delta.
 - [ ] Tabular Diff insertion, deletion, modification, schema, null, and context
   markers match the selected 0.8 contract.
 - [ ] A zero diff passes only the declared scoped claim.
-- [ ] Changed proof inputs or evaluator code make the old certificate stale.
+- [x] Changed capability snapshot inputs or evaluator code make the old
+  certificate stale.
 - [ ] Capability drift makes affected actions/proofs stale without invalidating
   unrelated frames.
 - [ ] Missing or tampered evidence cannot verify as passed.
-- [ ] Zero-Spoke mode produces useful local frames, deltas, and scoped proofs.
+- [x] Zero-Spoke mode produces useful local capability frames, deltas, and
+  scoped proofs.
 - [ ] Commit/ref/index deltas activate only declared affected components.
 - [ ] Ref rewrites and incomplete history never appear as false append events.
 - [ ] Poll replay does not duplicate an idempotent component effect.
@@ -249,7 +278,7 @@ nix run path:$PWD -- environment inspect --format json
   or query semantics.
 - [ ] Routed Spoke persistence retains exact revision and request lineage across
   restart.
-- [ ] CLI structured stdout is byte-clean and diagnostics remain on stderr.
+- [x] CLI structured stdout is byte-clean and diagnostics remain on stderr.
 - [ ] Every advertised limit is enforced and budget exhaustion is
   inconclusive, not convergence.
 

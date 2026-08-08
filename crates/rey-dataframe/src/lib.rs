@@ -15,6 +15,7 @@ pub const METADATA_SEMANTIC_DIGEST: &str = "rey.semantic-digest";
 pub const METADATA_ROW_COUNT: &str = "rey.row-count";
 pub const METADATA_COMPLETE: &str = "rey.complete";
 pub const METADATA_KEY_COLUMNS: &str = "rey.key-columns";
+pub const METADATA_ATTRIBUTES: &str = "rey.attributes";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct FrameMetadata {
@@ -24,6 +25,8 @@ pub struct FrameMetadata {
     pub row_count: u64,
     pub complete: bool,
     pub key_columns: Vec<String>,
+    #[serde(default)]
+    pub attributes: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +65,12 @@ impl Frame {
                 .map_err(|_| FrameError::InvalidMetadata(METADATA_COMPLETE))?,
             key_columns: serde_json::from_str(required(&custom, METADATA_KEY_COLUMNS)?)
                 .map_err(|_| FrameError::InvalidMetadata(METADATA_KEY_COLUMNS))?,
+            attributes: custom
+                .get(METADATA_ATTRIBUTES)
+                .map(|value| serde_json::from_str(value))
+                .transpose()
+                .map_err(|_| FrameError::InvalidMetadata(METADATA_ATTRIBUTES))?
+                .unwrap_or_default(),
         };
         Self::new(reader.finish()?, metadata)
     }
@@ -70,6 +79,7 @@ impl Frame {
         let mut encoded = Vec::new();
         let mut dataframe = self.dataframe.clone();
         let key_columns = serde_json::to_string(&self.metadata.key_columns)?;
+        let attributes = serde_json::to_string(&self.metadata.attributes)?;
         let custom = BTreeMap::from([
             (METADATA_RELATION, self.metadata.relation.as_str()),
             (
@@ -83,6 +93,7 @@ impl Frame {
             (METADATA_ROW_COUNT, &self.metadata.row_count.to_string()),
             (METADATA_COMPLETE, &self.metadata.complete.to_string()),
             (METADATA_KEY_COLUMNS, key_columns.as_str()),
+            (METADATA_ATTRIBUTES, attributes.as_str()),
         ])
         .into_iter()
         .map(|(key, value)| {
@@ -135,6 +146,8 @@ pub enum FrameError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use polars::df;
 
     use super::{Frame, FrameMetadata};
@@ -150,6 +163,7 @@ mod tests {
                 row_count: 2,
                 complete: true,
                 key_columns: vec!["id".to_owned()],
+                attributes: BTreeMap::from([("source".to_owned(), "fixture".to_owned())]),
             },
         )
         .unwrap();

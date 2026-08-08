@@ -14,6 +14,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0007](0007-git-polling-and-delta-activation.md) | Accepted | Git commit/ref/index snapshots as pollable frames and idempotent activation sources |
 | [0008](0008-first-slice-contracts.md) | Accepted | First executable schemas, Polars/Arrow baseline, semantic hashing, and bounded local/Git observation |
 | [0009](0009-just-rey-task.md) | Accepted | Rename the Just CLI task to `rey` while retaining the Nix `dev` wrapper |
+| [0010](0010-capability-delta-and-certificate.md) | Accepted | Typed capability deltas, deterministic Tabular Diff projection, and required-capability certificates |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

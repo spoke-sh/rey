@@ -1,27 +1,16 @@
 [package]
-name = "rey"
+name = "rey-proof"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
-[[bin]]
-name = "rey"
-path = "src/main.rs"
-
 [dependencies]
-clap.workspace = true
-rey-dataframe = { path = "../rey-dataframe" }
+rey-core = { path = "../rey-core" }
 rey-diff = { path = "../rey-diff" }
 rey-environment = { path = "../rey-environment" }
-rey-git = { path = "../rey-git" }
-rey-proof = { path = "../rey-proof" }
 serde.workspace = true
-serde_json.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
-tempfile.workspace = true
 
 [lints]
 workspace = true

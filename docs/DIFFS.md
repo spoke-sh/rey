@@ -118,6 +118,21 @@ The exact Arrow representation for heterogeneous before/after values remains an
 open design item. Until selected, implementations must not stringify values and
 then claim typed round-trip behavior.
 
+### Implemented Capability Specialization
+
+ADR 0010 fixes a narrow `rey.capability-delta.v1` specialization rather than
+claiming the generic representation above is solved. It compares verified
+`rey.capabilities.v1` snapshots by the composite key `(provider_id,
+provider_revision, capability_id)`. Exact typed equality covers every snapshot
+identity field; `observed_at` and `error_detail` are deliberately excluded.
+
+Structured JSON retains typed semantic records on both sides. The wide
+`rey.capability-changes.v1` Arrow relation retains a typed `UInt64` provider
+revision, nullable before/after columns, changed-field names, and lineage in
+frame attributes. Change ordering and field ordering are deterministic. Empty
+deltas retain their schema and lineage. A bounded summary and Tabular Diff 0.8
+CSV are non-authoritative projections of that delta.
+
 ## Tabular Diff 0.8 Projection
 
 For compatible tables Rey projects a typed delta into the

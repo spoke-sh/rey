@@ -57,7 +57,7 @@ pub enum TrustClass {
 }
 
 impl TrustClass {
-    const fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::BuiltIn => "built_in",
             Self::ExplicitLocal => "explicit_local",
@@ -181,6 +181,17 @@ impl CapabilitySnapshot {
                     &right.capability_id,
                 ))
         });
+        if let Some(duplicate) = capabilities
+            .windows(2)
+            .find(|rows| capability_key(&rows[0]) == capability_key(&rows[1]))
+        {
+            let row = &duplicate[0];
+            return Err(DiscoveryError::DuplicateCapabilityKey {
+                provider_id: row.provider_id.clone(),
+                provider_revision: row.provider_revision,
+                capability_id: row.capability_id.clone(),
+            });
+        }
         let profile = profile.into();
         let mut hasher = SemanticHasher::new("rey.capability-snapshot.v1");
         hasher.add_str(CAPABILITY_SCHEMA_VERSION);
@@ -210,6 +221,54 @@ impl CapabilitySnapshot {
         let mut capabilities = self.capabilities.clone();
         capabilities.push(capability);
         *self = Self::new(self.profile.clone(), self.limits.clone(), capabilities)?;
+        Ok(())
+    }
+
+    /// Parses and verifies a snapshot before it is admitted as runtime input.
+    ///
+    /// JSON map ordering is irrelevant, but relation schema, row/list ordering,
+    /// semantic identity, completeness, and key uniqueness are all canonical.
+    pub fn from_json_slice(bytes: &[u8], max_capabilities: u64) -> Result<Self, DiscoveryError> {
+        let supplied: Self = serde_json::from_slice(bytes)?;
+        if supplied.capabilities.len() as u64 > max_capabilities {
+            return Err(DiscoveryError::CapabilityLimit {
+                limit: max_capabilities,
+                observed: supplied.capabilities.len() as u64,
+            });
+        }
+        supplied.verify()?;
+        Ok(supplied)
+    }
+
+    /// Recomputes all invariants needed to use this snapshot as semantic input.
+    pub fn verify(&self) -> Result<(), DiscoveryError> {
+        let expected_schema = format!("{CAPABILITY_RELATION}.v{CAPABILITY_SCHEMA_VERSION}");
+        if self.schema != expected_schema {
+            return Err(DiscoveryError::UnsupportedSnapshotSchema {
+                expected: expected_schema,
+                actual: self.schema.clone(),
+            });
+        }
+        let recomputed = Self::new(
+            self.profile.clone(),
+            self.limits.clone(),
+            self.capabilities.clone(),
+        )?;
+        if self.capabilities != recomputed.capabilities {
+            return Err(DiscoveryError::NonCanonicalSnapshot);
+        }
+        if self.semantic_digest != recomputed.semantic_digest {
+            return Err(DiscoveryError::SnapshotDigest {
+                declared: self.semantic_digest.clone(),
+                actual: recomputed.semantic_digest,
+            });
+        }
+        if self.complete != recomputed.complete {
+            return Err(DiscoveryError::SnapshotCompleteness {
+                declared: self.complete,
+                actual: recomputed.complete,
+            });
+        }
         Ok(())
     }
 
@@ -250,9 +309,18 @@ impl CapabilitySnapshot {
                     "provider_revision".to_owned(),
                     "capability_id".to_owned(),
                 ],
+                attributes: Default::default(),
             },
         )?)
     }
+}
+
+fn capability_key(row: &CapabilityRecord) -> (&str, u64, &str) {
+    (
+        row.provider_id.as_str(),
+        row.provider_revision,
+        row.capability_id.as_str(),
+    )
 }
 
 fn canonical_arrays<'a>(
@@ -679,6 +747,23 @@ pub enum DiscoveryError {
     WorkspaceNotDirectory(PathBuf),
     #[error("capability snapshot contains {observed} rows, exceeding limit {limit}")]
     CapabilityLimit { limit: u64, observed: u64 },
+    #[error("duplicate capability key ({provider_id}, {provider_revision}, {capability_id})")]
+    DuplicateCapabilityKey {
+        provider_id: String,
+        provider_revision: u64,
+        capability_id: String,
+    },
+    #[error("unsupported capability snapshot schema {actual}; expected {expected}")]
+    UnsupportedSnapshotSchema { expected: String, actual: String },
+    #[error("capability snapshot is not in canonical row and list order")]
+    NonCanonicalSnapshot,
+    #[error("capability snapshot digest {declared} does not match recomputed {actual}")]
+    SnapshotDigest {
+        declared: SemanticDigest,
+        actual: SemanticDigest,
+    },
+    #[error("capability snapshot completeness {declared} does not match recomputed {actual}")]
+    SnapshotCompleteness { declared: bool, actual: bool },
     #[error(transparent)]
     Frame(#[from] FrameError),
     #[error("capability JSON encoding failed: {0}")]
@@ -694,7 +779,8 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        Availability, CommandRequest, DiscoveryLimits, LocalDiscovery, resolve_executable,
+        Availability, CapabilityRecord, CapabilitySnapshot, CommandRequest, DiscoveryError,
+        DiscoveryLimits, LOCAL_PROVIDER_REVISION, LocalDiscovery, TrustClass, resolve_executable,
         run_bounded,
     };
 
@@ -728,6 +814,73 @@ mod tests {
         .inspect()
         .unwrap();
         assert_eq!(snapshot.semantic_digest, repeated.semantic_digest);
+    }
+
+    #[test]
+    fn snapshot_json_is_recomputed_before_admission() {
+        let snapshot = CapabilitySnapshot::new(
+            "fixture",
+            DiscoveryLimits::default(),
+            vec![fixture_capability("one"), fixture_capability("two")],
+        )
+        .unwrap();
+        let canonical = serde_json::to_vec(&snapshot).unwrap();
+        assert_eq!(
+            CapabilitySnapshot::from_json_slice(&canonical, 64).unwrap(),
+            snapshot
+        );
+
+        let mut tampered: serde_json::Value = serde_json::from_slice(&canonical).unwrap();
+        tampered["capabilities"][0]["version"] = "changed".into();
+        let error =
+            CapabilitySnapshot::from_json_slice(&serde_json::to_vec(&tampered).unwrap(), 64)
+                .unwrap_err();
+        assert!(matches!(error, DiscoveryError::SnapshotDigest { .. }));
+
+        let mut noncanonical = snapshot.clone();
+        noncanonical.capabilities.reverse();
+        let error =
+            CapabilitySnapshot::from_json_slice(&serde_json::to_vec(&noncanonical).unwrap(), 64)
+                .unwrap_err();
+        assert!(matches!(error, DiscoveryError::NonCanonicalSnapshot));
+    }
+
+    #[test]
+    fn duplicate_capability_keys_are_rejected() {
+        let row = fixture_capability("duplicate");
+        let error = CapabilitySnapshot::new(
+            "fixture",
+            DiscoveryLimits::default(),
+            vec![row.clone(), row],
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            DiscoveryError::DuplicateCapabilityKey { .. }
+        ));
+    }
+
+    fn fixture_capability(id: &str) -> CapabilityRecord {
+        CapabilityRecord {
+            provider_id: "fixture".to_owned(),
+            provider_revision: LOCAL_PROVIDER_REVISION,
+            provider_kind: "fixture".to_owned(),
+            capability_id: id.to_owned(),
+            capability_kind: "identity".to_owned(),
+            resolved_location: None,
+            version: Some("1".to_owned()),
+            content_digest: None,
+            provenance: Some("fixture".to_owned()),
+            availability: Availability::Available,
+            trust_class: TrustClass::BuiltIn,
+            operations: Vec::new(),
+            enforced_limits: Vec::new(),
+            unsupported_limits: Vec::new(),
+            observed_at: None,
+            error_code: None,
+            error_detail: None,
+        }
     }
 
     #[cfg(unix)]

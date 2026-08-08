@@ -125,7 +125,8 @@ Current behavior is:
 
 ADR 0008 selects Polars 0.55.2 with only `fmt` and `ipc_streaming`, Arrow IPC
 stream transport, BLAKE3 length-framed semantic identity, Serde JSON documents,
-and Clap for the first CLI. New HTTP, async-runtime, Git parsing, or broader
+and Clap for the first CLI. ADR 0010 adds the small `csv` encoder for the
+Tabular Diff 0.8 projection. New HTTP, async-runtime, Git parsing, or broader
 Polars features require an explicit plan need and dependency review.
 
 ## Cargo And Crane Outputs
@@ -169,4 +170,5 @@ nix develop path:$PWD#ci --command just test
 nix develop path:$PWD#ci --command just build
 nix flake check path:$PWD
 nix run path:$PWD -- environment inspect --format json
+nix run path:$PWD -- environment diff baseline.json candidate.json
 ```

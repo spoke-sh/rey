@@ -4,6 +4,37 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+/// A versioned semantic contract used to invalidate derived artifacts when an
+/// evaluator or comparator definition changes.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContractIdentity {
+    pub id: String,
+    pub revision: u64,
+    pub semantic_digest: SemanticDigest,
+}
+
+impl ContractIdentity {
+    #[must_use]
+    pub fn new(id: impl Into<String>, revision: u64, definition: &str) -> Self {
+        let id = id.into();
+        let mut hasher = SemanticHasher::new("rey.contract-identity.v1");
+        hasher.add_str(&id);
+        hasher.add_u64(revision);
+        hasher.add_str(definition);
+        Self {
+            id,
+            revision,
+            semantic_digest: hasher.finish(),
+        }
+    }
+
+    pub fn add_semantics(&self, hasher: &mut SemanticHasher) {
+        hasher.add_str(&self.id);
+        hasher.add_u64(self.revision);
+        hasher.add_str(self.semantic_digest.as_str());
+    }
+}
+
 /// A BLAKE3 digest over an explicitly framed semantic payload.
 #[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]

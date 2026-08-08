@@ -36,9 +36,11 @@ Procedural guidance for humans and agents working on Rey.
 
 ## Current Development Interface
 
-Rey has a pinned Nix Rust toolchain, a five-crate Cargo workspace, an
-environment-inspection executable, and a root Just task surface. Do not report
-planned delta, proof, activation, or Spoke behavior as implemented.
+Rey has a pinned Nix Rust toolchain, a seven-crate Cargo workspace, an
+environment-inspection and capability-delta/certificate executable, and a root
+Just task surface. Do not generalize the implemented capability-specific delta
+and required-capability certificate into generic frame, activation, durable
+retention, or Spoke behavior.
 
 Enter the environment and use:
 
