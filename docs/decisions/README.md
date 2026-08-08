@@ -18,8 +18,9 @@ guide experiments but do not outrank the architecture until accepted.
 | [0011](0011-local-proof-bundle.md) | Accepted | Bounded content-addressed local proof bundles with explicit publication and retention guarantees |
 | [0012](0012-delta-directed-orientation.md) | Accepted | Formal bootstrap/transition lifecycle and bounded delta-directed reasoning surfaces |
 | [0013](0013-runtime-state-and-reasoning-surface-contracts.md) | Accepted; v1 schemas superseded by 0014 | Executable runtime-state reducer and bounded reasoning-surface contracts before scheduling |
-| [0014](0014-frontier-progress-and-scheduling.md) | Accepted; public identity cutover required by 0015 | Canonical frontier/progress relations, deterministic bounded work selection, and decision-bound runtime/surface v2 |
-| [0015](0015-workload-centered-product.md) | Accepted | Workload-centered product, scenario-qualified compute graphs, and four-command CLI contract |
+| [0014](0014-frontier-progress-and-scheduling.md) | Accepted; public identity schemas superseded by 0016 | Canonical frontier/progress relations, deterministic bounded work selection, and decision-bound runtime/surface v2 |
+| [0015](0015-workload-centered-product.md) | Accepted; first slice implemented by 0016 | Workload-centered product, scenario-qualified compute graphs, and four-command CLI contract |
+| [0016](0016-first-workload-slice.md) | Accepted | Built-in zero-agent workload slice, local result index, typed scenario deltas, and workload identity cutover |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

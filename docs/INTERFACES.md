@@ -1,14 +1,11 @@
 # Rey Interfaces
 
 This document sketches Rey's user, environment, policy, and Spoke interfaces.
-The implemented CLI surface is limited to `rey environment inspect`, the
-capability snapshot/delta/certificate loop fixed by ADRs 0008 and 0010, and the
-local-only proof bundle fixed by ADR 0011. ADR 0013 also fixes library-only
-runtime-state and reasoning-surface schemas; it adds no command. ADR 0015
-accepts the workload-centered product and command semantics, but no workload
-command is implemented. Exact workload flags, declaration schemas, media
-types, and encodings remain provisional until the next implementation ADR and
-tests fix them.
+The implemented CLI includes the standalone environment
+snapshot/delta/certificate loop, local-only proof bundles, and the first
+built-in workload slice fixed by ADR 0016. Generic workload declarations,
+provider-backed operations, graph proposal policy, and connected Spoke
+behavior remain provisional.
 
 ## Interface Principles
 
@@ -34,10 +31,10 @@ Rey's product surface is intentionally small:
 
 ```text
 rey environment <command>
-rey workloads list
-rey workloads test [<workload-id>]
-rey workloads run <workload-id>
-rey workloads status [<workload-id>]
+rey workloads [--workspace PATH] [--state-dir PATH] list
+rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>]
+rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8>
+rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
 `environment` inventories the available compute boundary. `workloads` is the
@@ -46,21 +43,40 @@ deltas, frontiers, traces, and proofs remain typed evidence and may gain
 focused diagnostic projections, but they are not peer top-level resources that
 users must manually orchestrate.
 
-No workload command is executable yet. Their accepted behavior is:
+The built-in slice implements this behavior:
 
 - `list` reads catalog and result indexes and shows exact candidate/qualified
   graph identities plus scenario progress; it executes no work;
-- `test` starts or resumes a bounded graph/scenario campaign, retains
+- `test` executes one bounded deterministic graph/scenario pass, retains
   `EXPECTED` to `OBSERVED` typed deltas, and qualifies only a graph revision
   for which every required scenario freshly passes; without an id it selects
   every catalog workload and fails closed on the workload-count bound;
-- `run` executes the current fresh qualified graph against admitted real
-  inputs and providers; and
-- `status` reads exact workload, graph, campaign, scenario, frontier, evidence,
-  staleness, stop, and latest-run state without repairing it.
+- `run` executes the current fresh qualified built-in graph against one
+  admitted UTF-8 input; and
+- `status` reads the exact workload, graph, suite, retained deltas,
+  qualification, freshness, stop reason, and latest run without repairing it.
+
+The catalog is compiled into Rey. It deliberately exposes only the passing
+`rey.fixture.text-normalize` and failing `rey.fixture.text-mismatch`
+conformance workloads; it is not an external manifest format or arbitrary
+operation loader.
 
 See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) and
-[ADR 0015](decisions/0015-workload-centered-product.md).
+[ADR 0016](decisions/0016-first-workload-slice.md).
+
+## Implemented Workload CLI
+
+Every workload subcommand accepts `--format auto|table|json`. `auto` chooses a
+table on a terminal and JSON when redirected. `--workspace` defaults to `.`;
+relative `--state-dir` values resolve below the canonical workspace and an
+absolute value selects an explicit separate local boundary.
+
+The structured schemas are `rey.workload-list.v1`,
+`rey.workload-status-batch.v1`, `rey.workload-test-batch.v1`, and
+`rey.workload-run-result.v1`. Test results contain verified
+`rey.scenario-output-delta.v1` documents for equal and different outputs.
+Passing tests alone contain a `rey.workload-qualification.v1` binding the
+exact workload, graph, scenario suite, evaluator, and test result.
 
 ## Implemented Environment CLI
 
@@ -158,7 +174,7 @@ passed/verified, `2` for failed, `3` for inconclusive, and `4` for stale.
 Invalid input and runtime failure return `1`; Clap retains its own argument
 parsing exit behavior.
 
-Future `workloads list` and `status` return `0` whenever inspection itself
+Implemented `workloads list` and `status` return `0` whenever inspection itself
 succeeds, even when rows show failing or stale workloads. `workloads test` and
 `run` use `0` for qualified/passed, `2` for conclusive semantic failure, `3`
 for inconclusive or blocked, `4` for stale, and `1` for invalid input or runtime
@@ -303,41 +319,38 @@ and Activation](GIT.md).
 
 ## Frontier And Scheduling Contracts
 
-The implemented library contracts have no CLI surface. `rey.frontier.v1`
-binds exact application/component/space, trace, committed-record, capability,
-derivation, prioritization, coverage, and limit inputs. Its canonical
-`rey.frontier-rows` version `1` relation is keyed by stable `work_id` and
+The implemented library contracts have no direct CLI surface.
+`rey.frontier.v2` binds exact workload, graph, scenario-suite, campaign,
+space, trace, committed-record, capability, derivation, prioritization,
+coverage, and limit inputs. Its canonical `rey.frontier-rows` version `2`
+relation is keyed by stable `work_id` and
 retains a derived row identity, delta/claim/lens/action citations, readiness,
 blockers, priority, and estimated cost.
 
-`rey.frontier-progress.v1` compares compatible source and target frontiers in
-that direction. Its `rey.frontier-progress-changes` version `1` relation
+`rey.frontier-progress.v2` compares compatible source and target frontiers in
+that direction while preserving source and target graph identities. Its
+`rey.frontier-progress-changes` version `2` relation
 reports resolved, introduced, or updated work with source/target row ids;
 unchanged work remains a summary count.
 
-`rey.scheduling-decision.v1` rejects stale expected record, frontier, and
+`rey.scheduling-decision.v2` rejects stale expected record, frontier, and
 capability identities and selects ready work by declared priority descending,
-cost ascending, then stable work id. The `rey.scheduled-work` version `1`
+cost ascending, then stable work id. The `rey.scheduled-work` version `2`
 relation retains selection rank and exact frontier row identity. These are
 deterministic selection contracts, not provider reads, action proposals, an
 execution queue, or a recurring scheduler. See
 [Frontier, Progress, and Scheduling](FRONTIER.md) and
-[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md).
-
-The application/component names above are implemented legacy schema fields,
-not the accepted workload CLI model. ADR 0015 requires a versioned cutover to
-workload, graph, scenario, and campaign identity before a workload command
-consumes these contracts; the CLI must not silently relabel the existing
-fields.
+[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md) and the identity
+cutover in [ADR 0016](decisions/0016-first-workload-slice.md).
 
 ## Reasoning Surface Contract
 
 Before requesting a policy proposal, the runtime constructs a bounded
 delta-directed reasoning surface. The implemented
-`rey.reasoning-surface.v2` envelope contains:
+`rey.reasoning-surface.v3` envelope contains:
 
 - surface schema, identity, and projection-contract revision;
-- application, component, space, and trace identities;
+- workload, graph, scenario-suite, campaign, space, and trace identities;
 - committed and active transitions, scheduling decision, frontier frame, cited
   frontier rows, and applicable transition/residual delta identities;
 - exact retrieved evidence addresses, source bindings, and provider revisions;
@@ -349,7 +362,7 @@ delta-directed reasoning surface. The implemented
 - the actual retrieval-iteration count; and
 - complete, partial, or truncated status with explicit omissions.
 
-Its canonical `rey.reasoning-surface-rows` version `2` DataFrame contains:
+Its canonical `rey.reasoning-surface-rows` version `3` DataFrame contains:
 
 ```text
 frontier_row_id · entity_kind · entity_id
@@ -371,10 +384,10 @@ surface the sole copy of native source content.
 The reasoning-surface schema is a verified library contract fixed by
 [ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md) and
 cut over to decision-bound v2 by
-[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), not an
+[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), then to the
+workload-bound v3 envelope by
+[ADR 0016](decisions/0016-first-workload-slice.md). It is not an
 implemented CLI format. The policy-proposal schema remains a target contract.
-Its application/component envelope fields are likewise legacy implementation
-truth pending the ADR 0015 workload schema cutover.
 
 ## Policy Contract
 
@@ -490,13 +503,17 @@ result provider retains graph proposals, campaigns, attempts, outputs, typed
 deltas, qualification records, runs, and indexes read by `workloads list` and
 `status`.
 
-A standalone implementation may satisfy those roles at an explicit local
-artifact boundary with honest filesystem-only guarantees. A graph selected for
-future runs cannot exist solely in a disposable cache. Connected mode uses
+The first standalone implementation uses a compiled-in catalog and a bounded
+`rey.local-workload-state.v1` result index at
+`${workspace}/.rey/workloads/state.json`, overridable by explicit
+`--state-dir`. Reads reject symlinked state files and verify every retained
+semantic result. Writes use a same-directory temporary file and rename. This
+single-process provider claims no `fsync`, lock, remote durability, or Spoke
+semantics. A graph selected for future runs cannot exist solely in a
+disposable cache. Connected mode uses
 public Spoke resources for stronger durability, query, compute, and lineage
-claims. The manifest encoding, local layout, Spoke mapping, and publication
-protocol remain an implementation decision; ADR 0015 does not select an
-engine.
+claims. A general manifest encoding, Spoke mapping, and stronger publication
+protocol remain undecided; ADR 0016 does not select an engine.
 
 For the implemented capability claim, standalone Rey writes the
 [ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed

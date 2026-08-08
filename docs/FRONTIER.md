@@ -1,23 +1,24 @@
 # Frontier, Progress, And Scheduling
 
 This document defines the first executable frontier, progress, and scheduling
-contracts. ADR 0014 fixes their v1 schemas and the related runtime and reasoning
-surface v2 cutover. The implementation is a deterministic library slice; it
+contracts. ADR 0014 fixed their first schemas; ADR 0016 made a pre-alpha
+identity cutover to frontier/progress/scheduling v2 and reasoning-surface v3.
+The implementation is a deterministic library slice; it
 does not derive workload-specific work, retrieve evidence, select an action,
 execute an effect, or run a recurring loop.
 
 ADR 0015 places this contract inside workload test campaigns. The implemented
-v1 envelope still has legacy application/component fields; a workload CLI must
-use a versioned schema that explicitly binds workload, graph, scenario suite,
-and campaign identity rather than silently relabeling them.
+v2 envelope now binds workload, graph, scenario suite, and campaign identities
+directly. The first CLI slice executes scenarios but does not yet derive a
+frontier from their deltas.
 
 ## Frontier Envelope
 
-`rey.frontier.v1` is a bounded, content-identified relation derived from exact
+`rey.frontier.v2` is a bounded, content-identified relation derived from exact
 deltas and claims. Its inputs bind:
 
 ```text
-application · component · space · trace
+workload · graph · scenario suite · campaign · space · trace
 committed record · capability snapshot
 frontier derivation contract · prioritization-input contract
 ```
@@ -75,7 +76,7 @@ An empty frontier cannot represent a known violated required claim. Missing,
 truncated, or unknown inputs therefore never become convergence. A scheduler
 does not reassess this result.
 
-The canonical `rey.frontier-rows` version `1` Polars/Arrow relation uses
+The canonical `rey.frontier-rows` version `2` Polars/Arrow relation uses
 `work_id` as its unique key. Array and blocker columns use canonical compact
 JSON strings in this first projection; the semantic document retains their
 typed representation. Arrow metadata preserves the exact frontier and input
@@ -83,11 +84,12 @@ identities, assessment, coverage, and row count.
 
 ## Directional Progress
 
-`rey.frontier-progress.v1` compares compatible source and target frontiers in
-that direction under an exact comparator contract. Application, component,
-space, trace, derivation, and prioritization contracts must agree. Capability
-snapshot and committed-record revisions may differ because those are ordinary
-transition inputs.
+`rey.frontier-progress.v2` compares compatible source and target frontiers in
+that direction under an exact comparator contract. Workload, scenario suite,
+campaign, space, trace, derivation, and prioritization contracts must agree.
+Source and target graph identities may differ because progress often compares
+candidate revisions. Capability snapshot and committed-record revisions may
+also differ because those are ordinary transition inputs.
 
 Rows align by stable `work_id`:
 
@@ -113,20 +115,20 @@ These facts are navigation metadata. They do not replace authoritative deltas,
 proof status, coverage, confidence, or the runtime evaluator's semantic
 outcome, and there is no generic scalar progress score.
 
-The canonical `rey.frontier-progress-changes` version `1` relation is keyed by
+The canonical `rey.frontier-progress-changes` version `2` relation is keyed by
 `work_id` and retains the change kind plus nullable source and target row ids.
 Source-row, target-row, change, and string-byte bounds fail closed. Full replay
 verification recomputes the relation from both cited frontiers.
 
 ## Deterministic Scheduling
 
-The v1 scheduler selects ready work units from one verified open frontier. It
+The v2 scheduler selects ready work units from one verified open frontier. It
 does not select an admissible action. Before selection it checks exact expected
 committed-record, frontier, and capability-snapshot identities. Any mismatch is
 a stale-precondition error and produces no decision.
 
 The scheduler contract identity and effective limits participate in
-`rey.scheduling-decision.v1`. The fixed selection order is:
+`rey.scheduling-decision.v2`. The fixed selection order is:
 
 1. priority descending;
 2. estimated cost ascending; and
@@ -149,7 +151,7 @@ The first scheduler intentionally claims no fairness, starvation prevention,
 parallel allocation, dependency invalidation, deadline optimization, learned
 ranking, or multi-tenant behavior. Those require explicit later contracts.
 
-The canonical `rey.scheduled-work` version `1` relation preserves selection
+The canonical `rey.scheduled-work` version `2` relation preserves selection
 rank, work and row identities, priority, and cost. A decision can verify its
 own shape and semantic digest; replay verification against the frontier proves
 the actual selection.
@@ -174,10 +176,11 @@ through `scheduling_stopped` with explicit unresolved or inconclusive semantics
 and a non-converged stop reason. The ordinary commit guards still require the
 stop reason and retained evidence state to agree.
 
-`rey.reasoning-surface.v2` binds the scheduling decision identity in addition
-to the v1 inputs, so the projected rows retain the cited deterministic
-selection lineage. The pure runtime and policy reducers intentionally keep
-that identity opaque. A future composition layer must replay-verify the
+`rey.reasoning-surface.v3` binds the scheduling decision identity and the same
+workload, graph, scenario-suite, and campaign scope, so the projected rows
+retain the cited deterministic selection lineage. The pure runtime and policy
+reducers intentionally keep those identities opaque. A future composition
+layer must replay-verify the
 decision against its frontier and check projected-row membership before it
 records `scheduling_completed` or `reasoning_surface_ready`.
 

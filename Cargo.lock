@@ -2407,11 +2407,13 @@ name = "rey"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "rey-core",
  "rey-dataframe",
  "rey-diff",
  "rey-environment",
  "rey-git",
  "rey-proof",
+ "rey-runtime",
  "serde",
  "serde_json",
  "tempfile",
@@ -2520,6 +2522,7 @@ name = "rey-runtime"
 version = "0.1.0"
 dependencies = [
  "rey-core",
+ "rey-diff",
  "serde",
  "serde_json",
  "thiserror",

@@ -1,9 +1,11 @@
 # Workloads, Compute Graphs, And Scenarios
 
-This document defines Rey's accepted workload-centered product model and the
-contracts that the future `rey workloads` command group must expose. ADR 0015
-fixes these semantics. No workload manifest, catalog, graph executor, test
-campaign, or workload CLI command is implemented yet.
+This document defines Rey's workload-centered product model. ADR 0015 fixes
+the broad semantics and ADR 0016 fixes the implemented first slice. Rey now
+ships a bounded built-in catalog, typed UTF-8 DAG executor, scenario evaluator,
+local result provider, and the four `rey workloads` commands. External
+manifests, generated graph revision, and the recurring improvement campaign
+remain target contracts.
 
 ## Public Unit
 
@@ -21,15 +23,21 @@ The accepted command surface is:
 
 ```text
 rey environment ...
-rey workloads list
-rey workloads test [<workload-id>]
-rey workloads run <workload-id>
-rey workloads status [<workload-id>]
+rey workloads [--workspace PATH] [--state-dir PATH] list
+rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>]
+rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8>
+rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
 The environment group inventories available compute. The workloads group
 declares what that compute is for, measures whether a generated graph behaves
 as expected, and runs a qualified graph against admitted inputs.
+
+The built-in catalog currently contains `rey.fixture.text-normalize`, whose
+graph executes `trim -> uppercase` and passes two required scenarios, and
+`rey.fixture.text-mismatch`, whose `uppercase` graph preserves one passing and
+one failing scenario. These are conformance fixtures, not a general workload
+declaration format.
 
 ## Workload Contract
 
@@ -252,9 +260,14 @@ The workload surface needs two provider contracts:
    deltas, qualification records, runs, and indexes needed by `list` and
    `status`.
 
-This distinction does not select a database, manifest encoding, or directory
-layout. A standalone implementation may use an explicitly selected local
-artifact root with disclosed filesystem-only guarantees. Connected mode uses
+The first standalone result provider stores a bounded
+`rey.local-workload-state.v1` JSON index at
+`${workspace}/.rey/workloads/state.json`, or below explicit `--state-dir`.
+It verifies retained test and run artifacts on every read and publishes a
+same-directory temporary document with rename. It claims no `fsync` crash
+durability, locking, multi-process transactionality, authenticated writer, or
+Spoke semantics. This does not select a general database or manifest encoding.
+Connected mode uses
 public Spoke contracts for any durability, query, run, or lineage guarantees
 it claims. Rey does not project a local layout onto Spoke or create a second
 durable service.
@@ -308,18 +321,19 @@ models. Scenario deltas produce workload-specific frontier rows. Scheduling
 selects bounded unresolved work. Retrieval projects the relevant failing
 evidence. A policy then proposes a graph revision or another admitted action.
 
-The currently implemented library schemas predate this product cutover and
-contain `application` and `component` identity fields. They remain truthful
-implementation history, not aliases that the CLI may silently expose as
-workloads. The first workload implementation must make a versioned schema
-cutover to workload, graph, scenario, campaign, and run identities before the
-new command surface ships.
+The workload slice made the required pre-alpha hard cut. `rey.frontier.v2`,
+`rey.frontier-progress.v2`, `rey.scheduling-decision.v2`, and
+`rey.reasoning-surface.v3` bind exact workload, graph, scenario-suite, and
+campaign identities. The runtime reducer remains `rey.runtime-state.v2`
+because its state never contained the legacy application/component envelope.
+No compatibility alias or decoder silently relabels the superseded schemas.
 
 ## Initial Implementation Boundary
 
-The first executable workload slice should use one small fixture workload, a
-finite graph composed from built-in deterministic operations, and reviewed
-scenarios. It should exercise all four commands without an agent or Spoke,
-then let an agent propose a graph through the same frozen contract. It should
-not begin with a generic distributed scheduler, arbitrary code generation,
-recurring service, persistence engine, or provider-specific policy loop.
+The implemented slice uses two small fixture workloads, finite graphs composed
+from built-in deterministic operations, and reviewed scenarios. It exercises
+all four commands without an agent or Spoke. The next slice may derive a
+workload frontier from the retained failing delta and expose bounded graph
+proposal admission through the same frozen contract. Generic distributed
+scheduling, arbitrary code execution, a recurring service, a persistence
+engine, and provider-specific policy loops remain outside this boundary.

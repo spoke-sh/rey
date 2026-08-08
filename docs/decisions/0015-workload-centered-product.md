@@ -146,11 +146,11 @@ The previous application-centered provisional CLI and target declaration are
 superseded. Historical ADRs remain unchanged, but current architecture and
 plans use workload, graph, scenario, campaign, and run language.
 
-The implemented `rey.frontier.v1`, `rey.runtime-state.v2`, and
-`rey.reasoning-surface.v2` family still contains application/component fields.
-Those fields are not silently redefined. A versioned schema cutover must bind
-workload/graph/scenario/campaign identities before the workload CLI is
-implemented.
+At acceptance time, the implemented frontier and reasoning-surface families
+still contained application/component fields; runtime state itself did not.
+[ADR 0016](0016-first-workload-slice.md) subsequently fulfilled this condition
+with frontier/progress/scheduling v2 and reasoning-surface v3 identities before
+shipping the workload CLI. The old fields were not silently redefined.
 
 ## Consequences
 
@@ -164,9 +164,9 @@ implemented.
   remain separate.
 - Agent graph generation can be added without making an LLM part of runtime
   correctness or granting generated code ambient authority.
-- The next implementation bearing is a small zero-agent workload through all
-  four commands and a versioned schema cutover, before generic recurring
-  scheduling or a provider-specific agent loop.
+- The required next bearing was a small zero-agent workload through all four
+  commands and a versioned schema cutover, before generic recurring scheduling
+  or a provider-specific agent loop; ADR 0016 records that implementation.
 
 ## Not Decided
 

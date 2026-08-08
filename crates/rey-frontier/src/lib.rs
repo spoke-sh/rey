@@ -175,8 +175,10 @@ mod tests {
 
     fn inputs(record: &str, capability: &str) -> FrontierInputs {
         FrontierInputs {
-            application: contract("application"),
-            component: contract("component"),
+            workload: contract("workload"),
+            graph: contract("graph"),
+            scenario_suite: contract("scenario-suite"),
+            campaign_id: digest("campaign"),
             space: contract("space"),
             trace_id: digest("trace"),
             committed_record_id: digest(record),

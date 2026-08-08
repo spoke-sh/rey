@@ -10,12 +10,12 @@ use crate::{
     validate_digest,
 };
 
-pub const SCHEDULING_DECISION_SCHEMA: &str = "rey.scheduling-decision.v1";
+pub const SCHEDULING_DECISION_SCHEMA: &str = "rey.scheduling-decision.v2";
 pub const SCHEDULING_DECISION_RELATION: &str = "rey.scheduled-work";
-pub const SCHEDULING_DECISION_SCHEMA_VERSION: &str = "1";
+pub const SCHEDULING_DECISION_SCHEMA_VERSION: &str = "2";
 const SCHEDULER_ID: &str = "rey.priority-cost-work-id";
 const SCHEDULER_REVISION: u64 = 1;
-const SCHEDULER_DEFINITION: &str = "select ready rey.frontier.v1 work by priority descending, estimated cost ascending, work_id ascending; greedy bounded units and total cost; no fairness claim";
+const SCHEDULER_DEFINITION: &str = "select ready rey.frontier.v2 workload campaign work by priority descending, estimated cost ascending, work_id ascending; greedy bounded units and total cost; no fairness claim";
 
 #[must_use]
 pub fn deterministic_scheduler() -> ContractIdentity {
@@ -50,8 +50,10 @@ impl Default for SchedulerLimits {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SchedulingInputs {
-    pub application: ContractIdentity,
-    pub component: ContractIdentity,
+    pub workload: ContractIdentity,
+    pub graph: ContractIdentity,
+    pub scenario_suite: ContractIdentity,
+    pub campaign_id: SemanticDigest,
     pub space: ContractIdentity,
     pub trace_id: SemanticDigest,
     pub committed_record_id: SemanticDigest,
@@ -203,8 +205,10 @@ pub fn schedule(
         FrontierAssessment::Open => ScheduleOutcome::BudgetExhausted,
     };
     let inputs = SchedulingInputs {
-        application: frontier.inputs.application.clone(),
-        component: frontier.inputs.component.clone(),
+        workload: frontier.inputs.workload.clone(),
+        graph: frontier.inputs.graph.clone(),
+        scenario_suite: frontier.inputs.scenario_suite.clone(),
+        campaign_id: frontier.inputs.campaign_id.clone(),
         space: frontier.inputs.space.clone(),
         trace_id: frontier.inputs.trace_id.clone(),
         committed_record_id: frontier.inputs.committed_record_id.clone(),
@@ -243,14 +247,16 @@ impl SchedulingDecision {
                 actual: self.schema.clone(),
             });
         }
-        validate_contract("application", &self.inputs.application)?;
-        validate_contract("component", &self.inputs.component)?;
+        validate_contract("workload", &self.inputs.workload)?;
+        validate_contract("graph", &self.inputs.graph)?;
+        validate_contract("scenario suite", &self.inputs.scenario_suite)?;
         validate_contract("space", &self.inputs.space)?;
         validate_contract("scheduler", &self.inputs.scheduler)?;
         if self.inputs.scheduler != deterministic_scheduler() {
             return Err(FrontierError::UnexpectedContract("scheduler"));
         }
         for digest in [
+            &self.inputs.campaign_id,
             &self.inputs.trace_id,
             &self.inputs.committed_record_id,
             &self.inputs.frontier_id,
@@ -330,28 +336,41 @@ impl SchedulingDecision {
             ("rey.decision-schema".to_owned(), self.schema.clone()),
             ("rey.decision-id".to_owned(), self.decision_id.to_string()),
             (
-                "rey.application-id".to_owned(),
-                self.inputs.application.id.clone(),
+                "rey.workload-id".to_owned(),
+                self.inputs.workload.id.clone(),
             ),
             (
-                "rey.application-revision".to_owned(),
-                self.inputs.application.revision.to_string(),
+                "rey.workload-revision".to_owned(),
+                self.inputs.workload.revision.to_string(),
             ),
             (
-                "rey.application-digest".to_owned(),
-                self.inputs.application.semantic_digest.to_string(),
+                "rey.workload-digest".to_owned(),
+                self.inputs.workload.semantic_digest.to_string(),
+            ),
+            ("rey.graph-id".to_owned(), self.inputs.graph.id.clone()),
+            (
+                "rey.graph-revision".to_owned(),
+                self.inputs.graph.revision.to_string(),
             ),
             (
-                "rey.component-id".to_owned(),
-                self.inputs.component.id.clone(),
+                "rey.graph-digest".to_owned(),
+                self.inputs.graph.semantic_digest.to_string(),
             ),
             (
-                "rey.component-revision".to_owned(),
-                self.inputs.component.revision.to_string(),
+                "rey.scenario-suite-id".to_owned(),
+                self.inputs.scenario_suite.id.clone(),
             ),
             (
-                "rey.component-digest".to_owned(),
-                self.inputs.component.semantic_digest.to_string(),
+                "rey.scenario-suite-revision".to_owned(),
+                self.inputs.scenario_suite.revision.to_string(),
+            ),
+            (
+                "rey.scenario-suite-digest".to_owned(),
+                self.inputs.scenario_suite.semantic_digest.to_string(),
+            ),
+            (
+                "rey.campaign-id".to_owned(),
+                self.inputs.campaign_id.to_string(),
             ),
             ("rey.space-id".to_owned(), self.inputs.space.id.clone()),
             (
@@ -535,8 +554,9 @@ fn validate_string_bytes(
 ) -> Result<(), FrontierError> {
     let mut total = 0_u64;
     for contract in [
-        &inputs.application,
-        &inputs.component,
+        &inputs.workload,
+        &inputs.graph,
+        &inputs.scenario_suite,
         &inputs.space,
         &inputs.scheduler,
     ] {
@@ -544,6 +564,7 @@ fn validate_string_bytes(
         add_string_bytes(&mut total, contract.semantic_digest.as_str())?;
     }
     for digest in [
+        &inputs.campaign_id,
         &inputs.trace_id,
         &inputs.committed_record_id,
         &inputs.frontier_id,
@@ -567,8 +588,10 @@ fn validate_string_bytes(
 
 fn decision_digest(decision: &SchedulingDecision) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(SCHEDULING_DECISION_SCHEMA);
-    decision.inputs.application.add_semantics(&mut hasher);
-    decision.inputs.component.add_semantics(&mut hasher);
+    decision.inputs.workload.add_semantics(&mut hasher);
+    decision.inputs.graph.add_semantics(&mut hasher);
+    decision.inputs.scenario_suite.add_semantics(&mut hasher);
+    hasher.add_str(decision.inputs.campaign_id.as_str());
     decision.inputs.space.add_semantics(&mut hasher);
     hasher.add_str(decision.inputs.trace_id.as_str());
     hasher.add_str(decision.inputs.committed_record_id.as_str());

@@ -1,5 +1,12 @@
 #![forbid(unsafe_code)]
 
+mod scenario;
+
+pub use scenario::{
+    SCENARIO_OUTPUT_DELTA_SCHEMA, ScenarioDeltaError, ScenarioDeltaInputs, ScenarioDeltaLimits,
+    ScenarioOutputDelta, ScenarioValueType, compare_scenario_utf8,
+};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use csv::{Terminator, WriterBuilder};
@@ -191,7 +198,7 @@ pub enum DeltaAssessment {
 }
 
 impl DeltaAssessment {
-    const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Equal => "equal",
             Self::Different => "different",

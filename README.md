@@ -31,11 +31,12 @@ machine, canonical frontier and progress relations, deterministic bounded work
 selection, and the delta-directed reasoning surface. They run with zero Spoke.
 The accepted next product contract makes a workload the public composition of
 a generated compute graph, scenarios, policy, claims, and bounds, with
-`workloads list`, `test`, `run`, and `status` as its command surface. Those
-workload commands are not implemented yet. Workload-specific frontier
-derivation, recurring scheduling, provider retrieval/execution, activation,
-mutation, Spoke-backed proof bundles, and
-connected Spoke behavior remain design contracts, not implemented commands.
+`workloads list`, `test`, `run`, and `status` as its command surface. The first
+executable slice now ships two built-in deterministic text workloads, typed
+scenario deltas, exact qualification, and bounded local result state.
+Workload-specific frontier derivation, generated graph revision, recurring
+scheduling, provider retrieval/execution, activation, mutation, Spoke-backed
+proof bundles, and connected Spoke behavior remain design contracts.
 
 ## Try The First Slice
 
@@ -43,12 +44,16 @@ connected Spoke behavior remain design contracts, not implemented commands.
 nix develop
 just setup
 just rey environment inspect --format table
+just rey workloads list --format table
+just rey workloads test rey.fixture.text-normalize --format table
+just rey workloads run rey.fixture.text-normalize --input ' rey ' --format table
 ```
 
-Use `--format json` for the bounded document or `--format arrow` for an Arrow
-IPC stream. `--format auto` selects a table on a terminal and Arrow when stdout
-is redirected. The current command is observation-only and uses `.` as its
-explicit workspace unless `--workspace` is supplied.
+Environment frame commands support bounded JSON documents and Arrow IPC;
+environment `auto` selects a table on a terminal and Arrow when redirected.
+Workload commands support table or JSON, with redirected `auto` selecting
+JSON. Both command groups use `.` as their workspace unless `--workspace` is
+supplied.
 
 The next loop can be exercised entirely through files selected by the caller:
 
@@ -71,6 +76,12 @@ Snapshot inputs are bounded and their schema, canonical order, composite-key
 uniqueness, completeness, and semantic digest are recomputed before use. Proof
 commands return `0` for passed/verified, `2` for failed, `3` for inconclusive,
 and `4` for stale; invalid input or runtime failure returns `1`.
+
+Workload state defaults to `.rey/workloads/state.json` below the selected
+workspace. `workloads list` and `status` are read-only. `test` returns `2` for
+the deliberately failing `rey.fixture.text-mismatch` workload and preserves
+its exact expected-to-observed delta; `run` returns `3` until the selected
+graph has a fresh passing qualification. Redirected workload output is JSON.
 
 ## The Idea
 
@@ -350,11 +361,13 @@ crates now reject illegal runtime transitions, derive convergence only from
 complete frontier evidence, compare frontier progress, select bounded ready
 work deterministically, and bind that decision into the reasoning surface.
 They do not derive domain work, retrieve providers, or execute actions. The
-workload-centered product, graph/scenario, and CLI contracts are accepted but
-not implemented; the existing library schemas still expose legacy
-application/component identity fields pending a versioned cutover. The active
-foundation plan covers complete Git polling and routed Spoke proof work.
+first workload slice implements bounded built-in compute graphs, typed
+scenario deltas, exact qualification, a verified local result index, and all
+four workload commands. Frontier/progress/scheduling v2 and reasoning-surface
+v3 now bind workload, graph, scenario-suite, and campaign identities. The
+active foundation plan covers complete Git polling and routed Spoke proof work.
 See [Plan 0001](plans/0001-foundation.md),
 [Plan 0002](plans/0002-runtime-contracts.md), and
 [Plan 0003](plans/0003-frontier-scheduling.md). The completed design bearing is
-[Plan 0004](plans/0004-workload-contracts.md).
+[Plan 0004](plans/0004-workload-contracts.md); the active executable slice is
+[Plan 0005](plans/0005-first-workload-slice.md).

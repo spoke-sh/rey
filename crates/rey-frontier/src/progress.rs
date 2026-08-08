@@ -10,12 +10,12 @@ use crate::{
     validate_digest,
 };
 
-pub const FRONTIER_PROGRESS_SCHEMA: &str = "rey.frontier-progress.v1";
+pub const FRONTIER_PROGRESS_SCHEMA: &str = "rey.frontier-progress.v2";
 pub const FRONTIER_PROGRESS_RELATION: &str = "rey.frontier-progress-changes";
-pub const FRONTIER_PROGRESS_SCHEMA_VERSION: &str = "1";
+pub const FRONTIER_PROGRESS_SCHEMA_VERSION: &str = "2";
 const FRONTIER_COMPARATOR_ID: &str = "rey.frontier-work-exact";
 const FRONTIER_COMPARATOR_REVISION: u64 = 1;
-const FRONTIER_COMPARATOR_DEFINITION: &str = "align compatible rey.frontier.v1 rows by stable work_id; source-only resolved, target-only introduced, changed row_id updated, equal row_id unchanged; no scalar score";
+const FRONTIER_COMPARATOR_DEFINITION: &str = "align compatible rey.frontier.v2 rows by stable work_id across exact source/target graph revisions in one workload campaign; source-only resolved, target-only introduced, changed row_id updated, equal row_id unchanged; no scalar score";
 
 #[must_use]
 pub fn frontier_comparator() -> ContractIdentity {
@@ -28,8 +28,11 @@ pub fn frontier_comparator() -> ContractIdentity {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ProgressInputs {
-    pub application: ContractIdentity,
-    pub component: ContractIdentity,
+    pub workload: ContractIdentity,
+    pub source_graph: ContractIdentity,
+    pub target_graph: ContractIdentity,
+    pub scenario_suite: ContractIdentity,
+    pub campaign_id: SemanticDigest,
     pub space: ContractIdentity,
     pub trace_id: SemanticDigest,
     pub source_frontier_id: SemanticDigest,
@@ -226,8 +229,11 @@ impl FrontierProgress {
             assessment,
         };
         let inputs = ProgressInputs {
-            application: source.inputs.application.clone(),
-            component: source.inputs.component.clone(),
+            workload: source.inputs.workload.clone(),
+            source_graph: source.inputs.graph.clone(),
+            target_graph: target.inputs.graph.clone(),
+            scenario_suite: source.inputs.scenario_suite.clone(),
+            campaign_id: source.inputs.campaign_id.clone(),
             space: source.inputs.space.clone(),
             trace_id: source.inputs.trace_id.clone(),
             source_frontier_id: source.frontier_id.clone(),
@@ -261,14 +267,17 @@ impl FrontierProgress {
                 actual: self.schema.clone(),
             });
         }
-        validate_contract("application", &self.inputs.application)?;
-        validate_contract("component", &self.inputs.component)?;
+        validate_contract("workload", &self.inputs.workload)?;
+        validate_contract("source graph", &self.inputs.source_graph)?;
+        validate_contract("target graph", &self.inputs.target_graph)?;
+        validate_contract("scenario suite", &self.inputs.scenario_suite)?;
         validate_contract("space", &self.inputs.space)?;
         validate_contract("progress comparator", &self.inputs.comparator)?;
         if self.inputs.comparator != frontier_comparator() {
             return Err(FrontierError::UnexpectedContract("progress comparator"));
         }
         for digest in [
+            &self.inputs.campaign_id,
             &self.inputs.trace_id,
             &self.inputs.source_frontier_id,
             &self.inputs.target_frontier_id,
@@ -358,28 +367,56 @@ impl FrontierProgress {
             ("rey.progress-schema".to_owned(), self.schema.clone()),
             ("rey.progress-id".to_owned(), self.progress_id.to_string()),
             (
-                "rey.application-id".to_owned(),
-                self.inputs.application.id.clone(),
+                "rey.workload-id".to_owned(),
+                self.inputs.workload.id.clone(),
             ),
             (
-                "rey.application-revision".to_owned(),
-                self.inputs.application.revision.to_string(),
+                "rey.workload-revision".to_owned(),
+                self.inputs.workload.revision.to_string(),
             ),
             (
-                "rey.application-digest".to_owned(),
-                self.inputs.application.semantic_digest.to_string(),
+                "rey.workload-digest".to_owned(),
+                self.inputs.workload.semantic_digest.to_string(),
             ),
             (
-                "rey.component-id".to_owned(),
-                self.inputs.component.id.clone(),
+                "rey.source-graph-id".to_owned(),
+                self.inputs.source_graph.id.clone(),
             ),
             (
-                "rey.component-revision".to_owned(),
-                self.inputs.component.revision.to_string(),
+                "rey.source-graph-revision".to_owned(),
+                self.inputs.source_graph.revision.to_string(),
             ),
             (
-                "rey.component-digest".to_owned(),
-                self.inputs.component.semantic_digest.to_string(),
+                "rey.source-graph-digest".to_owned(),
+                self.inputs.source_graph.semantic_digest.to_string(),
+            ),
+            (
+                "rey.target-graph-id".to_owned(),
+                self.inputs.target_graph.id.clone(),
+            ),
+            (
+                "rey.target-graph-revision".to_owned(),
+                self.inputs.target_graph.revision.to_string(),
+            ),
+            (
+                "rey.target-graph-digest".to_owned(),
+                self.inputs.target_graph.semantic_digest.to_string(),
+            ),
+            (
+                "rey.scenario-suite-id".to_owned(),
+                self.inputs.scenario_suite.id.clone(),
+            ),
+            (
+                "rey.scenario-suite-revision".to_owned(),
+                self.inputs.scenario_suite.revision.to_string(),
+            ),
+            (
+                "rey.scenario-suite-digest".to_owned(),
+                self.inputs.scenario_suite.semantic_digest.to_string(),
+            ),
+            (
+                "rey.campaign-id".to_owned(),
+                self.inputs.campaign_id.to_string(),
             ),
             ("rey.space-id".to_owned(), self.inputs.space.id.clone()),
             (
@@ -484,12 +521,16 @@ impl FrontierProgress {
 fn validate_compatibility(source: &Frontier, target: &Frontier) -> Result<(), FrontierError> {
     let pairs = [
         (
-            "application contract",
-            source.inputs.application == target.inputs.application,
+            "workload contract",
+            source.inputs.workload == target.inputs.workload,
         ),
         (
-            "component contract",
-            source.inputs.component == target.inputs.component,
+            "scenario suite contract",
+            source.inputs.scenario_suite == target.inputs.scenario_suite,
+        ),
+        (
+            "campaign identity",
+            source.inputs.campaign_id == target.inputs.campaign_id,
         ),
         ("space contract", source.inputs.space == target.inputs.space),
         (
@@ -608,8 +649,10 @@ fn validate_string_bytes(
 ) -> Result<(), FrontierError> {
     let mut total = 0_u64;
     for contract in [
-        &inputs.application,
-        &inputs.component,
+        &inputs.workload,
+        &inputs.source_graph,
+        &inputs.target_graph,
+        &inputs.scenario_suite,
         &inputs.space,
         &inputs.comparator,
     ] {
@@ -617,6 +660,7 @@ fn validate_string_bytes(
         add_string_bytes(&mut total, contract.semantic_digest.as_str())?;
     }
     for digest in [
+        &inputs.campaign_id,
         &inputs.trace_id,
         &inputs.source_frontier_id,
         &inputs.target_frontier_id,
@@ -639,8 +683,11 @@ fn validate_string_bytes(
 
 fn progress_digest(progress: &FrontierProgress) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(FRONTIER_PROGRESS_SCHEMA);
-    progress.inputs.application.add_semantics(&mut hasher);
-    progress.inputs.component.add_semantics(&mut hasher);
+    progress.inputs.workload.add_semantics(&mut hasher);
+    progress.inputs.source_graph.add_semantics(&mut hasher);
+    progress.inputs.target_graph.add_semantics(&mut hasher);
+    progress.inputs.scenario_suite.add_semantics(&mut hasher);
+    hasher.add_str(progress.inputs.campaign_id.as_str());
     progress.inputs.space.add_semantics(&mut hasher);
     hasher.add_str(progress.inputs.trace_id.as_str());
     hasher.add_str(progress.inputs.source_frontier_id.as_str());

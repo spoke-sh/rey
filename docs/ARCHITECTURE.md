@@ -502,10 +502,11 @@ guarantees. `rey-runtime` implements the pure formal state reducer through an
 explicit scheduling phase; `rey-frontier` implements canonical frontier,
 progress, and bounded selection contracts; and `rey-policy` implements the
 bounded reasoning-surface document and DataFrame projection.
-The workload-centered CLI, catalog, graph/scenario execution, qualification,
-and result retention are accepted design contracts but are not implemented.
-The current runtime/frontier/surface schemas still carry legacy
-application/component identities and require a versioned cutover.
+The first workload slice implements a compiled-in fixture catalog, bounded
+typed DAG execution, scenario deltas, exact qualification, verified local
+result state, and the `list`, `status`, `test`, and `run` commands.
+Frontier/progress/scheduling v2 and reasoning-surface v3 bind workload, graph,
+scenario-suite, and campaign identities; runtime state remains v2.
 Workload-specific frontier derivation and invalidation, recurring
 scheduling, provider retrieval/execution, policy proposals, Git activation,
 and the Spoke provider remain target architecture.

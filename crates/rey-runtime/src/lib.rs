@@ -1,5 +1,18 @@
 #![forbid(unsafe_code)]
 
+mod workload;
+
+pub use workload::{
+    BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, COMPUTE_GRAPH_SCHEMA,
+    ComputeGraph, GraphExecution, GraphLimits, GraphNode, GraphOutput, QualificationRecord,
+    RunStatus, SCENARIO_SUITE_SCHEMA, Scenario, ScenarioEvaluation, ScenarioResult, ScenarioSuite,
+    TestStatus, TestSummary, ValueSource, ValueType, WORKLOAD_QUALIFICATION_SCHEMA,
+    WORKLOAD_RUN_RESULT_SCHEMA, WORKLOAD_SCHEMA, WORKLOAD_TEST_RESULT_SCHEMA, WorkloadDefinition,
+    WorkloadError, WorkloadLimits, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
+    WorkloadValue, built_in_workload, built_in_workloads, execute_workload, run_workload,
+    test_workload,
+};
+
 use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

@@ -7,15 +7,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{FrontierError, add_string_bytes, validate_contract, validate_digest, validate_text};
 
-pub const FRONTIER_SCHEMA: &str = "rey.frontier.v1";
+pub const FRONTIER_SCHEMA: &str = "rey.frontier.v2";
 pub const FRONTIER_RELATION: &str = "rey.frontier-rows";
-pub const FRONTIER_SCHEMA_VERSION: &str = "1";
-const FRONTIER_ROW_SCHEMA: &str = "rey.frontier-row.v1";
+pub const FRONTIER_SCHEMA_VERSION: &str = "2";
+const FRONTIER_ROW_SCHEMA: &str = "rey.frontier-row.v2";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct FrontierInputs {
-    pub application: ContractIdentity,
-    pub component: ContractIdentity,
+    pub workload: ContractIdentity,
+    pub graph: ContractIdentity,
+    pub scenario_suite: ContractIdentity,
+    pub campaign_id: SemanticDigest,
     pub space: ContractIdentity,
     pub trace_id: SemanticDigest,
     pub committed_record_id: SemanticDigest,
@@ -395,28 +397,41 @@ impl Frontier {
             ("rey.frontier-schema".to_owned(), self.schema.clone()),
             ("rey.frontier-id".to_owned(), self.frontier_id.to_string()),
             (
-                "rey.application-id".to_owned(),
-                self.inputs.application.id.clone(),
+                "rey.workload-id".to_owned(),
+                self.inputs.workload.id.clone(),
             ),
             (
-                "rey.application-revision".to_owned(),
-                self.inputs.application.revision.to_string(),
+                "rey.workload-revision".to_owned(),
+                self.inputs.workload.revision.to_string(),
             ),
             (
-                "rey.application-digest".to_owned(),
-                self.inputs.application.semantic_digest.to_string(),
+                "rey.workload-digest".to_owned(),
+                self.inputs.workload.semantic_digest.to_string(),
+            ),
+            ("rey.graph-id".to_owned(), self.inputs.graph.id.clone()),
+            (
+                "rey.graph-revision".to_owned(),
+                self.inputs.graph.revision.to_string(),
             ),
             (
-                "rey.component-id".to_owned(),
-                self.inputs.component.id.clone(),
+                "rey.graph-digest".to_owned(),
+                self.inputs.graph.semantic_digest.to_string(),
             ),
             (
-                "rey.component-revision".to_owned(),
-                self.inputs.component.revision.to_string(),
+                "rey.scenario-suite-id".to_owned(),
+                self.inputs.scenario_suite.id.clone(),
             ),
             (
-                "rey.component-digest".to_owned(),
-                self.inputs.component.semantic_digest.to_string(),
+                "rey.scenario-suite-revision".to_owned(),
+                self.inputs.scenario_suite.revision.to_string(),
+            ),
+            (
+                "rey.scenario-suite-digest".to_owned(),
+                self.inputs.scenario_suite.semantic_digest.to_string(),
+            ),
+            (
+                "rey.campaign-id".to_owned(),
+                self.inputs.campaign_id.to_string(),
             ),
             ("rey.space-id".to_owned(), self.inputs.space.id.clone()),
             (
@@ -518,12 +533,14 @@ impl Frontier {
 }
 
 fn validate_inputs(inputs: &FrontierInputs) -> Result<(), FrontierError> {
-    validate_contract("application", &inputs.application)?;
-    validate_contract("component", &inputs.component)?;
+    validate_contract("workload", &inputs.workload)?;
+    validate_contract("graph", &inputs.graph)?;
+    validate_contract("scenario suite", &inputs.scenario_suite)?;
     validate_contract("space", &inputs.space)?;
     validate_contract("derivation", &inputs.derivation)?;
     validate_contract("prioritization", &inputs.prioritization)?;
     validate_digest(&inputs.trace_id)?;
+    validate_digest(&inputs.campaign_id)?;
     validate_digest(&inputs.committed_record_id)?;
     validate_digest(&inputs.capability_snapshot_id)
 }
@@ -615,8 +632,9 @@ fn validate_string_bytes(
 ) -> Result<(), FrontierError> {
     let mut total = 0_u64;
     for contract in [
-        &inputs.application,
-        &inputs.component,
+        &inputs.workload,
+        &inputs.graph,
+        &inputs.scenario_suite,
         &inputs.space,
         &inputs.derivation,
         &inputs.prioritization,
@@ -625,6 +643,7 @@ fn validate_string_bytes(
         add_string_bytes(&mut total, contract.semantic_digest.as_str())?;
     }
     for digest in [
+        &inputs.campaign_id,
         &inputs.trace_id,
         &inputs.committed_record_id,
         &inputs.capability_snapshot_id,
@@ -697,8 +716,10 @@ fn row_digest(row: &FrontierRow) -> SemanticDigest {
 }
 
 pub(crate) fn add_inputs(hasher: &mut SemanticHasher, inputs: &FrontierInputs) {
-    inputs.application.add_semantics(hasher);
-    inputs.component.add_semantics(hasher);
+    inputs.workload.add_semantics(hasher);
+    inputs.graph.add_semantics(hasher);
+    inputs.scenario_suite.add_semantics(hasher);
+    hasher.add_str(inputs.campaign_id.as_str());
     inputs.space.add_semantics(hasher);
     hasher.add_str(inputs.trace_id.as_str());
     hasher.add_str(inputs.committed_record_id.as_str());

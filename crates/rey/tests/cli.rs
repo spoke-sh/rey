@@ -1,5 +1,8 @@
 use std::{fs, path::Path, process::Command};
 
+use rey::workloads::{
+    QualificationState, WorkloadFreshness, WorkloadList, WorkloadStatusBatch, WorkloadTestBatch,
+};
 use rey_dataframe::Frame;
 use rey_diff::CapabilityDelta;
 use rey_environment::{
@@ -10,6 +13,10 @@ use rey_proof::{
     BundleArtifactRole, CertificateVerification, LocalBundleVerification,
     LocalBundleVerificationStatus, LocalProofBundleManifest, ProofStatus,
     RequiredCapabilityCertificate, VerificationStatus,
+};
+use rey_runtime::{
+    BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, RunStatus, ScenarioEvaluation,
+    TestStatus, WorkloadRunResult,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -375,6 +382,236 @@ fn local_bundle_limit_failure_publishes_nothing() {
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
     assert!(!bundle_path.exists());
+}
+
+#[test]
+fn workload_list_is_read_only_machine_clean_and_reports_exact_graphs() {
+    let workspace = TempDir::new().unwrap();
+    let output = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "list",
+    ]);
+
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert!(!workspace.path().join(".rey").exists());
+    let list: WorkloadList = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(list.workloads.len(), 2);
+    assert_eq!(
+        list.workloads
+            .iter()
+            .map(|workload| workload.workload.id.as_str())
+            .collect::<Vec<_>>(),
+        [
+            BUILT_IN_NORMALIZE_WORKLOAD_ID,
+            BUILT_IN_MISMATCH_WORKLOAD_ID
+        ]
+    );
+    assert!(list.workloads.iter().all(|workload| {
+        workload.freshness == WorkloadFreshness::Untested
+            && workload.qualification == QualificationState::Untested
+            && workload.passed == 0
+            && workload.evaluated == 0
+            && workload.candidate_graph.revision == 1
+    }));
+
+    let table = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(table.status.success());
+    let table = String::from_utf8(table.stdout).unwrap();
+    assert!(table.contains("progress"));
+    assert_eq!(table.matches("\t[..]\t0/0\tuntested\tuntested").count(), 2);
+}
+
+#[test]
+fn workload_test_qualifies_then_run_executes_the_same_graph() {
+    let workspace = TempDir::new().unwrap();
+
+    let blocked = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "run",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+        "--input",
+        " rey ",
+    ]);
+    assert_eq!(blocked.status.code(), Some(3));
+    assert!(blocked.stderr.is_empty());
+    let blocked: WorkloadRunResult = serde_json::from_slice(&blocked.stdout).unwrap();
+    assert_eq!(blocked.status, RunStatus::Blocked);
+    assert_eq!(blocked.stop_reason, "qualification_missing_or_stale");
+
+    let tested = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+    ]);
+    assert!(tested.status.success());
+    assert!(tested.stderr.is_empty());
+    let tested: WorkloadTestBatch = serde_json::from_slice(&tested.stdout).unwrap();
+    let test_result = &tested.results[0];
+    assert_eq!(test_result.status, TestStatus::Passed);
+    assert_eq!(test_result.summary.passed, 2);
+    assert!(test_result.qualification.is_some());
+
+    let repeated = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+    ]);
+    assert!(repeated.status.success());
+    assert_eq!(tested.results[0].result_id, {
+        let repeated: WorkloadTestBatch = serde_json::from_slice(&repeated.stdout).unwrap();
+        repeated.results[0].result_id.clone()
+    });
+
+    let executed = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "run",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+        "--input",
+        " rey ",
+    ]);
+    assert!(executed.status.success());
+    assert!(executed.stderr.is_empty());
+    let executed: WorkloadRunResult = serde_json::from_slice(&executed.stdout).unwrap();
+    assert_eq!(executed.status, RunStatus::Passed);
+    assert_eq!(executed.graph, test_result.graph);
+    assert_eq!(
+        executed.qualification_id,
+        test_result
+            .qualification
+            .as_ref()
+            .map(|qualification| qualification.qualification_id.clone())
+    );
+    assert_eq!(
+        executed.outputs["text"],
+        rey_runtime::WorkloadValue::Utf8("REY".to_owned())
+    );
+    assert_eq!(executed.node_order, ["trim", "uppercase"]);
+
+    let status = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "status",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+    ]);
+    assert!(status.status.success());
+    let status: WorkloadStatusBatch = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status.statuses.len(), 1);
+    assert_eq!(
+        status.statuses[0].summary.qualification,
+        QualificationState::Qualified
+    );
+    assert_eq!(
+        status.statuses[0].last_run.as_ref().map(|run| run.status),
+        Some(RunStatus::Passed)
+    );
+}
+
+#[test]
+fn workload_failure_is_a_typed_delta_with_a_semantic_exit() {
+    let workspace = TempDir::new().unwrap();
+    let output = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_MISMATCH_WORKLOAD_ID,
+    ]);
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stderr.is_empty());
+    let batch: WorkloadTestBatch = serde_json::from_slice(&output.stdout).unwrap();
+    let result = &batch.results[0];
+    assert_eq!(result.status, TestStatus::Failed);
+    assert_eq!(result.summary.passed, 1);
+    assert_eq!(result.summary.failed, 1);
+    assert!(result.qualification.is_none());
+    let scenario = result
+        .scenarios
+        .iter()
+        .find(|scenario| scenario.evaluation == ScenarioEvaluation::Failed)
+        .unwrap();
+    let delta = &scenario.deltas[0];
+    assert_eq!(delta.expected, "REY");
+    assert_eq!(delta.observed, " REY ");
+    delta.verify().unwrap();
+
+    let list = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "list",
+    ]);
+    let list: WorkloadList = serde_json::from_slice(&list.stdout).unwrap();
+    let mismatch = list
+        .workloads
+        .iter()
+        .find(|workload| workload.workload.id == BUILT_IN_MISMATCH_WORKLOAD_ID)
+        .unwrap();
+    assert_eq!(mismatch.qualification, QualificationState::Failing);
+    assert_eq!(mismatch.passed, 1);
+    assert_eq!(mismatch.evaluated, 2);
+}
+
+#[test]
+fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
+    let workspace = TempDir::new().unwrap();
+    let output = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+    ]);
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stderr.is_empty());
+    let batch: WorkloadTestBatch = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(batch.results.len(), 2);
+    assert!(
+        batch
+            .results
+            .iter()
+            .any(|result| result.status == TestStatus::Passed)
+    );
+    assert!(
+        batch
+            .results
+            .iter()
+            .any(|result| result.status == TestStatus::Failed)
+    );
+
+    fs::write(
+        workspace.path().join(".rey/workloads/state.json"),
+        b"not-json",
+    )
+    .unwrap();
+    let invalid = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "list",
+    ]);
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(invalid.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("invalid JSON"));
 }
 
 fn snapshot(rows: Vec<CapabilityRecord>) -> CapabilitySnapshot {

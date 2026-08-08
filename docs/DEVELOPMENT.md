@@ -139,6 +139,13 @@ encoding, catalog/result storage, graph execution, scenario campaigns, and the
 required runtime/frontier/surface schema cutover to a later implementation
 slice.
 
+ADR 0016 implements that first slice with no new third-party dependency. The
+existing Rey crates now provide built-in typed UTF-8 graph operations,
+scenario-output deltas, workload qualification/run results, and bounded local
+JSON result state. The workload identity cutover advances frontier, progress,
+and scheduling to v2 and reasoning surfaces to v3; it does not add a general
+manifest parser, persistence engine, async runtime, or agent transport.
+
 ## Cargo And Crane Outputs
 
 The flake filters sources through `craneLib.cleanCargoSource`, compiles the

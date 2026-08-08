@@ -7,11 +7,11 @@ canonical frontier/progress/selection contracts, and surface
 validation/projection. It does not yet derive workload-specific work,
 retrieve providers, execute actions, or run an agent loop.
 
-ADR 0015 places these mechanisms inside a workload test campaign. Workloads,
-compute graphs, scenarios, qualification, and the four workload commands are
-accepted design contracts but are not implemented. The current v2 runtime and
-surface schemas retain legacy application/component fields pending a
-versioned workload cutover.
+ADR 0015 places these mechanisms inside a workload test campaign. ADR 0016
+implements the first deterministic workload/graph/scenario/qualification
+slice and makes the public identity cutover. Runtime state remains v2 because
+it had no application/component envelope; the reasoning surface is now v3 and
+binds exact workload, graph, scenario-suite, and campaign identities.
 
 ## State Dimensions
 
@@ -123,7 +123,7 @@ A transition can cite two independent delta sets:
 - residual deltas compare declared expected/baseline observations to current
   observations and state what remains.
 
-The runtime state preserves both sets. `rey.frontier-progress.v1` compares
+The runtime state preserves both sets. `rey.frontier-progress.v2` compares
 successive compatible frontier states by stable work identity and reports
 resolved, introduced, updated, and unchanged facts. The runtime evaluator still
 owns its semantic outcome; the generic relation does not implement a scalar
@@ -132,25 +132,25 @@ score or guess the direction of updated work. See
 
 ## Reasoning Surface Envelope
 
-`rey.reasoning-surface.v2` is the content-identified policy input constructed
+`rey.reasoning-surface.v3` is the content-identified policy input constructed
 from scheduled work in a committed frontier. It contains:
 
 ```text
 schema · surface_id
-application · component · space (legacy v2 identity fields)
+workload · graph · scenario suite · campaign · space
 trace · committed_transition · active_transition · scheduling_decision
 frontier_frame · capability_snapshot · projection_contract
 effective_limits · retrieval_iterations · completeness
 projected_rows · evidence_references · admissible_actions · omissions
 ```
 
-Application, component, space, projection, provider, and action references bind
+Workload, graph, scenario-suite, space, projection, provider, and action references bind
 stable ids, revisions, and semantic contract digests. Trace, transition,
 frontier, capability, delta, evidence-content, and surface identities are
 semantic digests. Evidence also retains its provider contract, provider-owned
 source id and immutable revision, media type, and logical byte length.
 
-The canonical `rey.reasoning-surface-rows` version `2` relation is:
+The canonical `rey.reasoning-surface-rows` version `3` relation is:
 
 ```text
 frontier_row_id
@@ -163,9 +163,10 @@ evidence_ids
 admissible_action_ids
 ```
 
-The row columns remain the same as version 1; version 2 adds scheduling
-decision lineage to the envelope and Arrow metadata. Array fields use canonical
-compact JSON strings. The semantic document keeps
+The row columns remain the same as earlier versions; v2 added scheduling
+decision lineage and v3 replaces the legacy application/component scope with
+exact workload/graph/scenario-suite/campaign identities in the envelope and
+Arrow metadata. Array fields use canonical compact JSON strings. The semantic document keeps
 the arrays typed. A later Arrow list/struct representation requires a schema
 revision and parity evidence.
 
@@ -175,10 +176,8 @@ and action references resolve against the exact surface envelope. Source bytes
 and native artifacts remain outside the DataFrame and addressable through
 their evidence references.
 
-The legacy application/component fields above are not silently aliases for
-workload/graph/scenario identities. Before a workload command uses this
-surface, a new schema version must explicitly bind workload, graph,
-scenario-suite, test-campaign, and selected scenario identities.
+The pre-alpha cutover has no compatibility alias or decoder for the superseded
+application/component envelope.
 
 ## Placement In A Workload Campaign
 
@@ -200,7 +199,7 @@ scenario results produced by deterministic evaluation can qualify it. See
 
 ## Bounds And Completeness
 
-V2 enforces nonzero maxima for:
+V3 enforces nonzero maxima for:
 
 - projected rows;
 - total transition and residual delta references;
@@ -234,7 +233,7 @@ action it cites.
 The implemented crates deliberately contain no:
 
 - workload-specific frontier derivation or dependency invalidation;
-- workload catalog, graph/scenario executor, campaign, or qualification;
+- external workload manifest or graph-proposal campaign;
 - recurring, fair, parallel, or multi-user scheduling;
 - provider read, query, or retrieval implementation;
 - policy request transport or proposal parser;

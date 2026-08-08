@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod workloads;
+
 use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},

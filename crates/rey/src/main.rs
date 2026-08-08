@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeMap,
     fs::File,
     io::{self, IsTerminal, Read, Write},
     path::{Path, PathBuf},
@@ -8,7 +9,13 @@ use std::{
 };
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use rey::{ReyError, inspect_environment};
+use rey::{
+    ReyError, inspect_environment,
+    workloads::{
+        LocalWorkloadStateError, LocalWorkloadStore, WorkloadList, WorkloadStatusBatch,
+        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, fresh_qualification,
+    },
+};
 use rey_diff::{CapabilityDelta, DeltaLimits, DeltaOptions, compare_capabilities};
 use rey_environment::{CapabilitySnapshot, DiscoveryLimits};
 use rey_git::GitLimits;
@@ -17,6 +24,11 @@ use rey_proof::{
     RequiredCapabilityCertificate, VerificationStatus, create_local_proof_bundle,
     evaluate_required_capabilities, required_capability_evaluator, verify_local_proof_bundle,
     verify_required_capability_certificate,
+};
+use rey_runtime::{
+    RunStatus, ScenarioEvaluation, TestStatus, WorkloadDefinition, WorkloadRunResult,
+    WorkloadTestResult, WorkloadValue, built_in_workload, built_in_workloads, run_workload,
+    test_workload,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -36,6 +48,92 @@ struct Cli {
 enum Command {
     /// Inspect bounded local context capabilities without requiring Spoke.
     Environment(EnvironmentArgs),
+    /// Inspect, test, qualify, and execute bounded compute graphs.
+    Workloads(WorkloadsArgs),
+}
+
+#[derive(Debug, Args)]
+struct WorkloadsArgs {
+    /// Workspace used as the default local result-state boundary.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local result-state directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: WorkloadsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum WorkloadsCommand {
+    /// List built-in workloads and retained scenario progress without executing them.
+    List(WorkloadListArgs),
+    /// Show workload definitions, retained deltas, qualification, and latest run.
+    Status(WorkloadStatusArgs),
+    /// Execute required scenarios and retain their typed output deltas.
+    Test(WorkloadTestArgs),
+    /// Execute an exactly qualified graph with caller-provided UTF-8 input.
+    Run(WorkloadRunArgs),
+}
+
+#[derive(Debug, Args)]
+struct WorkloadListArgs {
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadStatusArgs {
+    /// Workload id; omit to show every built-in workload.
+    workload_id: Option<String>,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadTestArgs {
+    /// Workload id; omit to test every built-in workload.
+    workload_id: Option<String>,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadRunArgs {
+    /// Exact built-in workload id.
+    workload_id: String,
+
+    /// UTF-8 value bound to the workload's `text` input.
+    #[arg(long)]
+    input: String,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum WorkloadOutputFormat {
+    Auto,
+    Table,
+    Json,
+}
+
+impl WorkloadOutputFormat {
+    fn resolve(self) -> Self {
+        match (self, io::stdout().is_terminal()) {
+            (Self::Auto, true) => Self::Table,
+            (Self::Auto, false) => Self::Json,
+            (selected, _) => selected,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -248,7 +346,318 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
         Command::Environment(EnvironmentArgs {
             command: EnvironmentCommand::VerifyBundle(args),
         }) => verify_bundle(args),
+        Command::Workloads(args) => workloads(args),
     }
+}
+
+fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let store = match args.state_dir {
+        Some(path) if path.is_absolute() => LocalWorkloadStore::new(path),
+        Some(path) => LocalWorkloadStore::new(workspace.join(path)),
+        None => LocalWorkloadStore::default_for_workspace(&workspace),
+    };
+    match args.command {
+        WorkloadsCommand::List(command) => workload_list(&store, command),
+        WorkloadsCommand::Status(command) => workload_status(&store, command),
+        WorkloadsCommand::Test(command) => workload_test(&store, command),
+        WorkloadsCommand::Run(command) => workload_run(&store, command),
+    }
+}
+
+fn workload_list(store: &LocalWorkloadStore, args: WorkloadListArgs) -> Result<ExitCode, CliError> {
+    let state = store.load()?;
+    let summaries = built_in_workloads()?
+        .iter()
+        .map(|workload| WorkloadSummary::derive(workload, state.record(&workload.workload.id)))
+        .collect();
+    let list = WorkloadList::new(summaries);
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
+        WorkloadOutputFormat::Table => write_workload_list(&mut stdout, &list)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_status(
+    store: &LocalWorkloadStore,
+    args: WorkloadStatusArgs,
+) -> Result<ExitCode, CliError> {
+    let state = store.load()?;
+    let definitions = select_workloads(args.workload_id.as_deref())?;
+    let statuses = definitions
+        .into_iter()
+        .map(|workload| {
+            let record = state.record(&workload.workload.id);
+            WorkloadStatusView::new(workload, record)
+        })
+        .collect();
+    let batch = WorkloadStatusBatch::new(statuses);
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
+        WorkloadOutputFormat::Table => write_workload_status(&mut stdout, &batch)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_test(store: &LocalWorkloadStore, args: WorkloadTestArgs) -> Result<ExitCode, CliError> {
+    let mut state = store.load()?;
+    let definitions = select_workloads(args.workload_id.as_deref())?;
+    let mut results = Vec::with_capacity(definitions.len());
+    for workload in definitions {
+        let result = test_workload(&workload)?;
+        state.retain_test(result.clone());
+        results.push(result);
+    }
+    state.verify()?;
+    store.save(&state)?;
+    let batch = WorkloadTestBatch::new(results);
+    let exit_code = test_batch_exit(&batch);
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
+        WorkloadOutputFormat::Table => write_workload_test_batch(&mut stdout, &batch)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(exit_code)
+}
+
+fn workload_run(store: &LocalWorkloadStore, args: WorkloadRunArgs) -> Result<ExitCode, CliError> {
+    let workload = built_in_workload(&args.workload_id)?;
+    let mut state = store.load()?;
+    let mut inputs = BTreeMap::new();
+    inputs.insert("text".to_owned(), WorkloadValue::Utf8(args.input));
+    let result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
+        Some(qualification) => run_workload(&workload, qualification, inputs)?,
+        None => WorkloadRunResult::blocked(&workload, inputs),
+    };
+    let exit_code = match result.status {
+        RunStatus::Passed => ExitCode::SUCCESS,
+        RunStatus::Blocked => ExitCode::from(3),
+    };
+    state.retain_run(result.clone());
+    state.verify()?;
+    store.save(&state)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_workload_run(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(exit_code)
+}
+
+fn select_workloads(workload_id: Option<&str>) -> Result<Vec<WorkloadDefinition>, CliError> {
+    match workload_id {
+        Some(workload_id) => Ok(vec![built_in_workload(workload_id)?]),
+        None => Ok(built_in_workloads()?),
+    }
+}
+
+fn test_batch_exit(batch: &WorkloadTestBatch) -> ExitCode {
+    if batch
+        .results
+        .iter()
+        .any(|result| result.status == TestStatus::Failed)
+    {
+        ExitCode::from(2)
+    } else if batch
+        .results
+        .iter()
+        .any(|result| result.status == TestStatus::Inconclusive)
+    {
+        ExitCode::from(3)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn write_workload_list(output: &mut impl Write, list: &WorkloadList) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "workload\tgraph_revision\tgraph_digest\tprogress\tpassed/evaluated\tqualification\tfreshness\tlast_run"
+    )?;
+    for workload in &list.workloads {
+        writeln!(
+            output,
+            "{}\t{}\t{}\t{}\t{}/{}\t{}\t{}\t{}",
+            workload.workload.id,
+            workload.candidate_graph.revision,
+            workload.candidate_graph.semantic_digest,
+            progress_bar(workload),
+            workload.passed,
+            workload.evaluated,
+            workload.qualification.as_str(),
+            workload.freshness.as_str(),
+            workload.last_run_status.map_or("-", |status| match status {
+                RunStatus::Passed => "passed",
+                RunStatus::Blocked => "blocked",
+            }),
+        )?;
+    }
+    Ok(())
+}
+
+fn progress_bar(summary: &WorkloadSummary) -> String {
+    let mut bar = String::with_capacity(summary.required as usize + 2);
+    bar.push('[');
+    for _ in 0..summary.passed {
+        bar.push('=');
+    }
+    for _ in 0..summary.failed {
+        bar.push('!');
+    }
+    for _ in 0..summary.inconclusive.saturating_add(summary.stale) {
+        bar.push('?');
+    }
+    let represented = summary
+        .passed
+        .saturating_add(summary.failed)
+        .saturating_add(summary.inconclusive)
+        .saturating_add(summary.stale);
+    for _ in represented..summary.required {
+        bar.push('.');
+    }
+    bar.push(']');
+    bar
+}
+
+fn write_workload_status(
+    output: &mut impl Write,
+    batch: &WorkloadStatusBatch,
+) -> Result<(), CliError> {
+    for (index, status) in batch.statuses.iter().enumerate() {
+        if index > 0 {
+            writeln!(output)?;
+        }
+        let summary = &status.summary;
+        writeln!(
+            output,
+            "workload={} title={}",
+            summary.workload.id, summary.title
+        )?;
+        writeln!(
+            output,
+            "candidate_graph={}@{} {}",
+            summary.candidate_graph.id,
+            summary.candidate_graph.revision,
+            summary.candidate_graph.semantic_digest
+        )?;
+        writeln!(
+            output,
+            "progress={} passed={} evaluated={} required={} qualification={} freshness={}",
+            progress_bar(summary),
+            summary.passed,
+            summary.evaluated,
+            summary.required,
+            summary.qualification.as_str(),
+            summary.freshness.as_str()
+        )?;
+        if let Some(result) = &status.last_test {
+            write_test_detail(output, result)?;
+        } else {
+            writeln!(output, "test=none")?;
+        }
+        if let Some(result) = &status.last_run {
+            writeln!(
+                output,
+                "run={} status={:?} reason={}",
+                result.run_id, result.status, result.stop_reason
+            )?;
+        } else {
+            writeln!(output, "run=none")?;
+        }
+    }
+    Ok(())
+}
+
+fn write_workload_test_batch(
+    output: &mut impl Write,
+    batch: &WorkloadTestBatch,
+) -> Result<(), CliError> {
+    for (index, result) in batch.results.iter().enumerate() {
+        if index > 0 {
+            writeln!(output)?;
+        }
+        write_test_detail(output, result)?;
+    }
+    Ok(())
+}
+
+fn write_test_detail(output: &mut impl Write, result: &WorkloadTestResult) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "test={} workload={} status={:?} passed={} failed={} inconclusive={} evaluated={} reason={}",
+        result.result_id,
+        result.workload.id,
+        result.status,
+        result.summary.passed,
+        result.summary.failed,
+        result.summary.inconclusive,
+        result.summary.evaluated,
+        result.stop_reason
+    )?;
+    for scenario in &result.scenarios {
+        writeln!(
+            output,
+            "  scenario={} required={} evaluation={}",
+            scenario.scenario.id,
+            scenario.required,
+            match scenario.evaluation {
+                ScenarioEvaluation::Passed => "passed",
+                ScenarioEvaluation::Failed => "failed",
+                ScenarioEvaluation::Inconclusive => "inconclusive",
+            }
+        )?;
+        for delta in &scenario.deltas {
+            if delta.assessment == rey_diff::DeltaAssessment::Different {
+                writeln!(
+                    output,
+                    "    delta={} output={} expected={} observed={}",
+                    delta.delta_id,
+                    delta.inputs.output_id,
+                    json_cell(&delta.expected)?,
+                    json_cell(&delta.observed)?
+                )?;
+            }
+        }
+    }
+    if let Some(qualification) = &result.qualification {
+        writeln!(
+            output,
+            "qualification={} graph={}",
+            qualification.qualification_id, qualification.graph.semantic_digest
+        )?;
+    }
+    Ok(())
+}
+
+fn write_workload_run(output: &mut impl Write, result: &WorkloadRunResult) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "run={} workload={} graph={} status={:?} reason={}",
+        result.run_id,
+        result.workload.id,
+        result.graph.semantic_digest,
+        result.status,
+        result.stop_reason
+    )?;
+    writeln!(output, "node_order={}", json_cell(&result.node_order)?)?;
+    writeln!(output, "outputs={}", json_cell(&result.outputs)?)?;
+    Ok(())
 }
 
 fn inspect(args: InspectArgs) -> Result<(), CliError> {
@@ -506,6 +915,10 @@ enum CliError {
     Input { path: PathBuf, source: io::Error },
     #[error("input {path} exceeds the {limit}-byte limit")]
     InputLimit { path: PathBuf, limit: u64 },
+    #[error("workspace {path} could not be resolved: {source}")]
+    Workspace { path: PathBuf, source: io::Error },
+    #[error("workspace {0} is not a directory")]
+    WorkspaceDirectory(PathBuf),
     #[error(transparent)]
     Rey(#[from] ReyError),
     #[error(transparent)]
@@ -518,6 +931,10 @@ enum CliError {
     Proof(#[from] rey_proof::ProofError),
     #[error(transparent)]
     Bundle(#[from] rey_proof::LocalBundleError),
+    #[error(transparent)]
+    Workload(#[from] rey_runtime::WorkloadError),
+    #[error(transparent)]
+    WorkloadState(#[from] LocalWorkloadStateError),
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]
