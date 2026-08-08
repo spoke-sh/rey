@@ -4,9 +4,11 @@ This document sketches Rey's user, environment, policy, and Spoke interfaces.
 The implemented CLI surface is limited to `rey environment inspect`, the
 capability snapshot/delta/certificate loop fixed by ADRs 0008 and 0010, and the
 local-only proof bundle fixed by ADR 0011. ADR 0013 also fixes library-only
-runtime-state and reasoning-surface schemas; it adds no command. Other command
-names, flags, schemas, media types, and exit codes remain provisional until an
-accepted ADR and implementation tests fix them.
+runtime-state and reasoning-surface schemas; it adds no command. ADR 0015
+accepts the workload-centered product and command semantics, but no workload
+command is implemented. Exact workload flags, declaration schemas, media
+types, and encodings remain provisional until the next implementation ADR and
+tests fix them.
 
 ## Interface Principles
 
@@ -26,45 +28,41 @@ accepted ADR and implementation tests fix them.
 - Connected Spoke integration uses explicit endpoint and identity configuration
   and never resolves a Spoke name through host paths or private storage.
 
-## Provisional CLI Shape
+## Accepted CLI Shape
 
-The target top-level entities are:
+Rey's product surface is intentionally small:
 
 ```text
-rey doctor
 rey environment <command>
-rey git <command>
-rey applications <command>
-rey spaces <command>
-rey lenses <command>
-rey frames <command>
-rey diffs <command>
-rey runs <command>
-rey traces <command>
-rey proofs <command>
+rey workloads list
+rey workloads test [<workload-id>]
+rey workloads run <workload-id>
+rey workloads status [<workload-id>]
 ```
 
-Possible first-slice operations are:
+`environment` inventories the available compute boundary. `workloads` is the
+public unit for composing and using runtime concepts. Spaces, lenses, frames,
+deltas, frontiers, traces, and proofs remain typed evidence and may gain
+focused diagnostic projections, but they are not peer top-level resources that
+users must manually orchestrate.
 
-```text
-rey environment inspect
-rey environment diff <source-snapshot> <target-snapshot>
-rey git inspect [<workspace>]
-rey git poll <space>
-rey git diff <source-snapshot> <target-snapshot>
-rey applications describe <application-id>
-rey applications run <application-id> [--component <component-id>]
-rey frames materialize <space> <lens> [--at <binding>]
-rey frames describe <frame-id>
-rey diffs compare <source-frame> <target-frame> --keys <column,...>
-rey diffs show <delta-id>
-rey runs start <space> [--claim <claim-id>] [--max-steps <count>]
-rey runs resume <trace-id>
-rey traces show <trace-id>
-rey proofs evaluate <claim-id>
-rey proofs verify <proof-id-or-path>
-rey proofs show <proof-id>
-```
+No workload command is executable yet. Their accepted behavior is:
+
+- `list` reads catalog and result indexes and shows exact candidate/qualified
+  graph identities plus scenario progress; it executes no work;
+- `test` starts or resumes a bounded graph/scenario campaign, retains
+  `EXPECTED` to `OBSERVED` typed deltas, and qualifies only a graph revision
+  for which every required scenario freshly passes; without an id it selects
+  every catalog workload and fails closed on the workload-count bound;
+- `run` executes the current fresh qualified graph against admitted real
+  inputs and providers; and
+- `status` reads exact workload, graph, campaign, scenario, frontier, evidence,
+  staleness, stop, and latest-run state without repairing it.
+
+See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) and
+[ADR 0015](decisions/0015-workload-centered-product.md).
+
+## Implemented Environment CLI
 
 The executable currently exposes:
 
@@ -103,7 +101,7 @@ for the structured delta; summary is JSON and Tabular Diff is CSV.
 
 ## Formats
 
-DataFrame-shaped commands are expected to support:
+DataFrame-shaped commands support or are expected to support:
 
 ```text
 --format auto|table|arrow|json
@@ -117,6 +115,12 @@ DataFrame-shaped commands are expected to support:
   newline.
 - `json` emits an explicit bounded envelope retaining schema, identity,
   revisions, completeness, and cursor metadata.
+
+Workload campaign, status, and run results are structured envelopes rather
+than one relation. Their accepted `auto` behavior is a human document on a
+terminal and JSON when redirected. Explicit Arrow is appropriate for catalog,
+scenario, frame, or delta relations, not for forcing a graph, campaign, native
+output, or mixed artifact set into a synthetic table.
 
 Delta commands require a separate representation selector because the semantic
 typed delta and its human projection are not identical:
@@ -143,6 +147,8 @@ types and schemas remain Plan 0001 work.
 - Diagnostics, progress, action rationale, and remediation go to stderr.
 - Interactive progress is disabled or redirected when stdout carries Arrow,
   CSV, JSON, or raw bytes.
+- A running workload campaign sends transient scenario progress and policy
+  rationale to stderr, then one final selected result to stdout.
 - Policy subprocess protocols, if selected, use dedicated framed channels or
   files rather than mixing control messages with artifact stdout.
 
@@ -151,6 +157,12 @@ categorized exit behavior. Implemented certificate commands return `0` for
 passed/verified, `2` for failed, `3` for inconclusive, and `4` for stale.
 Invalid input and runtime failure return `1`; Clap retains its own argument
 parsing exit behavior.
+
+Future `workloads list` and `status` return `0` whenever inspection itself
+succeeds, even when rows show failing or stale workloads. `workloads test` and
+`run` use `0` for qualified/passed, `2` for conclusive semantic failure, `3`
+for inconclusive or blocked, `4` for stale, and `1` for invalid input or runtime
+failure.
 
 ## Identities
 
@@ -161,7 +173,10 @@ stored in evidence.
 A future URI grammar may cover:
 
 ```text
-rey+application:<application-id>@<revision>
+rey+workload:<workload-id>@<revision>
+rey+graph:<graph-id>@<revision>
+rey+scenario:<scenario-id>@<revision>
+rey+campaign:<campaign-id>
 rey+space:<space-id>@<revision>
 rey+lens:<lens-id>@<revision>
 rey+frame:<frame-id>
@@ -173,22 +188,20 @@ rey+proof:<proof-id>
 This grammar is illustrative, not accepted. It must be decided alongside
 percent-encoding, canonicalization, tenancy, and Spoke artifact mapping.
 
-## Application Declaration
+## Workload Declaration
 
-An application declaration needs:
+A workload declaration needs stable workload identity and revision; typed
+external inputs/outputs; admitted graph operations and effects; provider and
+capability requirements; exact scenario suite; claim/comparator/evaluator
+revisions; graph-proposal policy; graph/campaign/scenario/run limits;
+qualification; and catalog/result retention requirements.
 
-- stable application id and revision;
-- provider/profile configuration;
-- referenced spaces and lens revisions;
-- independently activatable component ids/revisions and dependency edges;
-- trigger declarations and manual/policy entry points;
-- admissible action and claim revisions;
-- policy configuration;
-- application and component budgets/concurrency; and
-- trace, cursor, evidence, and retention policy.
-
-Each component names required capabilities, input lenses/frames, output
-observations, evaluated claims, allowed actions, and component-local bounds.
+Each immutable graph revision binds typed nodes, ports, dependency edges,
+operation contracts, capabilities, effects, limits, and generator provenance.
+Each scenario binds fixtures, test providers, selected outputs, expected
+observations or claims, comparison rules, completeness, and bounds. The first
+graph contract is a finite typed DAG. Exact serialization remains open. See
+[Workloads, Compute Graphs, and Scenarios](WORKLOADS.md).
 
 ## Space Declaration
 
@@ -260,7 +273,7 @@ A poll request names:
   included;
 - prior cursor or initial-baseline behavior;
 - commit/path traversal limits;
-- trigger declarations and target component revisions;
+- trigger declarations and target workload/graph/scenario selections;
 - activation concurrency and budgets; and
 - cursor/evidence retention profile.
 
@@ -271,9 +284,9 @@ required activation evidence reaches its declared retention boundary.
 
 A trigger declaration includes a stable id/revision, source event classes,
 ref/path/stage predicates, required Git capabilities/completeness, target
-application components, coalescing policy, budgets, and replay/idempotency
-behavior. Trigger output is an activation proposal and passes normal runtime
-admission.
+workload revision plus scenario selection or graph entry point, coalescing
+policy, budgets, and replay/idempotency behavior. Trigger output is an
+activation proposal and passes normal runtime admission.
 
 Initial event vocabulary may include:
 
@@ -310,6 +323,12 @@ deterministic selection contracts, not provider reads, action proposals, an
 execution queue, or a recurring scheduler. See
 [Frontier, Progress, and Scheduling](FRONTIER.md) and
 [ADR 0014](decisions/0014-frontier-progress-and-scheduling.md).
+
+The application/component names above are implemented legacy schema fields,
+not the accepted workload CLI model. ADR 0015 requires a versioned cutover to
+workload, graph, scenario, and campaign identity before a workload command
+consumes these contracts; the CLI must not silently relabel the existing
+fields.
 
 ## Reasoning Surface Contract
 
@@ -354,15 +373,19 @@ The reasoning-surface schema is a verified library contract fixed by
 cut over to decision-bound v2 by
 [ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), not an
 implemented CLI format. The policy-proposal schema remains a target contract.
+Its application/component envelope fields are likewise legacy implementation
+truth pending the ADR 0015 workload schema cutover.
 
 ## Policy Contract
 
 A policy request is a bounded snapshot containing:
 
 - reasoning-surface identity and projection-contract revision;
+- workload, graph, scenario-suite, and test-campaign identities when invoked by
+  the workload surface;
 - space, trace, frontier, and cited delta identities;
 - the bounded surface projection and its completeness/omission metadata;
-- admissible action definitions and schemas;
+- admissible graph-operation and action definitions and schemas;
 - exact precondition frame and source ids;
 - remaining time, iteration, action, and evidence budgets;
 - prior rejection or failure facts relevant to the next choice; and
@@ -370,19 +393,26 @@ A policy request is a bounded snapshot containing:
 
 A proposal contains:
 
-- selected action id and revision;
-- typed arguments;
+- proposal kind and exact target, including graph-revision proposal or
+  admissible action;
 - cited reasoning-surface, frontier row, delta, and evidence ids;
 - expected information gain or residual/frontier change;
 - requested sub-budgets; and
 - the request correlation id and precondition identities.
 
-The runtime rejects unknown actions, stale preconditions, malformed arguments,
-unauthorized effects, unsupported limits, or exhausted budgets before an
-effect. Free-form rationale is optional evidence and is never executable input.
+An action proposal additionally supplies the selected action id/revision and
+typed arguments. The runtime rejects unknown actions, stale preconditions,
+malformed arguments, unauthorized effects, unsupported limits, or exhausted
+budgets before an effect. Free-form rationale is optional evidence and is never
+executable input.
 
 Provider-specific chat, prompt, or tool-call envelopes stay behind policy
 adapters and do not become Rey's durable action contract.
+
+A graph-revision proposal additionally supplies the immutable typed graph,
+parent graph revision when present, cited failing scenario/delta facts, and
+requested graph/execution sub-budgets. Runtime graph validation occurs before
+the proposal can become a campaign candidate.
 
 ## Spoke Configuration
 
@@ -453,6 +483,21 @@ decides the semantic transition outcome.
 
 ## Persistence Paths
 
+The workload surface introduces two abstract provider roles before selecting a
+physical persistence design. A catalog provider resolves workload declarations,
+immutable graph/scenario assets, and mutable selectors to exact identities. A
+result provider retains graph proposals, campaigns, attempts, outputs, typed
+deltas, qualification records, runs, and indexes read by `workloads list` and
+`status`.
+
+A standalone implementation may satisfy those roles at an explicit local
+artifact boundary with honest filesystem-only guarantees. A graph selected for
+future runs cannot exist solely in a disposable cache. Connected mode uses
+public Spoke resources for stronger durability, query, compute, and lineage
+claims. The manifest encoding, local layout, Spoke mapping, and publication
+protocol remain an implementation decision; ADR 0015 does not select an
+engine.
+
 For the implemented capability claim, standalone Rey writes the
 [ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed
 delta JSON and Arrow, Tabular Diff, and certificate to an explicit local
@@ -482,10 +527,12 @@ projecting the local directory layout onto Spoke.
 Structured errors need a stable category, human detail, correlation id, and
 actionable remediation. Important categories include invalid declaration,
 provider unavailable, capability unavailable, capability drift, source drift,
-Git history incomplete, Git ref rewritten, Git index conflicted, cursor replay,
-stale proposal, incompatible frame, duplicate key, action rejected, run
-failed/lost, observation incomplete, budget exhausted, evidence missing, proof
-failed, proof inconclusive, and proof stale.
+invalid graph, graph cycle, missing graph policy, scenario mismatch, scenario
+inconclusive, unqualified graph, stale qualification, Git history incomplete,
+Git ref rewritten, Git index conflicted, cursor replay, stale proposal,
+incompatible frame, duplicate key, action rejected, run failed/lost,
+observation incomplete, budget exhausted, evidence missing, proof failed,
+proof inconclusive, and proof stale.
 
 Errors must report which state changed and which did not. Retrying a read,
 proposal, compute submission, artifact publication, or mutation follows that

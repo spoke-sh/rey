@@ -3,8 +3,13 @@
 This document defines the first executable frontier, progress, and scheduling
 contracts. ADR 0014 fixes their v1 schemas and the related runtime and reasoning
 surface v2 cutover. The implementation is a deterministic library slice; it
-does not derive application-specific work, retrieve evidence, select an action,
+does not derive workload-specific work, retrieve evidence, select an action,
 execute an effect, or run a recurring loop.
+
+ADR 0015 places this contract inside workload test campaigns. The implemented
+v1 envelope still has legacy application/component fields; a workload CLI must
+use a versioned schema that explicitly binds workload, graph, scenario suite,
+and campaign identity rather than silently relabeling them.
 
 ## Frontier Envelope
 
@@ -179,9 +184,24 @@ records `scheduling_completed` or `reasoning_surface_ready`.
 Runtime state, scheduling decision, and reasoning surface are separate
 content-identified artifacts; none is a persistence service.
 
+## Workload Frontier Mapping
+
+For a workload test campaign, frontier rows are derived from failing scenario
+output deltas, unresolved scenario claims, missing evidence, and the declared
+dependencies of the exact graph revision. A stable work identity names the
+logical mismatch or claim; its row identity changes when the graph, observed
+output, readiness, blockers, citations, or priority inputs change.
+
+The scheduler selects bounded unresolved graph-revision work. It does not
+schedule graph nodes: typed graph edges establish node dependency order within
+one scenario execution. The selected rows direct evidence retrieval and a
+possible agent-, rule-, or human-proposed graph revision. Deterministic
+scenario evaluation, not the proposal policy or generic scheduler, decides
+whether the resulting graph qualifies.
+
 ## Deferred Behavior
 
-Later slices still own application-specific frontier derivation, dependency
+Later slices still own workload-specific frontier derivation, dependency
 invalidation, provider retrieval, orientation readiness strategy, policy
 proposal parsing, action admission, execution, retry, transition persistence,
 activation, and recurring scheduling. They must consume these contracts rather

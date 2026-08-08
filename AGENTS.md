@@ -13,7 +13,8 @@ available, Spoke is Rey's durable reasoning and compute plane. Rey must not
 duplicate Spoke storage, query, document, stream, table, tool, run, or capture
 ownership or pretend standalone providers offer those guarantees. The runtime
 remains deterministic without an LLM; an agent is one policy that may propose
-actions through the same validated interface as rules or humans.
+compute-graph revisions or actions through the same validated interface as
+rules or humans.
 
 Rey is Spoke's first external runtime application. Preserve a two-way
 improvement loop: Rey exposes public-contract gaps in Spoke, and new Spoke
@@ -31,20 +32,27 @@ adapter, scheduler loop, action executor, or Spoke integration exists.
 2. `CONSTITUTION.md`
 3. `INSTRUCTIONS.md`
 4. `docs/ARCHITECTURE.md`
-5. `docs/RUNTIME.md`
-6. `docs/FRONTIER.md`
-7. `docs/ENVIRONMENT.md`
-8. `docs/GIT.md`
-9. `docs/DIFFS.md`
-10. `docs/PROOFS.md`
-11. `docs/INTERFACES.md`
-12. `docs/DEVELOPMENT.md`
-13. `plans/README.md` and the active plan
-14. `docs/decisions/README.md`
+5. `docs/WORKLOADS.md`
+6. `docs/RUNTIME.md`
+7. `docs/FRONTIER.md`
+8. `docs/ENVIRONMENT.md`
+9. `docs/GIT.md`
+10. `docs/DIFFS.md`
+11. `docs/PROOFS.md`
+12. `docs/INTERFACES.md`
+13. `docs/DEVELOPMENT.md`
+14. `plans/README.md` and the active plan
+15. `docs/decisions/README.md`
 
 ## Core Principles
 
 - Treat the delta as a scheduler input, not only an output artifact.
+- Treat the workload as the public unit of computation: one versioned graph,
+  scenario suite, policy boundary, qualification contract, and total budget.
+- Let agents propose compute-graph revisions through the same validated
+  contract as rules or humans; deterministic scenarios decide qualification.
+- Preserve failing scenario results as directed typed deltas from expected to
+  observed output.
 - Treat the capability snapshot as a first-class, changing runtime input.
 - Treat Git commit, ref, and semantic index snapshots as first-class software
   activation inputs.
@@ -68,13 +76,13 @@ adapter, scheduler loop, action executor, or Spoke integration exists.
 The provisional ownership map is:
 
 ```text
-rey                 CLI and local composition
+rey                 workload CLI, catalog composition, and local orchestration
 rey-core            identities, revisions, limits, and shared contracts
 rey-dataframe       frame schemas, Polars helpers, and Arrow codecs
 rey-environment     bounded capability discovery and local context providers
 rey-git             repository snapshots, semantic index, polling, and activation
 rey-diff            typed deltas, alignment, summaries, and renderings
-rey-runtime         observations, actions, transitions, and bounded loop
+rey-runtime         workloads, graph/scenario transitions, actions, and bounded loop
 rey-frontier        invalidation, dependencies, prioritization, convergence
 rey-proof           claims, evidence manifests, certificates, and staleness
 rey-policy          policy proposal contract; no provider-specific agent loop
@@ -89,7 +97,7 @@ become a process. The active plan may refine it before scaffolding.
 Resolve ambiguity in this order:
 
 1. `CONSTITUTION.md`
-2. `docs/ARCHITECTURE.md`, `docs/RUNTIME.md`, `docs/FRONTIER.md`,
+2. `docs/ARCHITECTURE.md`, `docs/WORKLOADS.md`, `docs/RUNTIME.md`, `docs/FRONTIER.md`,
    `docs/ENVIRONMENT.md`, `docs/GIT.md`, `docs/DIFFS.md`, `docs/PROOFS.md`, and
    `docs/INTERFACES.md`
 3. accepted ADRs
@@ -138,6 +146,9 @@ update the stale artifact in the same change.
 - Environment work needs fixtures for missing tools, version drift, path
   changes, timeouts, malformed version output, trust classification, and
   capability degradation.
+- Workload work needs fixtures for invalid and cyclic graphs, missing graph
+  policy, passing/failing/inconclusive scenarios, graph-revision invalidation,
+  qualification, progress counts, and test/run parity.
 - Git work needs fixtures for ref rewrites, merges, shallow history, detached
   HEAD, semantic index changes, conflicts, linked worktrees, bounded traversal,
   and cursor replay.

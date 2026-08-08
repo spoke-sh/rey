@@ -18,7 +18,7 @@ and proof belong in `plans/`.
   snapshot.
 - Snapshot one Git repository's refs, commit graph, semantic index, and declared
   worktree status.
-- Poll one Git delta into an idempotent component activation and retained cursor.
+- Poll one Git delta into an idempotent workload activation and retained cursor.
 - Materialize bounded typed frames from small reviewed fixtures.
 - Compare keyed Polars DataFrames with explicit direction and schema handling.
 - Retain typed schema, row, and cell changes.
@@ -41,14 +41,20 @@ and proof belong in `plans/`.
 - Prove that Spoke absence preserves standalone behavior and that a
   Spoke-required claim fails closed rather than weakening itself.
 
-## Phase 3 — Diff-Directed Applications
+## Phase 3 — Workload Compute Graphs
 
-- Declare applications, independently activatable components, spaces, lens
-  dependencies, claims, and total runtime budgets.
-- Derive a frontier from unresolved deltas.
+- Fix the smallest workload declaration, graph, scenario, campaign,
+  qualification, catalog, and result schemas.
+- Implement `workloads list`, `test`, `run`, and `status` over one built-in
+  zero-agent fixture workload.
+- Validate a finite typed DAG and execute the same graph contract against test
+  fixtures and admitted run inputs.
+- Retain `EXPECTED` to `OBSERVED` typed scenario deltas and derive a frontier
+  from unresolved mismatches and claims.
 - Admit deterministic read-only probes against frozen inputs.
 - Re-evaluate invalidated lenses and stop on convergence, failure,
   inconclusiveness, cancellation, or budget exhaustion.
+- Qualify only exact graph revisions whose required scenarios freshly pass.
 - Prove that incremental invalidation matches full bounded recomputation.
 - Add bounded recurring Git polling, activation coalescing, and resumable cursor
   processing.
@@ -87,10 +93,11 @@ and proof belong in `plans/`.
 ## Phase 7 — Agent Policies
 
 - Fix the provider-neutral policy request/proposal contract.
-- Add one agent adapter without coupling core semantics to its provider.
+- Add one agent adapter that proposes immutable graph revisions without
+  coupling graph or scenario semantics to its provider.
 - Require evidence citations and frozen preconditions in proposals.
-- Compare agent, deterministic, and human policies over the same spaces and
-  budgets.
+- Compare agent, deterministic, and human graph proposals over the same
+  workloads, scenarios, and budgets.
 - Preserve model and prompt lineage needed for audit without treating rationale
   as proof.
 

@@ -4,8 +4,14 @@ This document defines Rey's formal runtime lifecycle and the bounded input
 surface presented to policy. ADRs 0012–0014 fix the architecture and current
 contracts. The repository implements the pure state reducer through scheduling,
 canonical frontier/progress/selection contracts, and surface
-validation/projection. It does not yet derive application-specific work,
+validation/projection. It does not yet derive workload-specific work,
 retrieve providers, execute actions, or run an agent loop.
+
+ADR 0015 places these mechanisms inside a workload test campaign. Workloads,
+compute graphs, scenarios, qualification, and the four workload commands are
+accepted design contracts but are not implemented. The current v2 runtime and
+surface schemas retain legacy application/component fields pending a
+versioned workload cutover.
 
 ## State Dimensions
 
@@ -131,7 +137,7 @@ from scheduled work in a committed frontier. It contains:
 
 ```text
 schema · surface_id
-application · component · space
+application · component · space (legacy v2 identity fields)
 trace · committed_transition · active_transition · scheduling_decision
 frontier_frame · capability_snapshot · projection_contract
 effective_limits · retrieval_iterations · completeness
@@ -169,6 +175,29 @@ and action references resolve against the exact surface envelope. Source bytes
 and native artifacts remain outside the DataFrame and addressable through
 their evidence references.
 
+The legacy application/component fields above are not silently aliases for
+workload/graph/scenario identities. Before a workload command uses this
+surface, a new schema version must explicitly bind workload, graph,
+scenario-suite, test-campaign, and selected scenario identities.
+
+## Placement In A Workload Campaign
+
+One workload test pass freezes an exact graph revision, executes selected
+scenarios, and compares `EXPECTED` to `OBSERVED`. Failing deltas and unresolved
+claim facts derive the next workload frontier. The scheduling and orientation
+phases then select bounded unresolved work and construct the reasoning surface
+from which a policy may propose another immutable graph revision.
+
+Graph edges determine node dependency order inside one execution. The frontier
+scheduler determines which unresolved scenario evidence receives the next unit
+of attention between graph revisions. These are separate mechanisms; the
+runtime reducer does not become a generic graph-task scheduler.
+
+A graph proposal is an untrusted policy proposal and must pass graph,
+operation, capability, effect, precondition, and limit validation. Only fresh
+scenario results produced by deterministic evaluation can qualify it. See
+[Workloads, Compute Graphs, and Scenarios](WORKLOADS.md).
+
 ## Bounds And Completeness
 
 V2 enforces nonzero maxima for:
@@ -204,7 +233,8 @@ action it cites.
 
 The implemented crates deliberately contain no:
 
-- application-specific frontier derivation or dependency invalidation;
+- workload-specific frontier derivation or dependency invalidation;
+- workload catalog, graph/scenario executor, campaign, or qualification;
 - recurring, fair, parallel, or multi-user scheduling;
 - provider read, query, or retrieval implementation;
 - policy request transport or proposal parser;

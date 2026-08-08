@@ -133,6 +133,12 @@ surface uses the existing Polars/DataFrame closure. ADR 0014 adds
 HTTP, async-runtime, Git parsing, or broader Polars features require an
 explicit plan need and dependency review.
 
+ADR 0015 adds no dependency or executable behavior. It accepts the
+workload-centered product and command contracts while deferring manifest
+encoding, catalog/result storage, graph execution, scenario campaigns, and the
+required runtime/frontier/surface schema cutover to a later implementation
+slice.
+
 ## Cargo And Crane Outputs
 
 The flake filters sources through `craneLib.cleanCargoSource`, compiles the

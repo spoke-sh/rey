@@ -1,10 +1,11 @@
 # ADR 0007: Git Polling And Delta Activation
 
-- Status: Accepted
+- Status: Accepted; public activation target terminology narrowed by ADR 0015
 - Date: 2026-08-07
 - Extends: [ADR 0001](0001-diff-directed-runtime.md),
   [ADR 0005](0005-environment-awareness-and-optional-spoke.md), and
   [ADR 0006](0006-rey-spoke-recursive-improvement.md)
+- Narrowed by: [ADR 0015](0015-workload-centered-product.md)
 
 ## Context
 

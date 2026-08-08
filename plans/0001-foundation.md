@@ -7,8 +7,9 @@ inventory a bounded local environment, materialize two typed frames, compute an
 authoritative directed delta, render Tabular Diff 0.8, and evaluate a scoped
 proof with zero Spoke. Then run the same evidence contract with a routed local
 Spoke provider and record the first external-client conformance delta. A Git
-commit/ref/index poll activates the relevant application component without
-assuming append-only history or exactly-once delivery.
+commit/ref/index poll activates the relevant workload scenario selection or
+graph entry point without assuming append-only history or exactly-once
+delivery.
 
 The slice must be deterministic without an LLM and must prove that changed
 inputs or evaluator code make an earlier certificate stale.
@@ -24,7 +25,7 @@ inputs or evaluator code make an earlier certificate stale.
 - [x] A bounded environment probe emits a typed capability snapshot with no
   Spoke present.
 - [ ] A Git snapshot and semantic index delta produce one deterministic,
-  replay-safe application activation.
+  replay-safe workload activation.
 - [x] Two typed capability fixture frames produce a deterministic structured
   delta.
 - [x] The same capability delta produces a valid bounded Tabular Diff 0.8
@@ -72,8 +73,8 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
   guarantee, and discovery-error schemas.
 - [ ] Define Git repository/worktree, ref, commit/parent, path-change, semantic
   index, worktree-status, poll cursor, trigger, and activation schemas.
-- [ ] Define application and independently activatable component declarations,
-  dependency edges, entry points, and budgets.
+- [ ] Define the minimum workload, graph, scenario, campaign, and activation
+  declarations needed by the post-ADR-0015 implementation slice.
 - [x] Define capability comparison compatibility, unique composite keys,
   ordering, normalization, and completeness behavior.
 - [x] Define capability typed-delta Arrow and serialized schemas without losing
@@ -155,10 +156,10 @@ nix run path:$PWD -- environment inspect --format json
   metadata.
 - [ ] Classify ref creation, deletion, fast-forward, rewind,
   rewrite/divergence, and unknown movement.
-- [ ] Define a trigger that maps one Git delta subset to one application
-  component revision.
-- [ ] Create deterministic activation identity from trigger, component,
-  snapshots, and matched delta.
+- [ ] Define a trigger that maps one Git delta subset to one workload revision
+  plus scenario selection or graph entry point.
+- [ ] Create deterministic activation identity from trigger,
+  workload/graph/scenario selection, snapshots, and matched delta.
 - [ ] Advance the poll cursor only after required transition evidence is
   retained.
 - [ ] Prove crash replay and idempotent activation without an exactly-once
@@ -197,7 +198,7 @@ nix run path:$PWD -- environment inspect --format json
   limit changes invalidate proof inputs.
 - [ ] Make provider, tool, version, digest/provenance, trust, and guarantee
   changes invalidate dependent proof inputs.
-- [ ] Make Git source snapshots, semantic index, trigger/component revision,
+- [ ] Make Git source snapshots, semantic index, trigger/workload selection,
   and cursor/activation inputs invalidate dependent proof state.
 - [x] Detect tampered snapshot and certificate evidence.
 - [ ] Keep similarity, coverage, completeness, and status distinct.
@@ -237,7 +238,7 @@ nix run path:$PWD -- environment verify-bundle proof.bundle
   evaluable.
 - [ ] Emit a typed conformance delta between the Rey-required and
   Spoke-advertised public surfaces.
-- [ ] Activate that conformance component from a watched Spoke Git commit while
+- [ ] Activate that conformance workload from a watched Spoke Git commit while
   retaining exact Git and Spoke runtime identities.
 - [ ] Preserve exact Rey revision, Spoke revision, fixture, and evaluator
   identity so either project's change makes conformance state stale.
@@ -279,9 +280,9 @@ nix run path:$PWD -- environment verify-bundle proof.bundle
 - [x] Missing or tampered local evidence cannot verify as passed.
 - [x] Zero-Spoke mode produces useful local capability frames, deltas, and
   scoped proofs.
-- [ ] Commit/ref/index deltas activate only declared affected components.
+- [ ] Commit/ref/index deltas activate only declared affected workload entries.
 - [ ] Ref rewrites and incomplete history never appear as false append events.
-- [ ] Poll replay does not duplicate an idempotent component effect.
+- [ ] Poll replay does not duplicate an idempotent workload effect.
 - [ ] Poll evidence does not claim unobserved intermediate index/worktree states.
 - [ ] Polling executes no repository hook and makes no Git mutation.
 - [ ] Missing required Spoke capability never silently weakens a claim.
@@ -296,7 +297,7 @@ nix run path:$PWD -- environment verify-bundle proof.bundle
 ## Deferred
 
 Long-running Git polling, reasoning-surface retrieval/materialization,
-application-specific frontier derivation/invalidation, recurring scheduling,
+workload-specific frontier derivation/invalidation, recurring scheduling,
 multi-step loops, agent policies, mutation, local and Spoke compute actions,
 full codebase lenses, incremental physical execution, a Rey service,
 multi-user operation, and managed deployment remain later plans. Plan 0002

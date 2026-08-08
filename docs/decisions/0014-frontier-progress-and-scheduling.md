@@ -1,7 +1,8 @@
 # ADR 0014: Frontier, Progress, And Deterministic Scheduling
 
-- Status: Accepted
+- Status: Accepted; public identity cutover required by ADR 0015
 - Date: 2026-08-07
+- Followed by: [ADR 0015](0015-workload-centered-product.md)
 
 ## Context
 

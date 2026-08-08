@@ -65,7 +65,8 @@ whether that makes an action unavailable or a proof inconclusive.
 
 The deterministic runtime owns validation, effects, comparison, invalidation,
 limits, lineage, and proof assembly. An agent, rule, or human policy may propose
-an action but cannot redefine evidence or bypass admission.
+a compute-graph revision or action but cannot redefine evidence, qualify its
+own proposal, or bypass admission.
 
 ### 8. Make Effects Explicit
 
@@ -112,8 +113,8 @@ the runtime implements its target contract.
 
 For software spaces, commit, ref, index, and declared worktree observations are
 first-class frames. Polling compares frozen snapshots; it does not assume refs
-are append-only or the index is immutable. Git deltas may activate application
-components, but they never bypass normal action admission.
+are append-only or the index is immutable. Git deltas may activate workload
+graph entry points, but they never bypass normal action admission.
 
 ## Frame And Delta Invariants
 
@@ -162,9 +163,9 @@ components, but they never bypass normal action admission.
   `stale`.
 - A passing proof contains no failed required check and no unacknowledged
   missing evidence.
-- A proof becomes stale when any bound source, provider, capability, lens,
-  normalizer, policy, candidate, fixture, tool, guarantee, or evaluator
-  implementation changes.
+- A proof becomes stale when any bound source, provider, capability, workload,
+  compute graph, scenario, lens, normalizer, policy, candidate, fixture, tool,
+  guarantee, or evaluator implementation changes.
 - Similarity and progress scores help navigate evidence; neither is a parity
   proof.
 - Evidence is content-addressed or bound to the strongest immutable source

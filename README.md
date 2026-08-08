@@ -5,6 +5,10 @@ probes the context surfaces available where it is running, turns observations
 of a large state space into typed DataFrames, computes explicit deltas between
 revisions, and uses those deltas to direct the next probe or mutation.
 
+Users organize that compute as workloads: versioned generated compute graphs
+qualified by exact scenarios whose failing expected-to-observed deltas direct
+the next bounded graph revision.
+
 Rey works without [Spoke](../spoke). In standalone mode it can inspect an
 explicit local workspace and use discovered tools with narrower durability,
 query, and execution guarantees. When Spoke is available, it becomes Rey's
@@ -25,8 +29,12 @@ bounded content-addressed local bundle with explicit filesystem-only retention
 guarantees. Pure library contracts now formalize the runtime transition state
 machine, canonical frontier and progress relations, deterministic bounded work
 selection, and the delta-directed reasoning surface. They run with zero Spoke.
-Application-specific frontier derivation, recurring scheduling, provider
-retrieval/execution, activation, mutation, Spoke-backed proof bundles, and
+The accepted next product contract makes a workload the public composition of
+a generated compute graph, scenarios, policy, claims, and bounds, with
+`workloads list`, `test`, `run`, and `status` as its command surface. Those
+workload commands are not implemented yet. Workload-specific frontier
+derivation, recurring scheduling, provider retrieval/execution, activation,
+mutation, Spoke-backed proof bundles, and
 connected Spoke behavior remain design contracts, not implemented commands.
 
 ## Try The First Slice
@@ -124,12 +132,19 @@ best source binding the environment can prove.
 
 ## The Model
 
-Rey begins with twelve concepts:
+Rey's public composition is a workload; its runtime uses these concepts:
 
 - A **capability snapshot** is a bounded inventory of the context surfaces,
   tools, providers, trust classes, and limits Rey can currently use.
-- An **application** is a versioned composition of spaces, lenses, triggers,
-  components, actions, claims, policy, and total budgets.
+- A **workload** is a versioned composition of a compute-graph contract,
+  scenarios, environment requirements, actions, claims, policy, qualification,
+  and total budgets.
+- A **compute graph** is one immutable proposal of typed nodes, ports, and
+  dependency edges that implements a workload. An agent, rule, or human may
+  propose it; the runtime validates it.
+- A **scenario** binds exact fixtures and expected outputs or claims to one
+  workload. Failing scenarios retain directed typed deltas from `EXPECTED` to
+  `OBSERVED`.
 - A **space** names the domain being explored and the exact local or Spoke
   sources, revisions, and capability requirements that bound it.
 - A **lens** is a versioned, deterministic observation definition. It projects
@@ -142,11 +157,11 @@ Rey begins with twelve concepts:
   retains keys, types, comparison rules, and both source revisions.
 - A **frontier** is the bounded relation of unresolved delta- or claim-directed
   work eligible to direct the next computation.
-- An **activation** is an idempotent match between a declared source-delta
-  trigger and one independently runnable application component.
-- A **policy** proposes the next action from a frontier. A policy may be an
-  agent, a deterministic rule, or a human; it does not bypass runtime
-  admission.
+- An **activation** is an idempotent match between a declared source delta and
+  a workload graph entry point or test selection.
+- A **policy** proposes the next graph revision or action from a frontier. A
+  policy may be an agent, a deterministic rule, or a human; it does not bypass
+  runtime admission.
 - A **trace** is the replayable graph of capabilities, observations, actions,
   local or Spoke runs, deltas, and decisions.
 - A **proof** evaluates a declared claim over a named scope and binds the
@@ -175,6 +190,9 @@ and become `stale` when a bound input or evaluator changes.
 
 See [Diffs and Frames](docs/DIFFS.md) and
 [Proofs and Evidence](docs/PROOFS.md) for the target contracts.
+See [Workloads, Compute Graphs, and Scenarios](docs/WORKLOADS.md) for the
+accepted public model, qualification loop, progress semantics, and four-command
+CLI.
 See [Runtime Transitions and Reasoning Surfaces](docs/RUNTIME.md) for the
 implemented pure lifecycle and policy-surface contracts and their explicit
 non-goals.
@@ -220,9 +238,10 @@ The useful development deltas are already present:
 - index to worktree for unstaged changes; and
 - previous semantic index snapshot to current index snapshot.
 
-Triggers can map those deltas to specific application components. A staged Rust
-change might refresh only symbol and diagnostic lenses; a new commit on a
-watched ref might activate a broader parity or deployment proof.
+Triggers can map those deltas to specific workload graph entry points or
+scenario selections. A staged Rust change might refresh only symbol and
+diagnostic observations; a new commit on a watched ref might activate a
+broader parity workload.
 
 Git is not treated as a monotonic event queue. Rebase, reset, force-push,
 branch switching, conflicts, shallow history, and multiple worktrees produce
@@ -268,7 +287,7 @@ shared progress is driven by public-contract conformance evidence, not by one
 repository importing the other's internals.
 
 Git makes that loop concrete: commits and index deltas in either checkout can
-activate the relevant standalone or connected Rey conformance components.
+activate the relevant standalone or connected Rey conformance workloads.
 
 ## Project Boundaries
 
@@ -278,7 +297,7 @@ Rey is not:
 - a replacement for Spoke storage, query, documents, or compute;
 - a hard dependency on Spoke for useful local exploration;
 - an ambient shell that executes every binary found on `PATH`;
-- a general workflow engine whose tasks have no diff semantics;
+- a general workflow engine whose tasks have no diff or scenario semantics;
 - a claim that every artifact is naturally tabular;
 - an authority that lets an agent mutate a target without explicit admission;
 - a source-code coverage system merely because a scenario set passes; or
@@ -291,6 +310,8 @@ Rey is not:
 - [Contributor Instructions](INSTRUCTIONS.md) — working loop and verification
   rules.
 - [Architecture](docs/ARCHITECTURE.md) — component ownership and data flow.
+- [Workloads, Compute Graphs, and Scenarios](docs/WORKLOADS.md) — public unit,
+  graph/scenario contracts, qualification, progress, and command semantics.
 - [Runtime Transitions and Reasoning Surfaces](docs/RUNTIME.md) — lifecycle,
   delta roles, surface bounds, and current contract truth.
 - [Frontier, Progress, and Scheduling](docs/FRONTIER.md) — canonical work,
@@ -298,12 +319,12 @@ Rey is not:
 - [Environment and Capabilities](docs/ENVIRONMENT.md) — local/remote discovery,
   zero-Spoke behavior, and provider guarantees.
 - [Git Context and Activation](docs/GIT.md) — commit/ref/index polling and
-  delta-triggered application components.
+  delta-triggered workload entry points.
 - [Diffs and Frames](docs/DIFFS.md) — typed frame and delta semantics.
 - [Proofs and Evidence](docs/PROOFS.md) — claim, evidence, certificate, and
   staleness rules.
 - [Interfaces](docs/INTERFACES.md) — provisional CLI, provider, trigger, and
-  Spoke contracts.
+  Spoke contracts plus the accepted workload command surface.
 - [Development](docs/DEVELOPMENT.md) — current repository truth and target task
   surface.
 - [Roadmap](docs/ROADMAP.md) — delivery sequence.
@@ -329,7 +350,11 @@ crates now reject illegal runtime transitions, derive convergence only from
 complete frontier evidence, compare frontier progress, select bounded ready
 work deterministically, and bind that decision into the reasoning surface.
 They do not derive domain work, retrieve providers, or execute actions. The
-active foundation plan covers complete Git polling and routed Spoke proof work.
+workload-centered product, graph/scenario, and CLI contracts are accepted but
+not implemented; the existing library schemas still expose legacy
+application/component identity fields pending a versioned cutover. The active
+foundation plan covers complete Git polling and routed Spoke proof work.
 See [Plan 0001](plans/0001-foundation.md),
 [Plan 0002](plans/0002-runtime-contracts.md), and
-[Plan 0003](plans/0003-frontier-scheduling.md).
+[Plan 0003](plans/0003-frontier-scheduling.md). The completed design bearing is
+[Plan 0004](plans/0004-workload-contracts.md).

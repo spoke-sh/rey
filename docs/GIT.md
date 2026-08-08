@@ -2,7 +2,7 @@
 
 This document defines Rey's target Git provider and delta-trigger contracts.
 Git is both a source of exact code identities and a pollable change substrate
-for software-development applications. The first Plan 0001 slice implements a
+for software-development workloads. The first Plan 0001 slice implements a
 read-only contained repository observation through bounded direct Git argv. It
 records repository/worktree identity, object format, bare/shallow state, HEAD,
 and a partial logical index-entry digest. Ref frames, graph traversal,
@@ -21,7 +21,8 @@ A software project already has a useful feedback structure:
 
 Rey observes those surfaces as typed frames. Deltas between frozen Git
 snapshots can invalidate lenses, update a frontier, and activate only the
-application components that declared a dependency on the change.
+workload graph entry points or scenario selections that declared a dependency
+on the change.
 
 Git does not provide a monotonic event log by itself. Refs can move backward or
 sideways, commits can be replaced by rebases, the index is mutable, and a
@@ -113,8 +114,8 @@ entries including:
 
 Raw index bytes and checksum may be retained as provenance, but they are not the
 default semantic trigger. Git can refresh stat-cache metadata without changing
-the proposed tree. That must not activate an application component whose
-contract depends only on staged content.
+the proposed tree. That must not activate a workload entry point whose contract
+depends only on staged content.
 
 Split and sparse indexes must be expanded or interpreted through supported Git
 semantics before Rey claims a complete logical index relation. An index lock,
@@ -171,7 +172,7 @@ One bounded poll performs:
 4. traverse only the bounded commit graph needed to classify ref movement;
 5. materialize typed Git deltas;
 6. match trigger predicates and create deterministic activation identities;
-7. admit and run selected application components; and
+7. admit and run selected workload test selections or graph entry points; and
 8. advance the cursor after transition evidence commits.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
@@ -198,15 +199,16 @@ monotonic. Merge commits retain all ordered parent edges.
 
 ## Triggers And Activations
 
-A trigger maps a typed source delta predicate to one or more application
-components. A declaration includes:
+A trigger maps a typed source delta predicate to one or more workload
+revisions, scenario selections, or declared graph entry points. A declaration
+includes:
 
 - stable trigger id and revision;
 - repository/worktree selector;
 - source relation and event classes;
 - path, ref, commit, stage, or change predicates;
 - required provider capabilities and completeness;
-- target lenses, claims, or actions;
+- target workload/graph revision, scenarios, observations, claims, or actions;
 - coalescing/debounce policy where timing is meaningful;
 - per-activation budgets and concurrency policy; and
 - replay and idempotency behavior.
@@ -227,15 +229,16 @@ index.conflicted
 worktree.changed
 ```
 
-An activation is a deterministic proposal to start or resume a component. Its
-identity covers the trigger revision, source and target snapshot ids, matched
-delta subset, and component revision. It still passes normal runtime admission;
-a Git delta does not directly execute a tool or mutation.
+An activation is a deterministic proposal to start or resume a workload test
+selection or graph entry point. Its identity covers the trigger revision,
+source and target snapshot ids, matched delta subset, and exact
+workload/graph/scenario selection. It still passes normal runtime admission; a
+Git delta does not directly execute a tool or mutation.
 
-Applications can therefore activate narrowly. An index delta touching Rust
-sources might refresh symbol and diagnostic lenses, while a new commit on a
-release ref might run a broader conformance proof. Unrelated components remain
-idle.
+Workloads can therefore activate narrowly. An index delta touching Rust
+sources might select symbol and diagnostic scenarios, while a new commit on a
+release ref might run a broader conformance workload. Unrelated workload graph
+entry points remain idle.
 
 ## Rey–Spoke Development Loop
 

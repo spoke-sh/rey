@@ -21,21 +21,23 @@ policy concerns rather than runtime correctness dependencies.
 
 ## Architectural Separation
 
-Rey separates six responsibilities:
+Rey separates seven responsibilities:
 
-1. **Context-surface plane** — environment providers expose explicit local and
+1. **Workload plane** — versioned workloads compose generated compute graphs,
+   scenarios, claims, policy, qualification, effects, and total limits.
+2. **Context-surface plane** — environment providers expose explicit local and
    remote sources, tools, runtimes, and guarantees as a capability snapshot.
-2. **Reasoning plane** — built-in/local providers supply a minimum standalone
+3. **Reasoning plane** — built-in/local providers supply a minimum standalone
    surface; optional Spoke supplies durable sources, composed query, compute
    coordination, captures, and durable lineage.
-3. **Observation plane** — lenses bind exact inputs and materialize bounded
+4. **Observation plane** — lenses bind exact inputs and materialize bounded
    typed frames.
-4. **Delta plane** — comparison aligns frames, preserves typed changes, and
+5. **Delta plane** — comparison aligns frames, preserves typed changes, and
    derives invalidation.
-5. **Runtime plane** — transitions validate proposals, execute bounded probes or
+6. **Runtime plane** — transitions validate proposals, execute bounded probes or
    effects, update the frontier, and stop on convergence or an explicit bound.
-6. **Policy plane** — an agent, deterministic rule, or human proposes which
-   admissible action should happen next.
+7. **Policy plane** — an agent, deterministic rule, or human proposes a compute
+   graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
 The first topology is a local Rey process. A Spoke provider, when configured or
@@ -44,17 +46,22 @@ discovered, uses Spoke's routed HTTP interface.
 ## System Graph
 
 ```text
-               explicit environment boundary
+                  workload declaration
+          graph · scenarios · claims · policy · limits
+                    │                         │ environment requirements
+                    │                         ▼
+                    │            explicit environment boundary
+                    │                         │
+                    │        ┌────────────────┼────────────────┐
+                    │        ▼                ▼                ▼
+                    │ local workspace  discovered tools  optional Spoke
+                    │        └────────────────┬────────────────┘
+                    │                         ▼
+                    │              capability snapshot frame
+                    └───────────────────┬─────┘
+                                        │
+          Git/source activation · policy proposal
                               │
-           ┌──────────────────┼───────────────────┐
-           ▼                  ▼                   ▼
-    local workspace     discovered tools    optional Spoke
-           └──────────────────┬───────────────────┘
-                              ▼
-                   capability snapshot frame
-                              │
-              Git/source activation · agent · rule · human policy
-                              │ proposal
                               ▼
                     ┌───────────────────┐
                     │ Rey runtime       │
@@ -90,8 +97,11 @@ discovered, uses Spoke's routed HTTP interface.
 
 See [Environment and Capabilities](ENVIRONMENT.md) for detailed provider,
 snapshot, profile, admission, and degradation contracts.
+See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) for the public
+composition, test-campaign, qualification, progress, catalog, and command
+contracts.
 See [Git Context and Activation](GIT.md) for software-repository snapshots,
-poll cursors, and delta-triggered components.
+poll cursors, and delta-triggered workloads.
 
 ## Core Data Model
 
@@ -99,7 +109,10 @@ poll cursors, and delta-triggered components.
 | --- | --- | --- |
 | Environment | Explicit boundary from which providers may discover context | Host/deployment configuration; observed by Rey |
 | Capability snapshot | Frozen inventory of providers, tools, operations, trust, and limits | Rey evidence; local or Spoke-backed |
-| Application | Versioned composition of spaces, components, triggers, actions, claims, policy, and budgets | Rey declaration |
+| Workload | Public versioned composition of graph contract, scenarios, environment, claims, policy, qualification, effects, and budgets | Rey declaration and catalog provider |
+| Compute graph | Immutable content-identified typed nodes, ports, and dependency edges proposed for one workload | Catalog/result provider with explicit retention profile |
+| Scenario | Exact fixtures, expected observations or claims, comparator, and limits used to test one graph revision | Rey declaration and retained evidence |
+| Test campaign | Bounded lineage of graph proposals, scenario attempts, typed deltas, and qualification decision | Local or Spoke-backed result provider |
 | Space | Named boundary over sources, lenses, actions, claims, and limits | Rey declaration; local or stored through Spoke |
 | Source binding | Exact Spoke or local immutable input identity | Source system; referenced by Rey |
 | Lens | Versioned deterministic observation definition | Rey declaration; local or stored through Spoke |
@@ -108,7 +121,7 @@ poll cursors, and delta-triggered components.
 | Run/attempt | Provider-owned execution and capture lineage | Local executor or Spoke compute, explicitly distinguished |
 | Delta | Directed typed comparison between compatible frames | Rey evidence; local or Spoke-backed |
 | Frontier | Bounded prioritized unresolved work | Rey working state; checkpointed when needed |
-| Trigger | Versioned predicate mapping a source delta to application components | Rey declaration |
+| Trigger | Versioned predicate mapping a source delta to workload test selection or graph entry points | Rey declaration |
 | Activation | Idempotent trigger match against exact source/target snapshots | Rey transition evidence |
 | Claim | Predicate and required evidence over a named scope | Rey declaration; local or stored through Spoke |
 | Proof | Claim assessment bound to exact evidence and evaluator inputs | Rey artifact with explicit provider guarantees |
@@ -119,21 +132,28 @@ content. A frame may be reproducible from exact sources and a lens, or retained
 as an Arrow evidence artifact when replay cost, external volatility, or proof
 requirements demand it.
 
-## Applications And Components
+## Workloads, Graphs, And Scenarios
 
-A Rey application declares providers, spaces, lenses, independently activatable
-components, triggers, admissible actions, claims, policy, dependency edges, and
+A Rey workload is the public unit users list, test, run, and inspect. It
+declares providers, typed inputs and outputs, a compute-graph contract,
+scenarios, triggers, admissible operations, claims, policy, qualification, and
 total budgets under one versioned identity.
 
-A component is the smallest unit a trigger can start or resume. It names exact
-input frames/lenses, required capabilities, produced observations, evaluated
-claims, permitted actions, component-local budgets, and concurrency behavior.
-Components do not imply separate processes. Manual, policy-selected, Git, or
-future stream activations all enter the same component admission contract.
+One immutable graph revision contains stable nodes, typed ports, dependency
+edges, exact operation contracts, capability/effect requirements, and limits.
+The initial graph is acyclic. An agent, rule, or human may propose a graph, but
+the runtime validates it and deterministic scenarios decide qualification.
 
-Application and component revisions participate in activation, transition, and
-proof identity. Changing a component does not silently reinterpret a retained
-activation created for an earlier revision.
+A scenario executes that exact graph against fixture bindings and compares
+`EXPECTED` to `OBSERVED`. Conclusive mismatches retain typed deltas; missing or
+incompatible evidence is inconclusive. All required scenarios must freshly
+pass for the same graph revision before `workloads run` selects it by default.
+
+Manual, policy-selected, Git, or future stream activations select a workload
+test campaign, scenario subset, or declared graph entry point through normal
+admission. Workload, graph, scenario, campaign, and run revisions participate
+in transition and proof identity. See [Workloads, Compute Graphs, and
+Scenarios](WORKLOADS.md).
 
 ## Environment And Capability Discovery
 
@@ -212,13 +232,14 @@ A poll compares the current repository snapshot with its last completely
 processed cursor. Fast-forward refs can expose newly reachable commits; rewinds
 and divergence emit explicit ref/reachability deltas; semantic index changes
 expose staged proposals before a commit exists. Raw index changes caused only
-by stat-cache refresh do not activate staged-content components.
+by stat-cache refresh do not activate staged-content workload entries.
 
-Triggers select delta subsets and name affected application components. An
-activation has deterministic identity over trigger revision, component
-revision, source/target snapshots, and matched delta. It enters ordinary action
-admission and can be replayed after a crash. The poll cursor advances only after
-required transition evidence reaches its claimed retention boundary.
+Triggers select delta subsets and name an affected workload revision, scenario
+selection, or declared graph entry point. An activation has deterministic
+identity over the trigger, workload/graph/scenario selection, source/target
+snapshots, and matched delta. It enters ordinary action admission and can be
+replayed after a crash. The poll cursor advances only after required transition
+evidence reaches its claimed retention boundary.
 
 ## Delta And Frontier
 
@@ -295,6 +316,15 @@ exhaustion, missing evidence, or incompatible residuals stop explicitly rather
 than producing convergence. See
 [ADR 0012](decisions/0012-delta-directed-orientation.md).
 
+Within a workload test campaign, one pass freezes a graph revision, executes
+selected scenarios, compares expected to observed outputs, and derives a
+frontier from failing deltas and unresolved claims. The recurring transition
+machine then retrieves and projects that bounded evidence before policy may
+propose the next graph revision. Graph dependency order is distinct from
+frontier scheduling: edges determine which nodes can run, while the frontier
+determines which unresolved scenario evidence should receive the next bounded
+unit of reasoning or compute.
+
 ## Actions And Transitions
 
 An action has one of two effect classes:
@@ -307,8 +337,8 @@ An action has one of two effect classes:
 
 One transition follows this protocol after a committed frontier is available:
 
-1. freeze the current activation/frontier, source revisions, and relevant frame
-   ids;
+1. freeze the current workload, graph, scenario selection,
+   activation/frontier, source revisions, and relevant frame ids;
 2. select bounded ready frontier work under exact record, frontier, capability,
    scheduler, and budget inputs;
 3. retrieve declared exact read-only evidence and project the bounded reasoning
@@ -330,10 +360,11 @@ status, determine convergence.
 
 ## Policy Boundary
 
-A policy receives a bounded view of the current space, frontier, admissible
-actions, and budgets. It returns a structured proposal. The runtime treats that
-proposal as untrusted input and validates it identically whether it came from a
-model, a rule, or a human.
+A policy receives a bounded view of the current workload, graph/scenario
+evidence, space, frontier, admissible graph operations or actions, and budgets.
+It returns a structured proposal. The runtime treats that proposal as
+untrusted input and validates it identically whether it came from a model, a
+rule, or a human.
 
 Provider credentials, prompt construction, inference retries, and model context
 management do not belong in core diff or proof crates. A provider adapter may
@@ -387,7 +418,7 @@ Rey never imports Spoke capability internals, and Spoke does not require Rey for
 core startup. Shared fixtures may describe a public contract, but each
 repository owns and can run its side of the conformance test independently.
 Git commit/ref/index deltas provide a natural activation source for these
-conformance components without changing that ownership boundary.
+conformance workloads without changing that ownership boundary.
 
 ## Codebase Space Example
 
@@ -415,13 +446,13 @@ The first design proposes these Rust ownership boundaries:
 
 | Crate | Ownership |
 | --- | --- |
-| `rey` | CLI, configuration, local composition, and user-facing orchestration |
+| `rey` | Workload CLI, catalog/configuration composition, and user-facing orchestration |
 | `rey-core` | identities, revisions, limits, statuses, and shared value contracts |
 | `rey-dataframe` | frame metadata, Polars schemas, Arrow codecs, and bounded rendering |
 | `rey-environment` | capability discovery, snapshots, provider contracts, and local context adapters |
 | `rey-git` | repository identity, commit/ref/index frames, polling cursors, triggers, and activations |
 | `rey-diff` | compatibility, alignment, typed changes, summaries, and Tabular Diff projection |
-| `rey-runtime` | lifecycle state, spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
+| `rey-runtime` | workload/graph/scenario lifecycle, spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
 | `rey-frontier` | canonical frontier/progress relations, prioritization inputs, convergence evaluation, and bounded deterministic selection |
 | `rey-proof` | claims, evidence manifests, certificates, verification, and staleness |
 | `rey-policy` | bounded reasoning surfaces plus provider-neutral proposal and admissible-action contracts |
@@ -471,6 +502,10 @@ guarantees. `rey-runtime` implements the pure formal state reducer through an
 explicit scheduling phase; `rey-frontier` implements canonical frontier,
 progress, and bounded selection contracts; and `rey-policy` implements the
 bounded reasoning-surface document and DataFrame projection.
-Application-specific frontier derivation and invalidation, recurring
+The workload-centered CLI, catalog, graph/scenario execution, qualification,
+and result retention are accepted design contracts but are not implemented.
+The current runtime/frontier/surface schemas still carry legacy
+application/component identities and require a versioned cutover.
+Workload-specific frontier derivation and invalidation, recurring
 scheduling, provider retrieval/execution, policy proposals, Git activation,
 and the Spoke provider remain target architecture.

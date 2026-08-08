@@ -46,6 +46,10 @@ include:
 - action proposals and admission decisions;
 - local or Spoke run, attempt, event, capture, and tool-resolution lineage;
 - fixtures, expected values, and reviewed exceptions;
+- workload, graph, scenario-suite, test-campaign, qualification, and production
+  run identities where applicable;
+- per-scenario expected and observed outputs plus their authoritative typed
+  deltas or failed claim facts;
 - coverage and completeness relations;
 - limits, truncation, unsupported controls, and failures; and
 - trace edges that connect causes to observations.
@@ -105,6 +109,8 @@ The proof input digest covers all semantics capable of changing the result:
 - Git repository/worktree identity, watched refs, exact OIDs, semantic index,
   trigger revision, and activation inputs;
 - fixtures and expected evidence;
+- workload, graph, scenario-suite, scenario selection, campaign, and
+  qualification inputs;
 - space, lens, claim, and policy revisions where policy affects scope;
 - schema, key, order, normalizer, tolerance, and ignore definitions;
 - tool and execution-contract identities;
@@ -123,6 +129,22 @@ delta exists beyond the bound.
 Remote or later-stage evidence depends on the proof inputs that authorized it.
 If a local baseline proof becomes stale, downstream assessments that cite its
 old input digest are stale as well.
+
+### Workload Scenario Qualification
+
+A workload qualification is a scoped proof input, not an agent assertion or a
+process status. It binds one exact workload, compute-graph revision,
+scenario-suite revision, required scenario set, fixtures, capability
+snapshots, comparators, evaluators, normalizers, limits, and fresh per-scenario
+results. Every required scenario must pass with complete evidence.
+
+A conclusive scenario mismatch retains its directed `EXPECTED` to `OBSERVED`
+typed delta or failed claim fact. Missing or incompatible evidence is
+inconclusive. A graph, scenario, expected output, capability, evaluator, or
+effective-limit change makes the old qualification stale. Optional scenarios
+and omitted coverage remain visible and never become universal correctness or
+production-safety claims. See [Workloads, Compute Graphs, and
+Scenarios](WORKLOADS.md).
 
 ### Implemented Required-Capability Certificate
 
@@ -240,6 +262,8 @@ The first proof engine must demonstrate:
 
 - passed, failed, inconclusive, pending, and stale states;
 - changed source, fixture, lens, normalizer, tool, evaluator, and limit inputs;
+- changed workload, graph, scenario suite, expected output, and qualification
+  inputs;
 - changed capability snapshots and loss of required Spoke guarantees;
 - changed Git refs, index semantics, trigger definitions, or replay cursor;
 - honest verification of both local-only and Spoke-backed retention profiles;

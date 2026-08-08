@@ -7,21 +7,23 @@ Procedural guidance for humans and agents working on Rey.
 1. `README.md` for scope, model, and current status.
 2. `CONSTITUTION.md` for durable values and invariants.
 3. `docs/ARCHITECTURE.md` for ownership and data flow.
-4. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
+4. `docs/WORKLOADS.md` before changing workloads, compute graphs, scenarios,
+   qualification, progress, or the workload CLI.
+5. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
    convergence, or scheduling.
-5. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
+6. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
    scheduling contracts.
-6. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
+7. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
    or capability admission.
-7. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
-   cursors, triggers, or application activation.
-8. `docs/DIFFS.md` before changing frames, comparison, normalization, or
+8. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
+   cursors, triggers, or workload activation.
+9. `docs/DIFFS.md` before changing frames, comparison, normalization, or
    renderings.
-9. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
-10. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
-11. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
-12. `plans/README.md` and the active plan before implementation work.
-13. `docs/decisions/README.md` for accepted choices that constrain the work.
+10. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
+11. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
+12. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
+13. `plans/README.md` and the active plan before implementation work.
+14. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 
@@ -49,6 +51,12 @@ host-filesystem bundle, runtime reducer, frontier selector, or policy surface
 into generic derivation, recurring scheduling, provider execution, activation,
 Spoke durability, or Spoke process-lineage behavior.
 
+The accepted workload model and four-command CLI are design contracts only.
+No workload manifest, catalog, compute-graph executor, scenario campaign, or
+qualification record exists yet. The implemented runtime/frontier/surface
+schemas still carry legacy application/component fields and require a
+versioned cutover before the workload CLI ships.
+
 Enter the environment and use:
 
 ```sh
@@ -68,6 +76,13 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 
 ## Runtime Work
 
+- Keep workload declarations, graph revisions, scenarios, campaigns,
+  qualification records, and production runs as distinct exact identities.
+- Validate every agent-, rule-, or human-proposed graph before execution; a
+  proposal cannot introduce ambient executable authority or declare itself
+  qualified.
+- Direct scenario comparisons from expected to observed and retain conclusive
+  failures as typed deltas.
 - Keep frame construction, typed comparison, frontier selection, action
   admission, and proof evaluation deterministic and usable without an LLM.
 - Keep the standalone runtime deterministic and useful without Spoke.

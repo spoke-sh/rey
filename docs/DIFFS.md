@@ -174,6 +174,13 @@ not the goal:
 Every non-tabular delta still has direction, exact source identities, bounded
 evidence, and a structured summary that can participate in a frontier frame.
 
+Workload scenarios use the same contract with `EXPECTED` as source and
+`OBSERVED` as target. A conclusive non-empty scenario delta is retained as the
+failure that directs the next graph revision; an incompatible or incomplete
+comparison is inconclusive. A passing empty delta remains scoped to the exact
+scenario fixtures, output selection, comparator, completeness, and graph
+revision. See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md).
+
 Git comparisons retain typed repository semantics in addition to optional text
 patches. Commit/ref deltas preserve OIDs, parent/reachability facts, path modes,
 and movement classification. Index deltas compare logical entries and stages so

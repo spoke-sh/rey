@@ -208,7 +208,7 @@ Those omissions are capability facts, not reasons to make standalone Rey
 useless.
 
 Git has additional repository snapshot, semantic index, poll cursor, and
-application-activation semantics described in [Git Context and
+workload-activation semantics described in [Git Context and
 Activation](GIT.md). Discovering a `git` executable is not the same as
 admitting a Git repository provider or enabling network and mutation commands.
 

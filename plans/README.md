@@ -12,6 +12,7 @@ completion criteria.
 
 - [0002 — Runtime transition and reasoning surface contracts](0002-runtime-contracts.md)
 - [0003 — Frontier progress and scheduling contracts](0003-frontier-scheduling.md)
+- [0004 — Workload product and CLI contracts](0004-workload-contracts.md)
 
 ## Plan Rules
 
