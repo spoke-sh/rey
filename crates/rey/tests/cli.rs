@@ -646,6 +646,146 @@ fn workload_failure_is_a_typed_delta_with_a_semantic_exit() {
 }
 
 #[test]
+fn workload_test_table_is_incremental_and_opens_failure_diffs_by_default() {
+    let workspace = TempDir::new().unwrap();
+    let passing = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+        "--format",
+        "table",
+    ]);
+
+    assert!(passing.status.success());
+    assert!(passing.stderr.is_empty());
+    let passing = String::from_utf8(passing.stdout).unwrap();
+    assert!(passing.starts_with("Execution path: LOCAL\nMode: READ-ONLY GRAPH"));
+    assert!(passing.contains("Stage: EXECUTE SCENARIOS → DIFF EXPECTED"));
+    assert!(passing.contains("SCENARIOS · results render incrementally in declaration order"));
+    assert!(
+        passing.contains(
+            "PASS rey.fixture.text-normalize · 01/02 plain · 1/1 outputs equal · required"
+        )
+    );
+    assert!(passing.contains(
+        "PASS rey.fixture.text-normalize · 02/02 surrounded · 1/1 outputs equal · required"
+    ));
+    assert!(passing.contains("Workload result: QUALIFIED · 2/2 scenarios passing"));
+    assert!(passing.contains("PORTFOLIO CONFORMANCE"));
+    assert!(passing.contains("Deltas: 2 equal · 0 different · 0 inconclusive"));
+    assert!(!passing.contains("Evidence format:"));
+    assert!(!passing.contains("Evidence matches:"));
+    assert!(!passing.contains("Exact bindings:"));
+    assert!(!passing.contains("\u{1b}["));
+
+    let failing = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_MISMATCH_WORKLOAD_ID,
+        "--format",
+        "table",
+    ]);
+
+    assert_eq!(failing.status.code(), Some(2));
+    assert!(failing.stderr.is_empty());
+    let failing = String::from_utf8(failing.stdout).unwrap();
+    assert!(failing.contains(
+        "FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · required"
+    ));
+    assert!(failing.contains("Evidence deltas:"));
+    assert!(failing.contains("Delta (output text):"));
+    assert!(failing.contains("@@ text · utf8 @@"));
+    assert!(failing.contains("- EXPECTED \"REY\""));
+    assert!(failing.contains("+ OBSERVED \" REY \""));
+    assert!(failing.contains("Result: GAPS FOUND"));
+    assert!(failing.contains("Deltas: 1 equal · 1 different · 0 inconclusive"));
+    assert!(!failing.contains("Evidence format:"));
+    assert!(!failing.contains("Exact bindings:"));
+    assert!(!failing.contains("\u{1b}["));
+}
+
+#[test]
+fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
+    let workspace = TempDir::new().unwrap();
+    let verbose = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_NORMALIZE_WORKLOAD_ID,
+        "--format",
+        "table",
+        "-v",
+    ]);
+
+    assert!(verbose.status.success());
+    assert!(verbose.stderr.is_empty());
+    let verbose = String::from_utf8(verbose.stdout).unwrap();
+    assert!(verbose.contains("Execution model: DETERMINISTIC SERIAL · 2 nodes"));
+    assert_eq!(verbose.matches("Evidence format:").count(), 2);
+    assert_eq!(verbose.matches("Evidence matches:").count(), 2);
+    assert!(verbose.contains("Match (output text):"));
+    assert!(verbose.contains("   \"SPOKE\""));
+    assert!(verbose.contains("Stop reason: qualified"));
+    assert!(verbose.contains("Qualification: issued"));
+    assert!(!verbose.contains("Workload binding:"));
+    assert!(!verbose.contains("Exact bindings:"));
+
+    let very_verbose = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_MISMATCH_WORKLOAD_ID,
+        "--format",
+        "table",
+        "-vv",
+    ]);
+
+    assert_eq!(very_verbose.status.code(), Some(2));
+    assert!(very_verbose.stderr.is_empty());
+    let very_verbose = String::from_utf8(very_verbose.stdout).unwrap();
+    assert!(very_verbose.contains("Execution model: DETERMINISTIC SERIAL · 1 node"));
+    assert!(very_verbose.contains("Workload binding: rey.fixture.text-mismatch@1 · blake3:"));
+    assert!(very_verbose.contains("Graph binding: rey.fixture.text-mismatch.graph@1 · blake3:"));
+    assert!(
+        very_verbose.contains("Scenario suite: rey.fixture.text-mismatch.scenarios@1 · blake3:")
+    );
+    assert!(very_verbose.contains("Evaluator: rey.scenario.utf8-exact@1 · blake3:"));
+    assert_eq!(very_verbose.matches("Exact bindings:").count(), 2);
+    assert!(very_verbose.contains("scenario    rey.fixture.text-mismatch.scenario.surrounded@1"));
+    assert!(very_verbose.contains("execution   blake3:"));
+    assert!(very_verbose.contains("delta       blake3:"));
+    assert!(very_verbose.contains("Test result: blake3:"));
+    assert!(very_verbose.contains("- EXPECTED \"REY\""));
+    assert!(very_verbose.contains("+ OBSERVED \" REY \""));
+
+    let structured = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_MISMATCH_WORKLOAD_ID,
+        "-vv",
+    ]);
+    assert_eq!(structured.status.code(), Some(2));
+    assert!(structured.stderr.is_empty());
+    let structured: WorkloadTestBatch = serde_json::from_slice(&structured.stdout).unwrap();
+    assert_eq!(structured.results.len(), 1);
+    assert_eq!(structured.results[0].status, TestStatus::Failed);
+
+    let help = run_rey(&["workloads", "test", "--help"]);
+    assert!(help.status.success());
+    let help = String::from_utf8(help.stdout).unwrap();
+    assert!(help.contains("-v, --verbose..."));
+    assert!(help.contains("repeat as -vv for exact identity bindings"));
+}
+
+#[test]
 fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
     let workspace = TempDir::new().unwrap();
     let output = run_rey(&[

@@ -25,7 +25,8 @@ schemas before exposing the commands.
 - [x] `workloads status` exposes retained scenarios, deltas, qualification,
   freshness, stop reason, and latest run.
 - [x] `workloads test` proves passing, failing, aggregate, deterministic replay,
-  stdout/stderr, and exit behavior.
+  stdout/stderr, exit behavior, incremental human results, default failure
+  diffs, `-v` matching evidence, and `-vv` exact bindings.
 - [x] `workloads run` refuses absent/stale qualification and executes the exact
   qualified graph against caller input.
 - [x] Repository truth, CLI help, examples, and plan indexes match behavior.
@@ -67,3 +68,9 @@ CLI fixtures prove redirected JSON and forced table output, read-only list,
 blocked run exit `3`, deterministic passing qualification and same-graph run,
 typed failing delta exit `2`, aggregate precedence, malformed-state exit `1`,
 and clean stdout/stderr separation.
+
+Interface-fidelity verification reran on 2026-08-08: `just check`, all 89
+workspace tests plus documentation tests, and `just build` passed. The added
+fixtures cover incremental declaration-order observation, plain passing and
+failing tables, failure-first diffs, `-v`, `-vv`, ANSI-free forced tables, help,
+semantic exits, and unchanged redirected JSON.

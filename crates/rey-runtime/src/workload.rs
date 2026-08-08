@@ -860,6 +860,13 @@ pub fn execute_workload(
 }
 
 pub fn test_workload(workload: &WorkloadDefinition) -> Result<WorkloadTestResult, WorkloadError> {
+    test_workload_with_observer(workload, |_| {})
+}
+
+pub fn test_workload_with_observer(
+    workload: &WorkloadDefinition,
+    mut observer: impl FnMut(&ScenarioResult),
+) -> Result<WorkloadTestResult, WorkloadError> {
     workload.verify()?;
     let campaign_id = campaign_digest(workload);
     let mut scenarios = Vec::with_capacity(workload.scenario_suite.scenarios.len());
@@ -886,13 +893,15 @@ pub fn test_workload(workload: &WorkloadDefinition) -> Result<WorkloadTestResult
             deltas.push(delta);
         }
         deltas.sort_by(|left, right| left.inputs.output_id.cmp(&right.inputs.output_id));
-        scenarios.push(ScenarioResult {
+        let scenario_result = ScenarioResult {
             scenario: scenario.scenario.clone(),
             required: scenario.required,
             execution_id: execution.execution_id,
             evaluation: scenario_evaluation(&deltas),
             deltas,
-        });
+        };
+        observer(&scenario_result);
+        scenarios.push(scenario_result);
     }
     scenarios.sort_by(|left, right| left.scenario.id.cmp(&right.scenario.id));
     let (status, summary) = summarize(&scenarios);
@@ -1773,7 +1782,7 @@ mod tests {
     use super::{
         BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, GraphLimits, RunStatus,
         TestStatus, WorkloadError, WorkloadValue, built_in_workload, built_in_workloads,
-        execute_workload, run_workload, test_workload,
+        execute_workload, run_workload, test_workload, test_workload_with_observer,
     };
 
     #[test]
@@ -1825,6 +1834,26 @@ mod tests {
                 .any(|delta| delta.assessment == DeltaAssessment::Different)
         );
         failing.verify().unwrap();
+    }
+
+    #[test]
+    fn scenario_observer_follows_declaration_order_without_changing_results() {
+        let workload = built_in_workload(BUILT_IN_NORMALIZE_WORKLOAD_ID).unwrap();
+        let mut observed = Vec::new();
+        let result = test_workload_with_observer(&workload, |scenario| {
+            observed.push(scenario.scenario.id.clone());
+        })
+        .unwrap();
+
+        assert_eq!(
+            observed,
+            result
+                .scenarios
+                .iter()
+                .map(|scenario| scenario.scenario.id.clone())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(result, test_workload(&workload).unwrap());
     }
 
     #[test]

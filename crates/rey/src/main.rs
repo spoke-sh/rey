@@ -8,7 +8,7 @@ use std::{
     process::ExitCode,
 };
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
     ReyError, inspect_environment,
     workloads::{
@@ -16,7 +16,10 @@ use rey::{
         WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, fresh_qualification,
     },
 };
-use rey_diff::{CapabilityDelta, DeltaLimits, DeltaOptions, compare_capabilities};
+use rey_diff::{
+    CapabilityDelta, DeltaAssessment, DeltaLimits, DeltaOptions, SCENARIO_OUTPUT_DELTA_SCHEMA,
+    ScenarioOutputDelta, compare_capabilities,
+};
 use rey_environment::{CapabilitySnapshot, DiscoveryLimits};
 use rey_git::GitLimits;
 use rey_proof::{
@@ -26,9 +29,9 @@ use rey_proof::{
     verify_required_capability_certificate,
 };
 use rey_runtime::{
-    RunStatus, ScenarioEvaluation, TestStatus, WorkloadDefinition, WorkloadRunResult,
-    WorkloadTestResult, WorkloadValue, built_in_workload, built_in_workloads, run_workload,
-    test_workload,
+    RunStatus, ScenarioEvaluation, ScenarioResult, TestStatus, WorkloadDefinition,
+    WorkloadRunResult, WorkloadTestResult, WorkloadValue, built_in_workload, built_in_workloads,
+    run_workload, test_workload, test_workload_with_observer,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -103,6 +106,10 @@ struct WorkloadTestArgs {
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
+
+    /// Render matching evidence; repeat as -vv for exact identity bindings.
+    #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
+    verbose: u8,
 }
 
 #[derive(Debug, Args)]
@@ -419,21 +426,66 @@ fn workload_test(store: &LocalWorkloadStore, args: WorkloadTestArgs) -> Result<E
     let mut state = store.load()?;
     let definitions = select_workloads(args.workload_id.as_deref())?;
     let mut results = Vec::with_capacity(definitions.len());
-    for workload in definitions {
-        let result = test_workload(&workload)?;
-        state.retain_test(result.clone());
-        results.push(result);
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => {
+            for workload in definitions {
+                let result = test_workload(&workload)?;
+                state.retain_test(result.clone());
+                results.push(result);
+            }
+        }
+        WorkloadOutputFormat::Table => {
+            let style = TerminalStyle::stdout();
+            let mut stdout = io::stdout().lock();
+            write_workload_test_plan(
+                &mut stdout,
+                &definitions,
+                args.workload_id.as_deref(),
+                style,
+            )?;
+            for workload in definitions {
+                write_workload_test_start(&mut stdout, &workload, args.verbose, style)?;
+                let scenario_total = workload.scenario_suite.scenarios.len();
+                let mut scenario_index = 0;
+                let mut render_error = None;
+                let result = test_workload_with_observer(&workload, |scenario| {
+                    scenario_index += 1;
+                    if render_error.is_none() {
+                        render_error = write_workload_test_scenario(
+                            &mut stdout,
+                            &workload,
+                            scenario,
+                            scenario_index,
+                            scenario_total,
+                            args.verbose,
+                            style,
+                        )
+                        .and_then(|()| stdout.flush())
+                        .err();
+                    }
+                });
+                if let Some(error) = render_error {
+                    return Err(CliError::Output(error));
+                }
+                let result = result?;
+                write_workload_test_result(&mut stdout, &result, args.verbose, style)?;
+                state.retain_test(result.clone());
+                results.push(result);
+            }
+            state.verify()?;
+            store.save(&state)?;
+            let batch = WorkloadTestBatch::new(results);
+            let exit_code = test_batch_exit(&batch);
+            write_workload_test_summary(&mut stdout, &batch, style)?;
+            return Ok(exit_code);
+        }
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     state.verify()?;
     store.save(&state)?;
     let batch = WorkloadTestBatch::new(results);
     let exit_code = test_batch_exit(&batch);
-    let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
-        WorkloadOutputFormat::Table => write_workload_test_batch(&mut stdout, &batch)?,
-        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
-    }
+    write_json_line(&mut io::stdout().lock(), &batch)?;
     Ok(exit_code)
 }
 
@@ -889,16 +941,433 @@ fn write_workload_status(
     Ok(())
 }
 
-fn write_workload_test_batch(
+fn write_workload_test_plan(
+    output: &mut impl Write,
+    workloads: &[WorkloadDefinition],
+    selected_workload: Option<&str>,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let scope = selected_workload.map_or_else(
+        || format!("ALL WORKLOADS ({})", workloads.len()),
+        str::to_owned,
+    );
+    writeln!(output, "Execution path: {}", style.cyan_bold("LOCAL"))?;
+    writeln!(
+        output,
+        "Mode: {}",
+        style.cyan_bold("READ-ONLY GRAPH · RETAIN LOCAL RESULTS")
+    )?;
+    writeln!(
+        output,
+        "Stage: {}",
+        style.bold("EXECUTE SCENARIOS → DIFF EXPECTED")
+    )?;
+    writeln!(output, "Scope: {}", style.bold(&scope))?;
+    writeln!(output)?;
+    writeln!(
+        output,
+        "WORKLOAD CONFORMANCE EVALUATION · {}",
+        style.bold(&scope)
+    )?;
+    writeln!(output, "Status: {}", style.cyan_bold("RUNNING"))?;
+    writeln!(output, "Workloads queued: {}", workloads.len())?;
+    writeln!(output)?;
+    writeln!(
+        output,
+        "SCENARIOS · results render incrementally in declaration order"
+    )?;
+    Ok(())
+}
+
+fn write_workload_test_start(
+    output: &mut impl Write,
+    workload: &WorkloadDefinition,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let output_count = workload
+        .scenario_suite
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.expected_outputs.len())
+        .sum::<usize>();
+    writeln!(output)?;
+    writeln!(
+        output,
+        "WORKLOAD {} · {} scenarios · {} outputs",
+        style.bold(&workload.workload.id),
+        workload.scenario_suite.scenarios.len(),
+        output_count,
+    )?;
+    writeln!(
+        output,
+        "Graph admission: {} · typed DAG {}",
+        style.cyan_bold("BUILT-IN"),
+        style.green("VERIFIED")
+    )?;
+    if verbosity >= 1 {
+        let node_count = workload.graph.nodes.len();
+        writeln!(
+            output,
+            "Execution model: {} · {} {}",
+            style.cyan_bold("DETERMINISTIC SERIAL"),
+            node_count,
+            if node_count == 1 { "node" } else { "nodes" }
+        )?;
+    }
+    if verbosity >= 2 {
+        writeln!(
+            output,
+            "Workload binding: {}@{} · {}",
+            workload.workload.id, workload.workload.revision, workload.workload.semantic_digest
+        )?;
+        writeln!(
+            output,
+            "Graph binding: {}@{} · {}",
+            workload.graph.graph.id,
+            workload.graph.graph.revision,
+            workload.graph.graph.semantic_digest
+        )?;
+        writeln!(
+            output,
+            "Scenario suite: {}@{} · {}",
+            workload.scenario_suite.suite.id,
+            workload.scenario_suite.suite.revision,
+            workload.scenario_suite.suite.semantic_digest
+        )?;
+        writeln!(
+            output,
+            "Evaluator: {}@{} · {}",
+            workload.evaluator.id, workload.evaluator.revision, workload.evaluator.semantic_digest
+        )?;
+    }
+    Ok(())
+}
+
+fn write_workload_test_scenario(
+    output: &mut impl Write,
+    workload: &WorkloadDefinition,
+    scenario: &ScenarioResult,
+    index: usize,
+    total: usize,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let equal = scenario
+        .deltas
+        .iter()
+        .filter(|delta| delta.assessment == DeltaAssessment::Equal)
+        .count();
+    let label = match scenario.evaluation {
+        ScenarioEvaluation::Passed => style.green("PASS"),
+        ScenarioEvaluation::Failed => style.red("FAIL"),
+        ScenarioEvaluation::Inconclusive => style.yellow("INCONCLUSIVE"),
+    };
+    let prefix = format!("{}.scenario.", workload.workload.id);
+    let scenario_id = scenario
+        .scenario
+        .id
+        .strip_prefix(&prefix)
+        .unwrap_or(&scenario.scenario.id);
+    writeln!(
+        output,
+        "{label} {} · {:02}/{:02} {} · {}/{} outputs equal · {}",
+        workload.workload.id,
+        index,
+        total,
+        scenario_id,
+        equal,
+        scenario.deltas.len(),
+        if scenario.required {
+            "required"
+        } else {
+            "optional"
+        }
+    )?;
+    if verbosity >= 1 {
+        writeln!(
+            output,
+            "     Evidence format: {} (utf8)",
+            SCENARIO_OUTPUT_DELTA_SCHEMA
+        )?;
+    }
+    let passing = scenario.evaluation == ScenarioEvaluation::Passed;
+    if passing && verbosity == 0 {
+        return Ok(());
+    }
+    writeln!(
+        output,
+        "     {}:",
+        if passing {
+            "Evidence matches"
+        } else {
+            "Evidence deltas"
+        }
+    )?;
+    for delta in &scenario.deltas {
+        write_scenario_delta(output, workload, scenario, delta, verbosity, style)?;
+    }
+    Ok(())
+}
+
+fn write_scenario_delta(
+    output: &mut impl Write,
+    workload: &WorkloadDefinition,
+    scenario: &ScenarioResult,
+    delta: &ScenarioOutputDelta,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let passing = delta.assessment == DeltaAssessment::Equal;
+    let label = if passing {
+        style.green("Match")
+    } else {
+        style.red("Delta")
+    };
+    if verbosity >= 2 {
+        writeln!(
+            output,
+            "         {label} ({} · output {}):",
+            delta.delta_id, delta.inputs.output_id
+        )?;
+        writeln!(output, "         {}", style.dim("Exact bindings:"))?;
+        write_test_binding(
+            output,
+            "workload",
+            &format!(
+                "{}@{} · {}",
+                workload.workload.id, workload.workload.revision, workload.workload.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "graph",
+            &format!(
+                "{}@{} · {}",
+                workload.graph.graph.id,
+                workload.graph.graph.revision,
+                workload.graph.graph.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "scenario",
+            &format!(
+                "{}@{} · {}",
+                scenario.scenario.id, scenario.scenario.revision, scenario.scenario.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "evaluator",
+            &format!(
+                "{}@{} · {}",
+                workload.evaluator.id,
+                workload.evaluator.revision,
+                workload.evaluator.semantic_digest
+            ),
+        )?;
+        write_test_binding(output, "execution", scenario.execution_id.as_str())?;
+        write_test_binding(output, "delta", delta.delta_id.as_str())?;
+    } else {
+        writeln!(
+            output,
+            "         {label} (output {}):",
+            delta.inputs.output_id
+        )?;
+    }
+    writeln!(output, "         @@ {} · utf8 @@", delta.inputs.output_id)?;
+    match delta.assessment {
+        DeltaAssessment::Equal => {
+            writeln!(output, "            {:?}", delta.expected)?;
+        }
+        DeltaAssessment::Different => {
+            writeln!(
+                output,
+                "         {}",
+                style.red(&format!("- EXPECTED {:?}", delta.expected))
+            )?;
+            writeln!(
+                output,
+                "         {}",
+                style.green(&format!("+ OBSERVED {:?}", delta.observed))
+            )?;
+        }
+        DeltaAssessment::Inconclusive => {
+            writeln!(
+                output,
+                "         {}",
+                style.yellow(&format!(
+                    "? EXPECTED {:?} · OBSERVED {:?}",
+                    delta.expected, delta.observed
+                ))
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_test_binding(output: &mut impl Write, label: &str, value: &str) -> io::Result<()> {
+    writeln!(output, "           {label:<11} {value}")
+}
+
+fn write_workload_test_result(
+    output: &mut impl Write,
+    result: &WorkloadTestResult,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let status = match result.status {
+        TestStatus::Passed => style.green("QUALIFIED"),
+        TestStatus::Failed => style.red("GAPS FOUND"),
+        TestStatus::Inconclusive => style.yellow("INCONCLUSIVE"),
+    };
+    writeln!(
+        output,
+        "     Workload result: {status} · {}/{} scenarios passing · {}/{} evaluated",
+        result.summary.passed,
+        result.summary.required,
+        result.summary.evaluated,
+        result.summary.required
+    )?;
+    if verbosity >= 1 {
+        writeln!(output, "     Stop reason: {}", result.stop_reason)?;
+        writeln!(
+            output,
+            "     Qualification: {}",
+            if result.qualification.is_some() {
+                "issued"
+            } else {
+                "not issued"
+            }
+        )?;
+    }
+    if verbosity >= 2 {
+        writeln!(output, "     Test result: {}", result.result_id)?;
+        if let Some(qualification) = &result.qualification {
+            writeln!(
+                output,
+                "     Qualification artifact: {}",
+                qualification.qualification_id
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_workload_test_summary(
     output: &mut impl Write,
     batch: &WorkloadTestBatch,
-) -> Result<(), CliError> {
-    for (index, result) in batch.results.iter().enumerate() {
-        if index > 0 {
-            writeln!(output)?;
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let workloads = batch.results.len() as u64;
+    let qualified = batch
+        .results
+        .iter()
+        .filter(|result| result.status == TestStatus::Passed)
+        .count() as u64;
+    let failed = batch
+        .results
+        .iter()
+        .filter(|result| result.status == TestStatus::Failed)
+        .count() as u64;
+    let inconclusive = batch
+        .results
+        .iter()
+        .filter(|result| result.status == TestStatus::Inconclusive)
+        .count() as u64;
+    let required = batch
+        .results
+        .iter()
+        .map(|result| result.summary.required)
+        .sum::<u64>();
+    let passed = batch
+        .results
+        .iter()
+        .map(|result| result.summary.passed)
+        .sum::<u64>();
+    let evaluated = batch
+        .results
+        .iter()
+        .map(|result| result.summary.evaluated)
+        .sum::<u64>();
+    let mut equal_deltas = 0_u64;
+    let mut different_deltas = 0_u64;
+    let mut inconclusive_deltas = 0_u64;
+    for delta in batch
+        .results
+        .iter()
+        .flat_map(|result| &result.scenarios)
+        .flat_map(|scenario| &scenario.deltas)
+    {
+        match delta.assessment {
+            DeltaAssessment::Equal => equal_deltas = equal_deltas.saturating_add(1),
+            DeltaAssessment::Different => {
+                different_deltas = different_deltas.saturating_add(1);
+            }
+            DeltaAssessment::Inconclusive => {
+                inconclusive_deltas = inconclusive_deltas.saturating_add(1);
+            }
         }
-        write_test_detail(output, result)?;
     }
+    let result = if failed > 0 {
+        style.red("GAPS FOUND")
+    } else if inconclusive > 0 {
+        style.yellow("INCONCLUSIVE")
+    } else {
+        style.green("QUALIFIED")
+    };
+    let workload_percent = scenario_percent(qualified, workloads);
+    let scenario_passing_percent = scenario_percent(passed, required);
+    let scenario_evaluated_percent = scenario_percent(evaluated, required);
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("PORTFOLIO CONFORMANCE"))?;
+    writeln!(
+        output,
+        "  {:<22} {}  {:>3}%  {}/{} qualified",
+        "Workloads",
+        score_bar(workload_percent, 20),
+        workload_percent,
+        qualified,
+        workloads
+    )?;
+    writeln!(
+        output,
+        "  {:<22} {}  {:>3}%  {}/{} passing",
+        "Scenario conformance",
+        score_bar(scenario_passing_percent, 20),
+        scenario_passing_percent,
+        passed,
+        required
+    )?;
+    writeln!(
+        output,
+        "  {:<22} {}  {:>3}%  {}/{} evaluated",
+        "Scenario evaluation",
+        score_bar(scenario_evaluated_percent, 20),
+        scenario_evaluated_percent,
+        evaluated,
+        required
+    )?;
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("WORKLOAD TEST SUMMARY"))?;
+    writeln!(output, "  Result: {result}")?;
+    writeln!(
+        output,
+        "  Workloads: {qualified}/{workloads} qualified · {failed} with gaps · {inconclusive} inconclusive"
+    )?;
+    writeln!(
+        output,
+        "  Scenarios: {passed}/{required} passing · {evaluated}/{required} evaluated"
+    )?;
+    writeln!(
+        output,
+        "  Deltas: {equal_deltas} equal · {different_deltas} different · {inconclusive_deltas} inconclusive"
+    )?;
+    writeln!(
+        output,
+        "  Qualifications: {qualified} issued · results retained locally"
+    )?;
     Ok(())
 }
 

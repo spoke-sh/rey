@@ -10,7 +10,7 @@ pub use workload::{
     WORKLOAD_RUN_RESULT_SCHEMA, WORKLOAD_SCHEMA, WORKLOAD_TEST_RESULT_SCHEMA, WorkloadDefinition,
     WorkloadError, WorkloadLimits, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
     WorkloadValue, built_in_workload, built_in_workloads, execute_workload, run_workload,
-    test_workload,
+    test_workload, test_workload_with_observer,
 };
 
 use rey_core::{SemanticDigest, SemanticHasher};

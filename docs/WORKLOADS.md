@@ -24,7 +24,7 @@ The accepted command surface is:
 ```text
 rey environment ...
 rey workloads [--workspace PATH] [--state-dir PATH] list
-rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>]
+rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
@@ -196,6 +196,40 @@ identity and never rewrites earlier graph revisions or campaign results. A
 failing candidate remains evidence and does not displace the last fresh
 qualified graph.
 
+### Human Test Runner
+
+The table projection is a running conformance document, not a stream of
+unstructured logs. It first fixes the execution path, read-only graph mode,
+`EXPECTED` to `OBSERVED` comparison direction, and workload scope. Scenario
+results then appear as soon as they complete, while preserving declaration
+order. Each line keeps scenario passing, evaluation, and required/optional
+role explicit.
+
+Verbosity expands evidence without changing evaluation:
+
+- plain output omits evidence for passing scenarios and always opens the
+  directed delta for failing or inconclusive scenarios;
+- `-v` adds the evidence format and matching output evidence for passing
+  scenarios; and
+- `-vv` also binds that evidence to exact workload, graph, suite, evaluator,
+  scenario, execution, result, and delta identities.
+
+For example, a failing plain scenario remains immediately actionable:
+
+```text
+FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · required
+     Evidence deltas:
+         Delta (output text):
+         @@ text · utf8 @@
+         - EXPECTED "REY"
+         + OBSERVED " REY "
+```
+
+The final portfolio summary reports workload qualification, scenario
+conformance, scenario evaluation, delta assessments, and issued
+qualifications as separate dimensions. Verbosity is a human projection only:
+JSON always emits the same verified `rey.workload-test-batch.v1` envelope.
+
 ## Running A Workload
 
 `rey workloads run` resolves one exact workload revision and its current fresh
@@ -326,12 +360,13 @@ failed when the graph-revision budget is exhausted; the budget is an additional
 stop fact, not a reason to erase its delta. Exhaustion is inconclusive only when
 it prevents required evaluation.
 
-Terminal progress and policy rationale go to stderr while a campaign is
-running. The final selected result goes to stdout. `auto` output renders a
-human document on a terminal and structured JSON when redirected. Tabular
-catalog and scenario relations may explicitly emit Arrow; a workload result
-envelope or native output is not forced into a DataFrame merely for format
-uniformity.
+The human table streams retained scenario results to stdout in declaration
+order and ends with the portfolio result. Structured JSON emits only the final
+verified result envelope; it never mixes progress into stdout, and diagnostics
+remain on stderr. `auto` renders the human document on a terminal and
+structured JSON when redirected. Tabular catalog and scenario relations may
+explicitly emit Arrow; a workload result envelope or native output is not
+forced into a DataFrame merely for format uniformity.
 
 ## Relationship To Existing Runtime Contracts
 

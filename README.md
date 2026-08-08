@@ -46,6 +46,7 @@ just setup
 just rey environment inspect --format table
 just rey workloads list --format table
 just rey workloads test rey.fixture.text-normalize --format table
+just rey workloads test rey.fixture.text-mismatch --format table -vv
 just rey workloads run rey.fixture.text-normalize --input ' rey ' --format table
 ```
 
@@ -80,7 +81,9 @@ and `4` for stale; invalid input or runtime failure returns `1`.
 Workload state defaults to `.rey/workloads/state.json` below the selected
 workspace. `workloads list` and `status` are read-only. `test` returns `2` for
 the deliberately failing `rey.fixture.text-mismatch` workload and preserves
-its exact expected-to-observed delta; `run` returns `3` until the selected
+its exact expected-to-observed delta. Its table view always opens failing
+deltas; `-v` also shows passing evidence and `-vv` adds exact identity
+bindings. These flags do not alter JSON. `run` returns `3` until the selected
 graph has a fresh passing qualification. Redirected workload output is JSON.
 
 ## The Idea

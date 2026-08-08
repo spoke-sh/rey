@@ -32,7 +32,7 @@ Rey's product surface is intentionally small:
 ```text
 rey environment <command>
 rey workloads [--workspace PATH] [--state-dir PATH] list
-rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>]
+rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
@@ -50,7 +50,8 @@ The built-in slice implements this behavior:
 - `test` executes one bounded deterministic graph/scenario pass, retains
   `EXPECTED` to `OBSERVED` typed deltas, and qualifies only a graph revision
   for which every required scenario freshly passes; without an id it selects
-  every catalog workload and fails closed on the workload-count bound;
+  every catalog workload and fails closed on the workload-count bound; its
+  human view renders scenario results incrementally in declaration order;
 - `run` executes the current fresh qualified built-in graph against one
   admitted UTF-8 input; and
 - `status` reads the exact workload, graph, suite, retained deltas,
@@ -79,6 +80,19 @@ test evidence and freshness, and last-run state. ANSI styling is enabled only
 for an interactive terminal and is never the sole carrier of meaning. Forced
 table output through a pipe remains ANSI-free. The JSON schema is unchanged;
 portfolio aggregates are derived from its authoritative per-workload counts.
+
+The `test` table is a diff-first runner document. It declares the selected
+execution path, admission mode, comparison stage, and workload scope before
+executing scenarios, then renders each scenario as soon as the deterministic
+runtime completes it. Plain output keeps passing scenarios compact but always
+opens a failing or inconclusive scenario's directed `EXPECTED` to `OBSERVED`
+delta. `-v` also renders evidence formats and matching output evidence for
+passing scenarios. `-vv` additionally exposes exact workload, graph, scenario
+suite, evaluator, scenario, execution, result, and delta identities. A final
+portfolio section keeps workload qualification, scenario conformance,
+evaluation coverage, delta assessment, and qualification counts separate.
+These verbosity flags affect only the human projection; redirected `auto` and
+explicit JSON retain the same `rey.workload-test-batch.v1` document.
 
 The structured schemas are `rey.workload-list.v1`,
 `rey.workload-status-batch.v1`, `rey.workload-test-batch.v1`, and
@@ -170,10 +184,11 @@ types and schemas remain Plan 0001 work.
 
 - Selected machine data and raw artifacts go to stdout.
 - Diagnostics, progress, action rationale, and remediation go to stderr.
-- Interactive progress is disabled or redirected when stdout carries Arrow,
-  CSV, JSON, or raw bytes.
-- A running workload campaign sends transient scenario progress and policy
-  rationale to stderr, then one final selected result to stdout.
+- Interactive progress is disabled when stdout carries Arrow, CSV, JSON, or
+  raw bytes.
+- The human `workloads test` document streams retained scenario results to
+  stdout in declaration order. Machine output emits only the final structured
+  result, without transient progress; diagnostics remain on stderr.
 - Policy subprocess protocols, if selected, use dedicated framed channels or
   files rather than mixing control messages with artifact stdout.
 
