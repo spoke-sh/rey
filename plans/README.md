@@ -10,7 +10,7 @@ completion criteria.
 
 ## Completed
 
-None.
+- [0002 — Runtime transition and reasoning surface contracts](0002-runtime-contracts.md)
 
 ## Plan Rules
 

@@ -2478,6 +2478,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rey-policy"
+version = "0.1.0"
+dependencies = [
+ "polars",
+ "rey-core",
+ "rey-dataframe",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "rey-proof"
 version = "0.1.0"
 dependencies = [
@@ -2488,6 +2500,16 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror",
+]
+
+[[package]]
+name = "rey-runtime"
+version = "0.1.0"
+dependencies = [
+ "rey-core",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 

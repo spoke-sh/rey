@@ -31,14 +31,15 @@ workspace proves it.
 2. `CONSTITUTION.md`
 3. `INSTRUCTIONS.md`
 4. `docs/ARCHITECTURE.md`
-5. `docs/ENVIRONMENT.md`
-6. `docs/GIT.md`
-7. `docs/DIFFS.md`
-8. `docs/PROOFS.md`
-9. `docs/INTERFACES.md`
-10. `docs/DEVELOPMENT.md`
-11. `plans/README.md` and the active plan
-12. `docs/decisions/README.md`
+5. `docs/RUNTIME.md`
+6. `docs/ENVIRONMENT.md`
+7. `docs/GIT.md`
+8. `docs/DIFFS.md`
+9. `docs/PROOFS.md`
+10. `docs/INTERFACES.md`
+11. `docs/DEVELOPMENT.md`
+12. `plans/README.md` and the active plan
+13. `docs/decisions/README.md`
 
 ## Core Principles
 
@@ -87,8 +88,9 @@ become a process. The active plan may refine it before scaffolding.
 Resolve ambiguity in this order:
 
 1. `CONSTITUTION.md`
-2. `docs/ARCHITECTURE.md`, `docs/ENVIRONMENT.md`, `docs/GIT.md`,
-   `docs/DIFFS.md`, `docs/PROOFS.md`, and `docs/INTERFACES.md`
+2. `docs/ARCHITECTURE.md`, `docs/RUNTIME.md`, `docs/ENVIRONMENT.md`,
+   `docs/GIT.md`, `docs/DIFFS.md`, `docs/PROOFS.md`, and
+   `docs/INTERFACES.md`
 3. accepted ADRs
 4. active plans
 5. code and tests

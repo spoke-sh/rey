@@ -22,7 +22,9 @@ typed capability frame. It can compare two verified snapshots, emit structured
 JSON, typed Arrow, summary, or Tabular Diff 0.8 output, and evaluate and verify
 a required-capability certificate. The same proof can be published as a
 bounded content-addressed local bundle with explicit filesystem-only retention
-guarantees. It runs with zero Spoke. Delta scheduling, activation, mutation,
+guarantees. Pure library contracts now formalize the runtime transition state
+machine and bounded delta-directed reasoning surface. It runs with zero Spoke.
+Frontier scheduling, provider retrieval/execution, activation, mutation,
 Spoke-backed proof bundles, and connected Spoke behavior remain design
 contracts, not implemented commands.
 
@@ -169,6 +171,9 @@ and become `stale` when a bound input or evaluator changes.
 
 See [Diffs and Frames](docs/DIFFS.md) and
 [Proofs and Evidence](docs/PROOFS.md) for the target contracts.
+See [Runtime Transitions and Reasoning Surfaces](docs/RUNTIME.md) for the
+implemented pure lifecycle and policy-surface contracts and their explicit
+non-goals.
 
 ## Environment Awareness
 
@@ -282,6 +287,8 @@ Rey is not:
 - [Contributor Instructions](INSTRUCTIONS.md) — working loop and verification
   rules.
 - [Architecture](docs/ARCHITECTURE.md) — component ownership and data flow.
+- [Runtime Transitions and Reasoning Surfaces](docs/RUNTIME.md) — lifecycle,
+  delta roles, surface bounds, and current contract truth.
 - [Environment and Capabilities](docs/ENVIRONMENT.md) — local/remote discovery,
   zero-Spoke behavior, and provider guarantees.
 - [Git Context and Activation](docs/GIT.md) — commit/ref/index polling and
@@ -300,7 +307,7 @@ Rey is not:
 
 ## Current Status
 
-The repository now contains a seven-crate Rust workspace and a zero-Spoke
+The repository now contains a nine-crate Rust workspace and a zero-Spoke
 capability Snapshot-to-Delta-to-Certificate loop. `rey environment inspect`
 emits capability JSON/table/Arrow; `diff` emits typed structured JSON or Arrow,
 summary JSON, and Tabular Diff 0.8 CSV; `prove` and `verify` bind required
@@ -311,7 +318,10 @@ Diff, certificate, and an explicit local retention manifest;
 status.
 Bounded process supervision and a read-only partial Git repository/index
 snapshot are also implemented. The Git index digest deliberately reports
-incomplete flag semantics and is not yet an activation cursor. The active
-foundation plan next covers complete Git polling and activation, followed by
-the same evidence flow amplified through routed Spoke integration. See
-[Plan 0001](plans/0001-foundation.md).
+incomplete flag semantics and is not yet an activation cursor. Pure contract
+crates now reject illegal runtime transitions and validate canonical bounded
+reasoning surfaces without scheduling or executing work. The active foundation
+plan covers complete Git polling and routed Spoke proof work; the isolated
+runtime-contract slice is complete. See [Plan 0001](plans/0001-foundation.md)
+and
+[Plan 0002](plans/0002-runtime-contracts.md).

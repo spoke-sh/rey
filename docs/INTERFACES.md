@@ -1,11 +1,12 @@
 # Rey Interfaces
 
 This document sketches Rey's user, environment, policy, and Spoke interfaces.
-The implemented surface is limited to `rey environment inspect`, the
+The implemented CLI surface is limited to `rey environment inspect`, the
 capability snapshot/delta/certificate loop fixed by ADRs 0008 and 0010, and the
-local-only proof bundle fixed by ADR 0011. Other command names, flags, schemas,
-media types, and exit codes remain provisional until an accepted ADR and
-implementation tests fix them.
+local-only proof bundle fixed by ADR 0011. ADR 0013 also fixes library-only
+runtime-state and reasoning-surface schemas; it adds no command. Other command
+names, flags, schemas, media types, and exit codes remain provisional until an
+accepted ADR and implementation tests fix them.
 
 ## Interface Principles
 
@@ -290,19 +291,34 @@ and Activation](GIT.md).
 ## Reasoning Surface Contract
 
 Before requesting a policy proposal, the runtime constructs a bounded
-delta-directed reasoning surface. Its provisional envelope contains:
+delta-directed reasoning surface. The implemented
+`rey.reasoning-surface.v1` envelope contains:
 
 - surface schema, identity, and projection-contract revision;
-- application, component, space, and trace revisions;
-- committed transition, frontier frame, cited frontier rows, and applicable
-  transition/residual delta identities;
+- application, component, space, and trace identities;
+- committed and active transitions, frontier frame, cited frontier rows, and
+  applicable transition/residual delta identities;
 - exact retrieved evidence addresses, source bindings, and provider revisions;
 - a bounded typed projection of changed and unresolved entities;
-- admissible action definitions and schemas;
-- capability snapshot identity and guarantees relevant to those actions;
-- prior rejection, failure, and progress facts relevant to the next choice;
-- remaining time, iteration, action, row, byte, and evidence budgets; and
-- completeness, omissions, unsupported retrievals, and truncation.
+- exact versioned admissible action contract references;
+- capability snapshot identity;
+- effective row, delta-reference, evidence-reference, action-reference,
+  omission, evidence-byte, string-byte, and retrieval-iteration bounds;
+- the actual retrieval-iteration count; and
+- complete, partial, or truncated status with explicit omissions.
+
+Its canonical `rey.reasoning-surface-rows` version `1` DataFrame contains:
+
+```text
+frontier_row_id · entity_kind · entity_id
+transition_delta_ids · residual_delta_ids · claim_ids
+evidence_ids · admissible_action_ids
+```
+
+The semantic document retains exact versioned evidence providers, source ids
+and revisions, evidence digests/media types/lengths, and action contracts.
+Array-valued row fields use canonical compact JSON strings in the initial Arrow
+relation.
 
 Retrieval in this phase resolves only declared read-only evidence. A mutable
 observation, tool invocation, or new lens evaluation is a probe and passes
@@ -310,9 +326,10 @@ normal proposal and admission. Surface construction does not turn a local path
 into a Spoke source, give a cited capability execution authority, or make the
 surface the sole copy of native source content.
 
-Reasoning-surface and progress schemas are target contracts fixed by
-[ADR 0012](decisions/0012-delta-directed-orientation.md); they are not
-implemented CLI formats yet.
+The reasoning-surface schema is a verified library contract fixed by
+[ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md),
+not an implemented CLI format. Generic progress and policy-proposal schemas
+remain target contracts.
 
 ## Policy Contract
 

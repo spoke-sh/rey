@@ -419,10 +419,10 @@ The first design proposes these Rust ownership boundaries:
 | `rey-environment` | capability discovery, snapshots, provider contracts, and local context adapters |
 | `rey-git` | repository identity, commit/ref/index frames, polling cursors, triggers, and activations |
 | `rey-diff` | compatibility, alignment, typed changes, summaries, and Tabular Diff projection |
-| `rey-runtime` | spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
+| `rey-runtime` | lifecycle state, spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
 | `rey-frontier` | dependency invalidation, prioritization inputs, and convergence evaluation |
 | `rey-proof` | claims, evidence manifests, certificates, verification, and staleness |
-| `rey-policy` | provider-neutral proposal and admissible-action contracts |
+| `rey-policy` | bounded reasoning surfaces plus provider-neutral proposal and admissible-action contracts |
 | `rey-spoke` | Optional Spoke provider, exact source bindings, compute runs, and artifact persistence |
 
 This table is an ownership proposal, not a requirement for one process per
@@ -465,5 +465,8 @@ partial read-only Git observation, verified capability snapshot loading, an
 exact capability comparator, typed structured and Arrow deltas, Tabular Diff
 projection, required-capability certificate evaluation and verification, and
 bounded content-addressed local proof bundles with explicit filesystem-only
-guarantees. The generic runtime/frontier/policy layers, Git activation, and
-Spoke provider remain target architecture.
+guarantees. `rey-runtime` now implements only the pure formal state reducer,
+and `rey-policy` implements only the bounded reasoning-surface document and
+DataFrame projection fixed by ADR 0013. Generic frontier derivation,
+scheduling, provider retrieval/execution, policy proposals, Git activation,
+and the Spoke provider remain target architecture.
