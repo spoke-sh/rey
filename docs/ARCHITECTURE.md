@@ -77,12 +77,15 @@ discovered, uses Spoke's routed HTTP interface.
                     │ frontier          │
                     └───────┬───────────┘
                             │
-                   ┌────────┴────────┐
-                   ▼                 ▼
-            next proposal       proof evaluator
-                                      │
-                                      ▼
-                       local or Spoke-backed evidence
+                   ┌────────┴───────────────┐
+                   ▼                        ▼
+          retrieve · project          proof evaluator
+                   │                        │
+                   ▼                        ▼
+          reasoning surface    local or Spoke-backed evidence
+                   │
+                   ▼
+             next proposal
 ```
 
 See [Environment and Capabilities](ENVIRONMENT.md) for detailed provider,
@@ -233,6 +236,65 @@ The initial runtime may recompute complete bounded frames. Incremental physical
 execution is accepted only when it produces the same semantic frame and delta
 as full recomputation for the declared contract.
 
+## Runtime Lifecycle And Orientation
+
+Rey separates initial observation from recurring transitions. Bootstrap
+discovers capabilities, materializes declared initial observations, and
+establishes baselines or evaluates claims without inventing a prior observation
+or artificial transition delta. The steady-state loop begins only from a
+committed transition and its derived frontier:
+
+```text
+committed delta/frontier
+  -> retrieve -> project
+  -> propose -> admit -> probe|mutate
+  -> observe -> compare -> evaluate
+  -> commit transition
+  -> next delta/frontier
+```
+
+A transition delta states what changed from the relevant pre-action frame to
+the post-action frame. A residual delta states what remains between a declared
+expected or baseline frame and the current observation. Claims that do not
+reduce naturally to one frame comparison remain typed claim facts; the
+frontier combines them with applicable residual deltas, invalidation, and
+dependencies rather than flattening them into an artificial mega-delta.
+
+Orientation is the bounded inner loop that turns a committed frontier into a
+reasoning surface. Rey identifies evidence needs from frontier rows, retrieves
+exact read-only evidence through the provider that owns it, and applies a
+versioned deterministic projection. Retrieval does not grant new execution
+authority or duplicate Spoke query and storage ownership. Any read that
+observes mutable state, invokes a tool, or creates a new lens result is an
+explicit probe transition.
+
+Retrieve and project may repeat inside one orientation phase as exact evidence
+changes the surface. The runtime owns iteration, time, byte, and provider
+bounds plus lineage; a versioned orientation strategy owns evidence order and
+readiness. The phase stops as ready, without eligible evidence, or at an
+explicit bound. Expected information value is navigation metadata, while
+actual progress remains a post-action assessment.
+
+The reasoning surface binds its frontier and delta inputs, exact source and
+capability revisions, retrieved evidence identities, projection contract,
+omissions, truncation, and effective limits. It may contain bounded typed
+relations and handles to native artifacts. It is policy input and trace
+evidence, not a replacement source or a durable content store.
+
+After the action, Rey compares the next residual/frontier state with the prior
+one. Progress is a typed assessment of resolved, introduced, reopened,
+unchanged, or incomparable work; information and completeness gained; changed
+guarantees; and cost consumed. A policy may use an explicit versioned ranking
+objective, but no scalar progress score replaces the authoritative deltas or
+proof status.
+
+Provider execution, semantic transition, and proof/evidence state remain
+orthogonal. A process can terminate successfully while semantic work is
+unchanged or regresses, and retained evidence can later become stale. Budget
+exhaustion, missing evidence, or incompatible residuals stop explicitly rather
+than producing convergence. See
+[ADR 0012](decisions/0012-delta-directed-orientation.md).
+
 ## Actions And Transitions
 
 An action has one of two effect classes:
@@ -243,19 +305,21 @@ An action has one of two effect classes:
   resource method, admitted Spoke compute run, or explicitly authorized local
   provider action.
 
-One transition follows this protocol:
+One transition follows this protocol after a committed frontier is available:
 
 1. freeze the current activation/frontier, source revisions, and relevant frame
    ids;
-2. receive a policy proposal;
-3. validate action identity, capability snapshot, allowed effect,
+2. retrieve declared exact read-only evidence and project the bounded reasoning
+   surface, recording omissions and effective limits;
+3. receive a policy proposal citing that surface and frontier evidence;
+4. validate action identity, capability snapshot, allowed effect,
    preconditions, and remaining budget;
-4. submit or perform the action through its owning contract;
-5. retain action, run, attempt, output, and failure lineage;
-6. materialize affected post-action lenses;
-7. compute deltas against the declared baselines;
-8. evaluate claims and derive the next frontier; and
-9. commit the transition record before selecting another action.
+5. submit or perform the action through its owning contract;
+6. retain action, run, attempt, output, and failure lineage;
+7. materialize affected post-action lenses;
+8. compute transition and applicable residual deltas;
+9. evaluate claims, progress, and the next frontier; and
+10. commit the transition record before selecting another action.
 
 An action can complete successfully while its transition fails semantically.
 For example, a compiler process may exit zero while the dependency graph or

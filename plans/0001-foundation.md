@@ -42,7 +42,7 @@ inputs or evaluator code make an earlier certificate stale.
 - [x] Add architecture, environment, Git, diff, proof, interface, development,
   and roadmap documents.
 - [x] Add plan and architecture-decision indexes.
-- [x] Accept ADRs 0001–0011.
+- [x] Accept ADRs 0001–0012.
 - [x] Add a locked stable Rust flake with default and CI shells.
 - [x] Add `.envrc`, `.gitignore` rules, and the six root Just lifecycle tasks.
 - [x] Capture successful foundation verification commands below.
@@ -86,6 +86,11 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
 - [x] Decide which capability semantic fields invalidate frames, deltas, and
   proofs.
 - [x] Decide the initial local evidence bundle and its publication guarantees.
+- [x] Define the bootstrap and steady-state runtime lifecycle, including
+  transition versus residual deltas and orthogonal execution/semantic/evidence
+  state.
+- [x] Define provider-owned retrieval and the bounded delta-directed reasoning
+  surface at the architecture and interface-contract level.
 - [ ] Decide the Spoke artifact mappings and their distinct publication
   guarantees.
 
@@ -289,7 +294,9 @@ nix run path:$PWD -- environment verify-bundle proof.bundle
 
 ## Deferred
 
-Long-running Git polling, frontier scheduling, multi-step loops, agent policies,
+Long-running Git polling, reasoning-surface/progress schemas and
+materialization, frontier scheduling, multi-step loops, agent policies,
 mutation, local and Spoke compute actions, full codebase lenses, incremental
 physical execution, a Rey service, multi-user operation, and managed deployment
-remain later plans.
+remain later plans. ADR 0012 fixes the lifecycle and ownership contracts for
+that later runtime work without claiming they are implemented in Plan 0001.

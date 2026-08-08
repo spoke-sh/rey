@@ -16,6 +16,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0009](0009-just-rey-task.md) | Accepted | Rename the Just CLI task to `rey` while retaining the Nix `dev` wrapper |
 | [0010](0010-capability-delta-and-certificate.md) | Accepted | Typed capability deltas, deterministic Tabular Diff projection, and required-capability certificates |
 | [0011](0011-local-proof-bundle.md) | Accepted | Bounded content-addressed local proof bundles with explicit publication and retention guarantees |
+| [0012](0012-delta-directed-orientation.md) | Accepted | Formal bootstrap/transition lifecycle and bounded delta-directed reasoning surfaces |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

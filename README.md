@@ -86,15 +86,28 @@ value:
                      typed Delta(Frame n, Frame n+1)
                                   │
                ┌──────────────────┴──────────────────┐
+               ▼                                     ▼
           ranked frontier                     scoped proof
                │                             and lineage
-               └──────────── next action ────────────┘
+               ▼
+       retrieve exact evidence
+               │
+       bounded reasoning surface
+               │
+               ▼
+      next probe or admitted mutation
 ```
 
 The diff is not merely a report produced after work is finished. It is a
 control signal. Changed rows invalidate dependent observations, unresolved
 differences form a frontier, and the runtime spends its next unit of attention
 or compute on that frontier.
+
+Before policy proposes that next unit, Rey retrieves exact relevant evidence
+through the available providers and projects a bounded, typed reasoning
+surface. Retrieval is directed by unresolved deltas rather than ambient
+workspace size. Post-action observation then measures whether the residual
+work actually decreased; process completion alone is not progress.
 
 This makes high-dimensional spaces tractable without pretending they fit in
 one prompt. A codebase, for example, can be observed as related frames for

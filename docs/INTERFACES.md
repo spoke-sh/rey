@@ -287,12 +287,40 @@ worktree.changed
 Exact configuration and output schemas remain provisional. See [Git Context
 and Activation](GIT.md).
 
+## Reasoning Surface Contract
+
+Before requesting a policy proposal, the runtime constructs a bounded
+delta-directed reasoning surface. Its provisional envelope contains:
+
+- surface schema, identity, and projection-contract revision;
+- application, component, space, and trace revisions;
+- committed transition, frontier frame, cited frontier rows, and applicable
+  transition/residual delta identities;
+- exact retrieved evidence addresses, source bindings, and provider revisions;
+- a bounded typed projection of changed and unresolved entities;
+- admissible action definitions and schemas;
+- capability snapshot identity and guarantees relevant to those actions;
+- prior rejection, failure, and progress facts relevant to the next choice;
+- remaining time, iteration, action, row, byte, and evidence budgets; and
+- completeness, omissions, unsupported retrievals, and truncation.
+
+Retrieval in this phase resolves only declared read-only evidence. A mutable
+observation, tool invocation, or new lens evaluation is a probe and passes
+normal proposal and admission. Surface construction does not turn a local path
+into a Spoke source, give a cited capability execution authority, or make the
+surface the sole copy of native source content.
+
+Reasoning-surface and progress schemas are target contracts fixed by
+[ADR 0012](decisions/0012-delta-directed-orientation.md); they are not
+implemented CLI formats yet.
+
 ## Policy Contract
 
 A policy request is a bounded snapshot containing:
 
-- space and trace revision;
-- frontier frame identity and a bounded projection of relevant rows;
+- reasoning-surface identity and projection-contract revision;
+- space, trace, frontier, and cited delta identities;
+- the bounded surface projection and its completeness/omission metadata;
 - admissible action definitions and schemas;
 - exact precondition frame and source ids;
 - remaining time, iteration, action, and evidence budgets;
@@ -303,8 +331,8 @@ A proposal contains:
 
 - selected action id and revision;
 - typed arguments;
-- cited frontier row and evidence ids;
-- expected information or state change;
+- cited reasoning-surface, frontier row, delta, and evidence ids;
+- expected information gain or residual/frontier change;
 - requested sub-budgets; and
 - the request correlation id and precondition identities.
 
