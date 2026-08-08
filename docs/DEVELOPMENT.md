@@ -171,4 +171,7 @@ nix develop path:$PWD#ci --command just build
 nix flake check path:$PWD
 nix run path:$PWD -- environment inspect --format json
 nix run path:$PWD -- environment diff baseline.json candidate.json
+nix run path:$PWD -- environment prove baseline.json candidate.json \
+  --require-capability frame.arrow-stream --bundle proof.bundle
+nix run path:$PWD -- environment verify-bundle proof.bundle
 ```

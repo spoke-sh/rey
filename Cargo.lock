@@ -2482,9 +2482,12 @@ name = "rey-proof"
 version = "0.1.0"
 dependencies = [
  "rey-core",
+ "rey-dataframe",
  "rey-diff",
  "rey-environment",
  "serde",
+ "serde_json",
+ "tempfile",
  "thiserror",
 ]
 

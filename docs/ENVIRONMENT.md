@@ -6,8 +6,9 @@ available without making Spoke or any host tool an invisible boot dependency.
 ADR 0008 and the first Plan 0001 slice now implement the version-1 capability
 relation for built-in frames, one explicit workspace, allowlisted `git` and
 `rg` identity probes, and a contained Git repository observation. Optional
-Spoke discovery, action admission, capability deltas, and other tool adapters
-remain Plan 0001 work.
+Spoke discovery, action admission, and other tool adapters remain Plan 0001
+work. ADRs 0010 and 0011 add capability deltas, required-capability
+certificates, and bounded local-only bundle retention over this relation.
 
 ## Terms
 

@@ -20,9 +20,11 @@ explicit local workspace, probe the allowlisted `git` and `rg` tools under hard
 process bounds, and project a contained Git repository observation into a
 typed capability frame. It can compare two verified snapshots, emit structured
 JSON, typed Arrow, summary, or Tabular Diff 0.8 output, and evaluate and verify
-a required-capability certificate. It runs with zero Spoke. Delta scheduling,
-activation, mutation, durable proof bundles, and connected Spoke behavior
-remain design contracts, not implemented commands.
+a required-capability certificate. The same proof can be published as a
+bounded content-addressed local bundle with explicit filesystem-only retention
+guarantees. It runs with zero Spoke. Delta scheduling, activation, mutation,
+Spoke-backed proof bundles, and connected Spoke behavior remain design
+contracts, not implemented commands.
 
 ## Try The First Slice
 
@@ -48,6 +50,10 @@ just rey environment diff baseline.json candidate.json \
 just rey environment prove baseline.json candidate.json \
   --require-capability frame.arrow-stream > certificate.json
 just rey environment verify certificate.json baseline.json candidate.json
+just rey environment prove baseline.json candidate.json \
+  --require-capability frame.arrow-stream \
+  --bundle proof.bundle > bundled-certificate.json
+just rey environment verify-bundle proof.bundle
 ```
 
 Snapshot inputs are bounded and their schema, canonical order, composite-key
@@ -286,9 +292,13 @@ capability Snapshot-to-Delta-to-Certificate loop. `rey environment inspect`
 emits capability JSON/table/Arrow; `diff` emits typed structured JSON or Arrow,
 summary JSON, and Tabular Diff 0.8 CSV; `prove` and `verify` bind required
 capabilities to exact snapshots, comparator/evaluator contracts, and limits.
+`prove --bundle` retains the snapshots, structured and Arrow delta, Tabular
+Diff, certificate, and an explicit local retention manifest;
+`verify-bundle` recomputes and bounds that evidence without trusting stored
+status.
 Bounded process supervision and a read-only partial Git repository/index
 snapshot are also implemented. The Git index digest deliberately reports
 incomplete flag semantics and is not yet an activation cursor. The active
-foundation plan next covers local proof retention, complete Git polling and
-activation, and the same evidence flow amplified through routed Spoke
-integration. See [Plan 0001](plans/0001-foundation.md).
+foundation plan next covers complete Git polling and activation, followed by
+the same evidence flow amplified through routed Spoke integration. See
+[Plan 0001](plans/0001-foundation.md).

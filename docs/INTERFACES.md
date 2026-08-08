@@ -1,10 +1,11 @@
 # Rey Interfaces
 
 This document sketches Rey's user, environment, policy, and Spoke interfaces.
-The implemented surface is limited to `rey environment inspect` and the
-capability snapshot/delta/certificate loop fixed by ADRs 0008 and 0010. Other
-command names, flags, schemas, media types, and exit codes remain provisional
-until an accepted ADR and implementation tests fix them.
+The implemented surface is limited to `rey environment inspect`, the
+capability snapshot/delta/certificate loop fixed by ADRs 0008 and 0010, and the
+local-only proof bundle fixed by ADR 0011. Other command names, flags, schemas,
+media types, and exit codes remain provisional until an accepted ADR and
+implementation tests fix them.
 
 ## Interface Principles
 
@@ -84,9 +85,15 @@ rey environment prove <source-snapshot> <target-snapshot>
   [--source-label <label>] [--target-label <label>]
   [--max-input-bytes <n>] [--max-capabilities <n>]
   [--max-changes <n>]
+  [--bundle <new-directory>]
+  [--max-bundle-artifact-bytes <n>] [--max-bundle-bytes <n>]
 
 rey environment verify <certificate> <source-snapshot> <target-snapshot>
   [--max-input-bytes <n>] [--max-capabilities <n>]
+
+rey environment verify-bundle <bundle-directory>
+  [--max-artifact-bytes <n>] [--max-bundle-bytes <n>]
+  [--max-capabilities <n>]
 ```
 
 These commands operate on the standalone capability schema. Help must not imply
@@ -377,20 +384,29 @@ decides the semantic transition outcome.
 
 ## Persistence Paths
 
-Standalone Rey writes manifests, frames, deltas, traces, and proofs to an
-explicit local content-addressed bundle. Connected Rey can publish them through
-public Spoke resources. Publication is idempotent by content identity and must
-not make a certificate visible before its required evidence reaches the
-retention boundary claimed by the certificate.
+For the implemented capability claim, standalone Rey writes the
+[ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed
+delta JSON and Arrow, Tabular Diff, and certificate to an explicit local
+content-addressed bundle. `prove --bundle` publishes a new bundle or accepts an
+identical verified replay; `verify-bundle` bounds and recomputes it without
+following symlinked evidence. The final directory name is not exposed until a
+same-parent staging directory contains all objects and the manifest. The
+manifest, rather than the retention-neutral certificate, states the
+filesystem-only guarantees and explicit non-guarantees.
+
+Connected Rey can later publish the same semantic artifacts through public
+Spoke resources. Publication is idempotent by content identity and must not
+make a certificate visible before its required evidence reaches the claimed
+retention boundary.
 
 Git poll cursors are part of this publication boundary. Local mode retains a
 local cursor with local-file guarantees. Connected mode may retain activations
 and cursors in Spoke, but a cursor never advances merely because a Git poll
 returned successfully.
 
-The initial local bundle layout, Spoke resource layout, and commit protocols are
-not yet fixed. Interface work must coordinate with `docs/PROOFS.md` and an
-accepted persistence ADR.
+The Spoke resource layout and commit protocol are not yet fixed. Interface work
+must coordinate with `docs/PROOFS.md` and a future persistence ADR rather than
+projecting the local directory layout onto Spoke.
 
 ## Errors And Limits
 

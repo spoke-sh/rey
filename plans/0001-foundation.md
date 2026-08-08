@@ -31,7 +31,7 @@ inputs or evaluator code make an earlier certificate stale.
   artifact.
 - [x] A scoped required-capability certificate verifies and detects stale or
   tampered inputs.
-- [ ] A local-only proof bundle exposes its exact retention guarantees.
+- [x] A local-only proof bundle exposes its exact retention guarantees.
 - [ ] One frame/delta/proof bundle round-trips through routed Spoke contracts.
 - [ ] The first Rey–Spoke conformance delta can direct work in either project.
 - [ ] Root Cargo, Nix, CLI, standalone, and Spoke integration checks pass.
@@ -42,7 +42,7 @@ inputs or evaluator code make an earlier certificate stale.
 - [x] Add architecture, environment, Git, diff, proof, interface, development,
   and roadmap documents.
 - [x] Add plan and architecture-decision indexes.
-- [x] Accept ADRs 0001–0010.
+- [x] Accept ADRs 0001–0011.
 - [x] Add a locked stable Rust flake with default and CI shells.
 - [x] Add `.envrc`, `.gitignore` rules, and the six root Just lifecycle tasks.
 - [x] Capture successful foundation verification commands below.
@@ -85,8 +85,9 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
 - [x] Select canonical serialization and hashing rules.
 - [x] Decide which capability semantic fields invalidate frames, deltas, and
   proofs.
-- [ ] Decide the initial local evidence bundle and Spoke artifact mappings plus
-  their distinct publication guarantees.
+- [x] Decide the initial local evidence bundle and its publication guarantees.
+- [ ] Decide the Spoke artifact mappings and their distinct publication
+  guarantees.
 
 ## Milestone 3 — Scaffold
 
@@ -194,19 +195,23 @@ nix run path:$PWD -- environment inspect --format json
   and cursor/activation inputs invalidate dependent proof state.
 - [x] Detect tampered snapshot and certificate evidence.
 - [ ] Keep similarity, coverage, completeness, and status distinct.
-- [ ] Write and verify a content-addressed local bundle without claiming Spoke
+- [x] Write and verify a content-addressed local bundle without claiming Spoke
   durability or process lineage.
 
-Capability delta/certificate proof captured on 2026-08-07:
+Capability delta/certificate/local-bundle proof captured on 2026-08-07:
 
 ```text
 nix develop path:$PWD#ci --command just check
 nix develop path:$PWD#ci --command just test
-# 28 tests passed through nextest; all seven crate doc-test suites passed
+# 37 tests passed through nextest; all seven crate doc-test suites passed
 nix develop path:$PWD#ci --command just build
 nix flake check path:$PWD
 nix flake check path:$PWD --all-systems --no-build
 nix run path:$PWD -- environment inspect --format json
+nix run path:$PWD -- environment prove baseline.json candidate.json \
+  --require-capability frame.arrow-stream --bundle proof.bundle
+nix run path:$PWD -- environment verify-bundle proof.bundle
+# identical replay emitted the same certificate and reused the verified bundle
 ```
 
 ## Milestone 8 — Optional Routed Spoke Proof
@@ -239,8 +244,8 @@ nix run path:$PWD -- environment inspect --format json
 - [x] Expose the implemented environment-inspection command.
 - [x] Expose a capability-diff command.
 - [ ] Expose implemented Git inspect, diff, and one-shot poll commands.
-- [x] Expose only the implemented inspection, capability-diff, and scoped proof
-  commands.
+- [x] Expose only the implemented inspection, capability-diff, scoped proof,
+  and local-bundle commands.
 - [x] Preserve machine data on stdout and diagnostics on stderr.
 - [x] Support bounded terminal, Arrow, and JSON output for the implemented
   capability schema, plus structured/Arrow/summary/Tabular Diff delta output.
@@ -265,7 +270,7 @@ nix run path:$PWD -- environment inspect --format json
   certificate stale.
 - [ ] Capability drift makes affected actions/proofs stale without invalidating
   unrelated frames.
-- [ ] Missing or tampered evidence cannot verify as passed.
+- [x] Missing or tampered local evidence cannot verify as passed.
 - [x] Zero-Spoke mode produces useful local capability frames, deltas, and
   scoped proofs.
 - [ ] Commit/ref/index deltas activate only declared affected components.
@@ -274,7 +279,7 @@ nix run path:$PWD -- environment inspect --format json
 - [ ] Poll evidence does not claim unobserved intermediate index/worktree states.
 - [ ] Polling executes no repository hook and makes no Git mutation.
 - [ ] Missing required Spoke capability never silently weakens a claim.
-- [ ] Local-only evidence and execution never claim Spoke durability, fencing,
+- [x] Local-only evidence and execution never claim Spoke durability, fencing,
   or query semantics.
 - [ ] Routed Spoke persistence retains exact revision and request lineage across
   restart.

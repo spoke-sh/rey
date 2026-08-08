@@ -1,5 +1,13 @@
 #![forbid(unsafe_code)]
 
+mod bundle;
+
+pub use bundle::{
+    BundleArtifactRole, LocalBundleArtifact, LocalBundleError, LocalBundleLimits,
+    LocalBundleVerification, LocalBundleVerificationStatus, LocalProofBundleManifest,
+    LocalRetentionContract, create_local_proof_bundle, verify_local_proof_bundle,
+};
+
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::{
     CapabilityKey, DeltaError, DeltaLimits, DeltaOptions, capability_comparator,

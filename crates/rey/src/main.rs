@@ -13,8 +13,9 @@ use rey_diff::{CapabilityDelta, DeltaLimits, DeltaOptions, compare_capabilities}
 use rey_environment::{CapabilitySnapshot, DiscoveryLimits};
 use rey_git::GitLimits;
 use rey_proof::{
-    EvaluationOptions, ProofStatus, RequiredCapabilitiesClaim, RequiredCapabilityCertificate,
-    VerificationStatus, evaluate_required_capabilities, required_capability_evaluator,
+    EvaluationOptions, LocalBundleLimits, ProofStatus, RequiredCapabilitiesClaim,
+    RequiredCapabilityCertificate, VerificationStatus, create_local_proof_bundle,
+    evaluate_required_capabilities, required_capability_evaluator, verify_local_proof_bundle,
     verify_required_capability_certificate,
 };
 use serde::Serialize;
@@ -53,6 +54,8 @@ enum EnvironmentCommand {
     Prove(ProveArgs),
     /// Re-evaluate a certificate against current snapshots and contracts.
     Verify(VerifyArgs),
+    /// Verify a retained local-only capability proof bundle.
+    VerifyBundle(VerifyBundleArgs),
 }
 
 #[derive(Debug, Args)]
@@ -142,6 +145,18 @@ struct ProveArgs {
     /// Capability id that must be available in the target; repeat as needed.
     #[arg(long = "require-capability", required = true)]
     required_capabilities: Vec<String>,
+
+    /// Publish a content-addressed local-only proof bundle at this new directory.
+    #[arg(long)]
+    bundle: Option<PathBuf>,
+
+    /// Maximum bytes retained in one bundle artifact.
+    #[arg(long, default_value_t = 16_777_216)]
+    max_bundle_artifact_bytes: u64,
+
+    /// Maximum logical bytes retained across bundle artifact roles.
+    #[arg(long, default_value_t = 67_108_864)]
+    max_bundle_bytes: u64,
 }
 
 #[derive(Debug, Args)]
@@ -160,6 +175,24 @@ struct VerifyArgs {
     max_input_bytes: u64,
 
     /// Maximum capability rows admitted from each snapshot.
+    #[arg(long, default_value_t = 4_096)]
+    max_capabilities: u64,
+}
+
+#[derive(Debug, Args)]
+struct VerifyBundleArgs {
+    /// Local proof bundle directory to verify without following symlinked evidence.
+    bundle: PathBuf,
+
+    /// Maximum bytes admitted from one manifest or artifact.
+    #[arg(long, default_value_t = 16_777_216)]
+    max_artifact_bytes: u64,
+
+    /// Maximum logical bytes admitted across artifact roles.
+    #[arg(long, default_value_t = 67_108_864)]
+    max_bundle_bytes: u64,
+
+    /// Maximum capability rows admitted from each retained snapshot.
     #[arg(long, default_value_t = 4_096)]
     max_capabilities: u64,
 }
@@ -212,6 +245,9 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
         Command::Environment(EnvironmentArgs {
             command: EnvironmentCommand::Verify(args),
         }) => verify(args),
+        Command::Environment(EnvironmentArgs {
+            command: EnvironmentCommand::VerifyBundle(args),
+        }) => verify_bundle(args),
     }
 }
 
@@ -283,20 +319,48 @@ fn prove(args: ProveArgs) -> Result<ExitCode, CliError> {
         &target,
         claim,
         EvaluationOptions {
-            source_label: args.pair.source_label,
-            target_label: args.pair.target_label,
+            source_label: args.pair.source_label.clone(),
+            target_label: args.pair.target_label.clone(),
             delta_limits: DeltaLimits {
                 max_changes: args.pair.max_changes,
             },
             ..EvaluationOptions::default()
         },
     )?;
+    if let Some(bundle) = &args.bundle {
+        create_local_proof_bundle(
+            bundle,
+            &source,
+            &target,
+            &certificate,
+            LocalBundleLimits {
+                max_artifact_bytes: args.max_bundle_artifact_bytes,
+                max_total_bytes: args.max_bundle_bytes,
+                max_capabilities: args.pair.max_capabilities,
+                ..LocalBundleLimits::default()
+            },
+        )?;
+    }
     write_json_line(&mut io::stdout().lock(), &certificate)?;
     Ok(match certificate.status {
         ProofStatus::Passed => ExitCode::SUCCESS,
         ProofStatus::Failed => ExitCode::from(2),
         ProofStatus::Inconclusive => ExitCode::from(3),
     })
+}
+
+fn verify_bundle(args: VerifyBundleArgs) -> Result<ExitCode, CliError> {
+    let verification = verify_local_proof_bundle(
+        &args.bundle,
+        LocalBundleLimits {
+            max_artifact_bytes: args.max_artifact_bytes,
+            max_total_bytes: args.max_bundle_bytes,
+            max_capabilities: args.max_capabilities,
+            ..LocalBundleLimits::default()
+        },
+    )?;
+    write_json_line(&mut io::stdout().lock(), &verification)?;
+    Ok(ExitCode::SUCCESS)
 }
 
 fn verify(args: VerifyArgs) -> Result<ExitCode, CliError> {
@@ -452,6 +516,8 @@ enum CliError {
     Delta(#[from] rey_diff::DeltaError),
     #[error(transparent)]
     Proof(#[from] rey_proof::ProofError),
+    #[error(transparent)]
+    Bundle(#[from] rey_proof::LocalBundleError),
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]

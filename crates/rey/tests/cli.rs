@@ -7,7 +7,9 @@ use rey_environment::{
     TrustClass,
 };
 use rey_proof::{
-    CertificateVerification, ProofStatus, RequiredCapabilityCertificate, VerificationStatus,
+    BundleArtifactRole, CertificateVerification, LocalBundleVerification,
+    LocalBundleVerificationStatus, LocalProofBundleManifest, ProofStatus,
+    RequiredCapabilityCertificate, VerificationStatus,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -268,6 +270,111 @@ fn proof_outcomes_and_invalid_snapshots_have_categorized_exits() {
     assert_eq!(invalid.status.code(), Some(1));
     assert!(invalid.stdout.is_empty());
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("does not match recomputed"));
+}
+
+#[test]
+fn local_bundle_round_trips_and_tampering_fails_closed() {
+    let directory = TempDir::new().unwrap();
+    let source = snapshot(Vec::new());
+    let target = snapshot(vec![capability(
+        "required",
+        Some("1"),
+        Availability::Available,
+    )]);
+    let source_path = write_json(directory.path(), "source.json", &source);
+    let target_path = write_json(directory.path(), "target.json", &target);
+    let bundle_path = directory.path().join("bundle");
+
+    let proved = run_rey(&[
+        "environment",
+        "prove",
+        source_path.to_str().unwrap(),
+        target_path.to_str().unwrap(),
+        "--require-capability",
+        "required",
+        "--bundle",
+        bundle_path.to_str().unwrap(),
+    ]);
+    assert!(
+        proved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&proved.stderr)
+    );
+    assert!(proved.stderr.is_empty());
+    let certificate: RequiredCapabilityCertificate =
+        serde_json::from_slice(&proved.stdout).unwrap();
+    assert_eq!(certificate.status, ProofStatus::Passed);
+
+    let manifest: LocalProofBundleManifest =
+        serde_json::from_slice(&fs::read(bundle_path.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest.certificate_id, certificate.certificate_id);
+    assert!(manifest.retention.content_addressed_objects);
+    assert!(!manifest.retention.remote_durable);
+    assert!(!manifest.retention.spoke_durable);
+    assert!(!manifest.retention.spoke_fenced_execution);
+    assert!(!manifest.retention.spoke_query_semantics);
+    assert!(!manifest.retention.spoke_revision_lineage);
+
+    let verified = run_rey(&[
+        "environment",
+        "verify-bundle",
+        bundle_path.to_str().unwrap(),
+    ]);
+    assert!(
+        verified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
+    assert!(verified.stderr.is_empty());
+    let verification: LocalBundleVerification = serde_json::from_slice(&verified.stdout).unwrap();
+    assert_eq!(verification.status, LocalBundleVerificationStatus::Verified);
+    assert_eq!(verification.bundle_id, manifest.bundle_id);
+
+    let delta = manifest
+        .artifacts
+        .iter()
+        .find(|artifact| artifact.role == BundleArtifactRole::CapabilityDelta)
+        .unwrap();
+    fs::remove_file(bundle_path.join(&delta.object_path)).unwrap();
+    let tampered = run_rey(&[
+        "environment",
+        "verify-bundle",
+        bundle_path.to_str().unwrap(),
+    ]);
+    assert_eq!(tampered.status.code(), Some(1));
+    assert!(tampered.stdout.is_empty());
+    assert!(!tampered.stderr.is_empty());
+}
+
+#[test]
+fn local_bundle_limit_failure_publishes_nothing() {
+    let directory = TempDir::new().unwrap();
+    let source = snapshot(Vec::new());
+    let target = snapshot(vec![capability(
+        "required",
+        Some("1"),
+        Availability::Available,
+    )]);
+    let source_path = write_json(directory.path(), "source.json", &source);
+    let target_path = write_json(directory.path(), "target.json", &target);
+    let bundle_path = directory.path().join("bundle");
+
+    let output = run_rey(&[
+        "environment",
+        "prove",
+        source_path.to_str().unwrap(),
+        target_path.to_str().unwrap(),
+        "--require-capability",
+        "required",
+        "--bundle",
+        bundle_path.to_str().unwrap(),
+        "--max-bundle-bytes",
+        "1",
+    ]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(!bundle_path.exists());
 }
 
 fn snapshot(rows: Vec<CapabilityRecord>) -> CapabilitySnapshot {
