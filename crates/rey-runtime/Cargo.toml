@@ -6,7 +6,9 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
+polars.workspace = true
 rey-core = { path = "../rey-core" }
+rey-dataframe = { path = "../rey-dataframe" }
 rey-diff = { path = "../rey-diff" }
 rey-environment = { path = "../rey-environment" }
 rey-frontier = { path = "../rey-frontier" }

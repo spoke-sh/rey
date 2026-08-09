@@ -19,6 +19,27 @@ the first provider-neutral request/result execution path and its
 workload-specific orientation fixture without turning the reducer into a
 generic recurring scheduler.
 
+ADR 0022 adds the outer portfolio campaign. The runtime now has a deterministic
+portfolio-snapshot to workload-attention derivation and an executable system
+workload, but it does not yet feed those rows into recurring generic
+scheduling or policy.
+
+## Nested Campaigns
+
+The phase machine governs one admitted unit of work. It can be used inside two
+nested campaigns:
+
+```text
+inner  workload graph → scenarios → deltas → graph attention
+outer  portfolio snapshot → workload attention → selected workload work
+```
+
+The outer loop does not add a second scheduler. It derives typed attention
+facts from exact catalog/result/environment/coverage inputs. The existing
+scheduler may later select ready rows; orientation then mines only the evidence
+needed for those rows. Re-evaluation after an admitted action decides whether
+the portfolio delta changed.
+
 ## State Dimensions
 
 Rey does not use one status to represent unrelated facts. Runtime evidence
@@ -260,7 +281,7 @@ action it cites.
 The implemented crates deliberately contain no:
 
 - generic workload-specific frontier derivation or dependency invalidation
-  beyond the fixed source-search failure fixture;
+  beyond the source-search fixture and portfolio-attention derivation;
 - external workload manifest or graph-proposal campaign;
 - recurring, fair, parallel, or multi-user scheduling;
 - external tool, query, parser, index, or Spoke retrieval implementation;

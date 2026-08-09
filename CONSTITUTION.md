@@ -146,6 +146,16 @@ graph entry points, but they never bypass normal action admission.
 
 ## Mining Invariants
 
+- Mining is ongoing at two levels: workloads mine their declared domains, and
+  the runtime mines the workload portfolio for qualification, staleness,
+  capability, dependency, ownership, and coverage evidence.
+- Portfolio attention is a typed derived relation, not a scheduler or agent
+  assertion. Ready, blocked, inconclusive, and policy-excluded work remain
+  distinct, and a clean portfolio is represented by typed empty attention.
+- A scheduler may select admitted attention but does not invent its reasons.
+  A proposer may act on bounded selected evidence but cannot declare its own
+  workload or attention row resolved.
+
 - A mining request binds exact source or input-artifact identities, operation
   contract and implementation revision, canonical parameters, capability
   snapshot, effective limits, and the workload/frontier rationale for the work.

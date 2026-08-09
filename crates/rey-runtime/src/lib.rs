@@ -1,7 +1,18 @@
 #![forbid(unsafe_code)]
 
+mod portfolio;
 mod workload;
 mod workload_mining;
+
+pub use portfolio::{
+    AttentionAction, AttentionPolicy, AttentionReadiness, AttentionReason, AttentionSubjectKind,
+    BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, PORTFOLIO_SNAPSHOT_SCHEMA, PortfolioError,
+    PortfolioLimits, PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
+    PortfolioWorkloadObservation, WORKLOAD_ATTENTION_RELATION, WORKLOAD_ATTENTION_SCHEMA,
+    WORKLOAD_ATTENTION_SCHEMA_VERSION, WorkloadAttention, WorkloadAttentionRow,
+    WorkloadAttentionSummary, portfolio_attention_operation, render_workload_attention,
+    render_workload_attention_operation,
+};
 
 pub use workload::{
     BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, COMPUTE_GRAPH_SCHEMA,

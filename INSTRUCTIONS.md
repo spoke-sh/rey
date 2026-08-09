@@ -106,6 +106,15 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 
 ## Mining Work
 
+- Treat mining as a continuous pair of loops: each workload mines domain
+  evidence, while portfolio mining derives attention from exact catalog,
+  result, environment, dependency, capability, ownership, and coverage inputs.
+- Keep portfolio attention provider-neutral and typed. Preserve action, reason,
+  readiness, blockers/exclusions, evidence, dependency, priority, cost, and
+  coverage as separate fields before scheduling or policy projection.
+- Exercise portfolio behavior through `rey workloads list`, `test`, `run`, and
+  `status`; do not introduce a parallel top-level mining command hierarchy.
+
 - Treat relational and source mining as peer capability families connected by
   exact projections, not as a reason to stringify data or tabularize every
   artifact.

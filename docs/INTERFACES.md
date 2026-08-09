@@ -15,6 +15,8 @@ HEAD-relative, removes manual proof plumbing, and adds the environment mapping
 graph. ADR 0021 replaces direct HEAD-to-working acceptance with the
 HEAD-bound admission index, merges inventory into status, and removes
 `inspect`.
+ADR 0022 adds ongoing portfolio mining, the typed workload-attention relation,
+and its workload-centered list/test/run/status projections.
 
 ## Interface Principles
 
@@ -51,6 +53,7 @@ rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
 rey workloads [--workspace PATH] [--state-dir PATH] list
 rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]
+rey workloads [--workspace PATH] [--state-dir PATH] run rey.portfolio.attention
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
@@ -68,7 +71,8 @@ The built-in slice implements this behavior:
 
 - `list` reads catalog and result indexes and shows exact candidate/qualified
   graph identities, operation order, scenario progress, mining completeness,
-  and retained relation/reasoning counts; it executes no work;
+  retained relation/reasoning counts, current portfolio attention, and mapped
+  surface coverage; it executes no graph or probe;
 - `test` executes one bounded deterministic graph/scenario pass, retains
   `EXPECTED` to `OBSERVED` typed deltas plus mining evidence, and qualifies
   only a graph revision for which every required scenario freshly passes;
@@ -77,12 +81,13 @@ The built-in slice implements this behavior:
   in declaration order;
 - `run` executes the current fresh qualified built-in graph against one
   admitted UTF-8 input and, for the mining workload, repeatable explicit
-  `--source` paths under the workspace; and
+  `--source` paths under the workspace. The portfolio workload instead binds
+  retained catalog/workload/environment inputs and rejects `--input`;
 - `status` reads the exact workload, graph, suite, retained deltas,
   mining results/omissions/reasoning, qualification, freshness, stop reason,
   and latest run without repairing it.
 
-The catalog is compiled into Rey. It exposes the qualified
+The catalog is compiled into Rey. It exposes `rey.portfolio.attention`,
 `rey.fixture.source-search`, passing `rey.fixture.text-normalize`, and failing
 `rey.fixture.text-mismatch` conformance workloads; it is not an external
 manifest format or arbitrary operation loader.
@@ -99,8 +104,9 @@ relative `--state-dir` values resolve below the canonical workspace and an
 absolute value selects an explicit separate local boundary.
 
 The `list` table is a portfolio document rather than a flattened relation. Its
-portfolio header derives qualification, scenario, run, inventory, and mining
-totals;
+portfolio header derives qualification, scenario, run, inventory, mining,
+attention, and mapped-surface coverage totals. It then renders the canonical
+attention frontier;
 each workload card exposes purpose, journey, passing and evaluated scenario
 coverage, evaluation counts, qualification, exact graph and operation
 identities, retained test/mining evidence and freshness, and last-run state.
@@ -124,8 +130,15 @@ coverage, delta assessment, and qualification counts separate. These
 verbosity flags affect only the human projection; redirected `auto` and
 explicit JSON retain the same `rey.workload-test-batch.v2` document.
 
-The structured schemas are `rey.workload-list.v2`,
-`rey.workload-status-batch.v2`, `rey.workload-test-batch.v2`, and
+Portfolio-attention scenarios retain `rey.workload-attention.v1` beside the
+ordered UTF-8 output delta. `-v` exposes action/reason/readiness rows; `-vv`
+adds exact row, relation, source-snapshot, derivation, evidence, and dependency
+identities. A qualified `run rey.portfolio.attention` emits the same typed
+relation over current retained inputs. `list` and `status` derive their view
+without fresh ambient discovery.
+
+The structured schemas are `rey.workload-list.v3`,
+`rey.workload-status-batch.v3`, `rey.workload-test-batch.v2`, and
 `rey.workload-run-result.v2`. Test results contain verified
 `rey.scenario-output-delta.v2` documents embedding `rey.text-delta.v1`, and
 mining scenarios contain `rey.source-match-delta.v1`. Passing tests alone
@@ -288,6 +301,13 @@ and truncated comparison, bounds, Arrow/JSON replay, source drift, and
 delta-directed reasoning. Regex, case folding, directory/glob selection,
 external `rg`, parser/index operations, and general visualization contracts
 remain later workload slices.
+
+The portfolio schemas are `rey.portfolio-snapshot.v1` and
+`rey.workload-attention.v1`; the operation contracts are
+`rey.portfolio.attention.derive@1` and
+`rey.portfolio.attention.render-lines@1`. The attention relation has a Polars
+frame projection keyed by semantic row id and preserves action, subject,
+reason, readiness, priority, and cost.
 
 ## Standard Streams
 

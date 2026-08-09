@@ -151,6 +151,14 @@ old input digest are stale as well.
 
 ### Workload Scenario Qualification
 
+Portfolio attention is not itself a proof status. A `RETEST` or `REFINE` row
+records unresolved work; a `BLOCK` row records unavailable or inconclusive
+preconditions; `POLICY_EXCLUDED` records an explicit portfolio policy; and a
+typed empty attention relation says only that the derivation found no row for
+its exact inputs and limits. None proves correctness, coverage beyond declared
+surfaces, or semantic convergence. An admitted proposal resolves attention
+only after fresh scenario and portfolio evaluation.
+
 A workload qualification is a scoped proof input, not an agent assertion or a
 process status. It binds one exact workload, compute-graph revision,
 scenario-suite revision, required scenario set, fixtures, capability

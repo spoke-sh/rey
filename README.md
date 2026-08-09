@@ -90,6 +90,23 @@ This creates a bounded inner loop:
 delta → frontier → schedule → mine → reason → propose → act → observe → delta
 ```
 
+That loop is nested inside an ongoing portfolio loop. Workloads mine their
+domains, while Rey mines the workload catalog, retained scenario results,
+environment/dependency revisions, capabilities, and coverage to discover which
+workloads need attention or which relevant surfaces have no workload yet:
+
+```text
+catalog + results + environment + coverage
+  → portfolio snapshot → workload attention
+  → RETEST | REFINE | CREATE | BLOCK | POLICY_EXCLUDED
+  → admitted work → test → observe portfolio again
+```
+
+The resulting attention relation is evidence, not a scheduler guess. It keeps
+ready, blocked, and explicitly excluded rows distinct. The generic scheduler
+may later select bounded ready rows; an agent may propose a change for a
+selected row; neither may declare the row resolved without re-evaluation.
+
 Process completion alone is not progress. A command may exit successfully
 while the semantic frontier is unchanged or worse. Conversely, reaching a
 limit, losing evidence, or encountering an unsupported parser is not
@@ -124,6 +141,7 @@ rey env log -p
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
 rey workloads run <workload-id> --input <utf8> [--source <path>...]
+rey workloads run rey.portfolio.attention
 rey workloads status [<workload-id>]
 ```
 
@@ -149,6 +167,8 @@ just rey workloads list --format table
 just rey workloads test rey.fixture.text-normalize --format table
 just rey workloads test rey.fixture.text-mismatch --format table -vv
 just rey workloads test rey.fixture.source-search --format table -vv
+just rey workloads test rey.portfolio.attention --format table -vv
+just rey workloads run rey.portfolio.attention --format table
 just rey workloads run rey.fixture.text-normalize --input ' rey ' --format table
 just rey workloads run rey.fixture.source-search \
   --input evidence \
@@ -156,7 +176,7 @@ just rey workloads run rey.fixture.source-search \
   --format table
 ```
 
-The catalog contains three executable conformance workloads. Two graphs cover
+The catalog contains four executable conformance workloads. Two graphs cover
 deterministic UTF-8 `trim` and `uppercase`. The source-search graph composes
 `rey.source-search.literal-utf8` with a deterministic match renderer over an
 explicit bounded corpus. Its required empty and exact scenarios qualify the
@@ -164,6 +184,16 @@ graph; optional mismatch and truncation scenarios retain a typed match
 relation delta, ordered line delta, omissions, one scheduled frontier row, and
 a bounded reasoning surface. `run --source` executes that same qualified graph
 against caller-selected files below the workspace.
+
+The `rey.portfolio.attention` system workload mines a frozen portfolio snapshot
+into the canonical `rey.workload-attention.v1` relation. Its required scenarios
+cover refinement, retesting, workload creation, blockers, explicit policy
+exclusion, and a clean typed-empty result. `workloads list` and `status` derive
+the current attention view without probing ambient state; after qualification,
+`workloads run rey.portfolio.attention` evaluates the compiled catalog,
+retained workload evidence, and retained environment HEAD/admission index.
+Mapped input files without a declared workload owner appear visibly as
+`CREATE` candidates.
 
 `env status` is the single inventory and revision view. It observes the working
 environment and presents `HEAD → INDEX` changes admitted for commit beside
@@ -254,8 +284,9 @@ when a human view renders them as text.
 
 See [Mining Context Into Evidence](docs/MINING.md) for the capability contracts,
 [ADR 0017](docs/decisions/0017-mining-capability-model.md) for the architectural
-boundary, and [ADR 0018](docs/decisions/0018-first-mining-workload.md) for the
-first executable slice.
+boundary, [ADR 0018](docs/decisions/0018-first-mining-workload.md) for the first
+source slice, and [ADR 0022](docs/decisions/0022-portfolio-mining-and-workload-attention.md)
+for ongoing portfolio mining.
 
 ## Exact Evidence, Diffs, And Proof
 
@@ -380,6 +411,13 @@ run graph, compares native ordered text and typed match relations, and projects
 complete, failing, and truncated evidence through `list`, `test`, `status`, and
 `run`.
 
+Plan 0010 has now started the outer loop. `rey.portfolio-snapshot.v1` and the
+Polars-backed `rey.workload-attention.v1` relation are executable through the
+scenario-qualified `rey.portfolio.attention` workload. The four workload
+commands expose current attention, coverage, exact relation evidence, and
+qualification-gated retained-input evaluation. Ready work, capability/evidence
+blockers, and policy exclusions remain separate facts.
+
 [Plan 0009](plans/0009-environment-admission-index.md) makes `status` the one
 environment interface and places a reviewable admission index between working
 observation and commit. Variables, input files, executable candidates, and
@@ -387,12 +425,13 @@ their declared relationships are visible across both staged and unstaged
 planes. Revision selectors, reset/restore, branches, and Spoke retention remain
 later work.
 
-[Plan 0006](plans/0006-mining-strategy.md) remains complete at the first bounded
-zero-Spoke mining slice. It deliberately does not execute `rg`, parse ASTs/CSTs,
-build a semantic index, calculate broad quality metrics, or run a recurring
-generic scheduler. The next bearing is to use the mapping as the declared
-source graph for reference expansion and parser-backed syntax/symbol mining
-without treating a declared executable as admitted authority.
+[Plan 0010](plans/0010-portfolio-mining-and-workload-attention.md) is the active
+workload-centered bearing. Its next concrete anchor is a bounded workload
+surface-ownership declaration: resolve one admitted mapped input to an exact
+owner, change its retained revision, and derive `RETEST` for that owner. This
+closes the live coverage-to-invalidation path before attention is handed to
+generic scheduling or agent policy. Parser/symbol mining remains a later tool
+for investigating attention, not the portfolio strategy itself.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

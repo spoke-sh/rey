@@ -22,6 +22,12 @@ use crate::workload_mining::{
     compare_execution_matches, execute_source_search, fixture_capability_snapshot_id,
     render_expected_matches, render_source_matches, source_fixture_paths, source_fixture_root,
 };
+use crate::{
+    AttentionPolicy, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, PortfolioLimits,
+    PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
+    PortfolioWorkloadObservation, WorkloadAttention, portfolio_attention_operation,
+    render_workload_attention, render_workload_attention_operation,
+};
 
 pub const WORKLOAD_SCHEMA: &str = "rey.workload.v2";
 pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v2";
@@ -36,12 +42,15 @@ pub const BUILT_IN_MISMATCH_WORKLOAD_ID: &str = "rey.fixture.text-mismatch";
 const NODE_OUTPUT_ID: &str = "value";
 const INPUT_ID: &str = "text";
 const OUTPUT_ID: &str = "text";
+const PORTFOLIO_INPUT_ID: &str = "portfolio";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ValueType {
     Utf8,
     SourceMatches,
+    PortfolioSnapshot,
+    WorkloadAttention,
 }
 
 impl ValueType {
@@ -49,6 +58,8 @@ impl ValueType {
         match self {
             Self::Utf8 => "utf8",
             Self::SourceMatches => "source_matches",
+            Self::PortfolioSnapshot => "portfolio_snapshot",
+            Self::WorkloadAttention => "workload_attention",
         }
     }
 }
@@ -58,6 +69,8 @@ impl ValueType {
 pub enum WorkloadValue {
     Utf8(String),
     SourceMatches(Box<SourceMiningExecution>),
+    PortfolioSnapshot(Box<PortfolioSnapshot>),
+    WorkloadAttention(Box<WorkloadAttention>),
 }
 
 impl WorkloadValue {
@@ -66,6 +79,8 @@ impl WorkloadValue {
         match self {
             Self::Utf8(_) => ValueType::Utf8,
             Self::SourceMatches(_) => ValueType::SourceMatches,
+            Self::PortfolioSnapshot(_) => ValueType::PortfolioSnapshot,
+            Self::WorkloadAttention(_) => ValueType::WorkloadAttention,
         }
     }
 
@@ -85,13 +100,21 @@ impl WorkloadValue {
                         .map(|context| context.text.len() as u64)
                         .sum::<u64>(),
                 ),
+            Self::PortfolioSnapshot(value) => {
+                serde_json::to_vec(value).map_or(u64::MAX, |bytes| bytes.len() as u64)
+            }
+            Self::WorkloadAttention(value) => {
+                serde_json::to_vec(value).map_or(u64::MAX, |bytes| bytes.len() as u64)
+            }
         }
     }
 
     fn as_utf8(&self) -> Result<&str, WorkloadError> {
         match self {
             Self::Utf8(value) => Ok(value),
-            Self::SourceMatches(_) => Err(WorkloadError::TypeMismatch("utf8 value".to_owned())),
+            Self::SourceMatches(_) | Self::PortfolioSnapshot(_) | Self::WorkloadAttention(_) => {
+                Err(WorkloadError::TypeMismatch("utf8 value".to_owned()))
+            }
         }
     }
 
@@ -102,6 +125,19 @@ impl WorkloadValue {
             Self::SourceMatches(value) => {
                 hasher.add_str(value.evidence.result.result_id.as_str());
             }
+            Self::PortfolioSnapshot(value) => hasher.add_str(value.snapshot_id.as_str()),
+            Self::WorkloadAttention(value) => hasher.add_str(value.attention_id.as_str()),
+        }
+    }
+
+    fn semantic_string_bytes(&self) -> Result<u64, WorkloadError> {
+        match self {
+            Self::Utf8(value) => Ok(value.len() as u64),
+            Self::SourceMatches(_) => Err(WorkloadError::TypeMismatch(
+                "source matches cannot be a declared scenario value".to_owned(),
+            )),
+            Self::PortfolioSnapshot(value) => Ok(serde_json::to_vec(value)?.len() as u64),
+            Self::WorkloadAttention(value) => Ok(serde_json::to_vec(value)?.len() as u64),
         }
     }
 }
@@ -484,6 +520,7 @@ pub struct GraphExecution {
     pub node_order: Vec<String>,
     pub outputs: BTreeMap<String, WorkloadValue>,
     pub mining: Vec<SourceMiningExecution>,
+    pub attention: Vec<WorkloadAttention>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -512,6 +549,8 @@ pub struct ScenarioResult {
     pub evaluation: ScenarioEvaluation,
     pub deltas: Vec<ScenarioOutputDelta>,
     pub mining: Vec<MiningScenarioEvidence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attention: Vec<WorkloadAttention>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -703,6 +742,9 @@ impl WorkloadTestResult {
                     ));
                 }
             }
+            for attention in &scenario.attention {
+                attention.verify()?;
+            }
             let expected = scenario_evaluation(&scenario.deltas, &scenario.mining);
             if expected != scenario.evaluation {
                 return Err(WorkloadError::ResultShape(
@@ -798,6 +840,29 @@ impl WorkloadTestResult {
                     "scenario result does not cover its mining operation",
                 ));
             }
+            let expects_attention = usize::from(
+                workload
+                    .graph
+                    .nodes
+                    .iter()
+                    .any(|node| node.operation == portfolio_attention_operation()),
+            );
+            if result.attention.len() != expects_attention {
+                return Err(WorkloadError::ResultShape(
+                    "scenario result does not cover its portfolio-attention operation",
+                ));
+            }
+            if let Some(attention) = result.attention.first() {
+                let snapshot = match scenario.inputs.get(PORTFOLIO_INPUT_ID) {
+                    Some(WorkloadValue::PortfolioSnapshot(snapshot)) => snapshot,
+                    _ => {
+                        return Err(WorkloadError::ResultShape(
+                            "portfolio-attention scenario has no portfolio snapshot",
+                        ));
+                    }
+                };
+                attention.verify_against(snapshot)?;
+            }
             if let Some(source) = &scenario.source_search {
                 let current = LocalSourceCorpus::bind(
                     source_fixture_root(),
@@ -863,6 +928,8 @@ pub struct WorkloadRunResult {
     pub outputs: BTreeMap<String, WorkloadValue>,
     pub node_order: Vec<String>,
     pub mining: Vec<SourceMiningExecution>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attention: Vec<WorkloadAttention>,
 }
 
 impl WorkloadRunResult {
@@ -879,6 +946,7 @@ impl WorkloadRunResult {
             outputs: BTreeMap::new(),
             node_order: Vec::new(),
             mining: Vec::new(),
+            attention: Vec::new(),
         };
         result.run_id = run_result_digest(&result);
         result
@@ -904,6 +972,33 @@ impl WorkloadRunResult {
                 ));
             }
         }
+        for attention in &self.attention {
+            attention.verify()?;
+        }
+        match (
+            self.inputs.get(PORTFOLIO_INPUT_ID),
+            self.attention.as_slice(),
+        ) {
+            (Some(WorkloadValue::PortfolioSnapshot(snapshot)), [attention])
+                if self.status == RunStatus::Passed =>
+            {
+                attention.verify_against(snapshot)?;
+            }
+            (Some(WorkloadValue::PortfolioSnapshot(_)), [])
+                if self.status == RunStatus::Blocked => {}
+            (Some(WorkloadValue::PortfolioSnapshot(_)), _) => {
+                return Err(WorkloadError::ResultShape(
+                    "portfolio run must retain exactly one attention relation",
+                ));
+            }
+            (None, []) => {}
+            (None, _) => {
+                return Err(WorkloadError::ResultShape(
+                    "attention relation has no portfolio run input",
+                ));
+            }
+            (Some(_), _) => {}
+        }
         match self.status {
             RunStatus::Passed
                 if self.qualification_id.is_some()
@@ -915,6 +1010,7 @@ impl WorkloadRunResult {
                     && self.outputs.is_empty()
                     && self.node_order.is_empty()
                     && self.mining.is_empty()
+                    && self.attention.is_empty()
                     && self.stop_reason == "qualification_missing_or_stale" => {}
             _ => return Err(WorkloadError::ResultShape("invalid run result shape")),
         }
@@ -954,6 +1050,7 @@ fn mining_context_matches(
 
 pub fn built_in_workloads() -> Result<Vec<WorkloadDefinition>, WorkloadError> {
     Ok(vec![
+        portfolio_attention_workload()?,
         source_search_workload()?,
         text_workload(true)?,
         text_workload(false)?,
@@ -1038,7 +1135,18 @@ fn execute_workload_bound(
         .values()
         .filter_map(|value| match value {
             WorkloadValue::SourceMatches(execution) => Some((**execution).clone()),
-            WorkloadValue::Utf8(_) => None,
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::PortfolioSnapshot(_)
+            | WorkloadValue::WorkloadAttention(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let attention = node_values
+        .values()
+        .filter_map(|value| match value {
+            WorkloadValue::WorkloadAttention(attention) => Some((**attention).clone()),
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::PortfolioSnapshot(_) => None,
         })
         .collect::<Vec<_>>();
     let execution_id = execution_digest(
@@ -1047,6 +1155,7 @@ fn execute_workload_bound(
         &node_order,
         &outputs,
         &mining,
+        &attention,
     );
     Ok(GraphExecution {
         execution_id,
@@ -1054,6 +1163,7 @@ fn execute_workload_bound(
         node_order,
         outputs,
         mining,
+        attention,
     })
 }
 
@@ -1157,6 +1267,7 @@ pub fn test_workload_with_observer_and_snapshot(
             evaluation: scenario_evaluation(&deltas, &mining),
             deltas,
             mining,
+            attention: execution.attention,
         };
         observer(&scenario_result);
         scenarios.push(scenario_result);
@@ -1248,10 +1359,205 @@ fn run_workload_bound(
         outputs: execution.outputs,
         node_order: execution.node_order,
         mining: execution.mining,
+        attention: execution.attention,
     };
     result.run_id = run_result_digest(&result);
     result.verify()?;
     Ok(result)
+}
+
+fn portfolio_attention_workload() -> Result<WorkloadDefinition, WorkloadError> {
+    let workload_id = BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID;
+    let graph = ComputeGraph::new(
+        &format!("{workload_id}.graph"),
+        1,
+        vec![
+            GraphNode {
+                node_id: "derive".to_owned(),
+                operation: portfolio_attention_operation(),
+                input: ValueSource::ExternalInput {
+                    input_id: PORTFOLIO_INPUT_ID.to_owned(),
+                },
+                output_id: NODE_OUTPUT_ID.to_owned(),
+                value_type: ValueType::WorkloadAttention,
+            },
+            GraphNode {
+                node_id: "render".to_owned(),
+                operation: render_workload_attention_operation(),
+                input: ValueSource::NodeOutput {
+                    node_id: "derive".to_owned(),
+                    output_id: NODE_OUTPUT_ID.to_owned(),
+                },
+                output_id: NODE_OUTPUT_ID.to_owned(),
+                value_type: ValueType::Utf8,
+            },
+        ],
+        vec![GraphOutput {
+            output_id: OUTPUT_ID.to_owned(),
+            source: ValueSource::NodeOutput {
+                node_id: "render".to_owned(),
+                output_id: NODE_OUTPUT_ID.to_owned(),
+            },
+            value_type: ValueType::Utf8,
+        }],
+        GraphLimits::default(),
+    )?;
+    let mut blocked = portfolio_observation(
+        "workload.blocked",
+        PortfolioQualificationState::Qualified,
+        AttentionPolicy::Track,
+    );
+    blocked.missing_capability_ids = vec!["parser.rust".to_owned()];
+    let mut changed = portfolio_observation(
+        "workload.changed",
+        PortfolioQualificationState::Qualified,
+        AttentionPolicy::Track,
+    );
+    changed.changed_dependency_ids = vec!["environment:ENV@2".to_owned()];
+    let retest_snapshot = portfolio_snapshot(
+        "retest",
+        vec![
+            changed,
+            portfolio_observation(
+                "workload.stale",
+                PortfolioQualificationState::Stale,
+                AttentionPolicy::Track,
+            ),
+            portfolio_observation(
+                "workload.untested",
+                PortfolioQualificationState::Untested,
+                AttentionPolicy::Track,
+            ),
+        ],
+        Vec::new(),
+    )?;
+    let scenarios = vec![
+        portfolio_scenario(
+            "blocked",
+            portfolio_snapshot("blocked", vec![blocked], Vec::new())?,
+        )?,
+        portfolio_scenario(
+            "clean",
+            portfolio_snapshot(
+                "clean",
+                vec![portfolio_observation(
+                    "workload.clean",
+                    PortfolioQualificationState::Qualified,
+                    AttentionPolicy::Track,
+                )],
+                vec![portfolio_surface(
+                    "surface.owned",
+                    vec!["workload.clean".to_owned()],
+                )],
+            )?,
+        )?,
+        portfolio_scenario(
+            "create",
+            portfolio_snapshot(
+                "create",
+                Vec::new(),
+                vec![portfolio_surface("surface.unowned", Vec::new())],
+            )?,
+        )?,
+        portfolio_scenario(
+            "excluded",
+            portfolio_snapshot(
+                "excluded",
+                vec![portfolio_observation(
+                    "workload.fixture",
+                    PortfolioQualificationState::Failing,
+                    AttentionPolicy::Exclude,
+                )],
+                Vec::new(),
+            )?,
+        )?,
+        portfolio_scenario(
+            "refine",
+            portfolio_snapshot(
+                "refine",
+                vec![portfolio_observation(
+                    "workload.failing",
+                    PortfolioQualificationState::Failing,
+                    AttentionPolicy::Track,
+                )],
+                Vec::new(),
+            )?,
+        )?,
+        portfolio_scenario("retest", retest_snapshot)?,
+    ];
+    WorkloadDefinition {
+        schema: WORKLOAD_SCHEMA.to_owned(),
+        workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
+        title: "Mine portfolio attention".to_owned(),
+        inputs: vec![WorkloadPort {
+            port_id: PORTFOLIO_INPUT_ID.to_owned(),
+            value_type: ValueType::PortfolioSnapshot,
+        }],
+        outputs: vec![WorkloadPort {
+            port_id: OUTPUT_ID.to_owned(),
+            value_type: ValueType::Utf8,
+        }],
+        graph,
+        scenario_suite: ScenarioSuite::new(&format!("{workload_id}.scenarios"), scenarios),
+        evaluator: utf8_comparator(),
+        limits: WorkloadLimits::default(),
+    }
+    .finalize()
+}
+
+fn portfolio_observation(
+    id: &str,
+    qualification: PortfolioQualificationState,
+    policy: AttentionPolicy,
+) -> PortfolioWorkloadObservation {
+    PortfolioWorkloadObservation {
+        workload: ContractIdentity::new(id, 1, id),
+        graph: ContractIdentity::new(format!("{id}.graph"), 1, &format!("{id}.graph")),
+        qualification,
+        policy,
+        policy_reason: (policy == AttentionPolicy::Exclude)
+            .then(|| "deliberate conformance fixture".to_owned()),
+        evidence_ids: Vec::new(),
+        changed_dependency_ids: Vec::new(),
+        missing_capability_ids: Vec::new(),
+    }
+}
+
+fn portfolio_surface(id: &str, owners: Vec<String>) -> PortfolioSurfaceObservation {
+    PortfolioSurfaceObservation {
+        surface_id: id.to_owned(),
+        source_revision: SemanticHasher::new(&format!("rey.fixture.surface.{id}")).finish(),
+        owners,
+        evidence_ids: Vec::new(),
+    }
+}
+
+fn portfolio_snapshot(
+    id: &str,
+    workloads: Vec<PortfolioWorkloadObservation>,
+    surfaces: Vec<PortfolioSurfaceObservation>,
+) -> Result<PortfolioSnapshot, WorkloadError> {
+    Ok(PortfolioSnapshot::new(
+        SemanticHasher::new(&format!("rey.fixture.portfolio-catalog.{id}")).finish(),
+        None,
+        workloads,
+        surfaces,
+        PortfolioLimits::default(),
+    )?)
+}
+
+fn portfolio_scenario(id: &str, snapshot: PortfolioSnapshot) -> Result<Scenario, WorkloadError> {
+    let expected = render_workload_attention(&WorkloadAttention::derive(&snapshot)?);
+    Ok(Scenario::new(
+        &format!("{BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID}.scenario.{id}"),
+        true,
+        BTreeMap::from([(
+            PORTFOLIO_INPUT_ID.to_owned(),
+            WorkloadValue::PortfolioSnapshot(Box::new(snapshot)),
+        )]),
+        BTreeMap::from([(OUTPUT_ID.to_owned(), WorkloadValue::Utf8(expected))]),
+        None,
+    ))
 }
 
 fn text_workload(normalize: bool) -> Result<WorkloadDefinition, WorkloadError> {
@@ -1571,6 +1877,8 @@ enum BuiltInOperation {
     Uppercase,
     SourceSearch,
     RenderSourceMatches,
+    DerivePortfolioAttention,
+    RenderPortfolioAttention,
 }
 
 impl BuiltInOperation {
@@ -1578,13 +1886,19 @@ impl BuiltInOperation {
         match self {
             Self::Trim | Self::Uppercase | Self::SourceSearch => ValueType::Utf8,
             Self::RenderSourceMatches => ValueType::SourceMatches,
+            Self::DerivePortfolioAttention => ValueType::PortfolioSnapshot,
+            Self::RenderPortfolioAttention => ValueType::WorkloadAttention,
         }
     }
 
     const fn output_type(self) -> ValueType {
         match self {
-            Self::Trim | Self::Uppercase | Self::RenderSourceMatches => ValueType::Utf8,
+            Self::Trim
+            | Self::Uppercase
+            | Self::RenderSourceMatches
+            | Self::RenderPortfolioAttention => ValueType::Utf8,
             Self::SourceSearch => ValueType::SourceMatches,
+            Self::DerivePortfolioAttention => ValueType::WorkloadAttention,
         }
     }
 }
@@ -1598,6 +1912,10 @@ fn resolve_operation(contract: &ContractIdentity) -> Result<BuiltInOperation, Wo
         Ok(BuiltInOperation::SourceSearch)
     } else if contract == &render_source_matches_contract() {
         Ok(BuiltInOperation::RenderSourceMatches)
+    } else if contract == &portfolio_attention_operation() {
+        Ok(BuiltInOperation::DerivePortfolioAttention)
+    } else if contract == &render_workload_attention_operation() {
+        Ok(BuiltInOperation::RenderPortfolioAttention)
     } else {
         Err(WorkloadError::UnknownOperation(contract.id.clone()))
     }
@@ -1618,9 +1936,35 @@ fn apply_operation(
             WorkloadValue::SourceMatches(execution) => {
                 WorkloadValue::Utf8(render_source_matches(execution))
             }
-            WorkloadValue::Utf8(_) => {
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::PortfolioSnapshot(_)
+            | WorkloadValue::WorkloadAttention(_) => {
                 return Err(WorkloadError::TypeMismatch(
                     "source match renderer".to_owned(),
+                ));
+            }
+        },
+        BuiltInOperation::DerivePortfolioAttention => match value {
+            WorkloadValue::PortfolioSnapshot(snapshot) => {
+                WorkloadValue::WorkloadAttention(Box::new(WorkloadAttention::derive(snapshot)?))
+            }
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::WorkloadAttention(_) => {
+                return Err(WorkloadError::TypeMismatch(
+                    "portfolio attention derivation".to_owned(),
+                ));
+            }
+        },
+        BuiltInOperation::RenderPortfolioAttention => match value {
+            WorkloadValue::WorkloadAttention(attention) => {
+                WorkloadValue::Utf8(render_workload_attention(attention))
+            }
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::PortfolioSnapshot(_) => {
+                return Err(WorkloadError::TypeMismatch(
+                    "portfolio attention renderer".to_owned(),
                 ));
             }
         },
@@ -2167,6 +2511,7 @@ fn execution_digest(
     node_order: &[String],
     outputs: &BTreeMap<String, WorkloadValue>,
     mining: &[SourceMiningExecution],
+    attention: &[WorkloadAttention],
 ) -> SemanticDigest {
     let mut hasher = SemanticHasher::new("rey.graph-execution.v2");
     add_contract(&mut hasher, graph);
@@ -2179,6 +2524,13 @@ fn execution_digest(
     hasher.add_u64(mining.len() as u64);
     for evidence in mining {
         hasher.add_str(evidence.evidence.result.result_id.as_str());
+    }
+    if !attention.is_empty() {
+        hasher.add_str("portfolio_attention");
+        hasher.add_u64(attention.len() as u64);
+        for result in attention {
+            hasher.add_str(result.attention_id.as_str());
+        }
     }
     hasher.finish()
 }
@@ -2219,6 +2571,13 @@ fn test_result_digest(result: &WorkloadTestResult) -> SemanticDigest {
                 hasher.add_str(reasoning.surface.surface_id.as_str());
             }
         }
+        if !scenario.attention.is_empty() {
+            hasher.add_str("portfolio_attention");
+            hasher.add_u64(scenario.attention.len() as u64);
+            for attention in &scenario.attention {
+                hasher.add_str(attention.attention_id.as_str());
+            }
+        }
     }
     hasher.finish()
 }
@@ -2249,6 +2608,13 @@ fn run_result_digest(result: &WorkloadRunResult) -> SemanticDigest {
     hasher.add_u64(result.mining.len() as u64);
     for mining in &result.mining {
         hasher.add_str(mining.evidence.result.result_id.as_str());
+    }
+    if !result.attention.is_empty() {
+        hasher.add_str("portfolio_attention");
+        hasher.add_u64(result.attention.len() as u64);
+        for attention in &result.attention {
+            hasher.add_str(attention.attention_id.as_str());
+        }
     }
     hasher.finish()
 }
@@ -2378,7 +2744,9 @@ fn semantic_string_bytes_workload(workload: &WorkloadDefinition) -> Result<u64, 
         for (id, value) in scenario.inputs.iter().chain(&scenario.expected_outputs) {
             add_string_bytes(&mut bytes, id)?;
             add_string_bytes(&mut bytes, value.value_type().as_str())?;
-            add_string_bytes(&mut bytes, value.as_utf8()?)?;
+            bytes = bytes
+                .checked_add(value.semantic_string_bytes()?)
+                .ok_or(WorkloadError::CountOverflow)?;
         }
         if let Some(source) = &scenario.source_search {
             for path in &source.fixture_paths {
@@ -2516,6 +2884,8 @@ pub enum WorkloadError {
     #[error(transparent)]
     ReasoningSurface(#[from] rey_policy::ReasoningSurfaceError),
     #[error(transparent)]
+    Portfolio(#[from] crate::PortfolioError),
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
 }
 
@@ -2529,21 +2899,52 @@ mod tests {
 
     use super::{
         BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
-        BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits, RunStatus, ScenarioEvaluation, TestStatus,
-        WorkloadError, WorkloadValue, built_in_workload, built_in_workloads, execute_workload,
-        run_workload, test_workload, test_workload_with_observer,
+        BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits,
+        RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadValue, built_in_workload,
+        built_in_workloads, execute_workload, run_workload, test_workload,
+        test_workload_with_observer,
     };
 
     #[test]
     fn built_in_catalog_is_canonical_and_verified() {
         let workloads = built_in_workloads().unwrap();
-        assert_eq!(workloads.len(), 3);
-        assert_eq!(workloads[0].workload.id, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID);
-        assert_eq!(workloads[1].workload.id, BUILT_IN_NORMALIZE_WORKLOAD_ID);
-        assert_eq!(workloads[2].workload.id, BUILT_IN_MISMATCH_WORKLOAD_ID);
+        assert_eq!(workloads.len(), 4);
+        assert_eq!(
+            workloads[0].workload.id,
+            BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID
+        );
+        assert_eq!(workloads[1].workload.id, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID);
+        assert_eq!(workloads[2].workload.id, BUILT_IN_NORMALIZE_WORKLOAD_ID);
+        assert_eq!(workloads[3].workload.id, BUILT_IN_MISMATCH_WORKLOAD_ID);
         for workload in workloads {
             workload.verify().unwrap();
         }
+    }
+
+    #[test]
+    fn portfolio_attention_workload_qualifies_every_attention_class() {
+        let workload = built_in_workload(BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID).unwrap();
+        let result = test_workload(&workload).unwrap();
+
+        assert_eq!(result.status, TestStatus::Passed);
+        assert_eq!(result.summary.required, 6);
+        assert_eq!(result.summary.passed, 6);
+        assert!(result.scenarios.iter().all(|scenario| {
+            scenario.attention.len() == 1 && scenario.attention[0].verify().is_ok()
+        }));
+        let clean = result
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.scenario.id.ends_with(".clean"))
+            .unwrap();
+        assert!(clean.attention[0].rows.is_empty());
+        let retest = result
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.scenario.id.ends_with(".retest"))
+            .unwrap();
+        assert_eq!(retest.attention[0].summary.retest, 3);
+        result.verify_for(&workload).unwrap();
     }
 
     #[test]

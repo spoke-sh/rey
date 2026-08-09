@@ -19,7 +19,8 @@ use rey::{
     inspect_environment, inspect_environment_with_mapping,
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, WorkloadList, WorkloadStatusBatch,
-        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, fresh_qualification,
+        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, derive_portfolio_snapshot,
+        derive_workload_attention, fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -34,10 +35,11 @@ use rey_environment::{
 use rey_git::GitLimits;
 use rey_mining::{MiningCompleteness, MiningLimits};
 use rey_runtime::{
-    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
-    SourceRunInput, TestStatus, WorkloadDefinition, WorkloadRunResult, WorkloadTestResult,
-    WorkloadValue, built_in_workload, built_in_workloads, run_workload, run_workload_with_source,
-    source_fixture_root, test_workload_with_observer_and_snapshot,
+    BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
+    ScenarioEvaluation, ScenarioResult, SourceRunInput, TestStatus, WorkloadAttention,
+    WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue, built_in_workload,
+    built_in_workloads, run_workload, run_workload_with_source, source_fixture_root,
+    test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -85,7 +87,7 @@ enum WorkloadsCommand {
     Status(WorkloadStatusArgs),
     /// Execute required scenarios and retain their typed output deltas.
     Test(WorkloadTestArgs),
-    /// Execute an exactly qualified graph with caller-provided UTF-8 input.
+    /// Execute an exactly qualified graph against explicit or retained inputs.
     Run(WorkloadRunArgs),
 }
 
@@ -125,9 +127,9 @@ struct WorkloadRunArgs {
     /// Exact built-in workload id.
     workload_id: String,
 
-    /// UTF-8 value bound to the workload's `text` input.
+    /// UTF-8 value bound to a text workload; omitted for portfolio mining.
     #[arg(long)]
-    input: String,
+    input: Option<String>,
 
     /// Workspace-relative regular source file; repeat to bind an explicit corpus.
     #[arg(long = "source")]
@@ -389,20 +391,27 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
         None => LocalWorkloadStore::default_for_workspace(&workspace),
     };
     match args.command {
-        WorkloadsCommand::List(command) => workload_list(&store, command),
-        WorkloadsCommand::Status(command) => workload_status(&store, command),
+        WorkloadsCommand::List(command) => workload_list(&store, &workspace, command),
+        WorkloadsCommand::Status(command) => workload_status(&store, &workspace, command),
         WorkloadsCommand::Test(command) => workload_test(&store, &workspace, command),
         WorkloadsCommand::Run(command) => workload_run(&store, &workspace, command),
     }
 }
 
-fn workload_list(store: &LocalWorkloadStore, args: WorkloadListArgs) -> Result<ExitCode, CliError> {
+fn workload_list(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    args: WorkloadListArgs,
+) -> Result<ExitCode, CliError> {
     let state = store.load()?;
-    let summaries = built_in_workloads()?
+    let definitions = built_in_workloads()?;
+    let summaries = definitions
         .iter()
         .map(|workload| WorkloadSummary::derive(workload, state.record(&workload.workload.id)))
         .collect();
-    let list = WorkloadList::new(summaries);
+    let environment = retained_environment_snapshot(workspace)?;
+    let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
+    let list = WorkloadList::new(summaries, attention);
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
@@ -416,9 +425,11 @@ fn workload_list(store: &LocalWorkloadStore, args: WorkloadListArgs) -> Result<E
 
 fn workload_status(
     store: &LocalWorkloadStore,
+    workspace: &Path,
     args: WorkloadStatusArgs,
 ) -> Result<ExitCode, CliError> {
     let state = store.load()?;
+    let catalog = built_in_workloads()?;
     let definitions = select_workloads(args.workload_id.as_deref())?;
     let statuses = definitions
         .into_iter()
@@ -427,7 +438,9 @@ fn workload_status(
             WorkloadStatusView::new(workload, record)
         })
         .collect();
-    let batch = WorkloadStatusBatch::new(statuses);
+    let environment = retained_environment_snapshot(workspace)?;
+    let attention = derive_workload_attention(&catalog, &state, environment.as_ref())?;
+    let batch = WorkloadStatusBatch::new(statuses, attention);
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
@@ -537,7 +550,27 @@ fn workload_run(
     let workload = built_in_workload(&args.workload_id)?;
     let mut state = store.load()?;
     let mut inputs = BTreeMap::new();
-    inputs.insert("text".to_owned(), WorkloadValue::Utf8(args.input));
+    if workload.workload.id == BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID {
+        if args.input.is_some()
+            || !args.sources.is_empty()
+            || args.context_before != 0
+            || args.context_after != 0
+        {
+            return Err(CliError::UnexpectedPortfolioInput);
+        }
+        let definitions = built_in_workloads()?;
+        let environment = retained_environment_snapshot(workspace)?;
+        let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+        inputs.insert(
+            "portfolio".to_owned(),
+            WorkloadValue::PortfolioSnapshot(Box::new(snapshot)),
+        );
+    } else {
+        inputs.insert(
+            "text".to_owned(),
+            WorkloadValue::Utf8(args.input.ok_or(CliError::MissingWorkloadInput)?),
+        );
+    }
     let result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
         Some(qualification) if workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID => {
             if args.sources.is_empty() {
@@ -586,6 +619,15 @@ fn workload_run(
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(exit_code)
+}
+
+fn retained_environment_snapshot(workspace: &Path) -> Result<Option<CapabilitySnapshot>, CliError> {
+    let store = LocalEnvironmentStore::default_for_workspace(workspace);
+    let history = store.load()?;
+    let index = store.load_index(&history)?;
+    Ok(index
+        .map(|index| index.snapshot)
+        .or_else(|| history.head().map(|commit| commit.snapshot.clone())))
 }
 
 fn select_workloads(workload_id: Option<&str>) -> Result<Vec<WorkloadDefinition>, CliError> {
@@ -799,6 +841,29 @@ fn write_workload_list(
             "{mining_workloads} workloads · {mining_results} retained results · {incomplete_mining} incomplete"
         ),
     )?;
+    write_portfolio_field(
+        output,
+        "Attention",
+        &format!(
+            "{} refine · {} retest · {} create · {} blocked · {} policy excluded",
+            list.attention.summary.refine,
+            list.attention.summary.retest,
+            list.attention.summary.create,
+            list.attention.summary.blocked,
+            list.attention.summary.policy_excluded,
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Coverage",
+        &format!(
+            "{} mapped surfaces · {} owned · {} unowned",
+            list.attention.summary.surfaces,
+            list.attention.summary.owned_surfaces,
+            list.attention.summary.unowned_surfaces,
+        ),
+    )?;
+    write_attention_frontier(output, &list.attention, style)?;
     if list.workloads.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
@@ -867,6 +932,16 @@ fn write_workload_list(
                 },
             )?;
         }
+        if workload.attention_results > 0 {
+            write_portfolio_field(
+                output,
+                "Portfolio evidence",
+                &format!(
+                    "{} retained attention results · {} attention rows",
+                    workload.attention_results, workload.attention_rows,
+                ),
+            )?;
+        }
         write_portfolio_field(
             output,
             "Candidate",
@@ -916,6 +991,46 @@ fn write_portfolio_field(
     value: &str,
 ) -> Result<(), CliError> {
     writeln!(output, "  {label:<22} {value}")?;
+    Ok(())
+}
+
+fn write_attention_frontier(
+    output: &mut impl Write,
+    attention: &WorkloadAttention,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("ATTENTION FRONTIER"))?;
+    if attention.rows.is_empty() {
+        writeln!(
+            output,
+            "  {}",
+            style.green("No unresolved portfolio attention")
+        )?;
+        return Ok(());
+    }
+    for row in &attention.rows {
+        let action = match row.readiness {
+            rey_runtime::AttentionReadiness::Ready => {
+                style.cyan_bold(&row.action.as_str().to_uppercase())
+            }
+            rey_runtime::AttentionReadiness::Blocked => {
+                style.yellow(&row.action.as_str().to_uppercase())
+            }
+            rey_runtime::AttentionReadiness::Excluded => {
+                style.dim(&row.action.as_str().to_uppercase())
+            }
+        };
+        writeln!(
+            output,
+            "  {action:<16} {} · {} · {} · priority {} · cost {}",
+            row.subject_id,
+            row.reason.as_str(),
+            row.readiness.as_str(),
+            row.priority,
+            row.estimated_cost_units,
+        )?;
+    }
     Ok(())
 }
 
@@ -1062,6 +1177,8 @@ fn write_workload_status(
             writeln!(output, "run=none")?;
         }
     }
+    writeln!(output)?;
+    write_attention_frontier(output, &batch.attention, TerminalStyle::stdout())?;
     Ok(())
 }
 
@@ -1145,6 +1262,22 @@ fn write_workload_test_start(
             "Mining operation: rey.source-search.literal-utf8@1 → rey.source-matches.v1 → ordered UTF-8 text"
         )?;
     }
+    if workload
+        .graph
+        .nodes
+        .iter()
+        .any(|node| node.operation.id == "rey.portfolio.attention.derive")
+    {
+        writeln!(
+            output,
+            "Portfolio mining: {} · retained catalog/environment inputs · bounded typed relation",
+            style.green("VERIFIED")
+        )?;
+        writeln!(
+            output,
+            "Attention operation: rey.portfolio.attention.derive@1 → rey.workload-attention.v1 → ordered UTF-8 text"
+        )?;
+    }
     if verbosity >= 1 {
         let node_count = workload.graph.nodes.len();
         writeln!(
@@ -1203,8 +1336,8 @@ fn write_workload_test_scenario(
         .iter()
         .filter(|evidence| evidence.relation_delta.assessment == DeltaAssessment::Equal)
         .count();
-    let evidence_total = scenario.deltas.len() + scenario.mining.len();
-    let evidence_equal = equal + equal_relations;
+    let evidence_total = scenario.deltas.len() + scenario.mining.len() + scenario.attention.len();
+    let evidence_equal = equal + equal_relations + scenario.attention.len();
     let label = match scenario.evaluation {
         ScenarioEvaluation::Passed => style.green("PASS"),
         ScenarioEvaluation::Failed => style.red("FAIL"),
@@ -1225,7 +1358,7 @@ fn write_workload_test_scenario(
         scenario_id,
         evidence_equal,
         evidence_total,
-        if scenario.mining.is_empty() {
+        if scenario.mining.is_empty() && scenario.attention.is_empty() {
             "outputs"
         } else {
             "evidence branches"
@@ -1237,16 +1370,22 @@ fn write_workload_test_scenario(
         }
     )?;
     if verbosity >= 1 {
-        if scenario.mining.is_empty() {
+        if scenario.mining.is_empty() && scenario.attention.is_empty() {
             writeln!(
                 output,
                 "     Evidence format: {} (utf8)",
                 SCENARIO_OUTPUT_DELTA_SCHEMA
             )?;
-        } else {
+        } else if !scenario.mining.is_empty() {
             writeln!(
                 output,
                 "     Evidence formats: {} (ordered utf8) · rey.source-match-delta.v1 (typed relation) · rey.mining-result.v2",
+                SCENARIO_OUTPUT_DELTA_SCHEMA
+            )?;
+        } else {
+            writeln!(
+                output,
+                "     Evidence formats: {} (ordered utf8) · rey.workload-attention.v1 (typed relation)",
                 SCENARIO_OUTPUT_DELTA_SCHEMA
             )?;
         }
@@ -1269,6 +1408,75 @@ fn write_workload_test_scenario(
     }
     for mining in &scenario.mining {
         write_source_mining_evidence(output, mining, verbosity, style)?;
+    }
+    for attention in &scenario.attention {
+        write_portfolio_attention_evidence(output, attention, verbosity, style)?;
+    }
+    Ok(())
+}
+
+fn write_portfolio_attention_evidence(
+    output: &mut impl Write,
+    attention: &WorkloadAttention,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    writeln!(
+        output,
+        "         Portfolio attention: {} rows · {} refine · {} retest · {} create · {} blocked · {} excluded",
+        attention.rows.len(),
+        attention.summary.refine,
+        attention.summary.retest,
+        attention.summary.create,
+        attention.summary.blocked,
+        attention.summary.policy_excluded,
+    )?;
+    if attention.rows.is_empty() {
+        writeln!(
+            output,
+            "         {}",
+            style.green("No unresolved portfolio attention")
+        )?;
+    }
+    for row in &attention.rows {
+        writeln!(
+            output,
+            "         {} {:<8} {} · {} · priority {} · cost {}",
+            match row.readiness {
+                rey_runtime::AttentionReadiness::Ready => "+",
+                rey_runtime::AttentionReadiness::Blocked => "!",
+                rey_runtime::AttentionReadiness::Excluded => "~",
+            },
+            row.action.as_str(),
+            row.subject_id,
+            row.reason.as_str(),
+            row.priority,
+            row.estimated_cost_units,
+        )?;
+        if verbosity >= 2 {
+            write_test_binding(output, "attention", row.row_id.as_str())?;
+            write_test_binding(output, "readiness", row.readiness.as_str())?;
+            for evidence in &row.evidence_ids {
+                write_test_binding(output, "evidence", evidence.as_str())?;
+            }
+            for dependency in &row.dependency_ids {
+                write_test_binding(output, "dependency", dependency)?;
+            }
+        }
+    }
+    if verbosity >= 2 {
+        write_test_binding(output, "relation", attention.attention_id.as_str())?;
+        write_test_binding(output, "snapshot", attention.source_snapshot_id.as_str())?;
+        write_test_binding(
+            output,
+            "derivation",
+            &format!(
+                "{}@{} · {}",
+                attention.derivation.id,
+                attention.derivation.revision,
+                attention.derivation.semantic_digest,
+            ),
+        )?;
     }
     Ok(())
 }
@@ -1854,8 +2062,17 @@ fn write_workload_run(output: &mut impl Write, result: &WorkloadRunResult) -> Re
         result.stop_reason
     )?;
     writeln!(output, "node_order={}", json_cell(&result.node_order)?)?;
-    if result.mining.is_empty() {
+    if result.mining.is_empty() && result.attention.is_empty() {
         writeln!(output, "outputs={}", json_cell(&result.outputs)?)?;
+    } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text")
+        && !result.attention.is_empty()
+    {
+        writeln!(
+            output,
+            "output=text · {} canonical attention lines · {} bytes",
+            value.lines().count(),
+            value.len()
+        )?;
     } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text") {
         writeln!(
             output,
@@ -1928,6 +2145,9 @@ fn write_workload_run(output: &mut impl Write, result: &WorkloadRunResult) -> Re
                 omission.kind, omission.omitted_count, omission.reason
             )?;
         }
+    }
+    for attention in &result.attention {
+        write_portfolio_attention_evidence(output, attention, 2, TerminalStyle { enabled: false })?;
     }
     Ok(())
 }
@@ -2807,6 +3027,10 @@ enum CliError {
     InvalidLimit,
     #[error("source-mining runs require at least one workspace-relative --source path")]
     MissingSourceFiles,
+    #[error("text workload runs require --input")]
+    MissingWorkloadInput,
+    #[error("portfolio-attention runs use retained inputs and reject --input or source options")]
+    UnexpectedPortfolioInput,
     #[error("--source and source-context options are only valid for a source-mining workload")]
     UnexpectedSourceFiles,
     #[error("--patch requires human table output")]
@@ -2825,6 +3049,8 @@ enum CliError {
     Delta(#[from] rey_diff::DeltaError),
     #[error(transparent)]
     Workload(#[from] rey_runtime::WorkloadError),
+    #[error(transparent)]
+    Portfolio(#[from] rey_runtime::PortfolioError),
     #[error(transparent)]
     WorkloadState(#[from] LocalWorkloadStateError),
     #[error(transparent)]

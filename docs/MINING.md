@@ -10,6 +10,12 @@ match delta, workload graph, terminal projections, and delta-directed reasoning
 fixture are also implemented. External tool providers, structural indexes, and
 general visualization specifications are not.
 
+ADR 0022 and Plan 0010 now extend this foundation with ongoing portfolio
+mining. The canonical portfolio snapshot and workload-attention relation, a
+scenario-qualified system workload, and all four workload CLI projections are
+implemented; ownership declarations, live invalidation, scheduler handoff,
+and proposal/admission remain active work.
+
 ## Purpose
 
 Mining is the bounded process of turning context into navigable, addressable
@@ -78,6 +84,35 @@ bounded exact match records and context spans. It does not imply AST support,
 semantic resolution, or permission to run arbitrary commands. Language
 parsers, compiler services, and semantic indexes are richer providers that
 must advertise their own contracts and limitations.
+
+## Ongoing Portfolio Mining
+
+Mining is not finished when one workload operation returns. Rey runs two
+nested conceptual campaigns:
+
+```text
+workload:  execute graph → mine observations → diff scenarios → refine graph
+portfolio: mine catalog/results/environment/coverage → derive attention
+           → admit work → test → observe portfolio again
+```
+
+Workloads are instruments for mining their declared domain and objects mined
+for attention. The outer input is one exact `rey.portfolio-snapshot.v1`, not an
+ambient repository sweep. It binds workload/graph revisions, qualification and
+result evidence, retained environment revision, changed dependencies, missing
+capabilities, mapped surfaces, declared owners, policy, and effective limits.
+
+The output `rey.workload-attention.v1` is a canonical typed relation with
+`REFINE`, `RETEST`, `CREATE`, `BLOCK`, and `POLICY_EXCLUDED` actions. Reasons,
+readiness, blockers/exclusions, citations, priority, and estimated cost remain
+separate. A typed empty relation means no attention was derived under those
+inputs and bounds; it is not universal convergence or proof.
+
+The generic scheduler consumes admitted ready attention; it does not derive
+domain facts. A bounded reasoning surface may expand selected attention with
+more relational or source mining. Parser, symbol, metric, and visualization
+capabilities are tools used to investigate that attention, not substitutes for
+the portfolio loop.
 
 ## Common Mining Lifecycle
 
@@ -322,6 +357,12 @@ bindings, and reasoning selection; `workloads status` reopens retained
 evidence; and `workloads run --source` executes the qualified graph against
 explicit caller-selected paths. JSON retains the same verified semantic
 artifacts without progress text.
+
+`rey.portfolio.attention` adds the outer-loop verification path. `list` and
+`status` expose current attention and mapped-surface coverage from retained
+inputs; `test -vv` opens reviewed refine/retest/create/block/exclusion/clean
+scenarios with exact relation identities; and an input-free qualified `run`
+re-evaluates the retained catalog, workload results, and environment snapshot.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,

@@ -125,6 +125,14 @@ then claim typed round-trip behavior.
 
 ## Mining Comparison Families
 
+Portfolio mining consumes comparison evidence rather than inventing another
+untyped task queue. `rey.workload-attention.v1` derives actions and reasons
+from exact qualification/result state, changed dependencies, missing
+capabilities, and ownership coverage. `REFINE`, `RETEST`, `CREATE`, `BLOCK`,
+and `POLICY_EXCLUDED` remain typed facts with citations. A later scheduler may
+select ready rows, but cannot erase the source deltas or reinterpret a blocked
+row as equal or converged.
+
 The common delta invariants apply to several evidence shapes. Rey chooses a
 declared comparison family rather than coercing every input into a table or
 string.

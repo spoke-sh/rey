@@ -19,6 +19,12 @@ ADR 0017 makes mining the evidence-acquisition layer after selection. The
 frontier may be directed by relational, text, structural, or claim evidence;
 the generic scheduler remains ignorant of domain-specific mining semantics.
 
+ADR 0022 introduces a distinct upstream `rey.workload-attention.v1` relation.
+Portfolio mining derives why a workload or uncovered surface needs attention;
+the frontier/scheduler remains responsible for admitted bounded selection. The
+first attention relation is executable, but its adapter into `rey.frontier.v2`
+is intentionally the next stage rather than an implicit conversion.
+
 ## Frontier Envelope
 
 `rey.frontier.v2` is a bounded, content-identified relation derived from exact
@@ -229,6 +235,16 @@ Construction and replay verification reject broken bindings.
 This fixture proves the handoff; it does not make the generic frontier aware of
 search or source semantics. Optional truncated mining remains inconclusive and
 does not derive a misleading ready row.
+
+### Portfolio Attention Boundary
+
+Portfolio attention preserves `REFINE`, `RETEST`, `CREATE`, `BLOCK`, and
+`POLICY_EXCLUDED`, with reason, readiness, evidence, dependency, priority, and
+estimated cost fields. Only ready rows are candidates for a later frontier.
+Blocked and excluded rows remain visible portfolio evidence and must not be
+silently filtered from human or machine summaries. The scheduler may enforce
+limits and select rows, but it may not invent an attention reason or turn
+exclusion into convergence.
 
 ## Deferred Behavior
 

@@ -170,6 +170,18 @@ state, list/status/batch, and scenario-output schemas to v2. The hard cut has no
 v1 decoder because pre-alpha retained workload state is local, bounded, and
 must never be silently reinterpreted under new evidence semantics.
 
+ADR 0022 and Plan 0010 add portfolio mining without expanding the workspace's
+third-party dependency closure. `rey-runtime` now directly uses the existing
+Polars and `rey-dataframe` workspace dependencies for the canonical
+`rey.workload-attention.v1` relation. It adds typed portfolio snapshot and
+attention values, two deterministic built-in graph operations, one compiled
+system workload, and additive retained attention evidence in scenario/run
+results. Existing v2 workload documents remain replay-compatible when the
+additive attention collection is empty.
+The public list, status, and status-batch envelopes advance to v3 because they
+now require a portfolio-attention document and add per-workload attention
+counts; the local state and test/run schemas remain v2.
+
 The next mining implementation should continue to prefer existing
 Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser
 framework, regex engine, tree/graph library, visualization library, async
@@ -228,4 +240,6 @@ nix run path:$PWD -- env log -p
 nix run path:$PWD -- env status --format json
 nix run path:$PWD -- workloads list --format table
 nix run path:$PWD -- workloads test rey.fixture.text-normalize --format table -vv
+nix run path:$PWD -- workloads test rey.portfolio.attention --format table -vv
+nix run path:$PWD -- workloads run rey.portfolio.attention --format table
 ```

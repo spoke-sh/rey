@@ -5,18 +5,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use rey_core::ContractIdentity;
+use rey_core::{ContractIdentity, SemanticHasher};
+use rey_environment::{CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
 use rey_runtime::{
-    QualificationRecord, RunStatus, TestStatus, WorkloadDefinition, WorkloadRunResult,
-    WorkloadTestResult,
+    AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
+    PortfolioError, PortfolioLimits, PortfolioQualificationState, PortfolioSnapshot,
+    PortfolioSurfaceObservation, PortfolioWorkloadObservation, QualificationRecord, RunStatus,
+    TestStatus, WorkloadAttention, WorkloadDefinition, WorkloadRunResult, WorkloadTestResult,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v2";
-pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v2";
-pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v2";
-pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v2";
+pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v3";
+pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v3";
+pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v3";
 pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v2";
 
 const STATE_FILE_NAME: &str = "state.json";
@@ -327,6 +330,8 @@ pub struct WorkloadSummary {
     pub incomplete_mining_results: u64,
     pub relation_deltas: u64,
     pub reasoning_surfaces: u64,
+    pub attention_results: u64,
+    pub attention_rows: u64,
 }
 
 impl WorkloadSummary {
@@ -381,7 +386,10 @@ impl WorkloadSummary {
         }
         let mining_operations = operations
             .iter()
-            .filter(|operation| operation.id.starts_with("rey.source-"))
+            .filter(|operation| {
+                operation.id.starts_with("rey.source-")
+                    || operation.id == "rey.portfolio.attention.derive"
+            })
             .count() as u64;
         let mining = retained_test
             .filter(|result| result.verify_for(workload).is_ok())
@@ -389,19 +397,34 @@ impl WorkloadSummary {
             .flat_map(|result| &result.scenarios)
             .flat_map(|scenario| &scenario.mining)
             .collect::<Vec<_>>();
-        let mining_results = mining.len() as u64;
-        let complete_mining_results = mining
+        let source_mining_results = mining.len() as u64;
+        let complete_source_mining_results = mining
             .iter()
             .filter(|evidence| {
                 evidence.execution.evidence.result.completeness
                     == rey_mining::MiningCompleteness::Complete
             })
             .count() as u64;
-        let incomplete_mining_results = mining_results.saturating_sub(complete_mining_results);
+        let incomplete_mining_results =
+            source_mining_results.saturating_sub(complete_source_mining_results);
         let reasoning_surfaces = mining
             .iter()
             .filter(|evidence| evidence.reasoning.is_some())
             .count() as u64;
+        let attention = retained_test
+            .filter(|result| result.verify_for(workload).is_ok())
+            .into_iter()
+            .flat_map(|result| &result.scenarios)
+            .flat_map(|scenario| &scenario.attention)
+            .collect::<Vec<_>>();
+        let attention_results = attention.len() as u64;
+        let attention_rows = attention
+            .iter()
+            .map(|attention| attention.rows.len() as u64)
+            .sum();
+        let mining_results = source_mining_results.saturating_add(attention_results);
+        let complete_mining_results =
+            complete_source_mining_results.saturating_add(attention_results);
         Self {
             workload: workload.workload.clone(),
             title: workload.title.clone(),
@@ -426,8 +449,10 @@ impl WorkloadSummary {
             mining_results,
             complete_mining_results,
             incomplete_mining_results,
-            relation_deltas: mining_results,
+            relation_deltas: source_mining_results.saturating_add(attention_results),
             reasoning_surfaces,
+            attention_results,
+            attention_rows,
         }
     }
 }
@@ -436,14 +461,16 @@ impl WorkloadSummary {
 pub struct WorkloadList {
     pub schema: String,
     pub workloads: Vec<WorkloadSummary>,
+    pub attention: WorkloadAttention,
 }
 
 impl WorkloadList {
     #[must_use]
-    pub fn new(workloads: Vec<WorkloadSummary>) -> Self {
+    pub fn new(workloads: Vec<WorkloadSummary>, attention: WorkloadAttention) -> Self {
         Self {
             schema: WORKLOAD_LIST_SCHEMA.to_owned(),
             workloads,
+            attention,
         }
     }
 }
@@ -461,16 +488,110 @@ pub struct WorkloadStatusView {
 pub struct WorkloadStatusBatch {
     pub schema: String,
     pub statuses: Vec<WorkloadStatusView>,
+    pub attention: WorkloadAttention,
 }
 
 impl WorkloadStatusBatch {
     #[must_use]
-    pub fn new(statuses: Vec<WorkloadStatusView>) -> Self {
+    pub fn new(statuses: Vec<WorkloadStatusView>, attention: WorkloadAttention) -> Self {
         Self {
             schema: WORKLOAD_STATUS_BATCH_SCHEMA.to_owned(),
             statuses,
+            attention,
         }
     }
+}
+
+pub fn derive_portfolio_snapshot(
+    definitions: &[WorkloadDefinition],
+    state: &LocalWorkloadState,
+    environment: Option<&CapabilitySnapshot>,
+) -> Result<PortfolioSnapshot, PortfolioError> {
+    let mut catalog_hasher = SemanticHasher::new("rey.workload-catalog.v1");
+    catalog_hasher.add_u64(definitions.len() as u64);
+    let mut workloads = Vec::with_capacity(definitions.len());
+    for definition in definitions {
+        definition.workload.add_semantics(&mut catalog_hasher);
+        definition.graph.graph.add_semantics(&mut catalog_hasher);
+        let summary = WorkloadSummary::derive(definition, state.record(&definition.workload.id));
+        let (policy, policy_reason) = if definition.workload.id == BUILT_IN_MISMATCH_WORKLOAD_ID {
+            (
+                AttentionPolicy::Exclude,
+                Some("deliberate failing conformance fixture".to_owned()),
+            )
+        } else if definition.workload.id == BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID {
+            (
+                AttentionPolicy::Exclude,
+                Some("portfolio miner cannot schedule itself".to_owned()),
+            )
+        } else {
+            (AttentionPolicy::Track, None)
+        };
+        let record = state.record(&definition.workload.id);
+        let mut evidence_ids = Vec::new();
+        if let Some(result) = record.and_then(|record| record.last_test.as_ref()) {
+            evidence_ids.push(result.result_id.clone());
+        }
+        if let Some(result) = record.and_then(|record| record.last_run.as_ref()) {
+            evidence_ids.push(result.run_id.clone());
+        }
+        workloads.push(PortfolioWorkloadObservation {
+            workload: definition.workload.clone(),
+            graph: definition.graph.graph.clone(),
+            qualification: match summary.qualification {
+                QualificationState::Untested => PortfolioQualificationState::Untested,
+                QualificationState::Qualified => PortfolioQualificationState::Qualified,
+                QualificationState::Failing => PortfolioQualificationState::Failing,
+                QualificationState::Inconclusive => PortfolioQualificationState::Inconclusive,
+                QualificationState::Stale => PortfolioQualificationState::Stale,
+            },
+            policy,
+            policy_reason,
+            evidence_ids,
+            changed_dependency_ids: Vec::new(),
+            missing_capability_ids: Vec::new(),
+        });
+    }
+    let surfaces = environment
+        .into_iter()
+        .flat_map(|snapshot| &snapshot.capabilities)
+        .filter(|capability| {
+            capability.provider_id == ENVIRONMENT_MAP_PROVIDER_ID
+                && capability.capability_kind == "input_file"
+        })
+        .map(|capability| {
+            let mut hasher = SemanticHasher::new("rey.portfolio-surface.v1");
+            hasher.add_str(&capability.capability_id);
+            hasher.add_optional_str(capability.resolved_location.as_deref());
+            hasher.add_optional_str(capability.content_digest.as_deref());
+            PortfolioSurfaceObservation {
+                surface_id: capability
+                    .resolved_location
+                    .clone()
+                    .unwrap_or_else(|| capability.capability_id.clone()),
+                source_revision: hasher.finish(),
+                owners: Vec::new(),
+                evidence_ids: environment
+                    .map(|snapshot| vec![snapshot.semantic_digest.clone()])
+                    .unwrap_or_default(),
+            }
+        })
+        .collect();
+    PortfolioSnapshot::new(
+        catalog_hasher.finish(),
+        environment.map(|snapshot| snapshot.semantic_digest.clone()),
+        workloads,
+        surfaces,
+        PortfolioLimits::default(),
+    )
+}
+
+pub fn derive_workload_attention(
+    definitions: &[WorkloadDefinition],
+    state: &LocalWorkloadState,
+    environment: Option<&CapabilitySnapshot>,
+) -> Result<WorkloadAttention, PortfolioError> {
+    WorkloadAttention::derive(&derive_portfolio_snapshot(definitions, state, environment)?)
 }
 
 impl WorkloadStatusView {

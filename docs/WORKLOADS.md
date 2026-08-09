@@ -8,6 +8,8 @@ manifests, generated graph revision, and the recurring improvement campaign
 remain target contracts. ADR 0017 makes relational and source mining
 first-class graph capabilities; ADR 0018 fixes their first executable workload
 slice.
+ADR 0022 adds the implemented portfolio-mining system workload and makes
+workload attention the outer loop's typed scheduler input.
 
 ## Public Unit
 
@@ -28,6 +30,7 @@ rey env ...
 rey workloads [--workspace PATH] [--state-dir PATH] list
 rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]
+rey workloads [--workspace PATH] [--state-dir PATH] run rey.portfolio.attention
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
@@ -35,7 +38,11 @@ The environment group inventories available compute. The workloads group
 declares what that compute is for, measures whether a generated graph behaves
 as expected, and runs a qualified graph against admitted inputs.
 
-The built-in catalog contains three conformance workloads:
+The built-in catalog contains four conformance workloads:
+
+- `rey.portfolio.attention` derives and renders the canonical typed attention
+  relation from one frozen portfolio snapshot. Six required scenarios cover
+  blocked, clean, create, excluded, refine, and retest behavior.
 
 - `rey.fixture.source-search` executes literal source search followed by a
   canonical match renderer. Required empty/exact scenarios pass; optional
@@ -317,7 +324,8 @@ running · queued · stale · optional
 ```
 
 The human `rey workloads list` view first aggregates qualification, scenario,
-run, and inventory dimensions across the portfolio. It then renders one card
+run, inventory, mining, attention, and mapped-surface coverage dimensions
+across the portfolio. It then renders a canonical attention frontier and one card
 per workload with a derived journey, passing and evaluated coverage, explicit
 evaluation counts, qualification state, exact candidate and qualified graph
 identities, retained test evidence, freshness, and latest run state. For
@@ -325,11 +333,17 @@ example:
 
 ```text
 WORKLOAD PORTFOLIO
-  Qualification          2/3 qualified · 1 failing · 0 inconclusive · 0 stale
-  Scenarios              5/6 passing · 6/6 evaluated · 0 stale · 2 optional
-  Runs                   1 passed · 0 blocked · 2 not run
-  Inventory              3 total · 3 tested · 0 untested
-  Mining                 1 workloads · 4 retained results · 1 incomplete
+  Qualification          3/4 qualified · 1 failing · 0 inconclusive · 0 stale
+  Scenarios              11/12 passing · 12/12 evaluated · 0 stale · 2 optional
+  Runs                   1 passed · 0 blocked · 3 not run
+  Inventory              4 total · 4 tested · 0 untested
+  Mining                 2 workloads · 10 retained results · 1 incomplete
+  Attention              0 refine · 0 retest · 1 create · 0 blocked · 1 policy excluded
+  Coverage               1 mapped surfaces · 0 owned · 1 unowned
+
+ATTENTION FRONTIER
+  CREATE           Cargo.toml · unowned_surface · ready · priority 80 · cost 5
+  POLICY_EXCLUDED  rey.fixture.text-mismatch · policy_excluded · excluded · priority 0 · cost 0
 
 rey.fixture.source-search
   Journey                RUN READY
@@ -404,7 +418,7 @@ identities and dependency facts, never toggled manually.
 | --- | --- |
 | `workloads list` | Read the selected catalog and retained result index; show every resolved workload, candidate and qualified graph identities, operations, fresh scenario counts, progress bar, mining-result completeness, relation-delta/reasoning counts, and last campaign/run summary. It performs no graph execution. |
 | `workloads test [id]` | Test one workload, or every workload resolved by the selected catalog when no id is supplied. Execute bounded graphs and probes, retain actual-versus-expected text/relation deltas and mining evidence, and qualify only exact all-passing required-scenario graph revisions. The workload-count bound fails closed rather than silently truncating. |
-| `workloads run id` | Execute the exact current fresh qualified graph against admitted real inputs and explicit source paths through the declared providers; retain outputs and exact mining lineage. |
+| `workloads run id` | Execute the exact current fresh qualified graph against admitted real inputs and explicit source paths through the declared providers; retain outputs and exact mining lineage. The portfolio workload takes no `--input`: it binds the compiled catalog, retained workload state, and retained environment HEAD/admission index. |
 | `workloads status [id]` | Read detailed current state for one workload, or a catalog summary when omitted: resolved revisions, candidate/qualified graph, campaign stop reason, per-scenario deltas, mining results, omissions, frontier selection, reasoning evidence, qualification, staleness, and latest run. It performs no repair or execution. |
 
 `list` and `status` return success when inspection succeeds even if workloads
@@ -437,6 +451,11 @@ selects bounded unresolved work. Mining retrieves and projects the relevant
 relational and source evidence. A policy then proposes a graph revision or
 another admitted action.
 
+There is also an outer campaign. `rey.portfolio.attention` mines workloads and
+mapped surfaces into a bounded attention relation. Its ready rows can later
+become generic frontier rows; blocked and policy-excluded rows remain visible
+but ineligible. This derivation directs scheduling and does not replace it.
+
 The workload slice made the required pre-alpha hard cut. `rey.frontier.v2`,
 `rey.frontier-progress.v2`, `rey.scheduling-decision.v2`, and
 `rey.reasoning-surface.v3` bind exact workload, graph, scenario-suite, and
@@ -446,12 +465,17 @@ No compatibility alias or decoder silently relabels the superseded schemas.
 
 ## Initial Implementation Boundary
 
-The implemented slice uses three small fixture workloads, finite graphs
+The implemented slice uses four small built-in workloads, finite graphs
 composed from built-in deterministic operations, and reviewed scenarios. It
 exercises all four commands without an agent or Spoke. The source-search
 workload closes the first mining loop from explicit corpus through operation,
 typed relation/native context, ordered and relational deltas, one scheduled
 frontier row, reasoning surface, qualification, and admitted real-input run.
+The portfolio workload closes a second deterministic path from catalog,
+retained results, and environment mapping through typed attention, scenario
+qualification, list/status inspection, and retained-input run. It currently
+treats admitted mapped files as unowned because workload ownership declaration
+syntax is the next Plan 0010 anchor.
 Generic distributed or recurring scheduling, arbitrary code execution,
 external workload manifests, a persistence engine, parser/index breadth, and
 provider-specific policy loops remain outside this boundary.

@@ -2579,7 +2579,9 @@ dependencies = [
 name = "rey-runtime"
 version = "0.1.0"
 dependencies = [
+ "polars",
  "rey-core",
+ "rey-dataframe",
  "rey-diff",
  "rey-environment",
  "rey-frontier",

@@ -364,6 +364,15 @@ is not a Git object database and claims no pathspec, reset/restore, branches,
 merges, rewrite, `fsync`, locking, authenticated writer, remote durability, or
 Spoke revision semantics.
 
+Retained environment revisions are also portfolio-mining inputs. Read-only
+`workloads list` and `status` consume the exact admission-index snapshot when
+present, otherwise committed HEAD; they never perform a fresh environment
+probe. The first `rey.portfolio.attention` slice treats admitted mapping nodes
+of kind `input_file` as context surfaces. A mapped file with no declared
+workload owner yields a visible `CREATE` row. Environment admission remains
+evidence acceptance only: it neither creates that workload nor grants mapped
+executables authority.
+
 ## Standalone Evidence
 
 Standalone mode can write a bounded content-addressed evidence bundle to an

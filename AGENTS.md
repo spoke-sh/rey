@@ -61,6 +61,12 @@ exists.
   omissions, and exact source links; it cannot change semantic assessment.
 - Treat the workload as the public unit of computation: one versioned graph,
   scenario suite, policy boundary, qualification contract, and total budget.
+- Treat mining as ongoing across nested loops: workloads mine their declared
+  domains, while portfolio mining derives typed attention from catalog,
+  result, environment, dependency, capability, ownership, and coverage facts.
+- Keep portfolio attention separate from scheduling policy. A scheduler may
+  select ready rows but cannot invent their reasons, hide blockers or policy
+  exclusions, or let a proposer declare its own row resolved.
 - Let agents propose compute-graph revisions through the same validated
   contract as rules or humans; deterministic scenarios decide qualification.
 - Preserve failing scenario results as directed typed deltas from expected to

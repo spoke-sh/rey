@@ -53,7 +53,11 @@ comparison, and broader proof coverage.
 The compiled workload catalog, four-command CLI, typed DAG, scenario
 qualification, common mining manifests, exact local literal search, typed match
 and ordered text deltas, source-search workload, linked human projections, and
-one failure-derived reasoning surface are delivered. The remaining bullets in
+one failure-derived reasoning surface are delivered. Plan 0010 also delivers
+the first deterministic outer-loop slice: canonical portfolio snapshots,
+typed workload attention, the `rey.portfolio.attention` system workload, and
+list/test/run/status projections over retained catalog/result/environment
+inputs. The remaining bullets in
 this phase concern general declarations, activation, invalidation, recurring
 execution, and broader provider behavior.
 
@@ -73,6 +77,10 @@ execution, and broader provider behavior.
   evidence-linked table and patch projections.
 - Exercise mining through a scenario-qualified workload and project a bounded
   delta-directed reasoning surface from its failure.
+- Mine the workload portfolio for refine/retest/create/block/exclusion
+  attention and expose exact coverage through the existing workload CLI.
+- Declare workload surface ownership, derive invalidation from retained
+  environment/Git deltas, and adapt ready attention into the generic frontier.
 - Prove source/tool drift, truncation, unsupported input, deterministic replay,
   and zero-Spoke behavior before adding parser or index breadth.
 - Admit deterministic read-only probes against frozen inputs.

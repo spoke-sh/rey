@@ -133,6 +133,8 @@ poll cursors, and delta-triggered workloads.
 | Mining operation | Versioned relational or source transformation with typed inputs, outputs, effects, limits, and completeness | Rey contract; implemented by built-in or discovered provider adapters |
 | Mining request | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale | Rey transition or graph-node evidence |
 | Mining result | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions | Rey evidence index; artifacts remain provider-owned or explicitly retained |
+| Portfolio snapshot | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation | Rey runtime evidence; derived from catalog/result/environment providers |
+| Workload attention | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost | Rey runtime working evidence; local or Spoke-backed when retained |
 | Action proposal | Policy request naming frozen inputs, effect class, and bounds | Rey trace |
 | Run/attempt | Provider-owned execution and capture lineage | Local executor or Spoke compute, explicitly distinguished |
 | Delta | Directed typed comparison between compatible frames | Rey evidence; local or Spoke-backed |
@@ -288,6 +290,18 @@ It records grouping, ordering, context, layout, aggregation, elision, sampling,
 limits, omissions, and deep links. Tables, patches, trees, graphs, timelines,
 and metric panels cannot change the underlying delta assessment, proof status,
 coverage, confidence, or progress.
+
+Mining operates in two nested loops. The inner workload campaign mines a
+declared domain, evaluates scenarios, and uses output deltas to refine its
+graph. The outer portfolio campaign mines exact catalog, retained result,
+environment/dependency, capability, ownership, and coverage inputs to derive
+which workload or uncovered surface needs attention. Workloads are therefore
+both mining instruments and mineable runtime context.
+
+`rey.workload-attention.v1` is evidence between derivation and scheduling. Its
+ready rows may feed the generic frontier; blocked and policy-excluded rows stay
+visible but ineligible. The scheduler does not invent attention reasons, and a
+policy cannot resolve its own row. See [ADR 0022](decisions/0022-portfolio-mining-and-workload-attention.md).
 
 See [Mining Context Into Evidence](MINING.md) and
 [ADR 0017](decisions/0017-mining-capability-model.md).
@@ -613,7 +627,15 @@ from its complete failing evidence, selects it with the generic scheduler, and
 projects one verified reasoning surface. The CLI exposes complete, different,
 and truncated mining evidence through all four workload commands.
 
-No admitted `rg` search, regex/case-folded search, parser/index provider,
-general structural delta or visualization specification, recurring scheduler,
-or agent proposal loop is implemented. Those require a new named workload and
-the same human-verifiable end-to-end boundary before they count as delivered.
+The first portfolio-mining slice adds `rey.portfolio-snapshot.v1`, the
+Polars-backed `rey.workload-attention.v1` relation, and the qualified
+`rey.portfolio.attention` system workload. The workload CLI now exposes exact
+attention actions, reasons, readiness, coverage, evidence, priority, cost, and
+exclusions. Read-only list/status consume retained environment state; run
+evaluates the same retained portfolio inputs under fresh qualification.
+
+No workload ownership declaration, live dependency invalidation, attention-to-
+frontier adapter, admitted portfolio proposal, recurring scheduler, admitted
+`rg` search, parser/index provider, general structural delta, or agent loop is
+implemented. Those require the same human-verifiable end-to-end boundary
+before they count as delivered.
