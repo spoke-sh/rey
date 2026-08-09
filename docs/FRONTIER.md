@@ -220,6 +220,7 @@ proposal parsing, action admission, execution, retry, transition persistence,
 activation, and recurring scheduling. They must consume these contracts rather
 than introducing a provider-specific queue or second lifecycle.
 
-Plan 0006 adds the first provider-neutral mining request/result and a
-delta-directed reasoning-surface fixture. It does not change the scheduling
-order or make the frontier a query, parsing, indexing, or visualization engine.
+Plan 0006 has added the first provider-neutral mining request/result contract
+and next adds a delta-directed reasoning-surface fixture. It does not change
+the scheduling order or make the frontier a query, parsing, indexing, or
+visualization engine.

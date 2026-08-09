@@ -25,9 +25,10 @@ capabilities become discoverable Rey providers. Do not create a build, package,
 storage, or startup cycle between the repositories.
 
 The repository currently contains foundational documents, a pinned Rust
-development shell, and a ten-crate Cargo workspace. Executable behavior remains
-narrow: inspect current files and tests before inferring that a provider,
-adapter, scheduler loop, action executor, or Spoke integration exists.
+development shell, and an eleven-crate Cargo workspace. Executable behavior
+remains narrow: inspect current files and tests before inferring that a
+provider, adapter, scheduler loop, action executor, or Spoke integration
+exists.
 
 ## Read This First
 
@@ -84,7 +85,7 @@ adapter, scheduler loop, action executor, or Spoke integration exists.
 
 ## Target System Shape
 
-The provisional ownership map is:
+The implemented and target ownership map is:
 
 ```text
 rey                 workload CLI, catalog composition, and local orchestration
@@ -101,8 +102,9 @@ rey-policy          policy proposal contract; no provider-specific agent loop
 rey-spoke           optional Spoke provider, source bindings, runs, and persistence
 ```
 
-This is a target ownership map, not a claim that these crates exist or must each
-become a process. Active plans may refine it before scaffolding.
+This is an ownership map, not a requirement that every boundary become a
+process. The workspace proves which crates exist; provider implementations and
+the optional `rey-spoke` boundary remain plan-owned target work.
 
 ## Decision Resolution
 

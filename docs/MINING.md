@@ -3,8 +3,10 @@
 This document defines Rey's target mining model. [ADR 0017](decisions/0017-mining-capability-model.md)
 accepts mining as the capability layer that joins environment surfaces to
 workload graphs, deltas, frontiers, and reasoning surfaces. Plan 0006 owns the
-first executable slice. Generic mining requests, text deltas, structural
-indexes, and visual specifications are not implemented yet.
+first executable slice. Provider-neutral mining operation, request, result,
+artifact, completeness, lineage, dependency, and limit contracts are now
+implemented; provider execution, text deltas, structural indexes, and concrete
+visual specifications are not.
 
 ## Purpose
 
@@ -268,15 +270,20 @@ Spoke query semantics.
 
 Current Rey discovers the allowlisted `rg` and `git` executables by bounded
 identity probes, observes part of one Git repository, operates on typed
-capability frames, and implements narrow UTF-8 scenario deltas. It does not yet
-execute `rg` as a mining provider, expose a generic mining request/result,
-compare arbitrary source artifacts, parse ASTs/CSTs, build a semantic index,
-or render general tree/graph visualizations.
+capability frames, implements narrow UTF-8 scenario deltas, and exposes
+canonical `rey.mining-operation.v1`, `rey.mining-request.v1`, and
+`rey.mining-result.v1` manifests. Their constructors and replay verification
+bind exact workload/frontier rationale, provider and capability identity,
+typed parameters, native or structured artifact references, effective limits,
+completeness, omissions, consumption, lineage, and invalidation dependencies.
+Rey does not yet execute `rg` as a mining provider, compare arbitrary source
+artifacts, parse ASTs/CSTs, build a semantic index, or render general tree/graph
+visualizations.
 
 Plan 0006 starts with one end-to-end standalone slice:
 
-1. freeze common operation, request, result, artifact, limit, completeness, and
-   lineage contracts;
+1. use the frozen common operation, request, result, artifact, limit,
+   completeness, and lineage contracts;
 2. adapt bounded read-only source search and exact context retrieval;
 3. project matches as a typed relation while retaining source text natively;
 4. compute one relational delta and one ordered text delta;

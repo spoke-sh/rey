@@ -303,20 +303,21 @@ Rey is not:
 
 ## Current Status And Next Bearing
 
-The repository contains a ten-crate Rust workspace. Implemented behavior
+The repository contains an eleven-crate Rust workspace. Implemented behavior
 includes bounded standalone capability discovery, allowlisted `git` and `rg`
 identity probes, a partial read-only Git observation, typed capability
 snapshot deltas, Arrow and Tabular Diff projections, scoped capability
 certificates, bounded local proof bundles, a formal runtime reducer, canonical
 frontier/progress/scheduling contracts, bounded reasoning-surface contracts,
-and the first deterministic workload CLI slice.
+the first deterministic workload CLI slice, and provider-neutral mining
+operation/request/result manifests with canonical replay verification.
 
-Mining is now accepted target architecture, not yet an implemented generic
-operation family. The next bearing is [Plan 0006](plans/0006-mining-strategy.md):
-freeze provider-neutral mining contracts, implement one bounded relational and
-source mining path, produce directed typed and text evidence, and exercise it
-through a scenario-qualified workload before adding AST/CST adapters, semantic
-indexes, broad metrics, or generic scheduling.
+Mining now has a narrow implemented contract plane, but no source-search or
+relational provider executes through it yet. The next bearing in
+[Plan 0006](plans/0006-mining-strategy.md) is to freeze one exact local source
+binding and bounded search provider, then produce typed match evidence and
+native context through the same verified request/result contract before adding
+AST/CST adapters, semantic indexes, broad metrics, or generic scheduling.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

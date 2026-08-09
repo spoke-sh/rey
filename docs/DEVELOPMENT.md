@@ -146,12 +146,12 @@ JSON result state. The workload identity cutover advances frontier, progress,
 and scheduling to v2 and reasoning surfaces to v3; it does not add a general
 manifest parser, persistence engine, async runtime, or agent transport.
 
-ADR 0017 accepts the relational/source mining capability model and introduces
-`rey-mining` only as a provisional target ownership boundary. This
-documentation change adds no crate or dependency. Plan 0006 must first freeze
-the smallest operation/request/result, artifact, completeness, dependency, and
-visualization contracts. Creating the crate is justified only if those shared
-contracts would otherwise produce unclear ownership or dependency cycles.
+ADR 0017 accepts the relational/source mining capability model. Plan 0006 now
+implements the narrow `rey-mining` ownership boundary for provider-neutral
+operation, request, result, artifact, completeness, dependency, lineage, and
+limit contracts. The crate adds no third-party dependency beyond the existing
+Serde, BLAKE3 identity, and error closure; it is not a query engine, parser
+bundle, tool runner, visualization library, or persistence layer.
 
 The first mining implementation should prefer existing Polars/Arrow, Serde,
 BLAKE3, and bounded-process infrastructure. A parser framework, regex engine,

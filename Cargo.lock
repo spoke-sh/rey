@@ -2492,6 +2492,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rey-mining"
+version = "0.1.0"
+dependencies = [
+ "rey-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "rey-policy"
 version = "0.1.0"
 dependencies = [

@@ -525,8 +525,8 @@ The first design proposes these Rust ownership boundaries:
 | `rey-spoke` | Optional Spoke provider, exact source bindings, compute runs, and artifact persistence |
 
 This table is an ownership proposal, not a requirement for one process per
-crate. Plan 0006 may create or defer `rey-mining` after freezing the common
-contracts; semantic ownership must remain legible either way.
+crate. Plan 0006 has created the narrow `rey-mining` contract crate; provider
+execution remains in the adapters that own its source and tool semantics.
 
 ## Failure And Limits
 
@@ -578,8 +578,12 @@ Workload-specific frontier derivation and invalidation, recurring
 scheduling, provider retrieval/execution, policy proposals, Git activation,
 and the Spoke provider remain target architecture.
 
-The mining plane and provisional `rey-mining` ownership are target architecture
-accepted by ADR 0017. No generic mining request/result, admitted `rg` search,
-text/structural delta, parser/index provider, or general visualization contract
-is implemented yet. Plan 0006 owns the first end-to-end mining slice before
-AST/CST, semantic-index, broad metric, or generic scheduling work.
+The `rey-mining` crate now implements the provider-neutral operation, request,
+result, artifact, completeness, lineage, dependency, and bound contracts
+accepted by ADR 0017. Canonical semantic identities include evidence-changing
+parameters and effective limits; replay verification rejects tampering and
+request, provider, capability, or implementation drift. No admitted `rg`
+search, arbitrary text/structural delta, parser/index provider, concrete
+visualization specification, or end-to-end mining workload is implemented yet.
+Plan 0006 owns that first provider slice before AST/CST, semantic-index, broad
+metric, or generic scheduling work.

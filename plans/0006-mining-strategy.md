@@ -18,7 +18,7 @@ durable index, or an agent loop.
   foundational architecture documents use the mining model consistently.
 - [ ] Version the minimum mining operation, request, result, artifact,
   completeness, dependency, limit, and visualization contracts.
-- [ ] Decide narrow crate ownership and add `rey-mining` only if the accepted
+- [x] Decide narrow crate ownership and add `rey-mining` only if the accepted
   contracts justify it without a dependency cycle.
 - [ ] Freeze one exact local source-binding and read-only source-search
   provider contract, including admitted `rg` behavior or a deterministic
@@ -54,30 +54,37 @@ Implemented foundations already provide:
   contracts; and
 - local-only scoped proof bundles.
 
-The repository does not yet execute `rg` as a mining provider, expose generic
-mining request/result schemas, compare arbitrary ordered text, derive a
+The repository does not yet execute `rg` as a mining provider, compare
+arbitrary ordered text, derive a
 frontier from workload scenario deltas, retrieve provider evidence into a
 reasoning surface, parse syntax, build a semantic index, or render general
 tree/graph visualizations.
 
+`rey-mining` now implements canonical v1 operation, request, and result
+manifests. They bind typed parameters, exact artifact/provider/capability
+identity, effective limits, completeness and omissions, consumption, realized
+implementation lineage, invalidation dependencies, and workload/frontier
+rationale. Constructors canonicalize ordering and replay verification rejects
+tampering and stale request, provider, capability, or implementation bindings.
+
 ## Milestone 1 — Freeze Common Contracts
 
-- [ ] Define operation family/kind, exact identity, implementation revision,
+- [x] Define operation family/kind, exact identity, implementation revision,
   determinism, effect class, input/output artifact contract, typed parameters,
   provider requirements, completeness, invalidation, and limits.
-- [ ] Define mining request identity over workload, graph, scenario/campaign,
+- [x] Define mining request identity over workload, graph, scenario/campaign,
   transition, frontier rationale, exact inputs, operation, parameters,
   capability snapshot, provider, and effective limits.
-- [ ] Define mining result identity over request, realized provider/tool/query/
+- [x] Define mining result identity over request, realized provider/tool/query/
   parser lineage, artifacts, schemas/media types, completeness, omissions,
   consumption, and dependency edges.
-- [ ] Define native, relation, tree, graph, metric, delta, and visualization
+- [x] Define native, relation, tree, graph, metric, delta, and visualization
   artifact references without embedding raw artifacts in a generic envelope.
-- [ ] Define complete, partial, truncated, unsupported, unavailable, and failed
+- [x] Define complete, partial, truncated, unsupported, unavailable, and failed
   result states and their legal artifact/omission shapes.
-- [ ] Keep semantic identity free of timestamps and display-only layout while
+- [x] Keep semantic identity free of timestamps and display-only layout while
   including every parameter and limit that can change evidence meaning.
-- [ ] Decide whether a narrow `rey-mining` crate improves ownership; do not put
+- [x] Decide whether a narrow `rey-mining` crate improves ownership; do not put
   the contracts into `rey-core` merely for convenience.
 
 ## Milestone 2 — Source Binding And Search
