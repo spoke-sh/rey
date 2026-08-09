@@ -306,7 +306,7 @@ implements the pure lifecycle and bounded surface contracts; Plan 0003 adds
 canonical frontier/progress and deterministic work-selection contracts. Neither
 claims those runtime behaviors are implemented in Plan 0001.
 
-Plan 0006 now owns the first bounded mining operation/request/result,
+Plan 0006 completes the first bounded mining operation/request/result,
 source-search, relational/text-delta, visualization, workload-frontier, and
 reasoning-surface implementation slice. Broader codebase mining remains
-deferred until that plan proves the common standalone contract.
+deferred to a named CLI-verifiable workload built on that standalone contract.

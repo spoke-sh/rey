@@ -1,10 +1,22 @@
 #![forbid(unsafe_code)]
 
 mod scenario;
+mod source_matches;
+mod text;
 
 pub use scenario::{
     SCENARIO_OUTPUT_DELTA_SCHEMA, ScenarioDeltaError, ScenarioDeltaInputs, ScenarioDeltaLimits,
     ScenarioOutputDelta, ScenarioValueType, compare_scenario_utf8,
+};
+pub use source_matches::{
+    ExpectedSourceMatch, ObservedSourceMatch, SOURCE_MATCH_DELTA_SCHEMA, SourceMatchChange,
+    SourceMatchChangeKind, SourceMatchDelta, SourceMatchDeltaError, SourceMatchDeltaInputs,
+    SourceMatchDeltaLimits, SourceMatchDeltaSummary, SourceMatchKey, compare_source_matches,
+    source_match_comparator, source_match_table_projection,
+};
+pub use text::{
+    TEXT_DELTA_SCHEMA, TextDelta, TextDeltaError, TextDeltaInputs, TextDeltaLimits, TextHunk,
+    TextLine, TextLineKind, compare_text, text_artifact_id, text_patch_projection,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

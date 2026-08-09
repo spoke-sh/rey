@@ -6,7 +6,7 @@ ships a bounded built-in catalog, typed UTF-8 DAG executor, scenario evaluator,
 local result provider, and the four `rey workloads` commands. External
 manifests, generated graph revision, and the recurring improvement campaign
 remain target contracts. ADR 0017 makes relational and source mining
-first-class graph capabilities; Plan 0006 owns their first executable workload
+first-class graph capabilities; ADR 0018 fixes their first executable workload
 slice.
 
 ## Public Unit
@@ -27,7 +27,7 @@ The accepted command surface is:
 rey environment ...
 rey workloads [--workspace PATH] [--state-dir PATH] list
 rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
-rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8>
+rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
@@ -35,11 +35,18 @@ The environment group inventories available compute. The workloads group
 declares what that compute is for, measures whether a generated graph behaves
 as expected, and runs a qualified graph against admitted inputs.
 
-The built-in catalog currently contains `rey.fixture.text-normalize`, whose
-graph executes `trim -> uppercase` and passes two required scenarios, and
-`rey.fixture.text-mismatch`, whose `uppercase` graph preserves one passing and
-one failing scenario. These are conformance fixtures, not a general workload
-declaration format.
+The built-in catalog contains three conformance workloads:
+
+- `rey.fixture.source-search` executes literal source search followed by a
+  canonical match renderer. Required empty/exact scenarios pass; optional
+  mismatch/truncation scenarios retain review evidence without blocking
+  qualification.
+- `rey.fixture.text-normalize` executes `trim -> uppercase` and passes two
+  required scenarios.
+- `rey.fixture.text-mismatch` executes `uppercase` and preserves one passing
+  and one failing required scenario.
+
+These are not a general workload declaration format.
 
 ## Workload Contract
 
@@ -127,6 +134,16 @@ configuration, source text, or visualization layout is untrusted typed input
 and must satisfy the selected operation schema and bounds. Invoking an external
 miner or reading mutable state is a probe; pure projection over frozen evidence
 is deterministic compute. Neither grants mutation authority.
+
+The implemented source-search graph is the first concrete instance. Its
+external UTF-8 pattern flows into `rey.source-search.literal-utf8@1`; that node
+also requires an explicit source-run input that freezes the canonical root,
+relative file paths, context window, source-binding limits, mining limits, and
+capability snapshot. The resulting `SourceMatches` value flows into
+`rey.builtin.source-matches.render-lines@1` and the workload's UTF-8 output.
+Scenario tests and admitted runs use this identical graph contract. Test mode
+binds a checked-in corpus and reviewed expected relations; run mode requires at
+least one repeatable `--source` path beneath `--workspace`.
 
 ## Scenarios
 
@@ -238,9 +255,12 @@ Verbosity expands evidence without changing evaluation:
 - plain output omits evidence for passing scenarios and always opens the
   directed delta for failing or inconclusive scenarios;
 - `-v` adds the evidence format and matching output evidence for passing
-  scenarios; and
+  scenarios, plus source matches, context, completeness, omissions, and
+  effective limits for mining scenarios; and
 - `-vv` also binds that evidence to exact workload, graph, suite, evaluator,
-  scenario, execution, result, and delta identities.
+  scenario, execution, result, delta, mining operation/provider/capability,
+  corpus/request/result, native source/match/context, frontier, scheduling, and
+  reasoning-surface identities.
 
 For example, a failing plain scenario remains immediately actionable:
 
@@ -249,14 +269,14 @@ FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · requi
      Evidence deltas:
          Delta (output text):
          @@ text · utf8 @@
-         - EXPECTED "REY"
-         + OBSERVED " REY "
+         - REY
+         +  REY
 ```
 
 The final portfolio summary reports workload qualification, scenario
 conformance, scenario evaluation, delta assessments, and issued
 qualifications as separate dimensions. Verbosity is a human projection only:
-JSON always emits the same verified `rey.workload-test-batch.v1` envelope.
+JSON always emits the same verified `rey.workload-test-batch.v2` envelope.
 
 ## Running A Workload
 
@@ -276,6 +296,14 @@ Run refuses an absent, unqualified, or stale graph by default. A successful
 process is not by itself a successful workload run. Declared output claims and
 post-execution observations determine the semantic result. Effectful graph
 nodes still pass ordinary action admission immediately before execution.
+
+For `rey.fixture.source-search`, `--source` is repeatable and identifies exact
+relative files below the canonical workspace. `--context-before`,
+`--context-after`, and `--max-matches` bind the effective search projection;
+zero or missing required bounds fail before execution. Other current workloads
+reject source-specific options. The human run view reports graph order, output
+size, completeness, consumption, exact corpus/request/capability bindings,
+each match and context deep link, and every omission.
 
 ## Scenario Progress
 
@@ -297,19 +325,22 @@ example:
 
 ```text
 WORKLOAD PORTFOLIO
-  Qualification          1/2 qualified · 1 failing · 0 inconclusive · 0 stale
-  Scenarios              3/4 passing · 4/4 evaluated · 0 stale · 0 optional
-  Runs                   1 passed · 0 blocked · 1 not run
-  Inventory              2 total · 2 tested · 0 untested
+  Qualification          2/3 qualified · 1 failing · 0 inconclusive · 0 stale
+  Scenarios              5/6 passing · 6/6 evaluated · 0 stale · 2 optional
+  Runs                   1 passed · 0 blocked · 2 not run
+  Inventory              3 total · 3 tested · 0 untested
+  Mining                 1 workloads · 4 retained results · 1 incomplete
 
-rey.fixture.text-mismatch
-  Journey                REVISE GRAPH
-  Scenario conformance   ██████████░░░░░░░░░░   50%  1/2 passing · 2/2 evaluated
-  Evaluation             1 passed · 1 failed · 0 inconclusive · 0 stale · 0 optional
-  Qualification          FAILING
-  Graph                  rey.fixture.text-mismatch.graph@1
+rey.fixture.source-search
+  Journey                RUN READY
+  Scenario conformance   ████████████████████  100%  2/2 passing · 2/2 evaluated
+  Evaluation             2 passed · 0 failed · 0 inconclusive · 0 stale · 2 optional
+  Qualification          QUALIFIED
+  Graph                  rey.fixture.source-search.graph@1
+  Operations             rey.source-search.literal-utf8@1 → rey.builtin.source-matches.render-lines@1
+  Mining evidence        4 results · 3 complete · 1 incomplete · 4 relation deltas · 1 reasoning surfaces
   Candidate              blake3:...
-  Qualified              none
+  Qualified              blake3:...
   Test evidence          blake3:... · fresh
   Last run               not run
 ```
@@ -343,7 +374,7 @@ The workload surface needs two provider contracts:
    `status`.
 
 The first standalone result provider stores a bounded
-`rey.local-workload-state.v1` JSON index at
+`rey.local-workload-state.v2` JSON index at
 `${workspace}/.rey/workloads/state.json`, or below explicit `--state-dir`.
 It verifies retained test and run artifacts on every read and publishes a
 same-directory temporary document with rename. It claims no `fsync` crash
@@ -371,10 +402,10 @@ identities and dependency facts, never toggled manually.
 
 | Command | Contract |
 | --- | --- |
-| `workloads list` | Read the selected catalog and retained result index; show every resolved workload, candidate and qualified graph identities, fresh scenario counts, progress bar, and last campaign/run summary. It performs no graph execution. |
-| `workloads test [id]` | Test one workload, or every workload resolved by the selected catalog when no id is supplied. Start/resume bounded campaigns, retain actual-versus-expected deltas, and qualify only exact all-passing required-scenario graph revisions. The workload-count bound fails closed rather than silently truncating. |
-| `workloads run id` | Execute the exact current fresh qualified graph against admitted real inputs through the declared providers and retain output, claim, attempt, and trace lineage. |
-| `workloads status [id]` | Read detailed current state for one workload, or a catalog summary when omitted: resolved revisions, candidate/qualified graph, campaign bounds and stop reason, per-scenario results and delta ids, frontier/blockers, capabilities, evidence, staleness derivation, and latest run. It performs no repair or execution. |
+| `workloads list` | Read the selected catalog and retained result index; show every resolved workload, candidate and qualified graph identities, operations, fresh scenario counts, progress bar, mining-result completeness, relation-delta/reasoning counts, and last campaign/run summary. It performs no graph execution. |
+| `workloads test [id]` | Test one workload, or every workload resolved by the selected catalog when no id is supplied. Execute bounded graphs and probes, retain actual-versus-expected text/relation deltas and mining evidence, and qualify only exact all-passing required-scenario graph revisions. The workload-count bound fails closed rather than silently truncating. |
+| `workloads run id` | Execute the exact current fresh qualified graph against admitted real inputs and explicit source paths through the declared providers; retain outputs and exact mining lineage. |
+| `workloads status [id]` | Read detailed current state for one workload, or a catalog summary when omitted: resolved revisions, candidate/qualified graph, campaign stop reason, per-scenario deltas, mining results, omissions, frontier selection, reasoning evidence, qualification, staleness, and latest run. It performs no repair or execution. |
 
 `list` and `status` return success when inspection succeeds even if workloads
 are failing. `test` and `run` use semantic exit categories: `0` for qualified
@@ -415,14 +446,12 @@ No compatibility alias or decoder silently relabels the superseded schemas.
 
 ## Initial Implementation Boundary
 
-The implemented slice uses two small fixture workloads, finite graphs composed
-from built-in deterministic operations, and reviewed scenarios. It exercises
-all four commands without an agent or Spoke. The next slice may derive a
-workload frontier from the retained failing delta and expose the implemented
-built-in source-search operation/result through the same frozen graph and
-reasoning-surface boundary. Plan 0006 has completed the explicit local corpus,
-literal search, and relational match foundation; text and relational deltas,
-evidence-linked visualization, and workload integration remain before AST/CST
-or semantic-index adapters. Generic distributed scheduling, arbitrary code
-execution, a recurring service, a persistence engine, and provider-specific
-policy loops remain outside this boundary.
+The implemented slice uses three small fixture workloads, finite graphs
+composed from built-in deterministic operations, and reviewed scenarios. It
+exercises all four commands without an agent or Spoke. The source-search
+workload closes the first mining loop from explicit corpus through operation,
+typed relation/native context, ordered and relational deltas, one scheduled
+frontier row, reasoning surface, qualification, and admitted real-input run.
+Generic distributed or recurring scheduling, arbitrary code execution,
+external workload manifests, a persistence engine, parser/index breadth, and
+provider-specific policy loops remain outside this boundary.

@@ -2,9 +2,11 @@ use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::DeltaAssessment;
+use crate::{
+    DeltaAssessment, TextDelta, TextDeltaInputs, TextDeltaLimits, compare_text, text_artifact_id,
+};
 
-pub const SCENARIO_OUTPUT_DELTA_SCHEMA: &str = "rey.scenario-output-delta.v1";
+pub const SCENARIO_OUTPUT_DELTA_SCHEMA: &str = "rey.scenario-output-delta.v2";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -32,6 +34,9 @@ pub struct ScenarioDeltaInputs {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ScenarioDeltaLimits {
     pub max_value_bytes: u64,
+    pub max_lines: u64,
+    pub max_alignment_cells: u64,
+    pub max_changes: u64,
     pub max_string_bytes: u64,
 }
 
@@ -39,6 +44,9 @@ impl Default for ScenarioDeltaLimits {
     fn default() -> Self {
         Self {
             max_value_bytes: 64 * 1_024,
+            max_lines: 4_096,
+            max_alignment_cells: 1_000_000,
+            max_changes: 8_192,
             max_string_bytes: 256 * 1_024,
         }
     }
@@ -53,6 +61,7 @@ pub struct ScenarioOutputDelta {
     pub expected: String,
     pub observed: String,
     pub assessment: DeltaAssessment,
+    pub text_delta: TextDelta,
     pub limits: ScenarioDeltaLimits,
 }
 
@@ -64,6 +73,7 @@ impl ScenarioOutputDelta {
                 actual: self.schema.clone(),
             });
         }
+        self.text_delta.verify(&self.expected, &self.observed)?;
         let recomputed = compare_scenario_utf8(
             self.inputs.clone(),
             self.expected.clone(),
@@ -77,6 +87,9 @@ impl ScenarioOutputDelta {
             });
         }
         if self.assessment != recomputed.assessment {
+            return Err(ScenarioDeltaError::Assessment);
+        }
+        if self.text_delta != recomputed.text_delta {
             return Err(ScenarioDeltaError::Assessment);
         }
         Ok(())
@@ -118,6 +131,26 @@ pub fn compare_scenario_utf8(
     } else {
         DeltaAssessment::Different
     };
+    let text_delta = compare_text(
+        TextDeltaInputs {
+            source_artifact_id: text_artifact_id(&expected),
+            target_artifact_id: text_artifact_id(&observed),
+            source_label: "EXPECTED".to_owned(),
+            target_label: "OBSERVED".to_owned(),
+            comparator: inputs.comparator.clone(),
+            encoding: "utf-8".to_owned(),
+            segmentation: "lines-preserve-terminators".to_owned(),
+        },
+        &expected,
+        &observed,
+        TextDeltaLimits {
+            max_input_bytes: limits.max_value_bytes,
+            max_lines: limits.max_lines,
+            max_alignment_cells: limits.max_alignment_cells,
+            max_changes: limits.max_changes,
+            max_string_bytes: limits.max_string_bytes,
+        },
+    )?;
     let mut delta = ScenarioOutputDelta {
         schema: SCENARIO_OUTPUT_DELTA_SCHEMA.to_owned(),
         delta_id: SemanticHasher::new("rey.scenario-output-delta.placeholder").finish(),
@@ -126,6 +159,7 @@ pub fn compare_scenario_utf8(
         expected,
         observed,
         assessment,
+        text_delta,
         limits,
     };
     delta.delta_id = delta_digest(&delta);
@@ -133,7 +167,12 @@ pub fn compare_scenario_utf8(
 }
 
 fn validate_limits(limits: &ScenarioDeltaLimits) -> Result<(), ScenarioDeltaError> {
-    if limits.max_value_bytes == 0 || limits.max_string_bytes == 0 {
+    if limits.max_value_bytes == 0
+        || limits.max_lines == 0
+        || limits.max_alignment_cells == 0
+        || limits.max_changes == 0
+        || limits.max_string_bytes == 0
+    {
         return Err(ScenarioDeltaError::InvalidLimit);
     }
     Ok(())
@@ -202,7 +241,11 @@ fn delta_digest(delta: &ScenarioOutputDelta) -> SemanticDigest {
     hasher.add_str(&delta.expected);
     hasher.add_str(&delta.observed);
     hasher.add_str(delta.assessment.as_str());
+    hasher.add_str(delta.text_delta.delta_id.as_str());
     hasher.add_u64(delta.limits.max_value_bytes);
+    hasher.add_u64(delta.limits.max_lines);
+    hasher.add_u64(delta.limits.max_alignment_cells);
+    hasher.add_u64(delta.limits.max_changes);
     hasher.add_u64(delta.limits.max_string_bytes);
     hasher.finish()
 }
@@ -227,6 +270,8 @@ pub enum ScenarioDeltaError {
     StringByteLimit { limit: u64, observed: u64 },
     #[error("scenario delta count overflowed")]
     CountOverflow,
+    #[error(transparent)]
+    Text(#[from] crate::TextDeltaError),
     #[error("unsupported scenario delta schema {actual}; expected {expected}")]
     UnsupportedSchema {
         expected: &'static str,
@@ -305,7 +350,7 @@ mod tests {
                 String::new(),
                 ScenarioDeltaLimits {
                     max_value_bytes: 1,
-                    max_string_bytes: 1_024,
+                    ..ScenarioDeltaLimits::default()
                 },
             )
             .is_err()

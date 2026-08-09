@@ -1,19 +1,34 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
 
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::{
-    DeltaAssessment, ScenarioDeltaInputs, ScenarioDeltaLimits, ScenarioOutputDelta,
-    compare_scenario_utf8,
+    DeltaAssessment, ExpectedSourceMatch, ScenarioDeltaInputs, ScenarioDeltaLimits,
+    ScenarioOutputDelta, compare_scenario_utf8,
 };
+use rey_environment::{
+    LocalSourceCorpus, SourceBindingLimits, builtin_source_search_operation,
+    explicit_source_path_identity,
+};
+use rey_mining::{MiningCompleteness, MiningLimits};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const WORKLOAD_SCHEMA: &str = "rey.workload.v1";
-pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v1";
-pub const SCENARIO_SUITE_SCHEMA: &str = "rey.scenario-suite.v1";
-pub const WORKLOAD_TEST_RESULT_SCHEMA: &str = "rey.workload-test-result.v1";
-pub const WORKLOAD_QUALIFICATION_SCHEMA: &str = "rey.workload-qualification.v1";
-pub const WORKLOAD_RUN_RESULT_SCHEMA: &str = "rey.workload-run-result.v1";
+use crate::workload_mining::{
+    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, MiningScenarioEvidence, SourceExecutionContext,
+    SourceMiningExecution, SourceRunInput, SourceSearchScenario, build_reasoning_evidence,
+    compare_execution_matches, execute_source_search, fixture_capability_snapshot_id,
+    render_expected_matches, render_source_matches, source_fixture_paths, source_fixture_root,
+};
+
+pub const WORKLOAD_SCHEMA: &str = "rey.workload.v2";
+pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v2";
+pub const SCENARIO_SUITE_SCHEMA: &str = "rey.scenario-suite.v2";
+pub const WORKLOAD_TEST_RESULT_SCHEMA: &str = "rey.workload-test-result.v2";
+pub const WORKLOAD_QUALIFICATION_SCHEMA: &str = "rey.workload-qualification.v2";
+pub const WORKLOAD_RUN_RESULT_SCHEMA: &str = "rey.workload-run-result.v2";
 
 pub const BUILT_IN_NORMALIZE_WORKLOAD_ID: &str = "rey.fixture.text-normalize";
 pub const BUILT_IN_MISMATCH_WORKLOAD_ID: &str = "rey.fixture.text-mismatch";
@@ -26,12 +41,14 @@ const OUTPUT_ID: &str = "text";
 #[serde(rename_all = "snake_case")]
 pub enum ValueType {
     Utf8,
+    SourceMatches,
 }
 
 impl ValueType {
     const fn as_str(self) -> &'static str {
         match self {
             Self::Utf8 => "utf8",
+            Self::SourceMatches => "source_matches",
         }
     }
 }
@@ -40,6 +57,7 @@ impl ValueType {
 #[serde(tag = "type", content = "value", rename_all = "snake_case")]
 pub enum WorkloadValue {
     Utf8(String),
+    SourceMatches(Box<SourceMiningExecution>),
 }
 
 impl WorkloadValue {
@@ -47,24 +65,44 @@ impl WorkloadValue {
     pub const fn value_type(&self) -> ValueType {
         match self {
             Self::Utf8(_) => ValueType::Utf8,
+            Self::SourceMatches(_) => ValueType::SourceMatches,
         }
     }
 
     fn byte_len(&self) -> u64 {
         match self {
             Self::Utf8(value) => value.len() as u64,
+            Self::SourceMatches(value) => value
+                .evidence
+                .result
+                .consumption
+                .bytes_written
+                .saturating_add(
+                    value
+                        .evidence
+                        .contexts
+                        .iter()
+                        .map(|context| context.text.len() as u64)
+                        .sum::<u64>(),
+                ),
         }
     }
 
-    fn as_utf8(&self) -> &str {
+    fn as_utf8(&self) -> Result<&str, WorkloadError> {
         match self {
-            Self::Utf8(value) => value,
+            Self::Utf8(value) => Ok(value),
+            Self::SourceMatches(_) => Err(WorkloadError::TypeMismatch("utf8 value".to_owned())),
         }
     }
 
     fn add_semantics(&self, hasher: &mut SemanticHasher) {
         hasher.add_str(self.value_type().as_str());
-        hasher.add_str(self.as_utf8());
+        match self {
+            Self::Utf8(value) => hasher.add_str(value),
+            Self::SourceMatches(value) => {
+                hasher.add_str(value.evidence.result.result_id.as_str());
+            }
+        }
     }
 }
 
@@ -180,17 +218,28 @@ impl ComputeGraph {
             if node.output_id != NODE_OUTPUT_ID {
                 return Err(WorkloadError::UnknownNodeOutput(node.output_id.clone()));
             }
-            if node.value_type != ValueType::Utf8 {
+            let operation = resolve_operation(&node.operation)?;
+            if node.value_type != operation.output_type() {
                 return Err(WorkloadError::TypeMismatch(node.node_id.clone()));
             }
-            resolve_operation(&node.operation)?;
             if !node_ids.insert(node.node_id.clone()) {
                 return Err(WorkloadError::DuplicateId(node.node_id.clone()));
             }
         }
 
         let order = topological_order(self, &input_types)?;
-        let selected_outputs = graph_outputs_by_id(&self.outputs, &node_ids, &input_types)?;
+        let node_by_id = self
+            .nodes
+            .iter()
+            .map(|node| (node.node_id.clone(), node))
+            .collect::<BTreeMap<_, _>>();
+        for node in &self.nodes {
+            let input_type = source_type(&node.input, &input_types, &node_by_id)?;
+            if input_type != resolve_operation(&node.operation)?.input_type() {
+                return Err(WorkloadError::TypeMismatch(node.node_id.clone()));
+            }
+        }
+        let selected_outputs = graph_outputs_by_id(&self.outputs, &node_by_id, &input_types)?;
         if selected_outputs != output_types {
             return Err(WorkloadError::OutputContractMismatch);
         }
@@ -217,6 +266,7 @@ pub struct Scenario {
     pub required: bool,
     pub inputs: BTreeMap<String, WorkloadValue>,
     pub expected_outputs: BTreeMap<String, WorkloadValue>,
+    pub source_search: Option<SourceSearchScenario>,
 }
 
 impl Scenario {
@@ -225,12 +275,14 @@ impl Scenario {
         required: bool,
         inputs: BTreeMap<String, WorkloadValue>,
         expected_outputs: BTreeMap<String, WorkloadValue>,
+        source_search: Option<SourceSearchScenario>,
     ) -> Self {
         let mut scenario = Self {
             scenario: placeholder_contract(id, 1, "rey.scenario.placeholder"),
             required,
             inputs,
             expected_outputs,
+            source_search,
         };
         scenario.scenario.semantic_digest = scenario_digest(&scenario);
         scenario
@@ -250,6 +302,9 @@ impl Scenario {
             self.expected_outputs.len(),
             limits.max_outputs_per_scenario,
         )?;
+        if let Some(source_search) = &self.source_search {
+            validate_source_search_scenario(source_search, limits)?;
+        }
         let actual = scenario_digest(self);
         if actual != self.scenario.semantic_digest {
             return Err(WorkloadError::ContractDigest {
@@ -381,6 +436,21 @@ impl WorkloadDefinition {
         self.graph.verify(&self.inputs, &self.outputs)?;
         self.scenario_suite
             .verify(&self.inputs, &self.outputs, &self.limits)?;
+        let mines_source = self
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation == builtin_source_search_operation().operation);
+        if self
+            .scenario_suite
+            .scenarios
+            .iter()
+            .any(|scenario| scenario.source_search.is_some() != mines_source)
+        {
+            return Err(WorkloadError::ResultShape(
+                "source-search graph and scenario bindings do not agree",
+            ));
+        }
         if semantic_string_bytes_workload(self)? > self.limits.max_string_bytes {
             return Err(WorkloadError::StringByteLimit {
                 limit: self.limits.max_string_bytes,
@@ -413,6 +483,7 @@ pub struct GraphExecution {
     pub graph: ContractIdentity,
     pub node_order: Vec<String>,
     pub outputs: BTreeMap<String, WorkloadValue>,
+    pub mining: Vec<SourceMiningExecution>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -440,6 +511,7 @@ pub struct ScenarioResult {
     pub execution_id: SemanticDigest,
     pub evaluation: ScenarioEvaluation,
     pub deltas: Vec<ScenarioOutputDelta>,
+    pub mining: Vec<MiningScenarioEvidence>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -613,7 +685,25 @@ impl WorkloadTestResult {
                     return Err(WorkloadError::DuplicateId(delta.inputs.output_id.clone()));
                 }
             }
-            let expected = scenario_evaluation(&scenario.deltas);
+            for mining in &scenario.mining {
+                mining.verify()?;
+                if mining.relation_delta.inputs.workload != self.workload
+                    || mining.relation_delta.inputs.graph != self.graph
+                    || mining.relation_delta.inputs.scenario != scenario.scenario
+                    || !mining_context_matches(
+                        &mining.execution,
+                        &self.workload,
+                        &self.graph,
+                        Some(&scenario.scenario),
+                        Some(&self.campaign_id),
+                    )
+                {
+                    return Err(WorkloadError::ResultShape(
+                        "mining delta does not bind the test result",
+                    ));
+                }
+            }
+            let expected = scenario_evaluation(&scenario.deltas, &scenario.mining);
             if expected != scenario.evaluation {
                 return Err(WorkloadError::ResultShape(
                     "scenario evaluation does not match its deltas",
@@ -702,6 +792,30 @@ impl WorkloadTestResult {
                     "scenario result does not cover every expected output",
                 ));
             }
+            let expected_mining = usize::from(scenario.source_search.is_some());
+            if result.mining.len() != expected_mining {
+                return Err(WorkloadError::ResultShape(
+                    "scenario result does not cover its mining operation",
+                ));
+            }
+            if let Some(source) = &scenario.source_search {
+                let current = LocalSourceCorpus::bind(
+                    source_fixture_root(),
+                    source.fixture_paths.iter().map(PathBuf::from),
+                    source.binding_limits.clone(),
+                )
+                .map_err(|_| WorkloadError::StaleQualification)?;
+                if current.binding() != &result.mining[0].execution.corpus
+                    || current.verify_current().is_err()
+                    || result.mining[0]
+                        .execution
+                        .evidence
+                        .verify_against(&current, &result.mining[0].execution.request)
+                        .is_err()
+                {
+                    return Err(WorkloadError::StaleQualification);
+                }
+            }
             for delta in &result.deltas {
                 let expected = scenario
                     .expected_outputs
@@ -709,7 +823,7 @@ impl WorkloadTestResult {
                     .ok_or(WorkloadError::ResultShape(
                         "scenario result contains an undeclared output",
                     ))?;
-                if delta.expected != expected.as_utf8() {
+                if delta.expected != expected.as_utf8()? {
                     return Err(WorkloadError::ResultShape(
                         "scenario delta does not match its declared expected output",
                     ));
@@ -748,6 +862,7 @@ pub struct WorkloadRunResult {
     pub inputs: BTreeMap<String, WorkloadValue>,
     pub outputs: BTreeMap<String, WorkloadValue>,
     pub node_order: Vec<String>,
+    pub mining: Vec<SourceMiningExecution>,
 }
 
 impl WorkloadRunResult {
@@ -763,6 +878,7 @@ impl WorkloadRunResult {
             inputs,
             outputs: BTreeMap::new(),
             node_order: Vec::new(),
+            mining: Vec::new(),
         };
         result.run_id = run_result_digest(&result);
         result
@@ -780,6 +896,14 @@ impl WorkloadRunResult {
         if let Some(qualification_id) = &self.qualification_id {
             validate_digest(qualification_id)?;
         }
+        for mining in &self.mining {
+            mining.verify()?;
+            if !mining_context_matches(mining, &self.workload, &self.graph, None, None) {
+                return Err(WorkloadError::ResultShape(
+                    "mining execution does not bind the run result",
+                ));
+            }
+        }
         match self.status {
             RunStatus::Passed
                 if self.qualification_id.is_some()
@@ -790,6 +914,7 @@ impl WorkloadRunResult {
                 if self.qualification_id.is_none()
                     && self.outputs.is_empty()
                     && self.node_order.is_empty()
+                    && self.mining.is_empty()
                     && self.stop_reason == "qualification_missing_or_stale" => {}
             _ => return Err(WorkloadError::ResultShape("invalid run result shape")),
         }
@@ -805,8 +930,34 @@ impl WorkloadRunResult {
     }
 }
 
+fn mining_context_matches(
+    mining: &SourceMiningExecution,
+    workload: &ContractIdentity,
+    graph: &ContractIdentity,
+    scenario: Option<&ContractIdentity>,
+    exact_test_campaign_id: Option<&SemanticDigest>,
+) -> bool {
+    let context = &mining.request.context;
+    let campaign_matches = exact_test_campaign_id.map_or_else(
+        || context.campaign_id.is_some(),
+        |campaign_id| context.campaign_id.as_ref() == Some(campaign_id),
+    );
+    context.workload == *workload
+        && context.graph == *graph
+        && context.scenario.as_ref() == scenario
+        && campaign_matches
+        && context.active_transition_id.is_none()
+        && context.rationale == rey_mining::MiningRationaleKind::WorkloadGraph
+        && context.frontier_row_ids.is_empty()
+        && context.delta_ids.is_empty()
+}
+
 pub fn built_in_workloads() -> Result<Vec<WorkloadDefinition>, WorkloadError> {
-    Ok(vec![text_workload(true)?, text_workload(false)?])
+    Ok(vec![
+        source_search_workload()?,
+        text_workload(true)?,
+        text_workload(false)?,
+    ])
 }
 
 pub fn built_in_workload(id: &str) -> Result<WorkloadDefinition, WorkloadError> {
@@ -819,6 +970,24 @@ pub fn built_in_workload(id: &str) -> Result<WorkloadDefinition, WorkloadError> 
 pub fn execute_workload(
     workload: &WorkloadDefinition,
     inputs: BTreeMap<String, WorkloadValue>,
+) -> Result<GraphExecution, WorkloadError> {
+    execute_workload_bound(workload, inputs, None, None, None)
+}
+
+pub fn execute_workload_with_source(
+    workload: &WorkloadDefinition,
+    inputs: BTreeMap<String, WorkloadValue>,
+    source: &SourceRunInput,
+) -> Result<GraphExecution, WorkloadError> {
+    execute_workload_bound(workload, inputs, Some(source), None, None)
+}
+
+fn execute_workload_bound(
+    workload: &WorkloadDefinition,
+    inputs: BTreeMap<String, WorkloadValue>,
+    source: Option<&SourceRunInput>,
+    scenario: Option<&ContractIdentity>,
+    campaign_id: Option<&SemanticDigest>,
 ) -> Result<GraphExecution, WorkloadError> {
     workload.verify()?;
     validate_bindings("run input", &inputs, &workload.inputs)?;
@@ -836,7 +1005,22 @@ pub fn execute_workload(
             .get(node_id)
             .ok_or_else(|| WorkloadError::UnknownNode(node_id.clone()))?;
         let input = resolve_value(&node.input, &inputs, &node_values)?;
-        let output = apply_operation(&node.operation, input)?;
+        let operation = resolve_operation(&node.operation)?;
+        let source_context = if matches!(operation, BuiltInOperation::SourceSearch) {
+            let source = source.ok_or(WorkloadError::MissingSourceInput)?;
+            Some(SourceExecutionContext {
+                workload: &workload.workload,
+                graph: &workload.graph.graph,
+                scenario,
+                campaign_id,
+                graph_node_id: &node.node_id,
+                pattern: input.as_utf8()?,
+                input: source,
+            })
+        } else {
+            None
+        };
+        let output = apply_operation(&node.operation, input, source_context)?;
         if output.value_type() != node.value_type {
             return Err(WorkloadError::TypeMismatch(node.node_id.clone()));
         }
@@ -850,28 +1034,68 @@ pub fn execute_workload(
         );
     }
     enforce_value_bytes(&outputs, workload.graph.limits.max_output_bytes, "output")?;
-    let execution_id = execution_digest(&workload.graph.graph, &inputs, &node_order, &outputs);
+    let mining = node_values
+        .values()
+        .filter_map(|value| match value {
+            WorkloadValue::SourceMatches(execution) => Some((**execution).clone()),
+            WorkloadValue::Utf8(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let execution_id = execution_digest(
+        &workload.graph.graph,
+        &inputs,
+        &node_order,
+        &outputs,
+        &mining,
+    );
     Ok(GraphExecution {
         execution_id,
         graph: workload.graph.graph.clone(),
         node_order,
         outputs,
+        mining,
     })
 }
 
 pub fn test_workload(workload: &WorkloadDefinition) -> Result<WorkloadTestResult, WorkloadError> {
-    test_workload_with_observer(workload, |_| {})
+    test_workload_with_observer_and_snapshot(workload, fixture_capability_snapshot_id(), |_| {})
 }
 
 pub fn test_workload_with_observer(
     workload: &WorkloadDefinition,
+    observer: impl FnMut(&ScenarioResult),
+) -> Result<WorkloadTestResult, WorkloadError> {
+    test_workload_with_observer_and_snapshot(workload, fixture_capability_snapshot_id(), observer)
+}
+
+pub fn test_workload_with_observer_and_snapshot(
+    workload: &WorkloadDefinition,
+    capability_snapshot_id: SemanticDigest,
     mut observer: impl FnMut(&ScenarioResult),
 ) -> Result<WorkloadTestResult, WorkloadError> {
     workload.verify()?;
     let campaign_id = campaign_digest(workload);
     let mut scenarios = Vec::with_capacity(workload.scenario_suite.scenarios.len());
     for scenario in &workload.scenario_suite.scenarios {
-        let execution = execute_workload(workload, scenario.inputs.clone())?;
+        let source = scenario
+            .source_search
+            .as_ref()
+            .map(|source| SourceRunInput {
+                root: source_fixture_root(),
+                relative_paths: source.fixture_paths.iter().map(PathBuf::from).collect(),
+                context_before: source.context_before,
+                context_after: source.context_after,
+                binding_limits: source.binding_limits.clone(),
+                mining_limits: source.mining_limits.clone(),
+                capability_snapshot_id: capability_snapshot_id.clone(),
+            });
+        let execution = execute_workload_bound(
+            workload,
+            scenario.inputs.clone(),
+            source.as_ref(),
+            Some(&scenario.scenario),
+            Some(&campaign_id),
+        )?;
         let mut deltas = Vec::with_capacity(scenario.expected_outputs.len());
         for (output_id, expected) in &scenario.expected_outputs {
             let observed = execution
@@ -886,19 +1110,53 @@ pub fn test_workload_with_observer(
                     output_id: output_id.clone(),
                     comparator: workload.evaluator.clone(),
                 },
-                expected.as_utf8().to_owned(),
-                observed.as_utf8().to_owned(),
+                expected.as_utf8()?.to_owned(),
+                observed.as_utf8()?.to_owned(),
                 workload.limits.scenario_delta.clone(),
             )?;
             deltas.push(delta);
         }
         deltas.sort_by(|left, right| left.inputs.output_id.cmp(&right.inputs.output_id));
+        let mut mining = Vec::new();
+        if let Some(source_search) = &scenario.source_search {
+            let source_execution = execution
+                .mining
+                .first()
+                .ok_or(WorkloadError::ResultShape(
+                    "source scenario produced no mining evidence",
+                ))?
+                .clone();
+            let relation_delta = compare_execution_matches(
+                &workload.workload,
+                &workload.graph.graph,
+                &scenario.scenario,
+                source_search.expected_matches.clone(),
+                &source_execution,
+            )?;
+            mining.push(MiningScenarioEvidence {
+                execution: source_execution,
+                relation_delta,
+                reasoning: None,
+            });
+            let reasoning = build_reasoning_evidence(
+                &workload.workload,
+                &workload.graph.graph,
+                &workload.scenario_suite.suite,
+                &campaign_id,
+                &scenario.scenario,
+                &execution.execution_id,
+                &deltas,
+                &mining[0],
+            )?;
+            mining[0].reasoning = reasoning;
+        }
         let scenario_result = ScenarioResult {
             scenario: scenario.scenario.clone(),
             required: scenario.required,
             execution_id: execution.execution_id,
-            evaluation: scenario_evaluation(&deltas),
+            evaluation: scenario_evaluation(&deltas, &mining),
             deltas,
+            mining,
         };
         observer(&scenario_result);
         scenarios.push(scenario_result);
@@ -948,11 +1206,36 @@ pub fn run_workload(
     qualification: &QualificationRecord,
     inputs: BTreeMap<String, WorkloadValue>,
 ) -> Result<WorkloadRunResult, WorkloadError> {
+    run_workload_bound(workload, qualification, inputs, None)
+}
+
+pub fn run_workload_with_source(
+    workload: &WorkloadDefinition,
+    qualification: &QualificationRecord,
+    inputs: BTreeMap<String, WorkloadValue>,
+    source: &SourceRunInput,
+) -> Result<WorkloadRunResult, WorkloadError> {
+    run_workload_bound(workload, qualification, inputs, Some(source))
+}
+
+fn run_workload_bound(
+    workload: &WorkloadDefinition,
+    qualification: &QualificationRecord,
+    inputs: BTreeMap<String, WorkloadValue>,
+    source: Option<&SourceRunInput>,
+) -> Result<WorkloadRunResult, WorkloadError> {
     qualification.verify()?;
     if !qualification.is_fresh_for(workload) {
         return Err(WorkloadError::StaleQualification);
     }
-    let execution = execute_workload(workload, inputs.clone())?;
+    let run_context_id = run_execution_context_digest(qualification, &inputs, source);
+    let execution = execute_workload_bound(
+        workload,
+        inputs.clone(),
+        source,
+        None,
+        Some(&run_context_id),
+    )?;
     let mut result = WorkloadRunResult {
         schema: WORKLOAD_RUN_RESULT_SCHEMA.to_owned(),
         run_id: placeholder_digest("rey.workload-run-result.placeholder"),
@@ -964,6 +1247,7 @@ pub fn run_workload(
         inputs,
         outputs: execution.outputs,
         node_order: execution.node_order,
+        mining: execution.mining,
     };
     result.run_id = run_result_digest(&result);
     result.verify()?;
@@ -1059,7 +1343,202 @@ fn text_scenario(workload_id: &str, id: &str, input: &str, expected: &str) -> Sc
             OUTPUT_ID.to_owned(),
             WorkloadValue::Utf8(expected.to_owned()),
         )]),
+        None,
     )
+}
+
+fn source_search_workload() -> Result<WorkloadDefinition, WorkloadError> {
+    let workload_id = BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID;
+    let graph = ComputeGraph::new(
+        &format!("{workload_id}.graph"),
+        1,
+        vec![
+            GraphNode {
+                node_id: "search".to_owned(),
+                operation: builtin_source_search_operation().operation,
+                input: ValueSource::ExternalInput {
+                    input_id: INPUT_ID.to_owned(),
+                },
+                output_id: NODE_OUTPUT_ID.to_owned(),
+                value_type: ValueType::SourceMatches,
+            },
+            GraphNode {
+                node_id: "render".to_owned(),
+                operation: render_source_matches_contract(),
+                input: ValueSource::NodeOutput {
+                    node_id: "search".to_owned(),
+                    output_id: NODE_OUTPUT_ID.to_owned(),
+                },
+                output_id: NODE_OUTPUT_ID.to_owned(),
+                value_type: ValueType::Utf8,
+            },
+        ],
+        vec![GraphOutput {
+            output_id: OUTPUT_ID.to_owned(),
+            source: ValueSource::NodeOutput {
+                node_id: "render".to_owned(),
+                output_id: NODE_OUTPUT_ID.to_owned(),
+            },
+            value_type: ValueType::Utf8,
+        }],
+        GraphLimits::default(),
+    )?;
+    let evidence = expected_match(
+        "alpha.txt",
+        57,
+        65,
+        2,
+        26,
+        34,
+        "evidence",
+        "mining turns context into evidence\n",
+    )?;
+    let evidence_nested = expected_match(
+        "nested/beta.rs",
+        67,
+        75,
+        2,
+        29,
+        37,
+        "evidence",
+        "    \"delta from typed source evidence\"\n",
+    )?;
+    let delta_matches = vec![
+        expected_match(
+            "alpha.txt",
+            0,
+            5,
+            1,
+            0,
+            5,
+            "delta",
+            "delta directs the next bearing\n",
+        )?,
+        expected_match(
+            "alpha.txt",
+            81,
+            86,
+            3,
+            15,
+            20,
+            "delta",
+            "the unresolved delta remains visible\n",
+        )?,
+        expected_match(
+            "nested/beta.rs",
+            12,
+            17,
+            1,
+            12,
+            17,
+            "delta",
+            "fn retrieve_delta() -> &'static str {\n",
+        )?,
+        expected_match(
+            "nested/beta.rs",
+            43,
+            48,
+            2,
+            4,
+            9,
+            "delta",
+            "    \"delta from typed source evidence\"\n",
+        )?,
+    ];
+    let mut mismatched = vec![evidence.clone(), evidence_nested.clone()];
+    mismatched[1].matched_text = "EVIDENCE".to_owned();
+    let truncated_limits = MiningLimits {
+        max_matches: 1,
+        max_rows: 1,
+        ..MiningLimits::default()
+    };
+    let scenarios = vec![
+        source_search_scenario("empty", true, "absent", Vec::new(), MiningLimits::default()),
+        source_search_scenario(
+            "exact",
+            true,
+            "evidence",
+            vec![evidence, evidence_nested],
+            MiningLimits::default(),
+        ),
+        source_search_scenario(
+            "mismatch",
+            false,
+            "evidence",
+            mismatched,
+            MiningLimits::default(),
+        ),
+        source_search_scenario("truncated", false, "delta", delta_matches, truncated_limits),
+    ];
+    WorkloadDefinition {
+        schema: WORKLOAD_SCHEMA.to_owned(),
+        workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
+        title: "Mine exact local source evidence".to_owned(),
+        inputs: vec![WorkloadPort {
+            port_id: INPUT_ID.to_owned(),
+            value_type: ValueType::Utf8,
+        }],
+        outputs: vec![WorkloadPort {
+            port_id: OUTPUT_ID.to_owned(),
+            value_type: ValueType::Utf8,
+        }],
+        graph,
+        scenario_suite: ScenarioSuite::new(&format!("{workload_id}.scenarios"), scenarios),
+        evaluator: utf8_comparator(),
+        limits: WorkloadLimits::default(),
+    }
+    .finalize()
+}
+
+fn source_search_scenario(
+    id: &str,
+    required: bool,
+    pattern: &str,
+    expected_matches: Vec<ExpectedSourceMatch>,
+    mining_limits: MiningLimits,
+) -> Scenario {
+    let expected = render_expected_matches(&expected_matches);
+    Scenario::new(
+        &format!("{BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID}.scenario.{id}"),
+        required,
+        BTreeMap::from([(INPUT_ID.to_owned(), WorkloadValue::Utf8(pattern.to_owned()))]),
+        BTreeMap::from([(OUTPUT_ID.to_owned(), WorkloadValue::Utf8(expected))]),
+        Some(SourceSearchScenario {
+            fixture_paths: source_fixture_paths()
+                .iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
+            context_before: 0,
+            context_after: 0,
+            binding_limits: SourceBindingLimits::default(),
+            mining_limits,
+            expected_matches,
+        }),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expected_match(
+    path: &str,
+    start_byte: u64,
+    end_byte: u64,
+    line: u64,
+    start_byte_in_line: u64,
+    end_byte_in_line: u64,
+    matched_text: &str,
+    context_text: &str,
+) -> Result<ExpectedSourceMatch, WorkloadError> {
+    Ok(ExpectedSourceMatch {
+        path: explicit_source_path_identity(path)?,
+        start_byte,
+        end_byte,
+        start_line: line,
+        start_byte_in_line,
+        end_line: line,
+        end_byte_in_line,
+        matched_text: matched_text.to_owned(),
+        context_text: context_text.to_owned(),
+    })
 }
 
 fn trim_contract() -> ContractIdentity {
@@ -1090,6 +1569,24 @@ fn utf8_comparator() -> ContractIdentity {
 enum BuiltInOperation {
     Trim,
     Uppercase,
+    SourceSearch,
+    RenderSourceMatches,
+}
+
+impl BuiltInOperation {
+    const fn input_type(self) -> ValueType {
+        match self {
+            Self::Trim | Self::Uppercase | Self::SourceSearch => ValueType::Utf8,
+            Self::RenderSourceMatches => ValueType::SourceMatches,
+        }
+    }
+
+    const fn output_type(self) -> ValueType {
+        match self {
+            Self::Trim | Self::Uppercase | Self::RenderSourceMatches => ValueType::Utf8,
+            Self::SourceSearch => ValueType::SourceMatches,
+        }
+    }
 }
 
 fn resolve_operation(contract: &ContractIdentity) -> Result<BuiltInOperation, WorkloadError> {
@@ -1097,6 +1594,10 @@ fn resolve_operation(contract: &ContractIdentity) -> Result<BuiltInOperation, Wo
         Ok(BuiltInOperation::Trim)
     } else if contract == &uppercase_contract() {
         Ok(BuiltInOperation::Uppercase)
+    } else if contract == &builtin_source_search_operation().operation {
+        Ok(BuiltInOperation::SourceSearch)
+    } else if contract == &render_source_matches_contract() {
+        Ok(BuiltInOperation::RenderSourceMatches)
     } else {
         Err(WorkloadError::UnknownOperation(contract.id.clone()))
     }
@@ -1105,12 +1606,33 @@ fn resolve_operation(contract: &ContractIdentity) -> Result<BuiltInOperation, Wo
 fn apply_operation(
     contract: &ContractIdentity,
     value: &WorkloadValue,
+    source_context: Option<SourceExecutionContext<'_>>,
 ) -> Result<WorkloadValue, WorkloadError> {
-    let value = value.as_utf8();
     Ok(match resolve_operation(contract)? {
-        BuiltInOperation::Trim => WorkloadValue::Utf8(value.trim().to_owned()),
-        BuiltInOperation::Uppercase => WorkloadValue::Utf8(value.to_uppercase()),
+        BuiltInOperation::Trim => WorkloadValue::Utf8(value.as_utf8()?.trim().to_owned()),
+        BuiltInOperation::Uppercase => WorkloadValue::Utf8(value.as_utf8()?.to_uppercase()),
+        BuiltInOperation::SourceSearch => WorkloadValue::SourceMatches(Box::new(
+            execute_source_search(source_context.ok_or(WorkloadError::MissingSourceInput)?)?,
+        )),
+        BuiltInOperation::RenderSourceMatches => match value {
+            WorkloadValue::SourceMatches(execution) => {
+                WorkloadValue::Utf8(render_source_matches(execution))
+            }
+            WorkloadValue::Utf8(_) => {
+                return Err(WorkloadError::TypeMismatch(
+                    "source match renderer".to_owned(),
+                ));
+            }
+        },
     })
+}
+
+fn render_source_matches_contract() -> ContractIdentity {
+    ContractIdentity::new(
+        "rey.builtin.source-matches.render-lines",
+        1,
+        "render canonical source matches as path:line:start-end:text UTF-8 lines in relation order without changing evidence assessment",
+    )
 }
 
 fn topological_order(
@@ -1176,29 +1698,36 @@ fn validate_source(
     inputs: &BTreeMap<String, ValueType>,
     node_by_id: &BTreeMap<String, &GraphNode>,
 ) -> Result<(), WorkloadError> {
+    source_type(source, inputs, node_by_id).map(|_| ())
+}
+
+fn source_type(
+    source: &ValueSource,
+    inputs: &BTreeMap<String, ValueType>,
+    node_by_id: &BTreeMap<String, &GraphNode>,
+) -> Result<ValueType, WorkloadError> {
     match source {
-        ValueSource::ExternalInput { input_id } => {
-            if inputs.get(input_id) != Some(&ValueType::Utf8) {
-                return Err(WorkloadError::UnknownInput(input_id.clone()));
-            }
-        }
+        ValueSource::ExternalInput { input_id } => inputs
+            .get(input_id)
+            .copied()
+            .ok_or_else(|| WorkloadError::UnknownInput(input_id.clone())),
         ValueSource::NodeOutput { node_id, output_id } => {
             let node = node_by_id
                 .get(node_id)
                 .ok_or_else(|| WorkloadError::UnknownNode(node_id.clone()))?;
-            if output_id != &node.output_id || node.value_type != ValueType::Utf8 {
+            if output_id != &node.output_id {
                 return Err(WorkloadError::UnknownNodeOutput(format!(
                     "{node_id}.{output_id}"
                 )));
             }
+            Ok(node.value_type)
         }
     }
-    Ok(())
 }
 
 fn graph_outputs_by_id(
     outputs: &[GraphOutput],
-    node_ids: &BTreeSet<String>,
+    node_by_id: &BTreeMap<String, &GraphNode>,
     inputs: &BTreeMap<String, ValueType>,
 ) -> Result<BTreeMap<String, ValueType>, WorkloadError> {
     let mut selected = BTreeMap::new();
@@ -1211,7 +1740,10 @@ fn graph_outputs_by_id(
                 }
             }
             ValueSource::NodeOutput { node_id, output_id } => {
-                if !node_ids.contains(node_id) || output_id != NODE_OUTPUT_ID {
+                let node = node_by_id.get(node_id).ok_or_else(|| {
+                    WorkloadError::UnknownNodeOutput(format!("{node_id}.{output_id}"))
+                })?;
+                if output_id != NODE_OUTPUT_ID || node.value_type != output.value_type {
                     return Err(WorkloadError::UnknownNodeOutput(format!(
                         "{node_id}.{output_id}"
                     )));
@@ -1300,17 +1832,26 @@ fn enforce_value_bytes(
     Ok(())
 }
 
-fn scenario_evaluation(deltas: &[ScenarioOutputDelta]) -> ScenarioEvaluation {
-    if deltas
-        .iter()
-        .any(|delta| delta.assessment == DeltaAssessment::Different)
-    {
-        ScenarioEvaluation::Failed
-    } else if deltas
+fn scenario_evaluation(
+    deltas: &[ScenarioOutputDelta],
+    mining: &[MiningScenarioEvidence],
+) -> ScenarioEvaluation {
+    if mining.iter().any(|evidence| {
+        evidence.execution.evidence.result.completeness != MiningCompleteness::Complete
+            || evidence.relation_delta.assessment == DeltaAssessment::Inconclusive
+    }) || deltas
         .iter()
         .any(|delta| delta.assessment == DeltaAssessment::Inconclusive)
     {
         ScenarioEvaluation::Inconclusive
+    } else if deltas
+        .iter()
+        .any(|delta| delta.assessment == DeltaAssessment::Different)
+        || mining
+            .iter()
+            .any(|evidence| evidence.relation_delta.assessment == DeltaAssessment::Different)
+    {
+        ScenarioEvaluation::Failed
     } else {
         ScenarioEvaluation::Passed
     }
@@ -1366,9 +1907,75 @@ fn validate_workload_limits(limits: &WorkloadLimits) -> Result<(), WorkloadError
         || limits.max_outputs_per_scenario == 0
         || limits.max_string_bytes == 0
         || limits.scenario_delta.max_value_bytes == 0
+        || limits.scenario_delta.max_lines == 0
+        || limits.scenario_delta.max_alignment_cells == 0
+        || limits.scenario_delta.max_changes == 0
         || limits.scenario_delta.max_string_bytes == 0
     {
         return Err(WorkloadError::InvalidLimit);
+    }
+    Ok(())
+}
+
+fn validate_source_search_scenario(
+    source: &SourceSearchScenario,
+    limits: &WorkloadLimits,
+) -> Result<(), WorkloadError> {
+    if source.fixture_paths.is_empty()
+        || source.binding_limits.max_files == 0
+        || source.binding_limits.max_file_bytes == 0
+        || source.binding_limits.max_total_bytes == 0
+        || source.binding_limits.max_lines_per_file == 0
+        || source.binding_limits.max_path_bytes == 0
+        || source.mining_limits.max_files == 0
+        || source.mining_limits.max_rows == 0
+        || source.mining_limits.max_matches == 0
+        || source.mining_limits.max_bytes == 0
+        || source.mining_limits.max_string_bytes == 0
+        || source.mining_limits.max_time_ms == 0
+    {
+        return Err(WorkloadError::InvalidLimit);
+    }
+    if source.fixture_paths.len() as u64 > source.binding_limits.max_files
+        || source.expected_matches.len() as u64 > limits.scenario_delta.max_changes
+    {
+        return Err(WorkloadError::CountLimit {
+            role: "source scenario",
+            limit: source.binding_limits.max_files,
+            observed: source.fixture_paths.len() as u64,
+        });
+    }
+    let mut previous_path = None;
+    for path in &source.fixture_paths {
+        validate_text("source fixture path", path)?;
+        if previous_path.is_some_and(|previous| previous >= path.as_str()) {
+            return Err(WorkloadError::ResultShape(
+                "source fixture paths are not canonical",
+            ));
+        }
+        previous_path = Some(path.as_str());
+    }
+    if source
+        .expected_matches
+        .windows(2)
+        .any(|window| window[0].key() >= window[1].key())
+    {
+        return Err(WorkloadError::ResultShape(
+            "expected source matches are not canonical",
+        ));
+    }
+    for row in &source.expected_matches {
+        validate_text("expected source path identity", &row.path.encoded)?;
+        validate_text("expected source path display", &row.path.display)?;
+        if row.start_byte >= row.end_byte
+            || row.start_line == 0
+            || row.end_line < row.start_line
+            || row.matched_text.is_empty()
+            || row.matched_text.contains('\0')
+            || row.context_text.contains('\0')
+        {
+            return Err(WorkloadError::ResultShape("invalid expected source match"));
+        }
     }
     Ok(())
 }
@@ -1478,12 +2085,16 @@ fn graph_digest(graph: &ComputeGraph) -> SemanticDigest {
 }
 
 fn scenario_digest(scenario: &Scenario) -> SemanticDigest {
-    let mut hasher = SemanticHasher::new("rey.scenario.v1");
+    let mut hasher = SemanticHasher::new("rey.scenario.v2");
     hasher.add_str(&scenario.scenario.id);
     hasher.add_u64(scenario.scenario.revision);
     hasher.add_bool(scenario.required);
     add_value_map(&mut hasher, &scenario.inputs);
     add_value_map(&mut hasher, &scenario.expected_outputs);
+    hasher.add_bool(scenario.source_search.is_some());
+    if let Some(source) = &scenario.source_search {
+        add_source_search_semantics(&mut hasher, source);
+    }
     hasher.finish()
 }
 
@@ -1520,6 +2131,9 @@ fn workload_digest(workload: &WorkloadDefinition) -> SemanticDigest {
     hasher.add_u64(workload.limits.max_outputs_per_scenario);
     hasher.add_u64(workload.limits.max_string_bytes);
     hasher.add_u64(workload.limits.scenario_delta.max_value_bytes);
+    hasher.add_u64(workload.limits.scenario_delta.max_lines);
+    hasher.add_u64(workload.limits.scenario_delta.max_alignment_cells);
+    hasher.add_u64(workload.limits.scenario_delta.max_changes);
     hasher.add_u64(workload.limits.scenario_delta.max_string_bytes);
     hasher.finish()
 }
@@ -1552,8 +2166,9 @@ fn execution_digest(
     inputs: &BTreeMap<String, WorkloadValue>,
     node_order: &[String],
     outputs: &BTreeMap<String, WorkloadValue>,
+    mining: &[SourceMiningExecution],
 ) -> SemanticDigest {
-    let mut hasher = SemanticHasher::new("rey.graph-execution.v1");
+    let mut hasher = SemanticHasher::new("rey.graph-execution.v2");
     add_contract(&mut hasher, graph);
     add_value_map(&mut hasher, inputs);
     hasher.add_u64(node_order.len() as u64);
@@ -1561,6 +2176,10 @@ fn execution_digest(
         hasher.add_str(node);
     }
     add_value_map(&mut hasher, outputs);
+    hasher.add_u64(mining.len() as u64);
+    for evidence in mining {
+        hasher.add_str(evidence.evidence.result.result_id.as_str());
+    }
     hasher.finish()
 }
 
@@ -1589,6 +2208,17 @@ fn test_result_digest(result: &WorkloadTestResult) -> SemanticDigest {
         for delta in &scenario.deltas {
             hasher.add_str(delta.delta_id.as_str());
         }
+        hasher.add_u64(scenario.mining.len() as u64);
+        for mining in &scenario.mining {
+            hasher.add_str(mining.execution.evidence.result.result_id.as_str());
+            hasher.add_str(mining.relation_delta.delta_id.as_str());
+            hasher.add_bool(mining.reasoning.is_some());
+            if let Some(reasoning) = &mining.reasoning {
+                hasher.add_str(reasoning.frontier.frontier_id.as_str());
+                hasher.add_str(reasoning.scheduling.decision_id.as_str());
+                hasher.add_str(reasoning.surface.surface_id.as_str());
+            }
+        }
     }
     hasher.finish()
 }
@@ -1616,7 +2246,98 @@ fn run_result_digest(result: &WorkloadRunResult) -> SemanticDigest {
     for node in &result.node_order {
         hasher.add_str(node);
     }
+    hasher.add_u64(result.mining.len() as u64);
+    for mining in &result.mining {
+        hasher.add_str(mining.evidence.result.result_id.as_str());
+    }
     hasher.finish()
+}
+
+fn run_execution_context_digest(
+    qualification: &QualificationRecord,
+    inputs: &BTreeMap<String, WorkloadValue>,
+    source: Option<&SourceRunInput>,
+) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new("rey.workload-run-context.v1");
+    hasher.add_str(qualification.qualification_id.as_str());
+    add_value_map(&mut hasher, inputs);
+    hasher.add_bool(source.is_some());
+    if let Some(source) = source {
+        add_path_semantics(&mut hasher, &source.root);
+        hasher.add_u64(source.relative_paths.len() as u64);
+        for path in &source.relative_paths {
+            add_path_semantics(&mut hasher, path);
+        }
+        hasher.add_u64(source.context_before);
+        hasher.add_u64(source.context_after);
+        add_source_binding_limits(&mut hasher, &source.binding_limits);
+        add_mining_limits(&mut hasher, &source.mining_limits);
+        hasher.add_str(source.capability_snapshot_id.as_str());
+    }
+    hasher.finish()
+}
+
+fn add_path_semantics(hasher: &mut SemanticHasher, path: &std::path::Path) {
+    // Display text can be lossy, so semantic identity binds the platform's
+    // exact encoded path bytes instead.
+    hasher.add_bytes(path.as_os_str().as_encoded_bytes());
+}
+
+fn add_source_binding_limits(hasher: &mut SemanticHasher, limits: &SourceBindingLimits) {
+    hasher.add_u64(limits.max_files);
+    hasher.add_u64(limits.max_file_bytes);
+    hasher.add_u64(limits.max_total_bytes);
+    hasher.add_u64(limits.max_lines_per_file);
+    hasher.add_u64(limits.max_path_bytes);
+}
+
+fn add_mining_limits(hasher: &mut SemanticHasher, limits: &MiningLimits) {
+    for value in [
+        limits.max_input_artifacts,
+        limits.max_output_artifacts,
+        limits.max_parameters,
+        limits.max_required_capabilities,
+        limits.max_rationale_refs,
+        limits.max_lineage_entries,
+        limits.max_dependencies,
+        limits.max_omissions,
+        limits.max_files,
+        limits.max_rows,
+        limits.max_matches,
+        limits.max_nodes,
+        limits.max_edges,
+        limits.max_depth,
+        limits.max_bytes,
+        limits.max_string_bytes,
+        limits.max_time_ms,
+    ] {
+        hasher.add_u64(value);
+    }
+}
+
+fn add_source_search_semantics(hasher: &mut SemanticHasher, source: &SourceSearchScenario) {
+    hasher.add_u64(source.fixture_paths.len() as u64);
+    for path in &source.fixture_paths {
+        hasher.add_str(path);
+    }
+    hasher.add_u64(source.context_before);
+    hasher.add_u64(source.context_after);
+    add_source_binding_limits(hasher, &source.binding_limits);
+    add_mining_limits(hasher, &source.mining_limits);
+    hasher.add_u64(source.expected_matches.len() as u64);
+    for row in &source.expected_matches {
+        hasher.add_str(row.path.encoding.as_str());
+        hasher.add_str(&row.path.encoded);
+        hasher.add_str(&row.path.display);
+        hasher.add_u64(row.start_byte);
+        hasher.add_u64(row.end_byte);
+        hasher.add_u64(row.start_line);
+        hasher.add_u64(row.start_byte_in_line);
+        hasher.add_u64(row.end_line);
+        hasher.add_u64(row.end_byte_in_line);
+        hasher.add_str(&row.matched_text);
+        hasher.add_str(&row.context_text);
+    }
 }
 
 fn semantic_string_bytes_graph(graph: &ComputeGraph) -> Result<u64, WorkloadError> {
@@ -1657,7 +2378,19 @@ fn semantic_string_bytes_workload(workload: &WorkloadDefinition) -> Result<u64, 
         for (id, value) in scenario.inputs.iter().chain(&scenario.expected_outputs) {
             add_string_bytes(&mut bytes, id)?;
             add_string_bytes(&mut bytes, value.value_type().as_str())?;
-            add_string_bytes(&mut bytes, value.as_utf8())?;
+            add_string_bytes(&mut bytes, value.as_utf8()?)?;
+        }
+        if let Some(source) = &scenario.source_search {
+            for path in &source.fixture_paths {
+                add_string_bytes(&mut bytes, path)?;
+            }
+            for row in &source.expected_matches {
+                add_string_bytes(&mut bytes, row.path.encoding.as_str())?;
+                add_string_bytes(&mut bytes, &row.path.encoded)?;
+                add_string_bytes(&mut bytes, &row.path.display)?;
+                add_string_bytes(&mut bytes, &row.matched_text)?;
+                add_string_bytes(&mut bytes, &row.context_text)?;
+            }
         }
     }
     add_contract_string_bytes(&mut bytes, &workload.evaluator)?;
@@ -1728,6 +2461,8 @@ pub enum WorkloadError {
     UnknownNodeOutput(String),
     #[error("missing graph output {0}")]
     MissingOutput(String),
+    #[error("source-search execution requires an explicit bounded source input")]
+    MissingSourceInput,
     #[error("type mismatch at {0}")]
     TypeMismatch(String),
     #[error("graph selected outputs do not match the workload output contract")]
@@ -1770,6 +2505,18 @@ pub enum WorkloadError {
     StaleQualification,
     #[error(transparent)]
     ScenarioDelta(#[from] rey_diff::ScenarioDeltaError),
+    #[error(transparent)]
+    SourceMatchDelta(#[from] rey_diff::SourceMatchDeltaError),
+    #[error(transparent)]
+    SourceMining(#[from] rey_environment::SourceMiningError),
+    #[error(transparent)]
+    Mining(#[from] rey_mining::MiningError),
+    #[error(transparent)]
+    Frontier(#[from] rey_frontier::FrontierError),
+    #[error(transparent)]
+    ReasoningSurface(#[from] rey_policy::ReasoningSurfaceError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }
 
 #[cfg(test)]
@@ -1778,22 +2525,65 @@ mod tests {
 
     use rey_core::{ContractIdentity, SemanticHasher};
     use rey_diff::DeltaAssessment;
+    use rey_mining::MiningCompleteness;
 
     use super::{
-        BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, GraphLimits, RunStatus,
-        TestStatus, WorkloadError, WorkloadValue, built_in_workload, built_in_workloads,
-        execute_workload, run_workload, test_workload, test_workload_with_observer,
+        BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
+        BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits, RunStatus, ScenarioEvaluation, TestStatus,
+        WorkloadError, WorkloadValue, built_in_workload, built_in_workloads, execute_workload,
+        run_workload, test_workload, test_workload_with_observer,
     };
 
     #[test]
     fn built_in_catalog_is_canonical_and_verified() {
         let workloads = built_in_workloads().unwrap();
-        assert_eq!(workloads.len(), 2);
-        assert_eq!(workloads[0].workload.id, BUILT_IN_NORMALIZE_WORKLOAD_ID);
-        assert_eq!(workloads[1].workload.id, BUILT_IN_MISMATCH_WORKLOAD_ID);
+        assert_eq!(workloads.len(), 3);
+        assert_eq!(workloads[0].workload.id, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID);
+        assert_eq!(workloads[1].workload.id, BUILT_IN_NORMALIZE_WORKLOAD_ID);
+        assert_eq!(workloads[2].workload.id, BUILT_IN_MISMATCH_WORKLOAD_ID);
         for workload in workloads {
             workload.verify().unwrap();
         }
+    }
+
+    #[test]
+    fn source_mining_workload_qualifies_and_retains_reviewed_edge_scenarios() {
+        let workload = built_in_workload(BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID).unwrap();
+        let result = test_workload(&workload).unwrap();
+
+        assert_eq!(result.status, TestStatus::Passed);
+        assert_eq!(result.summary.required, 2);
+        assert_eq!(result.summary.passed, 2);
+        assert_eq!(result.summary.optional, 2);
+        assert!(result.qualification.is_some());
+        let mismatch = result
+            .scenarios
+            .iter()
+            .find(|scenario| scenario.scenario.id.ends_with(".mismatch"))
+            .unwrap();
+        assert_eq!(mismatch.evaluation, ScenarioEvaluation::Failed);
+        assert_eq!(
+            mismatch.mining[0].relation_delta.assessment,
+            DeltaAssessment::Different
+        );
+        let reasoning = mismatch.mining[0].reasoning.as_ref().unwrap();
+        assert_eq!(reasoning.frontier.rows.len(), 1);
+        assert_eq!(reasoning.scheduling.selected.len(), 1);
+        assert_eq!(reasoning.surface.rows.len(), 1);
+        assert_eq!(reasoning.surface.evidence.len(), 4);
+        assert!(reasoning.surface.evidence.iter().all(|evidence| {
+            evidence.source_id.starts_with("rey-mining://")
+                || evidence.source_id.starts_with("rey-local-source://")
+                || evidence.source_id.starts_with("rey-source-matches://")
+        }));
+        reasoning.verify().unwrap();
+        assert!(result.scenarios.iter().any(|scenario| {
+            scenario.scenario.id.ends_with(".truncated")
+                && scenario.evaluation == ScenarioEvaluation::Inconclusive
+                && scenario.mining[0].execution.evidence.result.completeness
+                    == MiningCompleteness::Truncated
+        }));
+        result.verify_for(&workload).unwrap();
     }
 
     #[test]

@@ -119,7 +119,7 @@ The product surface stays intentionally small:
 rey environment ...
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
-rey workloads run <workload-id>
+rey workloads run <workload-id> --input <utf8> [--source <path>...]
 rey workloads status [<workload-id>]
 ```
 
@@ -139,13 +139,22 @@ just rey environment inspect --format table
 just rey workloads list --format table
 just rey workloads test rey.fixture.text-normalize --format table
 just rey workloads test rey.fixture.text-mismatch --format table -vv
+just rey workloads test rey.fixture.source-search --format table -vv
 just rey workloads run rey.fixture.text-normalize --input ' rey ' --format table
+just rey workloads run rey.fixture.source-search \
+  --input evidence \
+  --source crates/rey-environment/tests/fixtures/source-corpus/alpha.txt \
+  --format table
 ```
 
-The current built-in workload graphs provide deterministic UTF-8 `trim` and
-`uppercase` operations. They prove graph validation, expected-to-observed
-scenario deltas, qualification, local result state, and test/run graph parity.
-They are not yet the general mining operation model described above.
+The catalog contains three executable conformance workloads. Two graphs cover
+deterministic UTF-8 `trim` and `uppercase`. The source-search graph composes
+`rey.source-search.literal-utf8` with a deterministic match renderer over an
+explicit bounded corpus. Its required empty and exact scenarios qualify the
+graph; optional mismatch and truncation scenarios retain a typed match
+relation delta, ordered line delta, omissions, one scheduled frontier row, and
+a bounded reasoning surface. `run --source` executes that same qualified graph
+against caller-selected files below the workspace.
 
 The implemented environment loop can also be exercised entirely through files
 selected by the caller:
@@ -170,7 +179,9 @@ commands support human tables and structured JSON; redirected `auto` selects
 JSON. `workloads test` keeps passing scenarios compact by default and always
 opens failing diffs. `-v` adds matching evidence, while `-vv` binds evidence to
 exact workload, graph, suite, evaluator, scenario, execution, result, and delta
-identities.
+identities. Mining scenarios additionally expose operation, provider,
+capability snapshot, corpus, request, result, relation, native source, match,
+context, frontier, scheduling-decision, and reasoning-surface identities.
 
 ## The Mining Ladder
 
@@ -200,9 +211,10 @@ checkpoints, and limits. Grouping or visualization cannot become proof merely
 because it looks complete. Typed before/after values remain authoritative even
 when a human view renders them as text.
 
-See [Mining Context Into Evidence](docs/MINING.md) for the target capability
-contracts and [ADR 0017](docs/decisions/0017-mining-capability-model.md) for the
-accepted architectural boundary.
+See [Mining Context Into Evidence](docs/MINING.md) for the capability contracts,
+[ADR 0017](docs/decisions/0017-mining-capability-model.md) for the architectural
+boundary, and [ADR 0018](docs/decisions/0018-first-mining-workload.md) for the
+first executable slice.
 
 ## Exact Evidence, Diffs, And Proof
 
@@ -309,18 +321,20 @@ identity probes, a partial read-only Git observation, typed capability
 snapshot deltas, Arrow and Tabular Diff projections, scoped capability
 certificates, bounded local proof bundles, a formal runtime reducer, canonical
 frontier/progress/scheduling contracts, bounded reasoning-surface contracts,
-the first deterministic workload CLI slice, and provider-neutral mining
-operation/request/result manifests with canonical replay verification. The
-standalone environment now also advertises a built-in literal source-search
-capability over explicitly bound local corpora; it retains native bytes and
-projects exact matches and context spans as a typed Arrow-capable frame.
+the deterministic workload CLI, and provider-neutral mining operation/request/
+result manifests with canonical replay verification. The standalone
+environment advertises a built-in literal source-search provider over exact
+local corpora; the source-search workload executes it through the same test and
+run graph, compares native ordered text and typed match relations, and projects
+complete, failing, and truncated evidence through `list`, `test`, `status`, and
+`run`.
 
-Mining now has its first deterministic zero-Spoke provider path, but it is not
-wired into a workload graph or CLI projection and does not invoke `rg`. The
-next bearing in [Plan 0006](plans/0006-mining-strategy.md) is to complete the
-source-search semantic surface needed for provider parity, then compare the
-typed match relation and native ordered text before adding AST/CST adapters,
-semantic indexes, broad metrics, or generic scheduling.
+[Plan 0006](plans/0006-mining-strategy.md) is complete at that first bounded
+zero-Spoke slice. It deliberately does not execute `rg`, parse ASTs/CSTs, build
+a semantic index, calculate broad quality metrics, or run a recurring generic
+scheduler. The next bearing should choose one richer source-mining rung from a
+named workload and preserve the same CLI-verifiable evidence path;
+parser-backed syntax and symbol/reference relations are the leading candidate.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

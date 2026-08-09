@@ -820,6 +820,7 @@ impl SourceSearchEvidence {
         corpus: &LocalSourceCorpus,
         request: &MiningRequest,
     ) -> Result<(), SourceMiningError> {
+        self.verify_detached(corpus.binding(), request)?;
         corpus.verify_frozen()?;
         let operation = builtin_source_search_operation();
         self.result.verify_against(request, &operation)?;
@@ -911,6 +912,109 @@ impl SourceSearchEvidence {
                     .bytes
                     .get(span.context_start_byte..span.context_end_byte)
                     != Some(context.text.as_bytes())
+                || context_digest(
+                    &context.source_artifact_id,
+                    context.start_byte as usize,
+                    context.end_byte as usize,
+                    context.text.as_bytes(),
+                ) != context.artifact_id
+            {
+                return Err(SourceMiningError::ContextDigest);
+            }
+        }
+        let expected_contexts = self
+            .matches
+            .iter()
+            .map(|source_match| &source_match.context_artifact_id)
+            .collect::<BTreeSet<_>>();
+        let actual_contexts = self
+            .contexts
+            .iter()
+            .map(|context| &context.artifact_id)
+            .collect::<BTreeSet<_>>();
+        if expected_contexts != actual_contexts || actual_contexts.len() != self.contexts.len() {
+            return Err(SourceMiningError::EvidenceShape);
+        }
+        let productive = self.match_artifact.is_some();
+        if productive != !self.result.outputs.is_empty() {
+            return Err(SourceMiningError::EvidenceShape);
+        }
+        if let Some(artifact) = &self.match_artifact {
+            if self.result.outputs != [artifact.clone()]
+                || artifact.artifact_id != match_relation_digest(request, &self.matches)
+                || artifact.logical_bytes != match_relation_logical_bytes(&self.matches)?
+            {
+                return Err(SourceMiningError::EvidenceDigest);
+            }
+        } else if !self.matches.is_empty() || !self.contexts.is_empty() {
+            return Err(SourceMiningError::EvidenceShape);
+        }
+        Ok(())
+    }
+
+    /// Replays the retained manifest, relation, and native-context identities
+    /// without reopening mutable source files. This is the verification level
+    /// available to a bounded retained workload index; execution-time proof
+    /// still uses `verify_against` with the frozen native corpus.
+    pub fn verify_detached(
+        &self,
+        binding: &SourceCorpusBinding,
+        request: &MiningRequest,
+    ) -> Result<(), SourceMiningError> {
+        binding.verify()?;
+        let operation = builtin_source_search_operation();
+        self.result.verify_against(request, &operation)?;
+        if self.binding_id != binding.binding_id
+            || request.provider != local_source_provider()
+            || request.inputs != [binding.artifact_ref()]
+        {
+            return Err(SourceMiningError::EvidenceBinding);
+        }
+        if self
+            .matches
+            .windows(2)
+            .any(|window| source_match_order(&window[0], &window[1]).is_ge())
+        {
+            return Err(SourceMiningError::NonCanonicalMatches);
+        }
+        let pattern_id = literal_pattern_digest(parameter_utf8(request, "pattern")?);
+        for source_match in &self.matches {
+            let file = binding
+                .files
+                .iter()
+                .find(|file| file.artifact_id == source_match.source_artifact_id)
+                .ok_or(SourceMiningError::EvidenceBinding)?;
+            if file.path != source_match.path
+                || source_match.pattern_id != pattern_id
+                || source_match.start_byte >= source_match.end_byte
+                || source_match.end_byte > file.byte_len
+                || source_match.start_line == 0
+                || source_match.end_line < source_match.start_line
+                || source_match.context_start_byte > source_match.start_byte
+                || source_match.context_end_byte < source_match.end_byte
+                || source_match.context_end_byte > file.byte_len
+                || source_match.context_start_line == 0
+                || source_match.context_end_line < source_match.context_start_line
+                || source_match.match_id
+                    != source_match_digest(
+                        &request.request_id,
+                        &source_match.source_artifact_id,
+                        &pattern_id,
+                        source_match.start_byte,
+                        source_match.end_byte,
+                    )
+            {
+                return Err(SourceMiningError::EvidenceShape);
+            }
+            let context = self
+                .contexts
+                .iter()
+                .find(|context| context.artifact_id == source_match.context_artifact_id)
+                .ok_or(SourceMiningError::MissingContext)?;
+            if context.source_artifact_id != source_match.source_artifact_id
+                || context.start_byte != source_match.context_start_byte
+                || context.end_byte != source_match.context_end_byte
+                || context.end_byte.saturating_sub(context.start_byte) != context.text.len() as u64
                 || context_digest(
                     &context.source_artifact_id,
                     context.start_byte as usize,
@@ -1095,6 +1199,14 @@ pub fn builtin_source_search_operation() -> MiningOperation {
         MiningLimits::default(),
     )
     .expect("built-in source search operation must remain valid")
+}
+
+pub fn explicit_source_path_identity(
+    relative_path: impl AsRef<Path>,
+) -> Result<SourcePathIdentity, SourceMiningError> {
+    let relative_path = relative_path.as_ref();
+    validate_relative_path(relative_path)?;
+    Ok(path_identity(relative_path))
 }
 
 fn validate_binding_shape(

@@ -4,7 +4,9 @@ This document defines Rey's target semantic contracts for frames, typed deltas,
 native deltas, and diff renderings. Physical schemas and serialized formats
 remain provisional until accepted by an ADR and proved by fixtures. ADR 0017
 places relational, text, and structural comparison inside the common mining
-model; only the capability and UTF-8 scenario specializations are implemented.
+model. Capability deltas, ordered UTF-8 line deltas, scenario-output deltas,
+and the typed source-match relation delta are implemented; generic frame and
+structural delta families remain target contracts.
 
 ## Direction
 
@@ -184,6 +186,30 @@ revision, nullable before/after columns, changed-field names, and lineage in
 frame attributes. Change ordering and field ordering are deterministic. Empty
 deltas retain their schema and lineage. A bounded summary and Tabular Diff 0.8
 CSV are non-authoritative projections of that delta.
+
+### Implemented Source-Mining Specializations
+
+ADR 0018 adds two bounded authoritative forms:
+
+- `rey.text-delta.v1` binds source/target UTF-8 artifact identities and labels,
+  comparator, line segmentation, final-newline state, input/line/alignment/
+  change/string limits, and deterministic LCS-aligned context/delete/insert
+  rows grouped in an ordered hunk. Replay requires the exact source and target
+  text. `rey.scenario-output-delta.v2` embeds this result while retaining its
+  expected/observed strings for workload evaluation.
+- `rey.source-match-delta.v1` aligns expected and observed rows by reversible
+  path encoding/identity plus start/end byte span. It preserves typed
+  insertions, deletions, modifications and changed fields, exact source/match/
+  context ids, reviewed expectations, mining completeness, relation counts,
+  and explicit limits. Any incomplete mining result makes the comparison
+  inconclusive even when retained rows happen to agree.
+
+The workload terminal renderer projects the text delta as an ANSI-independent
+line patch and the relation as counts plus typed changed rows, matches, native
+context, omissions, and deep bindings. These projections do not replace the
+structured artifacts or participate in their identities. General text context
+elision, token deltas, arbitrary frame comparison, and structural alignment
+remain later contracts.
 
 ## Tabular Diff 0.8 Projection
 

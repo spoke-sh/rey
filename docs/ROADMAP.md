@@ -43,6 +43,13 @@ and proof belong in `plans/`.
 
 ## Phase 3 — Mining-Powered Workload Compute Graphs
 
+The compiled workload catalog, four-command CLI, typed DAG, scenario
+qualification, common mining manifests, exact local literal search, typed match
+and ordered text deltas, source-search workload, linked human projections, and
+one failure-derived reasoning surface are delivered. The remaining bullets in
+this phase concern general declarations, activation, invalidation, recurring
+execution, and broader provider behavior.
+
 - Fix the smallest workload declaration, graph, scenario, campaign,
   qualification, catalog, and result schemas.
 - Implement `workloads list`, `test`, `run`, and `status` over one built-in

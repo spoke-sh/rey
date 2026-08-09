@@ -2,11 +2,13 @@
 
 This document defines Rey's target mining model. [ADR 0017](decisions/0017-mining-capability-model.md)
 accepts mining as the capability layer that joins environment surfaces to
-workload graphs, deltas, frontiers, and reasoning surfaces. Plan 0006 owns the
-first executable slice. Provider-neutral mining operation, request, result,
+workload graphs, deltas, frontiers, and reasoning surfaces. Plan 0006 completes
+the first executable slice. Provider-neutral mining operation, request, result,
 artifact, completeness, lineage, dependency, and limit contracts are now
-implemented; provider execution, text deltas, structural indexes, and concrete
-visual specifications are not.
+implemented. The first deterministic provider, ordered text delta, typed source
+match delta, workload graph, terminal projections, and delta-directed reasoning
+fixture are also implemented. External tool providers, structural indexes, and
+general visualization specifications are not.
 
 ## Purpose
 
@@ -270,7 +272,7 @@ Spoke query semantics.
 
 Current Rey discovers the allowlisted `rg` and `git` executables by bounded
 identity probes, observes part of one Git repository, operates on typed
-capability frames, implements narrow UTF-8 scenario deltas, and exposes
+capability frames, implements ordered UTF-8 line deltas, and exposes
 canonical `rey.mining-operation.v1`, `rey.mining-request.v1`, and
 `rey.mining-result.v2` manifests. Result v2 makes observed wall time optional
 so a deterministic pure projection does not acquire a timing-dependent
@@ -292,23 +294,39 @@ path, match, row, context, string, output, and time boundaries remain explicit;
 binary and invalid UTF-8 inputs, truncation, malformed parameters, symlinks,
 path escapes, and source drift fail closed or produce typed incomplete results.
 
-Rey does not yet execute `rg` as a mining provider, support regex/case-folded
-search, compare arbitrary source artifacts, parse ASTs/CSTs, build a semantic
-index, or render general tree/graph visualizations. The baseline is a library
-provider and is not yet a workload graph node or public CLI resource.
+`rey.fixture.source-search` completes Plan 0006's first end-to-end standalone
+slice. Its typed graph executes `rey.source-search.literal-utf8@1` and
+`rey.builtin.source-matches.render-lines@1` in deterministic dependency order.
+Required empty and exact scenarios qualify the graph. Optional mismatch and
+truncation scenarios preserve, respectively, a complete `DIFFERENT` relation
+and a typed `INCONCLUSIVE` relation with a `match_limit` omission.
 
-Plan 0006 starts with one end-to-end standalone slice:
+`rey.source-match-delta.v1` aligns the relation by reversible path identity and
+byte span, preserving insertions, deletions, modifications, typed before/after
+rows, native source/match/context identities, completeness, and replay.
+`rey.text-delta.v1` preserves expected-to-observed direction, ordered UTF-8
+lines, final-newline state, bounded LCS alignment, change counts, and replay;
+`rey.scenario-output-delta.v2` embeds it for workload output evaluation.
 
-1. use the frozen common operation, request, result, artifact, limit,
-   completeness, and lineage contracts;
-2. adapt bounded read-only source search and exact context retrieval;
-3. project matches as a typed relation while retaining source text natively;
-4. compute one relational delta and one ordered text delta;
-5. render bounded table and patch projections with exact deep links;
-6. exercise the same contracts through a scenario-qualified workload and a
-   delta-directed reasoning-surface fixture; and
-7. prove deterministic behavior, provider drift, failure, truncation, and
-   zero-Spoke operation.
+The failing complete relation deterministically derives one
+`rey.frontier.v2` row, selects it with one `rey.scheduling-decision.v2`, and
+projects one `rey.reasoning-surface.v3` citing the source result, match/context
+artifacts, relational and text deltas, and the admissible graph-revision
+action. This is a workload-specific conformance fixture, not a recurring
+scheduler or policy loop.
+
+The human verification path is the workload surface: `workloads list` reports
+portfolio and per-workload mining dimensions; `workloads test -v/-vv` renders
+matches, native context, relation and line diffs, omissions, limits, deep
+bindings, and reasoning selection; `workloads status` reopens retained
+evidence; and `workloads run --source` executes the qualified graph against
+explicit caller-selected paths. JSON retains the same verified semantic
+artifacts without progress text.
+
+Rey still does not execute `rg` as a mining provider, support regex/case-folded
+search, compare arbitrary caller-selected source artifacts outside this graph,
+parse ASTs/CSTs, build a semantic index, or render general tree/graph
+visualizations.
 
 AST/CST adapters, semantic resolution, broad code-quality metrics, durable
 indexes, generic graph visualization, learned ranking, and recurring

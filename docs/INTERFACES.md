@@ -4,10 +4,10 @@ This document sketches Rey's user, environment, policy, and Spoke interfaces.
 The implemented CLI includes the standalone environment
 snapshot/delta/certificate loop, local-only proof bundles, and the first
 built-in workload slice fixed by ADR 0016. Generic workload declarations,
-workload-wired mining operations, graph proposal policy, and connected Spoke
-behavior remain provisional. ADR 0017 fixes the common relational/source
-mining boundary; Plan 0006 now implements its first local source corpus,
-literal-search, and typed match schemas as library contracts.
+graph proposal policy, and connected Spoke behavior remain provisional. ADR
+0017 fixes the common relational/source mining boundary; ADR 0018 implements
+its first workload-wired local source corpus, literal search, typed relation
+and ordered text deltas, reasoning fixture, and human CLI projections.
 
 ## Interface Principles
 
@@ -39,7 +39,7 @@ Rey's product surface is intentionally small:
 rey environment <command>
 rey workloads [--workspace PATH] [--state-dir PATH] list
 rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
-rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8>
+rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
@@ -56,24 +56,29 @@ reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 The built-in slice implements this behavior:
 
 - `list` reads catalog and result indexes and shows exact candidate/qualified
-  graph identities plus scenario progress; it executes no work;
+  graph identities, operation order, scenario progress, mining completeness,
+  and retained relation/reasoning counts; it executes no work;
 - `test` executes one bounded deterministic graph/scenario pass, retains
-  `EXPECTED` to `OBSERVED` typed deltas, and qualifies only a graph revision
-  for which every required scenario freshly passes; without an id it selects
-  every catalog workload and fails closed on the workload-count bound; its
-  human view renders scenario results incrementally in declaration order;
+  `EXPECTED` to `OBSERVED` typed deltas plus mining evidence, and qualifies
+  only a graph revision for which every required scenario freshly passes;
+  without an id it selects every catalog workload and fails closed on the
+  workload-count bound; its human view renders scenario results incrementally
+  in declaration order;
 - `run` executes the current fresh qualified built-in graph against one
-  admitted UTF-8 input; and
+  admitted UTF-8 input and, for the mining workload, repeatable explicit
+  `--source` paths under the workspace; and
 - `status` reads the exact workload, graph, suite, retained deltas,
-  qualification, freshness, stop reason, and latest run without repairing it.
+  mining results/omissions/reasoning, qualification, freshness, stop reason,
+  and latest run without repairing it.
 
-The catalog is compiled into Rey. It deliberately exposes only the passing
-`rey.fixture.text-normalize` and failing `rey.fixture.text-mismatch`
-conformance workloads; it is not an external manifest format or arbitrary
-operation loader.
+The catalog is compiled into Rey. It exposes the qualified
+`rey.fixture.source-search`, passing `rey.fixture.text-normalize`, and failing
+`rey.fixture.text-mismatch` conformance workloads; it is not an external
+manifest format or arbitrary operation loader.
 
-See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) and
-[ADR 0016](decisions/0016-first-workload-slice.md).
+See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md),
+[ADR 0016](decisions/0016-first-workload-slice.md), and
+[ADR 0018](decisions/0018-first-mining-workload.md).
 
 ## Implemented Workload CLI
 
@@ -83,13 +88,14 @@ relative `--state-dir` values resolve below the canonical workspace and an
 absolute value selects an explicit separate local boundary.
 
 The `list` table is a portfolio document rather than a flattened relation. Its
-portfolio header derives qualification, scenario, run, and inventory totals;
+portfolio header derives qualification, scenario, run, inventory, and mining
+totals;
 each workload card exposes purpose, journey, passing and evaluated scenario
-coverage, evaluation counts, qualification, exact graph identities, retained
-test evidence and freshness, and last-run state. ANSI styling is enabled only
-for an interactive terminal and is never the sole carrier of meaning. Forced
-table output through a pipe remains ANSI-free. The JSON schema is unchanged;
-portfolio aggregates are derived from its authoritative per-workload counts.
+coverage, evaluation counts, qualification, exact graph and operation
+identities, retained test/mining evidence and freshness, and last-run state.
+ANSI styling is enabled only for an interactive terminal and is never the sole
+carrier of meaning. Forced table output through a pipe remains ANSI-free.
+Portfolio aggregates are derived from authoritative per-workload counts.
 
 The `test` table is a diff-first runner document. It declares the selected
 execution path, admission mode, comparison stage, and workload scope before
@@ -97,19 +103,23 @@ executing scenarios, then renders each scenario as soon as the deterministic
 runtime completes it. Plain output keeps passing scenarios compact but always
 opens a failing or inconclusive scenario's directed `EXPECTED` to `OBSERVED`
 delta. `-v` also renders evidence formats and matching output evidence for
-passing scenarios. `-vv` additionally exposes exact workload, graph, scenario
-suite, evaluator, scenario, execution, result, and delta identities. A final
-portfolio section keeps workload qualification, scenario conformance,
-evaluation coverage, delta assessment, and qualification counts separate.
-These verbosity flags affect only the human projection; redirected `auto` and
-explicit JSON retain the same `rey.workload-test-batch.v1` document.
+passing scenarios. Mining scenarios add relation assessment, exact matches and
+context, completeness, omissions, consumption, and limits. `-vv` additionally
+exposes exact workload, graph, suite, evaluator, scenario, execution, result,
+delta, operation/provider/capability, corpus/request/result, native artifact,
+frontier, scheduling, and reasoning-surface identities. A final portfolio
+section keeps workload qualification, scenario conformance, evaluation
+coverage, delta assessment, and qualification counts separate. These
+verbosity flags affect only the human projection; redirected `auto` and
+explicit JSON retain the same `rey.workload-test-batch.v2` document.
 
-The structured schemas are `rey.workload-list.v1`,
-`rey.workload-status-batch.v1`, `rey.workload-test-batch.v1`, and
-`rey.workload-run-result.v1`. Test results contain verified
-`rey.scenario-output-delta.v1` documents for equal and different outputs.
-Passing tests alone contain a `rey.workload-qualification.v1` binding the
-exact workload, graph, scenario suite, evaluator, and test result.
+The structured schemas are `rey.workload-list.v2`,
+`rey.workload-status-batch.v2`, `rey.workload-test-batch.v2`, and
+`rey.workload-run-result.v2`. Test results contain verified
+`rey.scenario-output-delta.v2` documents embedding `rey.text-delta.v1`, and
+mining scenarios contain `rey.source-match-delta.v1`. Passing tests alone
+contain a `rey.workload-qualification.v2` binding the exact workload, graph,
+scenario suite, evaluator, and test result.
 
 ## Implemented Environment CLI
 
@@ -227,13 +237,15 @@ a human view may render a table, patch, tree, graph, timeline, or metric panel.
 Both record source artifact identities, selection, grouping, ordering,
 aggregation, context, elision, sampling, limits, and omissions.
 
-The implemented library schemas are `rey.source-corpus.v1`,
-`rey.source-search.literal-utf8`, and `rey.source-matches` version `1`. They
-have no peer top-level CLI resource. Fixtures prove canonical identity, native
-source binding, typed empty matches, bounds, completeness, Arrow/JSON replay,
-and source drift. Regex, case folding, directory/glob selection, external
-`rg`, text delta, visualization, and workload integration remain Plan 0006
-work.
+The implemented schemas are `rey.source-corpus.v1`,
+`rey.source-search.literal-utf8@1`, `rey.source-matches` version `1`,
+`rey.source-match-delta.v1`, and `rey.text-delta.v1`. They have no peer
+top-level CLI resource; `rey.fixture.source-search` composes them. Fixtures
+prove canonical identity, native source binding, typed empty matches, complete
+and truncated comparison, bounds, Arrow/JSON replay, source drift, and
+delta-directed reasoning. Regex, case folding, directory/glob selection,
+external `rg`, parser/index operations, and general visualization contracts
+remain later workload slices.
 
 ## Standard Streams
 
@@ -408,7 +420,9 @@ and Activation](GIT.md).
 
 ## Frontier And Scheduling Contracts
 
-The implemented library contracts have no direct CLI surface.
+The generic contracts have no peer top-level CLI resource. The source-search
+workload now projects one failure-derived frontier, scheduling decision, and
+reasoning surface through `test -vv` and `status`.
 `rey.frontier.v2` binds exact workload, graph, scenario-suite, campaign,
 space, trace, committed-record, capability, derivation, prioritization,
 coverage, and limit inputs. Its canonical `rey.frontier-rows` version `2`
@@ -595,7 +609,7 @@ deltas, qualification records, runs, and indexes read by `workloads list` and
 `status`.
 
 The first standalone implementation uses a compiled-in catalog and a bounded
-`rey.local-workload-state.v1` result index at
+`rey.local-workload-state.v2` result index at
 `${workspace}/.rey/workloads/state.json`, overridable by explicit
 `--state-dir`. Reads reject symlinked state files and verify every retained
 semantic result. Writes use a same-directory temporary file and rename. This
@@ -604,7 +618,7 @@ semantics. A graph selected for future runs cannot exist solely in a
 disposable cache. Connected mode uses
 public Spoke resources for stronger durability, query, compute, and lineage
 claims. A general manifest encoding, Spoke mapping, and stronger publication
-protocol remain undecided; ADR 0016 does not select an engine.
+protocol remain undecided; ADRs 0016 and 0018 do not select an engine.
 
 For the implemented capability claim, standalone Rey writes the
 [ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed

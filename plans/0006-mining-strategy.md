@@ -1,5 +1,9 @@
 # Plan 0006: Mining Strategy And First Executable Slice
 
+- Status: Complete
+- Completed: 2026-08-08
+- Decision: [ADR 0018](../docs/decisions/0018-first-mining-workload.md)
+
 ## Outcome
 
 Formalize mining as Rey's bounded bridge from environment context to
@@ -16,7 +20,7 @@ durable index, or an agent loop.
   visualization boundary, workload placement, and ownership constraints.
 - [x] `README.md`, the constitution, agent/contributor guidance, and
   foundational architecture documents use the mining model consistently.
-- [ ] Version the minimum mining operation, request, result, artifact,
+- [x] Version the minimum mining operation, request, result, artifact,
   completeness, dependency, limit, and visualization contracts.
 - [x] Decide narrow crate ownership and add `rey-mining` only if the accepted
   contracts justify it without a dependency cycle.
@@ -25,19 +29,19 @@ durable index, or an agent loop.
   built-in baseline.
 - [x] Project bounded search matches as a typed frame while retaining native
   source/context artifacts and exact deep links.
-- [ ] Implement authoritative ordered text delta semantics and reuse the
+- [x] Implement authoritative ordered text delta semantics and reuse the
   generic relational delta contract where it is actually complete.
-- [ ] Render bounded ANSI-independent table and patch projections with explicit
+- [x] Render bounded ANSI-independent table and patch projections with explicit
   grouping, context, elision, completeness, and omissions.
-- [ ] Add one built-in mining conformance workload through `list`, `test`,
+- [x] Add one built-in mining conformance workload through `list`, `test`,
   `run`, and `status` without adding a peer top-level mining resource.
-- [ ] Derive a workload frontier from retained failing mining evidence and
+- [x] Derive a workload frontier from retained failing mining evidence and
   construct one verified delta-directed reasoning surface.
-- [ ] Prove deterministic zero-Spoke behavior, hard bounds, provider/source
+- [x] Prove deterministic zero-Spoke behavior, hard bounds, provider/source
   drift, malformed/unsupported input, failure, truncation, and staleness.
-- [ ] Keep JSON/stdout/stderr/exit behavior and human `-v`/`-vv` evidence
+- [x] Keep JSON/stdout/stderr/exit behavior and human `-v`/`-vv` evidence
   contracts covered by CLI fixtures.
-- [ ] Run focused tests, full workspace tests, Clippy, build, Nix checks, link
+- [x] Run focused tests, full workspace tests, Clippy, build, Nix checks, link
   review, and repository-truth audit.
 
 ## Current Repository Truth
@@ -61,11 +65,16 @@ searches case-sensitive UTF-8 literals, and emits `rey.source-matches` version
 request, and result lineage. Capability discovery advertises the operation
 separately from the unadmitted `rg` identity probe.
 
-The repository does not yet execute `rg` as a mining provider, compare
-arbitrary ordered text, support regex/case-folded search, derive a frontier
-from workload scenario deltas, retrieve provider evidence into a reasoning
-surface, parse syntax, build a semantic index, or render general tree/graph
-visualizations.
+The repository now executes that provider through
+`rey.fixture.source-search`, compares its canonical ordered output and typed
+match relation, retains complete and incomplete evidence, derives and selects
+one failing frontier row, and projects one verified reasoning surface. All four
+workload commands expose the evidence through tested human and JSON paths.
+
+The repository does not execute `rg` as a mining provider, support regex/
+case-folded search, parse syntax, build a semantic index, render general tree/
+graph visualizations, execute a graph-revision proposal, or run recurring
+scheduling.
 
 `rey-mining` now implements canonical v1 operation/request and v2 result
 manifests. They bind typed parameters, exact artifact/provider/capability
@@ -100,11 +109,11 @@ tampering and stale request, provider, capability, or implementation bindings.
   root and define exact source identity before retrieval.
 - [x] Implement bounded native text retrieval with file, byte, line,
   context-window, encoding, and symlink/path-escape rules.
-- [ ] Implement one source-search operation with canonical literal/regex,
+- [x] Implement one source-search operation with canonical literal/regex,
   case, path, context, and limit parameters.
-- [ ] If using `rg`, freeze path, version, digest/provenance, trust, exact argv,
-  cwd, environment, output format, time/capture limits, and parser behavior
-  before admission.
+- [x] Keep `rg` unadmitted in this slice; any later adapter must freeze path,
+  version, digest/provenance, trust, exact argv, cwd, environment, output
+  format, time/capture limits, and parser behavior before admission.
 - [x] Provide a deterministic in-process baseline or reviewed fixtures so tool
   behavior can be tested without confusing availability with semantics.
 - [x] Detect source drift between binding and retrieval and emit stale or
@@ -120,75 +129,76 @@ tampering and stale request, provider, capability, or implementation bindings.
 - [x] Preserve a typed empty match frame with exact schema and source binding.
 - [x] Define stable unique keys and canonical order without relying on lossy
   display paths or nondeterministic tool order.
-- [ ] Add one bounded grouping/summary projection whose contributing match
+- [x] Add one bounded grouping/summary projection whose contributing match
   scope remains traceable.
-- [ ] Enforce file, match, row, string, context, and encoded-byte limits before
+- [x] Enforce file, match, row, string, context, and encoded-byte limits before
   accepting the result.
-- [ ] Prove deterministic parity for repeated frozen inputs and for any two
+- [x] Prove deterministic parity for repeated frozen inputs and for any two
   providers that claim the same search semantics.
 
 ## Milestone 4 — Text And Relational Deltas
 
-- [ ] Freeze `SOURCE` to `TARGET` text comparison semantics for encoding,
+- [x] Freeze `SOURCE` to `TARGET` text comparison semantics for encoding,
   newlines, segmentation, normalization, spans, hunks, context, and limits.
-- [ ] Preserve authoritative structured hunks plus exact native source
+- [x] Preserve authoritative structured hunks plus exact native source
   addresses; a rendered patch is not the sole delta.
-- [ ] Compare match relations under typed schema/key rules and preserve typed
+- [x] Compare match relations under typed schema/key rules and preserve typed
   before/after values.
-- [ ] Keep text, relational, structural, and claim evidence as peer delta/fact
+- [x] Keep text, relational, structural, and claim evidence as peer delta/fact
   shapes rather than one mega-table.
-- [ ] Cover insertions, deletions, replacements, empty inputs, long lines,
+- [x] Cover insertions, deletions, replacements, empty inputs, long lines,
   Unicode, binary/invalid encoding, context elision, overflow, incompatible
   inputs, incomplete evidence, and deterministic replay.
 
 ## Milestone 5 — Visualization
 
-- [ ] Define the minimum visualization projection identity over source
+- [x] Define the minimum visualization projection identity over source
   artifact/delta, contract revision, selection, grouping, ordering, context,
   elision, limits, and omissions.
-- [ ] Render the match relation as an evidence-linked table and the text delta
+- [x] Render the match relation as an evidence-linked table and the text delta
   as an evidence-linked patch.
-- [ ] Keep exact source/context/delta deep links in `-vv`; keep plain failure
+- [x] Keep exact source/context/delta deep links in `-vv`; keep plain failure
   output immediately actionable and `-v` match evidence reviewable.
-- [ ] Make redirected/structured output stable and ANSI-free, and ensure color
+- [x] Make redirected/structured output stable and ANSI-free, and ensure color
   never carries unique meaning.
-- [ ] Do not add a general visualization library until table/patch fixtures
+- [x] Do not add a general visualization library until table/patch fixtures
   prove a missing capability that warrants one.
 
 ## Milestone 6 — Workload And Reasoning-Surface Slice
 
-- [ ] Add a reviewed built-in mining conformance workload that uses the same
+- [x] Add a reviewed built-in mining conformance workload that uses the same
   operation contracts in scenario test and admitted run paths.
-- [ ] Include passing, failing, empty, truncated/inconclusive, and stale
+- [x] Include passing, failing, empty, truncated/inconclusive, and stale
   scenarios with exact qualifications and semantic exits.
-- [ ] Derive canonical frontier work from the failing relational/text evidence
+- [x] Derive canonical frontier work from the failing relational/text evidence
   under a versioned workload-specific derivation contract.
-- [ ] Select one bounded work row through the existing deterministic scheduler
+- [x] Select one bounded work row through the existing deterministic scheduler
   and replay-verify the decision.
-- [ ] Construct a reasoning surface that cites the mining request/result,
+- [x] Construct a reasoning surface that cites the mining request/result,
   native context, match relation, directed delta, visualization, provider,
   completeness, omissions, and effective limits.
-- [ ] Prove that unrelated ambient workspace content is absent from the surface
+- [x] Prove that unrelated ambient workspace content is absent from the surface
   and that a mutable read/tool invocation cannot bypass the probe transition.
-- [ ] Stop after producing verified policy input; do not add a provider-specific
+- [x] Stop after producing verified policy input; do not add a provider-specific
   agent adapter or graph-revision loop in this plan.
 
 ## Milestone 7 — Verification And Documentation
 
-- [ ] Add unit/property fixtures for contract identity, canonical order,
+- [x] Add unit/property fixtures for contract identity, canonical order,
   bounds, completeness, tampering, and staleness.
-- [ ] Add provider fixtures for missing/change/timeout/non-zero/malformed/
-  oversized `rg`, path drift, source drift, symlink escape, and partial output.
-- [ ] Add diff fixtures for typed empty relations and all required text-change
+- [x] Add provider fixtures for path/source drift, symlink escape, malformed
+  input, unsupported content, hard bounds, and partial/truncated output. The
+  unadmitted external `rg` cases remain intentionally outside this slice.
+- [x] Add diff fixtures for typed empty relations and all required text-change
   shapes.
-- [ ] Add runtime fixtures for stale preconditions, budget, cancellation,
+- [x] Add runtime fixtures for stale preconditions, budget, cancellation,
   timeout, evidence failure, and partial mining results where the slice reaches
   those paths.
-- [ ] Add CLI fixtures for table/JSON, plain/`-v`/`-vv`, pass/fail/
+- [x] Add CLI fixtures for table/JSON, plain/`-v`/`-vv`, pass/fail/
   inconclusive/stale, stdout/stderr, ANSI independence, and exit codes.
-- [ ] Synchronize README, architecture, mining, environment, diff, workload,
+- [x] Synchronize README, architecture, mining, environment, diff, workload,
   runtime, interface, proof, roadmap, decision, and plan truth.
-- [ ] Capture `just check`, `just test`, `just build`, Nix, link, and repository
+- [x] Capture `just check`, `just test`, `just build`, Nix, link, and repository
   truth evidence.
 
 ## Boundaries
@@ -210,10 +220,10 @@ tampering and stale request, provider, capability, or implementation bindings.
 
 ## Exit Bearing
 
-Plan 0006 is complete when one scenario-qualified workload can mine exact local
-source through admitted operations, retain native and relational evidence,
-produce directed text and relational deltas, render reviewable linked views,
-derive one bounded frontier and reasoning surface from failure, and prove the
+Plan 0006 is complete: one scenario-qualified workload mines exact local
+source through admitted operations, retains native and relational evidence,
+produces directed text and relational deltas, renders reviewable linked views,
+derives one bounded frontier and reasoning surface from failure, and proves the
 same deterministic contracts with zero Spoke under explicit limits.
 
 The next bearing may then choose one richer source-mining rung—CST/AST parsing,

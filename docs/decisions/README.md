@@ -22,6 +22,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0015](0015-workload-centered-product.md) | Accepted; first slice implemented by 0016 | Workload-centered product, scenario-qualified compute graphs, and four-command CLI contract |
 | [0016](0016-first-workload-slice.md) | Accepted | Built-in zero-agent workload slice, local result index, typed scenario deltas, and workload identity cutover |
 | [0017](0017-mining-capability-model.md) | Accepted | Relational and source mining operations, artifacts, diffs, visualization, and workload/runtime placement |
+| [0018](0018-first-mining-workload.md) | Accepted | Source-search workload, typed relation/text deltas, evidence-linked CLI, and one delta-directed reasoning fixture |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

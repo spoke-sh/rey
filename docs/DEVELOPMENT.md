@@ -162,13 +162,22 @@ tool-backed probes may record it explicitly. That semantic correction is the
 pre-alpha `rey.mining-result.v2` hard cut; operation and request remain v1 and
 no compatibility alias silently relabels the earlier result document.
 
-The first mining implementation should prefer existing Polars/Arrow, Serde,
-BLAKE3, and bounded-process infrastructure. A parser framework, regex engine,
-tree/graph library, visualization library, async runtime, database, or broader
-Polars feature set requires a concrete Plan 0006 slice, fixture need, and
-dependency review. Discovering or adapting the existing `rg` executable does
-not make it a packaged runtime dependency unless that deployment contract is
-explicitly accepted and tested.
+ADR 0018 completes the first mining workload without a new third-party
+dependency. It adds ordered text and source-match relation deltas, extends the
+runtime graph with a typed source-match value and built-in source operations,
+and advances workload, graph, scenario, result, qualification, run, local
+state, list/status/batch, and scenario-output schemas to v2. The hard cut has no
+v1 decoder because pre-alpha retained workload state is local, bounded, and
+must never be silently reinterpreted under new evidence semantics.
+
+The next mining implementation should continue to prefer existing
+Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser
+framework, regex engine, tree/graph library, visualization library, async
+runtime, database, or broader Polars feature set requires a concrete named
+workload, fixture need, CLI verification surface, and dependency review.
+Discovering or adapting the existing `rg` executable does not make it a
+packaged runtime dependency unless that deployment contract is explicitly
+accepted and tested.
 
 ## Cargo And Crane Outputs
 

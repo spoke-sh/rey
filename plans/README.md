@@ -6,8 +6,6 @@ completion criteria.
 
 ## Active
 
-- [0006 — Mining strategy and first executable slice](0006-mining-strategy.md)
-  — current implementation bearing
 - [0001 — Foundation and first delta proof](0001-foundation.md) — continuing
   Git/Spoke foundation track
 
@@ -17,6 +15,7 @@ completion criteria.
 - [0003 — Frontier progress and scheduling contracts](0003-frontier-scheduling.md)
 - [0004 — Workload product and CLI contracts](0004-workload-contracts.md)
 - [0005 — First executable workload slice](0005-first-workload-slice.md)
+- [0006 — Mining strategy and first executable slice](0006-mining-strategy.md)
 
 ## Plan Rules
 

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod workload;
+mod workload_mining;
 
 pub use workload::{
     BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, COMPUTE_GRAPH_SCHEMA,
@@ -9,8 +10,14 @@ pub use workload::{
     TestStatus, TestSummary, ValueSource, ValueType, WORKLOAD_QUALIFICATION_SCHEMA,
     WORKLOAD_RUN_RESULT_SCHEMA, WORKLOAD_SCHEMA, WORKLOAD_TEST_RESULT_SCHEMA, WorkloadDefinition,
     WorkloadError, WorkloadLimits, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
-    WorkloadValue, built_in_workload, built_in_workloads, execute_workload, run_workload,
-    test_workload, test_workload_with_observer,
+    WorkloadValue, built_in_workload, built_in_workloads, execute_workload,
+    execute_workload_with_source, run_workload, run_workload_with_source, test_workload,
+    test_workload_with_observer, test_workload_with_observer_and_snapshot,
+};
+pub use workload_mining::{
+    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, MiningReasoningEvidence, MiningScenarioEvidence,
+    SourceMiningExecution, SourceRunInput, SourceSearchScenario, source_fixture_paths,
+    source_fixture_root,
 };
 
 use rey_core::{SemanticDigest, SemanticHasher};

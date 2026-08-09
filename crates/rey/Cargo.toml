@@ -16,6 +16,7 @@ rey-dataframe = { path = "../rey-dataframe" }
 rey-diff = { path = "../rey-diff" }
 rey-environment = { path = "../rey-environment" }
 rey-git = { path = "../rey-git" }
+rey-mining = { path = "../rey-mining" }
 rey-proof = { path = "../rey-proof" }
 rey-runtime = { path = "../rey-runtime" }
 serde.workspace = true

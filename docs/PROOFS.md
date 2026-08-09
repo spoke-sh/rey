@@ -159,6 +159,14 @@ and omitted coverage remain visible and never become universal correctness or
 production-safety claims. See [Workloads, Compute Graphs, and
 Scenarios](WORKLOADS.md).
 
+The implemented source-search qualification binds required empty and exact
+scenarios to the exact workload, graph, suite, evaluator, local corpus,
+operation/provider/capability, request/result, relation and ordered-text delta,
+and effective limits. Its optional complete mismatch and truncated scenario
+remain retained review evidence: they do not enter the required denominator and
+do not broaden the qualification claim. Rebinding changed fixture bytes makes
+the retained result and qualification stale.
+
 ### Implemented Required-Capability Certificate
 
 ADR 0010 implements one deliberately narrow claim:

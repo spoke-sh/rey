@@ -13,11 +13,11 @@ use rey_runtime::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v1";
-pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v1";
-pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v1";
-pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v1";
-pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v1";
+pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v2";
+pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v2";
+pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v2";
+pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v2";
+pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v2";
 
 const STATE_FILE_NAME: &str = "state.json";
 const MAX_STATE_BYTES: u64 = 4 * 1_024 * 1_024;
@@ -320,6 +320,13 @@ pub struct WorkloadSummary {
     pub optional: u64,
     pub last_test_result_id: Option<rey_core::SemanticDigest>,
     pub last_run_status: Option<RunStatus>,
+    pub operations: Vec<ContractIdentity>,
+    pub mining_operations: u64,
+    pub mining_results: u64,
+    pub complete_mining_results: u64,
+    pub incomplete_mining_results: u64,
+    pub relation_deltas: u64,
+    pub reasoning_surfaces: u64,
 }
 
 impl WorkloadSummary {
@@ -366,6 +373,35 @@ impl WorkloadSummary {
             .filter(|result| result.verify_for(workload).is_ok())
             .and_then(|result| result.qualification.as_ref())
             .map(|qualification| qualification.graph.clone());
+        let mut operations = Vec::new();
+        for node in &workload.graph.nodes {
+            if !operations.contains(&node.operation) {
+                operations.push(node.operation.clone());
+            }
+        }
+        let mining_operations = operations
+            .iter()
+            .filter(|operation| operation.id.starts_with("rey.source-"))
+            .count() as u64;
+        let mining = retained_test
+            .filter(|result| result.verify_for(workload).is_ok())
+            .into_iter()
+            .flat_map(|result| &result.scenarios)
+            .flat_map(|scenario| &scenario.mining)
+            .collect::<Vec<_>>();
+        let mining_results = mining.len() as u64;
+        let complete_mining_results = mining
+            .iter()
+            .filter(|evidence| {
+                evidence.execution.evidence.result.completeness
+                    == rey_mining::MiningCompleteness::Complete
+            })
+            .count() as u64;
+        let incomplete_mining_results = mining_results.saturating_sub(complete_mining_results);
+        let reasoning_surfaces = mining
+            .iter()
+            .filter(|evidence| evidence.reasoning.is_some())
+            .count() as u64;
         Self {
             workload: workload.workload.clone(),
             title: workload.title.clone(),
@@ -385,6 +421,13 @@ impl WorkloadSummary {
             last_test_result_id: retained_test.map(|result| result.result_id.clone()),
             last_run_status: record
                 .and_then(|record| record.last_run.as_ref().map(|result| result.status)),
+            operations,
+            mining_operations,
+            mining_results,
+            complete_mining_results,
+            incomplete_mining_results,
+            relation_deltas: mining_results,
+            reasoning_surfaces,
         }
     }
 }

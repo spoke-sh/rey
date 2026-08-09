@@ -9,14 +9,16 @@ use rey_environment::{
     Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryLimits, LOCAL_PROVIDER_REVISION,
     TrustClass,
 };
+use rey_mining::MiningCompleteness;
 use rey_proof::{
     BundleArtifactRole, CertificateVerification, LocalBundleVerification,
     LocalBundleVerificationStatus, LocalProofBundleManifest, ProofStatus,
     RequiredCapabilityCertificate, VerificationStatus,
 };
 use rey_runtime::{
-    BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID, RunStatus, ScenarioEvaluation,
-    TestStatus, WorkloadRunResult,
+    BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
+    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, TestStatus,
+    WorkloadRunResult,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -398,13 +400,14 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     assert!(output.stderr.is_empty());
     assert!(!workspace.path().join(".rey").exists());
     let list: WorkloadList = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(list.workloads.len(), 2);
+    assert_eq!(list.workloads.len(), 3);
     assert_eq!(
         list.workloads
             .iter()
             .map(|workload| workload.workload.id.as_str())
             .collect::<Vec<_>>(),
         [
+            BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
             BUILT_IN_NORMALIZE_WORKLOAD_ID,
             BUILT_IN_MISMATCH_WORKLOAD_ID
         ]
@@ -431,25 +434,28 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     assert!(table.starts_with("\nWORKLOAD PORTFOLIO\n"));
     assert!(
         table.contains(
-            "Qualification          0/2 qualified · 0 failing · 0 inconclusive · 0 stale"
+            "Qualification          0/3 qualified · 0 failing · 0 inconclusive · 0 stale"
         )
     );
     assert!(
-        table.contains("Scenarios              0/4 passing · 0/4 evaluated · 0 stale · 0 optional")
+        table.contains("Scenarios              0/6 passing · 0/6 evaluated · 0 stale · 2 optional")
     );
-    assert!(table.contains("Runs                   0 passed · 0 blocked · 2 not run"));
-    assert!(table.contains("Inventory              2 total · 0 tested · 2 untested"));
-    assert_eq!(table.matches("Journey                TEST").count(), 2);
+    assert!(table.contains("Runs                   0 passed · 0 blocked · 3 not run"));
+    assert!(table.contains("Inventory              3 total · 0 tested · 3 untested"));
+    assert!(
+        table.contains("Mining                 1 workloads · 0 retained results · 0 incomplete")
+    );
+    assert_eq!(table.matches("Journey                TEST").count(), 3);
     assert_eq!(
         table
             .matches("░░░░░░░░░░░░░░░░░░░░    0%  0/2 passing · 0/2 evaluated")
             .count(),
-        2
+        3
     );
     assert!(table.contains("Graph                  rey.fixture.text-normalize.graph@1"));
     assert!(table.contains("Candidate              blake3:"));
-    assert_eq!(table.matches("Qualification          UNTESTED").count(), 2);
-    assert_eq!(table.matches("Test evidence          none").count(), 2);
+    assert_eq!(table.matches("Qualification          UNTESTED").count(), 3);
+    assert_eq!(table.matches("Test evidence          none").count(), 3);
     assert!(!table.contains('\t'));
     assert!(!table.contains("\u{1b}["));
 
@@ -484,15 +490,15 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     let evolved = String::from_utf8(evolved.stdout).unwrap();
     assert!(
         evolved.contains(
-            "Qualification          1/2 qualified · 1 failing · 0 inconclusive · 0 stale"
+            "Qualification          2/3 qualified · 1 failing · 0 inconclusive · 0 stale"
         )
     );
     assert!(
         evolved
-            .contains("Scenarios              3/4 passing · 4/4 evaluated · 0 stale · 0 optional")
+            .contains("Scenarios              5/6 passing · 6/6 evaluated · 0 stale · 2 optional")
     );
-    assert!(evolved.contains("Runs                   1 passed · 0 blocked · 1 not run"));
-    assert!(evolved.contains("Inventory              2 total · 2 tested · 0 untested"));
+    assert!(evolved.contains("Runs                   1 passed · 0 blocked · 2 not run"));
+    assert!(evolved.contains("Inventory              3 total · 3 tested · 0 untested"));
     assert!(evolved.contains("Journey                RUN COMPLETE"));
     assert!(evolved.contains("Journey                REVISE GRAPH"));
     assert!(evolved.contains("████████████████████  100%  2/2 passing · 2/2 evaluated"));
@@ -662,7 +668,7 @@ fn workload_test_table_is_incremental_and_opens_failure_diffs_by_default() {
     assert!(passing.stderr.is_empty());
     let passing = String::from_utf8(passing.stdout).unwrap();
     assert!(passing.starts_with("Execution path: LOCAL\nMode: READ-ONLY GRAPH"));
-    assert!(passing.contains("Stage: EXECUTE SCENARIOS → DIFF EXPECTED"));
+    assert!(passing.contains("Stage: EXECUTE SCENARIOS → MINE EVIDENCE → DIFF EXPECTED"));
     assert!(passing.contains("SCENARIOS · results render incrementally in declaration order"));
     assert!(
         passing.contains(
@@ -699,8 +705,8 @@ fn workload_test_table_is_incremental_and_opens_failure_diffs_by_default() {
     assert!(failing.contains("Evidence deltas:"));
     assert!(failing.contains("Delta (output text):"));
     assert!(failing.contains("@@ text · utf8 @@"));
-    assert!(failing.contains("- EXPECTED \"REY\""));
-    assert!(failing.contains("+ OBSERVED \" REY \""));
+    assert!(failing.contains("- REY"));
+    assert!(failing.contains("+  REY "));
     assert!(failing.contains("Result: GAPS FOUND"));
     assert!(failing.contains("Deltas: 1 equal · 1 different · 0 inconclusive"));
     assert!(!failing.contains("Evidence format:"));
@@ -761,8 +767,8 @@ fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
     assert!(very_verbose.contains("execution   blake3:"));
     assert!(very_verbose.contains("delta       blake3:"));
     assert!(very_verbose.contains("Test result: blake3:"));
-    assert!(very_verbose.contains("- EXPECTED \"REY\""));
-    assert!(very_verbose.contains("+ OBSERVED \" REY \""));
+    assert!(very_verbose.contains("- REY"));
+    assert!(very_verbose.contains("+  REY "));
 
     let structured = run_rey(&[
         "workloads",
@@ -786,6 +792,140 @@ fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
 }
 
 #[test]
+fn source_mining_is_verifiable_across_test_list_status_and_run() {
+    let workspace = TempDir::new().unwrap();
+
+    let tested = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "test",
+        BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
+        "--format",
+        "table",
+        "-vv",
+    ]);
+    assert!(tested.status.success());
+    assert!(tested.stderr.is_empty());
+    let tested = String::from_utf8(tested.stdout).unwrap();
+    for needle in [
+        "Mining admission: VERIFIED",
+        "PASS rey.fixture.source-search · 01/04 empty",
+        "PASS rey.fixture.source-search · 02/04 exact",
+        "FAIL rey.fixture.source-search · 03/04 mismatch",
+        "INCONCLUSIVE rey.fixture.source-search · 04/04 truncated",
+        "rey.source-match-delta.v1 (typed relation)",
+        "Match relation: DIFFERENT",
+        "OMISSION match_limit",
+        "operation   rey.source-search.literal-utf8@1",
+        "provider    rey.local-source.builtin@1",
+        "request     blake3:",
+        "result      blake3:",
+        "text view   rey.text-delta.terminal-patch@1",
+        "match view  rey.source-matches.terminal-table@1",
+        "context     rey-local-source://",
+        "Delta-directed reasoning:",
+        "frontier    blake3:",
+        "scheduled   blake3:",
+        "surface     blake3:",
+    ] {
+        assert!(tested.contains(needle), "missing test evidence: {needle}");
+    }
+
+    let listed = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(listed.status.success());
+    assert!(listed.stderr.is_empty());
+    let listed = String::from_utf8(listed.stdout).unwrap();
+    assert!(
+        listed.contains("Mining                 1 workloads · 4 retained results · 1 incomplete")
+    );
+    assert!(listed.contains(
+        "Operations             rey.source-search.literal-utf8@1 → rey.builtin.source-matches.render-lines@1"
+    ));
+    assert!(listed.contains(
+        "Mining evidence        4 results · 3 complete · 1 incomplete · 4 relation deltas · 1 reasoning surfaces"
+    ));
+
+    let status = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "status",
+        BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
+        "--format",
+        "table",
+    ]);
+    assert!(status.status.success());
+    assert!(status.stderr.is_empty());
+    let status = String::from_utf8(status.stdout).unwrap();
+    assert!(status.contains("scenario=rey.fixture.source-search.scenario.mismatch"));
+    assert!(status.contains("Match relation: DIFFERENT"));
+    assert!(status.contains("Delta-directed reasoning:"));
+    assert!(status.contains("qualification=blake3:"));
+
+    fs::write(
+        workspace.path().join("sample.txt"),
+        "alpha evidence\nbeta\n",
+    )
+    .unwrap();
+    let run = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "run",
+        BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
+        "--input",
+        "evidence",
+        "--source",
+        "sample.txt",
+        "--format",
+        "table",
+    ]);
+    assert!(run.status.success());
+    assert!(run.stderr.is_empty());
+    let run = String::from_utf8(run.stdout).unwrap();
+    assert!(run.contains("status=Passed reason=completed"));
+    assert!(run.contains("node_order=[\"search\",\"render\"]"));
+    assert!(run.contains("completeness=complete"));
+    assert!(run.contains("operation=rey.source-search.literal-utf8@1"));
+    assert!(run.contains("provider=rey.local-source.builtin@1"));
+    assert!(run.contains("location=sample.txt:1:6-14 text=\"evidence\""));
+    assert!(run.contains("bindings corpus=blake3:"));
+    assert!(run.contains("view=rey.source-matches.terminal-table@1:blake3:"));
+    assert!(run.contains("context=rey-local-source://"));
+
+    let structured = run_rey(&[
+        "workloads",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "run",
+        BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
+        "--input",
+        "evidence",
+        "--source",
+        "sample.txt",
+    ]);
+    assert!(structured.status.success());
+    assert!(structured.stderr.is_empty());
+    let structured: WorkloadRunResult = serde_json::from_slice(&structured.stdout).unwrap();
+    assert_eq!(structured.status, RunStatus::Passed);
+    assert_eq!(structured.mining.len(), 1);
+    assert_eq!(
+        structured.mining[0].evidence.result.completeness,
+        MiningCompleteness::Complete
+    );
+    assert_eq!(structured.mining[0].evidence.matches.len(), 1);
+    structured.verify().unwrap();
+}
+
+#[test]
 fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
     let workspace = TempDir::new().unwrap();
     let output = run_rey(&[
@@ -798,7 +938,7 @@ fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stderr.is_empty());
     let batch: WorkloadTestBatch = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(batch.results.len(), 2);
+    assert_eq!(batch.results.len(), 3);
     assert!(
         batch
             .results

@@ -8,11 +8,13 @@ version.workspace = true
 [dependencies]
 rey-core = { path = "../rey-core" }
 rey-diff = { path = "../rey-diff" }
+rey-environment = { path = "../rey-environment" }
+rey-frontier = { path = "../rey-frontier" }
+rey-mining = { path = "../rey-mining" }
+rey-policy = { path = "../rey-policy" }
 serde.workspace = true
-thiserror.workspace = true
-
-[dev-dependencies]
 serde_json.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

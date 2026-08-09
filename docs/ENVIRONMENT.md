@@ -11,8 +11,9 @@ work. ADRs 0010 and 0011 add capability deltas, required-capability
 certificates, and bounded local-only bundle retention over this relation. ADR
 0017 classifies relational and source mining operations as first-class
 capabilities. Plan 0006 now implements the first deterministic built-in local
-source binding and literal-search capability; external `rg`, parser, index,
-and Spoke mining adapters remain later slices.
+source binding and literal-search capability and ADR 0018 composes it through
+the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
+later slices.
 
 ## Terms
 
@@ -199,6 +200,13 @@ This provider trusts the local process and is not a filesystem sandbox. It
 does not apply ignore files, generated-file policy, globs, regular expressions,
 case folding, arbitrary directory traversal, or `rg` semantics. Those
 capabilities require their own exact operation revision and parity fixtures.
+
+`rey.fixture.source-search` is the first admitted consumer. Scenario tests bind
+the checked-in corpus; `workloads run --source <relative-path>...` binds
+caller-selected files below the canonical `--workspace`. The workload result
+retains the exact corpus, request, capability snapshot, provider, result,
+match, and context identities. `list`, `test -v/-vv`, `status`, and `run`
+surface those facts without adding a separate mining command hierarchy.
 
 ## Spoke Provider
 

@@ -16,12 +16,15 @@ use rey::{
         WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, fresh_qualification,
     },
 };
+use rey_core::SemanticHasher;
 use rey_diff::{
     CapabilityDelta, DeltaAssessment, DeltaLimits, DeltaOptions, SCENARIO_OUTPUT_DELTA_SCHEMA,
-    ScenarioOutputDelta, compare_capabilities,
+    ScenarioOutputDelta, SourceMatchChangeKind, TextLineKind, compare_capabilities,
+    source_match_table_projection, text_patch_projection,
 };
-use rey_environment::{CapabilitySnapshot, DiscoveryLimits};
+use rey_environment::{CapabilitySnapshot, DiscoveryLimits, SourceBindingLimits};
 use rey_git::GitLimits;
+use rey_mining::{MiningCompleteness, MiningLimits};
 use rey_proof::{
     EvaluationOptions, LocalBundleLimits, ProofStatus, RequiredCapabilitiesClaim,
     RequiredCapabilityCertificate, VerificationStatus, create_local_proof_bundle,
@@ -29,9 +32,10 @@ use rey_proof::{
     verify_required_capability_certificate,
 };
 use rey_runtime::{
-    RunStatus, ScenarioEvaluation, ScenarioResult, TestStatus, WorkloadDefinition,
-    WorkloadRunResult, WorkloadTestResult, WorkloadValue, built_in_workload, built_in_workloads,
-    run_workload, test_workload, test_workload_with_observer,
+    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
+    SourceRunInput, TestStatus, WorkloadDefinition, WorkloadRunResult, WorkloadTestResult,
+    WorkloadValue, built_in_workload, built_in_workloads, run_workload, run_workload_with_source,
+    source_fixture_root, test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -120,6 +124,22 @@ struct WorkloadRunArgs {
     /// UTF-8 value bound to the workload's `text` input.
     #[arg(long)]
     input: String,
+
+    /// Workspace-relative regular source file; repeat to bind an explicit corpus.
+    #[arg(long = "source")]
+    sources: Vec<PathBuf>,
+
+    /// Complete source lines retained before each match.
+    #[arg(long, default_value_t = 0)]
+    context_before: u64,
+
+    /// Complete source lines retained after each match.
+    #[arg(long, default_value_t = 0)]
+    context_after: u64,
+
+    /// Maximum accepted source matches.
+    #[arg(long, default_value_t = 100_000)]
+    max_matches: u64,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
@@ -376,8 +396,8 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
     match args.command {
         WorkloadsCommand::List(command) => workload_list(&store, command),
         WorkloadsCommand::Status(command) => workload_status(&store, command),
-        WorkloadsCommand::Test(command) => workload_test(&store, command),
-        WorkloadsCommand::Run(command) => workload_run(&store, command),
+        WorkloadsCommand::Test(command) => workload_test(&store, &workspace, command),
+        WorkloadsCommand::Run(command) => workload_run(&store, &workspace, command),
     }
 }
 
@@ -422,14 +442,35 @@ fn workload_status(
     Ok(ExitCode::SUCCESS)
 }
 
-fn workload_test(store: &LocalWorkloadStore, args: WorkloadTestArgs) -> Result<ExitCode, CliError> {
+fn workload_test(
+    store: &LocalWorkloadStore,
+    _workspace: &Path,
+    args: WorkloadTestArgs,
+) -> Result<ExitCode, CliError> {
     let mut state = store.load()?;
     let definitions = select_workloads(args.workload_id.as_deref())?;
+    let capability_snapshot_id = if definitions
+        .iter()
+        .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
+    {
+        inspect_environment(
+            &source_fixture_root(),
+            DiscoveryLimits::default(),
+            GitLimits::default(),
+        )?
+        .semantic_digest
+    } else {
+        SemanticHasher::new("rey.no-mining-capability-snapshot.v1").finish()
+    };
     let mut results = Vec::with_capacity(definitions.len());
     match args.format.resolve() {
         WorkloadOutputFormat::Json => {
             for workload in definitions {
-                let result = test_workload(&workload)?;
+                let result = test_workload_with_observer_and_snapshot(
+                    &workload,
+                    capability_snapshot_id.clone(),
+                    |_| {},
+                )?;
                 state.retain_test(result.clone());
                 results.push(result);
             }
@@ -448,22 +489,26 @@ fn workload_test(store: &LocalWorkloadStore, args: WorkloadTestArgs) -> Result<E
                 let scenario_total = workload.scenario_suite.scenarios.len();
                 let mut scenario_index = 0;
                 let mut render_error = None;
-                let result = test_workload_with_observer(&workload, |scenario| {
-                    scenario_index += 1;
-                    if render_error.is_none() {
-                        render_error = write_workload_test_scenario(
-                            &mut stdout,
-                            &workload,
-                            scenario,
-                            scenario_index,
-                            scenario_total,
-                            args.verbose,
-                            style,
-                        )
-                        .and_then(|()| stdout.flush())
-                        .err();
-                    }
-                });
+                let result = test_workload_with_observer_and_snapshot(
+                    &workload,
+                    capability_snapshot_id.clone(),
+                    |scenario| {
+                        scenario_index += 1;
+                        if render_error.is_none() {
+                            render_error = write_workload_test_scenario(
+                                &mut stdout,
+                                &workload,
+                                scenario,
+                                scenario_index,
+                                scenario_total,
+                                args.verbose,
+                                style,
+                            )
+                            .and_then(|()| stdout.flush())
+                            .err();
+                        }
+                    },
+                );
                 if let Some(error) = render_error {
                     return Err(CliError::Output(error));
                 }
@@ -489,13 +534,47 @@ fn workload_test(store: &LocalWorkloadStore, args: WorkloadTestArgs) -> Result<E
     Ok(exit_code)
 }
 
-fn workload_run(store: &LocalWorkloadStore, args: WorkloadRunArgs) -> Result<ExitCode, CliError> {
+fn workload_run(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    args: WorkloadRunArgs,
+) -> Result<ExitCode, CliError> {
     let workload = built_in_workload(&args.workload_id)?;
     let mut state = store.load()?;
     let mut inputs = BTreeMap::new();
     inputs.insert("text".to_owned(), WorkloadValue::Utf8(args.input));
     let result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
-        Some(qualification) => run_workload(&workload, qualification, inputs)?,
+        Some(qualification) if workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID => {
+            if args.sources.is_empty() {
+                return Err(CliError::MissingSourceFiles);
+            }
+            if args.max_matches == 0 {
+                return Err(CliError::InvalidLimit);
+            }
+            let snapshot =
+                inspect_environment(workspace, DiscoveryLimits::default(), GitLimits::default())?;
+            let mining_limits = MiningLimits {
+                max_matches: args.max_matches,
+                max_rows: args.max_matches,
+                ..MiningLimits::default()
+            };
+            let source = SourceRunInput {
+                root: workspace.to_owned(),
+                relative_paths: args.sources,
+                context_before: args.context_before,
+                context_after: args.context_after,
+                binding_limits: SourceBindingLimits::default(),
+                mining_limits,
+                capability_snapshot_id: snapshot.semantic_digest,
+            };
+            run_workload_with_source(&workload, qualification, inputs, &source)?
+        }
+        Some(qualification) => {
+            if !args.sources.is_empty() || args.context_before != 0 || args.context_after != 0 {
+                return Err(CliError::UnexpectedSourceFiles);
+            }
+            run_workload(&workload, qualification, inputs)?
+        }
         None => WorkloadRunResult::blocked(&workload, inputs),
     };
     let exit_code = match result.status {
@@ -703,6 +782,28 @@ fn write_workload_list(
             portfolio.total, portfolio.tested, portfolio.untested,
         ),
     )?;
+    let mining_workloads = list
+        .workloads
+        .iter()
+        .filter(|workload| workload.mining_operations > 0)
+        .count();
+    let mining_results = list
+        .workloads
+        .iter()
+        .map(|workload| workload.mining_results)
+        .sum::<u64>();
+    let incomplete_mining = list
+        .workloads
+        .iter()
+        .map(|workload| workload.incomplete_mining_results)
+        .sum::<u64>();
+    write_portfolio_field(
+        output,
+        "Mining",
+        &format!(
+            "{mining_workloads} workloads · {mining_results} retained results · {incomplete_mining} incomplete"
+        ),
+    )?;
     if list.workloads.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
@@ -743,6 +844,34 @@ fn write_workload_list(
                 workload.candidate_graph.id, workload.candidate_graph.revision
             ),
         )?;
+        write_portfolio_field(
+            output,
+            "Operations",
+            &workload
+                .operations
+                .iter()
+                .map(|operation| format!("{}@{}", operation.id, operation.revision))
+                .collect::<Vec<_>>()
+                .join(" → "),
+        )?;
+        if workload.mining_operations > 0 {
+            write_portfolio_field(
+                output,
+                "Mining evidence",
+                &if workload.mining_results == 0 {
+                    style.dim("not evaluated")
+                } else {
+                    format!(
+                        "{} results · {} complete · {} incomplete · {} relation deltas · {} reasoning surfaces",
+                        workload.mining_results,
+                        workload.complete_mining_results,
+                        workload.incomplete_mining_results,
+                        workload.relation_deltas,
+                        workload.reasoning_surfaces,
+                    )
+                },
+            )?;
+        }
         write_portfolio_field(
             output,
             "Candidate",
@@ -955,12 +1084,12 @@ fn write_workload_test_plan(
     writeln!(
         output,
         "Mode: {}",
-        style.cyan_bold("READ-ONLY GRAPH · RETAIN LOCAL RESULTS")
+        style.cyan_bold("READ-ONLY GRAPH + PROBES · RETAIN LOCAL RESULTS")
     )?;
     writeln!(
         output,
         "Stage: {}",
-        style.bold("EXECUTE SCENARIOS → DIFF EXPECTED")
+        style.bold("EXECUTE SCENARIOS → MINE EVIDENCE → DIFF EXPECTED")
     )?;
     writeln!(output, "Scope: {}", style.bold(&scope))?;
     writeln!(output)?;
@@ -1005,6 +1134,22 @@ fn write_workload_test_start(
         style.cyan_bold("BUILT-IN"),
         style.green("VERIFIED")
     )?;
+    if workload
+        .graph
+        .nodes
+        .iter()
+        .any(|node| node.operation.id.starts_with("rey.source-search."))
+    {
+        writeln!(
+            output,
+            "Mining admission: {} · explicit local corpus · bounded read-only probe",
+            style.green("VERIFIED")
+        )?;
+        writeln!(
+            output,
+            "Mining operation: rey.source-search.literal-utf8@1 → rey.source-matches.v1 → ordered UTF-8 text"
+        )?;
+    }
     if verbosity >= 1 {
         let node_count = workload.graph.nodes.len();
         writeln!(
@@ -1058,6 +1203,13 @@ fn write_workload_test_scenario(
         .iter()
         .filter(|delta| delta.assessment == DeltaAssessment::Equal)
         .count();
+    let equal_relations = scenario
+        .mining
+        .iter()
+        .filter(|evidence| evidence.relation_delta.assessment == DeltaAssessment::Equal)
+        .count();
+    let evidence_total = scenario.deltas.len() + scenario.mining.len();
+    let evidence_equal = equal + equal_relations;
     let label = match scenario.evaluation {
         ScenarioEvaluation::Passed => style.green("PASS"),
         ScenarioEvaluation::Failed => style.red("FAIL"),
@@ -1071,13 +1223,18 @@ fn write_workload_test_scenario(
         .unwrap_or(&scenario.scenario.id);
     writeln!(
         output,
-        "{label} {} · {:02}/{:02} {} · {}/{} outputs equal · {}",
+        "{label} {} · {:02}/{:02} {} · {}/{} {} equal · {}",
         workload.workload.id,
         index,
         total,
         scenario_id,
-        equal,
-        scenario.deltas.len(),
+        evidence_equal,
+        evidence_total,
+        if scenario.mining.is_empty() {
+            "outputs"
+        } else {
+            "evidence branches"
+        },
         if scenario.required {
             "required"
         } else {
@@ -1085,11 +1242,19 @@ fn write_workload_test_scenario(
         }
     )?;
     if verbosity >= 1 {
-        writeln!(
-            output,
-            "     Evidence format: {} (utf8)",
-            SCENARIO_OUTPUT_DELTA_SCHEMA
-        )?;
+        if scenario.mining.is_empty() {
+            writeln!(
+                output,
+                "     Evidence format: {} (utf8)",
+                SCENARIO_OUTPUT_DELTA_SCHEMA
+            )?;
+        } else {
+            writeln!(
+                output,
+                "     Evidence formats: {} (ordered utf8) · rey.source-match-delta.v1 (typed relation) · rey.mining-result.v2",
+                SCENARIO_OUTPUT_DELTA_SCHEMA
+            )?;
+        }
     }
     let passing = scenario.evaluation == ScenarioEvaluation::Passed;
     if passing && verbosity == 0 {
@@ -1106,6 +1271,9 @@ fn write_workload_test_scenario(
     )?;
     for delta in &scenario.deltas {
         write_scenario_delta(output, workload, scenario, delta, verbosity, style)?;
+    }
+    for mining in &scenario.mining {
+        write_source_mining_evidence(output, mining, verbosity, style)?;
     }
     Ok(())
 }
@@ -1169,6 +1337,15 @@ fn write_scenario_delta(
         )?;
         write_test_binding(output, "execution", scenario.execution_id.as_str())?;
         write_test_binding(output, "delta", delta.delta_id.as_str())?;
+        let projection = text_patch_projection();
+        write_test_binding(
+            output,
+            "text view",
+            &format!(
+                "{}@{} · {}",
+                projection.id, projection.revision, projection.semantic_digest
+            ),
+        )?;
     } else {
         writeln!(
             output,
@@ -1182,16 +1359,28 @@ fn write_scenario_delta(
             writeln!(output, "            {:?}", delta.expected)?;
         }
         DeltaAssessment::Different => {
-            writeln!(
-                output,
-                "         {}",
-                style.red(&format!("- EXPECTED {:?}", delta.expected))
-            )?;
-            writeln!(
-                output,
-                "         {}",
-                style.green(&format!("+ OBSERVED {:?}", delta.observed))
-            )?;
+            for hunk in &delta.text_delta.hunks {
+                writeln!(
+                    output,
+                    "         @@ -{},{} +{},{} @@",
+                    hunk.source_start_line,
+                    hunk.source_line_count,
+                    hunk.target_start_line,
+                    hunk.target_line_count
+                )?;
+                for line in &hunk.lines {
+                    let text = line.text.strip_suffix('\n').unwrap_or(&line.text);
+                    match line.kind {
+                        TextLineKind::Context => writeln!(output, "          {text}")?,
+                        TextLineKind::Delete => {
+                            writeln!(output, "         {}", style.red(&format!("- {text}")))?
+                        }
+                        TextLineKind::Insert => {
+                            writeln!(output, "         {}", style.green(&format!("+ {text}")))?
+                        }
+                    }
+                }
+            }
         }
         DeltaAssessment::Inconclusive => {
             writeln!(
@@ -1205,6 +1394,226 @@ fn write_scenario_delta(
         }
     }
     Ok(())
+}
+
+fn write_source_mining_evidence(
+    output: &mut impl Write,
+    mining: &rey_runtime::MiningScenarioEvidence,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let evidence = &mining.execution.evidence;
+    let result = &evidence.result;
+    let relation = &mining.relation_delta;
+    let completeness = match result.completeness {
+        MiningCompleteness::Complete => style.green("COMPLETE"),
+        MiningCompleteness::Partial | MiningCompleteness::Truncated => {
+            style.yellow(result.completeness.as_str().to_uppercase().as_str())
+        }
+        MiningCompleteness::Unsupported
+        | MiningCompleteness::Unavailable
+        | MiningCompleteness::Failed => {
+            style.red(result.completeness.as_str().to_uppercase().as_str())
+        }
+    };
+    let assessment = match relation.assessment {
+        DeltaAssessment::Equal => style.green("EQUAL"),
+        DeltaAssessment::Different => style.red("DIFFERENT"),
+        DeltaAssessment::Inconclusive => style.yellow("INCONCLUSIVE"),
+    };
+    writeln!(
+        output,
+        "         Mining result: {completeness} · {} files read · {} matches · {} bytes read",
+        result.consumption.files, result.consumption.matches, result.consumption.bytes_read
+    )?;
+    writeln!(
+        output,
+        "         Match relation: {assessment} · {}/{} rows equal · {} inserted · {} deleted · {} modified",
+        relation.summary.equal_rows,
+        relation
+            .summary
+            .expected_rows
+            .max(relation.summary.observed_rows),
+        relation.summary.inserted,
+        relation.summary.deleted,
+        relation.summary.modified,
+    )?;
+    for omission in &result.omissions {
+        writeln!(
+            output,
+            "         {} {} · {} omitted · {}",
+            style.yellow("OMISSION"),
+            mining_omission_label(omission.kind),
+            omission.omitted_count,
+            omission.reason
+        )?;
+    }
+    if relation.assessment != DeltaAssessment::Equal {
+        writeln!(
+            output,
+            "         @@ expected source matches → observed source matches @@"
+        )?;
+        for change in &relation.changes {
+            let (marker, label) = match change.kind {
+                SourceMatchChangeKind::Inserted => ("+", "OBSERVED"),
+                SourceMatchChangeKind::Deleted => ("-", "EXPECTED"),
+                SourceMatchChangeKind::Modified => ("~", "CHANGED"),
+            };
+            let path = change
+                .observed
+                .as_ref()
+                .map(|row| row.path_display.as_str())
+                .or_else(|| {
+                    change
+                        .expected
+                        .as_ref()
+                        .map(|row| row.path.display.as_str())
+                })
+                .unwrap_or("<unknown>");
+            writeln!(
+                output,
+                "         {marker} {label:<8} {path}:{} bytes {}-{}{}",
+                change
+                    .observed
+                    .as_ref()
+                    .map(|row| row.start_line)
+                    .or_else(|| change.expected.as_ref().map(|row| row.start_line))
+                    .unwrap_or(0),
+                change.key.start_byte,
+                change.key.end_byte,
+                if change.changed_fields.is_empty() {
+                    String::new()
+                } else {
+                    format!(" · fields {}", change.changed_fields.join(","))
+                }
+            )?;
+            if let Some(expected) = &change.expected {
+                writeln!(output, "           - EXPECTED {:?}", expected.matched_text)?;
+            }
+            if let Some(observed) = &change.observed {
+                writeln!(output, "           + OBSERVED {:?}", observed.matched_text)?;
+            }
+        }
+    }
+    if verbosity >= 1 {
+        writeln!(output, "         Matches:")?;
+        if relation.observed.is_empty() {
+            writeln!(
+                output,
+                "           (typed empty rey.source-matches relation)"
+            )?;
+        }
+        for row in &relation.observed {
+            writeln!(
+                output,
+                "           {}:{}:{}-{}  {:?}",
+                row.path_display,
+                row.start_line,
+                row.start_byte_in_line,
+                row.end_byte_in_line,
+                row.matched_text
+            )?;
+            for (offset, line) in row.context_text.lines().enumerate() {
+                writeln!(
+                    output,
+                    "             {:>5} │ {}",
+                    row.start_line.saturating_add(offset as u64),
+                    line
+                )?;
+            }
+        }
+        writeln!(
+            output,
+            "         Limits: files {} · matches {} · rows {} · bytes {} · depth {} · time {}ms",
+            mining.execution.request.effective_limits.max_files,
+            mining.execution.request.effective_limits.max_matches,
+            mining.execution.request.effective_limits.max_rows,
+            mining.execution.request.effective_limits.max_bytes,
+            mining.execution.request.effective_limits.max_depth,
+            mining.execution.request.effective_limits.max_time_ms,
+        )?;
+    }
+    if verbosity >= 2 {
+        writeln!(output, "         Exact mining bindings:")?;
+        write_test_binding(
+            output,
+            "operation",
+            &format!(
+                "{}@{} · {}",
+                result.operation.id, result.operation.revision, result.operation.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "provider",
+            &format!(
+                "{}@{} · {}",
+                result.provider.id, result.provider.revision, result.provider.semantic_digest
+            ),
+        )?;
+        write_test_binding(output, "capability", result.capability_snapshot_id.as_str())?;
+        write_test_binding(
+            output,
+            "corpus",
+            mining.execution.corpus.binding_id.as_str(),
+        )?;
+        write_test_binding(
+            output,
+            "request",
+            mining.execution.request.request_id.as_str(),
+        )?;
+        write_test_binding(output, "result", result.result_id.as_str())?;
+        write_test_binding(output, "relation", relation.delta_id.as_str())?;
+        let projection = source_match_table_projection();
+        write_test_binding(
+            output,
+            "match view",
+            &format!(
+                "{}@{} · {}",
+                projection.id, projection.revision, projection.semantic_digest
+            ),
+        )?;
+        for row in &relation.observed {
+            write_test_binding(output, "source", row.source_artifact_id.as_str())?;
+            write_test_binding(output, "match", row.match_id.as_str())?;
+            write_test_binding(output, "context", &row.context_ref)?;
+        }
+        if let Some(reasoning) = &mining.reasoning {
+            writeln!(output, "         Delta-directed reasoning:")?;
+            write_test_binding(output, "frontier", reasoning.frontier.frontier_id.as_str())?;
+            write_test_binding(
+                output,
+                "scheduled",
+                &format!(
+                    "{} · {} work row selected",
+                    reasoning.scheduling.decision_id,
+                    reasoning.scheduling.selected.len()
+                ),
+            )?;
+            write_test_binding(output, "surface", reasoning.surface.surface_id.as_str())?;
+        }
+    }
+    Ok(())
+}
+
+fn mining_omission_label(kind: rey_mining::MiningOmissionKind) -> &'static str {
+    use rey_mining::MiningOmissionKind;
+
+    match kind {
+        MiningOmissionKind::FileLimit => "file_limit",
+        MiningOmissionKind::RowLimit => "row_limit",
+        MiningOmissionKind::MatchLimit => "match_limit",
+        MiningOmissionKind::NodeLimit => "node_limit",
+        MiningOmissionKind::EdgeLimit => "edge_limit",
+        MiningOmissionKind::DepthLimit => "depth_limit",
+        MiningOmissionKind::ByteLimit => "byte_limit",
+        MiningOmissionKind::TimeLimit => "time_limit",
+        MiningOmissionKind::ProviderUnavailable => "provider_unavailable",
+        MiningOmissionKind::Unsupported => "unsupported",
+        MiningOmissionKind::ExecutionFailed => "execution_failed",
+        MiningOmissionKind::SourceDrift => "source_drift",
+        MiningOmissionKind::MalformedInput => "malformed_input",
+    }
 }
 
 fn write_test_binding(output: &mut impl Write, label: &str, value: &str) -> io::Result<()> {
@@ -1299,6 +1708,23 @@ fn write_workload_test_summary(
         .iter()
         .flat_map(|result| &result.scenarios)
         .flat_map(|scenario| &scenario.deltas)
+    {
+        match delta.assessment {
+            DeltaAssessment::Equal => equal_deltas = equal_deltas.saturating_add(1),
+            DeltaAssessment::Different => {
+                different_deltas = different_deltas.saturating_add(1);
+            }
+            DeltaAssessment::Inconclusive => {
+                inconclusive_deltas = inconclusive_deltas.saturating_add(1);
+            }
+        }
+    }
+    for delta in batch
+        .results
+        .iter()
+        .flat_map(|result| &result.scenarios)
+        .flat_map(|scenario| &scenario.mining)
+        .map(|evidence| &evidence.relation_delta)
     {
         match delta.assessment {
             DeltaAssessment::Equal => equal_deltas = equal_deltas.saturating_add(1),
@@ -1408,6 +1834,9 @@ fn write_test_detail(output: &mut impl Write, result: &WorkloadTestResult) -> Re
                 )?;
             }
         }
+        for mining in &scenario.mining {
+            write_source_mining_evidence(output, mining, 2, TerminalStyle { enabled: false })?;
+        }
     }
     if let Some(qualification) = &result.qualification {
         writeln!(
@@ -1430,7 +1859,81 @@ fn write_workload_run(output: &mut impl Write, result: &WorkloadRunResult) -> Re
         result.stop_reason
     )?;
     writeln!(output, "node_order={}", json_cell(&result.node_order)?)?;
-    writeln!(output, "outputs={}", json_cell(&result.outputs)?)?;
+    if result.mining.is_empty() {
+        writeln!(output, "outputs={}", json_cell(&result.outputs)?)?;
+    } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text") {
+        writeln!(
+            output,
+            "output=text · {} canonical match lines · {} bytes",
+            value.lines().count(),
+            value.len()
+        )?;
+    }
+    for mining in &result.mining {
+        let evidence = &mining.evidence;
+        writeln!(
+            output,
+            "mining={} completeness={} operation={}@{} provider={}@{} files={} matches={} bytes_read={}",
+            evidence.result.result_id,
+            evidence.result.completeness.as_str(),
+            evidence.result.operation.id,
+            evidence.result.operation.revision,
+            evidence.result.provider.id,
+            evidence.result.provider.revision,
+            evidence.result.consumption.files,
+            evidence.result.consumption.matches,
+            evidence.result.consumption.bytes_read,
+        )?;
+        let projection = source_match_table_projection();
+        writeln!(
+            output,
+            "bindings corpus={} request={} capability={} view={}@{}:{}",
+            mining.corpus.binding_id,
+            mining.request.request_id,
+            mining.request.capability_snapshot_id,
+            projection.id,
+            projection.revision,
+            projection.semantic_digest,
+        )?;
+        if evidence.matches.is_empty() {
+            writeln!(output, "matches=(typed empty rey.source-matches relation)")?;
+        }
+        for row in &evidence.matches {
+            let context = evidence
+                .contexts
+                .iter()
+                .find(|context| context.artifact_id == row.context_artifact_id);
+            writeln!(
+                output,
+                "match={} source={} location={}:{}:{}-{} text={:?}",
+                row.match_id,
+                row.source_artifact_id,
+                row.path.display,
+                row.start_line,
+                row.start_byte_in_line,
+                row.end_byte_in_line,
+                row.matched_text,
+            )?;
+            writeln!(output, "  context={}", row.context_ref)?;
+            if let Some(context) = context {
+                for (offset, line) in context.text.lines().enumerate() {
+                    writeln!(
+                        output,
+                        "  {:>5} │ {}",
+                        row.context_start_line.saturating_add(offset as u64),
+                        line
+                    )?;
+                }
+            }
+        }
+        for omission in &evidence.result.omissions {
+            writeln!(
+                output,
+                "omission={:?} count={} reason={}",
+                omission.kind, omission.omitted_count, omission.reason
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -1683,6 +2186,10 @@ fn json_cell(value: &impl Serialize) -> Result<String, serde_json::Error> {
 enum CliError {
     #[error("limits must be greater than zero")]
     InvalidLimit,
+    #[error("source-mining runs require at least one workspace-relative --source path")]
+    MissingSourceFiles,
+    #[error("--source and source-context options are only valid for a source-mining workload")]
+    UnexpectedSourceFiles,
     #[error("--format arrow is only valid with --diff-format structured")]
     FormatScope,
     #[error("input {path} could not be read: {source}")]

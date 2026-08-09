@@ -574,9 +574,10 @@ typed DAG execution, scenario deltas, exact qualification, verified local
 result state, and the `list`, `status`, `test`, and `run` commands.
 Frontier/progress/scheduling v2 and reasoning-surface v3 bind workload, graph,
 scenario-suite, and campaign identities; runtime state remains v2.
-Workload-specific frontier derivation and invalidation, recurring
-scheduling, provider retrieval/execution, policy proposals, Git activation,
-and the Spoke provider remain target architecture.
+The source-search conformance workload now supplies one narrow workload-specific
+frontier derivation and provider execution path. Generic dependency
+invalidation, recurring scheduling, policy proposals, Git activation, and the
+Spoke provider remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts
@@ -585,8 +586,14 @@ parameters and effective limits; replay verification rejects tampering and
 request, provider, capability, or implementation drift. `rey-environment` now
 implements an exact explicit local corpus binding, deterministic case-sensitive
 UTF-8 literal search, native context retention, and the typed
-`rey.source-matches` relation through those manifests. No admitted `rg`
-search, regex/case-folded search, arbitrary text/structural delta, parser/index
-provider, concrete visualization specification, or end-to-end mining workload
-is implemented yet. Plan 0006 owns those remaining slices before AST/CST,
-semantic-index, broad metric, or generic scheduling work.
+`rey.source-matches` relation through those manifests. `rey-diff` implements
+`rey.text-delta.v1` and `rey.source-match-delta.v1`; `rey-runtime` composes the
+source provider and renderer in one qualified graph, derives one frontier row
+from its complete failing evidence, selects it with the generic scheduler, and
+projects one verified reasoning surface. The CLI exposes complete, different,
+and truncated mining evidence through all four workload commands.
+
+No admitted `rg` search, regex/case-folded search, parser/index provider,
+general structural delta or visualization specification, recurring scheduler,
+or agent proposal loop is implemented. Those require a new named workload and
+the same human-verifiable end-to-end boundary before they count as delivered.

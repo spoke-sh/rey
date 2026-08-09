@@ -4,13 +4,16 @@ This document defines the first executable frontier, progress, and scheduling
 contracts. ADR 0014 fixed their first schemas; ADR 0016 made a pre-alpha
 identity cutover to frontier/progress/scheduling v2 and reasoning-surface v3.
 The implementation is a deterministic library slice; it
-does not derive workload-specific work, retrieve evidence, select an action,
-execute an effect, or run a recurring loop.
+also has one workload-specific source-mining fixture that derives and selects a
+single graph-revision work row. It does not execute an effect or run a
+recurring loop.
 
 ADR 0015 places this contract inside workload test campaigns. The implemented
 v2 envelope now binds workload, graph, scenario suite, and campaign identities
 directly. The first CLI slice executes scenarios but does not yet derive a
-frontier from their deltas.
+frontier from ordinary text-fixture deltas. The source-search workload now
+derives one frontier from its complete failing typed relation and ordered text
+deltas.
 
 ADR 0017 makes mining the evidence-acquisition layer after selection. The
 frontier may be directed by relational, text, structural, or claim evidence;
@@ -212,15 +215,26 @@ possible agent-, rule-, or human-proposed graph revision. Deterministic
 scenario evaluation, not the proposal policy or generic scheduler, decides
 whether the resulting graph qualifies.
 
+### Implemented Mining Failure Mapping
+
+`rey.fixture.source-search` supplies one deliberately narrow derivation
+contract. A complete failing `rey.source-match-delta.v1` plus its ordered output
+delta becomes one ready work row whose residual citations preserve both delta
+ids, whose admissible action is `rey.action.propose-graph-revision@1`, whose
+priority is `100`, and whose estimated cost is one unit. The existing scheduler
+selects exactly that row under a one-row/one-cost bound. The resulting
+reasoning surface cites mining result, relation, matches, and native contexts.
+Construction and replay verification reject broken bindings.
+
+This fixture proves the handoff; it does not make the generic frontier aware of
+search or source semantics. Optional truncated mining remains inconclusive and
+does not derive a misleading ready row.
+
 ## Deferred Behavior
 
-Later slices still own workload-specific frontier derivation, dependency
-invalidation, provider retrieval, orientation readiness strategy, policy
-proposal parsing, action admission, execution, retry, transition persistence,
-activation, and recurring scheduling. They must consume these contracts rather
-than introducing a provider-specific queue or second lifecycle.
-
-Plan 0006 has added the first provider-neutral mining request/result contract
-and next adds a delta-directed reasoning-surface fixture. It does not change
-the scheduling order or make the frontier a query, parsing, indexing, or
-visualization engine.
+Later slices still own generic workload-specific derivation, dependency
+invalidation, orientation readiness strategy, policy proposal parsing, action
+admission, execution, retry, transition persistence, activation, and recurring
+scheduling. They must consume these contracts rather than introducing a
+provider-specific queue or second lifecycle. The frontier does not become a
+query, parsing, indexing, or visualization engine.

@@ -41,21 +41,24 @@ Procedural guidance for humans and agents working on Rey.
    spread through code and formats.
 6. **Change** — preserve the boundary between deterministic runtime, policy,
    Spoke, and presentation.
-7. **Prove** — run focused checks and retain useful, bounded evidence.
+7. **Prove** — run focused checks and exercise the feature through its
+   high-fidelity human `rey` CLI path; internal APIs and structured output are
+   necessary but do not complete a feature slice by themselves.
 8. **Record** — update documentation and plan checklists in the same change.
 
 ## Current Development Interface
 
-Rey has a pinned Nix Rust toolchain, a ten-crate Cargo workspace, an
+Rey has a pinned Nix Rust toolchain, an eleven-crate Cargo workspace, an
 environment-inspection and capability-delta/certificate executable, bounded
 local-only proof bundles, pure runtime-state, frontier/progress/scheduling, and
 reasoning-surface contracts, plus the first built-in workload catalog, typed
 DAG executor, scenario evaluator, qualification record, local result provider,
-and four workload commands. Do not generalize the implemented
-capability-specific delta, UTF-8 scenario delta, host-filesystem bundle,
-runtime reducer, frontier selector, or policy surface into generic mining,
-recurring scheduling, provider execution, activation, Spoke durability, or
-Spoke process-lineage behavior. Generic mining remains Plan 0006 target work.
+and four workload commands. The first mining workload now executes exact local
+literal search, typed match comparison, ordered line comparison, bounded
+frontier selection, and reasoning-surface projection through those commands.
+Do not generalize that fixed provider and workload-specific derivation into
+regex or parser breadth, external tool execution, recurring scheduling,
+activation, Spoke durability, or Spoke process-lineage behavior.
 
 Enter the environment and use:
 

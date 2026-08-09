@@ -4,17 +4,20 @@ This document defines Rey's formal runtime lifecycle and the bounded input
 surface presented to policy. ADRs 0012–0014 fix the architecture and current
 contracts. The repository implements the pure state reducer through scheduling,
 canonical frontier/progress/selection contracts, and surface
-validation/projection. It does not yet derive workload-specific work,
-retrieve providers, execute actions, or run an agent loop.
+validation/projection. It also implements one bounded source-mining workload
+fixture that retrieves through a built-in provider, derives and schedules one
+failure row, and projects a reasoning surface. It does not execute the proposed
+revision action or run an agent loop.
 
 ADR 0015 places these mechanisms inside a workload test campaign. ADR 0016
 implements the first deterministic workload/graph/scenario/qualification
 slice and makes the public identity cutover. Runtime state remains v2 because
 it had no application/component envelope; the reasoning surface is now v3 and
 binds exact workload, graph, scenario-suite, and campaign identities.
-ADR 0017 names the missing orientation capability layer as mining. The current
-schemas can cite mined evidence, but generic mining requests/results and
-provider execution remain Plan 0006 target work.
+ADR 0017 names the orientation capability layer as mining. ADR 0018 implements
+the first provider-neutral request/result execution path and its
+workload-specific orientation fixture without turning the reducer into a
+generic recurring scheduler.
 
 ## State Dimensions
 
@@ -212,8 +215,9 @@ During orientation, exact immutable retrieval and pure projection may build
 the surface directly within its existing retrieval-iteration and evidence-byte
 bounds. A mutable read or external mining tool invocation is a probe and must
 cross the full proposal/admission/execution/observation boundary. Plan 0006
-must prove that distinction rather than creating an untracked search or parser
-side channel.
+proves the local source distinction with a declared bounded read-only graph
+operation; external search or parser processes still require the full probe
+boundary.
 
 A graph proposal is an untrusted policy proposal and must pass graph,
 operation, capability, effect, precondition, and limit validation. Only fresh
@@ -255,11 +259,13 @@ action it cites.
 
 The implemented crates deliberately contain no:
 
-- workload-specific frontier derivation or dependency invalidation;
+- generic workload-specific frontier derivation or dependency invalidation
+  beyond the fixed source-search failure fixture;
 - external workload manifest or graph-proposal campaign;
 - recurring, fair, parallel, or multi-user scheduling;
-- provider read, query, or retrieval implementation;
-- provider-neutral mining operation/request/result or visualization contracts;
+- external tool, query, parser, index, or Spoke retrieval implementation;
+- general visualization specification beyond the source workload's terminal
+  table/patch projection;
 - policy request transport or proposal parser;
 - action admission or execution;
 - domain-specific interpretation of updated work or scalar progress score; or

@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-07
 - Implements: [ADR 0015](0015-workload-centered-product.md)
+- Extended by: [ADR 0018](0018-first-mining-workload.md), which makes a
+  pre-alpha v2 schema cut for typed mining graph values and retained evidence
 - Supersedes public identity schemas from:
   [ADR 0014](0014-frontier-progress-and-scheduling.md)
 
