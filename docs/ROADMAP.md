@@ -14,6 +14,13 @@ and proof belong in `plans/`.
 
 ## Phase 1 — Standalone Environment And Delta
 
+The bounded capability snapshot, exact delta, local proof bundle,
+agent-generatable environment mapping graph, and Git-shaped
+`env status → diff → add → commit → log -p` revision workflow are delivered.
+The
+remaining bullets concern complete Git observation/activation, generic frame
+comparison, and broader proof coverage.
+
 - Discover a bounded local workspace and reviewed tools as a typed capability
   snapshot.
 - Snapshot one Git repository's refs, commit graph, semantic index, and declared

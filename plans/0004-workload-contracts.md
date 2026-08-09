@@ -14,7 +14,7 @@ is implemented.
 - [x] ADR 0015 accepts the workload-centered product and CLI cutover.
 - [x] `docs/WORKLOADS.md` defines workload, graph, scenario, campaign,
   qualification, progress, run, catalog, retention, and staleness contracts.
-- [x] The public command surface is limited to `rey environment ...` and the
+- [x] The public command surface is limited to `rey env ...` and the
   four workload commands.
 - [x] Failing scenarios retain directed `EXPECTED` to `OBSERVED` typed deltas.
 - [x] An agent, rule, or human proposes graphs through one validated contract

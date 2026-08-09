@@ -5,6 +5,12 @@ declared claim holds for exact observations under explicit comparison rules,
 coverage, and limits. Rey is not a theorem prover, and a proof certificate is
 not a universal correctness claim.
 
+Proof is encountered through workload scenarios, qualification, runs, and
+retained evidence on the primary human CLI. ADR 0020 removes the former manual
+`env prove`, `env verify`, and `env verify-bundle` commands; the certificate,
+verification, and local-bundle contracts remain lower-level runtime/library
+mechanisms and focused test surfaces.
+
 ## Claim Contract
 
 A claim declares:

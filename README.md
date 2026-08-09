@@ -116,7 +116,11 @@ scenario deltas; the proposer cannot declare its own graph qualified.
 The product surface stays intentionally small:
 
 ```text
-rey environment ...
+rey env status
+rey env diff
+rey env add [-p]
+rey env commit -m <message>
+rey env log -p
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
 rey workloads run <workload-id> --input <utf8> [--source <path>...]
@@ -135,7 +139,12 @@ executable:
 ```sh
 nix develop
 just setup
-just rey environment inspect --format table
+just rey env status
+just rey env diff
+just rey env add -p
+just rey env add
+just rey env commit -m 'accept local toolchain'
+just rey env log -p
 just rey workloads list --format table
 just rey workloads test rey.fixture.text-normalize --format table
 just rey workloads test rey.fixture.text-mismatch --format table -vv
@@ -156,32 +165,64 @@ relation delta, ordered line delta, omissions, one scheduled frontier row, and
 a bounded reasoning surface. `run --source` executes that same qualified graph
 against caller-selected files below the workspace.
 
-The implemented environment loop can also be exercised entirely through files
-selected by the caller:
+`env status` is the single inventory and revision view. It observes the working
+environment and presents `HEAD → INDEX` changes admitted for commit beside
+`INDEX → WORKING` changes not yet admitted. `env diff` opens the unstaged patch;
+`env diff --staged` opens the commit-ready patch. `env add` stages the complete
+working snapshot, while `env add -p` selects capability changes interactively.
+`env commit` appends exactly the retained admission index beneath `.rey/env`
+without re-observing ambient state. `env log -p` renders newest commits and
+their parent-directed patches. This is bounded single-process local state, not
+a Git object store or a Spoke-durable log.
 
-```sh
-just rey environment inspect --format json > baseline.json
-just rey environment inspect --format json > candidate.json
-just rey environment diff baseline.json candidate.json
-just rey environment diff baseline.json candidate.json \
-  --diff-format tabular-diff
-just rey environment prove baseline.json candidate.json \
-  --require-capability frame.arrow-stream > certificate.json
-just rey environment verify certificate.json baseline.json candidate.json
-just rey environment prove baseline.json candidate.json \
-  --require-capability frame.arrow-stream \
-  --bundle proof.bundle > bundled-certificate.json
-just rey environment verify-bundle proof.bundle
+The checked-in [`rey.env.yaml`](rey.env.yaml) is an agent-generatable mapping
+graph describing the environment surfaces this workspace cares about:
+
+```yaml
+schema: rey.env-map.v1
+nodes:
+  - id: cargo-home
+    kind: variable
+    name: CARGO_HOME
+    capture: digest
+  - id: workspace-manifest
+    kind: file
+    path: Cargo.toml
+    required: true
+  - id: cargo
+    kind: executable
+    name: cargo
+    required: true
+    potential_capabilities: [rust.build, rust.check, rust.test]
+edges:
+  - from: cargo-home
+    to: cargo
+    relation: configures
+  - from: workspace-manifest
+    to: cargo
+    relation: input_to
 ```
 
-Environment frame commands support bounded JSON and Arrow IPC. Workload
-commands support human tables and structured JSON; redirected `auto` selects
-JSON. `workloads test` keeps passing scenarios compact by default and always
-opens failing diffs. `-v` adds matching evidence, while `-vv` binds evidence to
-exact workload, graph, suite, evaluator, scenario, execution, result, and delta
-identities. Mining scenarios additionally expose operation, provider,
-capability snapshot, corpus, request, result, relation, native source, match,
-context, frontier, scheduling-decision, and reasoning-surface identities.
+Rey parses this as a closed, bounded graph and projects it into the committed
+capability snapshot. Variable presence and opted-in digests, bounded file
+identities, resolved executable identities, and declared edges therefore
+appear in the human and structured `status`, `diff`, `add`, `commit`, and
+`log -p` surfaces. Raw variable values are never retained; sensitive variables are
+presence-only. Executables are resolved and hashed but not invoked, and their
+declared potential capabilities remain visibly unadmitted.
+
+Environment commands default to Git-like human documents and accept explicit
+JSON where no interactive patch selection is required. `status --format json`
+contains the complete working capability snapshot, optional admission index,
+and both authoritative deltas.
+Workload commands support human tables and structured JSON; redirected `auto`
+selects JSON. `workloads test` keeps passing scenarios compact by default and
+always opens failing diffs. `-v` adds matching evidence, while `-vv` binds
+evidence to exact workload, graph, suite, evaluator, scenario, execution,
+result, and delta identities. Mining scenarios additionally expose operation,
+provider, capability snapshot, corpus, request, result, relation, native
+source, match, context, frontier, scheduling-decision, and reasoning-surface
+identities.
 
 ## The Mining Ladder
 
@@ -249,6 +290,13 @@ pass can inventory a selected workspace, Git repository, `rg`, language
 toolchains, analyzers, test runners, and a reachable Spoke deployment. Each
 provider advertises exact operations, trust, provenance, and enforceable
 limits. Discovery remains read-only and separate from action admission.
+
+The `env` CLI makes those observations revisionable. `status` computes
+`HEAD → INDEX → WORKING`, `add` explicitly accepts observations into a bounded
+admission index, `commit` records exactly that index in a local linear history,
+and `log -p` reopens directed deltas. Environment commits record evidence; they
+neither mutate the discovered environment nor create Git commits. Admission to
+history does not grant execution authority to a mapped tool.
 
 Git is both a source-binding provider and a natural activation surface. Commit,
 ref, semantic index, and declared worktree deltas can select affected workload
@@ -319,22 +367,32 @@ The repository contains an eleven-crate Rust workspace. Implemented behavior
 includes bounded standalone capability discovery, allowlisted `git` and `rg`
 identity probes, a partial read-only Git observation, typed capability
 snapshot deltas, Arrow and Tabular Diff projections, scoped capability
-certificates, bounded local proof bundles, a formal runtime reducer, canonical
-frontier/progress/scheduling contracts, bounded reasoning-surface contracts,
-the deterministic workload CLI, and provider-neutral mining operation/request/
-result manifests with canonical replay verification. The standalone
+certificates, bounded local proof bundles, verified local environment commits,
+an agent-generatable environment mapping graph, compact `status`, exact
+staged/unstaged `diff`, full and partial `add`, index-only commits, and
+patch-bearing `log`, a formal runtime reducer, canonical
+frontier/progress/scheduling contracts, bounded reasoning-surface contracts, the
+deterministic workload CLI, and provider-neutral mining operation/request/result
+manifests with canonical replay verification. The standalone
 environment advertises a built-in literal source-search provider over exact
 local corpora; the source-search workload executes it through the same test and
 run graph, compares native ordered text and typed match relations, and projects
 complete, failing, and truncated evidence through `list`, `test`, `status`, and
 `run`.
 
-[Plan 0006](plans/0006-mining-strategy.md) is complete at that first bounded
-zero-Spoke slice. It deliberately does not execute `rg`, parse ASTs/CSTs, build
-a semantic index, calculate broad quality metrics, or run a recurring generic
-scheduler. The next bearing should choose one richer source-mining rung from a
-named workload and preserve the same CLI-verifiable evidence path;
-parser-backed syntax and symbol/reference relations are the leading candidate.
+[Plan 0009](plans/0009-environment-admission-index.md) makes `status` the one
+environment interface and places a reviewable admission index between working
+observation and commit. Variables, input files, executable candidates, and
+their declared relationships are visible across both staged and unstaged
+planes. Revision selectors, reset/restore, branches, and Spoke retention remain
+later work.
+
+[Plan 0006](plans/0006-mining-strategy.md) remains complete at the first bounded
+zero-Spoke mining slice. It deliberately does not execute `rg`, parse ASTs/CSTs,
+build a semantic index, calculate broad quality metrics, or run a recurring
+generic scheduler. The next bearing is to use the mapping as the declared
+source graph for reference expansion and parser-backed syntax/symbol mining
+without treating a declared executable as admitted authority.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

@@ -219,9 +219,13 @@ nix develop path:$PWD#ci --command just check
 nix develop path:$PWD#ci --command just test
 nix develop path:$PWD#ci --command just build
 nix flake check path:$PWD
-nix run path:$PWD -- environment inspect --format json
-nix run path:$PWD -- environment diff baseline.json candidate.json
-nix run path:$PWD -- environment prove baseline.json candidate.json \
-  --require-capability frame.arrow-stream --bundle proof.bundle
-nix run path:$PWD -- environment verify-bundle proof.bundle
+nix run path:$PWD -- env status
+nix run path:$PWD -- env diff
+nix run path:$PWD -- env add -p
+nix run path:$PWD -- env add
+nix run path:$PWD -- env commit -m 'accept local toolchain'
+nix run path:$PWD -- env log -p
+nix run path:$PWD -- env status --format json
+nix run path:$PWD -- workloads list --format table
+nix run path:$PWD -- workloads test rey.fixture.text-normalize --format table -vv
 ```

@@ -24,7 +24,7 @@ thing that can be listed, tested, run, and inspected.
 The accepted command surface is:
 
 ```text
-rey environment ...
+rey env ...
 rey workloads [--workspace PATH] [--state-dir PATH] list
 rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]

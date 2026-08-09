@@ -16,6 +16,9 @@ completion criteria.
 - [0004 — Workload product and CLI contracts](0004-workload-contracts.md)
 - [0005 — First executable workload slice](0005-first-workload-slice.md)
 - [0006 — Mining strategy and first executable slice](0006-mining-strategy.md)
+- [0007 — Git-shaped env CLI](0007-git-shaped-env-cli.md)
+- [0008 — Environment mapping graph](0008-environment-mapping-graph.md)
+- [0009 — Environment admission index](0009-environment-admission-index.md)
 
 ## Plan Rules
 

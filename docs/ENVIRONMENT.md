@@ -13,7 +13,9 @@ certificates, and bounded local-only bundle retention over this relation. ADR
 capabilities. Plan 0006 now implements the first deterministic built-in local
 source binding and literal-search capability and ADR 0018 composes it through
 the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
-later slices.
+later slices. ADR 0020 adds the first explicit `rey.env-map.v1` graph of
+relevant variables, input files, executable candidates, and reference edges;
+the Git-shaped environment history revisions its observations.
 
 ## Terms
 
@@ -95,6 +97,41 @@ permission.
 
 Locations are provider-scoped. A local path, Spoke path, URL, object URI, and
 logical tool name are not interchangeable strings.
+
+## Environment Mapping Graph
+
+The conventional `rey.env.yaml`, or an explicit workspace-relative `--map`
+path, declares the local environment surfaces a programmer or agent has judged
+relevant. The closed `rey.env-map.v1` schema contains:
+
+- variable nodes with exact names, sensitivity, and `presence` or `digest`
+  capture;
+- workspace-relative regular-file nodes with a required-admission marker;
+- executable nodes resolved from the captured search path with declared
+  potential capabilities; and
+- exact directed edges naming the declared relationship between nodes.
+
+The loader bounds document bytes, strings, nodes, edges, projection rows,
+individual file bytes, total file bytes, and executable bytes. It rejects
+unknown fields, duplicate ids or edges, missing endpoints, self-edges, path
+escape, symlinked mapping/input paths, and sensitive digest capture. Node and
+edge order is canonicalized before graph identity is computed.
+
+Observation never retains raw variable values or file bytes. A sensitive
+variable records presence only; a non-sensitive variable may retain a
+domain-separated digest. A file records its workspace-relative path, regular
+status, length, and bounded digest. An executable records its resolved path,
+length, and digest without invocation. Its potential capabilities remain
+explicitly `unadmitted` until a separate adapter freezes operation semantics,
+arguments, effects, trust, and limits.
+
+The provider projects one graph row plus exact node and edge rows into the
+ordinary capability snapshot. `env status` is the complete human and structured
+inventory, including mapping dimensions, the optional admission index, and
+both staged and unstaged changed-row identities. `env diff`, `env add`,
+`env commit`, and `env log -p` navigate and revision the same relation. The
+YAML graph is a proposal about relevance, not execution authority or proof of a
+dependency.
 
 ## Discovery Lifecycle
 
@@ -279,6 +316,53 @@ source/provider identity, operation or implementation revision, parser/tool
 version, trust, supported semantics, or an effective limit that affects the
 result. Discovery of an unrelated richer miner does not invalidate existing
 evidence unless the workload contract selected it as a required input.
+
+## Local Environment Revisions
+
+ADRs 0019 through 0021 implement the Git-shaped interaction over capability
+snapshots. `rey env status` observes the explicit workspace and presents three
+planes: committed `HEAD`, the admission `INDEX`, and fresh `WORKING` evidence.
+Before the first commit, HEAD and the effective index are typed empty
+capability relations. Without a retained index, the effective index equals
+HEAD. The command reads but never creates or repairs local state. Explicit JSON
+emits `rey.environment-status.v2` with the complete working snapshot and both
+authoritative deltas.
+
+`rey env add` retains the exact working snapshot as a HEAD-bound
+`rey.environment-admission-index.v1`. `add -p` prompts over the canonical
+`INDEX → WORKING` capability changes and applies only selected rows. Raw
+variable values and file bytes never enter the selection interface. Staging a
+mapped executable accepts its observation for history but grants no execution
+or provider authority.
+
+`rey env diff` repeats the fresh bounded observation and renders
+`INDEX → WORKING`; `--staged` renders `HEAD → INDEX`. It accepts no loose
+snapshot-file operands. Explicit JSON emits `rey.environment-diff.v2`.
+
+`rey env commit -m <message>` performs no discovery. It appends the exact
+verified admission-index snapshot, then clears the index after history
+publication. The commit id binds a monotonic local sequence, exact parent
+commit, canonical message, and snapshot id. It deliberately excludes ambient
+author and wall-clock values. Incomplete snapshots can be committed as explicit
+degradation evidence; they do not become complete through retention.
+
+`rey env log -p` verifies the entire retained chain, selects commits newest
+first under an explicit count bound, and recomputes every selected
+parent-to-commit capability delta. The root patch is `EMPTY → ENV@1`. Patch
+projections expose exact snapshot and delta ids, comparator identity,
+completeness, limits, insertions, deletions, modified fields, operations,
+trust, and locations.
+
+The default `rey.local-environment-history.v1` state lives at
+`${workspace}/.rey/env/state.json`; the separate admission index lives at
+`${workspace}/.rey/env/index.json`. Both are bounded single-process local state
+using same-directory temporary publication and rename. Reads verify snapshot,
+commit, parent, sequence, chain/index identity, exact index base, and safe file
+boundaries. History publication and index removal are not one crash-atomic
+transaction; an index left after a successful commit is stale and rejected. It
+is not a Git object database and claims no pathspec, reset/restore, branches,
+merges, rewrite, `fsync`, locking, authenticated writer, remote durability, or
+Spoke revision semantics.
 
 ## Standalone Evidence
 

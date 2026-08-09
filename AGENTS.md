@@ -104,7 +104,7 @@ exists.
 The implemented and target ownership map is:
 
 ```text
-rey                 workload CLI, catalog composition, and local orchestration
+rey                 env/workload CLI, local revision state, catalog/orchestration
 rey-core            identities, revisions, limits, and shared contracts
 rey-mining          mining operations, requests/results, artifacts, and views
 rey-dataframe       frame schemas, Polars helpers, and Arrow codecs
@@ -144,6 +144,13 @@ update the stale artifact in the same change.
   defines migration behavior.
 - Probe only declared environment surfaces with bounded read-only discovery;
   finding a tool does not grant permission to execute it.
+- Treat `rey.env.yaml` as an agent-generatable relevance graph, not authority:
+  never retain raw variable values, follow escaping/symlinked inputs, invoke a
+  mapped executable, or admit its potential capabilities without an adapter.
+- Preserve the environment admission plane: `status` observes
+  `HEAD → INDEX → WORKING`, `add` alone changes the index, and `commit` records
+  only the verified index without re-observing ambient state. Admission to
+  history is not action admission.
 - Freeze provider, path, version, digest/provenance, trust, and supported
   operations before a discovered tool participates in an action.
 - Bind every mined artifact to its request, exact inputs, operation and
@@ -179,9 +186,10 @@ update the stale artifact in the same change.
 
 - Implement the smallest end-to-end slice that proves a diff invariant with no
   Spoke, then exercise the same contract through Spoke when available.
-- Environment work needs fixtures for missing tools, version drift, path
-  changes, timeouts, malformed version output, trust classification, and
-  capability degradation.
+- Environment work needs fixtures for malformed mapping graphs, secret
+  handling, missing and changed variables/files/executables, path and symlink
+  rejection, bounds, tool drift, timeouts, malformed version output, trust
+  classification, and capability degradation.
 - Mining work needs fixtures for exact source drift, empty and bounded search,
   invalid encoding, tool failure/drift, typed empty relations, text/structural
   direction, traversal limits, derivation lineage, visualization omissions,

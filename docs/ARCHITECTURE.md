@@ -177,6 +177,8 @@ Environment awareness is provided through narrow providers rather than an
 unbounded host scan. Initial provider classes may include:
 
 - built-in Rey functions that require no external executable;
+- an agent-authored, deterministically parsed environment mapping graph for
+  relevant variables, input files, executable candidates, and reference edges;
 - an explicit local workspace with bounded filesystem access;
 - a Git provider with commit/ref/index/worktree frames and polling;
 - known developer tools resolved from configured paths or `PATH`;
@@ -189,6 +191,13 @@ may use narrowly defined read-only operations such as executable resolution,
 metadata inspection, or a bounded `--version` invocation. It never executes an
 unknown file merely because it exists.
 
+The mapping graph is a context declaration, not a provider adapter or policy
+grant. Its executable nodes remain potential capabilities until an admitted
+adapter freezes their exact operation contract. The mapping provider projects
+bounded graph, node, edge, variable-presence/digest, file-identity, and
+executable-identity evidence into the same snapshot used by environment
+history. Raw environment values and mapped file bytes are not retained.
+
 The capability snapshot is a typed relation. A first schema should be able to
 represent provider id/revision, capability id, kind, resolved location,
 version, content or provenance digest when available, availability, trust,
@@ -198,6 +207,12 @@ Capability discovery is repeatable during a trace. A delta between snapshots
 can invalidate actions, lenses, and proofs. An executable path, version, digest,
 provider health, or Spoke capability change is part of runtime state rather
 than ambient trivia.
+
+The human environment revision loop adds a separate admission index between a
+fresh capability snapshot and committed history. Status exposes
+`HEAD → INDEX → WORKING`; add updates that index; commit records only the index
+and never re-runs discovery. This provides review stability without turning an
+accepted executable observation into action authority.
 
 ### Operating Profiles
 
@@ -565,10 +580,15 @@ partial read-only Git observation, verified capability snapshot loading, an
 exact capability comparator, typed structured and Arrow deltas, Tabular Diff
 projection, required-capability certificate evaluation and verification, and
 bounded content-addressed local proof bundles with explicit filesystem-only
-guarantees. `rey-runtime` implements the pure formal state reducer through an
-explicit scheduling phase; `rey-frontier` implements canonical frontier,
-progress, and bounded selection contracts; and `rey-policy` implements the
-bounded reasoning-surface document and DataFrame projection.
+guarantees. The `env` CLI now adds a verified bounded linear history of
+capability snapshots: `status` derives HEAD-to-working state, `commit` accepts
+one non-empty semantic revision, and `log -p` reopens exact parent-directed
+capability patches. These environment commits are local Rey observations, not
+Git objects or Spoke-durable revisions. `rey-runtime` implements the pure
+formal state reducer through an explicit scheduling phase; `rey-frontier`
+implements canonical frontier, progress, and bounded selection contracts; and
+`rey-policy` implements the bounded reasoning-surface document and DataFrame
+projection.
 The first workload slice implements a compiled-in fixture catalog, bounded
 typed DAG execution, scenario deltas, exact qualification, verified local
 result state, and the `list`, `status`, `test`, and `run` commands.

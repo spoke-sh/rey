@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-08-07
+- Environment namespace superseded by:
+  [ADR 0019](0019-git-shaped-environment-history.md)
 - Narrows: [ADR 0007](0007-git-polling-and-delta-activation.md)
 - Requires a versioned identity cutover from:
   [ADR 0014](0014-frontier-progress-and-scheduling.md)
@@ -33,7 +35,7 @@ Workload is Rey's public unit of computation. The accepted top-level product
 surface is:
 
 ```text
-rey environment ...
+rey env ...
 rey workloads list
 rey workloads test [<workload-id>]
 rey workloads run <workload-id>

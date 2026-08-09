@@ -2,35 +2,37 @@
 
 use std::{
     collections::BTreeMap,
-    fs::File,
-    io::{self, IsTerminal, Read, Write},
+    io::{self, BufRead, IsTerminal, Write},
     path::{Path, PathBuf},
     process::ExitCode,
 };
 
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
-    ReyError, inspect_environment,
+    ReyError,
+    env::{
+        EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentCommitResult, EnvironmentDiff,
+        EnvironmentDiffMode, EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
+        LocalEnvironmentHistoryError, LocalEnvironmentStore, MAX_ENVIRONMENT_COMMITS,
+        effective_index_snapshot, stage_selected_capabilities,
+    },
+    inspect_environment, inspect_environment_with_mapping,
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, WorkloadList, WorkloadStatusBatch,
         WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, fresh_qualification,
     },
 };
-use rey_core::SemanticHasher;
+use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::{
-    CapabilityDelta, DeltaAssessment, DeltaLimits, DeltaOptions, SCENARIO_OUTPUT_DELTA_SCHEMA,
-    ScenarioOutputDelta, SourceMatchChangeKind, TextLineKind, compare_capabilities,
-    source_match_table_projection, text_patch_projection,
+    CapabilityChange, CapabilityChangeKind, CapabilityDelta, CapabilitySemanticRecord,
+    DeltaAssessment, SCENARIO_OUTPUT_DELTA_SCHEMA, ScenarioOutputDelta, SourceMatchChangeKind,
+    TextLineKind, source_match_table_projection, text_patch_projection,
 };
-use rey_environment::{CapabilitySnapshot, DiscoveryLimits, SourceBindingLimits};
+use rey_environment::{
+    CapabilitySnapshot, DiscoveryLimits, EnvironmentMapLimits, SourceBindingLimits,
+};
 use rey_git::GitLimits;
 use rey_mining::{MiningCompleteness, MiningLimits};
-use rey_proof::{
-    EvaluationOptions, LocalBundleLimits, ProofStatus, RequiredCapabilitiesClaim,
-    RequiredCapabilityCertificate, VerificationStatus, create_local_proof_bundle,
-    evaluate_required_capabilities, required_capability_evaluator, verify_local_proof_bundle,
-    verify_required_capability_certificate,
-};
 use rey_runtime::{
     BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
     SourceRunInput, TestStatus, WorkloadDefinition, WorkloadRunResult, WorkloadTestResult,
@@ -39,6 +41,8 @@ use rey_runtime::{
 };
 use serde::Serialize;
 use thiserror::Error;
+
+const ENV_STATUS_CHANGE_PREVIEW: usize = 32;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -53,8 +57,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Inspect bounded local context capabilities without requiring Spoke.
-    Environment(EnvironmentArgs),
+    /// Track bounded compute environment revisions.
+    Env(EnvArgs),
     /// Inspect, test, qualify, and execute bounded compute graphs.
     Workloads(WorkloadsArgs),
 }
@@ -164,34 +168,38 @@ impl WorkloadOutputFormat {
 }
 
 #[derive(Debug, Args)]
-struct EnvironmentArgs {
+struct EnvArgs {
+    /// Workspace used as the environment and default local-history boundary.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local history directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
     #[command(subcommand)]
-    command: EnvironmentCommand,
+    command: EnvCommand,
 }
 
 #[derive(Debug, Subcommand)]
-enum EnvironmentCommand {
-    /// Emit the frozen standalone capability snapshot.
-    Inspect(InspectArgs),
-    /// Compare two verified capability snapshots.
-    Diff(DiffArgs),
-    /// Evaluate required capabilities and emit a bound certificate.
-    Prove(ProveArgs),
-    /// Re-evaluate a certificate against current snapshots and contracts.
-    Verify(VerifyArgs),
-    /// Verify a retained local-only capability proof bundle.
-    VerifyBundle(VerifyBundleArgs),
+enum EnvCommand {
+    /// Show HEAD, admitted changes, and fresh working changes.
+    Status(EnvStatusArgs),
+    /// Add the working environment to the admission index.
+    Add(EnvAddArgs),
+    /// Commit the verified environment admission index.
+    Commit(EnvCommitArgs),
+    /// Show committed environment revisions newest first.
+    Log(EnvLogArgs),
+    /// Display unstaged or staged environment changes.
+    Diff(EnvDiffArgs),
 }
 
-#[derive(Debug, Args)]
-struct InspectArgs {
-    /// Explicit workspace boundary to inspect.
-    #[arg(long, default_value = ".")]
-    workspace: PathBuf,
-
-    /// Output representation; auto uses a table on a terminal and Arrow when piped.
-    #[arg(long, value_enum, default_value_t = OutputFormat::Auto)]
-    format: OutputFormat,
+#[derive(Clone, Debug, Args)]
+struct EnvDiscoveryArgs {
+    /// Workspace-relative environment mapping graph; defaults to rey.env.yaml when present.
+    #[arg(long)]
+    map: Option<PathBuf>,
 
     /// Total environment discovery deadline in milliseconds.
     #[arg(long, default_value_t = 5_000)]
@@ -206,138 +214,108 @@ struct InspectArgs {
     max_capture_bytes: u64,
 }
 
+impl EnvDiscoveryArgs {
+    fn limits(&self) -> Result<DiscoveryLimits, CliError> {
+        if self.total_timeout_ms == 0 || self.probe_timeout_ms == 0 || self.max_capture_bytes == 0 {
+            return Err(CliError::InvalidLimit);
+        }
+        Ok(DiscoveryLimits {
+            total_timeout_ms: self.total_timeout_ms,
+            probe_timeout_ms: self.probe_timeout_ms,
+            max_capture_bytes: self.max_capture_bytes,
+            max_capabilities: 64,
+        })
+    }
+}
+
 #[derive(Debug, Args)]
-struct SnapshotPairArgs {
-    /// JSON capability snapshot used as the source state.
-    source: PathBuf,
-
-    /// JSON capability snapshot used as the target state.
-    target: PathBuf,
-
-    /// Stable review label for the source side.
-    #[arg(long, default_value = "SOURCE")]
-    source_label: String,
-
-    /// Stable review label for the target side.
-    #[arg(long, default_value = "TARGET")]
-    target_label: String,
-
-    /// Maximum bytes read from each input document.
-    #[arg(long, default_value_t = 4_194_304)]
-    max_input_bytes: u64,
-
-    /// Maximum capability rows admitted from each snapshot.
-    #[arg(long, default_value_t = 4_096)]
-    max_capabilities: u64,
-
-    /// Maximum changes admitted to an authoritative delta.
+struct EnvStatusArgs {
+    /// Maximum capability changes admitted to the working delta.
     #[arg(long, default_value_t = 4_096)]
     max_changes: u64,
-}
 
-#[derive(Debug, Args)]
-struct DiffArgs {
+    /// Human document or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = EnvHistoryOutputFormat::Table)]
+    format: EnvHistoryOutputFormat,
+
     #[command(flatten)]
-    pair: SnapshotPairArgs,
-
-    /// Delta projection to emit.
-    #[arg(long, value_enum, default_value_t = DiffFormat::Structured)]
-    diff_format: DiffFormat,
-
-    /// Typed encoding for a structured delta.
-    #[arg(long, value_enum, default_value_t = StructuredFormat::Json)]
-    format: StructuredFormat,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum DiffFormat {
-    Structured,
-    TabularDiff,
-    Summary,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum StructuredFormat {
-    Json,
-    Arrow,
+    discovery: EnvDiscoveryArgs,
 }
 
 #[derive(Debug, Args)]
-struct ProveArgs {
+struct EnvAddArgs {
+    /// Interactively select capability changes to admit.
+    #[arg(short = 'p', long = "patch")]
+    patch: bool,
+
+    /// Maximum capability changes admitted to the index operation.
+    #[arg(long, default_value_t = 4_096)]
+    max_changes: u64,
+
+    /// Human receipt or typed JSON envelope; patch selection requires table.
+    #[arg(long, value_enum, default_value_t = EnvHistoryOutputFormat::Table)]
+    format: EnvHistoryOutputFormat,
+
     #[command(flatten)]
-    pair: SnapshotPairArgs,
-
-    /// Capability id that must be available in the target; repeat as needed.
-    #[arg(long = "require-capability", required = true)]
-    required_capabilities: Vec<String>,
-
-    /// Publish a content-addressed local-only proof bundle at this new directory.
-    #[arg(long)]
-    bundle: Option<PathBuf>,
-
-    /// Maximum bytes retained in one bundle artifact.
-    #[arg(long, default_value_t = 16_777_216)]
-    max_bundle_artifact_bytes: u64,
-
-    /// Maximum logical bytes retained across bundle artifact roles.
-    #[arg(long, default_value_t = 67_108_864)]
-    max_bundle_bytes: u64,
+    discovery: EnvDiscoveryArgs,
 }
 
 #[derive(Debug, Args)]
-struct VerifyArgs {
-    /// Required-capability certificate JSON to verify.
-    certificate: PathBuf,
+struct EnvCommitArgs {
+    /// Commit message bound into the environment revision identity.
+    #[arg(short = 'm', long = "message", required = true)]
+    message: String,
 
-    /// JSON capability snapshot used as the source state.
-    source: PathBuf,
-
-    /// JSON capability snapshot used as the target state.
-    target: PathBuf,
-
-    /// Maximum bytes read from each input document.
-    #[arg(long, default_value_t = 4_194_304)]
-    max_input_bytes: u64,
-
-    /// Maximum capability rows admitted from each snapshot.
+    /// Maximum capability changes admitted to the commit summary.
     #[arg(long, default_value_t = 4_096)]
-    max_capabilities: u64,
+    max_changes: u64,
+
+    /// Human receipt or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = EnvHistoryOutputFormat::Table)]
+    format: EnvHistoryOutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct VerifyBundleArgs {
-    /// Local proof bundle directory to verify without following symlinked evidence.
-    bundle: PathBuf,
+struct EnvLogArgs {
+    /// Render the exact parent-to-commit capability patch.
+    #[arg(short = 'p', long = "patch")]
+    patch: bool,
 
-    /// Maximum bytes admitted from one manifest or artifact.
-    #[arg(long, default_value_t = 16_777_216)]
-    max_artifact_bytes: u64,
+    /// Maximum number of newest commits to show.
+    #[arg(short = 'n', long = "max-count", default_value_t = 32)]
+    max_count: usize,
 
-    /// Maximum logical bytes admitted across artifact roles.
-    #[arg(long, default_value_t = 67_108_864)]
-    max_bundle_bytes: u64,
-
-    /// Maximum capability rows admitted from each retained snapshot.
+    /// Maximum capability changes admitted per retained delta.
     #[arg(long, default_value_t = 4_096)]
-    max_capabilities: u64,
+    max_changes: u64,
+
+    /// Human history or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = EnvHistoryOutputFormat::Table)]
+    format: EnvHistoryOutputFormat,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum OutputFormat {
-    Auto,
+enum EnvHistoryOutputFormat {
     Table,
-    Arrow,
     Json,
 }
 
-impl OutputFormat {
-    fn resolve(self) -> Self {
-        match (self, io::stdout().is_terminal()) {
-            (Self::Auto, true) => Self::Table,
-            (Self::Auto, false) => Self::Arrow,
-            (selected, _) => selected,
-        }
-    }
+#[derive(Debug, Args)]
+struct EnvDiffArgs {
+    /// Maximum capability changes admitted to the working delta.
+    #[arg(long, default_value_t = 4_096)]
+    max_changes: u64,
+
+    /// Human patch or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = EnvHistoryOutputFormat::Table)]
+    format: EnvHistoryOutputFormat,
+
+    /// Compare committed HEAD with the admission index.
+    #[arg(long)]
+    staged: bool,
+
+    #[command(flatten)]
+    discovery: EnvDiscoveryArgs,
 }
 
 fn main() -> ExitCode {
@@ -352,28 +330,45 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
-        Command::Environment(EnvironmentArgs {
-            command: EnvironmentCommand::Inspect(args),
-        }) => {
-            inspect(args)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Command::Environment(EnvironmentArgs {
-            command: EnvironmentCommand::Diff(args),
-        }) => {
-            diff(args)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Command::Environment(EnvironmentArgs {
-            command: EnvironmentCommand::Prove(args),
-        }) => prove(args),
-        Command::Environment(EnvironmentArgs {
-            command: EnvironmentCommand::Verify(args),
-        }) => verify(args),
-        Command::Environment(EnvironmentArgs {
-            command: EnvironmentCommand::VerifyBundle(args),
-        }) => verify_bundle(args),
+        Command::Env(args) => env_command(args),
         Command::Workloads(args) => workloads(args),
+    }
+}
+
+fn env_command(args: EnvArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let store = match args.state_dir {
+        Some(path) if path.is_absolute() => LocalEnvironmentStore::new(path),
+        Some(path)
+            if path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            }) =>
+        {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => LocalEnvironmentStore::new(workspace.join(path)),
+        None => LocalEnvironmentStore::default_for_workspace(&workspace),
+    };
+    match args.command {
+        EnvCommand::Status(command) => env_status(&store, &workspace, command),
+        EnvCommand::Add(command) => env_add(&store, &workspace, command),
+        EnvCommand::Commit(command) => env_commit(&store, command),
+        EnvCommand::Log(command) => env_log(&store, &workspace, command),
+        EnvCommand::Diff(command) => env_diff(&store, &workspace, command),
     }
 }
 
@@ -1937,244 +1932,868 @@ fn write_workload_run(output: &mut impl Write, result: &WorkloadRunResult) -> Re
     Ok(())
 }
 
-fn inspect(args: InspectArgs) -> Result<(), CliError> {
-    if args.total_timeout_ms == 0 || args.probe_timeout_ms == 0 || args.max_capture_bytes == 0 {
-        return Err(CliError::InvalidLimit);
-    }
-    let snapshot = inspect_environment(
-        &args.workspace,
-        DiscoveryLimits {
-            total_timeout_ms: args.total_timeout_ms,
-            probe_timeout_ms: args.probe_timeout_ms,
-            max_capture_bytes: args.max_capture_bytes,
-            max_capabilities: 64,
-        },
+fn env_status(
+    store: &LocalEnvironmentStore,
+    workspace: &Path,
+    args: EnvStatusArgs,
+) -> Result<ExitCode, CliError> {
+    let history = store.load()?;
+    let index = store.load_index(&history)?;
+    let snapshot = inspect_environment_with_mapping(
+        workspace,
+        args.discovery.limits()?,
         GitLimits::default(),
+        args.discovery.map.as_deref(),
+        EnvironmentMapLimits::default(),
     )?;
-    let frame = snapshot.to_frame()?;
+    let status = EnvironmentStatus::derive(&history, index, snapshot, args.max_changes)?;
     let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        OutputFormat::Arrow => stdout.write_all(&frame.to_arrow_stream()?)?,
-        OutputFormat::Json => {
-            serde_json::to_writer(&mut stdout, &snapshot)?;
-            stdout.write_all(b"\n")?;
-        }
-        OutputFormat::Table => {
-            writeln!(
-                stdout,
-                "snapshot={} complete={} profile={}",
-                snapshot.semantic_digest, snapshot.complete, snapshot.profile
-            )?;
-            write_capability_table(&mut stdout, &snapshot.capabilities)?;
-        }
-        OutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    match args.format {
+        EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &status)?,
+        EnvHistoryOutputFormat::Table => write_env_status(
+            &mut stdout,
+            workspace,
+            store,
+            &status,
+            TerminalStyle::stdout(),
+        )?,
     }
-    Ok(())
-}
-
-fn diff(args: DiffArgs) -> Result<(), CliError> {
-    if args.diff_format != DiffFormat::Structured && args.format != StructuredFormat::Json {
-        return Err(CliError::FormatScope);
-    }
-    let (source, target) = load_pair(&args.pair)?;
-    let delta = compare_pair(&source, &target, &args.pair)?;
-    let mut stdout = io::stdout().lock();
-    match (args.diff_format, args.format) {
-        (DiffFormat::Structured, StructuredFormat::Json) => {
-            write_json_line(&mut stdout, &delta)?;
-        }
-        (DiffFormat::Structured, StructuredFormat::Arrow) => {
-            stdout.write_all(&delta.to_frame()?.to_arrow_stream()?)?;
-        }
-        (DiffFormat::TabularDiff, StructuredFormat::Json) => {
-            stdout.write_all(&delta.to_tabular_diff()?)?;
-        }
-        (DiffFormat::Summary, StructuredFormat::Json) => {
-            write_json_line(&mut stdout, &delta.summary)?;
-        }
-        (_, StructuredFormat::Arrow) => return Err(CliError::FormatScope),
-    }
-    Ok(())
-}
-
-fn prove(args: ProveArgs) -> Result<ExitCode, CliError> {
-    let (source, target) = load_pair(&args.pair)?;
-    let claim = RequiredCapabilitiesClaim::new(args.required_capabilities)?;
-    let certificate = evaluate_required_capabilities(
-        &source,
-        &target,
-        claim,
-        EvaluationOptions {
-            source_label: args.pair.source_label.clone(),
-            target_label: args.pair.target_label.clone(),
-            delta_limits: DeltaLimits {
-                max_changes: args.pair.max_changes,
-            },
-            ..EvaluationOptions::default()
-        },
-    )?;
-    if let Some(bundle) = &args.bundle {
-        create_local_proof_bundle(
-            bundle,
-            &source,
-            &target,
-            &certificate,
-            LocalBundleLimits {
-                max_artifact_bytes: args.max_bundle_artifact_bytes,
-                max_total_bytes: args.max_bundle_bytes,
-                max_capabilities: args.pair.max_capabilities,
-                ..LocalBundleLimits::default()
-            },
-        )?;
-    }
-    write_json_line(&mut io::stdout().lock(), &certificate)?;
-    Ok(match certificate.status {
-        ProofStatus::Passed => ExitCode::SUCCESS,
-        ProofStatus::Failed => ExitCode::from(2),
-        ProofStatus::Inconclusive => ExitCode::from(3),
-    })
-}
-
-fn verify_bundle(args: VerifyBundleArgs) -> Result<ExitCode, CliError> {
-    let verification = verify_local_proof_bundle(
-        &args.bundle,
-        LocalBundleLimits {
-            max_artifact_bytes: args.max_artifact_bytes,
-            max_total_bytes: args.max_bundle_bytes,
-            max_capabilities: args.max_capabilities,
-            ..LocalBundleLimits::default()
-        },
-    )?;
-    write_json_line(&mut io::stdout().lock(), &verification)?;
     Ok(ExitCode::SUCCESS)
 }
 
-fn verify(args: VerifyArgs) -> Result<ExitCode, CliError> {
-    if args.max_input_bytes == 0 || args.max_capabilities == 0 {
-        return Err(CliError::InvalidLimit);
+fn env_add(
+    store: &LocalEnvironmentStore,
+    workspace: &Path,
+    args: EnvAddArgs,
+) -> Result<ExitCode, CliError> {
+    if args.patch && args.format == EnvHistoryOutputFormat::Json {
+        return Err(CliError::PatchFormat);
     }
-    let certificate_bytes = read_bounded(&args.certificate, args.max_input_bytes)?;
-    let certificate: RequiredCapabilityCertificate = serde_json::from_slice(&certificate_bytes)?;
-    let source = load_snapshot(&args.source, args.max_input_bytes, args.max_capabilities)?;
-    let target = load_snapshot(&args.target, args.max_input_bytes, args.max_capabilities)?;
-    let verification = verify_required_capability_certificate(
-        &certificate,
-        &source,
-        &target,
-        required_capability_evaluator(),
+    let history = store.load()?;
+    let previous_index = store.load_index(&history)?;
+    let working = inspect_environment_with_mapping(
+        workspace,
+        args.discovery.limits()?,
+        GitLimits::default(),
+        args.discovery.map.as_deref(),
+        EnvironmentMapLimits::default(),
     )?;
-    write_json_line(&mut io::stdout().lock(), &verification)?;
-    Ok(match verification.status {
-        VerificationStatus::Verified => ExitCode::SUCCESS,
-        VerificationStatus::Stale => ExitCode::from(4),
-    })
+    let before = effective_index_snapshot(&history, previous_index.as_ref(), &working)?;
+    if before.semantic_digest == working.semantic_digest {
+        return Err(LocalEnvironmentHistoryError::NothingToAdd.into());
+    }
+    let initial =
+        EnvironmentStatus::derive(&history, previous_index, working.clone(), args.max_changes)?;
+    let (candidate, selected_count) = if args.patch {
+        let selected = select_capability_changes(&initial.unstaged_delta)?;
+        (
+            stage_selected_capabilities(&before, &working, &selected)?,
+            selected.len() as u64,
+        )
+    } else {
+        (working.clone(), initial.unstaged_delta.changes.len() as u64)
+    };
+    let head_snapshot_id = history.head().map(|head| &head.snapshot.semantic_digest);
+    let index = if head_snapshot_id == Some(&candidate.semantic_digest) {
+        store.clear_index()?;
+        None
+    } else {
+        let index = EnvironmentAdmissionIndex::new(&history, candidate)?;
+        store.save_index(&history, &index)?;
+        Some(index)
+    };
+    let status = EnvironmentStatus::derive(&history, index.clone(), working, args.max_changes)?;
+    let result = EnvironmentAddResult::new(index, status, selected_count);
+    let mut stdout = io::stdout().lock();
+    match args.format {
+        EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        EnvHistoryOutputFormat::Table => {
+            write_env_add(&mut stdout, store, &result, TerminalStyle::stdout())?
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
-fn load_pair(
-    args: &SnapshotPairArgs,
-) -> Result<(CapabilitySnapshot, CapabilitySnapshot), CliError> {
-    validate_pair_limits(args)?;
-    let source = load_snapshot(&args.source, args.max_input_bytes, args.max_capabilities)?;
-    let target = load_snapshot(&args.target, args.max_input_bytes, args.max_capabilities)?;
-    Ok((source, target))
+fn env_commit(store: &LocalEnvironmentStore, args: EnvCommitArgs) -> Result<ExitCode, CliError> {
+    let mut history = store.load()?;
+    let index = store
+        .load_index(&history)?
+        .ok_or(LocalEnvironmentHistoryError::NothingStaged)?;
+    let status = EnvironmentStatus::derive(
+        &history,
+        Some(index.clone()),
+        index.snapshot.clone(),
+        args.max_changes,
+    )?;
+    let commit = history.commit(args.message, index.snapshot)?;
+    store.save(&history)?;
+    store.clear_index()?;
+    let result = EnvironmentCommitResult::new(commit, status.staged_delta);
+    let mut stdout = io::stdout().lock();
+    match args.format {
+        EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        EnvHistoryOutputFormat::Table => {
+            write_env_commit(&mut stdout, store, &result, TerminalStyle::stdout())?
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
-fn compare_pair(
-    source: &CapabilitySnapshot,
-    target: &CapabilitySnapshot,
-    args: &SnapshotPairArgs,
-) -> Result<CapabilityDelta, CliError> {
-    Ok(compare_capabilities(
-        source,
-        target,
-        DeltaOptions {
-            source_label: args.source_label.clone(),
-            target_label: args.target_label.clone(),
-            limits: DeltaLimits {
-                max_changes: args.max_changes,
-            },
-            ..DeltaOptions::default()
-        },
-    )?)
+fn env_diff(
+    store: &LocalEnvironmentStore,
+    workspace: &Path,
+    args: EnvDiffArgs,
+) -> Result<ExitCode, CliError> {
+    let history = store.load()?;
+    let index = store.load_index(&history)?;
+    let snapshot = inspect_environment_with_mapping(
+        workspace,
+        args.discovery.limits()?,
+        GitLimits::default(),
+        args.discovery.map.as_deref(),
+        EnvironmentMapLimits::default(),
+    )?;
+    let mode = if args.staged {
+        EnvironmentDiffMode::Staged
+    } else {
+        EnvironmentDiffMode::Unstaged
+    };
+    let diff = EnvironmentDiff::derive(&history, index, snapshot, args.max_changes, mode)?;
+    let mut stdout = io::stdout().lock();
+    match args.format {
+        EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &diff)?,
+        EnvHistoryOutputFormat::Table => {
+            write_env_diff(&mut stdout, workspace, &diff, TerminalStyle::stdout())?
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
-fn validate_pair_limits(args: &SnapshotPairArgs) -> Result<(), CliError> {
-    if args.max_input_bytes == 0 || args.max_capabilities == 0 || args.max_changes == 0 {
-        return Err(CliError::InvalidLimit);
+fn env_log(
+    store: &LocalEnvironmentStore,
+    workspace: &Path,
+    args: EnvLogArgs,
+) -> Result<ExitCode, CliError> {
+    let history = store.load()?;
+    let log = EnvironmentLog::derive(&history, args.max_count, args.max_changes, args.patch)?;
+    let mut stdout = io::stdout().lock();
+    match args.format {
+        EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &log)?,
+        EnvHistoryOutputFormat::Table => {
+            write_env_log(&mut stdout, workspace, store, &log, TerminalStyle::stdout())?
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn select_capability_changes(
+    delta: &CapabilityDelta,
+) -> Result<std::collections::BTreeSet<rey_diff::CapabilityKey>, CliError> {
+    if delta.changes.is_empty() {
+        return Err(LocalEnvironmentHistoryError::NothingToAdd.into());
+    }
+    let style = TerminalStyle::stdout();
+    let mut output = io::stdout().lock();
+    let mut input = io::stdin().lock();
+    let mut selected = std::collections::BTreeSet::new();
+    let mut stage_all = false;
+    writeln!(output)?;
+    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT ADMISSION PATCH"))?;
+    writeln!(
+        output,
+        "  Delta                  INDEX → WORKING · {} capability changes",
+        delta.changes.len()
+    )?;
+    writeln!(
+        output,
+        "  Selection              y stage · n skip · a all · d none · q quit · ? help"
+    )?;
+    for (position, change) in delta.changes.iter().enumerate() {
+        if stage_all {
+            selected.insert(change.key.clone());
+            continue;
+        }
+        writeln!(output)?;
+        writeln!(
+            output,
+            "Change {}/{}",
+            position.saturating_add(1),
+            delta.changes.len()
+        )?;
+        write_capability_change(&mut output, change, style)?;
+        loop {
+            write!(output, "Stage this capability change [y,n,q,a,d,?]? ")?;
+            output.flush()?;
+            let mut answer = String::new();
+            if input.read_line(&mut answer)? == 0 {
+                writeln!(output)?;
+                return if selected.is_empty() {
+                    Err(LocalEnvironmentHistoryError::EmptyPatchSelection.into())
+                } else {
+                    Ok(selected)
+                };
+            }
+            match answer.trim() {
+                "y" | "yes" => {
+                    selected.insert(change.key.clone());
+                    break;
+                }
+                "n" | "no" => break,
+                "q" | "quit" | "d" | "none" => {
+                    return if selected.is_empty() {
+                        Err(LocalEnvironmentHistoryError::EmptyPatchSelection.into())
+                    } else {
+                        Ok(selected)
+                    };
+                }
+                "a" | "all" => {
+                    selected.insert(change.key.clone());
+                    stage_all = true;
+                    break;
+                }
+                "?" => writeln!(
+                    output,
+                    "  y stage this change; n skip; a stage this and all remaining; d/q stop selecting"
+                )?,
+                _ => writeln!(output, "  expected y, n, q, a, d, or ?")?,
+            }
+        }
+    }
+    if selected.is_empty() {
+        Err(LocalEnvironmentHistoryError::EmptyPatchSelection.into())
+    } else {
+        Ok(selected)
+    }
+}
+
+fn write_env_status(
+    output: &mut impl Write,
+    workspace: &Path,
+    store: &LocalEnvironmentStore,
+    status: &EnvironmentStatus,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    let counts = capability_counts(&status.working_snapshot);
+    writeln!(output)?;
+    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT STATUS"))?;
+    writeln!(output, "  Workspace              {}", workspace.display())?;
+    writeln!(
+        output,
+        "  State                  {}",
+        environment_state_label(status.state, style)
+    )?;
+    match (
+        &status.head_commit_id,
+        status.head_sequence,
+        &status.head_snapshot_id,
+    ) {
+        (Some(commit), Some(sequence), Some(snapshot)) => {
+            writeln!(output, "  HEAD                   ENV@{sequence} · {commit}")?;
+            writeln!(output, "  HEAD snapshot          {snapshot}")?;
+        }
+        _ => writeln!(output, "  HEAD                   no commits")?,
+    }
+    match &status.admission_index {
+        Some(index) => writeln!(
+            output,
+            "  Admission index        {} · snapshot {}",
+            index.index_id, index.snapshot.semantic_digest
+        )?,
+        None => writeln!(
+            output,
+            "  Admission index        matches HEAD · no retained index"
+        )?,
+    }
+    writeln!(
+        output,
+        "  Working snapshot       {}",
+        status.working_snapshot.semantic_digest
+    )?;
+    writeln!(
+        output,
+        "  Observation            profile {} · {}",
+        status.working_snapshot.profile,
+        if status.working_snapshot.complete {
+            "complete"
+        } else {
+            "incomplete"
+        }
+    )?;
+    writeln!(
+        output,
+        "  Capabilities           {} total · {} available · {} unavailable · {} errors",
+        counts.total, counts.available, counts.unavailable, counts.errors
+    )?;
+    write_mapping_summary(output, &status.working_snapshot)?;
+    write_delta_summary(output, &status.staged_delta, style)?;
+    write_delta_summary(output, &status.unstaged_delta, style)?;
+    writeln!(
+        output,
+        "  Local state            history {} · index {}",
+        store.path().display(),
+        store.index_path().display()
+    )?;
+    if !status.staged_delta.changes.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "Changes to be committed:")?;
+        write_change_preview(output, &status.staged_delta)?;
+        writeln!(
+            output,
+            "  use `rey env diff --staged` to inspect the exact patch"
+        )?;
+    }
+    if !status.unstaged_delta.changes.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "Changes not staged for admission:")?;
+        write_change_preview(output, &status.unstaged_delta)?;
+        writeln!(output, "  use `rey env add` to admit all working changes")?;
+        writeln!(
+            output,
+            "  use `rey env add -p` to select capability changes"
+        )?;
+        writeln!(output, "  use `rey env diff` to inspect the exact patch")?;
+    }
+    writeln!(output)?;
+    match status.state {
+        EnvironmentWorkingState::Unborn => writeln!(
+            output,
+            "No environment commits yet; add the working environment before committing."
+        )?,
+        EnvironmentWorkingState::Clean => writeln!(
+            output,
+            "Nothing to commit; HEAD, the admission index, and working environment agree."
+        )?,
+        EnvironmentWorkingState::Changed => writeln!(
+            output,
+            "Working changes are not admitted. Review `rey env diff`, then run `rey env add`."
+        )?,
+        EnvironmentWorkingState::Staged => writeln!(
+            output,
+            "Admission index is ready to commit; the working environment matches it."
+        )?,
+        EnvironmentWorkingState::Mixed => writeln!(
+            output,
+            "Admission index has commit-ready changes and additional unstaged working drift."
+        )?,
+        EnvironmentWorkingState::Inconclusive => writeln!(
+            output,
+            "Working evidence is incomplete; the delta cannot establish a clean environment."
+        )?,
     }
     Ok(())
 }
 
-fn load_snapshot(
-    path: &Path,
-    max_input_bytes: u64,
-    max_capabilities: u64,
-) -> Result<CapabilitySnapshot, CliError> {
-    let bytes = read_bounded(path, max_input_bytes)?;
-    Ok(CapabilitySnapshot::from_json_slice(
-        &bytes,
-        max_capabilities,
-    )?)
+fn write_change_preview(output: &mut impl Write, delta: &CapabilityDelta) -> io::Result<()> {
+    for change in delta.changes.iter().take(ENV_STATUS_CHANGE_PREVIEW) {
+        let marker = match change.kind {
+            CapabilityChangeKind::Inserted => "new",
+            CapabilityChangeKind::Deleted => "deleted",
+            CapabilityChangeKind::Modified => "modified",
+        };
+        writeln!(
+            output,
+            "  {marker:<8} {} / {}",
+            change.key.provider_id, change.key.capability_id
+        )?;
+    }
+    let omitted = delta
+        .changes
+        .len()
+        .saturating_sub(ENV_STATUS_CHANGE_PREVIEW);
+    if omitted > 0 {
+        writeln!(
+            output,
+            "  ... {omitted} more changed capabilities not shown"
+        )?;
+    }
+    Ok(())
 }
 
-fn read_bounded(path: &Path, max_bytes: u64) -> Result<Vec<u8>, CliError> {
-    let mut bytes = Vec::new();
-    File::open(path)
-        .map_err(|source| CliError::Input {
-            path: path.to_owned(),
-            source,
-        })?
-        .take(max_bytes.saturating_add(1))
-        .read_to_end(&mut bytes)
-        .map_err(|source| CliError::Input {
-            path: path.to_owned(),
-            source,
-        })?;
-    if bytes.len() as u64 > max_bytes {
-        return Err(CliError::InputLimit {
-            path: path.to_owned(),
-            limit: max_bytes,
-        });
+fn write_env_add(
+    output: &mut impl Write,
+    store: &LocalEnvironmentStore,
+    result: &EnvironmentAddResult,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT ADMISSION"))?;
+    match &result.index {
+        Some(index) => {
+            writeln!(output, "  Index                  {}", index.index_id)?;
+            writeln!(
+                output,
+                "  Snapshot               {}",
+                index.snapshot.semantic_digest
+            )?;
+        }
+        None => writeln!(
+            output,
+            "  Index                  matches HEAD · retained index cleared"
+        )?,
     }
-    Ok(bytes)
+    writeln!(
+        output,
+        "  Selection              {} capability changes admitted",
+        result.staged_changes
+    )?;
+    writeln!(
+        output,
+        "  Commit delta           {} changes · {}",
+        result.staged_delta.changes.len(),
+        delta_assessment_label(result.staged_delta.summary.assessment, style)
+    )?;
+    writeln!(
+        output,
+        "  Working delta          {} changes remain unstaged · {}",
+        result.remaining_changes,
+        delta_assessment_label(result.unstaged_delta.summary.assessment, style)
+    )?;
+    writeln!(
+        output,
+        "  Retention              {} · local only",
+        store.index_path().display()
+    )?;
+    Ok(())
+}
+
+fn write_env_commit(
+    output: &mut impl Write,
+    store: &LocalEnvironmentStore,
+    result: &EnvironmentCommitResult,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    let commit = &result.commit;
+    let counts = capability_counts(&commit.snapshot);
+    writeln!(output)?;
+    writeln!(
+        output,
+        "{}",
+        style.cyan_bold(&format!(
+            "[env {}] {}",
+            commit.sequence,
+            commit.message.lines().next().unwrap_or_default()
+        ))
+    )?;
+    writeln!(output, "  Commit                 {}", commit.commit_id)?;
+    writeln!(
+        output,
+        "  Parent                 {}",
+        commit
+            .parent_commit_id
+            .as_ref()
+            .map_or("none", SemanticDigest::as_str)
+    )?;
+    writeln!(
+        output,
+        "  Snapshot               {} · {}",
+        commit.snapshot.semantic_digest,
+        if commit.snapshot.complete {
+            "complete"
+        } else {
+            "incomplete"
+        }
+    )?;
+    writeln!(
+        output,
+        "  Capabilities           {} total · {} available · {} unavailable · {} errors",
+        counts.total, counts.available, counts.unavailable, counts.errors
+    )?;
+    write_mapping_summary(output, &commit.snapshot)?;
+    write_delta_summary(output, &result.delta, style)?;
+    writeln!(output, "  Message")?;
+    for line in commit.message.lines() {
+        writeln!(output, "      {line}")?;
+    }
+    writeln!(
+        output,
+        "  Retention              {} · local only · no fsync/locking/Spoke durability",
+        store.path().display()
+    )?;
+    Ok(())
+}
+
+fn write_env_log(
+    output: &mut impl Write,
+    workspace: &Path,
+    store: &LocalEnvironmentStore,
+    log: &EnvironmentLog,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT HISTORY"))?;
+    writeln!(output, "  Workspace              {}", workspace.display())?;
+    writeln!(
+        output,
+        "  Commits                {} total · {} shown · newest first",
+        log.total_commits, log.selected_commits
+    )?;
+    writeln!(
+        output,
+        "  HEAD                   {}",
+        log.head_commit_id
+            .as_ref()
+            .map_or("none", SemanticDigest::as_str)
+    )?;
+    writeln!(
+        output,
+        "  Retention              {} · local only · bounded to {} commits",
+        store.path().display(),
+        MAX_ENVIRONMENT_COMMITS
+    )?;
+    if log.entries.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No environment commits.")?;
+        return Ok(());
+    }
+    for entry in &log.entries {
+        let commit = &entry.commit;
+        let head = log.head_commit_id.as_ref() == Some(&commit.commit_id);
+        let counts = capability_counts(&commit.snapshot);
+        writeln!(output)?;
+        writeln!(
+            output,
+            "{}{}",
+            style.bold(&format!("commit {}", commit.commit_id)),
+            if head { " (HEAD)" } else { "" }
+        )?;
+        writeln!(output, "  Sequence               ENV@{}", commit.sequence)?;
+        writeln!(
+            output,
+            "  Parent                 {}",
+            commit
+                .parent_commit_id
+                .as_ref()
+                .map_or("none", SemanticDigest::as_str)
+        )?;
+        writeln!(
+            output,
+            "  Snapshot               {} · {}",
+            commit.snapshot.semantic_digest,
+            if commit.snapshot.complete {
+                "complete"
+            } else {
+                "incomplete"
+            }
+        )?;
+        writeln!(
+            output,
+            "  Capabilities           {} total · {} available · {} unavailable · {} errors",
+            counts.total, counts.available, counts.unavailable, counts.errors
+        )?;
+        write_mapping_summary(output, &commit.snapshot)?;
+        write_delta_summary(output, &entry.delta, style)?;
+        writeln!(output, "  Message")?;
+        for line in commit.message.lines() {
+            writeln!(output, "      {line}")?;
+        }
+        if log.patch {
+            writeln!(output)?;
+            write_capability_patch(output, &entry.delta, style)?;
+        }
+    }
+    Ok(())
+}
+
+fn write_env_diff(
+    output: &mut impl Write,
+    workspace: &Path,
+    diff: &EnvironmentDiff,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT DIFF"))?;
+    writeln!(
+        output,
+        "  View                   {}",
+        match diff.mode {
+            EnvironmentDiffMode::Unstaged => "UNSTAGED · INDEX → WORKING",
+            EnvironmentDiffMode::Staged => "STAGED · HEAD → INDEX",
+        }
+    )?;
+    writeln!(output, "  Workspace              {}", workspace.display())?;
+    match (
+        &diff.head_commit_id,
+        diff.head_sequence,
+        &diff.head_snapshot_id,
+    ) {
+        (Some(commit), Some(sequence), Some(snapshot)) => {
+            writeln!(output, "  HEAD                   ENV@{sequence} · {commit}")?;
+            writeln!(output, "  HEAD snapshot          {snapshot}")?;
+        }
+        _ => writeln!(output, "  HEAD                   EMPTY · no commits")?,
+    }
+    match &diff.admission_index {
+        Some(index) => writeln!(
+            output,
+            "  Admission index        {} · snapshot {}",
+            index.index_id, index.snapshot.semantic_digest
+        )?,
+        None => writeln!(output, "  Admission index        matches HEAD")?,
+    }
+    let index_snapshot = match diff.mode {
+        EnvironmentDiffMode::Unstaged => &diff.delta.source_snapshot,
+        EnvironmentDiffMode::Staged => &diff.delta.target_snapshot,
+    };
+    writeln!(output, "  Index snapshot         {index_snapshot}")?;
+    writeln!(
+        output,
+        "  Working snapshot       {}",
+        diff.working_snapshot.semantic_digest
+    )?;
+    write_delta_summary(output, &diff.delta, style)?;
+    writeln!(output)?;
+    write_capability_patch(output, &diff.delta, style)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct CapabilityCounts {
+    total: u64,
+    available: u64,
+    unavailable: u64,
+    errors: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MappingCounts {
+    graphs: u64,
+    variables: u64,
+    files: u64,
+    executables: u64,
+    edges: u64,
+}
+
+fn mapping_counts(snapshot: &CapabilitySnapshot) -> MappingCounts {
+    let mut counts = MappingCounts::default();
+    for capability in &snapshot.capabilities {
+        match capability.capability_kind.as_str() {
+            "environment_map" => counts.graphs += 1,
+            "environment_variable" => counts.variables += 1,
+            "input_file" => counts.files += 1,
+            "potential_executable" => counts.executables += 1,
+            "environment_edge" => counts.edges += 1,
+            _ => {}
+        }
+    }
+    counts
+}
+
+fn write_mapping_summary(output: &mut impl Write, snapshot: &CapabilitySnapshot) -> io::Result<()> {
+    let counts = mapping_counts(snapshot);
+    if counts.graphs == 0 {
+        writeln!(output, "  Mapping                none · no rey.env.yaml")
+    } else {
+        writeln!(
+            output,
+            "  Mapping                {} {} · {} {} · {} {} · {} {} · {} {}",
+            counts.graphs,
+            plural(counts.graphs, "graph", "graphs"),
+            counts.variables,
+            plural(counts.variables, "variable", "variables"),
+            counts.files,
+            plural(counts.files, "file", "files"),
+            counts.executables,
+            plural(counts.executables, "executable", "executables"),
+            counts.edges,
+            plural(counts.edges, "edge", "edges"),
+        )?;
+        if let Some(graph) = snapshot
+            .capabilities
+            .iter()
+            .find(|capability| capability.capability_kind == "environment_map")
+        {
+            writeln!(
+                output,
+                "  Mapping graph          {} · {}",
+                graph.resolved_location.as_deref().unwrap_or("unknown"),
+                graph.content_digest.as_deref().unwrap_or("unbound")
+            )?;
+        }
+        Ok(())
+    }
+}
+
+const fn plural<'a>(count: u64, singular: &'a str, plural: &'a str) -> &'a str {
+    if count == 1 { singular } else { plural }
+}
+
+fn capability_counts(snapshot: &CapabilitySnapshot) -> CapabilityCounts {
+    let mut counts = CapabilityCounts {
+        total: snapshot.capabilities.len() as u64,
+        ..CapabilityCounts::default()
+    };
+    for capability in &snapshot.capabilities {
+        match capability.availability {
+            rey_environment::Availability::Available => counts.available += 1,
+            rey_environment::Availability::Unavailable => counts.unavailable += 1,
+            rey_environment::Availability::Error => counts.errors += 1,
+        }
+    }
+    counts
+}
+
+fn write_delta_summary(
+    output: &mut impl Write,
+    delta: &CapabilityDelta,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "  Delta                  {} → {} · {}",
+        delta.source_label,
+        delta.target_label,
+        delta_assessment_label(delta.summary.assessment, style)
+    )?;
+    writeln!(
+        output,
+        "  Changes                +{} inserted · -{} deleted · ~{} modified · {} unchanged",
+        delta.summary.inserted,
+        delta.summary.deleted,
+        delta.summary.modified,
+        delta.summary.unchanged
+    )?;
+    writeln!(output, "  Delta id               {}", delta.delta_id)?;
+    Ok(())
+}
+
+fn write_capability_patch(
+    output: &mut impl Write,
+    delta: &CapabilityDelta,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "{} {} → {}",
+        style.bold("CAPABILITY PATCH"),
+        delta.source_label,
+        delta.target_label
+    )?;
+    writeln!(
+        output,
+        "  source={} target={}",
+        delta.source_snapshot, delta.target_snapshot
+    )?;
+    writeln!(
+        output,
+        "  comparator={}@{}:{} · max_changes={}",
+        delta.comparator.id,
+        delta.comparator.revision,
+        delta.comparator.semantic_digest,
+        delta.limits.max_changes
+    )?;
+    if delta.changes.is_empty() {
+        writeln!(output, "  no semantic capability changes")?;
+        return Ok(());
+    }
+    for change in &delta.changes {
+        write_capability_change(output, change, style)?;
+    }
+    Ok(())
+}
+
+fn write_capability_change(
+    output: &mut impl Write,
+    change: &CapabilityChange,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    let (marker, kind) = match change.kind {
+        CapabilityChangeKind::Inserted => (style.green("+"), "inserted"),
+        CapabilityChangeKind::Deleted => (style.red("-"), "deleted"),
+        CapabilityChangeKind::Modified => (style.yellow("~"), "modified"),
+    };
+    writeln!(
+        output,
+        "  {marker} {}@{} / {} ({kind})",
+        change.key.provider_id, change.key.provider_revision, change.key.capability_id
+    )?;
+    match change.kind {
+        CapabilityChangeKind::Inserted => {
+            write_capability_record_projection(output, "after", change.after.as_ref())?;
+        }
+        CapabilityChangeKind::Deleted => {
+            write_capability_record_projection(output, "before", change.before.as_ref())?;
+        }
+        CapabilityChangeKind::Modified => {
+            for field in &change.changed_fields {
+                writeln!(
+                    output,
+                    "      {field}: {} → {}",
+                    capability_field(change.before.as_ref(), field)?,
+                    capability_field(change.after.as_ref(), field)?
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_capability_record_projection(
+    output: &mut impl Write,
+    side: &str,
+    record: Option<&CapabilitySemanticRecord>,
+) -> Result<(), CliError> {
+    let Some(record) = record else {
+        writeln!(output, "      {side}: null")?;
+        return Ok(());
+    };
+    writeln!(
+        output,
+        "      {side}: kind={} · availability={} · trust={}",
+        record.capability_kind,
+        record.availability.as_str(),
+        record.trust_class.as_str()
+    )?;
+    writeln!(
+        output,
+        "      version={} · location={} · content={}",
+        record.version.as_deref().unwrap_or("null"),
+        record.resolved_location.as_deref().unwrap_or("null"),
+        record.content_digest.as_deref().unwrap_or("null")
+    )?;
+    writeln!(
+        output,
+        "      operations={} · enforced_limits={} · unsupported_limits={}",
+        serde_json::to_string(&record.operations)?,
+        serde_json::to_string(&record.enforced_limits)?,
+        serde_json::to_string(&record.unsupported_limits)?
+    )?;
+    Ok(())
+}
+
+fn capability_field(
+    record: Option<&CapabilitySemanticRecord>,
+    field: &str,
+) -> Result<String, CliError> {
+    let Some(record) = record else {
+        return Ok("null".to_owned());
+    };
+    let value = serde_json::to_value(record)?;
+    Ok(value
+        .get(field)
+        .map_or_else(|| "<missing>".to_owned(), serde_json::Value::to_string))
+}
+
+fn environment_state_label(state: EnvironmentWorkingState, style: TerminalStyle) -> String {
+    match state {
+        EnvironmentWorkingState::Unborn => style.yellow("UNBORN"),
+        EnvironmentWorkingState::Clean => style.green("CLEAN"),
+        EnvironmentWorkingState::Changed => style.yellow("CHANGED"),
+        EnvironmentWorkingState::Staged => style.green("STAGED"),
+        EnvironmentWorkingState::Mixed => style.yellow("MIXED"),
+        EnvironmentWorkingState::Inconclusive => style.red("INCONCLUSIVE"),
+    }
+}
+
+fn delta_assessment_label(assessment: DeltaAssessment, style: TerminalStyle) -> String {
+    match assessment {
+        DeltaAssessment::Equal => style.green("EQUAL"),
+        DeltaAssessment::Different => style.yellow("DIFFERENT"),
+        DeltaAssessment::Inconclusive => style.red("INCONCLUSIVE"),
+    }
 }
 
 fn write_json_line(output: &mut impl Write, value: &impl Serialize) -> Result<(), CliError> {
     serde_json::to_writer(&mut *output, value)?;
     output.write_all(b"\n")?;
-    Ok(())
-}
-
-fn write_capability_table(
-    output: &mut impl Write,
-    rows: &[rey_environment::CapabilityRecord],
-) -> Result<(), CliError> {
-    writeln!(
-        output,
-        "provider_id\tprovider_revision\tprovider_kind\tcapability_id\tcapability_kind\tresolved_location\tversion\tcontent_digest\tprovenance\tavailability\ttrust_class\toperations\tenforced_limits\tunsupported_limits\tobserved_at\terror_code\terror_detail"
-    )?;
-    for row in rows {
-        let cells = [
-            json_cell(&row.provider_id)?,
-            json_cell(&row.provider_revision)?,
-            json_cell(&row.provider_kind)?,
-            json_cell(&row.capability_id)?,
-            json_cell(&row.capability_kind)?,
-            json_cell(&row.resolved_location)?,
-            json_cell(&row.version)?,
-            json_cell(&row.content_digest)?,
-            json_cell(&row.provenance)?,
-            json_cell(&row.availability)?,
-            json_cell(&row.trust_class)?,
-            json_cell(&row.operations)?,
-            json_cell(&row.enforced_limits)?,
-            json_cell(&row.unsupported_limits)?,
-            json_cell(&row.observed_at)?,
-            json_cell(&row.error_code)?,
-            json_cell(&row.error_detail)?,
-        ];
-        writeln!(output, "{}", cells.join("\t"))?;
-    }
     Ok(())
 }
 
@@ -2190,32 +2809,26 @@ enum CliError {
     MissingSourceFiles,
     #[error("--source and source-context options are only valid for a source-mining workload")]
     UnexpectedSourceFiles,
-    #[error("--format arrow is only valid with --diff-format structured")]
-    FormatScope,
-    #[error("input {path} could not be read: {source}")]
-    Input { path: PathBuf, source: io::Error },
-    #[error("input {path} exceeds the {limit}-byte limit")]
-    InputLimit { path: PathBuf, limit: u64 },
+    #[error("--patch requires human table output")]
+    PatchFormat,
     #[error("workspace {path} could not be resolved: {source}")]
     Workspace { path: PathBuf, source: io::Error },
     #[error("workspace {0} is not a directory")]
     WorkspaceDirectory(PathBuf),
+    #[error("relative state directory {0} escapes the workspace boundary")]
+    StateDirectoryEscape(PathBuf),
     #[error(transparent)]
     Rey(#[from] ReyError),
     #[error(transparent)]
     Discovery(#[from] rey_environment::DiscoveryError),
     #[error(transparent)]
-    Frame(#[from] rey_dataframe::FrameError),
-    #[error(transparent)]
     Delta(#[from] rey_diff::DeltaError),
-    #[error(transparent)]
-    Proof(#[from] rey_proof::ProofError),
-    #[error(transparent)]
-    Bundle(#[from] rey_proof::LocalBundleError),
     #[error(transparent)]
     Workload(#[from] rey_runtime::WorkloadError),
     #[error(transparent)]
     WorkloadState(#[from] LocalWorkloadStateError),
+    #[error(transparent)]
+    EnvironmentState(#[from] LocalEnvironmentHistoryError),
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]

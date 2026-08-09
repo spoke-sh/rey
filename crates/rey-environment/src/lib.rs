@@ -20,11 +20,13 @@ use rey_dataframe::{Frame, FrameError, FrameMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod mapping;
 mod source;
 
 #[cfg(test)]
 mod source_tests;
 
+pub use mapping::*;
 pub use source::*;
 
 #[cfg(unix)]

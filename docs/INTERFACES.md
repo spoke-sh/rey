@@ -1,13 +1,20 @@
 # Rey Interfaces
 
 This document sketches Rey's user, environment, policy, and Spoke interfaces.
-The implemented CLI includes the standalone environment
-snapshot/delta/certificate loop, local-only proof bundles, and the first
-built-in workload slice fixed by ADR 0016. Generic workload declarations,
+The implemented CLI includes a Git-shaped, mapping-aware standalone
+environment revision loop and the first built-in workload slice fixed by ADR
+0016. Lower-level proof and local-bundle contracts remain library/runtime
+capabilities rather than manual user commands. Generic workload declarations,
 graph proposal policy, and connected Spoke behavior remain provisional. ADR
 0017 fixes the common relational/source mining boundary; ADR 0018 implements
 its first workload-wired local source corpus, literal search, typed relation
-and ordered text deltas, reasoning fixture, and human CLI projections.
+and ordered text deltas, reasoning fixture, and human CLI projections. ADR
+0019 hard-cuts the environment namespace to `env` and adds verified local
+environment status, commit, and patch-log contracts. ADR 0020 makes `diff`
+HEAD-relative, removes manual proof plumbing, and adds the environment mapping
+graph. ADR 0021 replaces direct HEAD-to-working acceptance with the
+HEAD-bound admission index, merges inventory into status, and removes
+`inspect`.
 
 ## Interface Principles
 
@@ -36,18 +43,22 @@ and ordered text deltas, reasoning fixture, and human CLI projections.
 Rey's product surface is intentionally small:
 
 ```text
-rey environment <command>
+rey env [--workspace PATH] [--state-dir PATH] status [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] add [-p] [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
+rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
 rey workloads [--workspace PATH] [--state-dir PATH] list
 rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]
 rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
 ```
 
-`environment` inventories the available compute boundary. `workloads` is the
-public unit for composing and using runtime concepts. Spaces, lenses, frames,
-deltas, frontiers, traces, and proofs remain typed evidence and may gain
-focused diagnostic projections, but they are not peer top-level resources that
-users must manually orchestrate.
+`env` inventories and revisions the available compute boundary. `workloads`
+is the public unit for composing and using runtime concepts. Spaces, lenses,
+frames, deltas, frontiers, traces, and proofs remain typed evidence and may
+gain focused diagnostic projections, but they are not peer top-level resources
+that users must manually orchestrate.
 
 Mining follows the same rule. Search, parse, index, group, traverse, diff, and
 visualize are discoverable operation contracts composed inside workloads and
@@ -126,37 +137,71 @@ scenario suite, evaluator, and test result.
 The executable currently exposes:
 
 ```text
-rey environment inspect [--workspace <path>]
-  [--format auto|table|arrow|json]
+rey env [--workspace <path>] [--state-dir <path>] status [--map <path>]
+  [--format table|json] [--max-changes <n>]
   [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
   [--max-capture-bytes <n>]
 
-rey environment diff <source-snapshot> <target-snapshot>
-  [--source-label <label>] [--target-label <label>]
-  [--max-input-bytes <n>] [--max-capabilities <n>]
-  [--max-changes <n>]
-  [--diff-format structured|tabular-diff|summary]
-  [--format json|arrow]
+rey env [--workspace <path>] [--state-dir <path>] add [-p] [--map <path>]
+  [--format table|json] [--max-changes <n>]
+  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
+  [--max-capture-bytes <n>]
 
-rey environment prove <source-snapshot> <target-snapshot>
-  --require-capability <capability-id>...
-  [--source-label <label>] [--target-label <label>]
-  [--max-input-bytes <n>] [--max-capabilities <n>]
-  [--max-changes <n>]
-  [--bundle <new-directory>]
-  [--max-bundle-artifact-bytes <n>] [--max-bundle-bytes <n>]
+rey env [--workspace <path>] [--state-dir <path>] diff [--staged] [--map <path>]
+  [--format table|json] [--max-changes <n>]
+  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
+  [--max-capture-bytes <n>]
 
-rey environment verify <certificate> <source-snapshot> <target-snapshot>
-  [--max-input-bytes <n>] [--max-capabilities <n>]
+rey env [--workspace <path>] [--state-dir <path>] commit -m <message>
+  [--format table|json] [--max-changes <n>]
 
-rey environment verify-bundle <bundle-directory>
-  [--max-artifact-bytes <n>] [--max-bundle-bytes <n>]
-  [--max-capabilities <n>]
+rey env [--workspace <path>] [--state-dir <path>] log [-p]
+  [-n <count>] [--format table|json] [--max-changes <n>]
+
 ```
 
-These commands operate on the standalone capability schema. Help must not imply
-that a planned Spoke capability is available. `--format arrow` is valid only
-for the structured delta; summary is JSON and Tabular Diff is CSV.
+`status` is the single environment inventory and revision view. It performs a
+fresh observation, retains the complete working snapshot in
+`rey.environment-status.v2`, and presents `HEAD → INDEX` changes to be committed
+separately from `INDEX → WORKING` changes not staged for admission. Human
+output lists bounded previews with explicit omission counts.
+
+`add` replaces the admission index with the fresh working snapshot. `add -p`
+prompts over canonical capability changes and stages only selected rows; its
+interactive mode requires table output. `diff` renders `INDEX → WORKING` by
+default and `HEAD → INDEX` with `--staged`; JSON uses
+`rey.environment-diff.v2`. `commit` performs no discovery and appends only the
+verified retained index to the linear history at
+`${workspace}/.rey/env/state.json` by default. `log` is newest-first; `-n`
+bounds selection and `-p` expands each exact parent-to-commit capability patch.
+The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
+`${workspace}/.rey/env/index.json` by default. Human history output exposes full commit, parent, snapshot, delta, comparator,
+completeness, capability, limit, and retention evidence. Explicit JSON uses
+`rey.environment-status.v2`, `rey.environment-commit-result.v1`, and
+`rey.environment-log.v1`.
+
+By convention, observation also loads `rey.env.yaml`; `--map` selects another
+workspace-relative regular YAML file. `rey.env-map.v1` is a closed, bounded
+graph of variable, file, and executable nodes plus declared reference edges.
+Raw environment values and file bytes are not retained. Sensitive variables
+are presence-only. Non-sensitive variables may opt into a value digest; files
+retain bounded identities; executable candidates are resolved and hashed but
+never invoked by the mapping provider. Declared potential capabilities remain
+unadmitted. One graph row and exact node/edge rows make the mapping and its
+observed drift visible in every environment revision surface.
+
+Admission accepts evidence into history; it does not admit executable action or
+turn potential capabilities into provider contracts. There is no pathspec,
+reset/restore, branch, merge, rewrite, or revision expression in this slice. An
+environment commit records an observation; it is not a Git commit and does not
+mutate the environment. The bounded local state
+claims no `fsync`, locking, authenticated writer, multi-process transaction,
+remote retention, or Spoke durability.
+
+Manual `prove`, `verify`, and `verify-bundle` commands are not part of the
+accepted CLI persona. Their proof, certificate, and local-retention contracts
+remain usable behind workload evaluation and in focused lower-level tests.
+Help must not imply that a planned Spoke capability is available.
 
 ## Formats
 
@@ -181,17 +226,14 @@ terminal and JSON when redirected. Explicit Arrow is appropriate for catalog,
 scenario, frame, or delta relations, not for forcing a graph, campaign, native
 output, or mixed artifact set into a synthetic table.
 
-Delta commands require a separate representation selector because the semantic
-typed delta and its human projection are not identical:
-
-```text
---diff-format structured|tabular-diff|summary
-```
-
-- `structured` emits the authoritative bounded delta representation.
-- `tabular-diff` emits a Tabular Diff 0.8 relation for compatible frames.
-- `summary` emits navigation counts and scores without claiming to contain all
-  proof evidence.
+Environment status, add, diff, commit, and log are mixed structured envelopes. They
+default to human output, like Git commands, even when redirected; automation
+must request `--format json` explicitly. `status` carries the full structured
+inventory while keeping its human view navigable. Default `diff` opens the
+unstaged working patch, `diff --staged` opens the commit patch, and `log -p`
+controls expansion of retained patches.
+The JSON log retains authoritative typed deltas regardless of whether the
+human patch was requested.
 
 The implemented capability change Arrow relation is
 `rey.capability-changes.v1`; its frame attributes bind source and target
@@ -259,11 +301,11 @@ remain later workload slices.
 - Policy subprocess protocols, if selected, use dedicated framed channels or
   files rather than mixing control messages with artifact stdout.
 
-Command tests verify byte-exact stdout, stderr separation, bounded input, and
-categorized exit behavior. Implemented certificate commands return `0` for
-passed/verified, `2` for failed, `3` for inconclusive, and `4` for stale.
-Invalid input and runtime failure return `1`; Clap retains its own argument
-parsing exit behavior.
+Command tests verify stdout, stderr separation, bounded input, and categorized
+exit behavior. Environment inspection, status, diff, commit, and log return
+`0` on successful command execution; semantic differences shown by status or
+diff are normal output. Invalid input and runtime failure return `1`; Clap
+retains its own argument-parsing exit behavior.
 
 Implemented `workloads list` and `status` return `0` whenever inspection itself
 succeeds, even when rows show failing or stale workloads. `workloads test` and
@@ -623,12 +665,14 @@ protocol remain undecided; ADRs 0016 and 0018 do not select an engine.
 For the implemented capability claim, standalone Rey writes the
 [ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed
 delta JSON and Arrow, Tabular Diff, and certificate to an explicit local
-content-addressed bundle. `prove --bundle` publishes a new bundle or accepts an
-identical verified replay; `verify-bundle` bounds and recomputes it without
-following symlinked evidence. The final directory name is not exposed until a
-same-parent staging directory contains all objects and the manifest. The
-manifest, rather than the retention-neutral certificate, states the
-filesystem-only guarantees and explicit non-guarantees.
+content-addressed bundle through the lower-level proof API. Publication accepts
+an identical verified replay, and verification bounds and recomputes the bundle
+without following symlinked evidence. ADR 0020 removes the old manual CLI
+plumbing; workloads and runtime composition are the intended user-facing
+consumers. The final directory name is not exposed until a same-parent staging
+directory contains all objects and the manifest. The manifest, rather than the
+retention-neutral certificate, states the filesystem-only guarantees and
+explicit non-guarantees.
 
 Connected Rey can later publish the same semantic artifacts through public
 Spoke resources. Publication is idempotent by content identity and must not

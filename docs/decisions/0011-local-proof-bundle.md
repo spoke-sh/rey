@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-08-07
+- CLI spelling updated by: [ADR 0019](0019-git-shaped-environment-history.md)
+- Manual CLI exposure removed by: [ADR 0020](0020-environment-mapping-graph.md)
 
 ## Context
 
@@ -74,10 +76,11 @@ the completely constructed namespace but still has only the host filesystem's
 unflushed durability guarantees. Retry is safe because only a fully verified
 identical destination is accepted.
 
-`rey environment prove` gains an optional explicit bundle destination while
-retaining its certificate stdout behavior. A separate
-`rey environment verify-bundle` command verifies retained evidence without
-changing the existing three-file certificate verification contract.
+The original implementation exposed bundle publication through `rey env
+prove` and verification through `rey env verify-bundle`. ADR 0020 later
+removed those manual commands from the primary CLI persona while preserving
+this bundle and verification contract for workload/runtime composition and
+lower-level tests.
 
 ## Consequences
 

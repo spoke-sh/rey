@@ -124,7 +124,7 @@ nix flake check path:$PWD
 # packaged rey, offline workspace tests, and dev wrapper built successfully
 nix flake check path:$PWD --all-systems --no-build
 # x86_64-linux, aarch64-linux, and aarch64-darwin outputs evaluated
-nix run path:$PWD -- environment inspect --format json
+nix run path:$PWD -- env inspect --format json
 # standalone rey.capabilities.v1 snapshot contained five local provider rows
 ```
 
@@ -215,12 +215,20 @@ nix develop path:$PWD#ci --command just test
 nix develop path:$PWD#ci --command just build
 nix flake check path:$PWD
 nix flake check path:$PWD --all-systems --no-build
-nix run path:$PWD -- environment inspect --format json
-nix run path:$PWD -- environment prove baseline.json candidate.json \
+nix run path:$PWD -- env inspect --format json
+nix run path:$PWD -- env prove baseline.json candidate.json \
   --require-capability frame.arrow-stream --bundle proof.bundle
-nix run path:$PWD -- environment verify-bundle proof.bundle
+nix run path:$PWD -- env verify-bundle proof.bundle
 # identical replay emitted the same certificate and reused the verified bundle
 ```
+
+ADR 0019 later hard-cut the current command namespace from `environment` to
+`env` and added local environment status, commit, and patch history. The
+historical commands above use that spelling. ADR 0020 later removed manual
+`prove` and `verify-bundle` CLI plumbing; the retained lower-level proof and
+bundle meaning is unchanged and is now intended for workload/runtime
+composition. ADR 0021 later merged `inspect` into `status`; the current JSON
+inventory surface is `rey env status --format json`.
 
 ## Milestone 8 — Optional Routed Spoke Proof
 

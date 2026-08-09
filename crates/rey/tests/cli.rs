@@ -1,20 +1,17 @@
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    io::Write,
+    process::{Command, Stdio},
+};
 
+use rey::env::{
+    EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
+    EnvironmentStatus, EnvironmentWorkingState,
+};
 use rey::workloads::{
     QualificationState, WorkloadFreshness, WorkloadList, WorkloadStatusBatch, WorkloadTestBatch,
 };
-use rey_dataframe::Frame;
-use rey_diff::CapabilityDelta;
-use rey_environment::{
-    Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryLimits, LOCAL_PROVIDER_REVISION,
-    TrustClass,
-};
 use rey_mining::MiningCompleteness;
-use rey_proof::{
-    BundleArtifactRole, CertificateVerification, LocalBundleVerification,
-    LocalBundleVerificationStatus, LocalProofBundleManifest, ProofStatus,
-    RequiredCapabilityCertificate, VerificationStatus,
-};
 use rey_runtime::{
     BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
     BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, TestStatus,
@@ -24,366 +21,688 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 #[test]
-fn explicit_json_is_machine_clean_and_standalone() {
+fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     let workspace = TempDir::new().unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_rey"))
-        .args([
-            "environment",
-            "inspect",
-            "--workspace",
-            workspace.path().to_str().unwrap(),
-            "--format",
-            "json",
-        ])
-        .output()
-        .unwrap();
-
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(output.stderr.is_empty());
-    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(document["profile"], "standalone");
-    assert!(
-        document["capabilities"]
-            .as_array()
+        Command::new("git")
+            .args(["-C", workspace.path().to_str().unwrap(), "init", "-q"])
+            .status()
             .unwrap()
-            .iter()
-            .all(|row| { !row["provider_id"].as_str().unwrap().contains("spoke") })
+            .success()
     );
-}
+    let workspace_path = workspace.path().to_str().unwrap();
 
-#[test]
-fn redirected_auto_output_is_a_decodable_arrow_frame() {
-    let workspace = TempDir::new().unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_rey"))
-        .args([
-            "environment",
-            "inspect",
-            "--workspace",
-            workspace.path().to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
+    for removed in [vec!["environment", "status"], vec!["env", "inspect"]] {
+        let output = run_rey(&removed);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unrecognized subcommand"));
+    }
 
+    let unborn = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(unborn.status.success());
+    assert!(unborn.stderr.is_empty());
+    let unborn = String::from_utf8(unborn.stdout).unwrap();
+    for evidence in [
+        "ENVIRONMENT STATUS",
+        "State                  UNBORN",
+        "HEAD                   no commits",
+        "Admission index        matches HEAD · no retained index",
+        "Delta                  EMPTY → INDEX · EQUAL",
+        "Delta                  INDEX → WORKING · DIFFERENT",
+        "Changes not staged for admission:",
+        "use `rey env add` to admit all working changes",
+        "No environment commits yet; add the working environment before committing.",
+    ] {
+        assert!(
+            unborn.contains(evidence),
+            "missing status evidence: {evidence}"
+        );
+    }
+    assert!(!workspace.path().join(".rey").exists());
+
+    let premature = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "premature",
+    ]);
+    assert_eq!(premature.status.code(), Some(1));
+    assert!(premature.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&premature.stderr).contains("nothing staged"));
+
+    let added = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "add",
+        "--format",
+        "json",
+    ]);
+    assert!(added.status.success());
+    assert!(added.stderr.is_empty());
+    let added: EnvironmentAddResult = serde_json::from_slice(&added.stdout).unwrap();
+    assert!(added.index.is_some());
+    assert_eq!(added.staged_delta.source_label, "EMPTY");
+    assert_eq!(added.staged_delta.target_label, "INDEX");
+    assert!(added.staged_changes > 0);
+    assert!(added.unstaged_delta.changes.is_empty());
+
+    let staged = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let staged: EnvironmentStatus = serde_json::from_slice(&staged.stdout).unwrap();
+    assert_eq!(staged.state, EnvironmentWorkingState::Staged);
+    assert!(staged.admission_index.is_some());
+    assert!(!staged.staged_delta.changes.is_empty());
+    assert!(staged.unstaged_delta.changes.is_empty());
+
+    let first = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "baseline",
+        "--format",
+        "json",
+    ]);
+    assert!(first.status.success());
+    assert!(first.stderr.is_empty());
+    let first: EnvironmentCommitResult = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(first.commit.sequence, 1);
+    assert_eq!(first.commit.message, "baseline");
+    assert!(first.commit.parent_commit_id.is_none());
+    assert_eq!(first.delta.source_label, "EMPTY");
+    assert_eq!(first.delta.target_label, "INDEX");
+    assert!(!workspace.path().join(".rey/env/index.json").exists());
+
+    let clean = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let clean: EnvironmentStatus = serde_json::from_slice(&clean.stdout).unwrap();
+    assert_eq!(clean.state, EnvironmentWorkingState::Clean);
+    assert_eq!(clean.head_commit_id.as_ref(), Some(&first.commit.commit_id));
+    assert!(clean.staged_delta.changes.is_empty());
+    assert!(clean.unstaged_delta.changes.is_empty());
+
+    fs::write(workspace.path().join("tracked.txt"), "environment edge\n").unwrap();
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "--", "tracked.txt"])
+            .status()
+            .unwrap()
+            .success()
     );
-    assert!(output.stderr.is_empty());
-    let frame = Frame::from_arrow_stream(&output.stdout).unwrap();
-    assert_eq!(frame.metadata().relation, "rey.capabilities");
+
+    let changed = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(changed.status.success());
+    let changed = String::from_utf8(changed.stdout).unwrap();
+    for evidence in [
+        "State                  CHANGED",
+        "Delta                  ENV@1 → INDEX · EQUAL",
+        "Delta                  INDEX → WORKING · DIFFERENT",
+        "Changes not staged for admission:",
+        "git.repository.inspect",
+    ] {
+        assert!(
+            changed.contains(evidence),
+            "missing changed evidence: {evidence}"
+        );
+    }
+
+    let diff = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "diff",
+        "--format",
+        "table",
+    ]);
+    assert!(diff.status.success());
+    let diff = String::from_utf8(diff.stdout).unwrap();
+    for evidence in [
+        "View                   UNSTAGED · INDEX → WORKING",
+        "CAPABILITY PATCH INDEX → WORKING",
+        "git.repository.inspect (modified)",
+        "content_digest:",
+    ] {
+        assert!(diff.contains(evidence), "missing diff evidence: {evidence}");
+    }
+
+    let added = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "add",
+        "--format",
+        "table",
+    ]);
+    assert!(added.status.success());
+    let added = String::from_utf8(added.stdout).unwrap();
+    assert!(added.contains("ENVIRONMENT ADMISSION"));
+    assert!(added.contains("1 capability changes admitted"));
+    assert!(added.contains("0 changes remain unstaged · EQUAL"));
+
+    let staged_diff = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "diff",
+        "--staged",
+        "--format",
+        "json",
+    ]);
+    let staged_diff: EnvironmentDiff = serde_json::from_slice(&staged_diff.stdout).unwrap();
+    assert_eq!(staged_diff.mode, EnvironmentDiffMode::Staged);
+    assert_eq!(staged_diff.delta.source_label, "ENV@1");
+    assert_eq!(staged_diff.delta.target_label, "INDEX");
+    assert_eq!(staged_diff.delta.summary.modified, 1);
+
+    let second = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "stage fixture",
+        "--format",
+        "table",
+    ]);
+    assert!(second.status.success());
+    let second = String::from_utf8(second.stdout).unwrap();
+    assert!(second.contains("[env 2] stage fixture"));
+    assert!(second.contains("Delta                  ENV@1 → INDEX · DIFFERENT"));
+
+    let patch_log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-p",
+        "-n",
+        "2",
+        "--format",
+        "table",
+    ]);
+    assert!(patch_log.status.success());
+    let patch_log = String::from_utf8(patch_log.stdout).unwrap();
+    for evidence in [
+        "ENVIRONMENT HISTORY",
+        "2 total · 2 shown · newest first",
+        "Sequence               ENV@2",
+        "Message\n      stage fixture",
+        "CAPABILITY PATCH ENV@1 → ENV@2",
+        "CAPABILITY PATCH EMPTY → ENV@1",
+    ] {
+        assert!(
+            patch_log.contains(evidence),
+            "missing log evidence: {evidence}"
+        );
+    }
+
+    let env_help = run_rey(&["env", "--help"]);
+    assert!(env_help.status.success());
+    let env_help = String::from_utf8(env_help.stdout).unwrap();
+    assert!(env_help.contains("add"));
+    assert!(env_help.contains("status"));
+    assert!(!env_help.contains("inspect"));
+    assert!(!env_help.contains("prove"));
+    assert!(!env_help.contains("verify"));
+
+    for observing_command in ["status", "add", "diff"] {
+        let help = run_rey(&["env", observing_command, "--help"]);
+        assert!(help.status.success());
+        assert!(String::from_utf8(help.stdout).unwrap().contains("--map"));
+    }
+    for retained_state_command in ["commit", "log"] {
+        let help = run_rey(&["env", retained_state_command, "--help"]);
+        assert!(help.status.success());
+        assert!(!String::from_utf8(help.stdout).unwrap().contains("--map"));
+    }
 }
 
 #[test]
-fn table_output_contains_every_version_one_column() {
+fn env_log_bounds_and_invalid_state_keep_stdout_clean() {
     let workspace = TempDir::new().unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_rey"))
-        .args([
-            "environment",
-            "inspect",
-            "--workspace",
-            workspace.path().to_str().unwrap(),
-            "--format",
-            "table",
-        ])
-        .output()
-        .unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    let empty = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "--format",
+        "table",
+    ]);
+    assert!(empty.status.success());
+    assert!(empty.stderr.is_empty());
+    assert!(String::from_utf8_lossy(&empty.stdout).contains("No environment commits."));
+    assert!(!workspace.path().join(".rey").exists());
+
+    let escaped_state = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "--state-dir",
+        "../outside",
+        "log",
+    ]);
+    assert_eq!(escaped_state.status.code(), Some(1));
+    assert!(escaped_state.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&escaped_state.stderr).contains("escapes the workspace"));
+
+    let invalid_limit = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-n",
+        "0",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(invalid_limit.status.code(), Some(1));
+    assert!(invalid_limit.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&invalid_limit.stderr).contains("log count"));
+
+    fs::create_dir_all(workspace.path().join(".rey/env")).unwrap();
+    fs::write(workspace.path().join(".rey/env/state.json"), "not-json\n").unwrap();
+    let invalid_state = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(invalid_state.status.code(), Some(1));
+    assert!(invalid_state.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&invalid_state.stderr).contains("invalid JSON"));
+}
+
+#[test]
+fn status_json_is_machine_clean_and_contains_the_complete_inventory() {
+    let workspace = TempDir::new().unwrap();
+    let output = run_rey(&[
+        "env",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "status",
+        "--format",
+        "json",
+    ]);
 
     assert!(output.status.success());
-    let rendered = String::from_utf8(output.stdout).unwrap();
-    let mut lines = rendered.lines();
-    assert!(lines.next().unwrap().starts_with("snapshot=blake3:"));
-    let header = lines.next().unwrap();
-    assert_eq!(header.split('\t').count(), 17);
-    assert!(lines.all(|row| row.split('\t').count() == 17));
-}
-
-#[test]
-fn environment_diff_emits_deterministic_structured_arrow_and_tabular_artifacts() {
-    let directory = TempDir::new().unwrap();
-    let source = snapshot(vec![
-        capability("deleted", Some("1"), Availability::Available),
-        capability("modified", Some("a->b"), Availability::Available),
-    ]);
-    let target = snapshot(vec![
-        capability("inserted", Some("NULL"), Availability::Available),
-        capability("modified", Some("2"), Availability::Available),
-    ]);
-    let source_path = write_json(directory.path(), "source.json", &source);
-    let target_path = write_json(directory.path(), "target.json", &target);
-
-    let structured = run_rey(&[
-        "environment",
-        "diff",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-    ]);
+    assert!(output.stderr.is_empty());
+    let status: EnvironmentStatus = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(status.working_snapshot.profile, "standalone");
     assert!(
-        structured.status.success(),
-        "{}",
-        String::from_utf8_lossy(&structured.stderr)
+        status
+            .working_snapshot
+            .capabilities
+            .iter()
+            .all(|row| !row.provider_id.contains("spoke"))
     );
-    assert!(structured.stderr.is_empty());
-    let delta: CapabilityDelta = serde_json::from_slice(&structured.stdout).unwrap();
-    assert_eq!(delta.summary.inserted, 1);
-    assert_eq!(delta.summary.deleted, 1);
-    assert_eq!(delta.summary.modified, 1);
-    let repeated = run_rey(&[
-        "environment",
-        "diff",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-    ]);
-    assert_eq!(structured.stdout, repeated.stdout);
-
-    let arrow = run_rey(&[
-        "environment",
-        "diff",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-        "--format",
-        "arrow",
-    ]);
-    assert!(arrow.status.success());
-    let frame = Frame::from_arrow_stream(&arrow.stdout).unwrap();
-    assert_eq!(frame.metadata().relation, "rey.capability-changes");
-    assert_eq!(frame.metadata().semantic_digest, delta.delta_id.to_string());
-
-    let tabular = run_rey(&[
-        "environment",
-        "diff",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-        "--diff-format",
-        "tabular-diff",
-    ]);
-    assert!(tabular.status.success());
-    let tabular = String::from_utf8(tabular.stdout).unwrap();
-    assert!(tabular.starts_with("@@,provider_id"));
-    assert!(tabular.lines().any(|line| line.starts_with("+++")));
-    assert!(tabular.lines().any(|line| line.starts_with("---")));
-    assert!(tabular.lines().any(|line| line.starts_with("-->")));
+    assert_eq!(status.staged_delta.source_label, "EMPTY");
+    assert_eq!(status.unstaged_delta.target_label, "WORKING");
 }
 
+#[cfg(unix)]
 #[test]
-fn required_capability_certificate_verifies_then_becomes_stale() {
-    let directory = TempDir::new().unwrap();
-    let source = snapshot(Vec::new());
-    let target = snapshot(vec![capability(
-        "required",
-        Some("1"),
-        Availability::Available,
-    )]);
-    let changed_target = snapshot(vec![capability(
-        "required",
-        Some("1"),
-        Availability::Unavailable,
-    )]);
-    let source_path = write_json(directory.path(), "source.json", &source);
-    let target_path = write_json(directory.path(), "target.json", &target);
-    let changed_path = write_json(directory.path(), "changed.json", &changed_target);
+fn env_mapping_graph_is_visible_secret_safe_and_diff_directed() {
+    use std::os::unix::fs::PermissionsExt;
 
-    let proved = run_rey(&[
-        "environment",
-        "prove",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-        "--require-capability",
-        "required",
-    ]);
+    let workspace = TempDir::new().unwrap();
+    fs::write(workspace.path().join("input.txt"), "first input\n").unwrap();
+    let bin = workspace.path().join("bin");
+    fs::create_dir(&bin).unwrap();
+    let probe = bin.join("rey-map-probe");
+    let invocation_marker = workspace.path().join("should-not-exist");
+    fs::write(
+        &probe,
+        format!("#!/bin/sh\ntouch '{}'\n", invocation_marker.display()),
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&probe).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&probe, permissions).unwrap();
+    fs::write(
+        workspace.path().join("rey.env.yaml"),
+        r#"schema: rey.env-map.v1
+nodes:
+  - id: mode
+    kind: variable
+    name: REY_MODE
+    capture: digest
+  - id: secret
+    kind: variable
+    name: REY_SECRET
+    sensitive: true
+    capture: presence
+  - id: input
+    kind: file
+    path: input.txt
+    required: true
+  - id: probe
+    kind: executable
+    name: rey-map-probe
+    required: true
+    potential_capabilities: [source.search]
+edges:
+  - from: mode
+    to: input
+    relation: locates
+  - from: input
+    to: probe
+    relation: consumed_by
+"#,
+    )
+    .unwrap();
+    let search_path = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let workspace_path = workspace.path().to_str().unwrap();
+    let variables = [
+        ("PATH", search_path.as_str()),
+        ("REY_MODE", "development-mode-value"),
+        ("REY_SECRET", "never-retain-this-secret"),
+    ];
+
+    let inspected = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "status",
+            "--format",
+            "json",
+        ],
+        &variables,
+    );
     assert!(
-        proved.status.success(),
+        inspected.status.success(),
         "{}",
-        String::from_utf8_lossy(&proved.stderr)
+        String::from_utf8_lossy(&inspected.stderr)
     );
-    let certificate: RequiredCapabilityCertificate =
-        serde_json::from_slice(&proved.stdout).unwrap();
-    assert_eq!(certificate.status, ProofStatus::Passed);
-    let certificate_path = write_json(directory.path(), "certificate.json", &certificate);
+    assert!(inspected.stderr.is_empty());
+    let rendered = String::from_utf8(inspected.stdout.clone()).unwrap();
+    assert!(!rendered.contains("never-retain-this-secret"));
+    assert!(!rendered.contains("development-mode-value"));
+    assert!(!invocation_marker.exists());
+    let status_document: Value = serde_json::from_slice(&inspected.stdout).unwrap();
+    let rows = status_document["working_snapshot"]["capabilities"]
+        .as_array()
+        .unwrap();
+    assert!(rows.iter().any(|row| {
+        row["capability_id"] == "env.mapping.graph" && row["capability_kind"] == "environment_map"
+    }));
+    assert!(rows.iter().any(|row| {
+        row["capability_id"] == "env.mapping.node.secret"
+            && row["content_digest"].is_null()
+            && row["availability"] == "available"
+    }));
+    assert!(rows.iter().any(|row| {
+        row["capability_id"] == "env.mapping.node.mode"
+            && row["content_digest"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("blake3:"))
+    }));
+    assert!(rows.iter().any(|row| {
+        row["capability_id"] == "env.mapping.node.probe"
+            && row["unsupported_limits"].as_array().is_some_and(|limits| {
+                limits
+                    .iter()
+                    .any(|value| value == "unadmitted:source.search")
+            })
+    }));
 
-    let verified = run_rey(&[
-        "environment",
-        "verify",
-        certificate_path.to_str().unwrap(),
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-    ]);
-    assert!(verified.status.success());
-    let verified: CertificateVerification = serde_json::from_slice(&verified.stdout).unwrap();
-    assert_eq!(verified.status, VerificationStatus::Verified);
+    let status = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "status",
+            "--format",
+            "table",
+        ],
+        &variables,
+    );
+    assert!(status.status.success());
+    let status = String::from_utf8(status.stdout).unwrap();
+    assert!(status.contains(
+        "Mapping                1 graph · 2 variables · 1 file · 1 executable · 2 edges"
+    ));
+    assert!(status.contains("Mapping graph          rey.env.yaml · blake3:"));
 
-    let stale = run_rey(&[
-        "environment",
-        "verify",
-        certificate_path.to_str().unwrap(),
-        source_path.to_str().unwrap(),
-        changed_path.to_str().unwrap(),
-    ]);
-    assert_eq!(stale.status.code(), Some(4));
-    let stale: CertificateVerification = serde_json::from_slice(&stale.stdout).unwrap();
-    assert_eq!(stale.status, VerificationStatus::Stale);
-}
+    let added = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--format",
+            "json",
+        ],
+        &variables,
+    );
+    assert!(added.status.success());
+    let committed = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "map environment inputs",
+        ],
+        &variables,
+    );
+    assert!(committed.status.success());
+    fs::write(workspace.path().join("input.txt"), "second input\n").unwrap();
+    let changed_variables = [
+        ("PATH", search_path.as_str()),
+        ("REY_MODE", "production-mode-value"),
+        ("REY_SECRET", "a-different-secret"),
+    ];
+    let diff = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "diff",
+            "--format",
+            "json",
+        ],
+        &changed_variables,
+    );
+    assert!(diff.status.success());
+    assert!(diff.stderr.is_empty());
+    let diff: EnvironmentDiff = serde_json::from_slice(&diff.stdout).unwrap();
+    assert!(diff.delta.changes.iter().any(|change| {
+        change.key.capability_id == "env.mapping.node.mode"
+            && change.changed_fields.contains(&"content_digest".to_owned())
+    }));
+    assert!(diff.delta.changes.iter().any(|change| {
+        change.key.capability_id == "env.mapping.node.input"
+            && change.changed_fields.contains(&"content_digest".to_owned())
+    }));
+    assert!(
+        !diff
+            .delta
+            .changes
+            .iter()
+            .any(|change| change.key.capability_id == "env.mapping.node.secret")
+    );
 
-#[test]
-fn proof_outcomes_and_invalid_snapshots_have_categorized_exits() {
-    let directory = TempDir::new().unwrap();
-    let source = snapshot(Vec::new());
-    let unavailable = snapshot(vec![capability(
-        "required",
-        None,
-        Availability::Unavailable,
-    )]);
-    let error = snapshot(vec![capability("required", None, Availability::Error)]);
-    let source_path = write_json(directory.path(), "source.json", &source);
-    let unavailable_path = write_json(directory.path(), "unavailable.json", &unavailable);
-    let error_path = write_json(directory.path(), "error.json", &error);
-
-    let failed = run_rey(&[
-        "environment",
-        "prove",
-        source_path.to_str().unwrap(),
-        unavailable_path.to_str().unwrap(),
-        "--require-capability",
-        "required",
-    ]);
-    assert_eq!(failed.status.code(), Some(2));
-    let failed: RequiredCapabilityCertificate = serde_json::from_slice(&failed.stdout).unwrap();
-    assert_eq!(failed.status, ProofStatus::Failed);
-
-    let inconclusive = run_rey(&[
-        "environment",
-        "prove",
-        source_path.to_str().unwrap(),
-        error_path.to_str().unwrap(),
-        "--require-capability",
-        "required",
-    ]);
-    assert_eq!(inconclusive.status.code(), Some(3));
-    let inconclusive: RequiredCapabilityCertificate =
-        serde_json::from_slice(&inconclusive.stdout).unwrap();
-    assert_eq!(inconclusive.status, ProofStatus::Inconclusive);
-
-    let mut tampered = serde_json::to_value(&unavailable).unwrap();
-    tampered["capabilities"][0]["version"] = "tampered".into();
-    let tampered_path = write_json(directory.path(), "tampered.json", &tampered);
-    let invalid = run_rey(&[
-        "environment",
-        "diff",
-        source_path.to_str().unwrap(),
-        tampered_path.to_str().unwrap(),
-    ]);
+    fs::write(
+        workspace.path().join("rey.env.yaml"),
+        "schema: rey.env-map.v1\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
+    )
+    .unwrap();
+    let invalid = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "status",
+            "--format",
+            "json",
+        ],
+        &changed_variables,
+    );
     assert_eq!(invalid.status.code(), Some(1));
     assert!(invalid.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&invalid.stderr).contains("does not match recomputed"));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("cannot retain a value digest"));
 }
 
 #[test]
-fn local_bundle_round_trips_and_tampering_fails_closed() {
-    let directory = TempDir::new().unwrap();
-    let source = snapshot(Vec::new());
-    let target = snapshot(vec![capability(
-        "required",
-        Some("1"),
-        Availability::Available,
-    )]);
-    let source_path = write_json(directory.path(), "source.json", &source);
-    let target_path = write_json(directory.path(), "target.json", &target);
-    let bundle_path = directory.path().join("bundle");
+fn env_add_patch_stages_selected_capabilities_and_commit_ignores_later_drift() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("alpha.txt"), "alpha one\n").unwrap();
+    fs::write(workspace.path().join("beta.txt"), "beta one\n").unwrap();
+    fs::write(
+        workspace.path().join("rey.env.yaml"),
+        r#"schema: rey.env-map.v1
+nodes:
+  - id: alpha
+    kind: file
+    path: alpha.txt
+    required: true
+  - id: beta
+    kind: file
+    path: beta.txt
+    required: true
+"#,
+    )
+    .unwrap();
 
-    let proved = run_rey(&[
-        "environment",
-        "prove",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-        "--require-capability",
-        "required",
-        "--bundle",
-        bundle_path.to_str().unwrap(),
-    ]);
     assert!(
-        proved.status.success(),
-        "{}",
-        String::from_utf8_lossy(&proved.stderr)
+        run_rey(&["env", "--workspace", workspace_path, "add"])
+            .status
+            .success()
     );
-    assert!(proved.stderr.is_empty());
-    let certificate: RequiredCapabilityCertificate =
-        serde_json::from_slice(&proved.stdout).unwrap();
-    assert_eq!(certificate.status, ProofStatus::Passed);
-
-    let manifest: LocalProofBundleManifest =
-        serde_json::from_slice(&fs::read(bundle_path.join("manifest.json")).unwrap()).unwrap();
-    assert_eq!(manifest.certificate_id, certificate.certificate_id);
-    assert!(manifest.retention.content_addressed_objects);
-    assert!(!manifest.retention.remote_durable);
-    assert!(!manifest.retention.spoke_durable);
-    assert!(!manifest.retention.spoke_fenced_execution);
-    assert!(!manifest.retention.spoke_query_semantics);
-    assert!(!manifest.retention.spoke_revision_lineage);
-
-    let verified = run_rey(&[
-        "environment",
-        "verify-bundle",
-        bundle_path.to_str().unwrap(),
-    ]);
     assert!(
-        verified.status.success(),
-        "{}",
-        String::from_utf8_lossy(&verified.stderr)
+        run_rey(&[
+            "env",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "baseline inputs",
+        ])
+        .status
+        .success()
     );
-    assert!(verified.stderr.is_empty());
-    let verification: LocalBundleVerification = serde_json::from_slice(&verified.stdout).unwrap();
-    assert_eq!(verification.status, LocalBundleVerificationStatus::Verified);
-    assert_eq!(verification.bundle_id, manifest.bundle_id);
 
-    let delta = manifest
-        .artifacts
-        .iter()
-        .find(|artifact| artifact.role == BundleArtifactRole::CapabilityDelta)
-        .unwrap();
-    fs::remove_file(bundle_path.join(&delta.object_path)).unwrap();
-    let tampered = run_rey(&[
-        "environment",
-        "verify-bundle",
-        bundle_path.to_str().unwrap(),
+    fs::write(workspace.path().join("alpha.txt"), "alpha two\n").unwrap();
+    fs::write(workspace.path().join("beta.txt"), "beta two\n").unwrap();
+    let invalid_format = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "add",
+        "-p",
+        "--format",
+        "json",
     ]);
-    assert_eq!(tampered.status.code(), Some(1));
-    assert!(tampered.stdout.is_empty());
-    assert!(!tampered.stderr.is_empty());
-}
+    assert_eq!(invalid_format.status.code(), Some(1));
+    assert!(invalid_format.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&invalid_format.stderr).contains("requires human table"));
 
-#[test]
-fn local_bundle_limit_failure_publishes_nothing() {
-    let directory = TempDir::new().unwrap();
-    let source = snapshot(Vec::new());
-    let target = snapshot(vec![capability(
-        "required",
-        Some("1"),
-        Availability::Available,
-    )]);
-    let source_path = write_json(directory.path(), "source.json", &source);
-    let target_path = write_json(directory.path(), "target.json", &target);
-    let bundle_path = directory.path().join("bundle");
+    let partial = run_rey_with_stdin_env(
+        &["env", "--workspace", workspace_path, "add", "-p"],
+        "y\nn\n",
+        &[],
+    );
+    assert!(
+        partial.status.success(),
+        "{}",
+        String::from_utf8_lossy(&partial.stderr)
+    );
+    let partial = String::from_utf8(partial.stdout).unwrap();
+    assert!(partial.contains("ENVIRONMENT ADMISSION PATCH"));
+    assert!(partial.contains("Change 1/2"));
+    assert!(partial.contains("Change 2/2"));
+    assert!(partial.contains("1 capability changes admitted"));
+    assert!(partial.contains("1 changes remain unstaged"));
 
-    let output = run_rey(&[
-        "environment",
-        "prove",
-        source_path.to_str().unwrap(),
-        target_path.to_str().unwrap(),
-        "--require-capability",
-        "required",
-        "--bundle",
-        bundle_path.to_str().unwrap(),
-        "--max-bundle-bytes",
-        "1",
+    let mixed = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
     ]);
+    let mixed: EnvironmentStatus = serde_json::from_slice(&mixed.stdout).unwrap();
+    assert_eq!(mixed.state, EnvironmentWorkingState::Mixed);
+    assert_eq!(mixed.staged_delta.summary.modified, 1);
+    assert_eq!(mixed.unstaged_delta.summary.modified, 1);
+    let staged_snapshot = mixed
+        .admission_index
+        .as_ref()
+        .unwrap()
+        .snapshot
+        .semantic_digest
+        .clone();
 
-    assert_eq!(output.status.code(), Some(1));
-    assert!(output.stdout.is_empty());
-    assert!(!bundle_path.exists());
+    fs::write(workspace.path().join("alpha.txt"), "alpha three\n").unwrap();
+    let committed = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "admit alpha only",
+        "--format",
+        "json",
+    ]);
+    assert!(committed.status.success());
+    let committed: EnvironmentCommitResult = serde_json::from_slice(&committed.stdout).unwrap();
+    assert_eq!(committed.commit.snapshot.semantic_digest, staged_snapshot);
+
+    let after = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let after: EnvironmentStatus = serde_json::from_slice(&after.stdout).unwrap();
+    assert_eq!(after.state, EnvironmentWorkingState::Changed);
+    assert!(after.admission_index.is_none());
+    assert!(after.staged_delta.changes.is_empty());
+    assert_eq!(after.unstaged_delta.summary.modified, 2);
 }
 
 #[test]
@@ -968,45 +1287,42 @@ fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("invalid JSON"));
 }
 
-fn snapshot(rows: Vec<CapabilityRecord>) -> CapabilitySnapshot {
-    let limits = DiscoveryLimits {
-        max_capabilities: 16,
-        ..DiscoveryLimits::default()
-    };
-    CapabilitySnapshot::new("fixture", limits, rows).unwrap()
-}
-
-fn capability(id: &str, version: Option<&str>, availability: Availability) -> CapabilityRecord {
-    CapabilityRecord {
-        provider_id: "fixture".to_owned(),
-        provider_revision: LOCAL_PROVIDER_REVISION,
-        provider_kind: "fixture".to_owned(),
-        capability_id: id.to_owned(),
-        capability_kind: "identity".to_owned(),
-        resolved_location: None,
-        version: version.map(str::to_owned),
-        content_digest: None,
-        provenance: Some("fixture".to_owned()),
-        availability,
-        trust_class: TrustClass::BuiltIn,
-        operations: Vec::new(),
-        enforced_limits: Vec::new(),
-        unsupported_limits: Vec::new(),
-        observed_at: None,
-        error_code: (availability == Availability::Error).then(|| "probe".to_owned()),
-        error_detail: None,
-    }
-}
-
-fn write_json(path: &Path, name: &str, value: &impl serde::Serialize) -> std::path::PathBuf {
-    let path = path.join(name);
-    fs::write(&path, serde_json::to_vec(value).unwrap()).unwrap();
-    path
-}
-
 fn run_rey(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_rey"))
         .args(args)
         .output()
         .unwrap()
+}
+
+fn run_rey_with_env(args: &[&str], variables: &[(&str, &str)]) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rey"));
+    command.args(args);
+    for (name, value) in variables {
+        command.env(name, value);
+    }
+    command.output().unwrap()
+}
+
+fn run_rey_with_stdin_env(
+    args: &[&str],
+    input: &str,
+    variables: &[(&str, &str)],
+) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rey"));
+    command
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (name, value) in variables {
+        command.env(name, value);
+    }
+    let mut child = command.spawn().unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
 }

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod env;
 pub mod workloads;
 
 use std::{
@@ -9,6 +10,7 @@ use std::{
 
 use rey_environment::{
     Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryError, DiscoveryLimits,
+    EnvironmentMapError, EnvironmentMapInputs, EnvironmentMapLimits, EnvironmentMapObservation,
     LOCAL_PROVIDER_REVISION, LocalDiscovery, TrustClass,
 };
 use rey_git::{GitError, GitInspector, GitLimits};
@@ -38,6 +40,27 @@ pub fn inspect_environment(
             Ok(Some(git)) => snapshot.push(git.capability_record())?,
             Ok(None) => {}
             Err(error) => snapshot.push(git_error_capability(workspace, &error))?,
+        }
+    }
+    Ok(snapshot)
+}
+
+pub fn inspect_environment_with_mapping(
+    workspace: &Path,
+    discovery_limits: DiscoveryLimits,
+    git_limits: GitLimits,
+    map_path: Option<&Path>,
+    map_limits: EnvironmentMapLimits,
+) -> Result<CapabilitySnapshot, ReyError> {
+    let mut snapshot = inspect_environment(workspace, discovery_limits, git_limits)?;
+    if let Some(observation) = EnvironmentMapObservation::load(
+        workspace,
+        map_path,
+        &EnvironmentMapInputs::from_environment(),
+        map_limits,
+    )? {
+        for capability in observation.capabilities {
+            snapshot.push(capability)?;
         }
     }
     Ok(snapshot)
@@ -77,6 +100,8 @@ fn git_error_capability(workspace: &Path, error: &GitError) -> CapabilityRecord 
 pub enum ReyError {
     #[error(transparent)]
     Discovery(#[from] DiscoveryError),
+    #[error(transparent)]
+    EnvironmentMap(#[from] EnvironmentMapError),
 }
 
 #[cfg(test)]
