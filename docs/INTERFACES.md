@@ -2,10 +2,12 @@
 
 This document sketches Rey's user, environment, policy, and Spoke interfaces.
 The implemented CLI includes a Git-shaped, mapping-aware standalone
-environment revision loop and the first built-in workload slice fixed by ADR
-0016. Lower-level proof and local-bundle contracts remain library/runtime
-capabilities rather than manual user commands. Generic workload declarations,
-graph proposal policy, and connected Spoke behavior remain provisional. ADR
+environment revision loop and the workload runner fixed by ADR 0016. ADR 0023
+hard-cuts the default catalog to bounded workspace packages and keeps compiled
+fixtures behind an explicit conformance selector. ADR 0024 adds the strict
+external coding-harness creation request and visible draft lifecycle. Lower-level proof and
+local-bundle contracts remain library/runtime capabilities rather than manual
+user commands. Automatic graph proposal policy and connected Spoke behavior remain provisional. ADR
 0017 fixes the common relational/source mining boundary; ADR 0018 implements
 its first workload-wired local source corpus, literal search, typed relation
 and ordered text deltas, reasoning fixture, and human CLI projections. ADR
@@ -17,6 +19,8 @@ HEAD-bound admission index, merges inventory into status, and removes
 `inspect`.
 ADR 0022 adds ongoing portfolio mining, the typed workload-attention relation,
 and its workload-centered list/test/run/status projections.
+ADR 0023 adds `rey.workload-package.v1`, coding-harness provenance, frozen
+scenario admission, and product/conformance catalog separation.
 
 ## Interface Principles
 
@@ -50,11 +54,12 @@ rey env [--workspace PATH] [--state-dir PATH] add [-p] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
 rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
-rey workloads [--workspace PATH] [--state-dir PATH] list
-rey workloads [--workspace PATH] [--state-dir PATH] test [<workload-id>] [-v|-vv]
-rey workloads [--workspace PATH] [--state-dir PATH] run <workload-id> --input <utf8> [--source <path>...]
-rey workloads [--workspace PATH] [--state-dir PATH] run rey.portfolio.attention
-rey workloads [--workspace PATH] [--state-dir PATH] status [<workload-id>]
+rey workloads [--workspace PATH] [--catalog-dir PATH] create <workload-id> [--title TITLE] [--intent INTENT]
+rey workloads [--workspace PATH] [--catalog-dir PATH] list
+rey workloads [--workspace PATH] [--catalog-dir PATH] test [<workload-id>] [-v|-vv]
+rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
+rey workloads [--workspace PATH] [--catalog-dir PATH] status [<workload-id>]
+rey workloads --catalog conformance list|test|run|status ...
 ```
 
 `env` inventories and revisions the available compute boundary. `workloads`
@@ -67,8 +72,11 @@ Mining follows the same rule. Search, parse, index, group, traverse, diff, and
 visualize are discoverable operation contracts composed inside workloads and
 reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 
-The built-in slice implements this behavior:
+The implemented slice behaves as follows:
 
+- `create` writes one immutable bounded request for an external coding harness,
+  prints the exact instructions/next action, refuses overwrite, and invents no
+  graph, scenario, oracle, or admission claim;
 - `list` reads catalog and result indexes and shows exact candidate/qualified
   graph identities, operation order, scenario progress, mining completeness,
   retained relation/reasoning counts, current portfolio attention, and mapped
@@ -79,7 +87,7 @@ The built-in slice implements this behavior:
   without an id it selects every catalog workload and fails closed on the
   workload-count bound; its human view renders scenario results incrementally
   in declaration order;
-- `run` executes the current fresh qualified built-in graph against one
+- `run` executes the current fresh qualified resolved graph against one
   admitted UTF-8 input and, for the mining workload, repeatable explicit
   `--source` paths under the workspace. The portfolio workload instead binds
   retained catalog/workload/environment inputs and rejects `--input`;
@@ -87,10 +95,20 @@ The built-in slice implements this behavior:
   mining results/omissions/reasoning, qualification, freshness, stop reason,
   and latest run without repairing it.
 
-The catalog is compiled into Rey. It exposes `rey.portfolio.attention`,
+The default catalog resolves request-only drafts from
+`workloads/*/request.yaml` and accepted packages from
+`workloads/*/workload.yaml`. Creation requests bind a semantic request id,
+bounded intent, target, requirements, and limits; they remain ineligible for
+test/run. V1 packages admit only UTF-8 ports and exact
+`trim`/`uppercase` operation contracts; each package carries proposal kind,
+producer revision and inputs, generated graph/suite roles, and a frozen
+scenario oracle. Exact package bytes and path participate in the workload
+proposal identity and therefore in freshness.
+
+`--catalog conformance` instead selects compiled `rey.portfolio.attention`,
 `rey.fixture.source-search`, passing `rey.fixture.text-normalize`, and failing
-`rey.fixture.text-mismatch` conformance workloads; it is not an external
-manifest format or arbitrary operation loader.
+`rey.fixture.text-mismatch` diagnostics. The CLI labels this catalog and each
+workload's origin so compiled fixtures cannot be mistaken for product work.
 
 See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md),
 [ADR 0016](decisions/0016-first-workload-slice.md), and
@@ -101,7 +119,16 @@ See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md),
 Every workload subcommand accepts `--format auto|table|json`. `auto` chooses a
 table on a terminal and JSON when redirected. `--workspace` defaults to `.`;
 relative `--state-dir` values resolve below the canonical workspace and an
-absolute value selects an explicit separate local boundary.
+absolute value selects an explicit separate local boundary. `--catalog`
+defaults to `workspace`; `--catalog-dir` defaults to the workspace-relative
+`workloads` directory.
+
+The `create` table identifies the local mutation plane, request revision,
+created file, `AWAITING CODING HARNESS` admission state, absent graph/oracle,
+complete harness instructions, and next action. Its structured result is
+`rey.workload-create-result.v1`; the retained request is
+`rey.workload-creation-request.v1`. Both are provider-neutral. Rey does not
+launch an LLM or coding harness inside deterministic runtime mechanism.
 
 The `list` table is a portfolio document rather than a flattened relation. Its
 portfolio header derives qualification, scenario, run, inventory, mining,
@@ -128,7 +155,7 @@ frontier, scheduling, and reasoning-surface identities. A final portfolio
 section keeps workload qualification, scenario conformance, evaluation
 coverage, delta assessment, and qualification counts separate. These
 verbosity flags affect only the human projection; redirected `auto` and
-explicit JSON retain the same `rey.workload-test-batch.v2` document.
+explicit JSON retain the same `rey.workload-test-batch.v4` document.
 
 Portfolio-attention scenarios retain `rey.workload-attention.v1` beside the
 ordered UTF-8 output delta. `-v` exposes action/reason/readiness rows; `-vv`
@@ -137,9 +164,11 @@ identities. A qualified `run rey.portfolio.attention` emits the same typed
 relation over current retained inputs. `list` and `status` derive their view
 without fresh ambient discovery.
 
-The structured schemas are `rey.workload-list.v3`,
-`rey.workload-status-batch.v3`, `rey.workload-test-batch.v2`, and
-`rey.workload-run-result.v2`. Test results contain verified
+The structured schemas are `rey.workload-list.v5`,
+`rey.workload-status-batch.v5`, `rey.workload-test-batch.v4`, and
+`rey.workload-run-view.v2`. Their `rey.workload-catalog.v2` descriptor
+separates total, admitted, and draft counts. The run view contains the unchanged verified
+`rey.workload-run-result.v2` plus exact catalog and proposal provenance. Test results contain verified
 `rey.scenario-output-delta.v2` documents embedding `rey.text-delta.v1`, and
 mining scenarios contain `rey.source-match-delta.v1`. Passing tests alone
 contain a `rey.workload-qualification.v2` binding the exact workload, graph,
@@ -327,8 +356,9 @@ exit behavior. Environment inspection, status, diff, commit, and log return
 diff are normal output. Invalid input and runtime failure return `1`; Clap
 retains its own argument-parsing exit behavior.
 
-Implemented `workloads list` and `status` return `0` whenever inspection itself
-succeeds, even when rows show failing or stale workloads. `workloads test` and
+Implemented `workloads create`, `list`, and `status` return `0` whenever the
+requested mutation or inspection succeeds, even when rows show failing or
+stale workloads. `workloads test` and
 `run` use `0` for qualified/passed, `2` for conclusive semantic failure, `3`
 for inconclusive or blocked, `4` for stale, and `1` for invalid input or runtime
 failure.
@@ -670,7 +700,9 @@ result provider retains graph proposals, campaigns, attempts, outputs, typed
 deltas, qualification records, runs, and indexes read by `workloads list` and
 `status`.
 
-The first standalone implementation uses a compiled-in catalog and a bounded
+The first standalone implementation uses a bounded workspace package catalog
+at `${workspace}/workloads`, with the compiled catalog available only by
+explicit conformance selection. It uses a bounded
 `rey.local-workload-state.v2` result index at
 `${workspace}/.rey/workloads/state.json`, overridable by explicit
 `--state-dir`. Reads reject symlinked state files and verify every retained

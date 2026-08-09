@@ -20,10 +20,11 @@ pub use workload::{
     RunStatus, SCENARIO_SUITE_SCHEMA, Scenario, ScenarioEvaluation, ScenarioResult, ScenarioSuite,
     TestStatus, TestSummary, ValueSource, ValueType, WORKLOAD_QUALIFICATION_SCHEMA,
     WORKLOAD_RUN_RESULT_SCHEMA, WORKLOAD_SCHEMA, WORKLOAD_TEST_RESULT_SCHEMA, WorkloadDefinition,
-    WorkloadError, WorkloadLimits, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
-    WorkloadValue, built_in_workload, built_in_workloads, execute_workload,
-    execute_workload_with_source, run_workload, run_workload_with_source, test_workload,
-    test_workload_with_observer, test_workload_with_observer_and_snapshot,
+    WorkloadDefinitionParts, WorkloadError, WorkloadLimits, WorkloadPort, WorkloadRunResult,
+    WorkloadTestResult, WorkloadValue, built_in_operation_contract, built_in_workload,
+    built_in_workloads, execute_workload, execute_workload_with_source, run_workload,
+    run_workload_with_source, test_workload, test_workload_with_observer,
+    test_workload_with_observer_and_snapshot, utf8_exact_comparator_contract,
 };
 pub use workload_mining::{
     BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, MiningReasoningEvidence, MiningScenarioEvidence,

@@ -18,9 +18,11 @@ use rey::{
     },
     inspect_environment, inspect_environment_with_mapping,
     workloads::{
-        LocalWorkloadStateError, LocalWorkloadStore, WorkloadList, WorkloadStatusBatch,
-        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, derive_portfolio_snapshot,
-        derive_workload_attention, fresh_qualification,
+        LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadCatalog,
+        WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadCreateResult, WorkloadDraft,
+        WorkloadList, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView, WorkloadSummary,
+        WorkloadTestBatch, derive_portfolio_snapshot, derive_workload_attention,
+        fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -37,9 +39,8 @@ use rey_mining::{MiningCompleteness, MiningLimits};
 use rey_runtime::{
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
     ScenarioEvaluation, ScenarioResult, SourceRunInput, TestStatus, WorkloadAttention,
-    WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue, built_in_workload,
-    built_in_workloads, run_workload, run_workload_with_source, source_fixture_root,
-    test_workload_with_observer_and_snapshot,
+    WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue, run_workload,
+    run_workload_with_source, source_fixture_root, test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -75,13 +76,23 @@ struct WorkloadsArgs {
     #[arg(long, global = true)]
     state_dir: Option<PathBuf>,
 
+    /// Workload catalog to resolve; workspace packages are the product surface.
+    #[arg(long, global = true, value_enum, default_value_t = WorkloadCatalogSelection::Workspace)]
+    catalog: WorkloadCatalogSelection,
+
+    /// Workspace-relative package root used by the workspace catalog.
+    #[arg(long, global = true, default_value = "workloads")]
+    catalog_dir: PathBuf,
+
     #[command(subcommand)]
     command: WorkloadsCommand,
 }
 
 #[derive(Debug, Subcommand)]
 enum WorkloadsCommand {
-    /// List built-in workloads and retained scenario progress without executing them.
+    /// Create a strict workload request for an external coding harness.
+    Create(WorkloadCreateArgs),
+    /// List resolved workloads and retained scenario progress without executing them.
     List(WorkloadListArgs),
     /// Show workload definitions, retained deltas, qualification, and latest run.
     Status(WorkloadStatusArgs),
@@ -89,6 +100,24 @@ enum WorkloadsCommand {
     Test(WorkloadTestArgs),
     /// Execute an exactly qualified graph against explicit or retained inputs.
     Run(WorkloadRunArgs),
+}
+
+#[derive(Debug, Args)]
+struct WorkloadCreateArgs {
+    /// Stable workload id and package-directory name.
+    workload_id: String,
+
+    /// Human-readable purpose; defaults exactly to the workload id.
+    #[arg(long)]
+    title: Option<String>,
+
+    /// Bounded objective the coding harness should mine and formalize.
+    #[arg(long)]
+    intent: Option<String>,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -100,7 +129,7 @@ struct WorkloadListArgs {
 
 #[derive(Debug, Args)]
 struct WorkloadStatusArgs {
-    /// Workload id; omit to show every built-in workload.
+    /// Workload id; omit to show every workload in the selected catalog.
     workload_id: Option<String>,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
@@ -110,7 +139,7 @@ struct WorkloadStatusArgs {
 
 #[derive(Debug, Args)]
 struct WorkloadTestArgs {
-    /// Workload id; omit to test every built-in workload.
+    /// Workload id; omit to test every workload in the selected catalog.
     workload_id: Option<String>,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
@@ -124,7 +153,7 @@ struct WorkloadTestArgs {
 
 #[derive(Debug, Args)]
 struct WorkloadRunArgs {
-    /// Exact built-in workload id.
+    /// Exact workload id in the selected catalog.
     workload_id: String,
 
     /// UTF-8 value bound to a text workload; omitted for portfolio mining.
@@ -157,6 +186,12 @@ enum WorkloadOutputFormat {
     Auto,
     Table,
     Json,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum WorkloadCatalogSelection {
+    Workspace,
+    Conformance,
 }
 
 impl WorkloadOutputFormat {
@@ -390,28 +425,73 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
         Some(path) => LocalWorkloadStore::new(workspace.join(path)),
         None => LocalWorkloadStore::default_for_workspace(&workspace),
     };
+    let catalog = match args.catalog {
+        WorkloadCatalogSelection::Workspace => {
+            WorkloadCatalog::load_workspace(&workspace, &args.catalog_dir)?
+        }
+        WorkloadCatalogSelection::Conformance => WorkloadCatalog::built_in_conformance()?,
+    };
     match args.command {
-        WorkloadsCommand::List(command) => workload_list(&store, &workspace, command),
-        WorkloadsCommand::Status(command) => workload_status(&store, &workspace, command),
-        WorkloadsCommand::Test(command) => workload_test(&store, &workspace, command),
-        WorkloadsCommand::Run(command) => workload_run(&store, &workspace, command),
+        WorkloadsCommand::Create(command) => {
+            if args.catalog != WorkloadCatalogSelection::Workspace {
+                return Err(CliError::CreateRequiresWorkspaceCatalog);
+            }
+            workload_create(&workspace, &args.catalog_dir, command)
+        }
+        WorkloadsCommand::List(command) => workload_list(&store, &workspace, &catalog, command),
+        WorkloadsCommand::Status(command) => workload_status(&store, &workspace, &catalog, command),
+        WorkloadsCommand::Test(command) => workload_test(&store, &catalog, command),
+        WorkloadsCommand::Run(command) => workload_run(&store, &workspace, &catalog, command),
     }
+}
+
+fn workload_create(
+    workspace: &Path,
+    catalog_dir: &Path,
+    args: WorkloadCreateArgs,
+) -> Result<ExitCode, CliError> {
+    let result = WorkloadCatalog::create_workspace_request(
+        workspace,
+        catalog_dir,
+        &args.workload_id,
+        args.title.as_deref(),
+        args.intent.as_deref(),
+    )?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_workload_create(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn workload_list(
     store: &LocalWorkloadStore,
     workspace: &Path,
+    catalog: &WorkloadCatalog,
     args: WorkloadListArgs,
 ) -> Result<ExitCode, CliError> {
     let state = store.load()?;
-    let definitions = built_in_workloads()?;
-    let summaries = definitions
+    let summaries = catalog
+        .workloads
         .iter()
-        .map(|workload| WorkloadSummary::derive(workload, state.record(&workload.workload.id)))
+        .map(|workload| {
+            WorkloadSummary::derive_resolved(
+                workload,
+                state.record(&workload.definition.workload.id),
+            )
+        })
         .collect();
+    let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
     let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
-    let list = WorkloadList::new(summaries, attention);
+    let list = WorkloadList::new(
+        catalog.descriptor.clone(),
+        summaries,
+        catalog.drafts.clone(),
+        attention,
+    );
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
@@ -426,21 +506,33 @@ fn workload_list(
 fn workload_status(
     store: &LocalWorkloadStore,
     workspace: &Path,
+    catalog: &WorkloadCatalog,
     args: WorkloadStatusArgs,
 ) -> Result<ExitCode, CliError> {
     let state = store.load()?;
-    let catalog = built_in_workloads()?;
-    let definitions = select_workloads(args.workload_id.as_deref())?;
-    let statuses = definitions
+    let selected = match args.workload_id.as_deref() {
+        Some(id)
+            if catalog
+                .drafts
+                .iter()
+                .any(|draft| draft.request.workload_id == id) =>
+        {
+            Vec::new()
+        }
+        _ => catalog.select(args.workload_id.as_deref())?,
+    };
+    let drafts = catalog.select_drafts(args.workload_id.as_deref());
+    let statuses = selected
         .into_iter()
         .map(|workload| {
-            let record = state.record(&workload.workload.id);
-            WorkloadStatusView::new(workload, record)
+            let record = state.record(&workload.definition.workload.id);
+            WorkloadStatusView::new_resolved(workload, record)
         })
         .collect();
+    let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
-    let attention = derive_workload_attention(&catalog, &state, environment.as_ref())?;
-    let batch = WorkloadStatusBatch::new(statuses, attention);
+    let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
+    let batch = WorkloadStatusBatch::new(catalog.descriptor.clone(), statuses, drafts, attention);
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
@@ -452,11 +544,18 @@ fn workload_status(
 
 fn workload_test(
     store: &LocalWorkloadStore,
-    _workspace: &Path,
+    catalog: &WorkloadCatalog,
     args: WorkloadTestArgs,
 ) -> Result<ExitCode, CliError> {
     let mut state = store.load()?;
-    let definitions = select_workloads(args.workload_id.as_deref())?;
+    let selected = catalog.select(args.workload_id.as_deref())?;
+    if selected.is_empty() {
+        return Err(CliError::EmptyWorkloadCatalog);
+    }
+    let definitions = selected
+        .iter()
+        .map(|workload| workload.definition.clone())
+        .collect::<Vec<_>>();
     let capability_snapshot_id = if definitions
         .iter()
         .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
@@ -473,9 +572,10 @@ fn workload_test(
     let mut results = Vec::with_capacity(definitions.len());
     match args.format.resolve() {
         WorkloadOutputFormat::Json => {
-            for workload in definitions {
+            for resolved in &selected {
+                let workload = &resolved.definition;
                 let result = test_workload_with_observer_and_snapshot(
-                    &workload,
+                    workload,
                     capability_snapshot_id.clone(),
                     |_| {},
                 )?;
@@ -488,24 +588,26 @@ fn workload_test(
             let mut stdout = io::stdout().lock();
             write_workload_test_plan(
                 &mut stdout,
-                &definitions,
+                &selected,
+                &catalog.descriptor,
                 args.workload_id.as_deref(),
                 style,
             )?;
-            for workload in definitions {
-                write_workload_test_start(&mut stdout, &workload, args.verbose, style)?;
+            for resolved in &selected {
+                let workload = &resolved.definition;
+                write_workload_test_start(&mut stdout, resolved, args.verbose, style)?;
                 let scenario_total = workload.scenario_suite.scenarios.len();
                 let mut scenario_index = 0;
                 let mut render_error = None;
                 let result = test_workload_with_observer_and_snapshot(
-                    &workload,
+                    workload,
                     capability_snapshot_id.clone(),
                     |scenario| {
                         scenario_index += 1;
                         if render_error.is_none() {
                             render_error = write_workload_test_scenario(
                                 &mut stdout,
-                                &workload,
+                                workload,
                                 scenario,
                                 scenario_index,
                                 scenario_total,
@@ -527,7 +629,14 @@ fn workload_test(
             }
             state.verify()?;
             store.save(&state)?;
-            let batch = WorkloadTestBatch::new(results);
+            let batch = WorkloadTestBatch::new(
+                catalog.descriptor.clone(),
+                selected
+                    .iter()
+                    .map(|workload| workload.provenance.clone())
+                    .collect(),
+                results,
+            );
             let exit_code = test_batch_exit(&batch);
             write_workload_test_summary(&mut stdout, &batch, style)?;
             return Ok(exit_code);
@@ -536,7 +645,14 @@ fn workload_test(
     }
     state.verify()?;
     store.save(&state)?;
-    let batch = WorkloadTestBatch::new(results);
+    let batch = WorkloadTestBatch::new(
+        catalog.descriptor.clone(),
+        selected
+            .iter()
+            .map(|workload| workload.provenance.clone())
+            .collect(),
+        results,
+    );
     let exit_code = test_batch_exit(&batch);
     write_json_line(&mut io::stdout().lock(), &batch)?;
     Ok(exit_code)
@@ -545,9 +661,15 @@ fn workload_test(
 fn workload_run(
     store: &LocalWorkloadStore,
     workspace: &Path,
+    catalog: &WorkloadCatalog,
     args: WorkloadRunArgs,
 ) -> Result<ExitCode, CliError> {
-    let workload = built_in_workload(&args.workload_id)?;
+    let resolved = catalog
+        .select(Some(&args.workload_id))?
+        .into_iter()
+        .next()
+        .ok_or(CliError::EmptyWorkloadCatalog)?;
+    let workload = resolved.definition;
     let mut state = store.load()?;
     let mut inputs = BTreeMap::new();
     if workload.workload.id == BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID {
@@ -558,7 +680,7 @@ fn workload_run(
         {
             return Err(CliError::UnexpectedPortfolioInput);
         }
-        let definitions = built_in_workloads()?;
+        let definitions = catalog.definitions();
         let environment = retained_environment_snapshot(workspace)?;
         let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
         inputs.insert(
@@ -613,9 +735,10 @@ fn workload_run(
     state.verify()?;
     store.save(&state)?;
     let mut stdout = io::stdout().lock();
+    let view = WorkloadRunView::new(catalog.descriptor.clone(), resolved.provenance, result);
     match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
-        WorkloadOutputFormat::Table => write_workload_run(&mut stdout, &result)?,
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &view)?,
+        WorkloadOutputFormat::Table => write_workload_run(&mut stdout, &view)?,
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(exit_code)
@@ -628,13 +751,6 @@ fn retained_environment_snapshot(workspace: &Path) -> Result<Option<CapabilitySn
     Ok(index
         .map(|index| index.snapshot)
         .or_else(|| history.head().map(|commit| commit.snapshot.clone())))
-}
-
-fn select_workloads(workload_id: Option<&str>) -> Result<Vec<WorkloadDefinition>, CliError> {
-    match workload_id {
-        Some(workload_id) => Ok(vec![built_in_workload(workload_id)?]),
-        None => Ok(built_in_workloads()?),
-    }
 }
 
 fn test_batch_exit(batch: &WorkloadTestBatch) -> ExitCode {
@@ -705,6 +821,7 @@ impl TerminalStyle {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct WorkloadPortfolioSummary {
     total: u64,
+    drafts: u64,
     tested: u64,
     untested: u64,
     qualified: u64,
@@ -722,10 +839,13 @@ struct WorkloadPortfolioSummary {
 }
 
 impl WorkloadPortfolioSummary {
-    fn derive(workloads: &[WorkloadSummary]) -> Self {
-        let mut summary = Self::default();
+    fn derive(workloads: &[WorkloadSummary], drafts: usize) -> Self {
+        let mut summary = Self {
+            total: workloads.len().saturating_add(drafts) as u64,
+            drafts: drafts as u64,
+            ..Self::default()
+        };
         for workload in workloads {
-            summary.total = summary.total.saturating_add(1);
             match workload.qualification {
                 rey::workloads::QualificationState::Untested => {
                     summary.untested = summary.untested.saturating_add(1);
@@ -770,21 +890,78 @@ impl WorkloadPortfolioSummary {
     }
 }
 
+fn write_workload_create(
+    output: &mut impl Write,
+    result: &WorkloadCreateResult,
+) -> Result<(), CliError> {
+    let style = TerminalStyle::stdout();
+    writeln!(output, "Execution path: {}", style.cyan_bold("LOCAL STATE"))?;
+    writeln!(output, "Mode: {}", style.cyan_bold("APPLY"))?;
+    writeln!(
+        output,
+        "Stage: {}",
+        style.bold("CREATE REQUEST → AWAIT CODING HARNESS")
+    )?;
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("WORKLOAD CREATION"))?;
+    write_portfolio_field(output, "Workload", &result.draft.request.workload_id)?;
+    write_portfolio_field(output, "Request", result.draft.request.request_id.as_str())?;
+    write_portfolio_field(output, "Created", &result.created_files.join(" · "))?;
+    write_portfolio_field(
+        output,
+        "Admission",
+        &style.yellow("AWAITING CODING HARNESS"),
+    )?;
+    write_portfolio_field(output, "Graph", &style.dim("MISSING"))?;
+    write_portfolio_field(output, "Scenario oracle", &style.dim("NOT ADMITTED"))?;
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("AGENT INSTRUCTIONS"))?;
+    for (index, instruction) in result.instructions.iter().enumerate() {
+        writeln!(output, "  {}. {instruction}", index + 1)?;
+    }
+    writeln!(output)?;
+    write_portfolio_field(output, "Further action required", "YES")?;
+    write_portfolio_field(output, "Next", &result.next)?;
+    Ok(())
+}
+
 fn write_workload_list(
     output: &mut impl Write,
     list: &WorkloadList,
     style: TerminalStyle,
 ) -> Result<(), CliError> {
-    let portfolio = WorkloadPortfolioSummary::derive(&list.workloads);
+    let portfolio = WorkloadPortfolioSummary::derive(&list.workloads, list.drafts.len());
     writeln!(output)?;
     writeln!(output, "{}", style.bold("WORKLOAD PORTFOLIO"))?;
+    write_portfolio_field(
+        output,
+        "Catalog",
+        &format!(
+            "{} · {} admitted · {} draft{}",
+            list.catalog.kind.label(),
+            list.catalog.admitted_count,
+            list.catalog.draft_count,
+            list.catalog
+                .root
+                .as_ref()
+                .map_or_else(String::new, |root| format!(" · root {root}")),
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Admission",
+        &format!(
+            "{} accepted · {} awaiting coding harness",
+            list.catalog.admitted_count, list.catalog.draft_count,
+        ),
+    )?;
     write_portfolio_field(
         output,
         "Qualification",
         &format!(
             "{}/{} qualified · {} failing · {} inconclusive · {} stale",
             portfolio.qualified,
-            portfolio.total,
+            list.catalog.admitted_count,
             portfolio.failing,
             portfolio.inconclusive,
             portfolio.stale_workloads,
@@ -815,8 +992,12 @@ fn write_workload_list(
         output,
         "Inventory",
         &format!(
-            "{} total · {} tested · {} untested",
-            portfolio.total, portfolio.tested, portfolio.untested,
+            "{} total · {} admitted · {} draft · {} tested · {} untested",
+            portfolio.total,
+            list.catalog.admitted_count,
+            portfolio.drafts,
+            portfolio.tested,
+            portfolio.untested,
         ),
     )?;
     let mining_workloads = list
@@ -864,7 +1045,7 @@ fn write_workload_list(
         ),
     )?;
     write_attention_frontier(output, &list.attention, style)?;
-    if list.workloads.is_empty() {
+    if list.workloads.is_empty() && list.drafts.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
     }
@@ -873,6 +1054,29 @@ fn write_workload_list(
         writeln!(output)?;
         writeln!(output, "{}", style.bold(&workload.workload.id))?;
         write_portfolio_field(output, "Purpose", &workload.title)?;
+        if let Some(provenance) = &workload.provenance {
+            write_portfolio_field(
+                output,
+                "Origin",
+                &format!("{} · {}", provenance.origin.label(), provenance.source),
+            )?;
+            if let Some(generation) = &provenance.generation {
+                write_portfolio_field(
+                    output,
+                    "Generator",
+                    &format!(
+                        "{} · {}@{} · graph + scenario suite",
+                        generation.kind.label(),
+                        generation.producer,
+                        generation.producer_revision,
+                    ),
+                )?;
+            }
+            if let Some(source_digest) = &provenance.source_digest {
+                write_portfolio_field(output, "Package revision", source_digest.as_str())?;
+            }
+            write_portfolio_field(output, "Scenario oracle", "FROZEN AT ADMISSION")?;
+        }
         write_portfolio_field(output, "Journey", &render_journey(workload, style))?;
         write_portfolio_field(
             output,
@@ -974,7 +1178,7 @@ fn write_workload_list(
             "Last run",
             &render_last_run(workload.last_run_status, style),
         )?;
-        if index + 1 < list.workloads.len() {
+        if index + 1 < list.workloads.len() || !list.drafts.is_empty() {
             writeln!(
                 output,
                 "{}",
@@ -982,6 +1186,55 @@ fn write_workload_list(
             )?;
         }
     }
+    for (index, draft) in list.drafts.iter().enumerate() {
+        writeln!(output)?;
+        write_workload_draft(output, draft, style)?;
+        if index + 1 < list.drafts.len() {
+            writeln!(
+                output,
+                "{}",
+                style.dim("  ────────────────────────────────────────────────────────────")
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_workload_draft(
+    output: &mut impl Write,
+    draft: &WorkloadDraft,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output, "{}", style.bold(&draft.request.workload_id))?;
+    write_portfolio_field(output, "Purpose", &draft.request.title)?;
+    if let Some(intent) = &draft.request.intent {
+        write_portfolio_field(output, "Intent", intent)?;
+    }
+    write_portfolio_field(
+        output,
+        "Origin",
+        &format!("WORKLOAD CREATION REQUEST · {}", draft.source),
+    )?;
+    write_portfolio_field(output, "Journey", &style.cyan_bold("HYDRATE"))?;
+    write_portfolio_field(output, "Generator", "CODING HARNESS · pending")?;
+    write_portfolio_field(
+        output,
+        "Request revision",
+        draft.request.request_id.as_str(),
+    )?;
+    write_portfolio_field(output, "Source revision", draft.source_digest.as_str())?;
+    write_portfolio_field(output, "Graph", &style.dim("MISSING"))?;
+    write_portfolio_field(output, "Scenario oracle", &style.dim("NOT ADMITTED"))?;
+    write_portfolio_field(
+        output,
+        "Admission",
+        &style.yellow("AWAITING CODING HARNESS"),
+    )?;
+    write_portfolio_field(
+        output,
+        "Next",
+        &format!("Materialize {}", draft.request.target_package),
+    )?;
     Ok(())
 }
 
@@ -1107,74 +1360,126 @@ fn render_last_run(status: Option<RunStatus>, style: TerminalStyle) -> String {
     }
 }
 
-fn progress_bar(summary: &WorkloadSummary) -> String {
-    let mut bar = String::with_capacity(summary.required as usize + 2);
-    bar.push('[');
-    for _ in 0..summary.passed {
-        bar.push('=');
-    }
-    for _ in 0..summary.failed {
-        bar.push('!');
-    }
-    for _ in 0..summary.inconclusive.saturating_add(summary.stale) {
-        bar.push('?');
-    }
-    let represented = summary
-        .passed
-        .saturating_add(summary.failed)
-        .saturating_add(summary.inconclusive)
-        .saturating_add(summary.stale);
-    for _ in represented..summary.required {
-        bar.push('.');
-    }
-    bar.push(']');
-    bar
-}
-
 fn write_workload_status(
     output: &mut impl Write,
     batch: &WorkloadStatusBatch,
 ) -> Result<(), CliError> {
+    let style = TerminalStyle::stdout();
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("WORKLOAD STATUS"))?;
+    write_portfolio_field(
+        output,
+        "Catalog",
+        &format!(
+            "{} · {} admitted · {} draft · {}",
+            batch.catalog.kind.label(),
+            batch.catalog.admitted_count,
+            batch.catalog.draft_count,
+            batch.catalog.root.as_deref().unwrap_or("compiled"),
+        ),
+    )?;
     for (index, status) in batch.statuses.iter().enumerate() {
-        if index > 0 {
-            writeln!(output)?;
-        }
+        writeln!(output)?;
         let summary = &status.summary;
-        writeln!(
+        writeln!(output, "{}", style.bold(&summary.workload.id))?;
+        write_portfolio_field(output, "Purpose", &summary.title)?;
+        if let Some(provenance) = &summary.provenance {
+            write_portfolio_field(
+                output,
+                "Origin",
+                &format!("{} · {}", provenance.origin.label(), provenance.source),
+            )?;
+            if let Some(generation) = &provenance.generation {
+                write_portfolio_field(
+                    output,
+                    "Generator",
+                    &format!(
+                        "{} · {}@{} · graph + scenario suite",
+                        generation.kind.label(),
+                        generation.producer,
+                        generation.producer_revision,
+                    ),
+                )?;
+            }
+            if let Some(source_digest) = &provenance.source_digest {
+                write_portfolio_field(output, "Package revision", source_digest.as_str())?;
+            }
+            write_portfolio_field(output, "Scenario oracle", "FROZEN AT ADMISSION")?;
+        }
+        write_portfolio_field(output, "Journey", &render_journey(summary, style))?;
+        write_portfolio_field(
             output,
-            "workload={} title={}",
-            summary.workload.id, summary.title
+            "Scenario conformance",
+            &render_scenario_conformance(summary, style),
         )?;
-        writeln!(
+        write_portfolio_field(
             output,
-            "candidate_graph={}@{} {}",
-            summary.candidate_graph.id,
-            summary.candidate_graph.revision,
-            summary.candidate_graph.semantic_digest
+            "Evaluation",
+            &format!(
+                "{} passed · {} failed · {} inconclusive · {} stale",
+                summary.passed, summary.failed, summary.inconclusive, summary.stale,
+            ),
         )?;
-        writeln!(
+        write_portfolio_field(
             output,
-            "progress={} passed={} evaluated={} required={} qualification={} freshness={}",
-            progress_bar(summary),
-            summary.passed,
-            summary.evaluated,
-            summary.required,
-            summary.qualification.as_str(),
-            summary.freshness.as_str()
+            "Qualification",
+            &format!(
+                "{} · {}",
+                render_qualification(summary, style),
+                render_freshness(summary.freshness, style),
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Candidate graph",
+            &format!(
+                "{}@{} · {}",
+                summary.candidate_graph.id,
+                summary.candidate_graph.revision,
+                summary.candidate_graph.semantic_digest,
+            ),
         )?;
         if let Some(result) = &status.last_test {
+            writeln!(output)?;
+            writeln!(output, "{}", style.bold("RETAINED TEST EVIDENCE"))?;
             write_test_detail(output, result)?;
         } else {
-            writeln!(output, "test=none")?;
+            write_portfolio_field(output, "Test evidence", &style.dim("none"))?;
         }
         if let Some(result) = &status.last_run {
-            writeln!(
+            write_portfolio_field(
                 output,
-                "run={} status={:?} reason={}",
-                result.run_id, result.status, result.stop_reason
+                "Last run",
+                &format!(
+                    "{:?} · {} · {}",
+                    result.status, result.stop_reason, result.run_id,
+                ),
             )?;
         } else {
-            writeln!(output, "run=none")?;
+            write_portfolio_field(output, "Last run", &style.dim("none"))?;
+        }
+        if index + 1 < batch.statuses.len() || !batch.drafts.is_empty() {
+            writeln!(
+                output,
+                "{}",
+                style.dim("  ────────────────────────────────────────────────────────────")
+            )?;
+        }
+    }
+    for (index, draft) in batch.drafts.iter().enumerate() {
+        writeln!(output)?;
+        write_workload_draft(output, draft, style)?;
+        writeln!(output)?;
+        writeln!(output, "{}", style.bold("AGENT INSTRUCTIONS"))?;
+        for (instruction_index, instruction) in draft.request.requirements.iter().enumerate() {
+            writeln!(output, "  {}. {instruction}", instruction_index + 1)?;
+        }
+        if index + 1 < batch.drafts.len() {
+            writeln!(
+                output,
+                "{}",
+                style.dim("  ────────────────────────────────────────────────────────────")
+            )?;
         }
     }
     writeln!(output)?;
@@ -1184,7 +1489,8 @@ fn write_workload_status(
 
 fn write_workload_test_plan(
     output: &mut impl Write,
-    workloads: &[WorkloadDefinition],
+    workloads: &[ResolvedWorkload],
+    catalog: &WorkloadCatalogDescriptor,
     selected_workload: Option<&str>,
     style: TerminalStyle,
 ) -> io::Result<()> {
@@ -1204,6 +1510,12 @@ fn write_workload_test_plan(
         style.bold("EXECUTE SCENARIOS → MINE EVIDENCE → DIFF EXPECTED")
     )?;
     writeln!(output, "Scope: {}", style.bold(&scope))?;
+    writeln!(
+        output,
+        "Catalog: {} · {}",
+        style.bold(catalog.kind.label()),
+        catalog.root.as_deref().unwrap_or("compiled")
+    )?;
     writeln!(output)?;
     writeln!(
         output,
@@ -1222,10 +1534,11 @@ fn write_workload_test_plan(
 
 fn write_workload_test_start(
     output: &mut impl Write,
-    workload: &WorkloadDefinition,
+    resolved: &ResolvedWorkload,
     verbosity: u8,
     style: TerminalStyle,
 ) -> io::Result<()> {
+    let workload = &resolved.definition;
     let output_count = workload
         .scenario_suite
         .scenarios
@@ -1242,10 +1555,20 @@ fn write_workload_test_start(
     )?;
     writeln!(
         output,
-        "Graph admission: {} · typed DAG {}",
-        style.cyan_bold("BUILT-IN"),
+        "Graph admission: {} · typed DAG {} · scenario oracle FROZEN",
+        style.cyan_bold(resolved.provenance.origin.label()),
         style.green("VERIFIED")
     )?;
+    if let Some(generation) = &resolved.provenance.generation {
+        writeln!(
+            output,
+            "Generation: {} · {}@{} · graph + scenario suite",
+            style.cyan_bold(generation.kind.label()),
+            generation.producer,
+            generation.producer_revision,
+        )?;
+        writeln!(output, "Package: {}", resolved.provenance.source)?;
+    }
     if workload
         .graph
         .nodes
@@ -2051,19 +2374,63 @@ fn write_test_detail(output: &mut impl Write, result: &WorkloadTestResult) -> Re
     Ok(())
 }
 
-fn write_workload_run(output: &mut impl Write, result: &WorkloadRunResult) -> Result<(), CliError> {
-    writeln!(
+fn write_workload_run(output: &mut impl Write, view: &WorkloadRunView) -> Result<(), CliError> {
+    let result = &view.result;
+    let style = TerminalStyle::stdout();
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("WORKLOAD RUN"))?;
+    write_portfolio_field(
         output,
-        "run={} workload={} graph={} status={:?} reason={}",
-        result.run_id,
-        result.workload.id,
-        result.graph.semantic_digest,
-        result.status,
-        result.stop_reason
+        "Catalog",
+        &format!(
+            "{} · {}",
+            view.catalog.kind.label(),
+            view.catalog.root.as_deref().unwrap_or("compiled"),
+        ),
     )?;
-    writeln!(output, "node_order={}", json_cell(&result.node_order)?)?;
+    write_portfolio_field(output, "Workload", &result.workload.id)?;
+    write_portfolio_field(
+        output,
+        "Origin",
+        &format!(
+            "{} · {}",
+            view.provenance.origin.label(),
+            view.provenance.source,
+        ),
+    )?;
+    if let Some(generation) = &view.provenance.generation {
+        write_portfolio_field(
+            output,
+            "Generator",
+            &format!(
+                "{} · {}@{} · oracle FROZEN",
+                generation.kind.label(),
+                generation.producer,
+                generation.producer_revision,
+            ),
+        )?;
+    }
+    write_portfolio_field(
+        output,
+        "Graph",
+        &format!(
+            "{}@{} · {}",
+            result.graph.id, result.graph.revision, result.graph.semantic_digest,
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Result",
+        &match result.status {
+            RunStatus::Passed => style.green("PASSED"),
+            RunStatus::Blocked => style.yellow("BLOCKED"),
+        },
+    )?;
+    write_portfolio_field(output, "Stop reason", &result.stop_reason)?;
+    write_portfolio_field(output, "Run evidence", result.run_id.as_str())?;
+    write_portfolio_field(output, "Node order", &result.node_order.join(" → "))?;
     if result.mining.is_empty() && result.attention.is_empty() {
-        writeln!(output, "outputs={}", json_cell(&result.outputs)?)?;
+        write_portfolio_field(output, "Outputs", &json_cell(&result.outputs)?)?;
     } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text")
         && !result.attention.is_empty()
     {
@@ -3023,12 +3390,18 @@ fn json_cell(value: &impl Serialize) -> Result<String, serde_json::Error> {
 
 #[derive(Debug, Error)]
 enum CliError {
+    #[error(
+        "workloads create requires the workspace catalog; built-in conformance workloads are immutable"
+    )]
+    CreateRequiresWorkspaceCatalog,
     #[error("limits must be greater than zero")]
     InvalidLimit,
     #[error("source-mining runs require at least one workspace-relative --source path")]
     MissingSourceFiles,
     #[error("text workload runs require --input")]
     MissingWorkloadInput,
+    #[error("selected workload catalog contains no admitted workload packages")]
+    EmptyWorkloadCatalog,
     #[error("portfolio-attention runs use retained inputs and reject --input or source options")]
     UnexpectedPortfolioInput,
     #[error("--source and source-context options are only valid for a source-mining workload")]
@@ -3053,6 +3426,8 @@ enum CliError {
     Portfolio(#[from] rey_runtime::PortfolioError),
     #[error(transparent)]
     WorkloadState(#[from] LocalWorkloadStateError),
+    #[error(transparent)]
+    WorkloadCatalog(#[from] WorkloadCatalogError),
     #[error(transparent)]
     EnvironmentState(#[from] LocalEnvironmentHistoryError),
     #[error("JSON output failed: {0}")]

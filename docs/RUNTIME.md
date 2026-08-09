@@ -23,6 +23,10 @@ ADR 0022 adds the outer portfolio campaign. The runtime now has a deterministic
 portfolio-snapshot to workload-attention derivation and an executable system
 workload, but it does not yet feed those rows into recurring generic
 scheduling or policy.
+ADR 0023 moves product workloads to bounded workspace packages with exact
+proposal provenance and frozen scenario admission. The runtime still does not
+invoke a coding harness; it deterministically receives and evaluates admitted
+packages.
 
 ## Nested Campaigns
 
@@ -282,7 +286,8 @@ The implemented crates deliberately contain no:
 
 - generic workload-specific frontier derivation or dependency invalidation
   beyond the source-search fixture and portfolio-attention derivation;
-- external workload manifest or graph-proposal campaign;
+- coding-harness proposal request/response campaign beyond the bounded
+  workspace package receiving contract;
 - recurring, fair, parallel, or multi-user scheduling;
 - external tool, query, parser, index, or Spoke retrieval implementation;
 - general visualization specification beyond the source workload's terminal

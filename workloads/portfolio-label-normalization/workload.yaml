@@ -1,0 +1,77 @@
+schema: rey.workload-package.v1
+
+workload:
+  id: rey.portfolio.label-normalization
+  revision: 1
+  title: Normalize portfolio attention labels
+  inputs:
+    - port_id: text
+      value_type: utf8
+  outputs:
+    - port_id: text
+      value_type: utf8
+
+generation:
+  kind: coding_harness
+  producer: codex
+  producer_revision: gpt-5
+  generated:
+    - compute_graph
+    - scenario_suite
+  inputs:
+    - source: plans/0010-portfolio-mining-and-workload-attention.md
+      revision: git:7f108d2fe655cffea830d9dd36da4ecbb9a104f1
+    - source: docs/WORKLOADS.md
+      revision: git:7f108d2fe655cffea830d9dd36da4ecbb9a104f1
+
+admission:
+  state: accepted
+  scenario_oracle: frozen
+
+graph:
+  id: rey.portfolio.label-normalization.graph
+  revision: 1
+  nodes:
+    - id: trim
+      operation:
+        id: rey.builtin.utf8.trim
+        revision: 1
+      input:
+        kind: external_input
+        input_id: text
+      value_type: utf8
+    - id: uppercase
+      operation:
+        id: rey.builtin.utf8.uppercase
+        revision: 1
+      input:
+        kind: node_output
+        node_id: trim
+        output_id: value
+      value_type: utf8
+  outputs:
+    - id: text
+      source:
+        kind: node_output
+        node_id: uppercase
+        output_id: value
+      value_type: utf8
+
+scenarios:
+  id: rey.portfolio.label-normalization.scenarios
+  revision: 1
+  cases:
+    - id: plain
+      revision: 1
+      required: true
+      inputs:
+        text: retest
+      expected:
+        text: RETEST
+    - id: surrounded
+      revision: 1
+      required: true
+      inputs:
+        text: " refine "
+      expected:
+        text: REFINE

@@ -178,9 +178,25 @@ attention values, two deterministic built-in graph operations, one compiled
 system workload, and additive retained attention evidence in scenario/run
 results. Existing v2 workload documents remain replay-compatible when the
 additive attention collection is empty.
-The public list, status, and status-batch envelopes advance to v3 because they
+ADR 0022 advanced the public list, status, and status-batch envelopes to v3 because they
 now require a portfolio-attention document and add per-workload attention
 counts; the local state and test/run schemas remain v2.
+
+ADR 0023 reuses the workspace's existing bounded `serde-saphyr` dependency in
+the `rey` composition crate to load `rey.workload-package.v1`. The default
+catalog is now workspace-authored; compiled graphs remain explicit
+conformance. Exact package bytes/path and proposal provenance advance the
+workload definition to v3. Catalog/provenance fields advance list and status
+envelopes to v4 and the test batch to v3; `rey.workload-run-view.v1` wraps the
+unchanged verified v2 run result. Local workload state remains v2 because it
+stores runtime results, not mutable catalog projections.
+
+ADR 0024 adds no dependency. `workloads create` serializes its strict request
+as JSON-compatible YAML with existing Serde support and loads it through the
+same bounded YAML parser as packages. The request and create-result documents
+are v1. Draft-aware catalog descriptors advance to v2; list/status advance to
+v5, test batch to v4, and run view to v2. Runtime results and local retained
+state remain unchanged because a draft is catalog state, not execution state.
 
 The next mining implementation should continue to prefer existing
 Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser

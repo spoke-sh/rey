@@ -130,6 +130,16 @@ the same untrusted contract. Rey validates its operations, inputs, types,
 capabilities, effects, and bounds. The runtime executes the graph and computes
 scenario deltas; the proposer cannot declare its own graph qualified.
 
+The default catalog is the workspace's `workloads/` directory. Each accepted
+`rey.workload-package.v1` binds a generated graph, a generated but frozen
+scenario oracle, exact harness provenance, and its package source revision.
+`rey workloads create` adds the missing agentic entry point: it writes a
+content-addressed `request.yaml` for an external coding harness and exposes the
+workload as a draft until that harness materializes an admitted package. Rey
+does not fabricate a graph or scenario oracle in the request step.
+Compiled fixtures are an explicit diagnostic surface selected with
+`--catalog conformance`; they are not presented as the user's portfolio.
+
 The product surface stays intentionally small:
 
 ```text
@@ -138,11 +148,12 @@ rey env diff
 rey env add [-p]
 rey env commit -m <message>
 rey env log -p
+rey workloads create <workload-id> [--title <title>] [--intent <intent>]
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
-rey workloads run <workload-id> --input <utf8> [--source <path>...]
-rey workloads run rey.portfolio.attention
+rey workloads run <workload-id> --input <utf8>
 rey workloads status [<workload-id>]
+rey workloads --catalog conformance list|test|run|status ...
 ```
 
 Mining operations are capabilities used inside workload graphs and reasoning
@@ -163,20 +174,32 @@ just rey env add -p
 just rey env add
 just rey env commit -m 'accept local toolchain'
 just rey env log -p
+just rey workloads create api-drift \
+  --title 'API drift mining' \
+  --intent 'Mine authoritative API behavior and formalize its graph and scenarios' \
+  --format table
 just rey workloads list --format table
-just rey workloads test rey.fixture.text-normalize --format table
-just rey workloads test rey.fixture.text-mismatch --format table -vv
-just rey workloads test rey.fixture.source-search --format table -vv
-just rey workloads test rey.portfolio.attention --format table -vv
-just rey workloads run rey.portfolio.attention --format table
-just rey workloads run rey.fixture.text-normalize --input ' rey ' --format table
-just rey workloads run rey.fixture.source-search \
+just rey workloads test rey.portfolio.label-normalization --format table -vv
+just rey workloads run rey.portfolio.label-normalization --input ' refine ' --format table
+just rey workloads --catalog conformance test rey.fixture.text-mismatch --format table -vv
+just rey workloads --catalog conformance test rey.fixture.source-search --format table -vv
+just rey workloads --catalog conformance test rey.portfolio.attention --format table -vv
+just rey workloads --catalog conformance run rey.portfolio.attention --format table
+just rey workloads --catalog conformance run rey.fixture.source-search \
   --input evidence \
   --source crates/rey-environment/tests/fixtures/source-corpus/alpha.txt \
   --format table
 ```
 
-The catalog contains four executable conformance workloads. Two graphs cover
+The default catalog contains the checked-in, coding-harness-generated
+`rey.portfolio.label-normalization` package. Its exact YAML graph and frozen
+scenario suite are visible at
+[`workloads/portfolio-label-normalization/workload.yaml`](workloads/portfolio-label-normalization/workload.yaml).
+Rey imports this accepted package. `workloads create` now produces the strict
+request side of the external harness handoff; harness response admission and
+automatic campaign continuation remain the next boundary.
+
+The explicit conformance catalog contains four executable diagnostic workloads. Two graphs cover
 deterministic UTF-8 `trim` and `uppercase`. The source-search graph composes
 `rey.source-search.literal-utf8` with a deterministic match renderer over an
 explicit bounded corpus. Its required empty and exact scenarios qualify the
@@ -190,7 +213,7 @@ into the canonical `rey.workload-attention.v1` relation. Its required scenarios
 cover refinement, retesting, workload creation, blockers, explicit policy
 exclusion, and a clean typed-empty result. `workloads list` and `status` derive
 the current attention view without probing ambient state; after qualification,
-`workloads run rey.portfolio.attention` evaluates the compiled catalog,
+`workloads --catalog conformance run rey.portfolio.attention` evaluates the compiled catalog,
 retained workload evidence, and retained environment HEAD/admission index.
 Mapped input files without a declared workload owner appear visibly as
 `CREATE` candidates.
@@ -249,7 +272,9 @@ Workload commands support human tables and structured JSON; redirected `auto`
 selects JSON. `workloads test` keeps passing scenarios compact by default and
 always opens failing diffs. `-v` adds matching evidence, while `-vv` binds
 evidence to exact workload, graph, suite, evaluator, scenario, execution,
-result, and delta identities. Mining scenarios additionally expose operation,
+result, and delta identities. List, test, status, and run also expose the
+selected catalog, package path/revision, generator, and frozen-oracle state.
+Mining scenarios additionally expose operation,
 provider, capability snapshot, corpus, request, result, relation, native
 source, match, context, frontier, scheduling-decision, and reasoning-surface
 identities.
@@ -411,12 +436,18 @@ run graph, compares native ordered text and typed match relations, and projects
 complete, failing, and truncated evidence through `list`, `test`, `status`, and
 `run`.
 
-Plan 0010 has now started the outer loop. `rey.portfolio-snapshot.v1` and the
+Plan 0010 has now started the outer loop. Workspace packages are the default
+product catalog and compiled workloads are explicitly diagnostic.
+`rey.portfolio-snapshot.v1` and the
 Polars-backed `rey.workload-attention.v1` relation are executable through the
 scenario-qualified `rey.portfolio.attention` workload. The four workload
 commands expose current attention, coverage, exact relation evidence, and
 qualification-gated retained-input evaluation. Ready work, capability/evidence
 blockers, and policy exclusions remain separate facts.
+`rey.workload-creation-request.v1` makes draft creation visible in that same
+portfolio plane: `create` records an immutable harness request, `list` and
+`status` render `HYDRATE`/`AWAITING CODING HARNESS`, and `test`/`run` reject the
+draft until an admitted package exists.
 
 [Plan 0009](plans/0009-environment-admission-index.md) makes `status` the one
 environment interface and places a reviewable admission index between working
@@ -426,12 +457,14 @@ planes. Revision selectors, reset/restore, branches, and Spoke retention remain
 later work.
 
 [Plan 0010](plans/0010-portfolio-mining-and-workload-attention.md) is the active
-workload-centered bearing. Its next concrete anchor is a bounded workload
-surface-ownership declaration: resolve one admitted mapped input to an exact
-owner, change its retained revision, and derive `RETEST` for that owner. This
-closes the live coverage-to-invalidation path before attention is handed to
-generic scheduling or agent policy. Parser/symbol mining remains a later tool
-for investigating attention, not the portfolio strategy itself.
+workload-centered bearing. Its next concrete anchor is the bounded coding-
+harness response handshake. `workloads create` now supplies the request; the
+next slice binds one ready attention row and exact evidence to it, has a harness
+materialize the package, validates the frozen response, and re-mines whether
+the row resolved. The first real payload will admit ownership for one mapped
+input, then change that retained source revision and derive `RETEST` for the
+exact owner. Parser/symbol mining remains a later tool for investigating
+attention, not the portfolio strategy itself.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

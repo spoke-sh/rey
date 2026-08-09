@@ -2459,6 +2459,7 @@ dependencies = [
  "rey-mining",
  "rey-runtime",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "tempfile",
  "thiserror",

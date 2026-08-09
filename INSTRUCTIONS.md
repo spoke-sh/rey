@@ -54,9 +54,11 @@ capability status, a `HEAD → INDEX → WORKING` admission plane, partial/full
 add, index-only commits, and patch history,
 lower-level proof and bounded local-only bundle contracts behind the runtime,
 pure runtime-state, frontier/progress/scheduling, and
-reasoning-surface contracts, plus the first built-in workload catalog, typed DAG
-executor, scenario evaluator, qualification record, local result provider, and
-four workload commands. The first mining workload now executes exact local
+reasoning-surface contracts, plus a bounded workspace workload-package catalog,
+an explicitly selected built-in conformance catalog, typed DAG executor,
+scenario evaluator, qualification record, local result provider, and four
+workload commands. Workspace packages retain coding-harness provenance and
+freeze generated scenarios at admission. The first mining workload now executes exact local
 literal search, typed match comparison, ordered line comparison, bounded
 frontier selection, and reasoning-surface projection through those commands.
 Do not generalize that fixed provider and workload-specific derivation into
@@ -84,6 +86,12 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 
 - Keep workload declarations, graph revisions, scenarios, campaigns,
   qualification records, and production runs as distinct exact identities.
+- Treat workspace packages as admitted harness/rule/human proposals. Bind
+  exact producer and input revisions, freeze scenario oracles before
+  execution, and never present compiled conformance fixtures as product work.
+- Treat `workloads create` as an immutable request handoff to an external
+  coding harness. Keep drafts visible, refuse overwrite, generate no fake
+  graph or oracle, and reject test/run until an admitted package exists.
 - Validate every agent-, rule-, or human-proposed graph before execution; a
   proposal cannot introduce ambient executable authority or declare itself
   qualified.
@@ -112,8 +120,9 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 - Keep portfolio attention provider-neutral and typed. Preserve action, reason,
   readiness, blockers/exclusions, evidence, dependency, priority, cost, and
   coverage as separate fields before scheduling or policy projection.
-- Exercise portfolio behavior through `rey workloads list`, `test`, `run`, and
-  `status`; do not introduce a parallel top-level mining command hierarchy.
+- Exercise portfolio behavior through `rey workloads create`, `list`, `test`,
+  `run`, and `status`; do not introduce a parallel top-level mining command
+  hierarchy.
 
 - Treat relational and source mining as peer capability families connected by
   exact projections, not as a reason to stringify data or tabularize every

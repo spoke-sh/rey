@@ -1,7 +1,7 @@
 # Plan 0010: Portfolio Mining And Workload Attention
 
 - Status: Active
-- Decision: [ADR 0022](../docs/decisions/0022-portfolio-mining-and-workload-attention.md)
+- Decisions: [ADR 0022](../docs/decisions/0022-portfolio-mining-and-workload-attention.md), [ADR 0023](../docs/decisions/0023-workspace-workload-packages.md), [ADR 0024](../docs/decisions/0024-workload-creation-requests.md)
 
 ## Outcome
 
@@ -11,13 +11,15 @@ qualification, environment, dependency, capability, and coverage inputs; show
 that relation through the workload CLI; and use it to direct later workload
 creation and refinement without putting domain policy into the scheduler.
 
-The concrete anchor is the system workload `rey.portfolio.attention`:
+Portfolio attention remains available as an explicit system/conformance
+workload, while workspace packages are now the default product catalog:
 
 ```text
-rey workloads test rey.portfolio.attention -vv
-rey workloads run rey.portfolio.attention
+rey workloads create <workload-id> --intent <bounded-objective>
 rey workloads list
-rey workloads status rey.portfolio.attention
+rey workloads test -vv
+rey workloads --catalog conformance test rey.portfolio.attention -vv
+rey workloads --catalog conformance run rey.portfolio.attention
 ```
 
 ## Completion Checklist
@@ -39,57 +41,85 @@ rey workloads status rey.portfolio.attention
 - [x] Prove stdout, stderr, structured output, semantic exits, deterministic
   replay, qualification-gated run, policy exclusion, and unowned admitted
   environment surfaces through CLI tests.
+- [x] Hard-cut the default product catalog from compiled fixtures to bounded
+  `rey.workload-package.v1` workspace packages; keep system/fixture workloads
+  behind explicit `--catalog conformance`.
+- [x] Bind coding-harness producer/revision/inputs, generated graph and suite
+  roles, accepted admission, frozen scenario oracle, package source digest,
+  and source path into the resolved workload surface and freshness identity.
+- [x] Prove one checked-in harness-generated package through default
+  `list`, `test`, `run`, and `status` resolution, including staleness after a
+  provenance-only package revision.
+- [x] Add `workloads create` as a bounded content-addressed request for an
+  external coding harness; expose request-only packages as visible drafts and
+  reject their test/run admission without fabricating graphs or scenarios.
 - [ ] Define workload-owned surface declarations and resolve declared owners
   against exact workload and environment revisions.
 - [ ] Derive changed-dependency and missing-capability inputs from retained
   environment/Git deltas rather than fixture or empty live fields.
 - [ ] Project admitted ready attention rows into the generic frontier and one
   bounded reasoning surface without copying the whole portfolio.
-- [ ] Admit an agent/rule/human proposal for one `CREATE` or `REFINE` row,
-  materialize a candidate workload/graph revision, test it, and re-mine the
-  portfolio to measure whether the row resolved.
+- [ ] Bind one `CREATE` or `REFINE` attention row and its bounded reasoning
+  surface into a creation request, let a coding harness materialize the package
+  response, test its frozen suite, and re-mine whether the row resolved.
 - [ ] Run full workspace tests, Clippy, build, Nix checks, link review, and
   repository-truth audit before closing the plan.
 
 ## Current Proof
 
-Implemented tests exercise the typed derivation and the four-command CLI
+Implemented tests exercise the typed derivation and the five-command CLI
 surface. In particular, an admitted `rey.env-map` input file with no declared
 owner appears as a ready `CREATE` row in `workloads list` and in a qualified
 portfolio run. The portfolio workload's six required scenarios retain the
 authoritative relation alongside their exact expected-to-observed text delta.
 
-Captured on 2026-08-08:
+Captured on 2026-08-09 after the workspace-package cutover:
 
 ```text
 just check
 # rustfmt, Clippy -D warnings, git diff check, and Nix flake evaluation passed
 just test
-# 128/128 tests passed; all workspace doc tests passed
+# 133/133 tests passed; all workspace doc tests passed
 just build
 # workspace build passed
 ```
 
 A human CLI walkthrough used isolated workload state against this workspace.
-`list` rendered attention and coverage plus the canonical frontier; `test -vv`
-rendered all six scenario classes and exact relation/source/derivation
-bindings; `run` passed with retained inputs and emitted three current rows; and
-`status` reopened qualification, retained evidence, and the portfolio frontier.
-The integration fixture additionally commits one mapped input and proves its
-unowned `CREATE` row through list and run.
+Default `list` resolved only the workspace package and exposed its coding-
+harness producer, exact package revision, and frozen oracle. `test -vv`
+qualified both generated scenarios with exact workload/graph/suite/evaluator/
+execution/delta bindings. `status` reopened package provenance and retained
+qualification; `run` executed the same graph and produced `CREATE`. Explicit
+`--catalog conformance list` separately rendered the four compiled system and
+fixture workloads with unmistakable origin labels. The integration test also
+changes only harness provenance and proves that retained qualification becomes
+stale.
+
+The creation-request slice additionally proves create-new/no-overwrite
+behavior, a request-only catalog entry, high-fidelity `create`, `list`, and
+`status` output, structured request/result schemas, draft test/run rejection,
+and immutable compiled conformance catalogs. No fake graph, scenario, or oracle
+is emitted.
 
 ## Next Concrete Anchor
 
-Add a bounded workload surface-ownership declaration and resolve it against
-the retained environment mapping. The first end-to-end change should turn one
-currently unowned mapped source from `CREATE` into owned coverage, then use a
-changed retained source revision to produce `RETEST` for that exact owner.
-That gives dependency invalidation a real evidence path before attention rows
-are handed to generic scheduling or agent policy.
+Complete the response half of the bounded coding-harness handshake without
+adding a new peer resource hierarchy. `workloads create` now owns the exact
+request and visible `AWAITING CODING HARNESS` draft. Next, bind one selected
+attention row, reasoning surface, current package/graph/suite identities,
+failing deltas, permitted operations, and limits into that request. A harness
+response must materialize an immutable candidate package revision; Rey then
+validates the package, runs its already-frozen scenarios, and reports whether
+attention changed. The CLI must visibly distinguish `AWAITING CODING HARNESS`,
+`PROPOSAL REJECTED`, `SCENARIOS FAILING`, and `QUALIFIED`.
+
+Surface ownership remains the first meaningful proposal payload: one unowned
+mapped source should become an admitted owned workload, then a changed retained
+source revision should derive `RETEST` for that exact owner.
 
 ## Deferred
 
-Recurring daemon scheduling, learned ranking, automatic retirement, external
-workload manifest syntax beyond the ownership slice, arbitrary tool execution,
-parser/index breadth, and Spoke durability are not prerequisites for this
-plan's next anchor.
+Recurring daemon scheduling, learned ranking, automatic retirement, package
+formats beyond the bounded V1 slice, arbitrary tool execution, parser/index
+breadth, and Spoke durability are not prerequisites for this plan's next
+anchor.

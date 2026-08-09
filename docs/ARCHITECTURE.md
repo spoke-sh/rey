@@ -162,6 +162,23 @@ edges, exact operation contracts, capability/effect requirements, and limits.
 The initial graph is acyclic. An agent, rule, or human may propose a graph, but
 the runtime validates it and deterministic scenarios decide qualification.
 
+The first product catalog resolves accepted
+`workloads/*/workload.yaml` packages. A package binds the generated graph and
+scenario suite, proposal producer/revision/inputs, and a frozen-oracle
+admission decision. Exact source bytes and path participate in the workload
+proposal identity. Compiled workloads are explicitly selected conformance and
+system diagnostics, not default portfolio entries.
+
+`workloads create` precedes package admission with a content-addressed
+`workloads/*/request.yaml` contract. That request is an explicit handoff to an
+external coding harness, not an LLM embedded in the runtime. Request-only
+entries remain visible drafts and cannot be tested or run. Rey imports the
+materialized package only after its graph, suite, provenance, frozen oracle,
+limits, and request/package identity match validate. Automatic harness
+invocation remains a later campaign boundary. See [ADR
+0023](decisions/0023-workspace-workload-packages.md) and [ADR
+0024](decisions/0024-workload-creation-requests.md).
+
 A scenario executes that exact graph against fixture bindings and compares
 `EXPECTED` to `OBSERVED`. Conclusive mismatches retain typed deltas; missing or
 incompatible evidence is inconclusive. All required scenarios must freshly
@@ -603,9 +620,10 @@ formal state reducer through an explicit scheduling phase; `rey-frontier`
 implements canonical frontier, progress, and bounded selection contracts; and
 `rey-policy` implements the bounded reasoning-surface document and DataFrame
 projection.
-The first workload slice implements a compiled-in fixture catalog, bounded
-typed DAG execution, scenario deltas, exact qualification, verified local
-result state, and the `list`, `status`, `test`, and `run` commands.
+The workload slice implements a bounded workspace package catalog, typed DAG
+execution, scenario deltas, exact qualification, verified local result state,
+and the `list`, `status`, `test`, and `run` commands. The prior compiled
+fixture catalog remains behind explicit conformance selection.
 Frontier/progress/scheduling v2 and reasoning-surface v3 bind workload, graph,
 scenario-suite, and campaign identities; runtime state remains v2.
 The source-search conformance workload now supplies one narrow workload-specific
@@ -635,7 +653,7 @@ exclusions. Read-only list/status consume retained environment state; run
 evaluates the same retained portfolio inputs under fresh qualification.
 
 No workload ownership declaration, live dependency invalidation, attention-to-
-frontier adapter, admitted portfolio proposal, recurring scheduler, admitted
-`rg` search, parser/index provider, general structural delta, or agent loop is
-implemented. Those require the same human-verifiable end-to-end boundary
-before they count as delivered.
+frontier adapter, coding-harness request/response, recurring scheduler,
+admitted `rg` search, parser/index provider, general structural delta, or agent
+loop is implemented. Those require the same human-verifiable end-to-end
+boundary before they count as delivered.

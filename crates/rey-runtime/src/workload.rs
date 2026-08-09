@@ -29,7 +29,7 @@ use crate::{
     render_workload_attention, render_workload_attention_operation,
 };
 
-pub const WORKLOAD_SCHEMA: &str = "rey.workload.v2";
+pub const WORKLOAD_SCHEMA: &str = "rey.workload.v3";
 pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v2";
 pub const SCENARIO_SUITE_SCHEMA: &str = "rey.scenario-suite.v2";
 pub const WORKLOAD_TEST_RESULT_SCHEMA: &str = "rey.workload-test-result.v2";
@@ -204,7 +204,7 @@ pub struct ComputeGraph {
 }
 
 impl ComputeGraph {
-    fn new(
+    pub fn new(
         id: &str,
         revision: u64,
         nodes: Vec<GraphNode>,
@@ -306,15 +306,26 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    fn new(
+    pub fn new(
         id: &str,
         required: bool,
         inputs: BTreeMap<String, WorkloadValue>,
         expected_outputs: BTreeMap<String, WorkloadValue>,
         source_search: Option<SourceSearchScenario>,
     ) -> Self {
+        Self::new_versioned(id, 1, required, inputs, expected_outputs, source_search)
+    }
+
+    pub fn new_versioned(
+        id: &str,
+        revision: u64,
+        required: bool,
+        inputs: BTreeMap<String, WorkloadValue>,
+        expected_outputs: BTreeMap<String, WorkloadValue>,
+        source_search: Option<SourceSearchScenario>,
+    ) -> Self {
         let mut scenario = Self {
-            scenario: placeholder_contract(id, 1, "rey.scenario.placeholder"),
+            scenario: placeholder_contract(id, revision, "rey.scenario.placeholder"),
             required,
             inputs,
             expected_outputs,
@@ -361,10 +372,14 @@ pub struct ScenarioSuite {
 }
 
 impl ScenarioSuite {
-    fn new(id: &str, scenarios: Vec<Scenario>) -> Self {
+    pub fn new(id: &str, scenarios: Vec<Scenario>) -> Self {
+        Self::new_versioned(id, 1, scenarios)
+    }
+
+    pub fn new_versioned(id: &str, revision: u64, scenarios: Vec<Scenario>) -> Self {
         let mut suite = Self {
             schema: SCENARIO_SUITE_SCHEMA.to_owned(),
-            suite: placeholder_contract(id, 1, "rey.scenario-suite.placeholder"),
+            suite: placeholder_contract(id, revision, "rey.scenario-suite.placeholder"),
             scenarios,
         };
         suite.suite.semantic_digest = suite_digest(&suite);
@@ -440,6 +455,7 @@ impl Default for WorkloadLimits {
 pub struct WorkloadDefinition {
     pub schema: String,
     pub workload: ContractIdentity,
+    pub proposal: Option<ContractIdentity>,
     pub title: String,
     pub inputs: Vec<WorkloadPort>,
     pub outputs: Vec<WorkloadPort>,
@@ -449,7 +465,37 @@ pub struct WorkloadDefinition {
     pub limits: WorkloadLimits,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorkloadDefinitionParts {
+    pub id: String,
+    pub revision: u64,
+    pub title: String,
+    pub proposal: Option<ContractIdentity>,
+    pub inputs: Vec<WorkloadPort>,
+    pub outputs: Vec<WorkloadPort>,
+    pub graph: ComputeGraph,
+    pub scenario_suite: ScenarioSuite,
+    pub evaluator: ContractIdentity,
+    pub limits: WorkloadLimits,
+}
+
 impl WorkloadDefinition {
+    pub fn from_parts(parts: WorkloadDefinitionParts) -> Result<Self, WorkloadError> {
+        Self {
+            schema: WORKLOAD_SCHEMA.to_owned(),
+            workload: placeholder_contract(&parts.id, parts.revision, "rey.workload.placeholder"),
+            proposal: parts.proposal,
+            title: parts.title,
+            inputs: parts.inputs,
+            outputs: parts.outputs,
+            graph: parts.graph,
+            scenario_suite: parts.scenario_suite,
+            evaluator: parts.evaluator,
+            limits: parts.limits,
+        }
+        .finalize()
+    }
+
     fn finalize(mut self) -> Result<Self, WorkloadError> {
         self.workload.semantic_digest = workload_digest(&self);
         self.verify()?;
@@ -464,6 +510,9 @@ impl WorkloadDefinition {
             });
         }
         validate_contract("workload", &self.workload)?;
+        if let Some(proposal) = &self.proposal {
+            validate_contract("workload proposal", proposal)?;
+        }
         validate_contract("evaluator", &self.evaluator)?;
         validate_text("workload title", &self.title)?;
         validate_workload_limits(&self.limits)?;
@@ -1488,6 +1537,7 @@ fn portfolio_attention_workload() -> Result<WorkloadDefinition, WorkloadError> {
     WorkloadDefinition {
         schema: WORKLOAD_SCHEMA.to_owned(),
         workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
+        proposal: None,
         title: "Mine portfolio attention".to_owned(),
         inputs: vec![WorkloadPort {
             port_id: PORTFOLIO_INPUT_ID.to_owned(),
@@ -1619,6 +1669,7 @@ fn text_workload(normalize: bool) -> Result<WorkloadDefinition, WorkloadError> {
     WorkloadDefinition {
         schema: WORKLOAD_SCHEMA.to_owned(),
         workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
+        proposal: None,
         title: if normalize {
             "Normalize fixture text".to_owned()
         } else {
@@ -1779,6 +1830,7 @@ fn source_search_workload() -> Result<WorkloadDefinition, WorkloadError> {
     WorkloadDefinition {
         schema: WORKLOAD_SCHEMA.to_owned(),
         workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
+        proposal: None,
         title: "Mine exact local source evidence".to_owned(),
         inputs: vec![WorkloadPort {
             port_id: INPUT_ID.to_owned(),
@@ -1869,6 +1921,29 @@ fn utf8_comparator() -> ContractIdentity {
         1,
         "exact UTF-8 expected-to-observed equality",
     )
+}
+
+#[must_use]
+pub fn utf8_exact_comparator_contract() -> ContractIdentity {
+    utf8_comparator()
+}
+
+pub fn built_in_operation_contract(
+    id: &str,
+    revision: u64,
+) -> Result<ContractIdentity, WorkloadError> {
+    let operations = [
+        trim_contract(),
+        uppercase_contract(),
+        builtin_source_search_operation().operation,
+        render_source_matches_contract(),
+        portfolio_attention_operation(),
+        render_workload_attention_operation(),
+    ];
+    operations
+        .into_iter()
+        .find(|operation| operation.id == id && operation.revision == revision)
+        .ok_or_else(|| WorkloadError::UnknownOperation(format!("{id}@{revision}")))
 }
 
 #[derive(Clone, Copy)]
@@ -2457,6 +2532,10 @@ fn workload_digest(workload: &WorkloadDefinition) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(WORKLOAD_SCHEMA);
     hasher.add_str(&workload.workload.id);
     hasher.add_u64(workload.workload.revision);
+    hasher.add_bool(workload.proposal.is_some());
+    if let Some(proposal) = &workload.proposal {
+        add_contract(&mut hasher, proposal);
+    }
     hasher.add_str(&workload.title);
     hasher.add_u64(workload.inputs.len() as u64);
     for port in &workload.inputs {
@@ -2729,6 +2808,9 @@ fn semantic_string_bytes_workload(workload: &WorkloadDefinition) -> Result<u64, 
     let mut bytes = 0;
     add_string_bytes(&mut bytes, &workload.schema)?;
     add_contract_string_bytes(&mut bytes, &workload.workload)?;
+    if let Some(proposal) = &workload.proposal {
+        add_contract_string_bytes(&mut bytes, proposal)?;
+    }
     add_string_bytes(&mut bytes, &workload.title)?;
     for port in workload.inputs.iter().chain(&workload.outputs) {
         add_string_bytes(&mut bytes, &port.port_id)?;

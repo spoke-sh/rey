@@ -9,13 +9,14 @@ use rey::env::{
     EnvironmentStatus, EnvironmentWorkingState,
 };
 use rey::workloads::{
-    QualificationState, WorkloadFreshness, WorkloadList, WorkloadStatusBatch, WorkloadTestBatch,
+    QualificationState, WorkloadCatalogKind, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
+    WorkloadOrigin, WorkloadProposalKind, WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
     BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
-    ScenarioEvaluation, TestStatus, WorkloadRunResult,
+    ScenarioEvaluation, TestStatus,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -706,6 +707,281 @@ nodes:
 }
 
 #[test]
+fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
+    let workspace = TempDir::new().unwrap();
+    let package_dir = workspace
+        .path()
+        .join("workloads/portfolio-label-normalization");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("workload.yaml"),
+        include_str!("../../../workloads/portfolio-label-normalization/workload.yaml"),
+    )
+    .unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    assert!(listed.stderr.is_empty());
+    assert!(!workspace.path().join(".rey").exists());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(listed.catalog.kind, WorkloadCatalogKind::WorkspacePackages);
+    assert_eq!(listed.workloads.len(), 1);
+    assert_eq!(
+        listed.workloads[0].workload.id,
+        "rey.portfolio.label-normalization"
+    );
+    let provenance = listed.workloads[0].provenance.as_ref().unwrap();
+    assert_eq!(provenance.origin, WorkloadOrigin::WorkspacePackage);
+    assert_eq!(
+        provenance.generation.as_ref().map(|value| value.kind),
+        Some(WorkloadProposalKind::CodingHarness)
+    );
+    assert!(
+        listed
+            .workloads
+            .iter()
+            .all(|workload| !workload.workload.id.starts_with("rey.fixture."))
+    );
+    let conformance = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "--catalog",
+        "conformance",
+        "list",
+    ]);
+    assert!(conformance.status.success());
+    let conformance: WorkloadList = serde_json::from_slice(&conformance.stdout).unwrap();
+    assert_eq!(
+        conformance.catalog.kind,
+        WorkloadCatalogKind::BuiltInConformance
+    );
+    assert_eq!(conformance.workloads.len(), 4);
+
+    let table = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    let table = String::from_utf8(table.stdout).unwrap();
+    assert!(table.contains("Catalog                WORKSPACE PACKAGES · 1 admitted · 0 draft"));
+    assert!(table.contains("Origin                 WORKSPACE PACKAGE · workloads/"));
+    assert!(table.contains("Generator              CODING HARNESS · codex@gpt-5"));
+    assert!(table.contains("Scenario oracle        FROZEN AT ADMISSION"));
+
+    let tested = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "test",
+        "rey.portfolio.label-normalization",
+    ]);
+    assert!(tested.status.success());
+    let tested: WorkloadTestBatch = serde_json::from_slice(&tested.stdout).unwrap();
+    assert_eq!(tested.catalog.kind, WorkloadCatalogKind::WorkspacePackages);
+    assert_eq!(tested.results[0].status, TestStatus::Passed);
+    assert_eq!(tested.workloads[0].origin, WorkloadOrigin::WorkspacePackage);
+
+    let status = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "rey.portfolio.label-normalization",
+    ]);
+    assert!(status.status.success());
+    let status: WorkloadStatusBatch = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status.catalog.kind, WorkloadCatalogKind::WorkspacePackages);
+    assert_eq!(
+        status.statuses[0]
+            .summary
+            .provenance
+            .as_ref()
+            .map(|value| value.origin),
+        Some(WorkloadOrigin::WorkspacePackage)
+    );
+    assert_eq!(
+        status.statuses[0].summary.qualification,
+        QualificationState::Qualified
+    );
+
+    let run = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "rey.portfolio.label-normalization",
+        "--input",
+        " create ",
+    ]);
+    assert!(run.status.success());
+    let run: WorkloadRunView = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(run.provenance.origin, WorkloadOrigin::WorkspacePackage);
+    assert_eq!(run.result.status, RunStatus::Passed);
+    assert_eq!(
+        run.result.outputs["text"],
+        rey_runtime::WorkloadValue::Utf8("CREATE".to_owned())
+    );
+
+    let revised = include_str!("../../../workloads/portfolio-label-normalization/workload.yaml")
+        .replace(
+            "producer_revision: gpt-5",
+            "producer_revision: gpt-5-revised",
+        );
+    fs::write(package_dir.join("workload.yaml"), revised).unwrap();
+    let relisted = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(relisted.status.success());
+    let relisted: WorkloadList = serde_json::from_slice(&relisted.stdout).unwrap();
+    assert_eq!(
+        relisted.workloads[0].qualification,
+        QualificationState::Stale
+    );
+}
+
+#[test]
+fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let created = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "create",
+        "api-drift",
+        "--title",
+        "API drift mining",
+        "--intent",
+        "Mine API drift and formalize authoritative scenarios",
+        "--format",
+        "table",
+    ]);
+    assert!(created.status.success());
+    assert!(created.stderr.is_empty());
+    let created = String::from_utf8(created.stdout).unwrap();
+    for evidence in [
+        "Execution path: LOCAL STATE",
+        "Mode: APPLY",
+        "CREATE REQUEST → AWAIT CODING HARNESS",
+        "WORKLOAD CREATION",
+        "Admission              AWAITING CODING HARNESS",
+        "Graph                  MISSING",
+        "Scenario oracle        NOT ADMITTED",
+        "AGENT INSTRUCTIONS",
+        "never derive expected values from candidate execution",
+        "Further action required YES",
+    ] {
+        assert!(
+            created.contains(evidence),
+            "missing create evidence: {evidence}"
+        );
+    }
+
+    let request_path = workspace.path().join("workloads/api-drift/request.yaml");
+    let request_before = fs::read(&request_path).unwrap();
+    assert!(
+        !workspace
+            .path()
+            .join("workloads/api-drift/workload.yaml")
+            .exists()
+    );
+    let request: Value = serde_json::from_slice(&request_before).unwrap();
+    assert_eq!(request["schema"], "rey.workload-creation-request.v1");
+    assert_eq!(request["proposer"], "coding_harness");
+    assert_eq!(
+        request["target_package"],
+        "workloads/api-drift/workload.yaml"
+    );
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(listed.catalog.workload_count, 1);
+    assert_eq!(listed.catalog.admitted_count, 0);
+    assert_eq!(listed.catalog.draft_count, 1);
+    assert!(listed.workloads.is_empty());
+    assert_eq!(listed.drafts[0].request.workload_id, "api-drift");
+
+    let status = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "api-drift",
+    ]);
+    assert!(status.status.success());
+    let status: WorkloadStatusBatch = serde_json::from_slice(&status.stdout).unwrap();
+    assert!(status.statuses.is_empty());
+    assert_eq!(
+        status.drafts[0].request.intent.as_deref(),
+        Some("Mine API drift and formalize authoritative scenarios")
+    );
+
+    for command in ["test", "run"] {
+        let rejected = run_rey_workspace(&[
+            "workloads",
+            "--workspace",
+            workspace_path,
+            command,
+            "api-drift",
+        ]);
+        assert_eq!(rejected.status.code(), Some(1));
+        assert!(rejected.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&rejected.stderr).contains("awaiting coding harness hydration")
+        );
+    }
+
+    let duplicate = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "create",
+        "api-drift",
+    ]);
+    assert_eq!(duplicate.status.code(), Some(1));
+    assert!(duplicate.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("refusing to overwrite"));
+    assert_eq!(fs::read(&request_path).unwrap(), request_before);
+
+    let machine = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "create",
+        "schema-mining",
+    ]);
+    assert!(machine.status.success());
+    let machine: WorkloadCreateResult = serde_json::from_slice(&machine.stdout).unwrap();
+    assert_eq!(machine.draft.request.workload_id, "schema-mining");
+    assert!(machine.action_required);
+    assert_eq!(
+        machine.created_files,
+        ["workloads/schema-mining/request.yaml"]
+    );
+
+    let immutable = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "--catalog",
+        "conformance",
+        "create",
+        "not-allowed",
+    ]);
+    assert_eq!(immutable.status.code(), Some(1));
+    assert!(immutable.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&immutable.stderr)
+            .contains("built-in conformance workloads are immutable")
+    );
+}
+
+#[test]
 fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     let workspace = TempDir::new().unwrap();
     let output = run_rey(&[
@@ -763,7 +1039,11 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
         )
     );
     assert!(table.contains("Runs                   0 passed · 0 blocked · 4 not run"));
-    assert!(table.contains("Inventory              4 total · 0 tested · 4 untested"));
+    assert!(
+        table.contains(
+            "Inventory              4 total · 4 admitted · 0 draft · 0 tested · 4 untested"
+        )
+    );
     assert!(
         table.contains("Mining                 2 workloads · 0 retained results · 0 incomplete")
     );
@@ -828,7 +1108,11 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
         )
     );
     assert!(evolved.contains("Runs                   1 passed · 0 blocked · 3 not run"));
-    assert!(evolved.contains("Inventory              4 total · 4 tested · 0 untested"));
+    assert!(
+        evolved.contains(
+            "Inventory              4 total · 4 admitted · 0 draft · 4 tested · 0 untested"
+        )
+    );
     assert!(evolved.contains("Journey                RUN COMPLETE"));
     assert!(evolved.contains("Journey                REVISE GRAPH"));
     assert!(evolved.contains("████████████████████  100%  2/2 passing · 2/2 evaluated"));
@@ -856,7 +1140,8 @@ fn workload_test_qualifies_then_run_executes_the_same_graph() {
     ]);
     assert_eq!(blocked.status.code(), Some(3));
     assert!(blocked.stderr.is_empty());
-    let blocked: WorkloadRunResult = serde_json::from_slice(&blocked.stdout).unwrap();
+    let blocked: WorkloadRunView = serde_json::from_slice(&blocked.stdout).unwrap();
+    let blocked = &blocked.result;
     assert_eq!(blocked.status, RunStatus::Blocked);
     assert_eq!(blocked.stop_reason, "qualification_missing_or_stale");
 
@@ -899,7 +1184,8 @@ fn workload_test_qualifies_then_run_executes_the_same_graph() {
     ]);
     assert!(executed.status.success());
     assert!(executed.stderr.is_empty());
-    let executed: WorkloadRunResult = serde_json::from_slice(&executed.stdout).unwrap();
+    let executed: WorkloadRunView = serde_json::from_slice(&executed.stdout).unwrap();
+    let executed = &executed.result;
     assert_eq!(executed.status, RunStatus::Passed);
     assert_eq!(executed.graph, test_result.graph);
     assert_eq!(
@@ -1221,8 +1507,9 @@ fn source_mining_is_verifiable_across_test_list_status_and_run() {
     assert!(run.status.success());
     assert!(run.stderr.is_empty());
     let run = String::from_utf8(run.stdout).unwrap();
-    assert!(run.contains("status=Passed reason=completed"));
-    assert!(run.contains("node_order=[\"search\",\"render\"]"));
+    assert!(run.contains("Result                 PASSED"));
+    assert!(run.contains("Stop reason            completed"));
+    assert!(run.contains("Node order             search → render"));
     assert!(run.contains("completeness=complete"));
     assert!(run.contains("operation=rey.source-search.literal-utf8@1"));
     assert!(run.contains("provider=rey.local-source.builtin@1"));
@@ -1244,7 +1531,8 @@ fn source_mining_is_verifiable_across_test_list_status_and_run() {
     ]);
     assert!(structured.status.success());
     assert!(structured.stderr.is_empty());
-    let structured: WorkloadRunResult = serde_json::from_slice(&structured.stdout).unwrap();
+    let structured: WorkloadRunView = serde_json::from_slice(&structured.stdout).unwrap();
+    let structured = &structured.result;
     assert_eq!(structured.status, RunStatus::Passed);
     assert_eq!(structured.mining.len(), 1);
     assert_eq!(
@@ -1312,7 +1600,8 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     ]);
     assert!(run.status.success());
     assert!(run.stderr.is_empty());
-    let run: WorkloadRunResult = serde_json::from_slice(&run.stdout).unwrap();
+    let run: WorkloadRunView = serde_json::from_slice(&run.stdout).unwrap();
+    let run = &run.result;
     assert_eq!(run.attention.len(), 1);
     assert_eq!(run.attention[0].summary.retest, 2);
     assert_eq!(run.attention[0].summary.policy_excluded, 1);
@@ -1329,7 +1618,8 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     ]);
     assert!(status.status.success());
     let status = String::from_utf8(status.stdout).unwrap();
-    assert!(status.contains("workload=rey.portfolio.attention"));
+    assert!(status.contains("WORKLOAD STATUS"));
+    assert!(status.contains("rey.portfolio.attention"));
     assert!(status.contains("ATTENTION FRONTIER"));
     assert!(status.contains("rey.fixture.text-normalize · untested · ready"));
 
@@ -1442,6 +1732,18 @@ fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
 }
 
 fn run_rey(args: &[&str]) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rey"));
+    command.args(args);
+    // Runner regressions in this file predate workspace packages and deliberately
+    // exercise the compiled diagnostic catalog. Workspace-package behavior has
+    // a separate end-to-end test that calls `run_rey_workspace`.
+    if args.first() == Some(&"workloads") {
+        command.args(["--catalog", "conformance"]);
+    }
+    command.output().unwrap()
+}
+
+fn run_rey_workspace(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_rey"))
         .args(args)
         .output()
