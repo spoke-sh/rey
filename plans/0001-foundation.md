@@ -73,8 +73,9 @@ added to Git. The ordinary `.#ci` form was also exercised with `flake.nix` and
   guarantee, and discovery-error schemas.
 - [ ] Define Git repository/worktree, ref, commit/parent, path-change, semantic
   index, worktree-status, poll cursor, trigger, and activation schemas.
-- [ ] Define the minimum workload, graph, scenario, campaign, and activation
-  declarations needed by the post-ADR-0015 implementation slice.
+- [x] Define and implement the minimum workload, graph, scenario, campaign,
+  qualification, and result contracts through ADR 0016 and Plan 0005;
+  Git-triggered activation remains Milestone 5 work.
 - [x] Define capability comparison compatibility, unique composite keys,
   ordering, normalization, and completeness behavior.
 - [x] Define capability typed-delta Arrow and serialized schemas without losing
@@ -304,3 +305,8 @@ multi-user operation, and managed deployment remain later plans. Plan 0002
 implements the pure lifecycle and bounded surface contracts; Plan 0003 adds
 canonical frontier/progress and deterministic work-selection contracts. Neither
 claims those runtime behaviors are implemented in Plan 0001.
+
+Plan 0006 now owns the first bounded mining operation/request/result,
+source-search, relational/text-delta, visualization, workload-frontier, and
+reasoning-surface implementation slice. Broader codebase mining remains
+deferred until that plan proves the common standalone contract.

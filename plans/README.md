@@ -6,7 +6,10 @@ completion criteria.
 
 ## Active
 
-- [0001 — Foundation and first delta proof](0001-foundation.md)
+- [0006 — Mining strategy and first executable slice](0006-mining-strategy.md)
+  — current implementation bearing
+- [0001 — Foundation and first delta proof](0001-foundation.md) — continuing
+  Git/Spoke foundation track
 
 ## Completed
 

@@ -5,13 +5,14 @@ implementation baseline, not a claim that the components already exist.
 
 ## Purpose
 
-Rey is an environment-aware, deterministic diff-directed compute runtime. It
-first inventories the bounded context surfaces and useful tools available where
-it is running. It then observes a space through versioned lenses, represents
-typed collections as DataFrames, computes directed deltas, and uses unresolved
-deltas to schedule subsequent probes or mutations. It records enough lineage
-to explain why each action ran and to evaluate scoped proof claims over the
-resulting observations.
+Rey is an environment-aware, deterministic diff-directed mining and compute
+runtime. It first inventories the bounded context surfaces and useful tools
+available where it is running. It then mines those surfaces through versioned
+relational and source operations, retains typed collections as DataFrames and
+native evidence in its natural form, computes directed deltas, and uses
+unresolved deltas to schedule subsequent probes or mutations. It records enough
+lineage to explain how evidence was derived, why each action ran, and what a
+scoped proof actually covers.
 
 Rey has a useful standalone profile over explicit local context. Spoke is an
 optional capability amplifier that supplies durable content, exact resource
@@ -21,22 +22,25 @@ policy concerns rather than runtime correctness dependencies.
 
 ## Architectural Separation
 
-Rey separates seven responsibilities:
+Rey separates eight responsibilities:
 
 1. **Workload plane** — versioned workloads compose generated compute graphs,
    scenarios, claims, policy, qualification, effects, and total limits.
 2. **Context-surface plane** — environment providers expose explicit local and
    remote sources, tools, runtimes, and guarantees as a capability snapshot.
-3. **Reasoning plane** — built-in/local providers supply a minimum standalone
-   surface; optional Spoke supplies durable sources, composed query, compute
-   coordination, captures, and durable lineage.
-4. **Observation plane** — lenses bind exact inputs and materialize bounded
-   typed frames.
-5. **Delta plane** — comparison aligns frames, preserves typed changes, and
-   derives invalidation.
-6. **Runtime plane** — transitions validate proposals, execute bounded probes or
+3. **Mining plane** — provider-neutral relational and source operations
+   retrieve, extract, organize, compare, and visualize bounded evidence while
+   concrete providers retain source and execution ownership.
+4. **Reasoning plane** — selected frontier work and mined evidence become a
+   bounded reasoning surface with exact omissions and admissible operations;
+   optional Spoke amplifies retrieval and retention, not surface semantics.
+5. **Observation plane** — lenses bind exact inputs and materialize bounded
+   typed frames or native artifact references.
+6. **Delta plane** — relational, text, and structural comparison preserves
+   directed changes and derives invalidation.
+7. **Runtime plane** — transitions validate proposals, execute bounded probes or
    effects, update the frontier, and stop on convergence or an explicit bound.
-7. **Policy plane** — an agent, deterministic rule, or human proposes a compute
+8. **Policy plane** — an agent, deterministic rule, or human proposes a compute
    graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
@@ -60,6 +64,13 @@ discovered, uses Spoke's routed HTTP interface.
                     │              capability snapshot frame
                     └───────────────────┬─────┘
                                         │
+                    ┌───────────────────▼───────────────────┐
+                    │ mining capabilities                   │
+                    │ relational          source            │
+                    │ query · group       search · parse     │
+                    │ traverse · compare  index · measure    │
+                    └───────────────────┬───────────────────┘
+                                        │
           Git/source activation · policy proposal
                               │
                               ▼
@@ -69,24 +80,24 @@ discovered, uses Spoke's routed HTTP interface.
                     │ transition · stop │
                     └───┬───────────┬───┘
                         │           │
-               observe │           │ act through provider
+          mine/observe │           │ act through provider
                         ▼           ▼
               ┌──────────────┐  ┌──────────────┐
-              │ frame/lens   │  │ local action │
-              │ materializer │  │ or Spoke run │
+              │ frame/native │  │ local action │
+              │ projections  │  │ or Spoke run │
               └──────┬───────┘  └──────┬───────┘
                      │                 │
                      └────────┬────────┘
                               ▼
                     ┌───────────────────┐
-                    │ typed delta       │
+                    │ typed/native delta│
                     │ invalidation      │
                     │ frontier          │
                     └───────┬───────────┘
                             │
                    ┌────────┴───────────────┐
                    ▼                        ▼
-          retrieve · project          proof evaluator
+          mine · visualize           proof evaluator
                    │                        │
                    ▼                        ▼
           reasoning surface    local or Spoke-backed evidence
@@ -97,6 +108,8 @@ discovered, uses Spoke's routed HTTP interface.
 
 See [Environment and Capabilities](ENVIRONMENT.md) for detailed provider,
 snapshot, profile, admission, and degradation contracts.
+See [Mining Context Into Evidence](MINING.md) for relational/source operation,
+artifact, result, visualization, and provider boundaries.
 See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) for the public
 composition, test-campaign, qualification, progress, catalog, and command
 contracts.
@@ -117,6 +130,9 @@ poll cursors, and delta-triggered workloads.
 | Source binding | Exact Spoke or local immutable input identity | Source system; referenced by Rey |
 | Lens | Versioned deterministic observation definition | Rey declaration; local or stored through Spoke |
 | Frame | Bounded typed observation plus schema and lineage | Working state in Rey; local or Spoke evidence when retained |
+| Mining operation | Versioned relational or source transformation with typed inputs, outputs, effects, limits, and completeness | Rey contract; implemented by built-in or discovered provider adapters |
+| Mining request | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale | Rey transition or graph-node evidence |
+| Mining result | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions | Rey evidence index; artifacts remain provider-owned or explicitly retained |
 | Action proposal | Policy request naming frozen inputs, effect class, and bounds | Rey trace |
 | Run/attempt | Provider-owned execution and capture lineage | Local executor or Spoke compute, explicitly distinguished |
 | Delta | Directed typed comparison between compatible frames | Rey evidence; local or Spoke-backed |
@@ -221,6 +237,46 @@ graph. A source or upstream-frame delta marks only affected dependent lenses
 eligible for re-evaluation; it does not imply that every eligible lens must run
 immediately.
 
+## Mining Plane
+
+Mining is the shared capability layer between environment inventory and
+runtime orientation. It does not introduce one universal query language or
+force every provider into one execution mechanism. Instead, a common operation
+contract binds exact input/output kinds, parameters, semantics, effects,
+capabilities, effective limits, completeness, invalidation, and implementation
+identity.
+
+The two primary families are:
+
+- **relational mining**, which retrieves and organizes typed records through
+  select, filter, join, group, aggregate, align, traverse, compare, summarize,
+  and visualization operations; and
+- **source mining**, which locates, searches, segments, tokenizes, parses,
+  indexes, traverses, measures, compares, and visualizes text, code,
+  configuration, logs, documents, and native artifacts.
+
+The families interoperate through exact projections. Search matches, syntax
+nodes, symbols, references, dependencies, diagnostics, and metrics may become
+typed frames. Their rows retain links to exact native source spans and the
+operation/parser/index revision that derived them. Source bytes, ordered text,
+syntax trees, patches, and binary artifacts remain native when tabularization
+would lose meaning.
+
+An exact read of already identified immutable evidence may participate in
+bounded orientation. Pure projection over frozen evidence is deterministic
+compute. Reading mutable state or invoking `rg`, a parser, compiler service,
+language server, or other external miner is an explicit probe with normal
+admission and execution lineage. Discovery never grants that authority.
+
+Visualization is a versioned mining projection over authoritative artifacts.
+It records grouping, ordering, context, layout, aggregation, elision, sampling,
+limits, omissions, and deep links. Tables, patches, trees, graphs, timelines,
+and metric panels cannot change the underlying delta assessment, proof status,
+coverage, confidence, or progress.
+
+See [Mining Context Into Evidence](MINING.md) and
+[ADR 0017](decisions/0017-mining-capability-model.md).
+
 ## Git Provider And Activation
 
 Git is a specialized environment provider for software spaces. It observes the
@@ -243,10 +299,13 @@ evidence reaches its claimed retention boundary.
 
 ## Delta And Frontier
 
-The delta engine compares compatible frames under explicit direction, keys,
-ordering, and normalizers. The result contains structured schema, row, and cell
-changes with typed before/after values. Human tables, Tabular Diff CSV, JSON,
-and Arrow are representations of this semantic result.
+The delta engine selects a comparison contract that matches the mined artifact
+shape. Relational comparison aligns compatible frames under explicit direction,
+keys, ordering, and normalizers. Text comparison preserves ordered content,
+encoding, segmentation, and context. Structural comparison aligns declared
+tree or graph identities without guessing through incompatible or incomplete
+evidence. Human tables, patches, trees, graphs, summaries, Tabular Diff CSV,
+JSON, and Arrow are projections of authoritative results.
 
 The frontier is a relation derived from deltas and claims. A frontier row can
 name the affected entity, delta, violated claim, dependent lenses, admissible
@@ -267,7 +326,7 @@ committed transition and its derived frontier:
 
 ```text
 committed delta/frontier
-  -> schedule -> retrieve -> project
+  -> schedule -> mine -> project
   -> propose -> admit -> probe|mutate
   -> observe -> compare -> evaluate
   -> commit transition
@@ -282,14 +341,14 @@ frontier combines them with applicable residual deltas, invalidation, and
 dependencies rather than flattening them into an artificial mega-delta.
 
 Orientation is the bounded inner loop that turns a committed frontier into a
-reasoning surface. Rey identifies evidence needs from frontier rows, retrieves
-exact read-only evidence through the provider that owns it, and applies a
-versioned deterministic projection. Retrieval does not grant new execution
-authority or duplicate Spoke query and storage ownership. Any read that
-observes mutable state, invokes a tool, or creates a new lens result is an
-explicit probe transition.
+reasoning surface. Rey identifies mining needs from frontier rows, retrieves
+exact read-only evidence through the provider that owns it, and applies
+versioned deterministic relational or source projections. Mining does not
+grant new execution authority or duplicate Spoke query, index, and storage
+ownership. Any read that observes mutable state, invokes a tool, or creates a
+new lens result is an explicit probe transition.
 
-Retrieve and project may repeat inside one orientation phase as exact evidence
+Mining and projection may repeat inside one orientation phase as exact evidence
 changes the surface. The runtime owns iteration, time, byte, and provider
 bounds plus lineage; a versioned orientation strategy owns evidence order and
 readiness. The phase stops as ready, without eligible evidence, or at an
@@ -341,8 +400,8 @@ One transition follows this protocol after a committed frontier is available:
    activation/frontier, source revisions, and relevant frame ids;
 2. select bounded ready frontier work under exact record, frontier, capability,
    scheduler, and budget inputs;
-3. retrieve declared exact read-only evidence and project the bounded reasoning
-   surface, recording omissions and effective limits;
+3. mine declared exact read-only evidence and project the bounded reasoning
+   surface, recording operation lineage, omissions, and effective limits;
 4. receive a policy proposal citing that surface and frontier evidence;
 5. validate action identity, capability snapshot, allowed effect,
    preconditions, and remaining budget;
@@ -440,6 +499,12 @@ stable identities and spans back to that content. A mutation to one file can
 invalidate symbol, dependency, diagnostic, and test lenses; the resulting
 deltas identify the smaller frontier that should direct the next action.
 
+Those relations may be produced by different mining rungs: bounded text search
+can populate matches, a parser can populate syntax nodes, a semantic index can
+populate symbols and references, and grouped transforms can derive metrics.
+Every rung retains exact source, operation, completeness, and dependency
+lineage so a richer but partial index cannot silently replace source truth.
+
 ## Target Crate Ownership
 
 The first design proposes these Rust ownership boundaries:
@@ -448,10 +513,11 @@ The first design proposes these Rust ownership boundaries:
 | --- | --- |
 | `rey` | Workload CLI, catalog/configuration composition, and user-facing orchestration |
 | `rey-core` | identities, revisions, limits, statuses, and shared value contracts |
+| `rey-mining` | provider-neutral mining operation/request/result, artifact, completeness, dependency, and visualization contracts; no query engine, parser bundle, or storage |
 | `rey-dataframe` | frame metadata, Polars schemas, Arrow codecs, and bounded rendering |
 | `rey-environment` | capability discovery, snapshots, provider contracts, and local context adapters |
 | `rey-git` | repository identity, commit/ref/index frames, polling cursors, triggers, and activations |
-| `rey-diff` | compatibility, alignment, typed changes, summaries, and Tabular Diff projection |
+| `rey-diff` | relational, text, and structural comparison contracts, typed changes, summaries, and diff projections |
 | `rey-runtime` | workload/graph/scenario lifecycle, spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
 | `rey-frontier` | canonical frontier/progress relations, prioritization inputs, convergence evaluation, and bounded deterministic selection |
 | `rey-proof` | claims, evidence manifests, certificates, verification, and staleness |
@@ -459,16 +525,17 @@ The first design proposes these Rust ownership boundaries:
 | `rey-spoke` | Optional Spoke provider, exact source bindings, compute runs, and artifact persistence |
 
 This table is an ownership proposal, not a requirement for one process per
-crate. Plan 0001 may combine crates for the first vertical slice if semantic
-ownership remains legible.
+crate. Plan 0006 may create or defer `rey-mining` after freezing the common
+contracts; semantic ownership must remain legible either way.
 
 ## Failure And Limits
 
 Rey treats capability drift, Git ref rewrites, incomplete history, index
-conflicts, cursor replay, source drift, stale proposals, duplicate keys,
-incompatible schemas, probe failure, action rejection, process loss, capture
-truncation, cancellation, budget exhaustion, and unavailable optional or
-required capabilities as ordinary explicit outcomes. None imply equality or
+conflicts, cursor replay, source drift, stale proposals, unsupported mining,
+partial parsing/indexing, duplicate keys, incompatible schemas, probe failure,
+action rejection, process loss, capture/visualization truncation,
+cancellation, budget exhaustion, and unavailable optional or required
+capabilities as ordinary explicit outcomes. None imply equality or
 convergence.
 
 Every loop has total time, iteration, action, and evidence-byte limits. Every
@@ -510,3 +577,9 @@ scenario-suite, and campaign identities; runtime state remains v2.
 Workload-specific frontier derivation and invalidation, recurring
 scheduling, provider retrieval/execution, policy proposals, Git activation,
 and the Spoke provider remain target architecture.
+
+The mining plane and provisional `rey-mining` ownership are target architecture
+accepted by ADR 0017. No generic mining request/result, admitted `rg` search,
+text/structural delta, parser/index provider, or general visualization contract
+is implemented yet. Plan 0006 owns the first end-to-end mining slice before
+AST/CST, semantic-index, broad metric, or generic scheduling work.

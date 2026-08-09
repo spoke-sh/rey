@@ -4,9 +4,12 @@ Shared guidance for AI agents working on Rey.
 
 ## Project Direction
 
-Rey is a diff-directed compute runtime for agents. It observes high-dimensional
-spaces as bounded typed frames, computes directed deltas, uses unresolved
-deltas to choose subsequent work, and emits scoped proof artifacts.
+Rey is a diff-directed mining and compute runtime for agents. It inventories
+explicit context, mines bounded relational and source evidence, computes
+directed deltas, uses unresolved deltas to choose subsequent work, and emits
+scoped proof artifacts. Mining spans typed retrieval/grouping/traversal and
+text search/parsing/indexing/metrics/visualization without flattening native
+artifacts into artificial tables.
 
 Rey first inventories its environment and remains useful without Spoke. When
 available, Spoke is Rey's durable reasoning and compute plane. Rey must not
@@ -32,21 +35,29 @@ adapter, scheduler loop, action executor, or Spoke integration exists.
 2. `CONSTITUTION.md`
 3. `INSTRUCTIONS.md`
 4. `docs/ARCHITECTURE.md`
-5. `docs/WORKLOADS.md`
-6. `docs/RUNTIME.md`
-7. `docs/FRONTIER.md`
-8. `docs/ENVIRONMENT.md`
-9. `docs/GIT.md`
-10. `docs/DIFFS.md`
-11. `docs/PROOFS.md`
-12. `docs/INTERFACES.md`
-13. `docs/DEVELOPMENT.md`
-14. `plans/README.md` and the active plan
-15. `docs/decisions/README.md`
+5. `docs/MINING.md`
+6. `docs/WORKLOADS.md`
+7. `docs/RUNTIME.md`
+8. `docs/FRONTIER.md`
+9. `docs/ENVIRONMENT.md`
+10. `docs/GIT.md`
+11. `docs/DIFFS.md`
+12. `docs/PROOFS.md`
+13. `docs/INTERFACES.md`
+14. `docs/DEVELOPMENT.md`
+15. `plans/README.md` and the active plans
+16. `docs/decisions/README.md`
 
 ## Core Principles
 
 - Treat the delta as a scheduler input, not only an output artifact.
+- Treat mining as the bounded bridge from context to evidence: bind exact
+  sources, operation revisions, parameters, completeness, lineage, and limits.
+- Keep relational and source mining as peer capability families. Preserve
+  native text/artifacts while projecting genuinely relational structure into
+  DataFrames.
+- Treat visualization as an evidence projection that retains direction, scope,
+  omissions, and exact source links; it cannot change semantic assessment.
 - Treat the workload as the public unit of computation: one versioned graph,
   scenario suite, policy boundary, qualification contract, and total budget.
 - Let agents propose compute-graph revisions through the same validated
@@ -78,6 +89,7 @@ The provisional ownership map is:
 ```text
 rey                 workload CLI, catalog composition, and local orchestration
 rey-core            identities, revisions, limits, and shared contracts
+rey-mining          mining operations, requests/results, artifacts, and views
 rey-dataframe       frame schemas, Polars helpers, and Arrow codecs
 rey-environment     bounded capability discovery and local context providers
 rey-git             repository snapshots, semantic index, polling, and activation
@@ -90,16 +102,16 @@ rey-spoke           optional Spoke provider, source bindings, runs, and persiste
 ```
 
 This is a target ownership map, not a claim that these crates exist or must each
-become a process. The active plan may refine it before scaffolding.
+become a process. Active plans may refine it before scaffolding.
 
 ## Decision Resolution
 
 Resolve ambiguity in this order:
 
 1. `CONSTITUTION.md`
-2. `docs/ARCHITECTURE.md`, `docs/WORKLOADS.md`, `docs/RUNTIME.md`, `docs/FRONTIER.md`,
-   `docs/ENVIRONMENT.md`, `docs/GIT.md`, `docs/DIFFS.md`, `docs/PROOFS.md`, and
-   `docs/INTERFACES.md`
+2. `docs/ARCHITECTURE.md`, `docs/MINING.md`, `docs/WORKLOADS.md`,
+   `docs/RUNTIME.md`, `docs/FRONTIER.md`, `docs/ENVIRONMENT.md`, `docs/GIT.md`,
+   `docs/DIFFS.md`, `docs/PROOFS.md`, and `docs/INTERFACES.md`
 3. accepted ADRs
 4. active plans
 5. code and tests
@@ -116,6 +128,12 @@ update the stale artifact in the same change.
   finding a tool does not grant permission to execute it.
 - Freeze provider, path, version, digest/provenance, trust, and supported
   operations before a discovered tool participates in an action.
+- Bind every mined artifact to its request, exact inputs, operation and
+  implementation revision, capability snapshot, effective limits,
+  completeness, omissions, and derivation lineage.
+- Treat a mutable read or external miner invocation as an explicit probe;
+  pure projection over frozen evidence may remain deterministic in-process
+  compute.
 - Use semantic Git index entries for staged-change triggers; raw index byte or
   mtime changes alone are not semantic activation.
 - Classify ref movement as fast-forward, rewind, rewrite/divergence, or unknown.
@@ -146,6 +164,10 @@ update the stale artifact in the same change.
 - Environment work needs fixtures for missing tools, version drift, path
   changes, timeouts, malformed version output, trust classification, and
   capability degradation.
+- Mining work needs fixtures for exact source drift, empty and bounded search,
+  invalid encoding, tool failure/drift, typed empty relations, text/structural
+  direction, traversal limits, derivation lineage, visualization omissions,
+  completeness, and deterministic replay.
 - Workload work needs fixtures for invalid and cyclic graphs, missing graph
   policy, passing/failing/inconclusive scenarios, graph-revision invalidation,
   qualification, progress counts, and test/run parity.

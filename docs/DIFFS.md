@@ -1,8 +1,10 @@
-# Frames And Diffs
+# Relational, Text, And Structural Diffs
 
 This document defines Rey's target semantic contracts for frames, typed deltas,
-and diff renderings. Physical schemas and serialized formats remain provisional
-until accepted by an ADR and proved by fixtures.
+native deltas, and diff renderings. Physical schemas and serialized formats
+remain provisional until accepted by an ADR and proved by fixtures. ADR 0017
+places relational, text, and structural comparison inside the common mining
+model; only the capability and UTF-8 scenario specializations are implemented.
 
 ## Direction
 
@@ -31,6 +33,7 @@ its observation:
 | keys | Unique comparison key columns and ordering semantics |
 | capabilities | Frozen provider/tool snapshot and guarantees used to create the frame |
 | sources | Exact Spoke bindings or strongest immutable local identities available |
+| mining | Operation/request/result identities and derivation dependencies when the frame is mined |
 | normalizers | Ordered versioned transformations applied before comparison |
 | limits | Requested and effective evaluation bounds |
 | completeness | Complete, truncated, partial, unavailable, or failed observation state |
@@ -118,6 +121,55 @@ The exact Arrow representation for heterogeneous before/after values remains an
 open design item. Until selected, implementations must not stringify values and
 then claim typed round-trip behavior.
 
+## Mining Comparison Families
+
+The common delta invariants apply to several evidence shapes. Rey chooses a
+declared comparison family rather than coercing every input into a table or
+string.
+
+### Relational Delta
+
+A relational delta is the typed delta described above: compatible frames align
+under exact schema, key, ordering, normalizer, and equality contracts. It is
+authoritative for collections such as search matches, syntax nodes, symbols,
+references, dependency edges, diagnostics, metrics, and grouped observations.
+
+### Text Delta
+
+A text delta compares ordered text while retaining:
+
+- exact source and target artifact identities and labels;
+- encoding, newline, segmentation, and normalization rules;
+- ordered hunks with source/target byte and line spans;
+- inserted, deleted, changed, and unchanged-context evidence;
+- context/elision policy and requested/effective line, hunk, and byte limits;
+- binary, invalid-encoding, oversized-line, and unavailable-input behavior;
+- completeness and assessment; and
+- deterministic native patch and structured projections.
+
+A line patch is a useful human projection, but the authoritative result cannot
+depend only on terminal text. It retains spans and source addresses needed to
+connect a hunk with match, syntax, symbol, metric, workload, and proof evidence.
+
+### Structural Delta
+
+A structural delta compares declared trees or graphs such as configuration
+paths, CSTs, ASTs, symbol graphs, reference graphs, or dependencies. Its
+contract fixes entity identity, parent/edge semantics, ordering, alignment,
+move classification, parser/index revisions, and completeness. Insertions,
+deletions, modifications, moves, edge changes, and unresolved alignment remain
+distinct.
+
+Similarity does not authorize guessed alignment. Parse recovery, unsupported
+language features, ambiguous symbol resolution, bounded traversal, or
+incomplete graph closure can make the comparison partial or inconclusive.
+
+### Claim Facts
+
+Evidence that does not reduce honestly to a relational, text, or structural
+comparison remains a typed claim fact. The runtime may place all four families
+in one frontier, but it does not flatten them into an artificial mega-delta.
+
 ### Implemented Capability Specialization
 
 ADR 0010 fixes a narrow `rey.capability-delta.v1` specialization rather than
@@ -173,6 +225,9 @@ not the goal:
 
 Every non-tabular delta still has direction, exact source identities, bounded
 evidence, and a structured summary that can participate in a frontier frame.
+Visualization contracts from [Mining Context Into Evidence](MINING.md) may
+project these results as patches, trees, graphs, timelines, or metric panels,
+but layout, grouping, sampling, or color never alters their assessment.
 
 Workload scenarios use the same contract with `EXPECTED` as source and
 `OBSERVED` as target. A conclusive non-empty scenario delta is retained as the
@@ -220,5 +275,13 @@ The first diff engine must include fixtures for:
 - provider/tool appearance, disappearance, and version or digest drift;
 - Git fast-forward, rewind, rewrite, merge, incomplete-history, and semantic
   index deltas;
-- bounded context omission; and
-- byte-for-byte deterministic structured and Tabular Diff artifacts.
+- bounded context omission;
+- byte-for-byte deterministic structured and Tabular Diff artifacts;
+- ordered text insertion, deletion, replacement, context elision, encoding,
+  long-line, binary, and byte/hunk-limit behavior;
+- tree insertion, deletion, modification, move, ambiguous alignment, parse
+  recovery, and incomplete traversal;
+- exact deep links between relational rows, text spans, structural entities,
+  and their mined source artifacts; and
+- deterministic ANSI-free patch, tree, and graph projections whose omissions
+  remain explicit.

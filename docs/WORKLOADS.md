@@ -5,14 +5,16 @@ the broad semantics and ADR 0016 fixes the implemented first slice. Rey now
 ships a bounded built-in catalog, typed UTF-8 DAG executor, scenario evaluator,
 local result provider, and the four `rey workloads` commands. External
 manifests, generated graph revision, and the recurring improvement campaign
-remain target contracts.
+remain target contracts. ADR 0017 makes relational and source mining
+first-class graph capabilities; Plan 0006 owns their first executable workload
+slice.
 
 ## Public Unit
 
 A **workload** is Rey's public unit of computation. It binds a versioned
 compute-graph contract, scenario suite, environment requirements, policy
-boundary, claims, effects, limits, and retention requirements under one stable
-identity.
+boundary, admitted mining operations, claims, effects, limits, and retention
+requirements under one stable identity.
 
 Spaces, lenses, frames, deltas, frontiers, actions, traces, and proofs remain
 important runtime concepts, but users should not have to orchestrate them as
@@ -47,6 +49,8 @@ A workload declaration binds at least:
 - description and ownership metadata;
 - typed external input and output contracts;
 - allowed graph-node operation contracts and effect classes;
+- allowed relational/source mining operations, input artifact kinds,
+  completeness requirements, and traversal/result limits;
 - environment profile, required capabilities, and trust requirements;
 - graph-proposal policy contract, which may be an agent, rule, or human;
 - exact scenario-suite revision and required/optional scenario membership;
@@ -99,6 +103,30 @@ deterministic serial baseline; a later parallel executor must prove the same
 declared output semantics. This is graph execution order, not Rey's generic
 frontier scheduler. The frontier scheduler selects unresolved work that may
 justify a graph revision; it does not invent node dependencies.
+
+### Mining Operations In Graphs
+
+A mining graph node cites one exact provider-neutral operation contract and
+binds typed inputs, output artifact kinds, canonical parameters, capability
+requirements, effects, completeness, and limits. Two primary families are
+available to the target model:
+
+- relational operations retrieve, select, filter, join, group, aggregate,
+  traverse, compare, summarize, and visualize typed collections; and
+- source operations retrieve, search, segment, tokenize, parse, index,
+  traverse, measure, compare, and visualize text, code, configuration, logs,
+  documents, and native artifacts.
+
+Search matches, syntax nodes, symbols, references, dependencies, diagnostics,
+and metrics may become typed frames, but they retain exact links to native
+source evidence. A graph may pass those frames into relational grouping or
+comparison without turning source bytes into a giant cell.
+
+Discovery is not graph admission. Generated shell, regex, query, parser
+configuration, source text, or visualization layout is untrusted typed input
+and must satisfy the selected operation schema and bounds. Invoking an external
+miner or reading mutable state is a probe; pure projection over frozen evidence
+is deterministic compute. Neither grants mutation authority.
 
 ## Scenarios
 
@@ -159,7 +187,7 @@ resolve workload and freeze capabilities
   -> compare EXPECTED to OBSERVED and retain typed deltas
   -> derive scenario progress and unresolved frontier
   -> if required scenarios pass: qualify graph revision
-  -> otherwise retrieve/project bounded failing evidence
+  -> otherwise mine/project bounded failing evidence
   -> policy proposes next graph revision
   -> validate proposal and repeat, or stop at an explicit bound
 ```
@@ -333,10 +361,11 @@ read-only and do not execute scenarios merely to fill missing state.
 
 A scenario result or qualification becomes stale when any semantic input used
 to produce it changes, including workload, graph, scenario, fixture, expected
-output, provider capability, operation, comparator, evaluator, normalizer,
-policy scope, or effective limit. A production run additionally binds its real
-inputs and admission snapshot. Staleness is derived from exact identities and
-dependency facts, never toggled manually.
+output, provider capability, mining operation/implementation, parser/index,
+canonical parameters, comparator, evaluator, normalizer, policy scope,
+completeness semantics, or effective limit. A production run additionally
+binds its real inputs and admission snapshot. Staleness is derived from exact
+identities and dependency facts, never toggled manually.
 
 ## Command Semantics
 
@@ -373,8 +402,9 @@ forced into a DataFrame merely for format uniformity.
 The formal transition machine, frontier scheduler, and reasoning surface are
 mechanisms inside a workload campaign; they are not competing public resource
 models. Scenario deltas produce workload-specific frontier rows. Scheduling
-selects bounded unresolved work. Retrieval projects the relevant failing
-evidence. A policy then proposes a graph revision or another admitted action.
+selects bounded unresolved work. Mining retrieves and projects the relevant
+relational and source evidence. A policy then proposes a graph revision or
+another admitted action.
 
 The workload slice made the required pre-alpha hard cut. `rey.frontier.v2`,
 `rey.frontier-progress.v2`, `rey.scheduling-decision.v2`, and
@@ -388,7 +418,10 @@ No compatibility alias or decoder silently relabels the superseded schemas.
 The implemented slice uses two small fixture workloads, finite graphs composed
 from built-in deterministic operations, and reviewed scenarios. It exercises
 all four commands without an agent or Spoke. The next slice may derive a
-workload frontier from the retained failing delta and expose bounded graph
-proposal admission through the same frozen contract. Generic distributed
-scheduling, arbitrary code execution, a recurring service, a persistence
-engine, and provider-specific policy loops remain outside this boundary.
+workload frontier from the retained failing delta and expose bounded mining
+operation/result contracts through the same frozen graph and reasoning-surface
+boundary. Plan 0006 starts with source search/retrieval, relational match
+projection, text and relational deltas, and evidence-linked visualization
+before AST/CST or semantic-index adapters. Generic distributed scheduling,
+arbitrary code execution, a recurring service, a persistence engine, and
+provider-specific policy loops remain outside this boundary.

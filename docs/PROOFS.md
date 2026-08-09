@@ -41,6 +41,8 @@ include:
 - Git repository/worktree identity, object format, commit/ref OIDs, semantic
   index digest, poll cursor, and activation identities where applicable;
 - frame schemas, Arrow data, and content digests;
+- mining operation, request, result, artifact, parser/index, dependency, and
+  visualization identities plus completeness and omissions;
 - structured deltas and Tabular Diff projections;
 - lens, normalizer, comparator, and evaluator implementation digests;
 - action proposals and admission decisions;
@@ -85,6 +87,7 @@ status and assessment time
 space id and revision
 source bindings and input digest
 lenses, schemas, normalizers, comparators, and evaluator digests
+mining operations, requests/results, artifacts, dependencies, and completeness
 actions, tools, runs, attempts, and captures used
 Git snapshots, poll cursors, triggers, and activations used
 required and observed coverage
@@ -112,6 +115,9 @@ The proof input digest covers all semantics capable of changing the result:
 - workload, graph, scenario-suite, scenario selection, campaign, and
   qualification inputs;
 - space, lens, claim, and policy revisions where policy affects scope;
+- mining operation/implementation, parser/index, canonical parameter,
+  derivation-dependency, artifact-schema, visualization, and effective-limit
+  inputs;
 - schema, key, order, normalizer, tolerance, and ignore definitions;
 - tool and execution-contract identities;
 - comparator, evaluator, and relevant runner implementation digests; and
@@ -120,6 +126,13 @@ The proof input digest covers all semantics capable of changing the result:
 Verification recomputes this identity. A mismatch yields `stale` even when the
 stored manifest says `passed`. Changing presentation-only color or a
 non-semantic timestamp need not invalidate proof.
+
+A visualization may be retained as review evidence, but it is never the only
+input to verification. Verification resolves its authoritative mined
+relations, native artifacts, deltas, and derivation manifest. A changed layout
+need not stale a claim unless the claim explicitly evaluates that layout; a
+changed selection, grouping, aggregation, sampling, elision, or mining
+operation does stale any claim whose observed scope depends on it.
 
 If changed inputs exceed the retained certificate's evaluation bounds, the
 verifier can still classify the exact snapshot mismatch as `stale`, but it
@@ -262,6 +275,8 @@ The first proof engine must demonstrate:
 
 - passed, failed, inconclusive, pending, and stale states;
 - changed source, fixture, lens, normalizer, tool, evaluator, and limit inputs;
+- changed mining operation, parser/index, search/grouping parameters,
+  derivation dependencies, visualization selection, or completeness semantics;
 - changed workload, graph, scenario suite, expected output, and qualification
   inputs;
 - changed capability snapshots and loss of required Spoke guarantees;

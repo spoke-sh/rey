@@ -24,6 +24,12 @@ snapshots can invalidate lenses, update a frontier, and activate only the
 workload graph entry points or scenario selections that declared a dependency
 on the change.
 
+Git also supplies exact source bindings for mining. Blob/tree/commit identity,
+semantic index state, and bounded worktree content let text search, parsing,
+symbol/reference indexing, metrics, and visualization state precisely which
+software revision they analyzed. A mined relation never substitutes a lossy
+display path for Git's identity-bearing path bytes.
+
 Git does not provide a monotonic event log by itself. Refs can move backward or
 sideways, commits can be replaced by rebases, the index is mutable, and a
 worktree may be shared with other processes. Rey therefore polls snapshots and
@@ -137,6 +143,12 @@ Untracked files are a separate declared worktree surface. Ignored files remain
 excluded unless a lens explicitly and safely includes them. A Git text patch is
 useful evidence, but Rey should also retain typed path, mode, OID, rename/copy
 classification, and conflict relations needed for scheduling and proof.
+
+Source mining may add line/text, syntax-tree, symbol/reference, dependency, or
+metric deltas over the same frozen Git inputs. Those artifacts cite their
+operation/parser/index revisions and completeness. They do not replace Git's
+authoritative object and index semantics or turn partial parsing into a
+complete repository claim.
 
 ## Poll Cursor
 

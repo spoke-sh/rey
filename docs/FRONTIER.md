@@ -12,6 +12,10 @@ v2 envelope now binds workload, graph, scenario suite, and campaign identities
 directly. The first CLI slice executes scenarios but does not yet derive a
 frontier from their deltas.
 
+ADR 0017 makes mining the evidence-acquisition layer after selection. The
+frontier may be directed by relational, text, structural, or claim evidence;
+the generic scheduler remains ignorant of domain-specific mining semantics.
+
 ## Frontier Envelope
 
 `rey.frontier.v2` is a bounded, content-identified relation derived from exact
@@ -195,6 +199,12 @@ dependencies of the exact graph revision. A stable work identity names the
 logical mismatch or claim; its row identity changes when the graph, observed
 output, readiness, blockers, citations, or priority inputs change.
 
+The cited evidence may originate from relational frames, source text, syntax
+trees, semantic graphs, metrics, or their directed deltas. A derivation
+contract maps those artifact-specific facts to stable work identities. The
+frontier does not flatten native artifacts, infer parser meaning, or promote a
+visualization to authoritative work membership.
+
 The scheduler selects bounded unresolved graph-revision work. It does not
 schedule graph nodes: typed graph edges establish node dependency order within
 one scenario execution. The selected rows direct evidence retrieval and a
@@ -209,3 +219,7 @@ invalidation, provider retrieval, orientation readiness strategy, policy
 proposal parsing, action admission, execution, retry, transition persistence,
 activation, and recurring scheduling. They must consume these contracts rather
 than introducing a provider-specific queue or second lifecycle.
+
+Plan 0006 adds the first provider-neutral mining request/result and a
+delta-directed reasoning-surface fixture. It does not change the scheduling
+order or make the frontier a query, parsing, indexing, or visualization engine.

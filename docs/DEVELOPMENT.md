@@ -146,6 +146,21 @@ JSON result state. The workload identity cutover advances frontier, progress,
 and scheduling to v2 and reasoning surfaces to v3; it does not add a general
 manifest parser, persistence engine, async runtime, or agent transport.
 
+ADR 0017 accepts the relational/source mining capability model and introduces
+`rey-mining` only as a provisional target ownership boundary. This
+documentation change adds no crate or dependency. Plan 0006 must first freeze
+the smallest operation/request/result, artifact, completeness, dependency, and
+visualization contracts. Creating the crate is justified only if those shared
+contracts would otherwise produce unclear ownership or dependency cycles.
+
+The first mining implementation should prefer existing Polars/Arrow, Serde,
+BLAKE3, and bounded-process infrastructure. A parser framework, regex engine,
+tree/graph library, visualization library, async runtime, database, or broader
+Polars feature set requires a concrete Plan 0006 slice, fixture need, and
+dependency review. Discovering or adapting the existing `rg` executable does
+not make it a packaged runtime dependency unless that deployment contract is
+explicitly accepted and tested.
+
 ## Cargo And Crane Outputs
 
 The flake filters sources through `craneLib.cleanCargoSource`, compiles the

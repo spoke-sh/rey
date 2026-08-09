@@ -4,8 +4,9 @@ This document sketches Rey's user, environment, policy, and Spoke interfaces.
 The implemented CLI includes the standalone environment
 snapshot/delta/certificate loop, local-only proof bundles, and the first
 built-in workload slice fixed by ADR 0016. Generic workload declarations,
-provider-backed operations, graph proposal policy, and connected Spoke
-behavior remain provisional.
+provider-backed mining operations, graph proposal policy, and connected Spoke
+behavior remain provisional. ADR 0017 fixes the common relational/source
+mining boundary; Plan 0006 will select its first executable schemas.
 
 ## Interface Principles
 
@@ -14,6 +15,10 @@ behavior remain provisional.
   and explicit JSON representations.
 - Raw and native artifacts remain byte streams rather than acquiring a table
   wrapper for uniformity.
+- Relational and source mining operations expose one bounded request/result
+  discipline while preserving their distinct artifact semantics.
+- Visualizations cite authoritative mined artifacts and expose grouping,
+  elision, completeness, and deep links; they never redefine assessment.
 - Every result exposes exact source revisions, format versions, completeness,
   and effective limits needed to interpret it.
 - Read-only observation and effectful action are visibly different operations.
@@ -42,6 +47,10 @@ public unit for composing and using runtime concepts. Spaces, lenses, frames,
 deltas, frontiers, traces, and proofs remain typed evidence and may gain
 focused diagnostic projections, but they are not peer top-level resources that
 users must manually orchestrate.
+
+Mining follows the same rule. Search, parse, index, group, traverse, diff, and
+visualize are discoverable operation contracts composed inside workloads and
+reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 
 The built-in slice implements this behavior:
 
@@ -180,6 +189,47 @@ snapshot ids and labels, comparator identity, and delta id. Tabular Diff uses
 and is not authoritative input for proof or replay. Generic frame-delta media
 types and schemas remain Plan 0001 work.
 
+## Mining Operation Contract
+
+The target provider-neutral mining interface has three semantic documents:
+
+```text
+mining operation contract
+  id/revision/implementation · family/kind · input/output contracts
+  parameters · capabilities/effects · limits · completeness · invalidation
+
+mining request
+  workload/graph/scenario/transition · frontier rationale
+  exact source or artifact inputs · operation · canonical parameters
+  capability snapshot/provider · requested/effective limits
+
+mining result
+  request/result identities · realized provider/tool/parser/query lineage
+  native/frame/tree/graph/metric/delta/visual artifact references
+  schemas/media types/lengths · completeness · omissions · consumption
+  dependency and staleness edges
+```
+
+Relational and source operations share this envelope but not one artificial
+payload type. Typed collections use frames and Arrow. Ordered source, patches,
+trees, graphs, and binary artifacts may remain native while exposing bounded
+typed index relations for navigation.
+
+An exact immutable read can be a safe retrieval during orientation. Pure
+projection over frozen evidence is deterministic graph/lens work. A mutable
+read or external `rg`, parser, compiler-service, language-server, or index
+invocation is a probe and requires ordinary admission and execution lineage.
+
+Visualization is a mining result with a versioned projection contract. A
+machine view exposes stable typed data or a bounded structured specification;
+a human view may render a table, patch, tree, graph, timeline, or metric panel.
+Both record source artifact identities, selection, grouping, ordering,
+aggregation, context, elision, sampling, limits, and omissions.
+
+Exact schema names and encodings are Plan 0006 decisions. The implementation
+must not advertise generic mining schemas until fixtures prove canonical
+identity, bounds, completeness, deterministic replay, and source drift.
+
 ## Standard Streams
 
 - Selected machine data and raw artifacts go to stdout.
@@ -236,6 +286,10 @@ capability requirements; exact scenario suite; claim/comparator/evaluator
 revisions; graph-proposal policy; graph/campaign/scenario/run limits;
 qualification; and catalog/result retention requirements.
 
+Admitted graph operations include exact mining operation contracts. A workload
+declares which relational/source inputs, output artifact kinds, parser/index or
+tool semantics, completeness, and mining limits its scenarios require.
+
 Each immutable graph revision binds typed nodes, ports, dependency edges,
 operation contracts, capabilities, effects, limits, and generator provenance.
 Each scenario binds fixtures, test providers, selected outputs, expected
@@ -287,6 +341,12 @@ metadata, and invoke a bounded read-only identity command such as `--version`.
 It does not run unknown files, shell startup hooks, project scripts, or package
 installers. An action must separately name and be admitted against the frozen
 capability row.
+
+Mining capability discovery additionally records operation revision, accepted
+source/artifact kinds, output schemas/media types, encoding/language support,
+determinism, completeness semantics, and enforceable file, match, node, edge,
+depth, row, byte, and time limits. Discovering `rg` by version does not itself
+prove an admitted source-search operation.
 
 The runtime supports these provisional selection attitudes:
 
@@ -378,6 +438,8 @@ delta-directed reasoning surface. The implemented
 - committed and active transitions, scheduling decision, frontier frame, cited
   frontier rows, and applicable transition/residual delta identities;
 - exact retrieved evidence addresses, source bindings, and provider revisions;
+- exact mining request/result, operation, artifact, derivation, completeness,
+  and visualization references;
 - a bounded typed projection of changed and unresolved entities;
 - exact versioned admissible action contract references;
 - capability snapshot identity;
@@ -568,7 +630,9 @@ projecting the local directory layout onto Spoke.
 Structured errors need a stable category, human detail, correlation id, and
 actionable remediation. Important categories include invalid declaration,
 provider unavailable, capability unavailable, capability drift, source drift,
-invalid graph, graph cycle, missing graph policy, scenario mismatch, scenario
+mining operation unsupported, mining result incomplete, parser/index partial,
+visualization truncated, invalid graph, graph cycle, missing graph policy,
+scenario mismatch, scenario
 inconclusive, unqualified graph, stale qualification, Git history incomplete,
 Git ref rewritten, Git index conflicted, cursor replay, stale proposal,
 incompatible frame, duplicate key, action rejected, run failed/lost,

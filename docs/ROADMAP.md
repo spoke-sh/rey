@@ -41,7 +41,7 @@ and proof belong in `plans/`.
 - Prove that Spoke absence preserves standalone behavior and that a
   Spoke-required claim fails closed rather than weakening itself.
 
-## Phase 3 — Workload Compute Graphs
+## Phase 3 — Mining-Powered Workload Compute Graphs
 
 - Fix the smallest workload declaration, graph, scenario, campaign,
   qualification, catalog, and result schemas.
@@ -51,6 +51,16 @@ and proof belong in `plans/`.
   fixtures and admitted run inputs.
 - Retain `EXPECTED` to `OBSERVED` typed scenario deltas and derive a frontier
   from unresolved mismatches and claims.
+- Freeze provider-neutral relational/source mining operation, request, result,
+  artifact, completeness, dependency, and visualization contracts.
+- Adapt one bounded source-search and exact-context provider, project matches
+  as a typed relation, and retain native text as exact evidence.
+- Implement one ordered text delta beside the relational delta and render
+  evidence-linked table and patch projections.
+- Exercise mining through a scenario-qualified workload and project a bounded
+  delta-directed reasoning surface from its failure.
+- Prove source/tool drift, truncation, unsupported input, deterministic replay,
+  and zero-Spoke behavior before adding parser or index breadth.
 - Admit deterministic read-only probes against frozen inputs.
 - Re-evaluate invalidated lenses and stop on convergence, failure,
   inconclusiveness, cancellation, or budget exhaustion.
@@ -73,6 +83,12 @@ and proof belong in `plans/`.
 
 - Project files, symbols, references, dependencies, diagnostics, tests, and
   changes as related frames bound to exact code revisions.
+- Add bounded text, token, CST, AST, symbol, reference, dependency, metric, and
+  quality-mining operations as independently versioned provider capabilities.
+- Preserve native source/tree artifacts and exact span links beneath relational
+  indexes and grouped metrics.
+- Add evidence-linked table, patch, tree, graph, timeline, and metric
+  visualizations with explicit aggregation and elision.
 - Add code-aware lenses and conservative invalidation.
 - Explore graph, lexical, and vector dimensions through Spoke's composed query
   plane as those contracts are available.

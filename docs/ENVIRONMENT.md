@@ -8,7 +8,9 @@ relation for built-in frames, one explicit workspace, allowlisted `git` and
 `rg` identity probes, and a contained Git repository observation. Optional
 Spoke discovery, action admission, and other tool adapters remain Plan 0001
 work. ADRs 0010 and 0011 add capability deltas, required-capability
-certificates, and bounded local-only bundle retention over this relation.
+certificates, and bounded local-only bundle retention over this relation. ADR
+0017 classifies relational and source mining operations as first-class
+capabilities; Plan 0006 owns their first admitted executable slice.
 
 ## Terms
 
@@ -17,6 +19,8 @@ certificates, and bounded local-only bundle retention over this relation.
   runtime, service, or Spoke deployment.
 - A **provider** owns discovery and operations for one class of context surface.
 - A **capability** is one typed operation or guarantee advertised by a provider.
+- A **mining capability** is a versioned relational or source operation such as
+  retrieve, search, parse, index, traverse, group, compare, or visualize.
 - A **capability snapshot** is the frozen typed relation of capabilities
   available to one Rey transition.
 - A **profile** describes provider selection and required guarantee policy; it
@@ -31,6 +35,8 @@ certificates, and bounded local-only bundle retention over this relation.
 - A missing capability removes actions or makes dependent claims inconclusive;
   it never silently weakens the claim.
 - Exact capability snapshots participate in action and proof identity.
+- Mining discovery names semantic operations and limitations; a tool name or
+  server version alone never implies search, parse, index, or query parity.
 
 ## Provider Contract
 
@@ -44,6 +50,8 @@ Every provider declares:
 - read, probe, mutation, execution, persistence, and query capabilities;
 - resource controls it enforces, observes, or does not support;
 - source identity and content-digest semantics;
+- mining operation ids/revisions, accepted input/output artifact kinds,
+  completeness semantics, and enforceable traversal/result limits;
 - health and observation currency; and
 - which provider changes invalidate existing actions or evidence.
 
@@ -123,6 +131,47 @@ provenance when available, platform, trust class, supported operations, and
 limits. A path found on `PATH` is a discovery candidate; it becomes an
 admissible capability only after its provider contract validates it.
 
+## Mining Providers
+
+Mining capabilities use the same discovery and admission boundary as every
+other provider operation. A capability row may eventually advertise operation
+contracts such as:
+
+```text
+relation.retrieve · relation.group · relation.traverse
+source.retrieve · source.search · source.segment
+source.parse · source.index · source.measure
+delta.relational · delta.text · delta.structural
+visualize.table · visualize.patch · visualize.tree · visualize.graph
+```
+
+These names are an architectural vocabulary, not implemented stable ids. Plan
+0006 must version exact ids and schemas before code advertises them.
+
+An adapter records its accepted source kinds, output artifact/schema kinds,
+canonical parameters, encoding/language support, completeness behavior,
+determinism, provider/tool/parser identity, and effective file, row, match,
+node, edge, depth, byte, time, and memory limits. A generic `rg` identity probe
+does not yet advertise an admitted `source.search` operation. A parser that can
+recover a partial tree must not advertise complete syntax or semantic-index
+coverage.
+
+Provider ownership remains explicit:
+
+- local filesystem and Git adapters establish local source identity and safe
+  reads;
+- tool adapters invoke and interpret allowlisted executables;
+- language adapters own parser and semantic-index interpretation;
+- Spoke owns its durable source, composed query, registered-tool, run, capture,
+  and lineage semantics; and
+- Rey binds those capabilities into mining requests, workload nodes, deltas,
+  invalidation, and reasoning surfaces.
+
+Exact immutable retrieval may be allowed as a read-only orientation operation.
+Reading mutable state or invoking an external miner is a probe and requires
+normal action admission. Pure projection over already frozen evidence needs no
+new source authority but still binds its operation revision and limits.
+
 ## Spoke Provider
 
 The Spoke provider may contribute:
@@ -189,6 +238,12 @@ Dependency metadata maps those deltas to affected lenses, actions, and proofs.
 Unrelated local frames do not become stale merely because an unused tool
 changed.
 
+A mining result becomes stale only when a capability it actually used changes:
+source/provider identity, operation or implementation revision, parser/tool
+version, trust, supported semantics, or an effective limit that affects the
+result. Discovery of an unrelated richer miner does not invalidate existing
+evidence unless the workload contract selected it as a required input.
+
 ## Standalone Evidence
 
 Standalone mode can write a bounded content-addressed evidence bundle to an
@@ -236,6 +291,9 @@ The first environment implementation must cover:
 - known tool present, missing, duplicated, and permission denied;
 - malformed, oversized, timed-out, and non-zero version probes;
 - path, version, digest/provenance, trust, and operation drift;
+- mining operation appearance/disappearance, semantic-version drift,
+  unsupported encoding/language behavior, result truncation, and parser/index
+  completeness degradation;
 - Spoke absent, unhealthy, partially capable, and healthy;
 - optional-provider failure isolated from healthy local providers;
 - required-provider failure before any side effect;

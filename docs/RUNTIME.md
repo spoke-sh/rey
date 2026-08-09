@@ -12,6 +12,9 @@ implements the first deterministic workload/graph/scenario/qualification
 slice and makes the public identity cutover. Runtime state remains v2 because
 it had no application/component envelope; the reasoning surface is now v3 and
 binds exact workload, graph, scenario-suite, and campaign identities.
+ADR 0017 names the missing orientation capability layer as mining. The current
+schemas can cite mined evidence, but generic mining requests/results and
+provider execution remain Plan 0006 target work.
 
 ## State Dimensions
 
@@ -130,6 +133,12 @@ owns its semantic outcome; the generic relation does not implement a scalar
 score or guess the direction of updated work. See
 [Frontier, Progress, and Scheduling](FRONTIER.md).
 
+Relational, text, and structural mining deltas may all fill transition or
+residual roles when their comparison contracts are explicit. A source patch,
+syntax change, grouped metric delta, or claim fact is not flattened into a
+frame delta merely to enter runtime state; the frontier retains its typed
+artifact identity and role.
+
 ## Reasoning Surface Envelope
 
 `rey.reasoning-surface.v3` is the content-identified policy input constructed
@@ -176,6 +185,12 @@ and action references resolve against the exact surface envelope. Source bytes
 and native artifacts remain outside the DataFrame and addressable through
 their evidence references.
 
+Those evidence references may cite mining-result manifests and native,
+relational, tree, graph, metric, delta, or visualization artifacts. The surface
+binds exact source, operation, provider, completeness, derivation, omission,
+and effective-limit lineage. It does not copy an ambient repository or promote
+a visualization to authoritative evidence.
+
 The pre-alpha cutover has no compatibility alias or decoder for the superseded
 application/component envelope.
 
@@ -185,12 +200,20 @@ One workload test pass freezes an exact graph revision, executes selected
 scenarios, and compares `EXPECTED` to `OBSERVED`. Failing deltas and unresolved
 claim facts derive the next workload frontier. The scheduling and orientation
 phases then select bounded unresolved work and construct the reasoning surface
-from which a policy may propose another immutable graph revision.
+by mining exact relevant relational and source evidence. A policy may then
+propose another immutable graph revision.
 
 Graph edges determine node dependency order inside one execution. The frontier
 scheduler determines which unresolved scenario evidence receives the next unit
 of attention between graph revisions. These are separate mechanisms; the
 runtime reducer does not become a generic graph-task scheduler.
+
+During orientation, exact immutable retrieval and pure projection may build
+the surface directly within its existing retrieval-iteration and evidence-byte
+bounds. A mutable read or external mining tool invocation is a probe and must
+cross the full proposal/admission/execution/observation boundary. Plan 0006
+must prove that distinction rather than creating an untracked search or parser
+side channel.
 
 A graph proposal is an untrusted policy proposal and must pass graph,
 operation, capability, effect, precondition, and limit validation. Only fresh
@@ -236,6 +259,7 @@ The implemented crates deliberately contain no:
 - external workload manifest or graph-proposal campaign;
 - recurring, fair, parallel, or multi-user scheduling;
 - provider read, query, or retrieval implementation;
+- provider-neutral mining operation/request/result or visualization contracts;
 - policy request transport or proposal parser;
 - action admission or execution;
 - domain-specific interpretation of updated work or scalar progress score; or

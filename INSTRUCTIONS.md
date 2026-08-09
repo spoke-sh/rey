@@ -7,23 +7,25 @@ Procedural guidance for humans and agents working on Rey.
 1. `README.md` for scope, model, and current status.
 2. `CONSTITUTION.md` for durable values and invariants.
 3. `docs/ARCHITECTURE.md` for ownership and data flow.
-4. `docs/WORKLOADS.md` before changing workloads, compute graphs, scenarios,
+4. `docs/MINING.md` before changing retrieval, search, parsing, indexing,
+   grouping, traversal, metrics, text/structural diffs, or visualization.
+5. `docs/WORKLOADS.md` before changing workloads, compute graphs, scenarios,
    qualification, progress, or the workload CLI.
-5. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
+6. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
    convergence, or scheduling.
-6. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
+7. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
    scheduling contracts.
-7. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
+8. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
    or capability admission.
-8. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
+9. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
    cursors, triggers, or workload activation.
-9. `docs/DIFFS.md` before changing frames, comparison, normalization, or
+10. `docs/DIFFS.md` before changing frames, comparison, normalization, or
    renderings.
-10. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
-11. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
-12. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
-13. `plans/README.md` and the active plan before implementation work.
-14. `docs/decisions/README.md` for accepted choices that constrain the work.
+11. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
+12. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
+13. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
+14. `plans/README.md` and the active plans before implementation work.
+15. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 
@@ -31,31 +33,29 @@ Procedural guidance for humans and agents working on Rey.
    available environment, and relevant Spoke contracts when present.
 2. **Bind** — identify the exact source revisions and observable claim affected
    by the work.
-3. **Bound** — choose the smallest end-to-end behavior and explicit resource
+3. **Mine** — retrieve and project only the bounded relational or source
+   evidence needed to understand the current delta.
+4. **Bound** — choose the smallest end-to-end behavior and explicit resource
    limits.
-4. **Decide** — record consequential or hard-to-reverse choices before they
+5. **Decide** — record consequential or hard-to-reverse choices before they
    spread through code and formats.
-5. **Change** — preserve the boundary between deterministic runtime, policy,
+6. **Change** — preserve the boundary between deterministic runtime, policy,
    Spoke, and presentation.
-6. **Prove** — run focused checks and retain useful, bounded evidence.
-7. **Record** — update documentation and plan checklists in the same change.
+7. **Prove** — run focused checks and retain useful, bounded evidence.
+8. **Record** — update documentation and plan checklists in the same change.
 
 ## Current Development Interface
 
 Rey has a pinned Nix Rust toolchain, a ten-crate Cargo workspace, an
 environment-inspection and capability-delta/certificate executable, bounded
 local-only proof bundles, pure runtime-state, frontier/progress/scheduling, and
-reasoning-surface contracts, and a root Just task surface. Do not generalize
-the implemented capability-specific delta, required-capability certificate,
-host-filesystem bundle, runtime reducer, frontier selector, or policy surface
-into generic derivation, recurring scheduling, provider execution, activation,
-Spoke durability, or Spoke process-lineage behavior.
-
-The accepted workload model and four-command CLI are design contracts only.
-No workload manifest, catalog, compute-graph executor, scenario campaign, or
-qualification record exists yet. The implemented runtime/frontier/surface
-schemas still carry legacy application/component fields and require a
-versioned cutover before the workload CLI ships.
+reasoning-surface contracts, plus the first built-in workload catalog, typed
+DAG executor, scenario evaluator, qualification record, local result provider,
+and four workload commands. Do not generalize the implemented
+capability-specific delta, UTF-8 scenario delta, host-filesystem bundle,
+runtime reducer, frontier selector, or policy surface into generic mining,
+recurring scheduling, provider execution, activation, Spoke durability, or
+Spoke process-lineage behavior. Generic mining remains Plan 0006 target work.
 
 Enter the environment and use:
 
@@ -97,6 +97,29 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 - Do not confuse standalone providers with a local Spoke storage bypass. When
   connected to Spoke, a same-host integration still uses the documented public
   or explicitly internal service contract.
+
+## Mining Work
+
+- Treat relational and source mining as peer capability families connected by
+  exact projections, not as a reason to stringify data or tabularize every
+  artifact.
+- Bind each request and result to exact sources, operation and implementation
+  revision, canonical parameters, provider/capability snapshot, effective
+  limits, completeness, omissions, and dependency lineage.
+- Keep native source, text, trees, graphs, and binary artifacts addressable.
+  DataFrames represent matches, nodes, edges, metrics, and other genuine typed
+  collections.
+- Distinguish exact immutable retrieval, pure projection over frozen evidence,
+  and a probe that reads mutable state or invokes an external tool.
+- Freeze and admit `rg`, parsers, compiler services, language servers, and
+  indexes through provider contracts before invocation; discovery alone grants
+  no authority.
+- Make parsing recovery, unresolved symbols, ignored/generated inputs,
+  sampling, grouping, traversal bounds, and visualization elision visible.
+- Preserve deep links from metrics and graphs to contributing relations, then
+  to exact spans and source revisions.
+- Keep visualizations semantically subordinate to authoritative artifacts;
+  layout or color cannot change assessment, coverage, progress, or proof.
 
 ## Frame And Diff Work
 
@@ -188,7 +211,7 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 
 - Plans in `plans/` are executable checklists with a top-level completion list.
 - Mark only repository-proven facts complete.
-- Put open choices in the active plan; put accepted consequential choices in an
+- Put open choices in the active plan for that bearing; put accepted consequential choices in an
   ADR.
 - Add a superseding ADR rather than silently rewriting why an accepted decision
   was made.
