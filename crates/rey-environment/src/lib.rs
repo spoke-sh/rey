@@ -20,6 +20,13 @@ use rey_dataframe::{Frame, FrameError, FrameMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod source;
+
+#[cfg(test)]
+mod source_tests;
+
+pub use source::*;
+
 #[cfg(unix)]
 use rustix::process::{Pid, Signal, kill_process_group};
 #[cfg(unix)]
@@ -359,7 +366,11 @@ impl LocalDiscovery {
             return Err(DiscoveryError::WorkspaceNotDirectory(workspace));
         }
 
-        let mut capabilities = vec![builtin_capability(), workspace_capability(&workspace)];
+        let mut capabilities = vec![
+            builtin_capability(),
+            workspace_capability(&workspace),
+            source_search_capability(&workspace),
+        ];
         for adapter in TOOL_ADAPTERS {
             capabilities.push(self.inspect_tool(adapter, &workspace, started));
         }
@@ -481,6 +492,52 @@ fn workspace_capability(workspace: &Path) -> CapabilityRecord {
         operations: vec!["inspect_metadata".to_owned()],
         enforced_limits: vec!["canonical_workspace_root".to_owned()],
         unsupported_limits: vec!["filesystem_sandbox".to_owned()],
+        observed_at: None,
+        error_code: None,
+        error_detail: None,
+    }
+}
+
+fn source_search_capability(workspace: &Path) -> CapabilityRecord {
+    let operation = builtin_source_search_operation();
+    let capability = source_search_capability_identity();
+    CapabilityRecord {
+        provider_id: operation.implementation.id.clone(),
+        provider_revision: operation.implementation.revision,
+        provider_kind: "builtin_local_source".to_owned(),
+        capability_id: capability.id,
+        capability_kind: "source_mining".to_owned(),
+        resolved_location: Some(workspace.display().to_string()),
+        version: Some(env!("CARGO_PKG_VERSION").to_owned()),
+        content_digest: Some(capability.semantic_digest.to_string()),
+        provenance: Some("compiled_deterministic_baseline".to_owned()),
+        availability: Availability::Available,
+        trust_class: TrustClass::ExplicitLocal,
+        operations: vec![
+            "bind_explicit_source_corpus".to_owned(),
+            "search_literal_utf8".to_owned(),
+            format!(
+                "{}@{}#{}",
+                operation.operation.id,
+                operation.operation.revision,
+                operation.operation.semantic_digest
+            ),
+        ],
+        enforced_limits: vec![
+            "canonical_workspace_root".to_owned(),
+            "context_lines".to_owned(),
+            "explicit_file_set".to_owned(),
+            "file_bytes".to_owned(),
+            "match_rows".to_owned(),
+            "no_symlink_traversal".to_owned(),
+            "total_bytes".to_owned(),
+        ],
+        unsupported_limits: vec![
+            "filesystem_sandbox".to_owned(),
+            "generated_file_policy".to_owned(),
+            "ignore_file_semantics".to_owned(),
+            "regex".to_owned(),
+        ],
         observed_at: None,
         error_code: None,
         error_detail: None,
@@ -796,16 +853,35 @@ mod tests {
         .unwrap();
 
         assert_eq!(snapshot.profile, "standalone");
-        assert_eq!(snapshot.capabilities.len(), 4);
+        assert_eq!(snapshot.capabilities.len(), 5);
         assert_eq!(
             snapshot
                 .capabilities
                 .iter()
                 .filter(|row| row.availability == Availability::Available)
                 .count(),
-            2
+            3
         );
-        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 4);
+        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 5);
+        let source_search = snapshot
+            .capabilities
+            .iter()
+            .find(|row| row.capability_id == "source.search.literal-utf8")
+            .expect("built-in source search capability");
+        assert_eq!(source_search.availability, Availability::Available);
+        assert!(
+            source_search
+                .operations
+                .iter()
+                .any(|operation| operation.starts_with("rey.source-search.literal-utf8@1#"))
+        );
+        for unsupported in ["generated_file_policy", "ignore_file_semantics", "regex"] {
+            assert!(
+                source_search
+                    .unsupported_limits
+                    .contains(&unsupported.to_owned())
+            );
+        }
         let repeated = LocalDiscovery {
             workspace: workspace.path().to_owned(),
             search_paths: Vec::new(),

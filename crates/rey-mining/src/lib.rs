@@ -8,7 +8,7 @@ use thiserror::Error;
 
 pub const MINING_OPERATION_SCHEMA: &str = "rey.mining-operation.v1";
 pub const MINING_REQUEST_SCHEMA: &str = "rey.mining-request.v1";
-pub const MINING_RESULT_SCHEMA: &str = "rey.mining-result.v1";
+pub const MINING_RESULT_SCHEMA: &str = "rey.mining-result.v2";
 
 trait SemanticName {
     fn semantic_name(&self) -> &'static str;
@@ -481,6 +481,20 @@ impl_semantic_names!(MiningCompleteness {
     Failed => "failed",
 });
 
+impl MiningCompleteness {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Partial => "partial",
+            Self::Truncated => "truncated",
+            Self::Unsupported => "unsupported",
+            Self::Unavailable => "unavailable",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MiningOmissionKind {
@@ -593,7 +607,7 @@ pub struct MiningConsumption {
     pub depth: u64,
     pub bytes_read: u64,
     pub bytes_written: u64,
-    pub time_ms: u64,
+    pub observed_time_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1164,13 +1178,7 @@ fn validate_parameter_values(
 
 fn validate_parameter_text(value: &MiningParameterValue) -> Result<(), MiningError> {
     match value {
-        MiningParameterValue::Utf8(value) => validate_text("parameter value", value),
-        MiningParameterValue::Utf8List(values) => {
-            for value in values {
-                validate_text("parameter list value", value)?;
-            }
-            Ok(())
-        }
+        MiningParameterValue::Utf8(_) | MiningParameterValue::Utf8List(_) => Ok(()),
         MiningParameterValue::Bool(_)
         | MiningParameterValue::I64(_)
         | MiningParameterValue::U64(_) => Ok(()),
@@ -1356,7 +1364,6 @@ fn validate_consumption(
         ("node", consumption.nodes, limits.max_nodes),
         ("edge", consumption.edges, limits.max_edges),
         ("depth", consumption.depth, limits.max_depth),
-        ("time", consumption.time_ms, limits.max_time_ms),
     ] {
         if observed > limit {
             return Err(MiningError::Limit {
@@ -1365,6 +1372,15 @@ fn validate_consumption(
                 observed,
             });
         }
+    }
+    if let Some(observed) = consumption.observed_time_ms
+        && observed > limits.max_time_ms
+    {
+        return Err(MiningError::Limit {
+            kind: "observed time",
+            limit: limits.max_time_ms,
+            observed,
+        });
     }
     let bytes = consumption
         .bytes_read
@@ -1852,7 +1868,10 @@ fn add_consumption(hasher: &mut SemanticHasher, consumption: &MiningConsumption)
     hasher.add_u64(consumption.depth);
     hasher.add_u64(consumption.bytes_read);
     hasher.add_u64(consumption.bytes_written);
-    hasher.add_u64(consumption.time_ms);
+    hasher.add_bool(consumption.observed_time_ms.is_some());
+    if let Some(observed_time_ms) = consumption.observed_time_ms {
+        hasher.add_u64(observed_time_ms);
+    }
 }
 
 fn add_optional_contract(hasher: &mut SemanticHasher, value: Option<&ContractIdentity>) {

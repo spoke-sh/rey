@@ -418,10 +418,11 @@ No compatibility alias or decoder silently relabels the superseded schemas.
 The implemented slice uses two small fixture workloads, finite graphs composed
 from built-in deterministic operations, and reviewed scenarios. It exercises
 all four commands without an agent or Spoke. The next slice may derive a
-workload frontier from the retained failing delta and expose bounded mining
-operation/result contracts through the same frozen graph and reasoning-surface
-boundary. Plan 0006 starts with source search/retrieval, relational match
-projection, text and relational deltas, and evidence-linked visualization
-before AST/CST or semantic-index adapters. Generic distributed scheduling,
-arbitrary code execution, a recurring service, a persistence engine, and
-provider-specific policy loops remain outside this boundary.
+workload frontier from the retained failing delta and expose the implemented
+built-in source-search operation/result through the same frozen graph and
+reasoning-surface boundary. Plan 0006 has completed the explicit local corpus,
+literal search, and relational match foundation; text and relational deltas,
+evidence-linked visualization, and workload integration remain before AST/CST
+or semantic-index adapters. Generic distributed scheduling, arbitrary code
+execution, a recurring service, a persistence engine, and provider-specific
+policy loops remain outside this boundary.

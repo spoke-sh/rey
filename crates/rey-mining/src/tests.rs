@@ -142,7 +142,7 @@ fn consumption() -> MiningConsumption {
         depth: 1,
         bytes_read: 128,
         bytes_written: 128,
-        time_ms: 2,
+        observed_time_ms: None,
     }
 }
 

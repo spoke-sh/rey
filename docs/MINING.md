@@ -272,13 +272,30 @@ Current Rey discovers the allowlisted `rg` and `git` executables by bounded
 identity probes, observes part of one Git repository, operates on typed
 capability frames, implements narrow UTF-8 scenario deltas, and exposes
 canonical `rey.mining-operation.v1`, `rey.mining-request.v1`, and
-`rey.mining-result.v1` manifests. Their constructors and replay verification
-bind exact workload/frontier rationale, provider and capability identity,
+`rey.mining-result.v2` manifests. Result v2 makes observed wall time optional
+so a deterministic pure projection does not acquire a timing-dependent
+identity while a tool-backed probe may retain measured time. Constructors and
+replay verification bind exact workload/frontier rationale, provider and
+capability identity,
 typed parameters, native or structured artifact references, effective limits,
 completeness, omissions, consumption, lineage, and invalidation dependencies.
-Rey does not yet execute `rg` as a mining provider, compare arbitrary source
-artifacts, parse ASTs/CSTs, build a semantic index, or render general tree/graph
-visualizations.
+
+`rey-environment` now implements `rey.source-corpus.v1`, the
+`rey.source-search.literal-utf8` operation, and the `rey.source-matches`
+version `1` relation. One explicit file set beneath a canonical local root is
+bound by reversible path identity and exact native content digests. The
+built-in read-only probe revalidates the mutable local source before and after
+deterministically searching frozen bytes for non-empty case-sensitive UTF-8
+literals. It retains exact native context slices and emits
+one-based line plus zero-based byte spans and deep links. File, byte, line,
+path, match, row, context, string, output, and time boundaries remain explicit;
+binary and invalid UTF-8 inputs, truncation, malformed parameters, symlinks,
+path escapes, and source drift fail closed or produce typed incomplete results.
+
+Rey does not yet execute `rg` as a mining provider, support regex/case-folded
+search, compare arbitrary source artifacts, parse ASTs/CSTs, build a semantic
+index, or render general tree/graph visualizations. The baseline is a library
+provider and is not yet a workload graph node or public CLI resource.
 
 Plan 0006 starts with one end-to-end standalone slice:
 

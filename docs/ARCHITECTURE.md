@@ -582,8 +582,11 @@ The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts
 accepted by ADR 0017. Canonical semantic identities include evidence-changing
 parameters and effective limits; replay verification rejects tampering and
-request, provider, capability, or implementation drift. No admitted `rg`
-search, arbitrary text/structural delta, parser/index provider, concrete
-visualization specification, or end-to-end mining workload is implemented yet.
-Plan 0006 owns that first provider slice before AST/CST, semantic-index, broad
-metric, or generic scheduling work.
+request, provider, capability, or implementation drift. `rey-environment` now
+implements an exact explicit local corpus binding, deterministic case-sensitive
+UTF-8 literal search, native context retention, and the typed
+`rey.source-matches` relation through those manifests. No admitted `rg`
+search, regex/case-folded search, arbitrary text/structural delta, parser/index
+provider, concrete visualization specification, or end-to-end mining workload
+is implemented yet. Plan 0006 owns those remaining slices before AST/CST,
+semantic-index, broad metric, or generic scheduling work.

@@ -2456,9 +2456,11 @@ dependencies = [
 name = "rey-environment"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "polars",
  "rey-core",
  "rey-dataframe",
+ "rey-mining",
  "rustix",
  "serde",
  "serde_json",

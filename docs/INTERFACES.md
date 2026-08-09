@@ -4,9 +4,10 @@ This document sketches Rey's user, environment, policy, and Spoke interfaces.
 The implemented CLI includes the standalone environment
 snapshot/delta/certificate loop, local-only proof bundles, and the first
 built-in workload slice fixed by ADR 0016. Generic workload declarations,
-provider-backed mining operations, graph proposal policy, and connected Spoke
+workload-wired mining operations, graph proposal policy, and connected Spoke
 behavior remain provisional. ADR 0017 fixes the common relational/source
-mining boundary; Plan 0006 will select its first executable schemas.
+mining boundary; Plan 0006 now implements its first local source corpus,
+literal-search, and typed match schemas as library contracts.
 
 ## Interface Principles
 
@@ -226,9 +227,13 @@ a human view may render a table, patch, tree, graph, timeline, or metric panel.
 Both record source artifact identities, selection, grouping, ordering,
 aggregation, context, elision, sampling, limits, and omissions.
 
-Exact schema names and encodings are Plan 0006 decisions. The implementation
-must not advertise generic mining schemas until fixtures prove canonical
-identity, bounds, completeness, deterministic replay, and source drift.
+The implemented library schemas are `rey.source-corpus.v1`,
+`rey.source-search.literal-utf8`, and `rey.source-matches` version `1`. They
+have no peer top-level CLI resource. Fixtures prove canonical identity, native
+source binding, typed empty matches, bounds, completeness, Arrow/JSON replay,
+and source drift. Regex, case folding, directory/glob selection, external
+`rg`, text delta, visualization, and workload integration remain Plan 0006
+work.
 
 ## Standard Streams
 

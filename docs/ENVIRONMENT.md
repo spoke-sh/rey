@@ -10,7 +10,9 @@ Spoke discovery, action admission, and other tool adapters remain Plan 0001
 work. ADRs 0010 and 0011 add capability deltas, required-capability
 certificates, and bounded local-only bundle retention over this relation. ADR
 0017 classifies relational and source mining operations as first-class
-capabilities; Plan 0006 owns their first admitted executable slice.
+capabilities. Plan 0006 now implements the first deterministic built-in local
+source binding and literal-search capability; external `rg`, parser, index,
+and Spoke mining adapters remain later slices.
 
 ## Terms
 
@@ -145,8 +147,10 @@ delta.relational · delta.text · delta.structural
 visualize.table · visualize.patch · visualize.tree · visualize.graph
 ```
 
-These names are an architectural vocabulary, not implemented stable ids. Plan
-0006 must version exact ids and schemas before code advertises them.
+Most names remain architectural vocabulary. The implemented baseline
+advertises exact capability `source.search.literal-utf8`, operation
+`rey.source-search.literal-utf8`, corpus schema `rey.source-corpus.v1`, and
+match relation `rey.source-matches` version `1`.
 
 An adapter records its accepted source kinds, output artifact/schema kinds,
 canonical parameters, encoding/language support, completeness behavior,
@@ -171,6 +175,30 @@ Exact immutable retrieval may be allowed as a read-only orientation operation.
 Reading mutable state or invoking an external miner is a probe and requires
 normal action admission. Pure projection over already frozen evidence needs no
 new source authority but still binds its operation revision and limits.
+
+### Built-In Local Source Baseline
+
+The standalone snapshot advertises a compiled deterministic literal-search
+baseline separately from the generic `rg` identity probe. Callers explicitly
+select regular files beneath one canonical root. Binding rejects absolute,
+parent, empty, duplicate, non-regular, escaping, and symlinked paths; applies
+file, total-byte, line, path, and file-count limits; reads twice to reject drift
+during binding; classifies UTF-8, binary, and invalid UTF-8 bytes; and retains
+native frozen bytes beside a credential-free corpus manifest.
+
+The search operation accepts an exact corpus artifact, non-empty
+case-sensitive UTF-8 literal, and before/after context-line counts. It uses
+non-overlapping byte matches in reversible path then start-byte order. Match
+rows retain source, pattern, context, request, result, provider, capability,
+and implementation identity. Pre- and post-search source checks prevent one
+result from combining file revisions. The provider exposes complete, partial,
+truncated, unsupported, and failed outcomes rather than silently omitting
+binary, invalid, over-limit, malformed, or changed sources.
+
+This provider trusts the local process and is not a filesystem sandbox. It
+does not apply ignore files, generated-file policy, globs, regular expressions,
+case folding, arbitrary directory traversal, or `rg` semantics. Those
+capabilities require their own exact operation revision and parity fixtures.
 
 ## Spoke Provider
 

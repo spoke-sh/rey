@@ -310,14 +310,17 @@ snapshot deltas, Arrow and Tabular Diff projections, scoped capability
 certificates, bounded local proof bundles, a formal runtime reducer, canonical
 frontier/progress/scheduling contracts, bounded reasoning-surface contracts,
 the first deterministic workload CLI slice, and provider-neutral mining
-operation/request/result manifests with canonical replay verification.
+operation/request/result manifests with canonical replay verification. The
+standalone environment now also advertises a built-in literal source-search
+capability over explicitly bound local corpora; it retains native bytes and
+projects exact matches and context spans as a typed Arrow-capable frame.
 
-Mining now has a narrow implemented contract plane, but no source-search or
-relational provider executes through it yet. The next bearing in
-[Plan 0006](plans/0006-mining-strategy.md) is to freeze one exact local source
-binding and bounded search provider, then produce typed match evidence and
-native context through the same verified request/result contract before adding
-AST/CST adapters, semantic indexes, broad metrics, or generic scheduling.
+Mining now has its first deterministic zero-Spoke provider path, but it is not
+wired into a workload graph or CLI projection and does not invoke `rg`. The
+next bearing in [Plan 0006](plans/0006-mining-strategy.md) is to complete the
+source-search semantic surface needed for provider parity, then compare the
+typed match relation and native ordered text before adding AST/CST adapters,
+semantic indexes, broad metrics, or generic scheduling.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

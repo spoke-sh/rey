@@ -20,10 +20,10 @@ durable index, or an agent loop.
   completeness, dependency, limit, and visualization contracts.
 - [x] Decide narrow crate ownership and add `rey-mining` only if the accepted
   contracts justify it without a dependency cycle.
-- [ ] Freeze one exact local source-binding and read-only source-search
+- [x] Freeze one exact local source-binding and read-only source-search
   provider contract, including admitted `rg` behavior or a deterministic
   built-in baseline.
-- [ ] Project bounded search matches as a typed frame while retaining native
+- [x] Project bounded search matches as a typed frame while retaining native
   source/context artifacts and exact deep links.
 - [ ] Implement authoritative ordered text delta semantics and reuse the
   generic relational delta contract where it is actually complete.
@@ -54,13 +54,20 @@ Implemented foundations already provide:
   contracts; and
 - local-only scoped proof bundles.
 
-The repository does not yet execute `rg` as a mining provider, compare
-arbitrary ordered text, derive a
-frontier from workload scenario deltas, retrieve provider evidence into a
-reasoning surface, parse syntax, build a semantic index, or render general
-tree/graph visualizations.
+The first built-in provider now binds an explicit checked-in or caller-selected
+file corpus beneath one canonical local root, retains exact native bytes,
+searches case-sensitive UTF-8 literals, and emits `rey.source-matches` version
+`1` with reversible path, source, pattern, byte/line span, context, provider,
+request, and result lineage. Capability discovery advertises the operation
+separately from the unadmitted `rg` identity probe.
 
-`rey-mining` now implements canonical v1 operation, request, and result
+The repository does not yet execute `rg` as a mining provider, compare
+arbitrary ordered text, support regex/case-folded search, derive a frontier
+from workload scenario deltas, retrieve provider evidence into a reasoning
+surface, parse syntax, build a semantic index, or render general tree/graph
+visualizations.
+
+`rey-mining` now implements canonical v1 operation/request and v2 result
 manifests. They bind typed parameters, exact artifact/provider/capability
 identity, effective limits, completeness and omissions, consumption, realized
 implementation lineage, invalidation dependencies, and workload/frontier
@@ -89,29 +96,29 @@ tampering and stale request, provider, capability, or implementation bindings.
 
 ## Milestone 2 — Source Binding And Search
 
-- [ ] Select an explicit fixture workspace/corpus beneath a canonical allowed
+- [x] Select an explicit fixture workspace/corpus beneath a canonical allowed
   root and define exact source identity before retrieval.
-- [ ] Implement bounded native text retrieval with file, byte, line,
+- [x] Implement bounded native text retrieval with file, byte, line,
   context-window, encoding, and symlink/path-escape rules.
 - [ ] Implement one source-search operation with canonical literal/regex,
   case, path, context, and limit parameters.
 - [ ] If using `rg`, freeze path, version, digest/provenance, trust, exact argv,
   cwd, environment, output format, time/capture limits, and parser behavior
   before admission.
-- [ ] Provide a deterministic in-process baseline or reviewed fixtures so tool
+- [x] Provide a deterministic in-process baseline or reviewed fixtures so tool
   behavior can be tested without confusing availability with semantics.
-- [ ] Detect source drift between binding and retrieval and emit stale or
+- [x] Detect source drift between binding and retrieval and emit stale or
   inconclusive evidence rather than combining revisions.
-- [ ] Make ignored/generated/binary/invalid-encoding and unsupported cases
+- [x] Make ignored/generated/binary/invalid-encoding and unsupported cases
   explicit.
 
 ## Milestone 3 — Typed Match Relation And Grouping
 
-- [ ] Define a match relation with reversible path/source identity, byte and
+- [x] Define a match relation with reversible path/source identity, byte and
   line spans, pattern/capture identity, context artifact references, and
   provider/result lineage.
-- [ ] Preserve a typed empty match frame with exact schema and source binding.
-- [ ] Define stable unique keys and canonical order without relying on lossy
+- [x] Preserve a typed empty match frame with exact schema and source binding.
+- [x] Define stable unique keys and canonical order without relying on lossy
   display paths or nondeterministic tool order.
 - [ ] Add one bounded grouping/summary projection whose contributing match
   scope remains traceable.

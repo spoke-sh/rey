@@ -83,6 +83,22 @@ exists.
   label.
 - Prefer generated evidence and focused tests over prose-only claims.
 
+## Human Verification Invariant
+
+- Bind every feature slice to a high-fidelity human interface in the `rey`
+  CLI before treating the feature as complete. A human must be able to invoke
+  or inspect the behavior and verify the relevant inputs, progress, results,
+  directed deltas, evidence, omissions, limits, and revision lineage without
+  reading implementation code.
+- Preserve structured output for automation, but do not treat structured data,
+  internal APIs, unit tests, or provider capability advertisement alone as the
+  user-facing verification surface. Design the human rendering and its
+  verbosity levels as part of the feature contract.
+- When foundational work cannot yet support that CLI surface, label it
+  explicitly as incomplete enabling work. Do not report the feature or bearing
+  complete, and close the end-to-end CLI verification path before broadening
+  the implementation into additional capabilities.
+
 ## Target System Shape
 
 The implemented and target ownership map is:
@@ -187,6 +203,8 @@ update the stale artifact in the same change.
 - Cross-project work needs a conformance artifact that can direct the next
   change in Rey or Spoke without importing either repository's internals.
 - CLI changes need stdout, stderr, structured output, and exit-code tests.
+- Feature proof must exercise the high-fidelity human CLI path in addition to
+  lower-level contract and provider tests.
 - Performance claims need named workloads and preserved comparison results.
 
 ## Hygiene

@@ -1,0 +1,3 @@
+delta directs the next bearing
+mining turns context into evidence
+the unresolved delta remains visible

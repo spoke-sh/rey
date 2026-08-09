@@ -153,6 +153,15 @@ limit contracts. The crate adds no third-party dependency beyond the existing
 Serde, BLAKE3 identity, and error closure; it is not a query engine, parser
 bundle, tool runner, visualization library, or persistence layer.
 
+The first source provider reuses the workspace's existing `base64` dependency
+for reversible Unix-byte and Windows-UTF-16LE path identities and the existing
+Polars/Arrow closure for the typed match relation. It adds no regex, parser,
+process, traversal, storage, or rendering dependency. Deterministic pure
+projections leave optional observed wall time absent from semantic consumption;
+tool-backed probes may record it explicitly. That semantic correction is the
+pre-alpha `rey.mining-result.v2` hard cut; operation and request remain v1 and
+no compatibility alias silently relabels the earlier result document.
+
 The first mining implementation should prefer existing Polars/Arrow, Serde,
 BLAKE3, and bounded-process infrastructure. A parser framework, regex engine,
 tree/graph library, visualization library, async runtime, database, or broader
