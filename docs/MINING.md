@@ -365,6 +365,14 @@ inputs; `test -vv` opens reviewed refine/retest/create/block/exclusion/clean
 scenarios with exact relation identities; and an input-free qualified `run`
 re-evaluates the retained catalog, workload results, and environment snapshot.
 
+Plan 0017 defines the next mining family: admitted survey workloads emit
+content-identified topography patches. A patch retains locator candidates,
+typed resolution outcomes, provider-qualified coordinate anchors, classified
+relationships, surveyed regions, coverage, frontier, omissions, completeness,
+lineage, and a directed delta against a prior map revision. Explorer is a
+deterministic visual projection of those artifacts. It does not mine, resolve,
+or interpolate semantic terrain on its own.
+
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,
 parse ASTs/CSTs, build a semantic index, or render general tree/graph

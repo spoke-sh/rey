@@ -34,7 +34,7 @@ Rey uses this ordered context lifecycle:
 3. **Survey.** Admitted native locators identify exact anchors for source,
    environment, Git, workload, and provider evidence. Locators identify; they
    do not retrieve, authorize, or prove. A future `rey-locator` library owns
-   canonical parsing, normalization, resolution dispatch, and matrix-style
+   canonical parsing, normalization, resolution dispatch, and canonical query
    dimensions. Provider-owned Spoke locators remain opaque to Rey and may use
    schemes such as `spoke+local://...`.
 4. **Process.** Rey incrementally processes artifacts produced by survey and

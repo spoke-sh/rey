@@ -170,7 +170,7 @@ enum JournalCommand {
 
 #[derive(Debug, Args)]
 struct JournalAddArgs {
-    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v1.
+    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v2.
     proposal: PathBuf,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
@@ -1672,7 +1672,8 @@ fn write_journal_admission(
             entry.author.id
         ),
     )?;
-    write_portfolio_field(output, "Explore", &entry.binding.coordinate)?;
+    write_portfolio_field(output, "Coordinate", &entry.binding.coordinate)?;
+    write_portfolio_field(output, "Scale", &entry.binding.scale.to_string())?;
     write_portfolio_field(output, "Document", &format!("/journal/{}", entry.slug()))?;
     write_portfolio_field(output, "Blocks", &entry.blocks.len().to_string())?;
     write_portfolio_field(output, "Identity", entry.entry_id.as_str())?;
@@ -1704,7 +1705,11 @@ fn write_journal_log(output: &mut impl Write, log: &JournalLog) -> Result<(), Cl
             journal_author_kind(entry.author.kind),
             entry.author.id
         )?;
-        writeln!(output, "  {}", entry.binding.coordinate)?;
+        writeln!(
+            output,
+            "  {} · scale {}",
+            entry.binding.coordinate, entry.binding.scale
+        )?;
         writeln!(output, "  /journal/{}", entry.slug())?;
         writeln!(
             output,

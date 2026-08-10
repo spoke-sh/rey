@@ -1,6 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { shortDigest, type WorkloadList } from "./domain";
-import { explorerCoordinatePath } from "./explorer-coordinate";
+import {
+  explorerCoordinateUri,
+  explorerViewPath,
+  parseExplorerCoordinate,
+} from "./explorer-coordinate";
+import { DEFAULT_LENS_ZOOM } from "./topology";
 import { journalStyles as styles } from "./stylex/journal.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -14,6 +19,7 @@ export interface JournalAuthor {
 
 export interface JournalBinding {
   coordinate: string;
+  scale: number;
   source_revision: string;
 }
 
@@ -33,6 +39,7 @@ export type JournalBlock =
       kind: "explore";
       id: string;
       coordinate: string;
+      scale: number;
       source_revision: string;
       caption: string | null;
     }
@@ -74,7 +81,7 @@ export type JournalBlock =
     };
 
 export interface JournalEntryProposal {
-  schema: "rey.journal-entry-proposal.v1";
+  schema: "rey.journal-entry-proposal.v2";
   title: string;
   author: JournalAuthor;
   binding: JournalBinding;
@@ -83,7 +90,7 @@ export interface JournalEntryProposal {
 }
 
 export interface RetainedJournalEntry {
-  schema: "rey.journal-entry.v1";
+  schema: "rey.journal-entry.v2";
   entry_id: string;
   sequence: number;
   admitted_at: string;
@@ -95,20 +102,20 @@ export interface RetainedJournalEntry {
 }
 
 export interface JournalLog {
-  schema: "rey.journal-log.v1";
+  schema: "rey.journal-log.v2";
   log_id: string;
   entries: RetainedJournalEntry[];
 }
 
 export interface JournalProjection {
-  schema: "rey.ui-journal.v2";
+  schema: "rey.ui-journal.v3";
   write_enabled: boolean;
   authority: "unauthenticated_journal_admission";
   log: JournalLog;
 }
 
 export interface JournalAdmission {
-  schema: "rey.journal-admission.v1";
+  schema: "rey.journal-admission.v2";
   admitted: boolean;
   entry: RetainedJournalEntry;
   log: JournalLog;
@@ -117,14 +124,22 @@ export interface JournalAdmission {
 export function defaultJournalBinding(portfolio: WorkloadList): JournalBinding {
   const sourceRevision = portfolio.attention.source_snapshot_id;
   return {
-    coordinate: explorerCoordinatePath({
+    coordinate: explorerCoordinateUri({
+      scheme: "rey+local",
       kind: "portfolio",
       identity: "current",
-      lens: "landscape",
-      at: sourceRevision,
+      revision: sourceRevision,
     }),
+    scale: DEFAULT_LENS_ZOOM,
     source_revision: sourceRevision,
   };
+}
+
+export function journalBindingPath(binding: JournalBinding): string {
+  const coordinate = parseExplorerCoordinate(binding.coordinate);
+  return coordinate
+    ? explorerViewPath({ coordinate, scale: binding.scale })
+    : "/explore";
 }
 
 export function journalEntrySlug(entry: RetainedJournalEntry): string {
@@ -228,7 +243,10 @@ export function JournalEntryDocument({
       <footer className={sx(styles.entryBinding)}>
         <span className={sx(chrome.micro)}>EXACT EXPLORE BINDING</span>
         <code>{entry.binding.source_revision}</code>
-        <a className={sx(styles.exploreLink)} href={entry.binding.coordinate}>
+        <a
+          className={sx(styles.exploreLink)}
+          href={journalBindingPath(entry.binding)}
+        >
           OPEN MAP →
         </a>
       </footer>
@@ -256,7 +274,7 @@ function JournalBlockView({ block }: { block: JournalBlock }) {
         <BlockHeader id={block.id} kind="EXPLORE MAP" />
         <strong>{block.caption ?? "Bound context topology"}</strong>
         <code className={sx(styles.coordinate)}>{block.coordinate}</code>
-        <a className={sx(styles.exploreLink)} href={block.coordinate}>
+        <a className={sx(styles.exploreLink)} href={journalBindingPath(block)}>
           ENTER LENS →
         </a>
       </section>
@@ -415,6 +433,7 @@ export function JournalComposer({
         kind: "explore",
         id: "map",
         coordinate: binding.coordinate,
+        scale: binding.scale,
         source_revision: binding.source_revision,
         caption: "Context at admission",
       },
@@ -432,7 +451,7 @@ export function JournalComposer({
     }
     try {
       await onAdmit({
-        schema: "rey.journal-entry-proposal.v1",
+        schema: "rey.journal-entry-proposal.v2",
         title: title.trim(),
         author: { kind: "human", id: author.trim() },
         binding,
@@ -497,6 +516,7 @@ export function JournalComposer({
       <div className={sx(styles.bindingCell)}>
         <span className={sx(chrome.micro)}>EXPLORE MAP / EXACT BINDING</span>
         <code>{binding.coordinate}</code>
+        <code>SCALE / {binding.scale}</code>
       </div>
       {queryOpen ? (
         <div className={sx(styles.queryComposer)}>

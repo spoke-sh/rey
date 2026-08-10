@@ -6,6 +6,7 @@ import {
   CommunicationBackdrop,
   ConversationSurface,
   isViewportLockedPath,
+  normalizeExplorerSearch,
   normalizeFeedSearch,
   PRIMARY_NAV_ITEMS,
   router,
@@ -71,7 +72,7 @@ describe("operator routes", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("matches feed, cadence, agents, Journal documents, and Explorer coordinates", () => {
+  it("matches feed, cadence, agents, Journal documents, and coordinate views", () => {
     expect(router.matchRoutes("/feed").at(-1)?.routeId).toBe("/feed");
     expect(router.matchRoutes("/cadence").at(-1)?.routeId).toBe("/cadence");
     expect(router.matchRoutes("/agents").at(-1)?.routeId).toBe("/agents");
@@ -85,15 +86,17 @@ describe("operator routes", () => {
     expect(journal?.params).toMatchObject({
       slug: "j1-context--blake3-entry",
     });
-    const coordinate = router
-      .matchRoutes(
-        "/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness",
-      )
-      .at(-1);
-    expect(coordinate?.routeId).toBe("/explore/$kind/$coordinate");
-    expect(coordinate?.params).toMatchObject({
-      kind: "agent",
-      coordinate: "codex;at=gpt-5;lens=objects;role=coding_harness",
+    const coordinate = router.matchRoutes("/explore").at(-1);
+    expect(coordinate?.routeId).toBe("/explore");
+    expect(
+      normalizeExplorerSearch({
+        coordinate:
+          "rey+local://agent/codex?revision=gpt-5&role=coding_harness",
+        scale: "1.46",
+      }),
+    ).toEqual({
+      coordinate: "rey+local://agent/codex?revision=gpt-5&role=coding_harness",
+      scale: "1.46",
     });
   });
 });

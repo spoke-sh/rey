@@ -4,6 +4,8 @@
 - Date: 2026-08-10
 - Extends: [ADR 0037](0037-explore-bound-collaboration-journal.md)
 - Supersedes: the loopback-only, exact-origin browser admission constraint in ADR 0037
+- Extended by: [ADR 0041](0041-continuous-coordinate-topography.md), which
+  advances the Journal projection to `rey.ui-journal.v3`
 
 ## Context
 

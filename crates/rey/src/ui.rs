@@ -25,7 +25,7 @@ const UI_SERVER_SCHEMA: &str = "rey.ui-server.v3";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v2";
-const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
+const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v3";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
@@ -162,7 +162,7 @@ struct UiCadenceProjection {
     omissions: Vec<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 struct UiJournalProjection {
     schema: String,
     write_enabled: bool,
@@ -832,17 +832,18 @@ mod tests {
 
         let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
         assert!(journal.starts_with("HTTP/1.1 200"));
-        assert!(journal.contains("\"schema\":\"rey.ui-journal.v2\""));
+        assert!(journal.contains("\"schema\":\"rey.ui-journal.v3\""));
         assert!(journal.contains("\"write_enabled\":true"));
         assert!(journal.contains("\"authority\":\"unauthenticated_journal_admission\""));
         assert!(journal.contains("\"entries\":[]"));
 
         let proposal = serde_json::json!({
-            "schema": "rey.journal-entry-proposal.v1",
+            "schema": "rey.journal-entry-proposal.v2",
             "title": "Bind the Journal",
             "author": { "kind": "human", "id": "operator" },
             "binding": {
-                "coordinate": "/explore/portfolio/current;at=blake3%3Aportfolio;lens=landscape",
+                "coordinate": "rey+local://portfolio/current?revision=blake3%3Aportfolio",
+                "scale": 0.68,
                 "source_revision": "blake3:portfolio"
             },
             "blocks": [{
@@ -887,7 +888,7 @@ mod tests {
             &proposal,
         );
         assert!(admitted.starts_with("HTTP/1.1 200"));
-        assert!(admitted.contains("\"schema\":\"rey.journal-admission.v1\""));
+        assert!(admitted.contains("\"schema\":\"rey.journal-admission.v2\""));
         assert!(admitted.contains("\"admitted\":false"));
         assert!(admitted.contains("\"kind\":\"human\""));
 
@@ -920,7 +921,7 @@ mod tests {
         assert!(application.contains("NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY"));
         assert!(application.contains("MAILBOX"));
         assert!(application.contains("INSPECT EVIDENCE"));
-        assert!(application.contains("explore/$kind/$coordinate"));
+        assert!(application.contains("rey+local://"));
         assert!(application.contains("NO CURRENT OBJECT SATISFIES THIS IDENTITY"));
         assert!(application.contains("--kinetic-control-press-x"));
         assert!(application.contains("--kinetic-light-highlight"));
@@ -990,7 +991,7 @@ mod tests {
 
         let coordinate = request(
             &address,
-            "GET /explore/agent/codex;at=gpt-5;lens=objects HTTP/1.1",
+            "GET /explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=1.46 HTTP/1.1",
         );
         assert!(coordinate.starts_with("HTTP/1.1 200"));
         assert!(coordinate.contains("<title>Rey / Explore</title>"));

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { WorkloadList } from "./domain";
 import {
-  agentExplorerCoordinate,
-  explorerCoordinatePath,
+  agentExplorerView,
+  explorerCoordinateUri,
+  explorerViewPath,
   parseExplorerCoordinate,
-  resolveExplorerCoordinate,
+  parseExplorerView,
+  resolveExplorerView,
 } from "./explorer-coordinate";
 
 const portfolio: WorkloadList = {
@@ -80,9 +82,9 @@ const portfolio: WorkloadList = {
   },
 };
 
-describe("Explorer matrix coordinates", () => {
-  it("serializes canonical named dimensions while parsing any parameter order", () => {
-    const coordinate = agentExplorerCoordinate({
+describe("Explorer coordinate views", () => {
+  it("separates the semantic coordinate from continuous view scale", () => {
+    const view = agentExplorerView({
       id: "coding_harness:codex@gpt-5",
       kind: "coding_harness",
       producer: "codex",
@@ -93,51 +95,66 @@ describe("Explorer matrix coordinates", () => {
       scenarios_required: 2,
       attention_rows: 0,
     });
-    expect(explorerCoordinatePath(coordinate)).toBe(
-      "/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness",
+    expect(explorerCoordinateUri(view.coordinate)).toBe(
+      "rey+local://agent/codex?revision=gpt-5&role=coding_harness",
+    );
+    expect(explorerViewPath(view)).toBe(
+      "/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=1.46",
     );
     expect(
-      parseExplorerCoordinate(
-        "agent",
-        "codex;role=coding_harness;lens=objects;at=gpt-5",
-      ),
-    ).toEqual(coordinate);
+      parseExplorerView(explorerCoordinateUri(view.coordinate), "1.46"),
+    ).toEqual(view);
   });
 
-  it("rejects ambiguous, duplicate, and unknown matrix dimensions", () => {
-    expect(
-      parseExplorerCoordinate("agent", "codex;lens=objects;at=gpt-5"),
-    ).toBeNull();
+  it("rejects matrix routes and non-canonical or ambiguous coordinates", () => {
     expect(
       parseExplorerCoordinate(
-        "agent",
-        "codex;role=coding_harness;role=human;lens=objects",
+        "/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness",
       ),
     ).toBeNull();
     expect(
-      parseExplorerCoordinate("workload", "rey.example;zoom=2"),
+      parseExplorerCoordinate(
+        "rey+local://agent/codex?revision=gpt-5&role=coding_harness&role=human",
+      ),
     ).toBeNull();
     expect(
-      parseExplorerCoordinate("workload", "rey.example;lens=objects"),
+      parseExplorerCoordinate(
+        "rey+local://workload/rey.example?revision=workload%3A1&zoom=2",
+      ),
+    ).toBeNull();
+    expect(
+      parseExplorerCoordinate("rey+local://workload/rey.example?role=human"),
+    ).toBeNull();
+    expect(
+      parseExplorerCoordinate(
+        "rey+local://agent/codex?role=coding_harness&revision=gpt-5",
+      ),
+    ).toBeNull();
+    expect(
+      parseExplorerView(
+        "rey+local://workload/rey.example?revision=workload%3A1",
+        "1.460",
+      ),
     ).toBeNull();
   });
 
   it("resolves exact current bindings and exposes stale coordinates", () => {
-    const current = parseExplorerCoordinate(
-      "workload",
-      "rey.example;at=workload%3A1;lens=objects",
+    const current = parseExplorerView(
+      "rey+local://workload/rey.example?revision=workload%3A1",
+      "1.46",
     );
-    const stale = parseExplorerCoordinate(
-      "workload",
-      "rey.example;at=workload%3A0;lens=objects",
+    const stale = parseExplorerView(
+      "rey+local://workload/rey.example?revision=workload%3A0",
+      "1.46",
     );
-    expect(
-      current && resolveExplorerCoordinate(portfolio, current),
-    ).toMatchObject({ focus_id: "workload:rey.example", status: "current" });
-    expect(stale && resolveExplorerCoordinate(portfolio, stale)).toMatchObject({
+    expect(current && resolveExplorerView(portfolio, current)).toMatchObject({
+      focus_id: "workload:rey.example",
+      status: "current",
+    });
+    expect(stale && resolveExplorerView(portfolio, stale)).toMatchObject({
       focus_id: "workload:rey.example",
       status: "stale",
-      actual_at: "workload:1",
+      actual_revision: "workload:1",
     });
   });
 });

@@ -66,7 +66,7 @@ The current UI leaves every agent assignment explicit as `UNASSIGNED`; it does
 not infer assignment from generator provenance or executable presence.
 
 Workload generation tuples remain exact provenance and continue to support the
-existing v1 Explorer agent coordinates until a surveyed runtime locator and
+semantic Explorer agent coordinates until a surveyed runtime locator and
 task-assignment contract supersede that coordinate source. `/agents` does not
 present those tuples as the available runtime inventory.
 

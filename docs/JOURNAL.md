@@ -20,16 +20,16 @@ observation, or let an author qualify its own claim.
 
 ## Entry Contract
 
-`rey.journal-entry-proposal.v1` is the authored contract. Admission derives a
-content identity and produces `rey.journal-entry.v1`; the ordered retained
-collection is `rey.journal-log.v1`.
+`rey.journal-entry-proposal.v2` is the authored contract. Admission derives a
+content identity and produces `rey.journal-entry.v2`; the ordered retained
+collection is `rey.journal-log.v2`.
 
 | Field | Meaning |
 | --- | --- |
 | `schema` | Exact proposal schema |
 | `title` | Human-readable entry identity, 1–240 characters |
 | `author` | Typed `human`, `agent`, or `system` identity |
-| `binding` | Canonical Explorer coordinate plus the exact source revision encoded by its `at` dimension |
+| `binding` | Canonical semantic coordinate, numeric Explorer scale, and the matching exact source revision |
 | `supersedes` | Optional identity of an earlier retained entry; history is never rewritten |
 | `blocks` | Ordered bounded document of 1–32 typed blocks |
 
@@ -38,16 +38,22 @@ The entry identity is derived from the canonical proposal rather than its
 admission time. Re-admitting identical content is idempotent and returns the
 existing entry. A supersession must point backward within the same log.
 
-Every entry coordinate uses the canonical Explorer grammar:
+Every entry binding keeps semantic address and presentation state separate:
 
 ```text
-/explore/{kind}/{identity};at={revision};lens={regime}[;role={agent-role}]
+coordinate: rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
+scale:      0.55..=2
 ```
 
-Matrix dimensions are lexically ordered. The decoded `at` value must equal
-`binding.source_revision`. The binding may intentionally name historical
-context; Explorer resolution, rather than journal admission, determines
-whether that exact context is current, stale, or missing.
+Coordinate dimensions are lexically ordered `revision`, `role`. The decoded
+`revision` must equal `binding.source_revision`; `scale` must be finite within
+the current Explorer bound. The UI derives
+`/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}`.
+The former matrix grammar and all Journal v1 documents are rejected with no
+dual reader or automatic migration. The binding may intentionally name
+historical context; Explorer resolution determines whether it is current,
+stale, or missing. See [ADR
+0041](decisions/0041-continuous-coordinate-topography.md).
 
 ## Document Addresses
 
@@ -82,7 +88,7 @@ typed data, never arbitrary HTML or executable browser content.
 | Block | Purpose | Important bounds |
 | --- | --- | --- |
 | `prose` | WYSIWYG-style notebook nodes: heading, paragraph, bullet, quote, or code | 1–128 nodes; 64 KiB total text |
-| `explore` | Embedded map/lens reference with its own exact source revision | Canonical coordinate; optional caption |
+| `explore` | Embedded map/lens reference with its own exact source revision | Semantic coordinate; numeric scale; optional caption |
 | `query` | SQL or another provider query declaration | `mode` must be `read_only`; 32 KiB statement; admission never executes it |
 | `frame` | Bounded tabular result preview tied to an earlier query block and immutable snapshot | 64 typed columns; 100 preview rows; explicit nulls, row count, and truncation |
 | `diff` | Directed comparison between exact source and target locators | Explicit direction and `equal`, `different`, or `inconclusive` assessment |
@@ -148,13 +154,14 @@ the currently implemented Journal commands or HTTP endpoint.
 ## Example Agent Proposal
 
 ```yaml
-schema: rey.journal-entry-proposal.v1
+schema: rey.journal-entry-proposal.v2
 title: Source coverage moved after survey
 author:
   kind: agent
   id: codex
 binding:
-  coordinate: /explore/workload/source-mining;at=blake3%3Aabc;lens=objects
+  coordinate: rey+local://workload/source-mining?revision=blake3%3Aabc
+  scale: 1.46
   source_revision: blake3:abc
 blocks:
   - kind: prose

@@ -14,8 +14,8 @@ import {
 describe("collaboration Journal", () => {
   it("binds new entries to the exact current portfolio coordinate", () => {
     expect(defaultJournalBinding(portfolio())).toEqual({
-      coordinate:
-        "/explore/portfolio/current;at=blake3%3Asource;lens=landscape",
+      coordinate: "rey+local://portfolio/current?revision=blake3%3Asource",
+      scale: 0.68,
       source_revision: "blake3:source",
     });
   });
@@ -42,6 +42,9 @@ describe("collaboration Journal", () => {
     ]) {
       expect(markup).toContain(evidence);
     }
+    expect(markup).toContain(
+      'href="/explore?coordinate=rey%2Blocal%3A%2F%2Fportfolio%2Fcurrent%3Frevision%3Dblake3%253Asource&amp;scale=0.68"',
+    );
   });
 
   it("gives retained entries exact slugs and block-level deep links", () => {
@@ -51,7 +54,7 @@ describe("collaboration Journal", () => {
     expect(
       resolveJournalEntry(
         {
-          schema: "rey.journal-log.v1",
+          schema: "rey.journal-log.v2",
           log_id: "blake3:log",
           entries: [retained],
         },
@@ -69,16 +72,15 @@ describe("collaboration Journal", () => {
 });
 
 function entry(): RetainedJournalEntry {
-  const coordinate =
-    "/explore/portfolio/current;at=blake3%3Asource;lens=landscape";
+  const coordinate = "rey+local://portfolio/current?revision=blake3%3Asource";
   return {
-    schema: "rey.journal-entry.v1",
+    schema: "rey.journal-entry.v2",
     entry_id: "blake3:entry",
     sequence: 1,
     admitted_at: "2026-08-10T21:00:00Z",
     title: "Mine the remaining surface",
     author: { kind: "agent", id: "codex" },
-    binding: { coordinate, source_revision: "blake3:source" },
+    binding: { coordinate, scale: 0.68, source_revision: "blake3:source" },
     supersedes: null,
     blocks: [
       {
@@ -90,6 +92,7 @@ function entry(): RetainedJournalEntry {
         kind: "explore",
         id: "map",
         coordinate,
+        scale: 0.68,
         source_revision: "blake3:source",
         caption: "Current portfolio",
       },

@@ -30,8 +30,9 @@ ADR 0027 adds bounded non-sensitive value capture and makes `rey env status`
 plus `/environment` two projections of one typed environment delta. ADR 0031
 hard-cuts the mapping graph to `rey.env-map.v3` and separates exact desired
 application inventory from bounded search records.
-ADR 0030 adds partially ordered cadence lanes and exact matrix-style Explorer
-coordinates. ADR 0034 replaces its agent registry with process-discovered
+ADR 0030 added partially ordered cadence lanes and the now-superseded matrix
+Explorer coordinates. ADR 0041 hard-cuts those paths to semantic coordinates
+plus numeric view scale. ADR 0034 replaces its agent registry with process-discovered
 runtime options and a task/operation plane derived from the current frontier.
 ADR 0035 keeps runtime inventory in Environment and raises `/agents` to ranked
 recommendations plus retained-work insight.
@@ -843,8 +844,8 @@ TanStack Router application plus `GET|HEAD /api/v1/health`,
 authentication or an origin check on every explicitly configured listener.
 Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
-`/explore`. The application routes are `/feed`, `/explore`, exact matrix-style
-Explorer coordinates, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
+`/explore`. The application routes are `/feed`, coordinate-bound `/explore`
+query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
@@ -876,7 +877,7 @@ endpoint does not poll refs, activate a workload, or retain browser reads.
 `/agents` combines two sources without conflating them. Its current
 system-authored rows derive from creation requests and non-excluded attention
 in the workload-list document. Its authored entries come from the ordered
-`rey.journal-log.v1` returned by the Journal endpoint. The human block composer
+`rey.journal-log.v2` returned by the Journal endpoint. The human block composer
 at `/journal/new` admits prose, an exact Explorer map binding, and an optional
 read-only query declaration, then enters the exact retained `/journal/{slug}`
 document. Journal blocks expose stable `#block-{block-id}` permalinks. Agent
@@ -984,13 +985,27 @@ the last good document and reports delayed revalidation; it does not reset the
 viewport. `ContextCanvas` projects the portfolio document through landscape,
 neighborhood, and object regimes with bounded
 omission disclosures; full screen, pan, focus, and zoom do not widen the data
-or action authority. Exact coordinates have the shape
-`/explore/{kind}/{identity};at={revision};lens={regime}` with a required
-`role` dimension for agents. Matrix dimensions are unordered and unique;
-canonical links sort them, and stale bindings remain visible. See [Context
+or action authority. Implemented local semantic coordinates have the shape
+`rey+local://{kind}/{identity}?revision={revision}` with a required trailing
+`role` query dimension for agents. Exact browser views use
+`/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}`.
+Canonical coordinates order `revision`, `role`; stale bindings remain visible.
+The former matrix path and parser are removed. Journal v2 retains semantic
+coordinate and numeric scale separately, and old Journal state is rejected.
+
+Plan 0017's target Explorer consumes admitted `rey.topography-patch.v1`
+evidence produced through the workloads interface. One continuous camera
+projects Atlas, Landscape, Neighborhood, Object, and Evidence levels while
+retaining the selected provider-qualified coordinate. Camera state never
+becomes resource identity. Surveyed-empty, unexplored, omitted, stale,
+unsupported, truncated, and frontier regions remain distinct, and navigation
+does not execute locators or workloads. The CLI must expose each patch's seed
+coverage, resolution outcomes, anchors, relationships, directed delta, bounds,
+and lineage before the browser projection is considered complete. See [Context
 Topology Explorer](EXPLORER.md), [ADR
 0026](decisions/0026-context-topology-explorer.md), and [ADR
-0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
+0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md), and
+[ADR 0041](decisions/0041-continuous-coordinate-topography.md).
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded

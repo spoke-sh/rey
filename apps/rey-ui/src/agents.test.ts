@@ -123,11 +123,11 @@ describe("agent collaboration intelligence", () => {
 
 function emptyJournal(): JournalProjection {
   return {
-    schema: "rey.ui-journal.v2",
+    schema: "rey.ui-journal.v3",
     write_enabled: true,
     authority: "unauthenticated_journal_admission",
     log: {
-      schema: "rey.journal-log.v1",
+      schema: "rey.journal-log.v2",
       log_id: "blake3:empty",
       entries: [],
     },

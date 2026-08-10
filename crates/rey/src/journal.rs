@@ -12,10 +12,10 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const JOURNAL_PROPOSAL_SCHEMA: &str = "rey.journal-entry-proposal.v1";
-pub const JOURNAL_ENTRY_SCHEMA: &str = "rey.journal-entry.v1";
-pub const JOURNAL_LOG_SCHEMA: &str = "rey.journal-log.v1";
-pub const JOURNAL_ADMISSION_SCHEMA: &str = "rey.journal-admission.v1";
+pub const JOURNAL_PROPOSAL_SCHEMA: &str = "rey.journal-entry-proposal.v2";
+pub const JOURNAL_ENTRY_SCHEMA: &str = "rey.journal-entry.v2";
+pub const JOURNAL_LOG_SCHEMA: &str = "rey.journal-log.v2";
+pub const JOURNAL_ADMISSION_SCHEMA: &str = "rey.journal-admission.v2";
 pub const MAX_JOURNAL_ENTRIES: usize = 256;
 pub const MAX_JOURNAL_BLOCKS: usize = 32;
 pub const MAX_JOURNAL_STATE_BYTES: u64 = 8 * 1_024 * 1_024;
@@ -50,10 +50,11 @@ pub struct JournalAuthor {
     pub id: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct JournalBinding {
     pub coordinate: String,
+    pub scale: f64,
     pub source_revision: String,
 }
 
@@ -81,7 +82,7 @@ pub struct JournalFrameColumn {
     pub data_type: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JournalBlock {
     Prose {
@@ -91,6 +92,7 @@ pub enum JournalBlock {
     Explore {
         id: String,
         coordinate: String,
+        scale: f64,
         source_revision: String,
         caption: Option<String>,
     },
@@ -142,7 +144,7 @@ impl JournalBlock {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct JournalEntryProposal {
     pub schema: String,
@@ -208,7 +210,7 @@ impl JournalEntryProposal {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct JournalEntry {
     pub schema: String,
@@ -317,7 +319,7 @@ fn ascii_slug_component(value: &str, limit: Option<usize>) -> String {
     slug
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct JournalLog {
     pub schema: String,
@@ -411,7 +413,7 @@ impl JournalLog {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct JournalAdmission {
     pub schema: String,
     pub admitted: bool,
@@ -638,12 +640,14 @@ fn validate_block(block: &JournalBlock) -> Result<(), JournalError> {
         }
         JournalBlock::Explore {
             coordinate,
+            scale,
             source_revision,
             caption,
             ..
         } => {
             validate_binding(&JournalBinding {
                 coordinate: coordinate.clone(),
+                scale: *scale,
                 source_revision: source_revision.clone(),
             })?;
             if let Some(caption) = caption {
@@ -760,12 +764,11 @@ fn validate_binding(binding: &JournalBinding) -> Result<(), JournalError> {
         return Err(JournalError::CoordinateLimit(MAX_COORDINATE_BYTES));
     }
     validate_reference("source revision", &binding.source_revision)?;
+    validate_explorer_scale(binding.scale)?;
     let coordinate = parse_canonical_coordinate(&binding.coordinate)?;
-    if let Some(at) = coordinate.at
-        && at != binding.source_revision
-    {
+    if coordinate.revision != binding.source_revision {
         return Err(JournalError::CoordinateRevision {
-            coordinate: at,
+            coordinate: coordinate.revision,
             binding: binding.source_revision.clone(),
         });
     }
@@ -773,14 +776,17 @@ fn validate_binding(binding: &JournalBinding) -> Result<(), JournalError> {
 }
 
 struct ParsedCoordinate {
-    at: Option<String>,
+    revision: String,
 }
 
 fn parse_canonical_coordinate(value: &str) -> Result<ParsedCoordinate, JournalError> {
-    let rest = value
-        .strip_prefix("/explore/")
+    let local = value
+        .strip_prefix("rey+local://")
         .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?;
-    let (kind, segment) = rest
+    let (address, dimensions) = local
+        .split_once('?')
+        .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?;
+    let (kind, encoded_identity) = address
         .split_once('/')
         .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?;
     if !matches!(
@@ -789,49 +795,44 @@ fn parse_canonical_coordinate(value: &str) -> Result<ParsedCoordinate, JournalEr
     ) {
         return Err(JournalError::Coordinate(value.to_owned()));
     }
-    let mut parts = segment.split(';');
-    let identity = percent_decode(parts.next().unwrap_or_default())?;
+    let identity = percent_decode(encoded_identity)?;
     if identity.is_empty() {
         return Err(JournalError::Coordinate(value.to_owned()));
     }
-    let mut parameters = BTreeMap::new();
-    for part in parts {
+
+    let mut dimensions_by_name = BTreeMap::new();
+    for part in dimensions.split('&') {
         let (key, encoded) = part
             .split_once('=')
             .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?;
         let key = percent_decode(key)?;
         let decoded = percent_decode(encoded)?;
         if decoded.is_empty()
-            || !matches!(key.as_str(), "at" | "lens" | "role")
-            || parameters.insert(key, decoded).is_some()
+            || !matches!(key.as_str(), "revision" | "role")
+            || dimensions_by_name.insert(key, decoded).is_some()
         {
             return Err(JournalError::Coordinate(value.to_owned()));
         }
     }
-    let lens = parameters
-        .get("lens")
-        .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?;
-    if !matches!(lens.as_str(), "landscape" | "neighborhoods" | "objects") {
-        return Err(JournalError::Coordinate(value.to_owned()));
-    }
-    let at = parameters.get("at").cloned();
-    if kind != "cluster" && at.is_none() {
-        return Err(JournalError::Coordinate(value.to_owned()));
-    }
-    let role = parameters.get("role");
+    let revision = dimensions_by_name
+        .get("revision")
+        .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?
+        .clone();
+    let role = dimensions_by_name.get("role");
     if (kind == "agent") != role.is_some()
         || role.is_some_and(|role| !matches!(role.as_str(), "coding_harness" | "human" | "rule"))
     {
         return Err(JournalError::Coordinate(value.to_owned()));
     }
-    let canonical_parameters = parameters
+    let canonical_dimensions = dimensions_by_name
         .iter()
-        .map(|(key, value)| format!(";{}={}", percent_encode(key), percent_encode(value)))
-        .collect::<String>();
+        .map(|(key, value)| format!("{}={}", percent_encode(key), percent_encode(value)))
+        .collect::<Vec<_>>()
+        .join("&");
     let canonical = format!(
-        "/explore/{kind}/{}{}",
+        "rey+local://{kind}/{}?{}",
         percent_encode(&identity),
-        canonical_parameters
+        canonical_dimensions
     );
     if canonical != value {
         return Err(JournalError::NonCanonicalCoordinate {
@@ -839,7 +840,15 @@ fn parse_canonical_coordinate(value: &str) -> Result<ParsedCoordinate, JournalEr
             canonical,
         });
     }
-    Ok(ParsedCoordinate { at })
+    Ok(ParsedCoordinate { revision })
+}
+
+fn validate_explorer_scale(scale: f64) -> Result<(), JournalError> {
+    if scale.is_finite() && (0.55..=2.0).contains(&scale) {
+        Ok(())
+    } else {
+        Err(JournalError::ExplorerScale(scale))
+    }
 }
 
 fn percent_decode(value: &str) -> Result<String, JournalError> {
@@ -993,16 +1002,18 @@ pub enum JournalError {
     FrameCompleteness,
     #[error("journal diff assessment must be equal, different, or inconclusive, got {0}")]
     DiffAssessment(String),
-    #[error("journal Explorer coordinate exceeds {0} bytes")]
+    #[error("journal semantic coordinate exceeds {0} bytes")]
     CoordinateLimit(usize),
-    #[error("invalid journal Explorer coordinate {0}")]
+    #[error("invalid journal semantic coordinate {0}")]
     Coordinate(String),
-    #[error("non-canonical journal Explorer coordinate {actual}; canonical form is {canonical}")]
+    #[error("non-canonical journal semantic coordinate {actual}; canonical form is {canonical}")]
     NonCanonicalCoordinate { actual: String, canonical: String },
     #[error("invalid percent encoding in journal coordinate: {0}")]
     PercentEncoding(String),
     #[error("journal coordinate revision {coordinate} does not match binding {binding}")]
     CoordinateRevision { coordinate: String, binding: String },
+    #[error("journal Explorer scale must be finite within 0.55..=2, got {0}")]
+    ExplorerScale(f64),
     #[error("journal timestamp is not RFC 3339: {0}")]
     Timestamp(String),
     #[error("journal entry sequence must be {expected}, got {actual}")]
@@ -1062,8 +1073,8 @@ mod tests {
                 id: "codex".to_owned(),
             },
             binding: JournalBinding {
-                coordinate: "/explore/workload/source-mining;at=blake3%3Aabc;lens=objects"
-                    .to_owned(),
+                coordinate: "rey+local://workload/source-mining?revision=blake3%3Aabc".to_owned(),
+                scale: 1.46,
                 source_revision: "blake3:abc".to_owned(),
             },
             supersedes: None,
@@ -1191,24 +1202,54 @@ mod tests {
 
     #[test]
     fn coordinate_is_canonical_and_revision_bound() {
-        let mut proposal = proposal();
-        proposal.binding.source_revision = "blake3:other".to_owned();
+        let mut candidate = proposal();
+        candidate.binding.source_revision = "blake3:other".to_owned();
         assert!(
-            proposal
+            candidate
                 .validate()
                 .unwrap_err()
                 .to_string()
                 .contains("does not match")
         );
-        proposal.binding.source_revision = "blake3:abc".to_owned();
-        proposal.binding.coordinate =
-            "/explore/workload/source-mining;lens=objects;at=blake3%3Aabc".to_owned();
+        candidate.binding.source_revision = "blake3:abc".to_owned();
+        candidate.binding.coordinate =
+            "rey+local://agent/codex?role=coding_harness&revision=blake3%3Aabc".to_owned();
         assert!(
-            proposal
+            candidate
                 .validate()
                 .unwrap_err()
                 .to_string()
                 .contains("canonical")
+        );
+
+        let mut legacy = proposal();
+        legacy.schema = "rey.journal-entry-proposal.v1".to_owned();
+        assert!(
+            legacy
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("schema")
+        );
+        legacy.schema = JOURNAL_PROPOSAL_SCHEMA.to_owned();
+        legacy.binding.coordinate =
+            "/explore/workload/source-mining;at=blake3%3Aabc;lens=objects".to_owned();
+        assert!(
+            legacy
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("semantic coordinate")
+        );
+
+        let mut invalid_scale = proposal();
+        invalid_scale.binding.scale = 0.54;
+        assert!(
+            invalid_scale
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("scale")
         );
     }
 

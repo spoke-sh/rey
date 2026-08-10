@@ -263,9 +263,23 @@ just rey ui --host 0.0.0.0 --port 5714
 redirects to `/explore`, a full-screen-capable context-topology canvas whose
 semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
-delta objects. Exact locations use matrix-style coordinates such as
-`/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
-bindings remain visible instead of drifting silently. `/feed` comes first in
+delta objects. Exact locations separate a provider-qualified semantic
+coordinate such as
+`rey+local://agent/codex?revision=gpt-5&role=coding_harness` from continuous
+numeric scale in the `/explore?coordinate=...&scale=...` browser envelope;
+stale revision bindings remain visible instead of drifting silently. The old
+matrix path is rejected with no compatibility parser.
+With that address boundary in place, the next Explorer bearing turns the
+canvas into an incremental context-topography map. Admitted survey workloads
+begin from bounded project seeds such
+as `AGENTS.md` and README variants, locate URI/reference candidates, resolve
+them under explicit authority and limits, and emit typed topography patches
+with coverage, frontier, omissions, lineage, and directed deltas. A continuous
+camera will project the same admitted evidence from far-out Atlas terrain
+through Landscape, Neighborhood, Object, and exact Evidence levels. Unexplored
+space stays unknown, and moving the canvas never launches a hidden crawl. See
+[ADR 0041](docs/decisions/0041-continuous-coordinate-topography.md) and [Plan
+0017](plans/0017-incremental-context-topography.md). `/feed` comes first in
 primary navigation as the high-cadence inspection plane. Its default
 composition is three TweetDeck-like vertical streams: rich Signals,
 inspect-only Admission, and observed workload Flow. A quiet Firehose rail adds
@@ -654,7 +668,7 @@ attention, not the portfolio strategy itself.
 surface. `/feed` is the bounded high-cadence inspection plane and `/explore`
 remains the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
-matrix-style deep links, a shared typed Journal, an observed-work ledger, and a
+coordinate/scale deep links, a shared typed Journal, an observed-work ledger, and a
 partially ordered cadence view. Humans can author retained Explore-bound prose
 and read-only query cells at `/journal/new` without authentication; exact entry
 routes and block fragments make the retained notebook deeply hyperlinkable.

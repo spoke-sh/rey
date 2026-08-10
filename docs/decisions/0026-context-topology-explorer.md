@@ -3,6 +3,9 @@
 - Status: Accepted
 - Date: 2026-08-09
 - Extends: [ADR 0025](0025-local-operator-ui.md)
+- Extended by: [ADR 0041](0041-continuous-coordinate-topography.md), which
+  separates semantic Spoke coordinates from view state and adds incremental
+  topography plus Atlas and Evidence levels to the continuous lens
 
 ## Context
 

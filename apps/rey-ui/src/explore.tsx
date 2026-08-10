@@ -13,9 +13,8 @@ import {
 } from "react";
 import type { WorkloadList } from "./domain";
 import {
-  explorerCoordinatePath,
-  zoomForExplorerLens,
-  type ExplorerCoordinateResolution,
+  explorerViewPath,
+  type ExplorerViewResolution,
 } from "./explorer-coordinate";
 import { exploreStyles as styles } from "./stylex/explore.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -38,7 +37,7 @@ import {
 
 interface ContextCanvasProps {
   portfolio: WorkloadList;
-  coordinate?: ExplorerCoordinateResolution;
+  coordinate?: ExplorerViewResolution;
 }
 
 interface Point {
@@ -54,10 +53,10 @@ export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
       {coordinate && coordinate.status !== "current" ? (
         <div className={sx(styles.coordinateBoundary)} role="status">
           <strong>{coordinate.status.toUpperCase()} COORDINATE</strong>
-          <code>{explorerCoordinatePath(coordinate.coordinate)}</code>
+          <code>{explorerViewPath(coordinate.view)}</code>
           <span>
-            {coordinate.actual_at
-              ? `CURRENT BINDING / ${coordinate.actual_at}`
+            {coordinate.actual_revision
+              ? `CURRENT BINDING / ${coordinate.actual_revision}`
               : "NO CURRENT OBJECT SATISFIES THIS IDENTITY"}
           </span>
         </div>
@@ -75,9 +74,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     | undefined
   >(undefined);
   const [zoom, setZoom] = useState(
-    coordinate
-      ? zoomForExplorerLens(coordinate.coordinate.lens)
-      : DEFAULT_LENS_ZOOM,
+    coordinate ? coordinate.view.scale : DEFAULT_LENS_ZOOM,
   );
   const [pan, setPan] = useState<Point>(zeroPoint);
   const [fitScale, setFitScale] = useState(1);
@@ -95,9 +92,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   useEffect(() => {
     if (!coordinate) return;
     setFocusId(coordinate.focus_id);
-    setZoom(zoomForExplorerLens(coordinate.coordinate.lens));
+    setZoom(coordinate.view.scale);
     setPan(zeroPoint);
-  }, [coordinate?.coordinate.lens, coordinate?.focus_id, coordinate?.status]);
+  }, [coordinate?.focus_id, coordinate?.status, coordinate?.view.scale]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -296,7 +293,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         </span>
         {coordinate ? (
           <code className={sx(styles.coordinateUri)}>
-            {explorerCoordinatePath(coordinate.coordinate)}
+            {explorerViewPath(coordinate.view)}
           </code>
         ) : null}
       </footer>

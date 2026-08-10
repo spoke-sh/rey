@@ -144,6 +144,15 @@ exists.
   landscape aggregate with neighborhoods and then exact objects, but it cannot
   change source truth, silently widen scope, hide projection omissions, or
   imply a relationship that is not present in typed evidence.
+- Treat `/explore` as a continuous view over semantic coordinates, not a fixed
+  dashboard canvas. Keep provider-qualified coordinate identity separate from
+  camera center, scale, viewport, selection, and level of detail; a browser
+  route is a view envelope rather than the resource address itself.
+- Build context topography only from admitted survey-workload evidence. Show
+  surveyed-empty, unexplored, omitted, stale, unsupported, and frontier regions
+  honestly; never interpolate unknown terrain into a semantic claim. Panning,
+  zooming, selecting, or opening a deep link must not execute a locator,
+  schedule a workload, or silently expand read authority.
 - Keep the operator UI live. Passive revalidation or a future retained event
   stream must carry changed typed runtime state into the interface without a
   manual refresh ritual. No news is good news: use the persistent footer

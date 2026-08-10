@@ -48,10 +48,7 @@ import {
   journalEntrySlug,
   resolveJournalEntry,
 } from "./journal";
-import {
-  parseExplorerCoordinate,
-  resolveExplorerCoordinate,
-} from "./explorer-coordinate";
+import { parseExplorerView, resolveExplorerView } from "./explorer-coordinate";
 import { startPassiveRevalidation } from "./passive";
 import { activeSectionAt, SECTION_RAIL_ATTRIBUTE } from "./section-rail";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
@@ -87,6 +84,20 @@ export function normalizeFeedSearch(search: Record<string, unknown>): {
   return typeof streams === "string" && streams.length <= 4_096
     ? { streams }
     : {};
+}
+
+export function normalizeExplorerSearch(search: Record<string, unknown>): {
+  coordinate?: string;
+  scale?: string;
+} {
+  const coordinate = search.coordinate;
+  const scale = search.scale;
+  return {
+    ...(typeof coordinate === "string" && coordinate.length <= 4_096
+      ? { coordinate }
+      : {}),
+    ...(typeof scale === "string" && scale.length <= 64 ? { scale } : {}),
+  };
 }
 
 export function activateCommunicationAxis(
@@ -947,7 +958,20 @@ function NotFoundPage() {
 }
 
 function ExploreRoutePage() {
-  return <ExplorePage portfolio={usePortfolio()} />;
+  const portfolio = usePortfolio();
+  const search = exploreRoute.useSearch();
+  if (!search.coordinate && !search.scale) {
+    return <ExplorePage portfolio={portfolio} />;
+  }
+  if (!search.coordinate || !search.scale) return <NotFoundPage />;
+  const view = parseExplorerView(search.coordinate, search.scale);
+  if (!view) return <NotFoundPage />;
+  return (
+    <ExplorePage
+      coordinate={resolveExplorerView(portfolio, view)}
+      portfolio={portfolio}
+    />
+  );
 }
 
 function FeedRoutePage() {
@@ -968,19 +992,6 @@ function FeedRoutePage() {
       }}
       portfolio={usePortfolio()}
       sources={sources}
-    />
-  );
-}
-
-function ExploreCoordinateRoutePage() {
-  const portfolio = usePortfolio();
-  const { coordinate: segment, kind } = exploreCoordinateRoute.useParams();
-  const coordinate = parseExplorerCoordinate(kind, segment);
-  if (!coordinate) return <NotFoundPage />;
-  return (
-    <ExplorePage
-      coordinate={resolveExplorerCoordinate(portfolio, coordinate)}
-      portfolio={portfolio}
     />
   );
 }
@@ -1048,6 +1059,7 @@ const indexRoute = createRoute({
 const exploreRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "explore",
+  validateSearch: normalizeExplorerSearch,
   component: ExploreRoutePage,
 });
 
@@ -1057,12 +1069,6 @@ const feedRoute = createRoute({
   validateSearch: normalizeFeedSearch,
   loader: loadFeed,
   component: FeedRoutePage,
-});
-
-const exploreCoordinateRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "explore/$kind/$coordinate",
-  component: ExploreCoordinateRoutePage,
 });
 
 const cadenceRoute = createRoute({
@@ -1116,7 +1122,6 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   feedRoute,
   exploreRoute,
-  exploreCoordinateRoute,
   cadenceRoute,
   agentsRoute,
   journalNewRoute,

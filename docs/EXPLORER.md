@@ -9,7 +9,8 @@ visual grammar changes. Agents continue to use the `rey` CLI as their primary
 execution and diagnostic interface.
 
 The Explorer itself is a read-only projection. The adjacent `/agents` Journal
-may retain a typed entry that points to an exact Explorer coordinate, but that
+may retain a typed entry that points to an exact semantic coordinate and
+numeric camera scale, but that
 does not mutate topology or make Explorer a runtime, scheduler, evidence store,
 or assessment authority.
 
@@ -30,21 +31,32 @@ evidence when investigation requires it.
 
 ## Presentation Concepts
 
-The Explorer formalizes eight presentation concepts. They are React/read-model
-concepts, not new runtime entities:
+The Explorer separates semantic address, retained map evidence, and browser
+presentation. Only canvas, lens, regime, camera, focus, and omission are
+React/read-model concepts:
 
 ```text
-Context topology = bounded typed objects + classified relationships
-Canvas           = spatial map over one bounded topology projection
-Lens             = semantic projection(topology, focus, zoom)
-Regime           = one object grammar on the lens continuum
-Neighborhood     = bounded objects around one meaningful coordinate
-Focus            = selected coordinate retained while changing scale
-Omission         = evidence that the current projection folded or excluded
-                   known objects because of declared limits
-Coordinate       = shareable kind + identity + revision + lens location that
-                   resolves against the same bounded source projection
+Coordinate         = typed provider-qualified Spoke address for an object or
+                     bounded region; local bindings carry narrower guarantees
+Locator            = candidate address; resolution is a separate bounded act
+Context topology   = bounded typed anchors + classified relationships
+Context topography = topology + scale + surveyed coverage + frontier +
+                     explicit unexplored space
+Canvas             = spatial view over one bounded topography projection
+Camera             = center + continuous scale + viewport
+Lens               = semantic projection(topography, focus, camera)
+Regime             = one level-of-detail grammar on the lens continuum
+Neighborhood       = bounded objects around one meaningful coordinate
+Focus              = selected coordinate retained while changing scale
+Omission           = evidence that the current projection folded or excluded
+                     known objects because of declared limits
 ```
+
+The current interface hard-cuts the former matrix route. A semantic
+`rey+local://...` coordinate and continuous numeric scale are separate values;
+the `/explore` query envelope combines them only for navigation. Old matrix
+paths are unresolved and have no compatibility parser. This distinction is
+defined by [ADR 0041](decisions/0041-continuous-coordinate-topography.md).
 
 Relationships are always labeled. The first slice uses `contains`, `directs`,
 `produces`, `observes`, and `depends`; line placement or proximity alone does
@@ -52,19 +64,32 @@ not assert causality, ownership, or authority.
 
 ## Semantic Lens
 
-Zoom is a semantic operation, not only a CSS transform:
+Zoom is a semantic operation, not only a CSS transform. The target lens owns a
+continuous camera scale and projects five deterministic levels of detail:
 
-| Regime | Operator posture | Current object grammar |
+| Level | Operator posture | Target object grammar |
 | --- | --- | --- |
-| Landscape / telescope | Survey the bounded field and find concentration or unresolved direction | Context, workload, evidence, request, portfolio, and attention aggregates |
-| Neighborhoods / mesoscopic | Compare the local structures that may need attention | Individual admitted workloads, creation requests, surface-attention rows, and directed workload-attention relationships |
-| Objects / microscope | Inspect the machinery within a selected coordinate | Package/context binding, compute graph, scenarios, evidence, dependencies, directed delta, and next-bearing objects |
+| Atlas / topographic | See the incrementally discovered extent and choose a region | Spaces, providers, repositories, coverage contours, survey boundaries, frontier, and unexplored regions |
+| Landscape / telescope | Survey a bounded region and find concentration or unresolved direction | Corpora, workloads, evidence, requests, portfolio, and attention aggregates |
+| Neighborhood / mesoscopic | Compare local structures around one coordinate | Exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships |
+| Object / microscope | Inspect the machinery within a selected coordinate | Files, documents, symbols, package/context bindings, graphs, scenarios, artifacts, dependencies, and directed deltas |
+| Evidence / specimen | Inspect the exact basis of an object or relation | Source spans, rows, graph nodes, diff hunks, omissions, bounds, and lineage |
+
+The current implementation is the middle three-level subset—Landscape,
+Neighborhoods, and Objects—over a fixed workload portfolio. Atlas, Evidence,
+unbounded-feeling continuous scale, and patch-backed terrain are Plan 0017
+work, not current claims.
 
 The canvas supports pointer-centered wheel zoom, discrete semantic zoom
 controls, drag-to-pan, keyboard `+`, `-`, and `0`, selection-driven traversal,
 and a native full-screen mode. A control step cannot skip a semantic regime.
 Selecting a landscape coordinate advances to neighborhoods; selecting a
 neighborhood advances to its object view.
+
+In the target camera, wheel zoom keeps the semantic coordinate beneath the
+pointer stationary and control zoom keeps the selected focus stationary.
+Level-of-detail boundaries use hysteresis so small changes do not flicker. The
+coordinate and source identity survive every visual grammar change.
 
 `/explore`, its exact coordinate routes, and `/feed` own exactly the browser
 space remaining below Rey's application chrome. Explorer is height-locked to
@@ -79,6 +104,15 @@ scrollable documents.
 
 - Source identities and assessments survive a lens transition. Representation
   and information density may change; source truth may not.
+- Coordinates remain semantic addresses. Camera center, scale, viewport,
+  selection, and lens regime may be shareable view state but never become part
+  of resource identity.
+- The map is composed only from admitted topography patches. Empty space must
+  distinguish surveyed-empty from unexplored, omitted, stale, unsupported, and
+  truncated regions; visual interpolation is not evidence.
+- Panning, zooming, selecting, or opening a deep link may retrieve and project
+  retained evidence. None of those gestures may run a locator, execute a
+  survey workload, admit a patch, or silently broaden authority.
 - Every projection is bounded. The current neighborhood view renders at most
   eight workload/request and eight attention objects and reports known folded
   objects in the canvas footer.
@@ -102,37 +136,44 @@ scrollable documents.
   axis; the center chevrons select the separate operator/Rey/agent conversation
   axis. Selecting the active axis closes the plane, selecting the other axis
   switches it, and either Escape or a click on the background closes it.
-- A coordinate whose `at` revision no longer matches is stale. A coordinate
+- A coordinate whose `revision` no longer matches is stale. A coordinate
   whose identity is absent is missing. Neither may silently drift to a current
   object while retaining the old URI.
 
-## Explorer Coordinate URIs
+## Coordinate And View URIs
 
-The canonical v1 coordinate shape is:
+The implemented standalone semantic coordinate is:
 
 ```text
-/explore/{kind}/{identity};at={revision};lens={regime}[;role={agent-role}]
+rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
 ```
-
-The hierarchy selects an object family and identity. Semicolon parameters are
-unique, unordered named dimensions inspired by the
-[Matrix URI design note](https://www.w3.org/DesignIssues/MatrixURIs.html).
-Rey's serializer emits the stable lexical order `at`, `lens`, `role`; the
-parser accepts any order and rejects duplicates, unknown dimensions, empty
-values, missing non-cluster `at` bindings, invalid regimes, and ambiguous agent
-roles. Relative matrix references are not part of the contract.
 
 Current kinds are `portfolio`, `cluster`, `workload`, `attention`, and `agent`.
-Current lens values are `landscape`, `neighborhoods`, and `objects`. Agent
-coordinates require `role=coding_harness|rule|human`. For example:
+Every coordinate is revision-bound. Agent coordinates alone require
+`role=coding_harness|rule|human`. Query dimensions serialize in the exact order
+`revision`, `role`; duplicates, unknown dimensions, missing values, invalid
+roles, and non-canonical encodings are rejected.
+
+The browser view envelope is:
 
 ```text
-/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness
+/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}
 ```
 
-`at` binds the revision supplied by the current source projection; it is not a
-request for unimplemented historical reconstruction. See [ADR
-0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
+For example:
+
+```text
+/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=1.46
+```
+
+`scale` is presentation state and never enters the coordinate identity. The
+current accepted range is `0.55..=2`; Plan 0017 will extend that continuous
+range for Atlas and Evidence levels. The selected coordinate anchors the
+camera; free pan and viewport remain ephemeral until topography provides a
+stable spatial-coordinate contract. The old matrix route is rejected, not
+redirected or migrated. Journal v2 stores coordinate and numeric scale as
+separate fields and derives the browser envelope. See [ADR
+0041](decisions/0041-continuous-coordinate-topography.md).
 
 ## Implemented Routes
 
@@ -142,7 +183,7 @@ request for unimplemented historical reconstruction. See [ADR
   Journal Signals, current inspect-only Admission, and admitted workload Flow
   streams can be composed from the Firehose;
 - `/explore`: the context-topology canvas and default human entry;
-- `/explore/{kind}/{identity};...`: an exact matrix-style Explorer coordinate;
+- `/explore?coordinate=...&scale=...`: an exact coordinate-bound camera view;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
 - `/agents`: the Explore-bound Journal index and observed-work ledger; derived
   system entries remain distinct from retained human/agent documents;
@@ -207,7 +248,7 @@ projection. The conversation transcript is empty and its composer disabled
 because no transport, agent session, message admission, or retention contract
 exists yet.
 
-The Explorer topology is intentionally narrow. It is derived from
+The implemented Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
 counts, portfolio attention, and mapped-surface coverage counts. The separate
 `/environment` route now consumes `rey.environment-status.v5` and renders its
@@ -220,7 +261,8 @@ supplies the current v1 agent neighborhoods in Explorer, but it is not
 presented as runtime availability, live activity, or assignment. The Explorer
 does not yet contain exact environment nodes, Git commit objects, source spans,
 scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
-Explorer must not imply that unavailable objects have been rendered.
+Explorer must not imply that unavailable objects have been rendered. No
+current endpoint returns admitted topography patches or Spoke coordinates.
 
 ## React Boundaries
 
@@ -235,11 +277,13 @@ invent a second graph inside a visualization component.
 
 ## Next Boundaries
 
-The next useful expansion is to connect the exact environment projection now
-available at `/environment` to the Explorer topology, followed by
-scenario/delta object routes that preserve the CLI `-v`/`-vv` evidence ladder.
-Search and bounded neighborhood filters should arrive before a
-high-cardinality topology.
+The next concrete expansion is Plan 0017's seed-to-map voyage: create and admit
+an agent-generated `context-anchor-survey` workload, locate URI and reference
+anchors from bounded `AGENTS.md` and README seeds, retain one typed topography
+patch with its directed delta and frontier, expose it through
+`rey workloads list|test|run|status`, and project the same evidence from Atlas
+through Evidence levels in Explorer. Scenario/delta object routes must retain
+the CLI `-v`/`-vv` evidence ladder.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and Spoke-backed streams remain separate decisions.

@@ -132,14 +132,16 @@ poll cursors, and delta-triggered workloads.
 | Test campaign | Bounded lineage of graph proposals, scenario attempts, typed deltas, and qualification decision | Local or Spoke-backed result provider |
 | Space | Named boundary over sources, lenses, actions, claims, and limits | Rey declaration; local or stored through Spoke |
 | Source binding | Exact Spoke or local immutable input identity | Source system; referenced by Rey |
+| Coordinate binding | Provider-qualified semantic address for one object or bounded region; camera and lens are not identity | Owning provider; local bindings disclose zero-Spoke guarantees |
 | Lens | Versioned deterministic observation definition | Rey declaration; local or stored through Spoke |
 | Frame | Bounded typed observation plus schema and lineage | Working state in Rey; local or Spoke evidence when retained |
 | Mining operation | Versioned relational or source transformation with typed inputs, outputs, effects, limits, and completeness | Rey contract; implemented by built-in or discovered provider adapters |
 | Mining request | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale | Rey transition or graph-node evidence |
 | Mining result | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions | Rey evidence index; artifacts remain provider-owned or explicitly retained |
+| Topography patch | Admitted survey result containing coordinate anchors, classified relationships, coverage, frontier, omissions, lineage, and a directed map delta | Rey evidence index; source artifacts and coordinates remain provider-owned |
 | Portfolio snapshot | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation | Rey runtime evidence; derived from catalog/result/environment providers |
 | Workload attention | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost | Rey runtime working evidence; local or Spoke-backed when retained |
-| Journal entry | Ordered typed collaboration document bound to an exact Explorer coordinate; admission grants no execution authority | Local Rey journal; Spoke retention remains separate |
+| Journal entry | Ordered typed collaboration document bound to an exact semantic coordinate, numeric camera scale, and source revision; admission grants no execution authority | Local Rey journal; Spoke retention remains separate |
 | Action proposal | Policy request naming frozen inputs, effect class, and bounds | Rey trace |
 | Run/attempt | Provider-owned execution and capture lineage | Local executor or Spoke compute, explicitly distinguished |
 | Delta | Directed typed comparison between compatible frames | Rey evidence; local or Spoke-backed |
@@ -160,13 +162,18 @@ requirements demand it.
 `rey ui` embeds a TanStack Router single-page application and serves the live
 bounded workload-list document used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
-deeper diagnostic plane. The Explorer projects one context topology through a
-semantic lens: landscape aggregates become workload/attention neighborhoods,
-then exact graph/scenario/evidence/delta objects as zoom and focus change.
-Identity, relationship classification, bounds, and omissions survive those
-visual transitions. Matrix-style coordinate routes bind kind, identity,
-revision, lens, and agent role so other operator views can deep-link without
-moving topology authority into the URL. `/environment` projects the same typed
+deeper diagnostic plane. The Explorer currently projects one bounded workload
+topology through a semantic lens: landscape aggregates become
+workload/attention neighborhoods, then exact graph/scenario/evidence/delta
+objects as zoom and focus change. Identity, relationship classification,
+bounds, and omissions survive those visual transitions. Its target topographic
+lens adds Atlas and exact Evidence levels over incrementally admitted survey
+patches. Semantic coordinates are provider-qualified Spoke-model addresses;
+camera center, continuous scale, viewport, and lens remain separate view state.
+The current hard-cut interface uses `rey+local://...` semantic coordinates and
+the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths have no
+compatibility parser. Journal v2 stores coordinate and scale separately.
+`/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
 retains the exact catalog/detail routes and aligns admitted revisions plus
 creation requests as separate Hifi dense evidence relations. Exact workload
@@ -227,7 +234,9 @@ client that can reach the listener and therefore emits a warning; no bind
 turns the UI into an execution control plane. See [Context Topology
 Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
 [ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
-0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
+0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md). The
+continuous coordinate/topography boundary is specified by [ADR
+0041](decisions/0041-continuous-coordinate-topography.md).
 Cadence repository state is specified by [ADR
 0036](decisions/0036-cadence-repository-state-and-publication.md).
 The shared collaboration Journal is specified by [ADR

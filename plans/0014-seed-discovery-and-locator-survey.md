@@ -1,7 +1,7 @@
 # Plan 0014: Seed Discovery And Locator Survey
 
 - Status: Active
-- Decision: [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md)
+- Decisions: [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md) and [ADR 0041](../docs/decisions/0041-continuous-coordinate-topography.md)
 
 ## Outcome
 
@@ -22,8 +22,11 @@ the agent CLI and live operator UI.
 - [x] Add the live-UI invariant to `AGENTS.md` and formalize the four phases.
 - [ ] Implement canonical locator types and parse/format fixtures in a
   dependency-light `rey-locator` crate.
-- [ ] Add high-fidelity agent CLI commands to generate and validate reasoning
-  map resources and display their locator anchors.
+- [ ] Generate the first survey graph and frozen scenarios through
+  `rey workloads create context-anchor-survey`; do not hard-code product
+  scenarios into the runtime.
+- [ ] Expose seed, locator, resolution, patch, delta, frontier, omission, and
+  lineage evidence through `rey workloads list|test|run|status`.
 - [ ] Bind survey artifacts to exact discovery, map, provider, and source
   revisions with bounded resolver outcomes.
 - [ ] Feed admitted survey artifacts and independent cadence ticks into the
@@ -31,14 +34,18 @@ the agent CLI and live operator UI.
 
 ## Concrete Anchor
 
-```text
-rey env map generate --from-discovery <snapshot>
-rey env map validate <resource>
+Plan 0017 owns the first concrete proof:
 
-DISCOVERY → REASONING MAP → LOCATOR SURVEY → PROCESS
+```text
+PWD → AGENTS.md + README variants
+    → agent-generated context-anchor-survey workload
+    → locator candidates + typed resolution outcomes
+    → admitted topography patch + directed delta + frontier
+    → rey workloads ... + /explore
 ```
 
-The exact command names remain plan-owned until the locator/resource types are
-implemented. The acceptance surface must show process seeds, generated-resource
-identity and provenance, locator parse/resolution outcomes, bounds, omissions,
-and source revisions in both human and structured output.
+Environment reasoning-map generation remains a valid later agent interface,
+but it is not the shortest proof of incremental context survey. The acceptance
+surface must show process seeds, generated workload provenance, locator
+parse/resolution outcomes, bounds, omissions, source revisions, patch delta,
+and frontier in both human and structured output.

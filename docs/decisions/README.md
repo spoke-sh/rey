@@ -34,7 +34,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0027](0027-environment-operator-delta.md) | Accepted; application presentation superseded by 0031 and status projection by 0033 | Shared CLI/UI environment delta, bounded value capture, env-shaped variable diff, and found/not-found application evidence |
 | [0028](0028-environment-three-plane-diff.md) | Accepted | Three-plane human env diff for unstaged and staged directions with unchanged authoritative JSON |
 | [0029](0029-environment-history-projection.md) | Accepted; commit header and schemas superseded by 0033 | Compact environment chronology and three-plane patch expansion over retained transitions |
-| [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted; `/agents` superseded by 0034; cadence v1 extended by 0036 | Partial-order cadence, provenance-derived agent registry, and matrix-style exact Explorer coordinates |
+| [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted; `/agents` superseded by 0034; matrix coordinates hard-cut by 0041; cadence v1 extended by 0036 | Historical partial-order cadence, provenance-derived agent registry, and matrix-style Explorer coordinates |
 | [0031](0031-desired-application-inventory-and-search-records.md) | Accepted; conventional map superseded by 0032 | Exact desired-application declaration records separated from bounded search records |
 | [0032](0032-seed-discovery-survey-and-live-communications.md) | Accepted | Process-owned seed discovery, explicit agent maps, locator survey, cadence processing, and a two-axis operator communication plane |
 | [0033](0033-git-shaped-environment-loop-fidelity.md) | Accepted | Compact status, provenance-safe patch admission, dated v2 history, and Git/environment clock separation |
@@ -45,6 +45,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0038](0038-unauthenticated-hyperlinkable-journal.md) | Accepted | Unauthenticated Journal writes plus exact entry and block hyperlinks |
 | [0039](0039-bounded-operator-feed.md) | Accepted | Bounded high-cadence inspection queue and signal feed without inventing a global event log |
 | [0040](0040-workspace-channels-and-operator-index.md) | Accepted | Standalone frontier observations, Journal seeds, workspace-local channel graph, Git-shaped operator index, Feed persistence, and relay boundary |
+| [0041](0041-continuous-coordinate-topography.md) | Accepted | Hard-cut semantic coordinate/scale links, continuous lens, admitted survey voyages, and incremental evidence-backed context topography |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

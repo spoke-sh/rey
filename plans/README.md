@@ -12,6 +12,7 @@ completion criteria.
 - [0011 — Local operator UI](0011-local-operator-ui.md) — active UI-first context-topology and high-fidelity collaboration surface
 - [0014 — Seed discovery and locator survey](0014-seed-discovery-and-locator-survey.md) — active context-lifecycle and locator bearing
 - [0016 — Channel graph and operator index](0016-channel-graph-and-operator-index.md) — active collaboration persistence and agentic-networking bearing
+- [0017 — Incremental context topography](0017-incremental-context-topography.md) — active seed-to-map survey voyage and continuous Explorer bearing
 
 ## Completed
 

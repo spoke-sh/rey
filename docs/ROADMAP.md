@@ -92,6 +92,24 @@ execution, and broader provider behavior.
 - Add bounded recurring Git polling, activation coalescing, and resumable cursor
   processing.
 
+## Cross-Cutting — Incremental Context Topography
+
+- Separate provider-qualified semantic coordinates from Explorer camera,
+  scale, viewport, selection, and level-of-detail state.
+- Define canonical locator resolution outcomes and one admitted topography
+  patch containing anchors, classified relationships, coverage, frontier,
+  omissions, lineage, and a directed map delta.
+- Generate and qualify a `context-anchor-survey` workload from bounded
+  `AGENTS.md` and README seeds through the existing coding-harness handoff.
+- Expose the seed-to-patch voyage through `rey workloads
+  list|test|run|status` before projecting it in the browser.
+- Extend Explorer's continuous lens from Atlas terrain through Landscape,
+  Neighborhood, Object, and exact Evidence while retaining coordinate focus.
+- Keep surveyed-empty, unexplored, omitted, stale, unsupported, and truncated
+  regions distinct; never let navigation start a hidden crawl.
+- Exercise the coordinate carrier through a public Spoke conformance contract
+  before claiming connected coordinate semantics.
+
 ## Cross-Cutting — Workspace Collaboration Channels
 
 - Define stable channels, standalone Channel observations, observation

@@ -10,7 +10,8 @@
   [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md),
   [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md),
   [ADR 0038](../docs/decisions/0038-unauthenticated-hyperlinkable-journal.md),
-  [ADR 0039](../docs/decisions/0039-bounded-operator-feed.md)
+  [ADR 0039](../docs/decisions/0039-bounded-operator-feed.md),
+  [ADR 0041](../docs/decisions/0041-continuous-coordinate-topography.md)
 
 ## Outcome
 
@@ -84,6 +85,12 @@ stream lenses through a bounded, deep-linkable URL grammar.
   typed identity retention and classified edges.
 - [x] Add pointer/keyboard semantic zoom, pan, selection traversal, fit, and
   native full-screen canvas behavior.
+- [ ] Replace the fixed world bounds with a continuous camera scale over
+  admitted topography patches, extending the current lens with Atlas and exact
+  Evidence levels while retaining coordinate focus.
+- [ ] Separate the lossless semantic coordinate from camera/projection state in
+  a v2 deep-link envelope without silently reinterpreting retained Journal
+  bindings.
 - [x] Fit Explore within `100dvh` and remove route-level document scrolling so
   wheel input has only the semantic-lens meaning.
 - [x] Remove manual Refresh and passively revalidate the read-only portfolio at
@@ -114,9 +121,9 @@ stream lenses through a bounded, deep-linkable URL grammar.
 - [x] Reframe `/agents` section 01 as the Journal, remove explanatory banners,
   and expose a same-size dashed shared-write affordance with explicit authority
   when the Journal is quiet.
-- [x] Formalize canonical matrix-style Explorer coordinates with unique
-  unordered dimensions, exact `at` bindings, agent roles, route tests, and
-  visible stale/missing resolution.
+- [x] Retire the initial matrix-style Explorer coordinate grammar through ADR
+  0041; use revision-bound `rey+local://...` coordinates and a separate numeric
+  scale in `/explore?coordinate=...&scale=...`, Journal v2, and route tests.
 - [x] Keep the coordinate rail fixed beneath the header and advance its exact
   numbered section coordinate as the operator scrolls through a route.
 - [x] Make the global footer a fixed live communications channel with a typed
@@ -281,7 +288,7 @@ Rust tests, every documentation test, Clippy with warnings denied, and flake
 evaluation.
 
 The hyperlinkable Journal extension on 2026-08-10 advances the UI envelopes to
-`rey.ui-server.v3` and `rey.ui-journal.v2`. The retained index now enters exact
+`rey.ui-server.v3` and `rey.ui-journal.v3`. The retained index now enters exact
 identity-bearing document routes, `/journal/new` redirects after admission,
 and every typed block exposes a fragment permalink. A real `0.0.0.0`
 listener admitted a human proposal with no credentials or `Origin`; startup

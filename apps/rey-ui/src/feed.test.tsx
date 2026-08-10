@@ -326,15 +326,15 @@ function cadenceProjection(): CadenceProjection {
 
 function journalProjection(): JournalProjection {
   return {
-    schema: "rey.ui-journal.v2",
+    schema: "rey.ui-journal.v3",
     write_enabled: true,
     authority: "unauthenticated_journal_admission",
     log: {
-      schema: "rey.journal-log.v1",
+      schema: "rey.journal-log.v2",
       log_id: "blake3:journal",
       entries: [
         {
-          schema: "rey.journal-entry.v1",
+          schema: "rey.journal-entry.v2",
           entry_id: "blake3:entry",
           sequence: 1,
           admitted_at: "1970-01-01T00:03:20.000Z",
@@ -342,7 +342,8 @@ function journalProjection(): JournalProjection {
           author: { kind: "human", id: "operator" },
           binding: {
             coordinate:
-              "/explore/portfolio/current;at=blake3%3Asource;lens=landscape",
+              "rey+local://portfolio/current?revision=blake3%3Asource",
+            scale: 0.68,
             source_revision: "blake3:source",
           },
           supersedes: null,

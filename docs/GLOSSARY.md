@@ -219,6 +219,12 @@ Rey environment admissions, and mounted browser scans. Cadence does not invent
 one total event log and does not imply that a scan schedule is runtime
 scheduling.
 
+### Camera
+
+Explorer presentation state consisting of a center, continuous scale, and
+viewport. The camera determines what the semantic lens projects but is not part
+of coordinate or source identity.
+
 ### Campaign
 
 A bounded lineage of related attempts toward an exact goal. A workload test
@@ -416,8 +422,16 @@ surface is discovered, identified, read, and acted upon.
 
 ### Context topology
 
-The Explorer's bounded typed objects plus classified relationships. It is a
-read-model projection, not a second runtime graph or durable evidence store.
+The bounded typed anchors plus classified relationships Rey can currently
+explain. Explorer projects it, but the topology is admitted evidence rather
+than a visualization-owned graph or durable source store.
+
+### Context topography
+
+Context topology plus scale, density, surveyed coverage, boundaries, frontier,
+and explicit unexplored space. It is incrementally composed from admitted
+topography patches and never treats interpolated or visually empty terrain as
+observed evidence.
 
 ### Context lifecycle
 
@@ -434,10 +448,19 @@ implemented.
 
 ### Coordinate
 
-A shareable Explorer location binding object kind, identity, exact `at`
-revision, lens regime, and sometimes agent role. A coordinate can resolve as
-current, stale, or missing; it never grants authority. See
-[Explorer](EXPLORER.md).
+A typed provider-qualified semantic address in the Spoke coordinate model for
+an object or bounded region. A coordinate retains its provider, space or
+namespace, native locator payload, identity class, and exact source/version
+binding where available. Local zero-Spoke bindings carry narrower guarantees;
+neither form grants authority. Camera, scale, lens, and selection are view
+state rather than coordinate identity. See [Explorer](EXPLORER.md).
+
+### Coordinate query dimension
+
+A unique named query parameter within a semantic coordinate, currently
+`revision` and agent-only `role`. Canonical coordinates serialize dimensions
+in stable order and reject duplicates, unknown names, and non-canonical
+encodings. Explorer camera scale is not a coordinate dimension.
 
 ### Corpus
 
@@ -612,9 +635,17 @@ evidence status, and proof status.
 
 ### Explorer
 
-The human operator's primary read-only context-topology map at `/explore`. It
-changes semantic lenses from landscape through neighborhoods to exact objects
-while preserving identity, scope, omissions, and authority boundaries.
+The human operator's primary read-only context-topography map at `/explore`.
+Its current workload projection changes semantic lenses from landscape through
+neighborhoods to exact objects; the target continuous lens ranges from Atlas
+to exact Evidence while preserving identity, scope, omissions, and authority.
+
+### Explorer view
+
+A presentation envelope over one selected coordinate: camera center,
+continuous scale, viewport, projection revision, and optional selection. The
+implemented link carries a percent-encoded semantic coordinate and separate
+numeric scale on `/explore`; the removed matrix path is not accepted.
 
 ### Exact binding
 
@@ -664,9 +695,9 @@ workload or universal coverage claim.
 
 ### Focus
 
-The selected typed Explorer coordinate retained while the semantic scale or
-visual grammar changes. Focus guides navigation but cannot mutate topology or
-resolve attention.
+The selected semantic coordinate retained while the camera scale or visual
+grammar changes. Focus guides navigation but cannot mutate topology, resolve a
+locator, execute a workload, or resolve attention.
 
 ### Frame
 
@@ -879,7 +910,8 @@ multi-process transactionality, fenced execution, or Spoke semantics.
 
 An exact anchor naming an object or bounded region in context. A locator does
 not retrieve the object, prove it exists, or grant read or execution authority;
-resolution is a separate bounded provider operation. See
+resolution is a separate bounded provider operation that may return a
+coordinate binding or a typed unresolved outcome. See
 [Locators](LOCATORS.md).
 
 ## M
@@ -889,12 +921,6 @@ resolution is a separate bounded provider operation. See
 The history axis of the UI communication plane, populated by typed attention
 and revalidation-failure evidence. A quiet mailbox means no operator attention
 is requested; it is not filled with synthetic heartbeat activity.
-
-### Matrix dimension
-
-A unique unordered named parameter attached to a locator-like route segment,
-such as `at`, `lens`, or `role`. Canonical Explorer links serialize dimensions
-in stable order and reject duplicates or unknown names.
 
 ### Mining
 
@@ -1482,6 +1508,13 @@ The third context-lifecycle phase, in which canonical locators are resolved to
 exact anchors under explicit provider, source revision, authority, limits,
 completeness, and error evidence.
 
+### Survey voyage
+
+A bounded series of admitted survey-workload runs over a declared context
+frontier. A voyage incrementally produces topography patches; it is a derived
+operational description rather than a new scheduler, store, or implicit
+recursive crawler.
+
 ## T
 
 ### Tabular Diff
@@ -1502,6 +1535,14 @@ The bounded workload campaign that freezes capabilities, evaluates exact graph
 revisions against a scenario suite, retains `EXPECTED → OBSERVED` deltas,
 derives unresolved work, and either qualifies the graph or stops with an
 explicit non-qualification reason.
+
+### Topography patch
+
+A content-identified survey-workload result containing exact coordinate
+anchors, classified relationships, surveyed regions, coverage, frontier,
+omissions, completeness, lineage, and a directed delta against a selected
+prior map revision. Explorer deterministically projects admitted patches; it
+does not author them.
 
 ### Text delta
 

@@ -1835,13 +1835,14 @@ fn journal_cli_admits_agent_entries_without_executing_typed_blocks() {
     let proposal = workspace.path().join("entry.yaml");
     fs::write(
         &proposal,
-        r#"schema: rey.journal-entry-proposal.v1
+        r#"schema: rey.journal-entry-proposal.v2
 title: Inspect source coverage
 author:
   kind: agent
   id: codex
 binding:
-  coordinate: /explore/workload/source-mining;at=blake3%3Aabc;lens=objects
+  coordinate: rey+local://workload/source-mining?revision=blake3%3Aabc
+  scale: 1.46
   source_revision: blake3:abc
 blocks:
   - kind: prose
@@ -1872,7 +1873,7 @@ blocks:
     assert!(admitted.status.success());
     assert!(admitted.stderr.is_empty());
     let admitted: Value = serde_json::from_slice(&admitted.stdout).unwrap();
-    assert_eq!(admitted["schema"], "rey.journal-admission.v1");
+    assert_eq!(admitted["schema"], "rey.journal-admission.v2");
     assert_eq!(admitted["admitted"], true);
     assert_eq!(admitted["entry"]["sequence"], 1);
     assert_eq!(admitted["entry"]["author"]["kind"], "agent");
@@ -1892,7 +1893,7 @@ blocks:
     let repeated = String::from_utf8(repeated.stdout).unwrap();
     assert!(repeated.contains("JOURNAL ENTRY ALREADY ADMITTED"));
     assert!(repeated.contains("agent / codex"));
-    assert!(repeated.contains("/explore/workload/source-mining"));
+    assert!(repeated.contains("rey+local://workload/source-mining"));
     assert!(repeated.contains("/journal/j1-inspect-source-coverage--blake3-"));
 
     let listed = run_rey_workspace(&[
@@ -1905,7 +1906,7 @@ blocks:
     ]);
     assert!(listed.status.success());
     let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
-    assert_eq!(listed["schema"], "rey.journal-log.v1");
+    assert_eq!(listed["schema"], "rey.journal-log.v2");
     assert_eq!(listed["entries"].as_array().unwrap().len(), 1);
     assert!(workspace.path().join(".rey/journal/journal.json").is_file());
 
@@ -2040,11 +2041,12 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
 
     let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
     let proposal = serde_json::json!({
-        "schema": "rey.journal-entry-proposal.v1",
+        "schema": "rey.journal-entry-proposal.v2",
         "title": "Write through the network listener",
         "author": { "kind": "human", "id": "operator" },
         "binding": {
-            "coordinate": "/explore/portfolio/current;at=blake3%3Anetwork;lens=landscape",
+            "coordinate": "rey+local://portfolio/current?revision=blake3%3Anetwork",
+            "scale": 0.68,
             "source_revision": "blake3:network"
         },
         "blocks": [{
