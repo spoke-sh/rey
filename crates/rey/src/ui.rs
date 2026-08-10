@@ -928,6 +928,17 @@ mod tests {
         assert!(application.contains("WORKING TREE"));
         assert!(application.contains("PUSH RELATION"));
         assert!(application.contains("NO NETWORK FETCH"));
+        assert!(application.contains("data-kinetic-dense-table"));
+        assert!(application.contains("Admitted workload revisions"));
+        assert!(application.contains("Workload creation requests"));
+        assert!(application.contains("WORKLOAD / REVISION"));
+        assert!(application.contains("MINING / ATTENTION"));
+        assert!(application.contains("RUNTIME POSTURE"));
+        assert!(application.contains("SCENARIO OUTCOMES"));
+        assert!(application.contains("CONTENT IDENTITY"));
+        assert!(application.contains("REQUEST POSTURE"));
+        assert!(application.contains("REQUEST BINDINGS"));
+        assert!(!application.contains("OPEN MECHANISM"));
         assert!(!application.contains("TICK → GRAPH → SCENARIO → DELTA → ATTENTION"));
 
         let stylesheet = request(&address, "GET /assets/app.css HTTP/1.1");

@@ -14,7 +14,6 @@ import {
   useEffect,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import { AgentsPage } from "./agents";
 import {
@@ -26,14 +25,7 @@ import {
   type OperatorContext,
 } from "./api";
 import { CadencePage } from "./cadence";
-import {
-  operatorMailboxRows,
-  scenarioPercent,
-  shortDigest,
-  workloadJourney,
-  type WorkloadDraft,
-  type WorkloadSummary,
-} from "./domain";
+import { operatorMailboxRows, shortDigest } from "./domain";
 import {
   currentApplications,
   environmentVariableDiff,
@@ -57,6 +49,11 @@ import { startPassiveRevalidation } from "./passive";
 import { activeSectionAt, SECTION_RAIL_ATTRIBUTE } from "./section-rail";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
+import {
+  AdmittedWorkloadDetail,
+  DraftWorkloadDetail,
+  WorkloadsPage,
+} from "./workloads";
 
 const precision = kineticThemeMaterials.precision;
 const PortfolioContext = createContext<OperatorContext | null>(null);
@@ -879,79 +876,11 @@ function ApplicationGroup({
   );
 }
 
-function WorkloadsPage() {
-  const portfolio = usePortfolio();
-
-  return (
-    <main className={sx(styles.page)}>
-      <section className={sx(styles.pageHeader)}>
-        <div>
-          <p className={sx(styles.micro, styles.eyebrow)}>
-            CATALOG / {portfolio.catalog.root ?? "COMPILED"}
-          </p>
-          <h1 className={sx(styles.displayTitle, styles.pageTitle)}>
-            WORKLOAD PORTFOLIO
-          </h1>
-        </div>
-        <div className={sx(styles.catalogGauge)}>
-          <span className={sx(styles.micro)}>ADMISSION</span>
-          <strong className={sx(styles.catalogValue)}>
-            {portfolio.catalog.admitted_count}
-          </strong>
-          <small className={sx(styles.micro, styles.muted)}>
-            accepted / {portfolio.catalog.draft_count} awaiting harness
-          </small>
-        </div>
-      </section>
-
-      <section
-        className={sx(styles.sectionSpacing)}
-        aria-labelledby="admitted-heading"
-        data-rey-section="01 / EXECUTABLE"
-      >
-        <SectionHeading
-          index="01"
-          kicker="EXECUTABLE"
-          title="Admitted graphs"
-          detail={`${portfolio.workloads.length} exact workload revisions`}
-        />
-        {portfolio.workloads.length === 0 ? (
-          <EmptySurface>NO ADMITTED WORKLOAD PACKAGES</EmptySurface>
-        ) : (
-          <div className={sx(styles.twoColumnGrid)}>
-            {portfolio.workloads.map((workload) => (
-              <WorkloadCard key={workload.workload.id} workload={workload} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section
-        className={sx(styles.sectionSpacing)}
-        aria-labelledby="draft-heading"
-        data-rey-section="02 / AGENTIC HANDOFF"
-      >
-        <SectionHeading
-          index="02"
-          kicker="AGENTIC HANDOFF"
-          title="Creation requests"
-          detail={`${portfolio.drafts.length} request-only catalog entries`}
-        />
-        {portfolio.drafts.length === 0 ? (
-          <EmptySurface>NO WORKLOADS AWAITING CODING HARNESS</EmptySurface>
-        ) : (
-          <div className={sx(styles.twoColumnGrid)}>
-            {portfolio.drafts.map((draft) => (
-              <DraftCard draft={draft} key={draft.request.workload_id} />
-            ))}
-          </div>
-        )}
-      </section>
-    </main>
-  );
+function WorkloadsRoutePage() {
+  return <WorkloadsPage portfolio={usePortfolio()} />;
 }
 
-function WorkloadDetailPage() {
+function WorkloadDetailRoutePage() {
   const portfolio = usePortfolio();
   const { workloadId } = workloadDetailRoute.useParams();
   const workload = portfolio.workloads.find(
@@ -961,367 +890,10 @@ function WorkloadDetailPage() {
     (candidate) => candidate.request.workload_id === workloadId,
   );
 
-  if (draft) {
-    return (
-      <main className={sx(styles.page)}>
-        <BackLink />
-        <p className={sx(styles.micro, styles.eyebrow)}>
-          CREATION REQUEST / {shortDigest(draft.request.request_id)}
-        </p>
-        <h1 className={sx(styles.displayTitle, styles.pageTitle)}>
-          {draft.request.workload_id}
-        </h1>
-        <div className={sx(styles.detailGrid)}>
-          <DetailPanel label="JOURNEY" value="HYDRATE" accent />
-          <DetailPanel label="ADMISSION" value="AWAITING CODING HARNESS" />
-          <DetailPanel label="GRAPH" value="MISSING" />
-          <DetailPanel label="SCENARIO ORACLE" value="NOT ADMITTED" />
-        </div>
-        <section
-          className={sx(styles.sectionSpacing, styles.evidenceSurface)}
-          data-rey-section="01 / REQUEST BINDING"
-        >
-          <h2 className={sx(styles.sectionTitle, styles.panelTitle)}>
-            REQUEST BINDING
-          </h2>
-          <Definition label="Purpose" value={draft.request.title} />
-          <Definition
-            label="Intent"
-            value={draft.request.intent ?? "not supplied"}
-          />
-          <Definition label="Request" value={draft.request.request_id} mono />
-          <Definition label="Source" value={draft.source} mono />
-          <Definition
-            label="Target"
-            value={draft.request.target_package}
-            mono
-          />
-        </section>
-      </main>
-    );
-  }
+  if (draft) return <DraftWorkloadDetail draft={draft} />;
 
   if (!workload) return <NotFoundPage />;
-
-  const percent = scenarioPercent(workload.passed, workload.required);
-  return (
-    <main className={sx(styles.page)}>
-      <BackLink />
-      <p className={sx(styles.micro, styles.eyebrow)}>
-        WORKLOAD / REVISION {workload.workload.revision}
-      </p>
-      <h1 className={sx(styles.displayTitle, styles.pageTitle)}>
-        {workload.workload.id}
-      </h1>
-      <p className={sx(styles.detailTitle)}>{workload.title}</p>
-      <div className={sx(styles.detailGrid)}>
-        <DetailPanel label="JOURNEY" value={workloadJourney(workload)} accent />
-        <DetailPanel
-          label="QUALIFICATION"
-          value={workload.qualification.toUpperCase()}
-        />
-        <DetailPanel
-          label="SCENARIOS"
-          value={`${workload.passed}/${workload.required} · ${percent}%`}
-        />
-        <DetailPanel
-          label="LAST RUN"
-          value={(workload.last_run_status ?? "NOT RUN").toUpperCase()}
-        />
-      </div>
-      <section
-        className={sx(styles.sectionSpacing, styles.evidenceSurface)}
-        data-rey-section="01 / LOCAL CONFORMANCE"
-      >
-        <div className={sx(styles.conformanceHeading)}>
-          <span>LOCAL CONFORMANCE</span>
-          <strong className={sx(styles.conformanceValue)}>{percent}%</strong>
-        </div>
-        <div
-          className={sx(styles.progressTrack, styles.conformanceTrack)}
-          aria-label={`${percent}% scenarios passing`}
-        >
-          <i
-            className={sx(styles.progressFill, styles.conformanceFill)}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-        <div className={sx(styles.conformanceMeta)}>
-          <span>{workload.passed} passing</span>
-          <span>{workload.failed} failing</span>
-          <span>{workload.inconclusive} inconclusive</span>
-          <span>{workload.stale} stale</span>
-          <span>{workload.optional} optional</span>
-        </div>
-      </section>
-      <section
-        className={sx(styles.sectionSpacing, styles.evidenceSurface)}
-        data-rey-section="02 / EXACT BINDINGS"
-      >
-        <h2 className={sx(styles.sectionTitle, styles.panelTitle)}>
-          EXACT BINDINGS
-        </h2>
-        <Definition
-          label="Workload"
-          value={workload.workload.semantic_digest}
-          mono
-        />
-        <Definition
-          label="Candidate graph"
-          value={`${workload.candidate_graph.id}@${workload.candidate_graph.revision} · ${workload.candidate_graph.semantic_digest}`}
-          mono
-        />
-        <Definition
-          label="Package"
-          value={workload.provenance?.source ?? "compiled"}
-          mono
-        />
-        <Definition
-          label="Package revision"
-          value={workload.provenance?.source_digest ?? "compiled"}
-          mono
-        />
-        <Definition
-          label="Test evidence"
-          value={workload.last_test_result_id ?? "none"}
-          mono
-        />
-      </section>
-      <section
-        className={sx(
-          styles.sectionSpacing,
-          styles.evidenceSurface,
-          styles.miningPanel,
-        )}
-        data-rey-section="03 / MINING / EVIDENCE"
-      >
-        <h2
-          className={sx(
-            styles.sectionTitle,
-            styles.panelTitle,
-            styles.miningTitle,
-          )}
-        >
-          MINING / EVIDENCE
-        </h2>
-        <MetricCell label="OPERATIONS" value={workload.mining_operations} />
-        <MetricCell label="RESULTS" value={workload.mining_results} />
-        <MetricCell
-          label="INCOMPLETE"
-          value={workload.incomplete_mining_results}
-        />
-        <MetricCell label="DELTAS" value={workload.relation_deltas} />
-        <MetricCell label="SURFACES" value={workload.reasoning_surfaces} />
-      </section>
-    </main>
-  );
-}
-
-function WorkloadCard({ workload }: { workload: WorkloadSummary }) {
-  const percent = scenarioPercent(workload.passed, workload.required);
-  const progressStyle =
-    workload.qualification === "failing" ||
-    workload.qualification === "inconclusive"
-      ? styles.progressFailure
-      : workload.qualification === "stale"
-        ? styles.progressStale
-        : undefined;
-  return (
-    <Link
-      className={sx(styles.focusable, styles.workloadCard)}
-      params={{ workloadId: workload.workload.id }}
-      to="/workloads/$workloadId"
-    >
-      <div className={sx(styles.micro, styles.cardIndex)}>
-        <span className={sx(styles.cardJourney)}>
-          {workloadJourney(workload)}
-        </span>
-        <i className={sx(styles.cardLine)} />
-        <span>R{workload.workload.revision}</span>
-      </div>
-      <h3 className={sx(styles.cardTitle)}>{workload.workload.id}</h3>
-      <p className={sx(styles.cardDescription)}>{workload.title}</p>
-      <div className={sx(styles.cardProgress)}>
-        <div className={sx(styles.progressTrack)}>
-          <i
-            className={sx(styles.progressFill, progressStyle)}
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-        <strong className={sx(styles.progressPercent)}>{percent}%</strong>
-      </div>
-      <dl className={sx(styles.cardDefinitions)}>
-        <div className={sx(styles.cardDefinition)}>
-          <dt className={sx(styles.cardTerm)}>SCENARIOS</dt>
-          <dd className={sx(styles.cardValue)}>
-            {workload.passed}/{workload.required}
-          </dd>
-        </div>
-        <div className={sx(styles.cardDefinition)}>
-          <dt className={sx(styles.cardTerm)}>GRAPH</dt>
-          <dd className={sx(styles.cardValue)}>
-            {workload.candidate_graph.id}@{workload.candidate_graph.revision}
-          </dd>
-        </div>
-        <div className={sx(styles.cardDefinition)}>
-          <dt className={sx(styles.cardTerm)}>EVIDENCE</dt>
-          <dd className={sx(styles.cardValue)}>
-            {shortDigest(workload.last_test_result_id)}
-          </dd>
-        </div>
-      </dl>
-      <span className={sx(styles.controlLabel, styles.cardOpen)}>
-        OPEN MECHANISM →
-      </span>
-    </Link>
-  );
-}
-
-function DraftCard({ draft }: { draft: WorkloadDraft }) {
-  return (
-    <Link
-      className={sx(styles.focusable, styles.workloadCard, styles.draftCard)}
-      params={{ workloadId: draft.request.workload_id }}
-      to="/workloads/$workloadId"
-    >
-      <div className={sx(styles.micro, styles.cardIndex)}>
-        <span className={sx(styles.cardJourney)}>HYDRATE</span>
-        <i className={sx(styles.cardLine)} />
-        <span>DRAFT</span>
-      </div>
-      <h3 className={sx(styles.cardTitle)}>{draft.request.workload_id}</h3>
-      <p className={sx(styles.cardDescription)}>
-        {draft.request.intent ?? draft.request.title}
-      </p>
-      <div
-        className={sx(styles.draftMechanism)}
-        aria-label="Graph and scenario admission pending"
-      >
-        <span>REQUEST</span>
-        <i className={sx(styles.draftLine)} />
-        <span>GRAPH</span>
-        <i className={sx(styles.draftLine)} />
-        <span>ORACLE</span>
-      </div>
-      <dl className={sx(styles.cardDefinitions)}>
-        <div className={sx(styles.cardDefinition)}>
-          <dt className={sx(styles.cardTerm)}>ADMISSION</dt>
-          <dd className={sx(styles.cardValue)}>AWAITING HARNESS</dd>
-        </div>
-        <div className={sx(styles.cardDefinition)}>
-          <dt className={sx(styles.cardTerm)}>REQUEST</dt>
-          <dd className={sx(styles.cardValue)}>
-            {shortDigest(draft.request.request_id)}
-          </dd>
-        </div>
-        <div className={sx(styles.cardDefinition)}>
-          <dt className={sx(styles.cardTerm)}>TARGET</dt>
-          <dd className={sx(styles.cardValue)}>
-            {draft.request.target_package}
-          </dd>
-        </div>
-      </dl>
-      <span className={sx(styles.controlLabel, styles.cardOpen)}>
-        INSPECT HANDOFF →
-      </span>
-    </Link>
-  );
-}
-
-function MetricCell({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: ReactNode;
-  tone?: "danger" | "warning";
-}) {
-  return (
-    <div className={sx(styles.metricCell)}>
-      <span className={sx(styles.micro)}>{label}</span>
-      <strong
-        className={sx(
-          styles.metricCellValue,
-          tone === "danger" && styles.toneDanger,
-          tone === "warning" && styles.toneWarning,
-        )}
-      >
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-function SectionHeading({
-  index,
-  kicker,
-  title,
-  detail,
-}: {
-  index: string;
-  kicker: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <header className={sx(styles.sectionHeading)}>
-      <span className={sx(styles.sectionIndex)}>{index}</span>
-      <div>
-        <p className={sx(styles.micro, styles.sectionKicker)}>{kicker}</p>
-        <h2 className={sx(styles.sectionTitle)}>{title}</h2>
-      </div>
-      <small className={sx(styles.micro, styles.sectionDetail)}>{detail}</small>
-    </header>
-  );
-}
-
-function DetailPanel({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <article className={sx(styles.detailPanel)}>
-      <span className={sx(styles.micro)}>{label}</span>
-      <strong className={sx(styles.detailPanelValue, accent && styles.accent)}>
-        {value}
-      </strong>
-    </article>
-  );
-}
-
-function Definition({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className={sx(styles.definition)}>
-      <span className={sx(styles.micro)}>{label}</span>
-      <strong className={sx(styles.definitionValue, mono && styles.monoValue)}>
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-function EmptySurface({ children }: { children: ReactNode }) {
-  return (
-    <div className={sx(styles.emptySurface)}>
-      <i className={sx(styles.emptyLine)} />
-      {children}
-      <i className={sx(styles.emptyLine)} />
-    </div>
-  );
+  return <AdmittedWorkloadDetail workload={workload} />;
 }
 
 function ImplementationLink({
@@ -1339,17 +911,6 @@ function ImplementationLink({
       revision={revision}
       title={`Open Rey commit ${revision}`}
     />
-  );
-}
-
-function BackLink() {
-  return (
-    <Link
-      className={sx(styles.focusable, styles.micro, styles.backLink)}
-      to="/workloads"
-    >
-      ← WORKLOAD PORTFOLIO
-    </Link>
   );
 }
 
@@ -1526,13 +1087,13 @@ const environmentRoute = createRoute({
 const workloadsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads",
-  component: WorkloadsPage,
+  component: WorkloadsRoutePage,
 });
 
 const workloadDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads/$workloadId",
-  component: WorkloadDetailPage,
+  component: WorkloadDetailRoutePage,
 });
 
 const routeTree = rootRoute.addChildren([

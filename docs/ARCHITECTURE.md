@@ -168,10 +168,13 @@ visual transitions. Matrix-style coordinate routes bind kind, identity,
 revision, lens, and agent role so other operator views can deep-link without
 moving topology authority into the URL. `/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
-retains the exact catalog/detail routes. `/agents` begins with the Journal:
-current requests and non-excluded attention produce derived system entries;
-retained human and agent entries use one bounded typed contract and point to
-exact `/explore` coordinates. `/journal/new` admits human entries and routes
+retains the exact catalog/detail routes and aligns admitted revisions plus
+creation requests as separate Hifi dense evidence relations. Exact workload
+routes continue that relation grammar across runtime or request posture, exact
+bindings, and retained mining output. `/agents` begins with the Journal: current
+requests and non-excluded attention produce derived system entries; retained
+human and agent entries use one bounded typed contract and point to exact
+`/explore` coordinates. `/journal/new` admits human entries and routes
 to their exact `/journal/{slug}` document; entry blocks expose stable fragment
 permalinks. Agents admit through `rey journal add`, and neither path executes
 notebook blocks. It then projects an

@@ -845,6 +845,18 @@ index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
 
+`/workloads` renders the admitted and request-only catalog partitions as two
+native Hifi `KineticDenseTable` relations. The admitted relation keeps
+revision, journey, qualification, freshness, scenario conformance, exact graph
+and test identities, mining output, and attention aligned. The request relation
+keeps intent, admission boundary, target package, request source, and exact
+detail location aligned. Narrow viewports scroll the complete bounded relation;
+they do not collapse those dimensions into cards. `/workloads/$workloadId`
+continues the same grammar: admitted packages expose runtime posture, scenario
+outcomes, exact workload/graph/package/test bindings, and mining output as
+three relations; creation requests expose request posture and exact
+coding-harness bindings as two relations.
+
 The cadence endpoint returns `rey.ui-cadence.v2`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact
 limits, parents, revisions, completeness, and omissions. Its nullable

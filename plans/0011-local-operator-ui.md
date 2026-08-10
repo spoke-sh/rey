@@ -35,7 +35,9 @@ human and agent notebook documents admitted through one typed contract. Agent
 application discovery remains in Environment. Matrix-style Explorer
 coordinates make exact topology records shareable. `/journal/new` is the
 unauthenticated human authoring route; exact `/journal/{slug}` documents and
-block fragments make retained reasoning directly citable.
+block fragments make retained reasoning directly citable. `/workloads` and its
+exact detail routes use dense evidence relations for admitted revisions and
+agentic creation requests.
 
 ## Completion Checklist
 
@@ -54,6 +56,11 @@ block fragments make retained reasoning directly citable.
   alignment surface, material color properties, directional Kinetic control
   travel, and layered lighting, and keep every authored application rule in
   StyleX modules using the official extraction plugin and CSS layers.
+- [x] Replace workload portfolio cards with Hifi dense tables that preserve
+  admitted conformance/graph/mining dimensions and request intent/admission/
+  source dimensions on explicit aligned relations.
+- [x] Continue the workload table grammar through exact admitted runtime,
+  binding, and mining relations plus request posture and handoff bindings.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.
@@ -269,6 +276,19 @@ listener admitted a human proposal with no credentials or `Origin`; startup
 reported the unauthenticated write boundary. `just check`, `just test`, and
 `just build` pass with 36/36 frontend tests, 154/154 Rust tests, all
 documentation tests, Clippy with warnings denied, and flake evaluation.
+
+The workload portfolio refinement on 2026-08-10 replaces the admitted and
+request cards with native Hifi `KineticDenseTable` relations and carries that
+grammar into exact workload routes. Admitted details separate runtime posture,
+exact bindings, and mining output; creation-request details separate request
+posture from exact coding-harness bindings. Focused component proof covers
+native table semantics, complete high-dimensional rows, exact detail links,
+bounded empty states, and removal of the card interaction grammar. The
+embedded-asset server proof checks that the dense-table primitive and workload
+relation labels ship in the Rust binary. `just check`, `just test`, `just
+build`, and `nix build path:$PWD#rey --no-link` pass with 40/40 frontend tests,
+154/154 Rust tests, Clippy with warnings denied, documentation tests, and flake
+evaluation.
 
 ## Next Concrete Anchor
 

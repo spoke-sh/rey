@@ -145,8 +145,11 @@ request for unimplemented historical reconstruction. See [ADR
 - `/environment`: three stacked Kinetic Precision evidence sections over the
   exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
   bounded search, and the reference plane;
-- `/workloads`: admitted workload and creation-request catalog; and
-- `/workloads/$workloadId`: exact workload or request detail.
+- `/workloads`: separate dense tables for admitted revisions and creation
+  requests, preserving aligned conformance, graph, evidence, mining, attention,
+  intent, admission, source, and target dimensions; and
+- `/workloads/$workloadId`: dense runtime/request posture and exact binding
+  relations, plus the admitted revision's bounded mining output.
 
 The Refresh control has been removed. The root workload, mounted environment,
 and Journal projections passively revalidate every 5000 ms from their typed

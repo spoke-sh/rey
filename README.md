@@ -273,7 +273,14 @@ projects the same bounded
 `HEAD → INDEX → WORKING` environment document as the CLI through exactly three
 stacked evidence sections: `01 / DIRECTED TEXT` for variables,
 `02 / BOUNDED SEARCH` for applications, and `03` `REFERENCE PLANE` for inputs
-and topology. `/workloads` remains the exact catalog projection. The
+and topology. `/workloads` projects admitted revisions and creation requests
+as two Hifi dense evidence tables. Journey, qualification, freshness, scenario
+conformance, graph/test identity, mining output, attention, request intent,
+admission, source, and target remain aligned instead of being folded into
+cards; each row links to its exact workload or handoff detail. Exact admitted
+details continue the grammar through runtime posture, binding, and mining
+relations. Exact creation-request details use request posture and binding
+relations so the coding-harness boundary remains explicit. The
 manual Refresh control is gone: the read-only workload and environment
 documents passively revalidate every five seconds in mounted application state.
 Revalidation never navigates, remounts the active route, or changes the
