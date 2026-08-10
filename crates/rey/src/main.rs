@@ -260,7 +260,7 @@ enum EnvCommand {
     Status(EnvStatusArgs),
     /// Add the working environment to the admission index.
     Add(EnvAddArgs),
-    /// Commit the verified environment admission index.
+    /// Commit the verified environment admission index; success is silent.
     Commit(EnvCommitArgs),
     /// Show committed environment revisions newest first.
     Log(EnvLogArgs),
@@ -343,7 +343,7 @@ struct EnvCommitArgs {
     #[arg(long, default_value_t = 4_096)]
     max_changes: u64,
 
-    /// Human receipt or typed JSON envelope.
+    /// Silent success or a typed JSON receipt.
     #[arg(long, value_enum, default_value_t = EnvHistoryOutputFormat::Table)]
     format: EnvHistoryOutputFormat,
 }
@@ -2754,12 +2754,12 @@ fn env_commit(store: &LocalEnvironmentStore, args: EnvCommitArgs) -> Result<Exit
     store.save(&history)?;
     store.clear_index()?;
     let result = EnvironmentCommitResult::new(commit, status.staged_delta);
-    let mut stdout = io::stdout().lock();
     match args.format {
-        EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &result)?,
-        EnvHistoryOutputFormat::Table => {
-            write_env_commit(&mut stdout, store, &result, TerminalStyle::stdout())?
+        EnvHistoryOutputFormat::Json => {
+            let mut stdout = io::stdout().lock();
+            write_json_line(&mut stdout, &result)?;
         }
+        EnvHistoryOutputFormat::Table => {}
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -3901,62 +3901,6 @@ fn write_env_add(
     Ok(())
 }
 
-fn write_env_commit(
-    output: &mut impl Write,
-    store: &LocalEnvironmentStore,
-    result: &EnvironmentCommitResult,
-    style: TerminalStyle,
-) -> Result<(), CliError> {
-    let commit = &result.commit;
-    let counts = capability_counts(&commit.snapshot);
-    writeln!(output)?;
-    writeln!(
-        output,
-        "{}",
-        style.cyan_bold(&format!(
-            "[env {}] {}",
-            commit.sequence,
-            commit.message.lines().next().unwrap_or_default()
-        ))
-    )?;
-    writeln!(output, "  Commit                 {}", commit.commit_id)?;
-    writeln!(
-        output,
-        "  Parent                 {}",
-        commit
-            .parent_commit_id
-            .as_ref()
-            .map_or("none", SemanticDigest::as_str)
-    )?;
-    writeln!(
-        output,
-        "  Snapshot               {} · {}",
-        commit.snapshot.semantic_digest,
-        if commit.snapshot.complete {
-            "complete"
-        } else {
-            "incomplete"
-        }
-    )?;
-    writeln!(
-        output,
-        "  Capabilities           {} total · {} available · {} unavailable · {} errors",
-        counts.total, counts.available, counts.unavailable, counts.errors
-    )?;
-    write_mapping_summary(output, &commit.snapshot)?;
-    write_delta_summary(output, &result.delta, style)?;
-    writeln!(output, "  Message")?;
-    for line in commit.message.lines() {
-        writeln!(output, "      {line}")?;
-    }
-    writeln!(
-        output,
-        "  Retention              {} · local only · no fsync/locking/Spoke durability",
-        store.path().display()
-    )?;
-    Ok(())
-}
-
 fn write_env_log(
     output: &mut impl Write,
     workspace: &Path,
@@ -4424,117 +4368,8 @@ const fn environment_availability_label(availability: Availability) -> &'static 
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-struct CapabilityCounts {
-    total: u64,
-    available: u64,
-    unavailable: u64,
-    errors: u64,
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct MappingCounts {
-    graphs: u64,
-    variables: u64,
-    files: u64,
-    executables: u64,
-    edges: u64,
-}
-
-fn mapping_counts(snapshot: &CapabilitySnapshot) -> MappingCounts {
-    let mut counts = MappingCounts::default();
-    for capability in &snapshot.capabilities {
-        match capability.capability_kind.as_str() {
-            "environment_map" => counts.graphs += 1,
-            "environment_variable" => counts.variables += 1,
-            "input_file" => counts.files += 1,
-            "potential_executable" => counts.executables += 1,
-            "environment_edge" => counts.edges += 1,
-            _ => {}
-        }
-    }
-    counts
-}
-
-fn write_mapping_summary(output: &mut impl Write, snapshot: &CapabilitySnapshot) -> io::Result<()> {
-    let counts = mapping_counts(snapshot);
-    if counts.graphs == 0 {
-        writeln!(
-            output,
-            "  Reasoning map          none · process discovery only"
-        )
-    } else {
-        writeln!(
-            output,
-            "  Reasoning map          {} {} · {} {} · {} {} · {} {} · {} {}",
-            counts.graphs,
-            plural(counts.graphs, "graph", "graphs"),
-            counts.variables,
-            plural(counts.variables, "variable", "variables"),
-            counts.files,
-            plural(counts.files, "file", "files"),
-            counts.executables,
-            plural(counts.executables, "executable", "executables"),
-            counts.edges,
-            plural(counts.edges, "edge", "edges"),
-        )?;
-        if let Some(graph) = snapshot
-            .capabilities
-            .iter()
-            .find(|capability| capability.capability_kind == "environment_map")
-        {
-            writeln!(
-                output,
-                "  Reasoning graph        {} · {}",
-                graph.resolved_location.as_deref().unwrap_or("unknown"),
-                graph.content_digest.as_deref().unwrap_or("unbound")
-            )?;
-        }
-        Ok(())
-    }
-}
-
 const fn plural<'a>(count: u64, singular: &'a str, plural: &'a str) -> &'a str {
     if count == 1 { singular } else { plural }
-}
-
-fn capability_counts(snapshot: &CapabilitySnapshot) -> CapabilityCounts {
-    let mut counts = CapabilityCounts {
-        total: snapshot.capabilities.len() as u64,
-        ..CapabilityCounts::default()
-    };
-    for capability in &snapshot.capabilities {
-        match capability.availability {
-            rey_environment::Availability::Available => counts.available += 1,
-            rey_environment::Availability::Unavailable => counts.unavailable += 1,
-            rey_environment::Availability::Error => counts.errors += 1,
-        }
-    }
-    counts
-}
-
-fn write_delta_summary(
-    output: &mut impl Write,
-    delta: &CapabilityDelta,
-    style: TerminalStyle,
-) -> Result<(), CliError> {
-    writeln!(
-        output,
-        "  Delta                  {} → {} · {}",
-        delta.source_label,
-        delta.target_label,
-        delta_assessment_label(delta.summary.assessment, style)
-    )?;
-    writeln!(
-        output,
-        "  Changes                +{} inserted · -{} deleted · ~{} modified · {} unchanged",
-        delta.summary.inserted,
-        delta.summary.deleted,
-        delta.summary.modified,
-        delta.summary.unchanged
-    )?;
-    writeln!(output, "  Delta id               {}", delta.delta_id)?;
-    Ok(())
 }
 
 fn write_capability_change(

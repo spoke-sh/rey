@@ -295,7 +295,9 @@ structured provenance; exact machine evidence remains in `env diff --format
 json`.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
 without re-observing ambient state. New commits bind their commit time into a
-v2 identity. `env log -n <count>` bounds a newest-first chronology whose header
+v2 identity. A successful default commit is silent: use `--format json` when a
+machine receipt is required, or `env log -n 1` for human readback. Errors remain
+diagnostic and nonzero. `env log -n <count>` bounds a newest-first chronology whose header
 shows `ENV@n`, semantic commit and parent ids, date, and message; legacy v1
 commits explicitly have an unknown date. Evidence, environment scope, changed
 dimensions, and mapping follow. `env log -p` expands each selected parent-to-commit

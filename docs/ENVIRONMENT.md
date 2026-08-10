@@ -414,7 +414,11 @@ the complete typed capability delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact
 verified admission-index snapshot, then clears the index after history
-publication. A new `rey.environment-commit.v2` id binds a monotonic local
+publication. Successful default/table execution writes nothing to stdout or
+stderr: no news is good news. `--format json` emits the structured commit
+receipt when automation needs one, while `rey env log -n 1` is the human
+readback surface. Failures remain nonzero diagnostics on stderr. A new
+`rey.environment-commit.v2` id binds a monotonic local
 sequence, exact parent commit, integer Unix commit time, canonical message, and
 snapshot id. The time records when Rey retained the observation; it is not a
 trusted causal clock, discovery timestamp, or author identity. Existing v1

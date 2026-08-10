@@ -93,6 +93,13 @@ records remain readable and verifiable without migration; their human date is
 `unknown (legacy environment commit)`. A v1 record cannot acquire a timestamp,
 and a v2 record without one is invalid.
 
+Successful default/table `rey env commit` execution emits no stdout or stderr.
+The retained commit is the outcome; `rey env log -n 1` is its human readback
+surface. Callers that require a receipt opt into `--format json`. Validation and
+publication failures keep a nonzero exit status and diagnostic stderr. Quiet
+success does not weaken commit validation, the change bound, or structured
+evidence.
+
 Structured commit results and logs advance to
 `rey.environment-commit-result.v2` and `rey.environment-log.v2`. The local
 history container stays `rey.local-environment-history.v1` because it is a
@@ -111,5 +118,8 @@ records. Status, admission-index, add-result, and diff schemas do not change.
   or semantic index entries into every environment revision.
 - Dates are available for new history without fabricating chronology for
   legacy commits or conflating wall time with causal ordering.
+- A successful commit composes quietly with agent loops; humans inspect the
+  retained result through history and automation requests structured receipts
+  explicitly.
 - Structured consumers must accept the v2 commit-result and log envelopes and
   the optional timestamp needed to decode mixed legacy histories.

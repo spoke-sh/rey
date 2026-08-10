@@ -250,7 +250,10 @@ capability assessment remains in the coordinate header; JSON is
 `rey.environment-diff.v4` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the
 verified retained index to the linear history at
-`${workspace}/.rey/env/state.json` by default. New v2 commits bind an integer
+`${workspace}/.rey/env/state.json` by default. Successful table-mode commits
+are silent on stdout and stderr; explicit JSON returns the structured receipt,
+`log -n 1` supplies human readback, and failures remain nonzero stderr
+diagnostics. New v2 commits bind an integer
 Unix commit time as explicit retention metadata. `log` is newest-first; `-n`
 bounds selection, every entry shows `ENV@n`, semantic parent, date, and
 message, and `-p` expands each exact parent-to-commit transition through the

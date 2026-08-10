@@ -24,6 +24,8 @@ preserving authoritative typed deltas.
 - [x] Put `ENV@n`, parent, date, and message into a Git-shaped log header.
 - [x] Bind dates into new v2 commit identities while retaining verifiable v1
   history with an explicit unknown date.
+- [x] Make successful human commits silent while preserving explicit JSON
+  receipts and stderr failure diagnostics.
 - [x] Advance affected structured schemas and update foundational contracts.
 - [x] Cover stdout, stderr, JSON, exit behavior, partial staging, timestamp
   tampering, and legacy history in focused tests.
@@ -48,7 +50,8 @@ No command grants execution authority to a discovered application.
 The CLI integration fixture exercises unborn, clean, changed, staged, and mixed
 states; full and partial admission; commit without re-observation; `-n 1` and
 `-n 2` history selection; plain and patch history; structured output; and
-stdout/stderr failure contracts. Unit fixtures reject timestamp tampering and
+silent table-mode commit success plus stdout/stderr failure contracts. Unit
+fixtures reject timestamp tampering and
 verify a synthetic undated v1 commit under its original digest contract. A
 Git-index fixture proves that staging a file changes Git while preserving the
 environment snapshot identity, and a CLI fixture proves generic interactive

@@ -291,9 +291,8 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "table",
     ]);
     assert!(second.status.success());
-    let second = String::from_utf8(second.stdout).unwrap();
-    assert!(second.contains("[env 2] stage fixture"));
-    assert!(second.contains("Delta                  ENV@1 → INDEX · DIFFERENT"));
+    assert!(second.stdout.is_empty());
+    assert!(second.stderr.is_empty());
 
     let log = run_rey(&[
         "env",
