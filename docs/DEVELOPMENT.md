@@ -233,6 +233,13 @@ workbench consume that common derivation. TypeScript projection tests and the
 Rust HTTP/CLI tests are the interface proof; the browser never probes the host
 independently.
 
+`apps/rey-ui/src/passive.ts` owns passive browser revalidation independently of
+TanStack route lifecycle. Route loaders establish the initial typed document;
+the mounted React projection publishes later successful reads in place, rejects
+overlapping refreshes, retains the last good document after failure, and never
+uses router invalidation as a polling mechanism. Focused fake-timer tests prove
+the scheduling and failure behavior without a browser timing dependency.
+
 `crates/rey/build.rs` binds the composition binary to its implementation Git
 revision. A clean Nix build supplies `self.rev`; local Cargo builds resolve the
 repository HEAD and register both HEAD and its symbolic ref as rebuild inputs.

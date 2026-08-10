@@ -11,11 +11,17 @@ import {
   createRoute,
   createRouter,
   redirect,
-  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, type CSSProperties, type ReactNode } from "react";
-import { loadEnvironment, loadPortfolio } from "./api";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { loadEnvironment, loadPortfolio, type OperatorContext } from "./api";
 import {
   scenarioPercent,
   shortDigest,
@@ -31,6 +37,7 @@ import {
   type EnvironmentObjectStatus,
 } from "./environment";
 import { ExplorePage } from "./explore";
+import { startPassiveRevalidation } from "./passive";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
@@ -38,19 +45,39 @@ const precision = kineticThemeMaterials.precision;
 const precisionTheme = kineticGrammar.themes.find(
   (theme) => theme.name === "precision",
 );
+const PortfolioContext = createContext<OperatorContext | null>(null);
+
+function usePassiveDocument<T>(initialDocument: T, load: () => Promise<T>) {
+  const [document, setDocument] = useState(initialDocument);
+  const [error, setError] = useState<Error | null>(null);
+  useEffect(() => {
+    setDocument(initialDocument);
+    setError(null);
+    return startPassiveRevalidation({
+      intervalMs: 5_000,
+      load,
+      publish: setDocument,
+      reportError: setError,
+    });
+  }, [initialDocument, load]);
+  return { document, error };
+}
+
+function usePortfolio(): OperatorContext {
+  const portfolio = useContext(PortfolioContext);
+  if (!portfolio) throw new Error("portfolio context is unavailable");
+  return portfolio;
+}
 
 function RootLayout() {
-  const portfolio = rootRoute.useLoaderData();
+  const initialPortfolio = rootRoute.useLoaderData();
+  const { document: portfolio } = usePassiveDocument(
+    initialPortfolio,
+    loadPortfolio,
+  );
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
-  const router = useRouter();
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      void router.invalidate();
-    }, 5_000);
-    return () => window.clearInterval(interval);
-  }, [router]);
   const rootStyle = {
     ...getKineticMaterialStyle(precision),
     "--rey-accent": precision.accentColor,
@@ -60,109 +87,118 @@ function RootLayout() {
   } as CSSProperties;
 
   return (
-    <div
-      className={sx(
-        styles.environment,
-        pathname.startsWith("/explore") && styles.environmentViewport,
-      )}
-      data-theme="precision"
-      style={rootStyle}
-    >
-      <header
-        className={sx(
-          styles.topbar,
-          pathname.startsWith("/explore") && styles.viewportFixed,
-        )}
-      >
-        <Link className={sx(styles.focusable, styles.wordmark)} to="/explore">
-          <span className={sx(styles.wordmarkMark)}>R</span>
-          <span className={sx(styles.wordmarkText)}>
-            <strong className={sx(styles.wordmarkStrong)}>REY</strong>
-            <small className={sx(styles.micro, styles.wordmarkSmall)}>
-              DIFF-DIRECTED RUNTIME
-            </small>
-          </span>
-        </Link>
-        <nav aria-label="Primary navigation" className={sx(styles.primaryNav)}>
-          <Link
-            activeProps={{ "aria-current": "page" }}
-            className={sx(
-              styles.focusable,
-              styles.navLink,
-              pathname.startsWith("/explore") && styles.navLinkActive,
-            )}
-            to="/explore"
-          >
-            Explore
-          </Link>
-          <Link
-            activeProps={{ "aria-current": "page" }}
-            className={sx(
-              styles.focusable,
-              styles.navLink,
-              pathname.startsWith("/workloads") && styles.navLinkActive,
-            )}
-            to="/workloads"
-          >
-            Workloads{" "}
-            <span className={sx(styles.navCount)}>
-              {portfolio.catalog.workload_count}
-            </span>
-          </Link>
-          <Link
-            activeProps={{ "aria-current": "page" }}
-            className={sx(
-              styles.focusable,
-              styles.navLink,
-              pathname.startsWith("/environment") && styles.navLinkActive,
-            )}
-            to="/environment"
-          >
-            Environment
-          </Link>
-        </nav>
-      </header>
-
+    <PortfolioContext.Provider value={portfolio}>
       <div
         className={sx(
-          styles.micro,
-          styles.coordinateRail,
-          pathname.startsWith("/explore") && styles.viewportFixed,
+          styles.environment,
+          pathname.startsWith("/explore") && styles.environmentViewport,
         )}
-        aria-hidden="true"
+        data-theme="precision"
+        style={rootStyle}
       >
-        <span>00</span>
-        <i className={sx(styles.railLine)} />
-        <span>{routeCoordinate(pathname)}</span>
-        <i className={sx(styles.railLine)} />
-        <span>{new Date().getUTCFullYear()}</span>
+        <header
+          className={sx(
+            styles.topbar,
+            pathname.startsWith("/explore") && styles.viewportFixed,
+          )}
+        >
+          <Link className={sx(styles.focusable, styles.wordmark)} to="/explore">
+            <span className={sx(styles.wordmarkMark)}>R</span>
+            <span className={sx(styles.wordmarkText)}>
+              <strong className={sx(styles.wordmarkStrong)}>REY</strong>
+              <small className={sx(styles.micro, styles.wordmarkSmall)}>
+                DIFF-DIRECTED RUNTIME
+              </small>
+            </span>
+          </Link>
+          <nav
+            aria-label="Primary navigation"
+            className={sx(styles.primaryNav)}
+          >
+            <Link
+              activeProps={{ "aria-current": "page" }}
+              className={sx(
+                styles.focusable,
+                styles.navLink,
+                pathname.startsWith("/explore") && styles.navLinkActive,
+              )}
+              to="/explore"
+            >
+              Explore
+            </Link>
+            <Link
+              activeProps={{ "aria-current": "page" }}
+              className={sx(
+                styles.focusable,
+                styles.navLink,
+                pathname.startsWith("/workloads") && styles.navLinkActive,
+              )}
+              to="/workloads"
+            >
+              Workloads{" "}
+              <span className={sx(styles.navCount)}>
+                {portfolio.catalog.workload_count}
+              </span>
+            </Link>
+            <Link
+              activeProps={{ "aria-current": "page" }}
+              className={sx(
+                styles.focusable,
+                styles.navLink,
+                pathname.startsWith("/environment") && styles.navLinkActive,
+              )}
+              to="/environment"
+            >
+              Environment
+            </Link>
+          </nav>
+        </header>
+
+        <div
+          className={sx(
+            styles.micro,
+            styles.coordinateRail,
+            pathname.startsWith("/explore") && styles.viewportFixed,
+          )}
+          aria-hidden="true"
+        >
+          <span>00</span>
+          <i className={sx(styles.railLine)} />
+          <span>{routeCoordinate(pathname)}</span>
+          <i className={sx(styles.railLine)} />
+          <span>{new Date().getUTCFullYear()}</span>
+        </div>
+
+        <Outlet />
+
+        <footer
+          className={sx(
+            styles.micro,
+            styles.footer,
+            pathname.startsWith("/explore") && styles.viewportFixed,
+          )}
+        >
+          <span>
+            HIFI / {kineticGrammar.label.toUpperCase()} /{" "}
+            {precisionTheme?.label.toUpperCase()}
+          </span>
+          <span>GRAPH → SCENARIO → DELTA → ATTENTION</span>
+          <ImplementationLink
+            repository={portfolio.ui_server.source_repository}
+            revision={portfolio.ui_server.implementation_revision}
+          />
+        </footer>
       </div>
-
-      <Outlet />
-
-      <footer
-        className={sx(
-          styles.micro,
-          styles.footer,
-          pathname.startsWith("/explore") && styles.viewportFixed,
-        )}
-      >
-        <span>
-          HIFI / {kineticGrammar.label.toUpperCase()} /{" "}
-          {precisionTheme?.label.toUpperCase()}
-        </span>
-        <span>GRAPH → SCENARIO → DELTA → ATTENTION</span>
-        <ImplementationLink
-          repository={portfolio.ui_server.source_repository}
-          revision={portfolio.ui_server.implementation_revision}
-        />
-      </footer>
-    </div>
+    </PortfolioContext.Provider>
   );
 }
 
 function EnvironmentPage() {
-  const status = environmentRoute.useLoaderData();
+  const initialStatus = environmentRoute.useLoaderData();
+  const { document: status, error: refreshError } = usePassiveDocument(
+    initialStatus,
+    loadEnvironment,
+  );
   const projection = status.operator;
   const variableLines = environmentVariableDiff(projection.variables);
   const found = currentApplications(projection.applications, "available");
@@ -207,10 +243,19 @@ function EnvironmentPage() {
             <span
               className={sx(
                 styles.micro,
-                projection.complete ? styles.stateGood : styles.toneDanger,
+                refreshError
+                  ? styles.toneWarning
+                  : projection.complete
+                    ? styles.stateGood
+                    : styles.toneDanger,
               )}
+              title={refreshError?.message}
             >
-              {projection.complete ? "COMPLETE" : "INCOMPLETE"}
+              {refreshError
+                ? "REVALIDATION DELAYED"
+                : projection.complete
+                  ? "COMPLETE"
+                  : "INCOMPLETE"}
             </span>
           </div>
           <div className={sx(styles.environmentStateReadout)}>
@@ -495,7 +540,7 @@ function ApplicationGroup({
 }
 
 function WorkloadsPage() {
-  const portfolio = rootRoute.useLoaderData();
+  const portfolio = usePortfolio();
 
   return (
     <main className={sx(styles.page)}>
@@ -565,7 +610,7 @@ function WorkloadsPage() {
 }
 
 function WorkloadDetailPage() {
-  const portfolio = rootRoute.useLoaderData();
+  const portfolio = usePortfolio();
   const { workloadId } = workloadDetailRoute.useParams();
   const workload = portfolio.workloads.find(
     (candidate) => candidate.workload.id === workloadId,
@@ -1032,6 +1077,10 @@ function NotFoundPage() {
   );
 }
 
+function ExploreRoutePage() {
+  return <ExplorePage portfolio={usePortfolio()} />;
+}
+
 const rootRoute = createRootRoute({
   component: RootLayout,
   loader: loadPortfolio,
@@ -1051,7 +1100,7 @@ const indexRoute = createRoute({
 const exploreRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "explore",
-  component: () => <ExplorePage portfolio={rootRoute.useLoaderData()} />,
+  component: ExploreRoutePage,
 });
 
 const environmentRoute = createRoute({

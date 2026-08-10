@@ -51,6 +51,8 @@ topology canvas. It reads the same bounded workload portfolio projection as
   wheel input has only the semantic-lens meaning.
 - [x] Remove manual Refresh and passively revalidate the read-only portfolio at
   a reported 5000 ms interval.
+- [x] Keep passive portfolio and environment revalidation in mounted projection
+  state so polling cannot remount the active route or reset viewport position.
 - [x] Bind the footer to the exact Rey implementation revision and link the
   complete Git object id without confusing semantic BLAKE3 identities for
   source commits.
@@ -104,6 +106,13 @@ redirect plus `/explore` and `/environment`, and retained all 135 Rust tests.
 `just check`, `just test`, `just build`, and `nix build path:$PWD#rey --no-link`
 all passed. The packaged output resolved to
 `/nix/store/wx6cr2xzv68ixxg058yf62ym46bd9pwn-rey`.
+
+The environment scroll-stability correction removes router invalidation from
+the polling path and adds two focused scheduler tests. All 12 frontend tests,
+TypeScript validation, formatting, and the production asset build pass; failed
+or overlapping refreshes cannot replace the last good mounted document. The
+complete 136-test Rust suite and documentation tests also pass, and the updated
+package resolves to `/nix/store/fjaxdy5w9k8ycicr03l310rdm1ajk51q-rey`.
 
 ## Next Concrete Anchor
 

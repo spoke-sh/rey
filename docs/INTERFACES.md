@@ -803,9 +803,11 @@ The footer shortens the implementation revision only for presentation. Its
 GitHub link uses the complete 40- or 64-hex Git object id; BLAKE3 attention and
 snapshot identities are not linked as commits.
 
-The Refresh control does not exist. Root-route invalidation passively reloads
-the read-only portfolio and environment delta every five seconds.
-`ContextCanvas` projects the portfolio document through landscape,
+The Refresh control does not exist. Mounted application state passively reloads
+the read-only portfolio and environment delta every five seconds without
+invalidating or remounting the active route. A failed background request keeps
+the last good document and reports delayed revalidation; it does not reset the
+viewport. `ContextCanvas` projects the portfolio document through landscape,
 neighborhood, and object regimes with bounded
 omission disclosures; full screen, pan, focus, and zoom do not widen the data
 or action authority. See [Context Topology Explorer](EXPLORER.md) and [ADR

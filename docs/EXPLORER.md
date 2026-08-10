@@ -100,7 +100,9 @@ remain ordinary scrollable documents.
 The Refresh control has been removed. The root workload and environment
 projections passively revalidate every 5000 ms from `GET /api/v1/workloads`
 and `GET /api/v1/environment`. Revalidation changes only the browser
-projection; it does not test, run, create, add, commit, or schedule work.
+projection; it does not invalidate the route, reset viewport or scroll state,
+test, run, create, add, commit, or schedule work. Failed background reads retain
+the last good projection and remain visible as delayed revalidation.
 
 The global footer displays the shortened Rey implementation Git revision and
 links it through the complete revision to the canonical GitHub commit. This is

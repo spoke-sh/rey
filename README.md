@@ -204,7 +204,9 @@ projects the same bounded `HEAD → INDEX → WORKING` environment document as t
 CLI, leading with tracked variable changes and the complete declared
 application search. `/workloads` remains the exact catalog projection. The
 manual Refresh control is gone: the read-only workload and environment
-documents passively revalidate every five seconds.
+documents passively revalidate every five seconds in mounted application state.
+Revalidation never navigates, remounts the active route, or changes the
+operator's scroll position.
 
 The server embeds a TanStack Router application expressed with
 [Hifi](https://github.com/rupurt/hifi)'s Kinetic grammar and Precision theme.
