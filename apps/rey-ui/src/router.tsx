@@ -1,5 +1,4 @@
 import {
-  KineticButton,
   KineticSurface,
   getKineticMaterialStyle,
   kineticGrammar,
@@ -11,10 +10,11 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { loadPortfolio } from "./api";
 import {
   derivePortfolioMetrics,
@@ -25,7 +25,8 @@ import {
   type WorkloadDraft,
   type WorkloadSummary,
 } from "./domain";
-import { instrumentStyles as styles } from "./stylex/instrument.stylex";
+import { ExplorePage } from "./explore";
+import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
 const precision = kineticThemeMaterials.precision;
@@ -39,6 +40,12 @@ function RootLayout() {
     select: (state) => state.location.pathname,
   });
   const router = useRouter();
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void router.invalidate();
+    }, 5_000);
+    return () => window.clearInterval(interval);
+  }, [router]);
   const rootStyle = {
     ...getKineticMaterialStyle(precision),
     "--rey-accent": precision.accentColor,
@@ -49,12 +56,20 @@ function RootLayout() {
 
   return (
     <div
-      className={sx(styles.instrument)}
+      className={sx(
+        styles.environment,
+        pathname.startsWith("/explore") && styles.environmentViewport,
+      )}
       data-theme="precision"
       style={rootStyle}
     >
-      <header className={sx(styles.topbar)}>
-        <Link className={sx(styles.focusable, styles.wordmark)} to="/">
+      <header
+        className={sx(
+          styles.topbar,
+          pathname.startsWith("/explore") && styles.viewportFixed,
+        )}
+      >
+        <Link className={sx(styles.focusable, styles.wordmark)} to="/explore">
           <span className={sx(styles.wordmarkMark)}>R</span>
           <span className={sx(styles.wordmarkText)}>
             <strong className={sx(styles.wordmarkStrong)}>REY</strong>
@@ -65,16 +80,26 @@ function RootLayout() {
         </Link>
         <nav aria-label="Primary navigation" className={sx(styles.primaryNav)}>
           <Link
-            activeOptions={{ exact: true }}
             activeProps={{ "aria-current": "page" }}
             className={sx(
               styles.focusable,
               styles.navLink,
-              pathname === "/" && styles.navLinkActive,
+              pathname.startsWith("/explore") && styles.navLinkActive,
             )}
-            to="/"
+            to="/explore"
           >
-            Instrument
+            Explore
+          </Link>
+          <Link
+            activeProps={{ "aria-current": "page" }}
+            className={sx(
+              styles.focusable,
+              styles.navLink,
+              pathname.startsWith("/environment") && styles.navLinkActive,
+            )}
+            to="/environment"
+          >
+            Environment
           </Link>
           <Link
             activeProps={{ "aria-current": "page" }}
@@ -98,31 +123,33 @@ function RootLayout() {
           >
             <i className={sx(styles.statusDot)} /> LIVE / READ ONLY
           </div>
-          <KineticButton
-            aria-label="Refresh portfolio"
-            className={sx(styles.focusable, styles.refreshButton)}
-            onClick={() => void router.invalidate()}
-            theme="precision"
-          >
-            REFRESH
-          </KineticButton>
         </div>
       </header>
 
       <div
-        className={sx(styles.micro, styles.coordinateRail)}
+        className={sx(
+          styles.micro,
+          styles.coordinateRail,
+          pathname.startsWith("/explore") && styles.viewportFixed,
+        )}
         aria-hidden="true"
       >
         <span>00</span>
         <i className={sx(styles.railLine)} />
-        <span>{pathname === "/" ? "PORTFOLIO" : "WORKLOADS"}</span>
+        <span>{routeCoordinate(pathname)}</span>
         <i className={sx(styles.railLine)} />
         <span>{new Date().getUTCFullYear()}</span>
       </div>
 
       <Outlet />
 
-      <footer className={sx(styles.micro, styles.footer)}>
+      <footer
+        className={sx(
+          styles.micro,
+          styles.footer,
+          pathname.startsWith("/explore") && styles.viewportFixed,
+        )}
+      >
         <span>
           HIFI / {kineticGrammar.label.toUpperCase()} /{" "}
           {precisionTheme?.label.toUpperCase()}
@@ -134,7 +161,7 @@ function RootLayout() {
   );
 }
 
-function InstrumentPage() {
+function EnvironmentPage() {
   const portfolio = rootRoute.useLoaderData();
   const metrics = derivePortfolioMetrics(portfolio);
   const attentionTotal = portfolio.attention.rows.length;
@@ -144,7 +171,7 @@ function InstrumentPage() {
       <section className={sx(styles.heroGrid)}>
         <div>
           <p className={sx(styles.micro, styles.eyebrow)}>
-            PORTFOLIO CONTROL / CURRENT BEARING
+            ENVIRONMENT / PORTFOLIO CONTROL
           </p>
           <h1 className={sx(styles.displayTitle, styles.heroTitle)}>
             DELTA
@@ -853,9 +880,9 @@ function NotFoundPage() {
           styles.controlLabel,
           styles.mechanicalLink,
         )}
-        to="/"
+        to="/explore"
       >
-        RETURN TO INSTRUMENT →
+        RETURN TO EXPLORE →
       </Link>
     </main>
   );
@@ -872,7 +899,21 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: InstrumentPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/explore" });
+  },
+});
+
+const exploreRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "explore",
+  component: () => <ExplorePage portfolio={rootRoute.useLoaderData()} />,
+});
+
+const environmentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "environment",
+  component: EnvironmentPage,
 });
 
 const workloadsRoute = createRoute({
@@ -889,6 +930,8 @@ const workloadDetailRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  exploreRoute,
+  environmentRoute,
   workloadsRoute,
   workloadDetailRoute,
 ]);
@@ -903,4 +946,11 @@ declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
   }
+}
+
+function routeCoordinate(pathname: string): string {
+  if (pathname.startsWith("/explore")) return "EXPLORE / CONTEXT TOPOLOGY";
+  if (pathname.startsWith("/environment")) return "ENVIRONMENT";
+  if (pathname.startsWith("/workloads")) return "WORKLOADS";
+  return "UNRESOLVED";
 }

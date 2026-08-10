@@ -23,6 +23,9 @@ ADR 0023 adds `rey.workload-package.v1`, coding-harness provenance, frozen
 scenario admission, and product/conformance catalog separation.
 ADR 0025 adds the loopback-first, read-only `rey ui` operator projection using
 the same live workload-list derivation as the CLI.
+ADR 0026 makes `/explore` the default human surface, hard-cuts Instrument to
+Environment at `/environment`, adds the bounded semantic-lens canvas, and
+replaces manual refresh with passive five-second revalidation.
 
 ## Interface Principles
 
@@ -77,9 +80,9 @@ reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 
 `ui` is a presentation command, not a peer runtime resource. It starts on
 `127.0.0.1:5714` unless configured otherwise, reports exact exposure and
-provenance, and serves a read-only browser projection of the workload
-portfolio. An explicit non-loopback bind emits a warning because this slice
-has no authentication.
+provenance, `/explore` human entry, and passive revalidation interval. It
+serves a read-only browser projection of the workload portfolio. An explicit
+non-loopback bind emits a warning because this slice has no authentication.
 
 The implemented slice behaves as follows:
 
@@ -773,16 +776,26 @@ operation's idempotency contract rather than one generic retry rule.
 read-only HTTP projection started explicitly by the operator. It serves the
 embedded TanStack Router application, `GET|HEAD /api/v1/health`, and
 `GET|HEAD /api/v1/workloads`; all other methods are rejected. Deep browser
-routes receive the embedded application shell. The workload endpoint is
+routes receive the embedded application shell; `GET|HEAD /` redirects to
+`/explore`. The application routes are `/explore`, `/environment`,
+`/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`.
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, read-only authority, workspace, catalog root, application,
-Kinetic grammar, Precision theme, and pinned grammar revision. Static assets
+Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
+and 5000 ms passive revalidation interval. Static assets
 are embedded into the binary, authored presentation is extracted from StyleX
 modules into a layered atomic stylesheet, and browser responses carry
 restrictive security headers.
+
+The Refresh control does not exist. Root-route invalidation passively reloads
+the read-only portfolio every five seconds. `ContextCanvas` projects that
+document through landscape, neighborhood, and object regimes with bounded
+omission disclosures; full screen, pan, focus, and zoom do not widen the data
+or action authority. See [Context Topology Explorer](EXPLORER.md) and [ADR
+0026](decisions/0026-context-topology-explorer.md).
 
 This listener does not establish a public API, long-running daemon contract,
 multi-user scheduler, remote policy gateway, authentication system, or durable

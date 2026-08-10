@@ -215,6 +215,14 @@ because the Kinetic package is not published at that revision. Crane's filtered
 source includes built `apps/rey-ui/dist` assets consumed by Rust
 `include_bytes!` calls; the package does not need Node at runtime.
 
+ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
+derives bounded landscape, neighborhood, and object scenes from
+`rey.workload-list.v5`; `src/explore.tsx` owns the React canvas mechanics.
+Topology-model tests prove semantic lens ordering, zoom bounds, identity
+retention, and omission disclosure without requiring a browser graph library.
+The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
+the root redirect.
+
 The next mining implementation should continue to prefer existing
 Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser
 framework, regex engine, tree/graph library, visualization library, async

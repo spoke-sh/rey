@@ -1008,6 +1008,15 @@ fn write_ui_startup(
     write_portfolio_field(output, "Application", "TANSTACK ROUTER · EMBEDDED")?;
     write_portfolio_field(output, "Grammar", "HIFI KINETIC · PRECISION")?;
     write_portfolio_field(output, "Data plane", "LIVE READ-ONLY PORTFOLIO")?;
+    write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
+    write_portfolio_field(
+        output,
+        "Revalidation",
+        &format!(
+            "{}ms · PASSIVE · NO REFRESH CONTROL",
+            descriptor.live_refresh_interval_ms
+        ),
+    )?;
     write_portfolio_field(output, "Workspace", &descriptor.workspace)?;
     write_portfolio_field(output, "Catalog", &descriptor.catalog_root)?;
     write_portfolio_field(output, "API", "/api/v1/health · /api/v1/workloads")?;

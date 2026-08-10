@@ -14,6 +14,7 @@ const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
+const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const HIFI_GRAMMAR_REVISION: &str = "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e";
 
 const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
@@ -44,6 +45,8 @@ pub struct UiServerDescriptor {
     pub grammar: String,
     pub theme: String,
     pub grammar_revision: String,
+    pub entry_route: String,
+    pub live_refresh_interval_ms: u64,
 }
 
 pub struct UiServer {
@@ -74,6 +77,8 @@ impl UiServer {
             grammar: "kinetic".to_owned(),
             theme: "precision".to_owned(),
             grammar_revision: HIFI_GRAMMAR_REVISION.to_owned(),
+            entry_route: "/explore".to_owned(),
+            live_refresh_interval_ms: LIVE_REFRESH_INTERVAL_MS,
         };
         Ok(Self {
             server,
@@ -127,6 +132,7 @@ impl UiServer {
         }
 
         let response = match path {
+            "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
             "/api/v1/workloads" => self.workloads(),
             path if path.starts_with("/api/") => json_error(
@@ -181,6 +187,12 @@ fn index_response() -> Response<Cursor<Vec<u8>>> {
         "Content-Security-Policy",
         "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
     )
+}
+
+fn redirect_response(location: &str) -> Response<Cursor<Vec<u8>>> {
+    let response = Response::from_data(Vec::new()).with_status_code(StatusCode(307));
+    let response = with_header(response, "Location", location);
+    with_common_headers(response, "no-cache")
 }
 
 fn static_response(bytes: &[u8], content_type: &str) -> Response<Cursor<Vec<u8>>> {
@@ -277,7 +289,7 @@ mod tests {
             "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"
         );
         let address = descriptor.address.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(6)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(8)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -297,10 +309,18 @@ mod tests {
         assert!(stylesheet.contains("text/css"));
         assert!(stylesheet.contains("@layer priority"));
 
-        let deep_link = request(&address, "GET /workloads/example HTTP/1.1");
-        assert!(deep_link.starts_with("HTTP/1.1 200"));
-        assert!(deep_link.contains("Content-Security-Policy"));
-        assert!(deep_link.contains("<title>Rey / Workload Instrument</title>"));
+        let root = request(&address, "GET / HTTP/1.1");
+        assert!(root.starts_with("HTTP/1.1 307"));
+        assert!(root.contains("Location: /explore"));
+
+        let explore = request(&address, "GET /explore HTTP/1.1");
+        assert!(explore.starts_with("HTTP/1.1 200"));
+        assert!(explore.contains("Content-Security-Policy"));
+        assert!(explore.contains("<title>Rey / Explore</title>"));
+
+        let environment = request(&address, "GET /environment HTTP/1.1");
+        assert!(environment.starts_with("HTTP/1.1 200"));
+        assert!(environment.contains("<title>Rey / Explore</title>"));
 
         let rejected = request(&address, "POST /api/v1/workloads HTTP/1.1");
         assert!(rejected.starts_with("HTTP/1.1 405"));

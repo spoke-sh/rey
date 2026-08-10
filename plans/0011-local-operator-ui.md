@@ -1,23 +1,26 @@
 # Plan 0011: Local Operator UI
 
 - Status: Active
-- Decision: [ADR 0025](../docs/decisions/0025-local-operator-ui.md)
+- Decisions: [ADR 0025](../docs/decisions/0025-local-operator-ui.md),
+  [ADR 0026](../docs/decisions/0026-context-topology-explorer.md)
 
 ## Outcome
 
 Raise Rey's collaboration language from sequential command documents to a
-persistent, high-fidelity workload instrument while preserving the workload
-CLI and typed runtime evidence as authoritative:
+persistent, high-fidelity operator environment. Humans spend their normal Rey
+time in the UI; agents use the workload CLI as their primary interface, and
+humans descend to it for exact diagnosis. Typed runtime evidence remains
+authoritative:
 
 ```text
 rey ui
 rey ui --host 0.0.0.0 --port 5714
 ```
 
-The first slice is an embedded TanStack Router application using Hifi's Kinetic
-grammar with the Precision theme. It reads the same bounded workload portfolio
-projection as `rey workloads list`; it does not mutate state or create a second
-scheduler.
+The application is an embedded TanStack Router application using Hifi's
+Kinetic grammar with the Precision theme. `/explore` is the default context-
+topology canvas. It reads the same bounded workload portfolio projection as
+`rey workloads list`; it does not mutate state or create a second scheduler.
 
 ## Completion Checklist
 
@@ -36,6 +39,20 @@ scheduler.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.
+- [x] Make `/explore` the default human entry and hard-cut Instrument to
+  Environment at `/environment`.
+- [x] Formalize context topology, canvas, semantic lens, regime, neighborhood,
+  focus, relationship, and omission as explicit read-model/React concepts.
+- [x] Implement bounded landscape, neighborhood, and object projections with
+  typed identity retention and classified edges.
+- [x] Add pointer/keyboard semantic zoom, pan, selection traversal, fit, and
+  native full-screen canvas behavior.
+- [x] Fit Explore within `100dvh` and remove route-level document scrolling so
+  wheel input has only the semantic-lens meaning.
+- [x] Remove manual Refresh and passively revalidate the read-only portfolio at
+  a reported 5000 ms interval.
+- [x] Cover root redirect, both top-level routes, lens ordering, bounds,
+  identity preservation, and folded-evidence disclosure.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 
@@ -67,7 +84,7 @@ exact ephemeral URL, Kinetic grammar, Precision theme, pinned grammar revision,
 loopback exposure, and read-only authority. Live health and workload requests
 returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v5`.
 Isolated Chromium captures verified both `/` and `/workloads` at 1600×1200;
-the instrument rendered live qualification, scenario, run, coverage, attention,
+the initial environment rendered live qualification, scenario, run, coverage, attention,
 catalog, graph, and evidence data without console/server failure.
 
 After Hifi's StyleX migration on the same date, the upstream checkout was
@@ -75,21 +92,33 @@ verified at `5874cdf`, every vendored core/Kinetic source was diffed against
 that head, and the UI was rebuilt without a handwritten stylesheet. The server
 test opens the embedded `app.css` and proves extracted StyleX priority layers.
 Desktop portfolio/workload captures and a 700×1200 responsive capture preserved
-the Precision instrument. `just check`, `just test`, `just build`, and the clean
+the Precision operator surface. `just check`, `just test`, `just build`, and the clean
 Nix package build passed again after the migration.
+
+The context-topology extension on 2026-08-09 added four deterministic lens
+tests (seven UI tests total), extended the real HTTP proof across the root
+redirect plus `/explore` and `/environment`, and retained all 135 Rust tests.
+`just check`, `just test`, `just build`, and `nix build path:$PWD#rey --no-link`
+all passed. The packaged output resolved to
+`/nix/store/wx6cr2xzv68ixxg058yf62ym46bd9pwn-rey`.
 
 ## Next Concrete Anchor
 
-Project the retained scenario results and authoritative `EXPECTED → OBSERVED`
-deltas already visible in `rey workloads test -v/-vv` into exact workload and
-scenario routes. Keep list compact, make failing diffs open by default, reveal
-matching evidence progressively, and preserve deep links and revision lineage.
-The API should reuse the workload status/test representations rather than
-inventing a UI-only evidence model.
+Project the exact environment admission topology already visible through
+`rey env status` into typed read-only UI evidence. `/environment` should expose
+`HEAD → INDEX → WORKING` state and admitted variable/file/executable mapping
+objects; `/explore` should replace aggregate context counts with those exact
+nodes and relationships. Preserve digests and secret-safe handling, and do not
+let the canvas probe ambient state independently.
+
+After that anchor, project retained scenario results and authoritative
+`EXPECTED → OBSERVED` deltas from `rey workloads test -v/-vv` into exact
+workload/scenario routes without inventing a UI-only evidence model.
 
 ## Deferred
 
-Mutation controls, campaign execution from the browser, automatic refresh,
-WebSockets, multi-user identity, authentication, TLS, remote deployment,
+Mutation controls, campaign execution from the browser, WebSockets, URL-
+addressable canvas focus, high-cardinality search, multi-user identity,
+authentication, TLS, remote deployment,
 Spoke-backed streams, and a general Rey service topology are not part of this
 slice.

@@ -983,7 +983,7 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
 }
 
 #[test]
-fn ui_cli_serves_the_embedded_precision_instrument_with_explicit_exposure() {
+fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
 
@@ -1021,6 +1021,8 @@ fn ui_cli_serves_the_embedded_precision_instrument_with_explicit_exposure() {
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
         "Data plane             LIVE READ-ONLY PORTFOLIO",
+        "Human entry            /explore",
+        "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
         "/api/v1/health · /api/v1/workloads",
     ] {
         assert!(table.contains(evidence), "missing UI evidence: {evidence}");
@@ -1064,6 +1066,8 @@ fn ui_cli_serves_the_embedded_precision_instrument_with_explicit_exposure() {
     assert_eq!(descriptor["application"], "tanstack_router");
     assert_eq!(descriptor["grammar"], "kinetic");
     assert_eq!(descriptor["theme"], "precision");
+    assert_eq!(descriptor["entry_route"], "/explore");
+    assert_eq!(descriptor["live_refresh_interval_ms"], 5_000);
     assert_eq!(
         descriptor["grammar_revision"],
         "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"

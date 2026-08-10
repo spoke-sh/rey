@@ -155,9 +155,16 @@ requirements demand it.
 ## Operator Projection
 
 `rey ui` embeds a TanStack Router single-page application and serves the live
-bounded workload-list document used by the CLI. Browser routes organize the
-portfolio, attention frontier, workload identities, provenance, scenario
-coverage, and mining evidence without changing their assessment. Hifi's
+bounded workload-list document used by the CLI. The human operator lands on
+`/explore`; the CLI remains the agent's primary interface and the human's
+deeper diagnostic plane. The Explorer projects one context topology through a
+semantic lens: landscape aggregates become workload/attention neighborhoods,
+then exact graph/scenario/evidence/delta objects as zoom and focus change.
+Identity, relationship classification, bounds, and omissions survive those
+visual transitions. `/environment` retains the previous dashboard and
+`/workloads` retains the exact catalog/detail routes.
+
+Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
 language. StyleX owns compiled structural and stateful presentation while
 typed Kinetic material values remain runtime data; Rey's typed documents
@@ -166,7 +173,9 @@ remain authoritative.
 The listener defaults to loopback, is read-only, and carries no authentication,
 durability, multi-user, or remote-service guarantee. An explicit non-loopback
 bind only changes network reachability; it does not grant browser mutation or
-turn the UI into a control plane. See [ADR 0025](decisions/0025-local-operator-ui.md).
+turn the UI into a control plane. See [Context Topology
+Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
+[ADR 0026](decisions/0026-context-topology-explorer.md).
 
 ## Workloads, Graphs, And Scenarios
 

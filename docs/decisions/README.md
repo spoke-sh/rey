@@ -30,6 +30,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0023](0023-workspace-workload-packages.md) | Accepted | Workspace packages as the default product catalog, frozen generated scenarios, exact proposal provenance, and explicit built-in conformance catalog |
 | [0024](0024-workload-creation-requests.md) | Accepted | Explicit content-addressed workload creation requests, external coding-harness handoff, visible drafts, and strict admission gating |
 | [0025](0025-local-operator-ui.md) | Accepted | Read-only `rey ui`, loopback-first HTTP, embedded TanStack Router application, and pinned Hifi Kinetic Precision grammar |
+| [0026](0026-context-topology-explorer.md) | Accepted | UI-first human operation, default context-topology Explorer, semantic zoom regimes, full-screen canvas, and passive revalidation |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

@@ -8,7 +8,7 @@ const mono = 'var(--mono, "SFMono-Regular", Consolas, monospace)';
 const display =
   'var(--display, "Arial Narrow", "Roboto Condensed", sans-serif)';
 
-export const instrumentStyles = stylex.create({
+export const environmentStyles = stylex.create({
   focusable: {
     color: "inherit",
     font: "inherit",
@@ -23,7 +23,7 @@ export const instrumentStyles = stylex.create({
       ":focus-visible": 3,
     },
   },
-  instrument: {
+  environment: {
     "--display":
       '"Arial Narrow", "Roboto Condensed", "Helvetica Neue", sans-serif',
     "--line": "color-mix(in srgb, var(--rey-foreground) 27%, transparent)",
@@ -39,6 +39,14 @@ export const instrumentStyles = stylex.create({
     color: "var(--rey-foreground)",
     minHeight: "100vh",
   },
+  environmentViewport: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100dvh",
+    minHeight: 0,
+    overflow: "hidden",
+  },
+  viewportFixed: { flexShrink: 0 },
   topbar: {
     alignItems: "stretch",
     backdropFilter: "blur(14px)",
@@ -194,15 +202,6 @@ export const instrumentStyles = stylex.create({
   statusDotBlocked: {
     backgroundColor: "#b57417",
     boxShadow: "0 0 0 3px color-mix(in srgb, #b57417 20%, transparent)",
-  },
-  refreshButton: {
-    fontFamily: mono,
-    fontSize: "0.62rem",
-    fontWeight: 800,
-    letterSpacing: "0.09em",
-    minWidth: 92,
-    paddingBlock: 11,
-    paddingInline: 15,
   },
   coordinateRail: {
     alignItems: "center",

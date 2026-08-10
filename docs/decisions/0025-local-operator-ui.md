@@ -48,7 +48,8 @@ read-only projections from:
 
 API responses are uncached. Static responses carry a restrictive content
 security policy and related browser hardening headers. Request targets are
-bounded. No background polling, WebSocket, or write endpoint is implied.
+bounded. ADR 0026 later admits bounded passive browser revalidation; no
+WebSocket or write endpoint is implied.
 
 The application imports exact upstream Hifi core and Kinetic sources vendored
 under `apps/rey-ui/vendor/hifi`, with the upstream MIT license and revision
@@ -81,3 +82,5 @@ workspace build, and Crane includes those assets in the filtered source.
   network boundary.
 - Browser writes, scenario execution, server-side scheduling, authentication,
   TLS, remote deployment, and Spoke-backed live streams remain future decisions.
+- ADR 0026 extends this surface with the default context-topology Explorer and
+  passive read-only revalidation.

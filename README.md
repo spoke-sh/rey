@@ -195,8 +195,16 @@ just rey ui
 just rey ui --host 0.0.0.0 --port 5714
 ```
 
-`rey ui` opens the same live workload portfolio as a persistent visual
-instrument. It serves an embedded TanStack Router application expressed with
+`rey ui` opens the human operator's primary collaboration surface. `/`
+redirects to `/explore`, a full-screen-capable context-topology canvas whose
+semantic lens moves from a bounded landscape, through workload and attention
+neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
+delta objects. The former Instrument dashboard hard-cuts to Environment at
+`/environment`; `/workloads` remains the exact catalog projection. The manual
+Refresh control is gone: the same read-only workload document passively
+revalidates every five seconds.
+
+The server embeds a TanStack Router application expressed with
 [Hifi](https://github.com/rupurt/hifi)'s Kinetic grammar and Precision theme.
 All authored application styles are StyleX modules compiled by the official
 StyleX Vite integration into one deterministic atomic stylesheet; runtime
@@ -204,6 +212,8 @@ Kinetic material values remain typed custom properties.
 The server defaults to `127.0.0.1:5714`, accepts explicit `--host` and `--port`
 values, and reports its exact exposure before serving. Its API is read-only;
 binding beyond loopback is an operator-controlled, unauthenticated boundary.
+See [Context Topology Explorer](docs/EXPLORER.md) for the lens, focus,
+relationship, omission, and operator/agent interface contracts.
 
 The default catalog contains the checked-in, coding-harness-generated
 `rey.portfolio.label-normalization` package. Its exact YAML graph and frozen
@@ -470,8 +480,8 @@ their declared relationships are visible across both staged and unstaged
 planes. Revision selectors, reset/restore, branches, and Spoke retention remain
 later work.
 
-[Plan 0010](plans/0010-portfolio-mining-and-workload-attention.md) is the active
-workload-centered bearing. Its next concrete anchor is the bounded coding-
+[Plan 0010](plans/0010-portfolio-mining-and-workload-attention.md) carries the
+workload-centered mining strategy. Its next concrete anchor is the bounded coding-
 harness response handshake. `workloads create` now supplies the request; the
 next slice binds one ready attention row and exact evidence to it, has a harness
 materialize the package, validates the frozen response, and re-mines whether
@@ -481,9 +491,12 @@ exact owner. Parser/symbol mining remains a later tool for investigating
 attention, not the portfolio strategy itself.
 
 [Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
-surface. The first Kinetic/Precision portfolio is implemented; its next
-concrete anchor is exact scenario and directed-delta navigation with the same
-progressive evidence layers as `workloads test -v/-vv`.
+surface. `/explore` is now the default context-topology map with semantic zoom,
+pan, selection-driven focus, full screen, visible bounds, and passive
+revalidation. Its next concrete anchor is to replace aggregate context counts
+with exact admitted environment-mapping objects before adding scenario and
+directed-delta routes with the same progressive evidence layers as
+`workloads test -v/-vv`.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

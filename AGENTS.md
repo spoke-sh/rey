@@ -36,18 +36,19 @@ exists.
 2. `CONSTITUTION.md`
 3. `INSTRUCTIONS.md`
 4. `docs/ARCHITECTURE.md`
-5. `docs/MINING.md`
-6. `docs/WORKLOADS.md`
-7. `docs/RUNTIME.md`
-8. `docs/FRONTIER.md`
-9. `docs/ENVIRONMENT.md`
-10. `docs/GIT.md`
-11. `docs/DIFFS.md`
-12. `docs/PROOFS.md`
-13. `docs/INTERFACES.md`
-14. `docs/DEVELOPMENT.md`
-15. `plans/README.md` and the active plans
-16. `docs/decisions/README.md`
+5. `docs/EXPLORER.md`
+6. `docs/MINING.md`
+7. `docs/WORKLOADS.md`
+8. `docs/RUNTIME.md`
+9. `docs/FRONTIER.md`
+10. `docs/ENVIRONMENT.md`
+11. `docs/GIT.md`
+12. `docs/DIFFS.md`
+13. `docs/PROOFS.md`
+14. `docs/INTERFACES.md`
+15. `docs/DEVELOPMENT.md`
+16. `plans/README.md` and the active plans
+17. `docs/decisions/README.md`
 
 ## Core Principles
 
@@ -91,6 +92,11 @@ exists.
 
 ## Human Verification Invariant
 
+- Treat the browser UI as the human operator's primary collaboration surface
+  and the `rey` CLI as the agent's primary runtime interface. Humans should
+  normally stay in the UI and descend into CLI diagnostics only when evidence
+  or behavior needs deeper investigation; do not require routine shell
+  orchestration to understand the current bearing.
 - Bind every feature slice to a high-fidelity human interface in the `rey`
   CLI before treating the feature as complete. A human must be able to invoke
   or inspect the behavior and verify the relevant inputs, progress, results,
@@ -108,6 +114,10 @@ exists.
   projection of the same typed evidence exposed by the CLI. It must identify
   its exposure, authority, source revisions, omissions, and limits; a polished
   UI cannot introduce an independent assessment or mutation path.
+- Preserve semantic identity across visual lens changes. Zoom may replace a
+  landscape aggregate with neighborhoods and then exact objects, but it cannot
+  change source truth, silently widen scope, hide projection omissions, or
+  imply a relationship that is not present in typed evidence.
 
 ## Target System Shape
 
