@@ -37,19 +37,20 @@ exists.
 3. `INSTRUCTIONS.md`
 4. `docs/ARCHITECTURE.md`
 5. `docs/EXPLORER.md`
-6. `docs/MINING.md`
-7. `docs/WORKLOADS.md`
-8. `docs/RUNTIME.md`
-9. `docs/FRONTIER.md`
-10. `docs/ENVIRONMENT.md`
-11. `docs/LOCATORS.md`
-12. `docs/GIT.md`
-13. `docs/DIFFS.md`
-14. `docs/PROOFS.md`
-15. `docs/INTERFACES.md`
-16. `docs/DEVELOPMENT.md`
-17. `plans/README.md` and the active plans
-18. `docs/decisions/README.md`
+6. `docs/JOURNAL.md`
+7. `docs/MINING.md`
+8. `docs/WORKLOADS.md`
+9. `docs/RUNTIME.md`
+10. `docs/FRONTIER.md`
+11. `docs/ENVIRONMENT.md`
+12. `docs/LOCATORS.md`
+13. `docs/GIT.md`
+14. `docs/DIFFS.md`
+15. `docs/PROOFS.md`
+16. `docs/INTERFACES.md`
+17. `docs/DEVELOPMENT.md`
+18. `plans/README.md` and the active plans
+19. `docs/decisions/README.md`
 
 ## Core Principles
 

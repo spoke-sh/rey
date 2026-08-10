@@ -10,14 +10,24 @@ import {
 import { agentsStyles as styles } from "./stylex/agents.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
+import {
+  defaultJournalBinding,
+  JournalComposer,
+  JournalEntries,
+  type JournalEntryProposal,
+  type JournalProjection,
+} from "./journal";
 
-export type RecommendedOperation = "AUTHOR" | "REFINE" | "RESOLVE" | "TEST";
+export type JournalOperation = "AUTHOR" | "REFINE" | "RESOLVE" | "TEST";
 
-export interface SystemRecommendation {
+export interface DerivedJournalEntry {
   id: string;
+  author: "rey";
+  author_kind: "system";
+  origin: "derived";
   subject_id: string;
   subject_kind: "surface" | "workload";
-  operation: RecommendedOperation;
+  operation: JournalOperation;
   profile: string;
   reason: string;
   source: "ATTENTION" | "REQUEST" | "REQUEST + ATTENTION";
@@ -45,22 +55,25 @@ export interface WorkInsight {
   evidence_id: string | null;
 }
 
-export function deriveSystemRecommendations(
+export function deriveJournalEntries(
   portfolio: WorkloadList,
-): SystemRecommendation[] {
+): DerivedJournalEntry[] {
   const attentionBySubject = new Map(
     portfolio.attention.rows
       .filter((row) => row.readiness !== "excluded")
       .map((row) => [`${row.subject_kind}:${row.subject_id}`, row]),
   );
-  const recommendations: SystemRecommendation[] = [];
+  const entries: DerivedJournalEntry[] = [];
 
   for (const draft of portfolio.drafts) {
     const key = `workload:${draft.request.workload_id}`;
     const attention = attentionBySubject.get(key);
     if (attention) attentionBySubject.delete(key);
-    recommendations.push({
+    entries.push({
       id: draft.request.request_id,
+      author: "rey",
+      author_kind: "system",
+      origin: "derived",
       subject_id: draft.request.workload_id,
       subject_kind: "workload",
       operation: "AUTHOR",
@@ -77,13 +90,16 @@ export function deriveSystemRecommendations(
   }
 
   for (const attention of attentionBySubject.values()) {
-    const operation = recommendationOperation(attention.action);
-    recommendations.push({
+    const operation = journalOperation(attention.action);
+    entries.push({
       id: attention.row_id,
+      author: "rey",
+      author_kind: "system",
+      origin: "derived",
       subject_id: attention.subject_id,
       subject_kind: attention.subject_kind,
       operation,
-      profile: recommendedProfile(operation),
+      profile: journalProfile(operation),
       reason: attention.reason,
       source: "ATTENTION",
       readiness: attention.readiness,
@@ -96,7 +112,7 @@ export function deriveSystemRecommendations(
     });
   }
 
-  return recommendations.sort(
+  return entries.sort(
     (left, right) =>
       readinessOrder(left.readiness) - readinessOrder(right.readiness) ||
       right.priority - left.priority ||
@@ -154,9 +170,7 @@ export function deriveWorkInsights(portfolio: WorkloadList): WorkInsight[] {
   return [...admitted, ...requested];
 }
 
-function recommendationOperation(
-  action: AttentionAction,
-): RecommendedOperation {
+function journalOperation(action: AttentionAction): JournalOperation {
   switch (action) {
     case "create":
       return "AUTHOR";
@@ -170,7 +184,7 @@ function recommendationOperation(
   }
 }
 
-function recommendedProfile(operation: RecommendedOperation): string {
+function journalProfile(operation: JournalOperation): string {
   switch (operation) {
     case "AUTHOR":
     case "REFINE":
@@ -188,60 +202,62 @@ function readinessOrder(readiness: AttentionReadiness): number {
   return 2;
 }
 
-export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
-  const recommendations = deriveSystemRecommendations(portfolio);
+export function AgentsPage({
+  journal,
+  onAdmit,
+  portfolio,
+}: {
+  journal: JournalProjection;
+  onAdmit: (proposal: JournalEntryProposal) => Promise<void>;
+  portfolio: WorkloadList;
+}) {
+  const systemEntries = deriveJournalEntries(portfolio);
   const insights = deriveWorkInsights(portfolio);
-  const ready = recommendations.filter(
-    (recommendation) => recommendation.readiness === "ready",
+  const ready = systemEntries.filter(
+    (entry) => entry.readiness === "ready",
   ).length;
+  const totalEntries = journal.log.entries.length + systemEntries.length;
 
   return (
     <main className={sx(chrome.page, styles.page)}>
       <section
         className={sx(styles.section, styles.firstSection)}
-        data-rey-section="01 / SYSTEM RECOMMENDATIONS"
+        data-rey-section="01 / JOURNAL"
       >
         <AgentHeading
-          detail={`${ready} ready · ${recommendations.length - ready} blocked · typed frontier evidence`}
+          detail={`${totalEntries} entries · ${ready} ready · ${journal.log.entries.length} retained authored`}
           index="01"
-          kicker="SYSTEM RECOMMENDATIONS"
+          kicker="JOURNAL"
           title="What should happen next"
         />
-        <div className={sx(styles.recommendationBoundary)}>
-          <span className={sx(chrome.micro)}>RECOMMENDATION BASIS</span>
-          <strong>REQUEST + ATTENTION + DELTA</strong>
-          <p>
-            Rey ranks unresolved work from retained evidence. It recommends an
-            operation and capability profile; it does not fabricate an agent
-            assignment or let a proposer declare success.
-          </p>
-        </div>
-        {recommendations.length === 0 ? (
+        {journal.log.entries.length > 0 ? (
+          <JournalEntries entries={journal.log.entries} />
+        ) : null}
+        {totalEntries === 0 ? (
           <div className={sx(chrome.micro, styles.empty)}>
             NO AGENT WORK RECOMMENDED BY CURRENT EVIDENCE
           </div>
-        ) : (
+        ) : null}
+        {systemEntries.length > 0 ? (
           <div className={sx(styles.table)} role="table">
-            <div
-              className={sx(chrome.micro, styles.recommendationHeader)}
-              role="row"
-            >
-              <span>RANK / SUBJECT</span>
-              <span>RECOMMENDATION</span>
+            <div className={sx(chrome.micro, styles.journalHeader)} role="row">
+              <span>ENTRY / SUBJECT</span>
+              <span>OPERATION</span>
               <span>WHY NOW</span>
               <span>BOUNDS</span>
               <span>READINESS</span>
               <span>LOCATION</span>
             </div>
-            {recommendations.map((recommendation, index) => (
-              <RecommendationRow
-                index={index}
-                key={recommendation.id}
-                recommendation={recommendation}
-              />
+            {systemEntries.map((entry, index) => (
+              <JournalRow entry={entry} index={index} key={entry.id} />
             ))}
           </div>
-        )}
+        ) : null}
+        <JournalComposer
+          binding={defaultJournalBinding(portfolio)}
+          onAdmit={onAdmit}
+          writeEnabled={journal.write_enabled}
+        />
       </section>
 
       <section
@@ -254,15 +270,6 @@ export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
           kicker="WORK LEDGER"
           title="Observed work"
         />
-        <div className={sx(styles.ledgerBoundary)}>
-          <span className={sx(chrome.micro)}>EVIDENCE BOUNDARY</span>
-          <strong>RETAINED RESULTS / NOT LIVE AGENT TELEMETRY</strong>
-          <p>
-            Rows summarize admitted revisions, tests, runs, mined artifacts, and
-            current attention. Rey does not yet claim who is actively working or
-            stream process activity.
-          </p>
-        </div>
         {insights.length === 0 ? (
           <div className={sx(chrome.micro, styles.empty)}>
             NO WORK HAS ENTERED THE CURRENT PORTFOLIO
@@ -287,52 +294,50 @@ export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
   );
 }
 
-function RecommendationRow({
-  recommendation,
+function JournalRow({
+  entry,
   index,
 }: {
-  recommendation: SystemRecommendation;
+  entry: DerivedJournalEntry;
   index: number;
 }) {
   return (
-    <article className={sx(styles.recommendationRow)} role="row">
+    <article className={sx(styles.journalRow)} role="row">
       <div className={sx(styles.identity)}>
         <span className={sx(styles.ordinal)}>
           {String(index + 1).padStart(2, "0")}
         </span>
         <div className={sx(styles.identityDetail)}>
-          <strong>{recommendation.subject_id}</strong>
-          <code title={recommendation.id}>
-            {shortDigest(recommendation.id)}
-          </code>
-          <span className={sx(chrome.micro)}>
-            {recommendation.subject_kind}
-          </span>
+          <strong>{entry.subject_id}</strong>
+          <code title={entry.id}>{shortDigest(entry.id)}</code>
+          <span className={sx(chrome.micro)}>{entry.subject_kind}</span>
         </div>
       </div>
       <div className={sx(styles.operation)}>
-        <strong>{recommendation.operation}</strong>
-        <span className={sx(chrome.micro)}>{recommendation.profile}</span>
+        <strong>{entry.operation}</strong>
+        <span className={sx(chrome.micro)}>{entry.profile}</span>
       </div>
       <div className={sx(styles.reason)}>
-        <p className={sx(styles.reasonText)}>{recommendation.reason}</p>
-        <span className={sx(chrome.micro)}>{recommendation.source}</span>
+        <p className={sx(styles.reasonText)}>{entry.reason}</p>
+        <span className={sx(chrome.micro)}>
+          {entry.author} / {entry.origin} / {entry.source}
+        </span>
       </div>
       <div className={sx(styles.bounds)}>
         <strong>
-          P{recommendation.priority} · C{recommendation.estimated_cost_units}
+          P{entry.priority} · C{entry.estimated_cost_units}
         </strong>
         <span>
-          {recommendation.evidence_count} evidence ·{" "}
-          {recommendation.dependency_count} dependencies
+          {entry.evidence_count} evidence · {entry.dependency_count}{" "}
+          dependencies
         </span>
       </div>
       <div className={sx(styles.readiness)}>
-        <strong>{recommendation.readiness.toUpperCase()}</strong>
+        <strong>{entry.readiness.toUpperCase()}</strong>
         <span className={sx(chrome.micro)}>ASSIGNMENT / OPEN</span>
       </div>
-      {recommendation.workload_id ? (
-        <TaskLink workloadId={recommendation.workload_id} />
+      {entry.workload_id ? (
+        <TaskLink workloadId={entry.workload_id} />
       ) : (
         <span className={sx(chrome.micro, styles.unlocated)}>
           LOCATOR / PENDING

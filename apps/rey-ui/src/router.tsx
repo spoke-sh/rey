@@ -18,8 +18,10 @@ import {
 } from "react";
 import { AgentsPage } from "./agents";
 import {
+  admitJournalEntry,
   loadCadence,
   loadEnvironment,
+  loadJournal,
   loadPortfolio,
   type OperatorContext,
 } from "./api";
@@ -74,7 +76,7 @@ function usePassiveDocument<T>(initialDocument: T, load: () => Promise<T>) {
       reportError: setError,
     });
   }, [initialDocument, load]);
-  return { document, error };
+  return { document, error, publish: setDocument };
 }
 
 function usePortfolio(): OperatorContext {
@@ -1409,7 +1411,21 @@ function CadenceRoutePage() {
 }
 
 function AgentsRoutePage() {
-  return <AgentsPage portfolio={usePortfolio()} />;
+  const initialJournal = agentsRoute.useLoaderData();
+  const { document: journal, publish } = usePassiveDocument(
+    initialJournal,
+    loadJournal,
+  );
+  return (
+    <AgentsPage
+      journal={journal}
+      onAdmit={async (proposal) => {
+        const admission = await admitJournalEntry(proposal);
+        publish({ ...journal, log: admission.log });
+      }}
+      portfolio={usePortfolio()}
+    />
+  );
 }
 
 const rootRoute = createRootRoute({
@@ -1450,6 +1466,7 @@ const cadenceRoute = createRoute({
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
+  loader: loadJournal,
   component: AgentsRoutePage,
 });
 

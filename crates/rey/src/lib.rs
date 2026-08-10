@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod env;
+pub mod journal;
 pub mod workloads;
 
 use std::path::Path;

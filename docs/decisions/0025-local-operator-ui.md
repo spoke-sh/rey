@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-09
 - Extends: [ADR 0022](0022-portfolio-mining-and-workload-attention.md)
+- Extended: scoped loopback Journal admission in [ADR 0037](0037-explore-bound-collaboration-journal.md)
 
 ## Context
 

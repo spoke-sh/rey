@@ -203,6 +203,8 @@ rey workloads test [<workload-id>] [-v|-vv]
 rey workloads run <workload-id> --input <utf8>
 rey workloads status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
+rey journal add <proposal.yaml>
+rey journal list
 rey ui [--host <ip>] [--port <port>]
 ```
 
@@ -241,8 +243,10 @@ just rey workloads --catalog conformance run rey.fixture.source-search \
   --input evidence \
   --source crates/rey-environment/tests/fixtures/source-corpus/alpha.txt \
   --format table
+just rey journal add path/to/agent-entry.yaml
+just rey journal list
 just rey ui
-# Explicit network exposure; Rey warns because this read-only server has no authentication.
+# Explicit network exposure; Rey warns and disables Journal writes because the server has no authentication.
 just rey ui --host 0.0.0.0 --port 5714
 ```
 
@@ -252,9 +256,11 @@ semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations use matrix-style coordinates such as
 `/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
-bindings remain visible instead of drifting silently. `/agents` uses dense
-tables for ranked system recommendations and an observed-work ledger over
-retained portfolio evidence. Agent applications remain on `/environment`.
+bindings remain visible instead of drifting silently. `/agents` begins with
+the shared Journal: retained human and agent notebook entries sit beside
+current derived system recommendations without being confused for assignments
+or execution. Its second section is an observed-work ledger over retained
+portfolio evidence. Agent applications remain on `/environment`.
 `/cadence` presents Git reachability, Rey environment admissions, and
 mounted passive scans as separate partially ordered tick lanes rather than a
 fictional global event log. Every displayed Git commit SHA is itself an exact
@@ -284,11 +290,13 @@ All authored application styles are StyleX modules compiled by the official
 StyleX Vite integration into one deterministic atomic stylesheet; runtime
 Kinetic material values remain typed custom properties.
 The server defaults to `127.0.0.1:5714`, accepts explicit `--host` and `--port`
-values, and reports its exact exposure before serving. Its API is read-only;
-binding beyond loopback is an operator-controlled, unauthenticated boundary.
-See [Context Topology Explorer](docs/EXPLORER.md) for the lens, focus,
-coordinate, relationship, omission, cadence, and operator/agent interface
-contracts.
+values, and reports its exact exposure before serving. Its data projections
+are read-only. The exact same-origin loopback listener additionally admits
+bounded human Journal entries; binding beyond loopback disables that write and
+remains an operator-controlled, unauthenticated read-only boundary. See
+[Context Topology Explorer](docs/EXPLORER.md) for lens and coordinate semantics
+and [Collaboration Journal](docs/JOURNAL.md) for the notebook block and
+admission contracts.
 
 The default catalog contains the checked-in, coding-harness-generated
 `rey.portfolio.label-normalization` package. Its exact YAML graph and frozen
@@ -538,6 +546,8 @@ Rey is not:
 - [Frontier](docs/FRONTIER.md) — canonical work, progress, and scheduling.
 - [Environment](docs/ENVIRONMENT.md) — providers, capabilities, and profiles.
 - [Locators](docs/LOCATORS.md) — exact survey anchors and resolution contracts.
+- [Collaboration Journal](docs/JOURNAL.md) — shared typed notebook blocks,
+  exact Explorer binding, admission, retention, and authority.
 - [Git](docs/GIT.md) — source identity, polling, and activation.
 - [Diffs](docs/DIFFS.md) — typed, textual, and structural comparison.
 - [Proofs](docs/PROOFS.md) — claims, evidence, certificates, and staleness.
@@ -601,12 +611,14 @@ attention, not the portfolio strategy itself.
 [Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
 surface. `/explore` is now the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
-matrix-style deep links, ranked agent recommendations, an observed-work ledger,
-and a partially ordered cadence view. Its next concrete anchor is to replace
-the explicitly unavailable conversation boundary with exact participant,
-session, message, admission, retention, and authority contracts exposed to
-agents through the CLI. Exact locator-bound Explorer objects and scenario
-delta routes remain subsequent evidence projections.
+matrix-style deep links, a shared typed Journal, an observed-work ledger, and a
+partially ordered cadence view. Humans can author retained Explore-bound prose
+and read-only query cells on loopback; agents admit the same bounded format
+through `rey journal add`, including frame, diff, and action cells. The next
+concrete anchor is a separate query-execution handshake that can turn one
+retained declaration into an exact frame/diff result without granting document
+admission implicit compute authority. Exact locator-bound Explorer objects and
+scenario delta routes remain subsequent evidence projections.
 
 [Plan 0014](plans/0014-seed-discovery-and-locator-survey.md) carries the new
 context lifecycle. Process-owned seed discovery, explicit reasoning-map input,

@@ -4,6 +4,8 @@
 - Date: 2026-08-10
 - Extends: [ADR 0034](0034-agent-runtime-inventory-and-derived-task-plane.md)
 - Supersedes: the `/agents` runtime-inventory presentation in ADR 0034
+- Extended: the recommendation plane becomes the Journal in [ADR
+  0037](0037-explore-bound-collaboration-journal.md)
 
 ## Context
 

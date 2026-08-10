@@ -4,7 +4,8 @@ mod ui;
 
 use std::{
     collections::BTreeMap,
-    io::{self, BufRead, IsTerminal, Write},
+    fs::{self, File},
+    io::{self, BufRead, IsTerminal, Read, Write},
     net::IpAddr,
     path::{Path, PathBuf},
     process::ExitCode,
@@ -24,6 +25,10 @@ use rey::{
         effective_index_snapshot, stage_selected_capabilities,
     },
     inspect_environment, inspect_environment_with_mapping,
+    journal::{
+        JournalAdmission, JournalAuthorKind, JournalEntryProposal, JournalError, JournalLog,
+        LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
+    },
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadCatalog,
         WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadCreateResult, WorkloadDraft,
@@ -71,19 +76,64 @@ enum Command {
     Env(EnvArgs),
     /// Inspect, test, qualify, and execute bounded compute graphs.
     Workloads(WorkloadsArgs),
-    /// Serve the read-only Rey operator interface.
+    /// Read and admit bounded collaboration journal entries.
+    Journal(JournalArgs),
+    /// Serve the Rey operator interface.
     Ui(UiArgs),
 }
 
 #[derive(Debug, Args)]
+struct JournalArgs {
+    /// Workspace used as the journal and default local-state boundary.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local journal-state directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: JournalCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum JournalCommand {
+    /// Admit one typed YAML journal entry proposal without executing its blocks.
+    Add(JournalAddArgs),
+    /// List retained journal entries in admission order.
+    List(JournalListArgs),
+}
+
+#[derive(Debug, Args)]
+struct JournalAddArgs {
+    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v1.
+    proposal: PathBuf,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct JournalListArgs {
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
 struct UiArgs {
-    /// Workspace projected through the read-only UI.
+    /// Workspace projected through the operator UI.
     #[arg(long, default_value = ".")]
     workspace: PathBuf,
 
     /// Explicit local workload-state directory; relative paths resolve below the workspace.
     #[arg(long)]
     state_dir: Option<PathBuf>,
+
+    /// Explicit local journal-state directory; relative paths resolve below the workspace.
+    #[arg(long)]
+    journal_state_dir: Option<PathBuf>,
 
     /// Workspace-relative workload package root.
     #[arg(long, default_value = "workloads")]
@@ -405,8 +455,101 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
         Command::Env(args) => env_command(args),
         Command::Workloads(args) => workloads(args),
+        Command::Journal(args) => journal_command(args),
         Command::Ui(args) => ui_command(args),
     }
+}
+
+fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let store = match args.state_dir {
+        Some(path) if path.is_absolute() => LocalJournalStore::new(path),
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => LocalJournalStore::new(workspace.join(path)),
+        None => LocalJournalStore::default_for_workspace(&workspace),
+    };
+    match args.command {
+        JournalCommand::Add(command) => journal_add(&store, &workspace, command),
+        JournalCommand::List(command) => journal_list(&store, command),
+    }
+}
+
+fn journal_add(
+    store: &LocalJournalStore,
+    workspace: &Path,
+    args: JournalAddArgs,
+) -> Result<ExitCode, CliError> {
+    let proposal_path = workspace.join(&args.proposal);
+    let metadata =
+        fs::symlink_metadata(&proposal_path).map_err(|source| CliError::JournalInput {
+            path: proposal_path.clone(),
+            source,
+        })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::JournalInputType(proposal_path));
+    }
+    let canonical = proposal_path
+        .canonicalize()
+        .map_err(|source| CliError::JournalInput {
+            path: proposal_path.clone(),
+            source,
+        })?;
+    if !canonical.starts_with(workspace) {
+        return Err(CliError::JournalInputEscape(canonical));
+    }
+    if metadata.len() > MAX_JOURNAL_PROPOSAL_BYTES {
+        return Err(CliError::JournalInputLimit(MAX_JOURNAL_PROPOSAL_BYTES));
+    }
+    let mut bytes = Vec::new();
+    File::open(&canonical)
+        .map_err(|source| CliError::JournalInput {
+            path: canonical.clone(),
+            source,
+        })?
+        .take(MAX_JOURNAL_PROPOSAL_BYTES.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|source| CliError::JournalInput {
+            path: canonical.clone(),
+            source,
+        })?;
+    if bytes.len() as u64 > MAX_JOURNAL_PROPOSAL_BYTES {
+        return Err(CliError::JournalInputLimit(MAX_JOURNAL_PROPOSAL_BYTES));
+    }
+    let proposal: JournalEntryProposal = serde_saphyr::from_slice(&bytes)?;
+    if proposal.author.kind != JournalAuthorKind::Agent {
+        return Err(CliError::JournalCliAuthor);
+    }
+    let admitted_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let admission = store.admit(proposal, &admitted_at)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &admission)?,
+        WorkloadOutputFormat::Table => write_journal_admission(&mut stdout, &admission)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn journal_list(store: &LocalJournalStore, args: JournalListArgs) -> Result<ExitCode, CliError> {
+    let log = store.load()?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &log)?,
+        WorkloadOutputFormat::Table => write_journal_log(&mut stdout, &log)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
@@ -428,10 +571,19 @@ fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
         Some(path) => workspace.join(path),
         None => workspace.join(".rey").join("workloads"),
     };
+    let journal_directory = match args.journal_state_dir {
+        Some(path) if path.is_absolute() => path,
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey").join("journal"),
+    };
     let server = ui::UiServer::bind(ui::UiServerConfig {
         workspace,
         state_directory,
         catalog_directory: args.catalog_dir,
+        journal_directory,
         host: args.host,
         port: args.port,
     })?;
@@ -1005,7 +1157,15 @@ fn write_ui_startup(
     )?;
     write_portfolio_field(output, "Application", "TANSTACK ROUTER · EMBEDDED")?;
     write_portfolio_field(output, "Grammar", "HIFI KINETIC · PRECISION")?;
-    write_portfolio_field(output, "Data plane", "LIVE READ-ONLY RUNTIME")?;
+    write_portfolio_field(
+        output,
+        "Data plane",
+        if descriptor.journal_write_enabled {
+            "LIVE READS · LOOPBACK JOURNAL WRITE"
+        } else {
+            "LIVE READ-ONLY NETWORK PROJECTION"
+        },
+    )?;
     write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
     write_portfolio_field(
         output,
@@ -1020,7 +1180,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/workloads",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(
@@ -1034,6 +1194,84 @@ fn write_ui_startup(
     writeln!(output)?;
     writeln!(output, "  {}", style.dim("Press Ctrl-C to stop the server"))?;
     Ok(())
+}
+
+fn write_journal_admission(
+    output: &mut impl Write,
+    admission: &JournalAdmission,
+) -> Result<(), CliError> {
+    let entry = &admission.entry;
+    writeln!(output)?;
+    writeln!(
+        output,
+        "{}",
+        if admission.admitted {
+            "JOURNAL ENTRY ADMITTED"
+        } else {
+            "JOURNAL ENTRY ALREADY ADMITTED"
+        }
+    )?;
+    write_portfolio_field(output, "Entry", &format!("J@{}", entry.sequence))?;
+    write_portfolio_field(output, "Title", &entry.title)?;
+    write_portfolio_field(
+        output,
+        "Author",
+        &format!(
+            "{} / {}",
+            journal_author_kind(entry.author.kind),
+            entry.author.id
+        ),
+    )?;
+    write_portfolio_field(output, "Explore", &entry.binding.coordinate)?;
+    write_portfolio_field(output, "Blocks", &entry.blocks.len().to_string())?;
+    write_portfolio_field(output, "Identity", entry.entry_id.as_str())?;
+    writeln!(output)?;
+    Ok(())
+}
+
+fn write_journal_log(output: &mut impl Write, log: &JournalLog) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "JOURNAL")?;
+    write_portfolio_field(
+        output,
+        "Retained",
+        &format!("{} entries", log.entries.len()),
+    )?;
+    write_portfolio_field(output, "Identity", log.log_id.as_str())?;
+    if log.entries.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No journal entries.")?;
+        return Ok(());
+    }
+    for entry in &log.entries {
+        writeln!(output)?;
+        writeln!(
+            output,
+            "J@{} {} · {} / {}",
+            entry.sequence,
+            entry.title,
+            journal_author_kind(entry.author.kind),
+            entry.author.id
+        )?;
+        writeln!(output, "  {}", entry.binding.coordinate)?;
+        writeln!(
+            output,
+            "  {} · {} blocks · {}",
+            entry.admitted_at,
+            entry.blocks.len(),
+            entry.entry_id
+        )?;
+    }
+    writeln!(output)?;
+    Ok(())
+}
+
+fn journal_author_kind(kind: JournalAuthorKind) -> &'static str {
+    match kind {
+        JournalAuthorKind::Human => "human",
+        JournalAuthorKind::Agent => "agent",
+        JournalAuthorKind::System => "system",
+    }
 }
 
 fn write_workload_create(
@@ -4473,6 +4711,18 @@ enum CliError {
     WorkspaceDirectory(PathBuf),
     #[error("relative state directory {0} escapes the workspace boundary")]
     StateDirectoryEscape(PathBuf),
+    #[error("journal proposal {path} could not be read: {source}")]
+    JournalInput { path: PathBuf, source: io::Error },
+    #[error("journal proposal must be a regular non-symlinked file: {0}")]
+    JournalInputType(PathBuf),
+    #[error("journal proposal resolves outside the workspace: {0}")]
+    JournalInputEscape(PathBuf),
+    #[error("journal proposal exceeds {0} bytes")]
+    JournalInputLimit(u64),
+    #[error(
+        "rey journal add accepts agent-authored entries; humans write through the loopback UI and system entries are derived"
+    )]
+    JournalCliAuthor,
     #[error(transparent)]
     Rey(#[from] ReyError),
     #[error(transparent)]
@@ -4490,7 +4740,11 @@ enum CliError {
     #[error(transparent)]
     EnvironmentState(#[from] LocalEnvironmentHistoryError),
     #[error(transparent)]
+    Journal(#[from] JournalError),
+    #[error(transparent)]
     Ui(#[from] ui::UiError),
+    #[error("journal YAML failed: {0}")]
+    JournalYaml(#[from] serde_saphyr::Error),
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]

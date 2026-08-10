@@ -44,10 +44,11 @@ Rey separates eight responsibilities:
    graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
-The first topology is a local Rey process. `rey ui` may attach a read-only
-loopback operator projection to that process; it is not a separate runtime,
-scheduler, or store. A Spoke provider, when configured or discovered, uses
-Spoke's routed HTTP interface.
+The first topology is a local Rey process. `rey ui` attaches an operator
+projection to that process; its only browser write is bounded Journal
+admission on the exact same-origin loopback listener. It is not a separate
+runtime or scheduler, and a non-loopback listener remains read-only. A Spoke
+provider, when configured or discovered, uses Spoke's routed HTTP interface.
 
 ## System Graph
 
@@ -137,6 +138,7 @@ poll cursors, and delta-triggered workloads.
 | Mining result | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions | Rey evidence index; artifacts remain provider-owned or explicitly retained |
 | Portfolio snapshot | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation | Rey runtime evidence; derived from catalog/result/environment providers |
 | Workload attention | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost | Rey runtime working evidence; local or Spoke-backed when retained |
+| Journal entry | Ordered typed collaboration document bound to an exact Explorer coordinate; admission grants no execution authority | Local Rey journal; Spoke retention remains separate |
 | Action proposal | Policy request naming frozen inputs, effect class, and bounds | Rey trace |
 | Run/attempt | Provider-owned execution and capture lineage | Local executor or Spoke compute, explicitly distinguished |
 | Delta | Directed typed comparison between compatible frames | Rey evidence; local or Spoke-backed |
@@ -165,11 +167,17 @@ visual transitions. Matrix-style coordinate routes bind kind, identity,
 revision, lens, and agent role so other operator views can deep-link without
 moving topology authority into the URL. `/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
-retains the exact catalog/detail routes. `/agents` ranks recommendations from
-current requests and non-excluded attention, then projects an observed-work
-ledger from exact workload revisions, tests, runs, mining outputs, deltas, and
-attention. Tasks still organize intent, operation, artifact references,
-desired delta, readiness, and assignment; journeys remain derived. Agent
+retains the exact catalog/detail routes. `/agents` begins with the Journal:
+current requests and non-excluded attention produce derived system entries;
+retained human and agent entries use one bounded typed contract and point to
+exact `/explore` coordinates. Humans admit through the same-origin loopback
+composer, agents through `rey journal add`, and neither path executes notebook
+blocks. It then projects an
+observed-work ledger from exact workload revisions, tests, runs, mining
+outputs, deltas, and attention. Journal entries communicate direction without
+becoming assignments or execution authority. Tasks still organize intent,
+operation, artifact references, desired delta, readiness, and assignment;
+journeys remain derived. Agent
 application discovery stays on `/environment`, and generator tuples remain
 provenance rather than activity or assignment. `/cadence`
 keeps bounded Git reachability, environment sequence, and mounted browser scan
@@ -191,15 +199,19 @@ language. StyleX owns compiled structural and stateful presentation while
 typed Kinetic material values remain runtime data; Rey's typed documents
 remain authoritative.
 
-The listener defaults to loopback, is read-only, and carries no authentication,
-durability, multi-user, or remote-service guarantee. An explicit non-loopback
-bind only changes network reachability; it does not grant browser mutation or
-turn the UI into a control plane. See [Context Topology
+The listener defaults to loopback and carries no authentication, multi-user,
+or remote-service guarantee. Its only write is bounded local Journal admission
+from the exact browser origin. An explicit non-loopback bind disables that
+write and remains a read-only network projection; neither mode turns the UI
+into an execution control plane. See [Context Topology
 Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
 [ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
 0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
 Cadence repository state is specified by [ADR
 0036](decisions/0036-cadence-repository-state-and-publication.md).
+The shared collaboration Journal is specified by [ADR
+0037](decisions/0037-explore-bound-collaboration-journal.md) and
+[Collaboration Journal](JOURNAL.md).
 
 ## Workloads, Graphs, And Scenarios
 

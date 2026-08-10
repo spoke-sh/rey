@@ -15,6 +15,14 @@
     margin: 0;
   }
 
+  .xqetvdz {
+    margin: 22px;
+  }
+
+  .x1bvtm7s {
+    padding: 0 26px 20px;
+  }
+
   .x1470adl {
     padding: 0 2px;
   }
@@ -27,8 +35,16 @@
     padding: 10px 12px;
   }
 
+  .x1y1jzkf {
+    padding: 10px 13px;
+  }
+
   .x15x03d9 {
     padding: 10px 14px;
+  }
+
+  .xyi1zab {
+    padding: 11px 13px;
   }
 
   .x1ifpib {
@@ -39,12 +55,20 @@
     padding: 12px;
   }
 
+  .xz9g571 {
+    padding: 13px 16px;
+  }
+
   .x1xsay84 {
     padding: 13px 24px;
   }
 
   .x1x93lg1 {
     padding: 14px 24px;
+  }
+
+  .xqb5aye {
+    padding: 16px 24px;
   }
 
   .x1c9j6tf {
@@ -63,6 +87,10 @@
     padding: 20px 24px;
   }
 
+  .x1ym4ksy {
+    padding: 20px 26px;
+  }
+
   .x1qhigcl {
     padding: 20px;
   }
@@ -79,6 +107,10 @@
     padding: 22px 24px;
   }
 
+  .xilnx56 {
+    padding: 22px 26px;
+  }
+
   .xp9y95v {
     padding: 22px;
   }
@@ -87,12 +119,20 @@
     padding: 24px 26px 22px;
   }
 
+  .xchmxq9 {
+    padding: 24px 26px;
+  }
+
   .xggk2y7 {
     padding: 24px;
   }
 
   .xhzmtvi {
     padding: 26px 28px;
+  }
+
+  .xor4a8r {
+    padding: 26px;
   }
 
   .x5euo5u {
@@ -123,10 +163,6 @@
     padding: clamp(20px, 3vw, 32px);
   }
 
-  .x13r7s22 {
-    padding: clamp(22px, 3vw, 34px);
-  }
-
   .xwg63yq {
     padding: clamp(22px, 3vw, 42px);
   }
@@ -155,6 +191,10 @@
 
   .x1f12h7r {
     border-color: #237047;
+  }
+
+  .x1y5ashk {
+    border-color: #4b5050;
   }
 
   .x16xgza9 {
@@ -249,6 +289,10 @@
     border-width: 1px;
   }
 
+  .xdh2fpr {
+    border-width: 2px;
+  }
+
   .xl8oc27 {
     border-width: 7px;
   }
@@ -275,6 +319,10 @@
 
   .x1v2ro7d {
     gap: 12px;
+  }
+
+  .x1aut5rd {
+    gap: 13px;
   }
 
   .x1af02g3 {
@@ -413,6 +461,10 @@
     margin-inline: auto;
   }
 
+  .x1a2a7pz {
+    outline: none;
+  }
+
   .xysyzu8 {
     overflow: auto;
   }
@@ -545,6 +597,10 @@
     text-decoration: none;
   }
 
+  .xxpiy0h:focus {
+    outline: 2px solid var(--rey-foreground);
+  }
+
   @media (width <= 760px) {
     .xxdjl8l.xxdjl8l {
       flex: initial;
@@ -653,8 +709,20 @@
     animation-timing-function: steps(4, end);
   }
 
+  .xjyslct {
+    appearance: none;
+  }
+
   .x8gyo0a {
     backdrop-filter: blur(14px);
+  }
+
+  .x1hdei55 {
+    background-color: #0c0e0e;
+  }
+
+  .x1xn2dv2 {
+    background-color: #171a1a;
   }
 
   .x19x1xqz {
@@ -769,6 +837,10 @@
     background-size: 48px 48px;
   }
 
+  .x1mwwwfo {
+    border-collapse: collapse;
+  }
+
   .x139wyqd {
     box-shadow: 0 -20px 60px color-mix(in srgb,var(--rey-foreground) 18%,transparent);
   }
@@ -831,6 +903,14 @@
 
   .x1nu5p2f {
     color: #b72d25;
+  }
+
+  .xtc0uti {
+    color: #e7e5d8;
+  }
+
+  .x5dnihl {
+    color: #f1f0e8;
   }
 
   .x1heor9g {
@@ -965,6 +1045,10 @@
     font-size: .64rem;
   }
 
+  .x1shuy96 {
+    font-size: .65rem;
+  }
+
   .x1ll8agd {
     font-size: .66rem;
   }
@@ -987,6 +1071,10 @@
 
   .x19xyp9s {
     font-size: .71rem;
+  }
+
+  .x1iuv88s {
+    font-size: .72rem;
   }
 
   .xboafo0 {
@@ -1125,6 +1213,10 @@
     font-weight: 900;
   }
 
+  .x1hippge {
+    grid-template-columns: .4fr 1fr;
+  }
+
   .xitz9w {
     grid-template-columns: .55fr .55fr 1.4fr 1.4fr;
   }
@@ -1173,16 +1265,12 @@
     grid-template-columns: 72px minmax(0, 1fr) auto;
   }
 
+  .xn9cy4q {
+    grid-template-columns: 74px minmax(0, 1fr) auto;
+  }
+
   .x1qj1mfr {
     grid-template-columns: 95px 1fr;
-  }
-
-  .xbc38a3 {
-    grid-template-columns: auto minmax(220px, .6fr) minmax(300px, 1fr);
-  }
-
-  .xjv120z {
-    grid-template-columns: auto minmax(260px, .75fr) minmax(300px, 1fr);
   }
 
   .xy0r652 {
@@ -1373,6 +1461,10 @@
     line-height: 1.6;
   }
 
+  .xt2yr8m {
+    line-height: 1.72;
+  }
+
   .xwxc2jc {
     line-height: 1.8;
   }
@@ -1415,6 +1507,10 @@
 
   .x1v57pqu {
     outline-offset: -3px;
+  }
+
+  .x1hl8ikr {
+    outline-offset: 2px;
   }
 
   .x1ewu8gn {
@@ -1463,6 +1559,10 @@
 
   .xtt52l0 {
     resize: none;
+  }
+
+  .x288g5 {
+    resize: vertical;
   }
 
   .xkcv6ua {
@@ -1602,6 +1702,10 @@
     white-space: nowrap;
   }
 
+  .x126k92a {
+    white-space: pre-wrap;
+  }
+
   .x1sdyfia {
     white-space: pre;
   }
@@ -1662,12 +1766,36 @@
     outline-width: 3px;
   }
 
+  .x1oqui1x:disabled {
+    background-color: #0000;
+  }
+
+  .x1bc7zwr:disabled {
+    background-color: var(--line);
+  }
+
+  .x2s5p8x:disabled {
+    color: var(--muted);
+  }
+
+  .x1s07b3s:disabled {
+    cursor: not-allowed;
+  }
+
+  .xjb0foi:disabled {
+    cursor: wait;
+  }
+
   .xcd54w4:hover {
     background-color: #ffffff36;
   }
 
   .xwhlzrp:hover {
     background-color: var(--surface-strong);
+  }
+
+  .xdc8u5p:hover {
+    background-color: var(--surface);
   }
 
   .x1hqbxmo:hover {
@@ -1770,14 +1898,14 @@
     }
   }
 
-  @media (width <= 760px) {
-    .x1guth9d.x1guth9d {
+  @media (width <= 700px) {
+    .xx3cr9d.xx3cr9d {
       grid-template-columns: 1fr;
     }
   }
 
-  @media (width <= 820px) {
-    .xbxg0s0.xbxg0s0 {
+  @media (width <= 760px) {
+    .x1guth9d.x1guth9d {
       grid-template-columns: 1fr;
     }
   }
@@ -1809,6 +1937,12 @@
   @media (width <= 700px) {
     .xve905q.xve905q {
       grid-template-columns: 52px 1fr;
+    }
+  }
+
+  @media (width <= 680px) {
+    .x1nvs98y.x1nvs98y {
+      grid-template-columns: 58px minmax(0, 1fr);
     }
   }
 
@@ -1928,6 +2062,14 @@
     border-bottom-width: 2px;
   }
 
+  .x13rtt77 {
+    border-left-color: #237047;
+  }
+
+  .x11vv1rq {
+    border-left-color: #9a3c25;
+  }
+
   .x1qm8o2d {
     border-left-color: var(--line);
   }
@@ -1942,6 +2084,10 @@
 
   .xe0pwq {
     border-left-width: 1px;
+  }
+
+  .x1qbpyof {
+    border-left-width: 5px;
   }
 
   .x2or2wr {
@@ -2046,6 +2192,10 @@
 
   .x5kalc8 {
     height: 42px;
+  }
+
+  .xdd8jsf {
+    height: 52px;
   }
 
   .x1ycjhwn {
@@ -2156,6 +2306,14 @@
     margin-top: 0;
   }
 
+  .x1hmvnq2 {
+    margin-top: 14px;
+  }
+
+  .xw7yly9 {
+    margin-top: 16px;
+  }
+
   .xhrpt6u {
     margin-top: 18px;
   }
@@ -2240,6 +2398,10 @@
     max-width: 720px;
   }
 
+  .x1dtb55y {
+    max-width: 900px;
+  }
+
   .xhkz4we {
     max-width: min(48vw, 680px);
   }
@@ -2250,6 +2412,10 @@
 
   .xg6iff7 {
     min-height: 100vh;
+  }
+
+  .xi3av73 {
+    min-height: 120px;
   }
 
   .x19pd8fg {
@@ -2386,6 +2552,10 @@
 
   .xuzjt68 {
     padding-bottom: 54px;
+  }
+
+  .xs9asl8 {
+    padding-bottom: 5px;
   }
 
   .x10b6aqq {

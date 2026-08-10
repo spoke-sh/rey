@@ -7,7 +7,8 @@
   [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md),
   [ADR 0034](../docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md),
   [ADR 0035](../docs/decisions/0035-agent-recommendations-and-observed-work.md),
-  [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md)
+  [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md),
+  [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md)
 
 ## Outcome
 
@@ -26,9 +27,11 @@ The application is an embedded TanStack Router application using Hifi's
 Kinetic grammar with the Precision theme. `/explore` is the default context-
 topology canvas. It reads the same bounded workload portfolio projection as
 `rey workloads list`; it does not mutate state or create a second scheduler.
-`/cadence` keeps observable clocks partially ordered. `/agents` ranks current
-system recommendations and summarizes observed work from retained evidence;
-agent application discovery remains in Environment. Matrix-style Explorer
+`/cadence` keeps observable clocks partially ordered. `/agents` presents an
+Explore-bound collaboration Journal and summarizes observed work from retained
+evidence. Current Journal rows include derived system entries plus retained
+human and agent notebook documents admitted through one typed contract. Agent
+application discovery remains in Environment. Matrix-style Explorer
 coordinates make exact topology records shareable.
 
 ## Completion Checklist
@@ -85,6 +88,9 @@ coordinates make exact topology records shareable.
   desired/found/missing inventory.
 - [x] Move runtime inventory back to Environment and restore `/agents` as dense
   recommendation and work-ledger tables over authoritative portfolio evidence.
+- [x] Reframe `/agents` section 01 as the Journal, remove explanatory banners,
+  and expose a same-size dashed shared-write affordance with explicit authority
+  when the Journal is quiet.
 - [x] Formalize canonical matrix-style Explorer coordinates with unique
   unordered dimensions, exact `at` bindings, agent roles, route tests, and
   visible stale/missing resolution.
@@ -102,6 +108,9 @@ coordinates make exact topology records shareable.
 - [ ] Define and implement the agent-visible conversation CLI/API contract,
   participant and session identities, message admission, bounded retention,
   and exact read/write authority.
+- [x] Define and implement the shared Journal entry schema, exact Explorer
+  binding, human UI composer, agent CLI admission, retained order, limits, and
+  supersession behavior.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 
@@ -218,11 +227,28 @@ The agent-plane refinement separates available collaboration applications from
 past generator provenance. Six major agent runtimes enter the same bounded
 environment inventory/search evidence as other applications. That inventory
 stays on `/environment`. `/agents` collapses matching creation-request and
-attention evidence into ranked recommendations and adds an observed-work
-ledger over retained revision, test, run, mining, delta, and attention facts.
-It explicitly labels those rows as retained results rather than live agent
-telemetry. Tasks remain bounded coordination envelopes and journeys remain
-derived rather than retained objects.
+attention evidence into system-authored Journal entries and adds an
+observed-work ledger over retained revision, test, run, mining, delta, and
+attention facts. The quiet Journal initially exposed the intended shared
+human/agent write interaction as a dashed control with pending authority.
+Tasks remain bounded coordination envelopes and journeys remain derived rather
+than retained objects. That intermediate component proof required its exact
+section coordinate, quiet state, human/agent Explore binding, and removal of
+both explanatory banners. `just check` passed formatting, TypeScript, 32/32 UI
+tests, production build, Clippy, and flake evaluation; `just test` passed
+148/148 Rust tests, 32/32 UI tests, and documentation tests.
+
+The Journal admission extension implements that pending handshake. One shared
+validator now accepts six typed notebook blocks, canonical exact Explorer
+bindings, content identities, idempotent ordered admission, backward
+supersession, and hard document/state limits. `rey journal add` is the agent
+author surface; `/agents` is the human composer and retained rich-block
+renderer. Human POST is exact-origin and loopback-only, while a network bind
+remains read-only. Query and action blocks are inert at document admission.
+The complete format and authority boundary live in `docs/JOURNAL.md`. `just
+check`, `just test`, and `just build` pass with 35/35 frontend tests, 154/154
+Rust tests, every documentation test, Clippy with warnings denied, and flake
+evaluation.
 
 ## Next Concrete Anchor
 
@@ -232,12 +258,15 @@ delta, the high-fidelity `rey env status` document, and the exact read-only
 uses aggregate environment coverage and should eventually consume these exact
 nodes and relationships.
 
-The nearer operator-UI anchor is one task-assignment handshake: define the task
-CLI/API contract, bind one discovered runtime and exact locator to one ready
-task, admit invocation separately from discovery, and return artifact/delta
-evidence to the frontier. That same boundary supplies the participant and
-session identity needed before chat becomes writable. Scenario/delta routes
-remain the next evidence projection after that contract.
+The Journal admission handshake is complete. The next exact anchor is one
+read-only query-result handshake: select a retained query declaration, admit
+execution separately, bind the provider and frozen inputs, and append a
+superseding entry containing its bounded frame and directed diff. This proves
+the notebook-to-runtime boundary without treating document admission as
+compute authority. Task assignment remains separate: bind one discovered
+runtime and exact locator to one ready task, admit invocation separately from
+discovery, and return artifact/delta evidence to the frontier. Scenario/delta
+routes remain the next evidence projection after those contracts.
 
 ## Deferred
 

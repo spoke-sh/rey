@@ -1,6 +1,9 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { deriveSystemRecommendations, deriveWorkInsights } from "./agents";
+import { AgentsPage, deriveJournalEntries, deriveWorkInsights } from "./agents";
 import type { WorkloadList, WorkloadSummary } from "./domain";
+import type { JournalProjection } from "./journal";
 
 describe("agent collaboration intelligence", () => {
   it("ranks typed recommendations without duplicating request attention", () => {
@@ -44,9 +47,12 @@ describe("agent collaboration intelligence", () => {
       },
     );
 
-    expect(deriveSystemRecommendations(portfolio)).toMatchObject([
+    expect(deriveJournalEntries(portfolio)).toMatchObject([
       {
         id: "request:alpha",
+        author: "rey",
+        author_kind: "system",
+        origin: "derived",
         operation: "AUTHOR",
         profile: "CODING HARNESS",
         source: "REQUEST + ATTENTION",
@@ -61,6 +67,42 @@ describe("agent collaboration intelligence", () => {
         readiness: "blocked",
       },
     ]);
+  });
+
+  it("renders a quiet Journal with an honest shared-write affordance", () => {
+    const markup = renderToStaticMarkup(
+      createElement(AgentsPage, {
+        journal: emptyJournal(),
+        onAdmit: async () => undefined,
+        portfolio: emptyPortfolio(),
+      }),
+    );
+
+    expect(markup).toContain('data-rey-section="01 / JOURNAL"');
+    expect(markup).toContain("NO AGENT WORK RECOMMENDED BY CURRENT EVIDENCE");
+    expect(markup).toContain('data-journal-admission="available"');
+    expect(markup).toContain("WRITE A JOURNAL ENTRY");
+    expect(markup).toContain("HUMAN + AGENT · EXPLORE-BOUND");
+    expect(markup).toContain("LOOPBACK ADMISSION AVAILABLE");
+    expect(markup).not.toContain("disabled");
+    expect(markup).not.toContain("RECOMMENDATION BASIS");
+  });
+
+  it("keeps Journal admission visibly unavailable on a network projection", () => {
+    const journal = emptyJournal();
+    journal.write_enabled = false;
+    journal.authority = "read_only_network_projection";
+    const markup = renderToStaticMarkup(
+      createElement(AgentsPage, {
+        journal,
+        onAdmit: async () => undefined,
+        portfolio: emptyPortfolio(),
+      }),
+    );
+
+    expect(markup).toContain('data-journal-admission="unavailable"');
+    expect(markup).toContain("NETWORK PROJECTION · READ ONLY");
+    expect(markup).toContain("disabled");
   });
 
   it("reports observed work from retained results rather than agent activity", () => {
@@ -82,6 +124,19 @@ describe("agent collaboration intelligence", () => {
     ]);
   });
 });
+
+function emptyJournal(): JournalProjection {
+  return {
+    schema: "rey.ui-journal.v1",
+    write_enabled: true,
+    authority: "loopback_same_origin",
+    log: {
+      schema: "rey.journal-log.v1",
+      log_id: "blake3:empty",
+      entries: [],
+    },
+  };
+}
 
 function workload(): WorkloadSummary {
   return {

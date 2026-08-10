@@ -28,34 +28,6 @@ export const agentsStyles = stylex.create({
     lineHeight: 0.8,
   },
   kicker: { marginBlock: 0, marginBottom: 5 },
-  recommendationBoundary: {
-    alignItems: "center",
-    backgroundColor: "var(--rey-foreground)",
-    color: "var(--rey-background)",
-    display: "grid",
-    gap: 18,
-    gridTemplateColumns: {
-      default: "auto minmax(220px, 0.6fr) minmax(300px, 1fr)",
-      "@media (max-width: 820px)": "1fr",
-    },
-    marginTop: 28,
-    padding: "clamp(22px, 3vw, 34px)",
-  },
-  ledgerBoundary: {
-    alignItems: "center",
-    backgroundColor: "var(--surface)",
-    borderColor: "var(--line)",
-    borderStyle: "solid",
-    borderWidth: 1,
-    display: "grid",
-    gap: 18,
-    gridTemplateColumns: {
-      default: "auto minmax(260px, 0.75fr) minmax(300px, 1fr)",
-      "@media (max-width: 820px)": "1fr",
-    },
-    marginTop: 28,
-    padding: "clamp(22px, 3vw, 34px)",
-  },
   empty: {
     borderColor: "var(--line)",
     borderStyle: "solid",
@@ -71,7 +43,7 @@ export const agentsStyles = stylex.create({
     borderWidth: 1,
     marginTop: 20,
   },
-  recommendationHeader: {
+  journalHeader: {
     backgroundColor: "var(--rey-foreground)",
     color: "var(--rey-background)",
     display: {
@@ -95,7 +67,7 @@ export const agentsStyles = stylex.create({
       "minmax(230px, 1.05fr) minmax(150px, 0.65fr) minmax(190px, 0.82fr) minmax(210px, 0.9fr) minmax(155px, 0.65fr) minmax(155px, 0.62fr)",
     padding: "12px 20px",
   },
-  recommendationRow: {
+  journalRow: {
     alignItems: "center",
     backgroundColor: {
       default: "var(--surface)",

@@ -1,6 +1,6 @@
 use std::{
     env,
-    io::Cursor,
+    io::{Cursor, Read},
     net::{IpAddr, SocketAddr},
     path::PathBuf,
 };
@@ -8,6 +8,10 @@ use std::{
 use rey::{
     current_environment_status,
     env::LocalEnvironmentStore,
+    journal::{
+        JournalAdmission, JournalAuthorKind, JournalEntryProposal, JournalLog, LocalJournalStore,
+        MAX_JOURNAL_PROPOSAL_BYTES,
+    },
     workloads::{LocalWorkloadStore, WorkloadCatalog},
 };
 use rey_environment::{DiscoveryLimits, resolve_executable};
@@ -17,10 +21,11 @@ use serde_json::json;
 use thiserror::Error;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
-const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
+const UI_SERVER_SCHEMA: &str = "rey.ui-server.v2";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v2";
+const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
@@ -38,6 +43,7 @@ pub struct UiServerConfig {
     pub workspace: PathBuf,
     pub state_directory: PathBuf,
     pub catalog_directory: PathBuf,
+    pub journal_directory: PathBuf,
     pub host: IpAddr,
     pub port: u16,
 }
@@ -51,6 +57,7 @@ pub struct UiServerDescriptor {
     pub port: u16,
     pub loopback_only: bool,
     pub read_only: bool,
+    pub journal_write_enabled: bool,
     pub workspace: String,
     pub catalog_root: String,
     pub application: String,
@@ -155,6 +162,14 @@ struct UiCadenceProjection {
     omissions: Vec<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiJournalProjection {
+    schema: String,
+    write_enabled: bool,
+    authority: String,
+    log: JournalLog,
+}
+
 pub struct UiServer {
     server: Server,
     config: UiServerConfig,
@@ -176,7 +191,8 @@ impl UiServer {
             host: bound.ip().to_string(),
             port: bound.port(),
             loopback_only: bound.ip().is_loopback(),
-            read_only: true,
+            read_only: !bound.ip().is_loopback(),
+            journal_write_enabled: bound.ip().is_loopback(),
             workspace: config.workspace.display().to_string(),
             catalog_root: config.catalog_directory.display().to_string(),
             application: "tanstack_router".to_owned(),
@@ -210,14 +226,14 @@ impl UiServer {
             if max_requests.is_some_and(|limit| served >= limit) {
                 return Ok(());
             }
-            let request = self.server.recv().map_err(UiError::Receive)?;
-            let response = self.route(&request);
+            let mut request = self.server.recv().map_err(UiError::Receive)?;
+            let response = self.route(&mut request);
             request.respond(response).map_err(UiError::Respond)?;
             served = served.saturating_add(1);
         }
     }
 
-    fn route(&self, request: &Request) -> Response<Cursor<Vec<u8>>> {
+    fn route(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
         if request.url().len() > MAX_REQUEST_TARGET_BYTES {
             return json_error(
                 StatusCode(414),
@@ -227,12 +243,15 @@ impl UiServer {
         }
         let path = request.url().split('?').next().unwrap_or("/");
         let head = request.method() == &Method::Head;
+        if request.method() == &Method::Post && path == "/api/v1/journal" {
+            return self.admit_journal(request);
+        }
         if request.method() != &Method::Get && !head {
             return with_header(
                 json_error(
                     StatusCode(405),
                     "method_not_allowed",
-                    "the Rey UI data plane is read-only; use GET or HEAD",
+                    "this Rey UI route is read-only; use GET or HEAD",
                 ),
                 "Allow",
                 "GET, HEAD",
@@ -244,6 +263,7 @@ impl UiServer {
             "/api/v1/health" => self.health(),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/environment" => self.environment(),
+            "/api/v1/journal" => self.journal(),
             "/api/v1/workloads" => self.workloads(),
             path if path.starts_with("/api/") => json_error(
                 StatusCode(404),
@@ -286,6 +306,105 @@ impl UiServer {
         match result {
             Ok(list) => json_response(StatusCode(200), &list),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
+        }
+    }
+
+    fn journal(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalJournalStore::new(self.config.journal_directory.clone());
+        match store.load() {
+            Ok(log) => json_response(
+                StatusCode(200),
+                &UiJournalProjection {
+                    schema: UI_JOURNAL_SCHEMA.to_owned(),
+                    write_enabled: self.descriptor.journal_write_enabled,
+                    authority: if self.descriptor.journal_write_enabled {
+                        "loopback_same_origin"
+                    } else {
+                        "read_only_network_projection"
+                    }
+                    .to_owned(),
+                    log,
+                },
+            ),
+            Err(error) => json_error(StatusCode(500), "journal_unavailable", &error.to_string()),
+        }
+    }
+
+    fn admit_journal(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        if !self.descriptor.journal_write_enabled {
+            return json_error(
+                StatusCode(403),
+                "journal_write_forbidden",
+                "journal writes are enabled only on the loopback UI listener",
+            );
+        }
+        let origin = request_header(request, "Origin");
+        if origin != Some(self.descriptor.url.as_str()) {
+            return json_error(
+                StatusCode(403),
+                "journal_origin_rejected",
+                "journal writes require the exact same-origin loopback UI",
+            );
+        }
+        let content_type = request_header(request, "Content-Type");
+        if content_type != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "journal_content_type",
+                "journal writes require Content-Type: application/json",
+            );
+        }
+        if request
+            .body_length()
+            .is_some_and(|length| length as u64 > MAX_JOURNAL_PROPOSAL_BYTES)
+        {
+            return json_error(
+                StatusCode(413),
+                "journal_body_limit",
+                "journal proposal exceeds the 1048576-byte limit",
+            );
+        }
+        let mut bytes = Vec::new();
+        let read = request
+            .as_reader()
+            .take(MAX_JOURNAL_PROPOSAL_BYTES.saturating_add(1))
+            .read_to_end(&mut bytes);
+        if let Err(error) = read {
+            return json_error(
+                StatusCode(400),
+                "journal_body_unreadable",
+                &error.to_string(),
+            );
+        }
+        if bytes.len() as u64 > MAX_JOURNAL_PROPOSAL_BYTES {
+            return json_error(
+                StatusCode(413),
+                "journal_body_limit",
+                "journal proposal exceeds the 1048576-byte limit",
+            );
+        }
+        let proposal: JournalEntryProposal = match serde_json::from_slice(&bytes) {
+            Ok(proposal) => proposal,
+            Err(error) => {
+                return json_error(StatusCode(400), "journal_json_invalid", &error.to_string());
+            }
+        };
+        if proposal.author.kind != JournalAuthorKind::Human {
+            return json_error(
+                StatusCode(422),
+                "journal_author_invalid",
+                "the human UI admission endpoint accepts only human-authored entries; agents use rey journal add",
+            );
+        }
+        let admitted_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let store = LocalJournalStore::new(self.config.journal_directory.clone());
+        match store.admit(proposal, &admitted_at) {
+            Ok(admission) => journal_admission_response(&admission),
+            Err(error) => json_error(
+                StatusCode(422),
+                "journal_admission_rejected",
+                &error.to_string(),
+            ),
         }
     }
 
@@ -598,6 +717,25 @@ fn json_response(value_status: StatusCode, value: &impl Serialize) -> Response<C
     }
 }
 
+fn journal_admission_response(admission: &JournalAdmission) -> Response<Cursor<Vec<u8>>> {
+    json_response(
+        if admission.admitted {
+            StatusCode(201)
+        } else {
+            StatusCode(200)
+        },
+        admission,
+    )
+}
+
+fn request_header<'a>(request: &'a Request, name: &'static str) -> Option<&'a str> {
+    request
+        .headers()
+        .iter()
+        .find(|header| header.field.equiv(name))
+        .map(|header| header.value.as_str())
+}
+
 fn json_error(status: StatusCode, category: &str, detail: &str) -> Response<Cursor<Vec<u8>>> {
     let body = serde_json::to_vec(&json!({
         "schema": UI_ERROR_SCHEMA,
@@ -655,19 +793,21 @@ mod tests {
     use super::{UiServer, UiServerConfig};
 
     #[test]
-    fn server_is_loopback_read_only_and_serves_api_assets_and_spa_routes() {
+    fn server_scopes_journal_writes_to_loopback_and_serves_the_operator_ui() {
         let workspace = TempDir::new().unwrap();
         let server = UiServer::bind(UiServerConfig {
             workspace: workspace.path().to_owned(),
             state_directory: workspace.path().join(".rey/workloads"),
             catalog_directory: "workloads".into(),
+            journal_directory: workspace.path().join(".rey/journal"),
             host: "127.0.0.1".parse().unwrap(),
             port: 0,
         })
         .unwrap();
         let descriptor = server.descriptor();
         assert!(descriptor.loopback_only);
-        assert!(descriptor.read_only);
+        assert!(!descriptor.read_only);
+        assert!(descriptor.journal_write_enabled);
         assert_eq!(descriptor.grammar, "kinetic");
         assert_eq!(descriptor.theme, "precision");
         assert_eq!(
@@ -680,7 +820,8 @@ mod tests {
             "git:058c6504fc10740360717e97e687fd77bef6a5c5"
         );
         let address = descriptor.address.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(13)).unwrap());
+        let origin = descriptor.url.clone();
+        let handle = thread::spawn(move || server.serve_bounded(Some(17)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -708,6 +849,66 @@ mod tests {
         assert!(cadence.contains("ui.portfolio.passive-revalidation"));
         assert!(cadence.contains("ui.cadence.passive-revalidation"));
 
+        let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
+        assert!(journal.starts_with("HTTP/1.1 200"));
+        assert!(journal.contains("\"schema\":\"rey.ui-journal.v1\""));
+        assert!(journal.contains("\"write_enabled\":true"));
+        assert!(journal.contains("\"entries\":[]"));
+
+        let proposal = serde_json::json!({
+            "schema": "rey.journal-entry-proposal.v1",
+            "title": "Bind the Journal",
+            "author": { "kind": "human", "id": "operator" },
+            "binding": {
+                "coordinate": "/explore/portfolio/current;at=blake3%3Aportfolio;lens=landscape",
+                "source_revision": "blake3:portfolio"
+            },
+            "blocks": [{
+                "kind": "prose",
+                "id": "context",
+                "document": [{ "kind": "paragraph", "text": "A retained human entry." }]
+            }]
+        })
+        .to_string();
+        let cross_origin = request_with_body(
+            &address,
+            "POST /api/v1/journal HTTP/1.1",
+            &[
+                ("Content-Type", "application/json"),
+                ("Origin", "http://not-rey.invalid"),
+            ],
+            &proposal,
+        );
+        assert!(cross_origin.starts_with("HTTP/1.1 403"));
+        assert!(cross_origin.contains("\"category\":\"journal_origin_rejected\""));
+
+        let agent_proposal = proposal.replace("\"kind\":\"human\"", "\"kind\":\"agent\"");
+        let wrong_author = request_with_body(
+            &address,
+            "POST /api/v1/journal HTTP/1.1",
+            &[
+                ("Content-Type", "application/json"),
+                ("Origin", origin.as_str()),
+            ],
+            &agent_proposal,
+        );
+        assert!(wrong_author.starts_with("HTTP/1.1 422"));
+        assert!(wrong_author.contains("\"category\":\"journal_author_invalid\""));
+
+        let admitted = request_with_body(
+            &address,
+            "POST /api/v1/journal HTTP/1.1",
+            &[
+                ("Content-Type", "application/json"),
+                ("Origin", origin.as_str()),
+            ],
+            &proposal,
+        );
+        assert!(admitted.starts_with("HTTP/1.1 201"));
+        assert!(admitted.contains("\"schema\":\"rey.journal-admission.v1\""));
+        assert!(admitted.contains("\"admitted\":true"));
+        assert!(admitted.contains("\"kind\":\"human\""));
+
         let application = request(&address, "GET /assets/app.js HTTP/1.1");
         assert!(application.starts_with("HTTP/1.1 200"));
         assert!(application.contains("text/javascript"));
@@ -716,9 +917,12 @@ mod tests {
         assert!(application.contains("REFERENCE PLANE"));
         assert!(application.contains("Inputs and topology"));
         assert!(application.contains("RETAINED SEQUENCE"));
-        assert!(application.contains("SYSTEM RECOMMENDATIONS"));
+        assert!(application.contains("01 / JOURNAL"));
+        assert!(application.contains("WRITE A JOURNAL ENTRY"));
+        assert!(application.contains("HUMAN + AGENT · EXPLORE-BOUND"));
+        assert!(!application.contains("RECOMMENDATION BASIS"));
         assert!(application.contains("WORK LEDGER"));
-        assert!(application.contains("RETAINED RESULTS / NOT LIVE AGENT TELEMETRY"));
+        assert!(!application.contains("RETAINED RESULTS / NOT LIVE AGENT TELEMETRY"));
         assert!(application.contains("DESIRED INVENTORY"));
         assert!(application.contains("SEARCH RECORD"));
         assert!(application.contains("PROCESS SEEDS"));
@@ -780,12 +984,26 @@ mod tests {
     }
 
     fn request(address: &str, request_line: &str) -> String {
+        request_with_body(address, request_line, &[], "")
+    }
+
+    fn request_with_body(
+        address: &str,
+        request_line: &str,
+        headers: &[(&str, &str)],
+        body: &str,
+    ) -> String {
         let mut stream = TcpStream::connect(address).unwrap();
         write!(
             stream,
-            "{request_line}\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+            "{request_line}\r\nHost: {address}\r\nConnection: close\r\nContent-Length: {}\r\n",
+            body.len()
         )
         .unwrap();
+        for (name, value) in headers {
+            write!(stream, "{name}: {value}\r\n").unwrap();
+        }
+        write!(stream, "\r\n{body}").unwrap();
         let mut response = Vec::new();
         stream.read_to_end(&mut response).unwrap();
         let header_end = response

@@ -1,10 +1,17 @@
 import type { WorkloadList } from "./domain";
 import type { CadenceProjection } from "./cadence";
 import type { EnvironmentStatus } from "./environment";
+import type {
+  JournalAdmission,
+  JournalEntryProposal,
+  JournalProjection,
+} from "./journal";
 
 export interface UiServerIdentity {
   source_repository: string;
   implementation_revision: string;
+  journal_write_enabled: boolean;
+  read_only: boolean;
 }
 
 export type OperatorContext = WorkloadList & {
@@ -57,4 +64,33 @@ export async function loadCadence(): Promise<CadenceProjection> {
     throw new Error(`Cadence request failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as CadenceProjection;
+}
+
+export async function loadJournal(): Promise<JournalProjection> {
+  const response = await fetch("/api/v1/journal", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Journal request failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as JournalProjection;
+}
+
+export async function admitJournalEntry(
+  proposal: JournalEntryProposal,
+): Promise<JournalAdmission> {
+  const response = await fetch("/api/v1/journal", {
+    body: JSON.stringify(proposal),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Journal admission failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as JournalAdmission;
 }

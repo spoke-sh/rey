@@ -35,6 +35,8 @@ coordinates. ADR 0034 replaces its agent registry with process-discovered
 runtime options and a task/operation plane derived from the current frontier.
 ADR 0035 keeps runtime inventory in Environment and raises `/agents` to ranked
 recommendations plus retained-work insight.
+ADR 0037 adds the bounded Explore-bound collaboration Journal, shared agent
+CLI and loopback human admission, and inert typed notebook blocks.
 ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
 explicit agent-map input, establishes locator survey as the next boundary, and
 turns the footer into a live typed-attention mailbox.
@@ -79,11 +81,15 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] test [<workload-id>] [-v|-
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--catalog-dir PATH] status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
-rey ui [--workspace PATH] [--state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
+rey journal [--workspace PATH] [--state-dir PATH] add <proposal.yaml>
+rey journal [--workspace PATH] [--state-dir PATH] list
+rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 `env` inventories and revisions the available compute boundary. `workloads`
-is the public unit for composing and using runtime concepts. Spaces, lenses,
+is the public unit for composing and using runtime concepts. `journal` is the
+agent-facing admission and retrieval surface for typed collaboration entries;
+it does not execute their blocks. Spaces, lenses,
 frames, deltas, frontiers, traces, and proofs remain typed evidence and may
 gain focused diagnostic projections, but they are not peer top-level resources
 that users must manually orchestrate.
@@ -92,12 +98,13 @@ Mining follows the same rule. Search, parse, index, group, traverse, diff, and
 visualize are discoverable operation contracts composed inside workloads and
 reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 
-`ui` is a presentation command, not a peer runtime resource. It starts on
+`ui` is primarily a presentation command, not a peer runtime resource. It starts on
 `127.0.0.1:5714` unless configured otherwise, reports exact exposure and
 provenance, `/explore` human entry, and passive revalidation interval. It
-serves read-only workload, environment, cadence, agent, and Explorer
-projections. An explicit non-loopback bind emits a warning because this slice
-has no authentication.
+serves read-only workload, environment, cadence, and Explorer projections. On
+the exact same-origin loopback listener it also admits bounded human Journal
+entries; an explicit non-loopback bind disables that write and emits a warning
+because this slice has no authentication.
 
 The implemented slice behaves as follows:
 
@@ -819,11 +826,13 @@ operation's idempotency contract rather than one generic retry rule.
 
 ## Local Operator UI, Not A Public Rey Service
 
-`rey ui` is the implemented exception to a CLI-only topology: a bounded,
-read-only HTTP projection started explicitly by the operator. It serves the
-embedded TanStack Router application, `GET|HEAD /api/v1/health`,
-`GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`, and
-`GET|HEAD /api/v1/cadence`; all other methods are rejected. Deep browser
+`rey ui` is the implemented exception to a CLI-only topology: a bounded HTTP
+operator projection started explicitly by the operator. It serves the embedded
+TanStack Router application plus `GET|HEAD /api/v1/health`,
+`GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`,
+`GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its only write is
+`POST /api/v1/journal`, and that route is enabled only on a loopback listener
+for an exact same-origin JSON request. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/explore`. The application routes are `/explore`, exact matrix-style Explorer
 coordinates, `/cadence`, `/agents`, `/environment`, `/workloads`, and
@@ -843,16 +852,24 @@ The endpoint performs no network fetch; local upstream state is not a live
 remote-host claim. It also describes the existing mounted-browser revalidation
 schedules. That schedule description is not runtime scheduler state, and the
 endpoint does not poll refs, activate a workload, or retain browser reads.
-`/agents` requires no independent endpoint:
-it derives ranked recommendations from creation requests and non-excluded
-attention in the workload-list document. Its work ledger projects only exact
-current revisions, qualification/run summaries, scenario coverage, mining and
-delta counts, attention, and retained evidence identities. It does not load the
-environment inventory, schedule work, infer an assigned agent, or claim live
-process telemetry.
+`/agents` combines two sources without conflating them. Its current
+system-authored rows derive from creation requests and non-excluded attention
+in the workload-list document. Its authored entries come from the ordered
+`rey.journal-log.v1` returned by the Journal endpoint. The human block composer
+admits prose, an exact Explorer map binding, and an optional read-only query
+declaration. Agent YAML admitted by `rey journal add` may additionally carry
+bounded frame, directed diff, and proposed-action blocks. Admission is
+content-identified and idempotent; it retains no arbitrary HTML and executes
+no block. The same canonical-coordinate, revision-consistency, block, and byte
+limits govern both paths. Its work ledger
+projects only exact current revisions, qualification/run summaries, scenario
+coverage, mining and delta counts, attention, and retained evidence identities.
+It does not load the environment inventory, schedule work, infer an assigned
+agent, or claim live process telemetry.
 
-The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
-loopback status, read-only authority, workspace, catalog root, application,
+The startup table and `rey.ui-server.v2` JSON expose exact address, URL,
+loopback status, read-only/network authority, scoped Journal-write authority,
+workspace, catalog root, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
 5000 ms passive revalidation interval, canonical Rey source repository, and
 implementation Git revision. Static assets

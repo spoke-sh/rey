@@ -1519,6 +1519,105 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
 }
 
 #[test]
+fn journal_cli_admits_agent_entries_without_executing_typed_blocks() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    let proposal = workspace.path().join("entry.yaml");
+    fs::write(
+        &proposal,
+        r#"schema: rey.journal-entry-proposal.v1
+title: Inspect source coverage
+author:
+  kind: agent
+  id: codex
+binding:
+  coordinate: /explore/workload/source-mining;at=blake3%3Aabc;lens=objects
+  source_revision: blake3:abc
+blocks:
+  - kind: prose
+    id: context
+    document:
+      - kind: paragraph
+        text: Coverage moved after the latest survey.
+  - kind: query
+    id: coverage-query
+    language: sql
+    provider: spoke
+    mode: read_only
+    statement: select * from coverage
+    parameters: {}
+"#,
+    )
+    .unwrap();
+
+    let admitted = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "add",
+        "entry.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(admitted.status.success());
+    assert!(admitted.stderr.is_empty());
+    let admitted: Value = serde_json::from_slice(&admitted.stdout).unwrap();
+    assert_eq!(admitted["schema"], "rey.journal-admission.v1");
+    assert_eq!(admitted["admitted"], true);
+    assert_eq!(admitted["entry"]["sequence"], 1);
+    assert_eq!(admitted["entry"]["author"]["kind"], "agent");
+    assert_eq!(admitted["entry"]["blocks"][1]["kind"], "query");
+    assert_eq!(admitted["entry"]["blocks"][1]["mode"], "read_only");
+
+    let repeated = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "add",
+        "entry.yaml",
+        "--format",
+        "table",
+    ]);
+    assert!(repeated.status.success());
+    let repeated = String::from_utf8(repeated.stdout).unwrap();
+    assert!(repeated.contains("JOURNAL ENTRY ALREADY ADMITTED"));
+    assert!(repeated.contains("agent / codex"));
+    assert!(repeated.contains("/explore/workload/source-mining"));
+
+    let listed = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    assert!(listed.status.success());
+    let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(listed["schema"], "rey.journal-log.v1");
+    assert_eq!(listed["entries"].as_array().unwrap().len(), 1);
+    assert!(workspace.path().join(".rey/journal/journal.json").is_file());
+
+    let human_proposal = fs::read_to_string(&proposal)
+        .unwrap()
+        .replace("kind: agent", "kind: human");
+    fs::write(workspace.path().join("human.yaml"), human_proposal).unwrap();
+    let rejected = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "add",
+        "human.yaml",
+    ]);
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(rejected.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&rejected.stderr)
+            .contains("rey journal add accepts agent-authored entries")
+    );
+}
+
+#[test]
 fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
@@ -1556,10 +1655,10 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Exposure               LOOPBACK ONLY",
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
-        "Data plane             LIVE READ-ONLY RUNTIME",
+        "Data plane             LIVE READS · LOOPBACK JOURNAL WRITE",
         "Human entry            /explore",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/workloads",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
@@ -1604,10 +1703,11 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut descriptor_line = String::new();
     network_stdout.read_line(&mut descriptor_line).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor_line).unwrap();
-    assert_eq!(descriptor["schema"], "rey.ui-server.v1");
+    assert_eq!(descriptor["schema"], "rey.ui-server.v2");
     assert_eq!(descriptor["host"], "0.0.0.0");
     assert_eq!(descriptor["loopback_only"], false);
     assert_eq!(descriptor["read_only"], true);
+    assert_eq!(descriptor["journal_write_enabled"], false);
     assert_eq!(descriptor["application"], "tanstack_router");
     assert_eq!(descriptor["grammar"], "kinetic");
     assert_eq!(descriptor["theme"], "precision");
