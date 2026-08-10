@@ -5,7 +5,8 @@
 - Extends: [ADR 0026](0026-context-topology-explorer.md)
 - Superseded: the `/agents` registry projection is replaced by [ADR
   0034](0034-agent-runtime-inventory-and-derived-task-plane.md); v1 Explorer
-  coordinates remain current.
+  coordinates remain current; the cadence v1 projection is extended by [ADR
+  0036](0036-cadence-repository-state-and-publication.md).
 
 ## Context
 

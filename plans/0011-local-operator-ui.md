@@ -6,7 +6,8 @@
   [ADR 0030](../docs/decisions/0030-operator-cadence-agents-and-explorer-coordinates.md),
   [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md),
   [ADR 0034](../docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md),
-  [ADR 0035](../docs/decisions/0035-agent-recommendations-and-observed-work.md)
+  [ADR 0035](../docs/decisions/0035-agent-recommendations-and-observed-work.md),
+  [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md)
 
 ## Outcome
 
@@ -76,6 +77,9 @@ coordinates make exact topology records shareable.
 - [x] Add `/cadence` with bounded reachable Git commits, verified Rey
   environment admissions, explicit scan contracts, partial ordering, and
   visible omissions.
+- [x] Lead `/cadence` with independent working-tree and local-upstream
+  publication instruments, and classify bounded commit ticks against the exact
+  retained upstream revision.
 - [x] Replace the provenance-derived `/agents` registry with current bounded
   tasks, derived workflow operations, and the process-owned major agent-runtime
   desired/found/missing inventory.
@@ -183,6 +187,17 @@ tests, the production build, Rustfmt, Clippy with warnings denied, and flake
 evaluation. `just test` passed 138/138 Rust tests, 19/19 UI tests, and every
 documentation test. `just build` and the clean Nix package build passed; the
 package resolved to `/nix/store/m9dvhkwfkh2ykdvsad357gxdn29prscf-rey`.
+
+The cadence repository-state extension on 2026-08-10 adds
+`rey.git-repository-status.v1` and hard-cuts the endpoint to
+`rey.ui-cadence.v2`. Working-tree counts and local-upstream publication remain
+independent, exact OIDs bind divergence and per-commit reachability, and the UI
+states `NO NETWORK FETCH` rather than implying remote freshness. Provider
+fixtures cover clean, dirty, no-upstream, pushed, unpushed, per-commit, and
+conflicted states; component proof covers the paired instruments, publication
+labels, and exact GitHub revision links. `just check` passes formatting,
+TypeScript, 31/31 UI tests, the production build, Clippy, and flake evaluation;
+`just test` passes 148/148 Rust tests, 31/31 UI tests, and documentation tests.
 
 The Git-SHA presentation invariant on 2026-08-10 routes the footer and every
 Git cadence revision through one `GitCommitLink` boundary. Component proof

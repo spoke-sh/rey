@@ -833,12 +833,17 @@ index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
 
-The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
+The cadence endpoint returns `rey.ui-cadence.v2`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact
-limits, parents, revisions, completeness, and omissions. It also describes the
-existing mounted-browser revalidation schedules. That schedule description is
-not runtime scheduler state, and the endpoint does not poll refs, activate a
-workload, or retain browser reads. `/agents` requires no independent endpoint:
+limits, parents, revisions, completeness, and omissions. Its nullable
+`repository_state` separately reports working-tree counts and the exact
+`HEAD`-to-local-upstream publication relation. Git ticks carry `pushed`,
+`local`, or `unknown` reachability against that retained upstream revision.
+The endpoint performs no network fetch; local upstream state is not a live
+remote-host claim. It also describes the existing mounted-browser revalidation
+schedules. That schedule description is not runtime scheduler state, and the
+endpoint does not poll refs, activate a workload, or retain browser reads.
+`/agents` requires no independent endpoint:
 it derives ranked recommendations from creation requests and non-excluded
 attention in the workload-list document. Its work ledger projects only exact
 current revisions, qualification/run summaries, scenario coverage, mining and

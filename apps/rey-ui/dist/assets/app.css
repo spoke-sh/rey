@@ -15,6 +15,10 @@
     margin: 0;
   }
 
+  .x1470adl {
+    padding: 0 2px;
+  }
+
   .x1717udv {
     padding: 0;
   }
@@ -35,6 +39,10 @@
     padding: 12px;
   }
 
+  .x1xsay84 {
+    padding: 13px 24px;
+  }
+
   .x1x93lg1 {
     padding: 14px 24px;
   }
@@ -51,8 +59,16 @@
     padding: 17px;
   }
 
+  .x1yijxmr {
+    padding: 20px 24px;
+  }
+
   .x1qhigcl {
     padding: 20px;
+  }
+
+  .x1bk4ozh {
+    padding: 22px 18px;
   }
 
   .xvrmwo1 {
@@ -65,6 +81,10 @@
 
   .xp9y95v {
     padding: 22px;
+  }
+
+  .x1jniwjl {
+    padding: 24px 26px 22px;
   }
 
   .xggk2y7 {
@@ -89,6 +109,10 @@
 
   .x1qmqqgu {
     padding: 7px 9px;
+  }
+
+  .x1160tuk {
+    padding: 8px 10px;
   }
 
   .x1028wpp {
@@ -797,6 +821,10 @@
     color: #8d251f;
   }
 
+  .xj3f434 {
+    color: #9a3c25;
+  }
+
   .x1xz8lni {
     color: #9a6411;
   }
@@ -1021,6 +1049,10 @@
     font-size: 2.8rem;
   }
 
+  .x579bpy {
+    font-size: 2rem;
+  }
+
   .x5f6h7s {
     font-size: 4rem;
   }
@@ -1043,6 +1075,10 @@
 
   .xlraifm {
     font-size: clamp(1rem, 1.4vw, 1.24rem);
+  }
+
+  .xyd82ua {
+    font-size: clamp(2rem, 4vw, 3.5rem);
   }
 
   .x5xw4ka {
@@ -1087,6 +1123,10 @@
 
   .x1uu0p8 {
     font-weight: 900;
+  }
+
+  .xitz9w {
+    grid-template-columns: .55fr .55fr 1.4fr 1.4fr;
   }
 
   .xrtoimr {
@@ -1149,6 +1189,10 @@
     grid-template-columns: minmax(0, .9fr) minmax(470px, 1.1fr);
   }
 
+  .x37c5m6 {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
   .xju1xpo {
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -1187,6 +1231,10 @@
 
   .xl501l6 {
     grid-template-columns: repeat(4, 1fr);
+  }
+
+  .x1sipb5g {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .xkgyxu0 {
@@ -1740,6 +1788,12 @@
     }
   }
 
+  @media (width <= 920px) {
+    .xyya9i6.xyya9i6 {
+      grid-template-columns: 1fr;
+    }
+  }
+
   @media (width <= 980px) {
     .xup0gzv.xup0gzv {
       grid-template-columns: 1fr;
@@ -1773,6 +1827,18 @@
   @media (width >= 760.01px) and (width <= 1050px) {
     .x1d8wg67.x1d8wg67 {
       grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (width <= 520px) {
+    .x1nkwbb.x1nkwbb {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (width <= 560px) {
+    .xz9ouej.xz9ouej {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -1876,6 +1942,10 @@
 
   .xe0pwq {
     border-left-width: 1px;
+  }
+
+  .x2or2wr {
+    border-right-color: var(--line-soft);
   }
 
   .x1oq2qtl {

@@ -8,9 +8,11 @@ records repository/worktree identity, object format, bare/shallow state, HEAD,
 and a partial logical index-entry digest. The operator cadence slice also reads
 the newest 24 commits currently reachable from `HEAD`, preserving exact OIDs,
 ordered parents, committer time, subject, object format, shallow state,
-truncation, and a semantic sequence identity. Ref frames, movement
-classification, general graph traversal, worktree status, polling, triggers,
-activations, and complete index flag semantics remain Plan 0001 work.
+truncation, and a semantic sequence identity. It now pairs that sequence with
+bounded porcelain-v2 working-tree counts and exact local-upstream publication
+state. Ref-frame history, movement classification, general graph traversal,
+polling, triggers, activations, remote synchronization, and complete index flag
+semantics remain Plan 0001 work.
 
 Git is not part of the `rey env` admission snapshot. That loop discovers the
 `git` executable as an application, while this provider owns repository HEAD,
@@ -49,6 +51,15 @@ The implemented `/cadence` Git lane is correspondingly labeled reachable HEAD
 history, not a commit event stream. It is newest-first, bounded, and incomplete
 when shallow or truncated. It neither advances a cursor nor infers that the
 visible commits were appended since a prior observation.
+
+`rey.git-repository-status.v1` keeps two axes independent. Working-tree state
+counts staged, unstaged, untracked, and conflicted porcelain-v2 records;
+ignored files are outside its declared scope. Publication records the branch,
+exact `HEAD` and local upstream OIDs, and ahead/behind reachability. Cadence
+classifies each visible commit against the retained upstream OID as `pushed`,
+`local`, or `unknown`. No status read performs fetch or push, so these are
+local-ref facts rather than claims about current remote-host state. See [ADR
+0036](decisions/0036-cadence-repository-state-and-publication.md).
 
 ## Git Surfaces
 

@@ -11,7 +11,7 @@ use rey::{
     workloads::{LocalWorkloadStore, WorkloadCatalog},
 };
 use rey_environment::{DiscoveryLimits, resolve_executable};
-use rey_git::{GitInspector, GitLimits};
+use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
@@ -20,7 +20,7 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
-const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
+const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v2";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
@@ -74,6 +74,52 @@ struct UiCadenceTick {
     revision: String,
     parent_revisions: Vec<String>,
     occurred_at_unix: Option<i64>,
+    publication: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiCadenceRepositoryState {
+    id: String,
+    working_tree_state: String,
+    staged_entries: u64,
+    unstaged_entries: u64,
+    untracked_entries: u64,
+    conflicted_entries: u64,
+    push_state: String,
+    branch: Option<String>,
+    head_revision: Option<String>,
+    upstream: Option<String>,
+    upstream_revision: Option<String>,
+    ahead: Option<u64>,
+    behind: Option<u64>,
+    comparison_basis: String,
+    complete: bool,
+    scope: String,
+    omissions: Vec<String>,
+}
+
+impl From<GitRepositoryStatus> for UiCadenceRepositoryState {
+    fn from(status: GitRepositoryStatus) -> Self {
+        Self {
+            id: status.status_id.to_string(),
+            working_tree_state: status.working_tree.state,
+            staged_entries: status.working_tree.staged_entries,
+            unstaged_entries: status.working_tree.unstaged_entries,
+            untracked_entries: status.working_tree.untracked_entries,
+            conflicted_entries: status.working_tree.conflicted_entries,
+            push_state: status.publication.state,
+            branch: status.publication.branch,
+            head_revision: status.publication.head_oid,
+            upstream: status.publication.upstream,
+            upstream_revision: status.publication.upstream_oid,
+            ahead: status.publication.ahead,
+            behind: status.publication.behind,
+            comparison_basis: status.publication.comparison_basis,
+            complete: status.complete,
+            scope: status.scope,
+            omissions: status.omissions,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -103,6 +149,7 @@ struct UiCadenceProjection {
     schema: String,
     ordering: String,
     source_repository: Option<String>,
+    repository_state: Option<UiCadenceRepositoryState>,
     lanes: Vec<UiCadenceLane>,
     schedules: Vec<UiCadenceSchedule>,
     omissions: Vec<String>,
@@ -300,6 +347,7 @@ impl UiServer {
                     .map(ToString::to_string)
                     .collect(),
                 occurred_at_unix: None,
+                publication: None,
             });
         }
         environment_ticks.extend(
@@ -330,6 +378,7 @@ impl UiServer {
                         .map(ToString::to_string)
                         .collect(),
                     occurred_at_unix: None,
+                    publication: None,
                 }),
         );
         let environment_complete = environment_total <= CADENCE_ENVIRONMENT_COMMIT_LIMIT;
@@ -344,6 +393,7 @@ impl UiServer {
 
         let mut projection_omissions = Vec::new();
         let mut source_repository = None;
+        let mut repository_state: Option<UiCadenceRepositoryState> = None;
         let git_lane = match env::var_os("PATH")
             .map(|path| env::split_paths(&path).collect::<Vec<_>>())
             .and_then(|paths| resolve_executable("git", &paths))
@@ -354,11 +404,38 @@ impl UiServer {
                     workspace: self.config.workspace.clone(),
                     limits: GitLimits::default(),
                 };
+                match inspector.inspect_repository_status() {
+                    Ok(Some(status)) => repository_state = Some(status.into()),
+                    Ok(None) => projection_omissions
+                        .push("Git repository state is absent for this workspace".to_owned()),
+                    Err(error) => projection_omissions
+                        .push(format!("Git repository state inspection failed: {error}")),
+                }
                 match inspector.inspect_recent_commits(CADENCE_GIT_COMMIT_LIMIT) {
                     Ok(Some(sequence)) => {
                         if sequence.head_oid.as_deref() == Some(REY_IMPLEMENTATION_REVISION) {
                             source_repository = Some(REY_SOURCE_REPOSITORY.to_owned());
                         }
+                        let commit_oids = sequence
+                            .commits
+                            .iter()
+                            .map(|commit| commit.commit_oid.clone())
+                            .collect::<Vec<_>>();
+                        let upstream_revision = repository_state
+                            .as_ref()
+                            .and_then(|state| state.upstream_revision.as_deref());
+                        let publications = match inspector
+                            .inspect_commit_publication(&commit_oids, upstream_revision)
+                        {
+                            Ok(Some(states)) => states,
+                            Ok(None) => vec!["unknown".to_owned(); commit_oids.len()],
+                            Err(error) => {
+                                projection_omissions.push(format!(
+                                    "Git commit publication inspection failed: {error}"
+                                ));
+                                vec!["unknown".to_owned(); commit_oids.len()]
+                            }
+                        };
                         UiCadenceLane {
                             id: sequence.sequence_id.to_string(),
                             label: "Git commits".to_owned(),
@@ -392,6 +469,7 @@ impl UiServer {
                                     revision: commit.commit_oid.clone(),
                                     parent_revisions: commit.parent_oids.clone(),
                                     occurred_at_unix: Some(commit.committed_at_unix),
+                                    publication: publications.get(index).cloned(),
                                 })
                                 .collect(),
                             omissions: sequence.omissions,
@@ -452,6 +530,7 @@ impl UiServer {
             schema: UI_CADENCE_SCHEMA.to_owned(),
             ordering: "partial".to_owned(),
             source_repository,
+            repository_state,
             lanes: vec![git_lane, environment_lane],
             schedules: vec![
                 UiCadenceSchedule {
@@ -622,9 +701,10 @@ mod tests {
 
         let cadence = request(&address, "GET /api/v1/cadence HTTP/1.1");
         assert!(cadence.starts_with("HTTP/1.1 200"));
-        assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
+        assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v2\""));
         assert!(cadence.contains("\"ordering\":\"partial\""));
         assert!(cadence.contains("\"source_repository\":null"));
+        assert!(cadence.contains("\"repository_state\":null"));
         assert!(cadence.contains("ui.portfolio.passive-revalidation"));
         assert!(cadence.contains("ui.cadence.passive-revalidation"));
 
@@ -655,7 +735,9 @@ mod tests {
         assert!(application.contains("--kinetic-control-press-x"));
         assert!(application.contains("--kinetic-light-highlight"));
         assert!(application.contains("--kinetic-shadow-soft-y"));
-        assert!(!application.contains("WORKING TREE"));
+        assert!(application.contains("WORKING TREE"));
+        assert!(application.contains("PUSH RELATION"));
+        assert!(application.contains("NO NETWORK FETCH"));
         assert!(!application.contains("TICK → GRAPH → SCENARIO → DELTA → ATTENTION"));
 
         let stylesheet = request(&address, "GET /assets/app.css HTTP/1.1");

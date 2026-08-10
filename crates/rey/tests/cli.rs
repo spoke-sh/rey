@@ -1578,7 +1578,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(environment.contains("\"schema\":\"rey.environment-status.v5\""));
     let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
     assert!(cadence.starts_with("HTTP/1.1 200"));
-    assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
+    assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v2\""));
     assert!(cadence.contains("\"ordering\":\"partial\""));
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();

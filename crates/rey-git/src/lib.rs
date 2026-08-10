@@ -18,6 +18,7 @@ use thiserror::Error;
 
 pub const GIT_SNAPSHOT_SCHEMA: &str = "rey.git-repository.v1";
 pub const GIT_COMMIT_SEQUENCE_SCHEMA: &str = "rey.git-commit-sequence.v1";
+pub const GIT_REPOSITORY_STATUS_SCHEMA: &str = "rey.git-repository-status.v1";
 pub const MAX_GIT_COMMIT_SEQUENCE: usize = 256;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -116,6 +117,38 @@ pub struct GitCommitSequence {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GitWorkingTreeSummary {
+    pub state: String,
+    pub staged_entries: u64,
+    pub unstaged_entries: u64,
+    pub untracked_entries: u64,
+    pub conflicted_entries: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GitPublicationSummary {
+    pub state: String,
+    pub branch: Option<String>,
+    pub head_oid: Option<String>,
+    pub upstream: Option<String>,
+    pub upstream_oid: Option<String>,
+    pub ahead: Option<u64>,
+    pub behind: Option<u64>,
+    pub comparison_basis: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GitRepositoryStatus {
+    pub schema: String,
+    pub status_id: SemanticDigest,
+    pub working_tree: GitWorkingTreeSummary,
+    pub publication: GitPublicationSummary,
+    pub complete: bool,
+    pub scope: String,
+    pub omissions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitIndexSummary {
     pub entry_digest: SemanticDigest,
     pub entry_count: u64,
@@ -175,6 +208,7 @@ impl GitSnapshot {
                 "inspect_index_entries".to_owned(),
                 "inspect_recent_commits".to_owned(),
                 "inspect_repository".to_owned(),
+                "inspect_repository_status".to_owned(),
             ],
             enforced_limits: vec![
                 "capture_bytes".to_owned(),
@@ -480,6 +514,146 @@ impl GitInspector {
         }))
     }
 
+    pub fn inspect_repository_status(&self) -> Result<Option<GitRepositoryStatus>, GitError> {
+        let deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        let git_directory_output =
+            self.git(&workspace, &["rev-parse", "--absolute-git-dir"], deadline)?;
+        if !git_directory_output.status.success() {
+            return Ok(None);
+        }
+        let git_directory = canonical_output_path(&git_directory_output.stdout)?;
+        ensure_beneath(&git_directory, &workspace)?;
+        if self.git_bool(&workspace, &["rev-parse", "--is-bare-repository"], deadline)? {
+            return Err(GitError::WorktreeUnavailable);
+        }
+        let object_format =
+            self.git_line(&workspace, &["rev-parse", "--show-object-format"], deadline)?;
+        let output = self
+            .git(
+                &workspace,
+                &[
+                    "status",
+                    "--porcelain=v2",
+                    "--branch",
+                    "-z",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                ],
+                deadline,
+            )?
+            .success("read Git repository status")?;
+        let mut parsed = parse_repository_status(&output, &object_format)?;
+        let upstream_oid = if parsed.upstream.is_some() {
+            let output = self.git(
+                &workspace,
+                &["rev-parse", "--verify", "@{upstream}^{commit}"],
+                deadline,
+            )?;
+            if output.status.success() {
+                let oid = parse_line(&output.stdout)?;
+                if !valid_oid(oid, &object_format) {
+                    return Err(GitError::MalformedStatus("upstream oid is invalid"));
+                }
+                Some(oid.to_owned())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let (Some(head_oid), Some(upstream_oid)) =
+            (parsed.head_oid.as_deref(), upstream_oid.as_deref())
+        {
+            let range = format!("{head_oid}...{upstream_oid}");
+            let output = self
+                .git(
+                    &workspace,
+                    &["rev-list", "--left-right", "--count", &range],
+                    deadline,
+                )?
+                .success("compare exact Git HEAD and upstream revisions")?;
+            let counts = parse_line(&output)?;
+            let (ahead, behind) =
+                counts
+                    .split_once(char::is_whitespace)
+                    .ok_or(GitError::MalformedStatus(
+                        "exact branch divergence is incomplete",
+                    ))?;
+            parsed.ahead = Some(
+                ahead
+                    .parse()
+                    .map_err(|_| GitError::MalformedStatus("exact ahead count is invalid"))?,
+            );
+            parsed.behind = Some(
+                behind
+                    .trim()
+                    .parse()
+                    .map_err(|_| GitError::MalformedStatus("exact behind count is invalid"))?,
+            );
+        } else if parsed.upstream.is_some() {
+            parsed.ahead = None;
+            parsed.behind = None;
+        }
+        Ok(Some(parsed.finish(upstream_oid)))
+    }
+
+    pub fn inspect_commit_publication(
+        &self,
+        commit_oids: &[String],
+        upstream_oid: Option<&str>,
+    ) -> Result<Option<Vec<String>>, GitError> {
+        if commit_oids.len() > MAX_GIT_COMMIT_SEQUENCE {
+            return Err(GitError::HistoryLimit {
+                actual: commit_oids.len(),
+                limit: MAX_GIT_COMMIT_SEQUENCE,
+            });
+        }
+        let deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        let repository = self.git(&workspace, &["rev-parse", "--git-dir"], deadline)?;
+        if !repository.status.success() {
+            return Ok(None);
+        }
+        let object_format =
+            self.git_line(&workspace, &["rev-parse", "--show-object-format"], deadline)?;
+        let Some(upstream_oid) = upstream_oid else {
+            return Ok(Some(vec!["unknown".to_owned(); commit_oids.len()]));
+        };
+        if !valid_oid(upstream_oid, &object_format) {
+            return Err(GitError::MalformedStatus("upstream oid is invalid"));
+        }
+        let mut states = Vec::with_capacity(commit_oids.len());
+        for commit_oid in commit_oids {
+            if !valid_oid(commit_oid, &object_format) {
+                return Err(GitError::MalformedHistory("commit oid is invalid"));
+            }
+            let output = self.git(
+                &workspace,
+                &["merge-base", "--is-ancestor", commit_oid, upstream_oid],
+                deadline,
+            )?;
+            match output.status.code() {
+                Some(0) => states.push("pushed".to_owned()),
+                Some(1) => states.push("local".to_owned()),
+                _ => {
+                    return Err(GitError::Command {
+                        operation: "classify Git commit publication",
+                        status: output.status.code(),
+                        stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(Some(states))
+    }
+
     fn inspect_index(
         &self,
         workspace: &Path,
@@ -676,6 +850,180 @@ fn parse_utf8_history_field(field: &[u8]) -> Result<&str, GitError> {
         .map_err(|_| GitError::MalformedHistory("commit metadata is not UTF-8"))
 }
 
+#[derive(Default)]
+struct ParsedRepositoryStatus {
+    branch: Option<String>,
+    head_oid: Option<String>,
+    upstream: Option<String>,
+    ahead: Option<u64>,
+    behind: Option<u64>,
+    staged_entries: u64,
+    unstaged_entries: u64,
+    untracked_entries: u64,
+    conflicted_entries: u64,
+}
+
+impl ParsedRepositoryStatus {
+    fn finish(self, upstream_oid: Option<String>) -> GitRepositoryStatus {
+        let working_state = if self.staged_entries == 0
+            && self.unstaged_entries == 0
+            && self.untracked_entries == 0
+            && self.conflicted_entries == 0
+        {
+            "clean"
+        } else {
+            "dirty"
+        };
+        let (publication_state, complete) = match (
+            self.head_oid.as_ref(),
+            self.branch.as_deref(),
+            self.upstream.as_ref(),
+            self.ahead,
+            self.behind,
+            upstream_oid.as_ref(),
+        ) {
+            (None, _, _, _, _, _) => ("unborn", true),
+            (_, Some("(detached)"), _, _, _, _) | (_, None, _, _, _, _) => ("detached", true),
+            (_, _, None, _, _, _) => ("no_upstream", true),
+            (_, _, Some(_), Some(0), Some(0), Some(_)) => ("pushed", true),
+            (_, _, Some(_), Some(ahead), Some(0), Some(_)) if ahead > 0 => ("unpushed", true),
+            (_, _, Some(_), Some(0), Some(behind), Some(_)) if behind > 0 => ("behind", true),
+            (_, _, Some(_), Some(ahead), Some(behind), Some(_)) if ahead > 0 && behind > 0 => {
+                ("diverged", true)
+            }
+            _ => ("unknown", false),
+        };
+        let branch = self.branch.filter(|branch| branch != "(detached)");
+        let working_tree = GitWorkingTreeSummary {
+            state: working_state.to_owned(),
+            staged_entries: self.staged_entries,
+            unstaged_entries: self.unstaged_entries,
+            untracked_entries: self.untracked_entries,
+            conflicted_entries: self.conflicted_entries,
+        };
+        let publication = GitPublicationSummary {
+            state: publication_state.to_owned(),
+            branch,
+            head_oid: self.head_oid,
+            upstream: self.upstream,
+            upstream_oid,
+            ahead: self.ahead,
+            behind: self.behind,
+            comparison_basis: "local_tracking_ref".to_owned(),
+        };
+        let mut hasher = SemanticHasher::new(GIT_REPOSITORY_STATUS_SCHEMA);
+        hasher.add_str(&working_tree.state);
+        hasher.add_u64(working_tree.staged_entries);
+        hasher.add_u64(working_tree.unstaged_entries);
+        hasher.add_u64(working_tree.untracked_entries);
+        hasher.add_u64(working_tree.conflicted_entries);
+        hasher.add_str(&publication.state);
+        hasher.add_optional_str(publication.branch.as_deref());
+        hasher.add_optional_str(publication.head_oid.as_deref());
+        hasher.add_optional_str(publication.upstream.as_deref());
+        hasher.add_optional_str(publication.upstream_oid.as_deref());
+        hasher.add_optional_str(publication.ahead.map(|value| value.to_string()).as_deref());
+        hasher.add_optional_str(publication.behind.map(|value| value.to_string()).as_deref());
+        hasher.add_bool(complete);
+        GitRepositoryStatus {
+            schema: GIT_REPOSITORY_STATUS_SCHEMA.to_owned(),
+            status_id: hasher.finish(),
+            working_tree,
+            publication,
+            complete,
+            scope: "tracked_changes_and_untracked_files".to_owned(),
+            omissions: vec![
+                "remote transport was not contacted; publication is relative to the locally retained upstream ref"
+                    .to_owned(),
+                "ignored files are outside the working-tree status scope".to_owned(),
+            ],
+        }
+    }
+}
+
+fn parse_repository_status(
+    output: &[u8],
+    object_format: &str,
+) -> Result<ParsedRepositoryStatus, GitError> {
+    let mut parsed = ParsedRepositoryStatus::default();
+    let mut records = output
+        .split(|byte| *byte == 0)
+        .filter(|record| !record.is_empty());
+    while let Some(record) = records.next() {
+        if let Some(value) = record.strip_prefix(b"# branch.oid ") {
+            if value != b"(initial)" {
+                let oid = std::str::from_utf8(value)
+                    .map_err(|_| GitError::MalformedStatus("head oid is not UTF-8"))?;
+                if !valid_oid(oid, object_format) {
+                    return Err(GitError::MalformedStatus("head oid is invalid"));
+                }
+                parsed.head_oid = Some(oid.to_owned());
+            }
+        } else if let Some(value) = record.strip_prefix(b"# branch.head ") {
+            parsed.branch = Some(
+                std::str::from_utf8(value)
+                    .map_err(|_| GitError::MalformedStatus("branch name is not UTF-8"))?
+                    .to_owned(),
+            );
+        } else if let Some(value) = record.strip_prefix(b"# branch.upstream ") {
+            parsed.upstream = Some(
+                std::str::from_utf8(value)
+                    .map_err(|_| GitError::MalformedStatus("upstream ref is not UTF-8"))?
+                    .to_owned(),
+            );
+        } else if let Some(value) = record.strip_prefix(b"# branch.ab ") {
+            let value = std::str::from_utf8(value)
+                .map_err(|_| GitError::MalformedStatus("branch divergence is not ASCII"))?;
+            let (ahead, behind) = value
+                .split_once(' ')
+                .ok_or(GitError::MalformedStatus("branch divergence is incomplete"))?;
+            parsed.ahead = Some(parse_divergence_count(ahead, '+')?);
+            parsed.behind = Some(parse_divergence_count(behind, '-')?);
+        } else {
+            match record.first().copied() {
+                Some(b'1' | b'2') => {
+                    let status = record.get(2..4).ok_or(GitError::MalformedStatus(
+                        "ordinary entry is missing XY state",
+                    ))?;
+                    if status[0] != b'.' {
+                        parsed.staged_entries = parsed.staged_entries.saturating_add(1);
+                    }
+                    if status[1] != b'.' {
+                        parsed.unstaged_entries = parsed.unstaged_entries.saturating_add(1);
+                    }
+                    if record[0] == b'2' && records.next().is_none() {
+                        return Err(GitError::MalformedStatus(
+                            "renamed entry is missing its original path",
+                        ));
+                    }
+                }
+                Some(b'u') => {
+                    parsed.conflicted_entries = parsed.conflicted_entries.saturating_add(1);
+                }
+                Some(b'?') => {
+                    parsed.untracked_entries = parsed.untracked_entries.saturating_add(1);
+                }
+                Some(b'!') => {}
+                Some(b'#') => {
+                    return Err(GitError::MalformedStatus("unknown branch header"));
+                }
+                _ => return Err(GitError::MalformedStatus("unknown status record")),
+            }
+        }
+    }
+    Ok(parsed)
+}
+
+fn parse_divergence_count(value: &str, prefix: char) -> Result<u64, GitError> {
+    value
+        .strip_prefix(prefix)
+        .ok_or(GitError::MalformedStatus(
+            "branch divergence has invalid sign",
+        ))?
+        .parse()
+        .map_err(|_| GitError::MalformedStatus("branch divergence is not numeric"))
+}
+
 fn valid_oid(value: &str, object_format: &str) -> bool {
     let expected = match object_format {
         "sha1" => 40,
@@ -750,6 +1098,10 @@ pub enum GitError {
     HistoryLimit { actual: usize, limit: usize },
     #[error("malformed Git commit sequence: {0}")]
     MalformedHistory(&'static str),
+    #[error("malformed Git repository status: {0}")]
+    MalformedStatus(&'static str),
+    #[error("Git repository does not expose a worktree status")]
+    WorktreeUnavailable,
 }
 
 #[cfg(test)]
@@ -760,7 +1112,7 @@ mod tests {
 
     use rey_environment::resolve_executable;
 
-    use super::{GitInspector, GitLimits};
+    use super::{GitInspector, GitLimits, parse_repository_status};
 
     fn git(directory: &Path, args: &[&str]) {
         let status = Command::new("git")
@@ -784,7 +1136,19 @@ mod tests {
         fs::write(directory.path().join("tracked"), "one\n").unwrap();
         git(directory.path(), &["add", "tracked"]);
         git(directory.path(), &["commit", "-q", "-m", "initial"]);
+        git(directory.path(), &["branch", "-M", "main"]);
         directory
+    }
+
+    fn push_to_local_remote(directory: &Path) -> TempDir {
+        let remote = TempDir::new().unwrap();
+        git(remote.path(), &["init", "--bare", "-q"]);
+        git(
+            directory,
+            &["remote", "add", "origin", remote.path().to_str().unwrap()],
+        );
+        git(directory, &["push", "-q", "-u", "origin", "main"]);
+        remote
     }
 
     fn inspector(directory: &Path) -> GitInspector {
@@ -853,6 +1217,105 @@ mod tests {
         assert!(!bounded.complete);
         assert_eq!(bounded.omissions.len(), 1);
         assert!(bounded.omissions[0].contains("newest 1 commits"));
+    }
+
+    #[test]
+    fn repository_status_separates_worktree_and_local_upstream_state() {
+        let directory = repository();
+        let _remote = push_to_local_remote(directory.path());
+        let pushed = inspector(directory.path())
+            .inspect_repository_status()
+            .unwrap()
+            .unwrap();
+        assert_eq!(pushed.schema, "rey.git-repository-status.v1");
+        assert_eq!(pushed.working_tree.state, "clean");
+        assert_eq!(pushed.publication.state, "pushed");
+        assert_eq!(pushed.publication.branch.as_deref(), Some("main"));
+        assert_eq!(pushed.publication.upstream.as_deref(), Some("origin/main"));
+        assert_eq!(pushed.publication.ahead, Some(0));
+        assert_eq!(pushed.publication.behind, Some(0));
+        assert!(pushed.complete);
+
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        fs::write(directory.path().join("staged"), "staged\n").unwrap();
+        fs::write(directory.path().join("untracked"), "untracked\n").unwrap();
+        git(directory.path(), &["add", "staged"]);
+        let dirty = inspector(directory.path())
+            .inspect_repository_status()
+            .unwrap()
+            .unwrap();
+        assert_eq!(dirty.working_tree.state, "dirty");
+        assert_eq!(dirty.working_tree.staged_entries, 1);
+        assert_eq!(dirty.working_tree.unstaged_entries, 1);
+        assert_eq!(dirty.working_tree.untracked_entries, 1);
+        assert_eq!(dirty.working_tree.conflicted_entries, 0);
+        assert_eq!(dirty.publication.state, "pushed");
+    }
+
+    #[test]
+    fn recent_commits_are_classified_against_the_local_upstream_ref() {
+        let directory = repository();
+        let _remote = push_to_local_remote(directory.path());
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "local"]);
+
+        let inspect = inspector(directory.path());
+        let status = inspect.inspect_repository_status().unwrap().unwrap();
+        assert_eq!(status.publication.state, "unpushed");
+        assert_eq!(status.publication.ahead, Some(1));
+        assert_eq!(status.publication.behind, Some(0));
+        let commits = inspect.inspect_recent_commits(8).unwrap().unwrap();
+        let states = inspect
+            .inspect_commit_publication(
+                &commits
+                    .commits
+                    .iter()
+                    .map(|commit| commit.commit_oid.clone())
+                    .collect::<Vec<_>>(),
+                status.publication.upstream_oid.as_deref(),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(states, vec!["local", "pushed"]);
+    }
+
+    #[test]
+    fn repository_without_upstream_is_explicit_not_unknown() {
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let status = inspect.inspect_repository_status().unwrap().unwrap();
+        assert_eq!(status.publication.state, "no_upstream");
+        assert_eq!(status.publication.ahead, None);
+        assert_eq!(status.publication.behind, None);
+        assert!(status.complete);
+        let commits = inspect.inspect_recent_commits(8).unwrap().unwrap();
+        let states = inspect
+            .inspect_commit_publication(
+                &commits
+                    .commits
+                    .iter()
+                    .map(|commit| commit.commit_oid.clone())
+                    .collect::<Vec<_>>(),
+                status.publication.upstream_oid.as_deref(),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(states, vec!["unknown"]);
+    }
+
+    #[test]
+    fn porcelain_v2_conflicts_remain_a_separate_attention_dimension() {
+        let oid = "0".repeat(40);
+        let input = format!(
+            "# branch.oid {oid}\0# branch.head main\0u UU N... 100644 100644 100644 100644 {oid} {oid} {oid} conflict\0"
+        );
+        let parsed = parse_repository_status(input.as_bytes(), "sha1").unwrap();
+        let status = parsed.finish(None);
+        assert_eq!(status.working_tree.state, "dirty");
+        assert_eq!(status.working_tree.conflicted_entries, 1);
+        assert_eq!(status.working_tree.staged_entries, 0);
+        assert_eq!(status.working_tree.unstaged_entries, 0);
     }
 
     #[test]

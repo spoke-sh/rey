@@ -173,7 +173,10 @@ desired delta, readiness, and assignment; journeys remain derived. Agent
 application discovery stays on `/environment`, and generator tuples remain
 provenance rather than activity or assignment. `/cadence`
 keeps bounded Git reachability, environment sequence, and mounted browser scan
-schedules on separate clocks instead of fabricating a total event order.
+schedules on separate clocks instead of fabricating a total event order. Its
+repository-state plane separately shows staged, unstaged, untracked, and
+conflicted working-tree attention plus exact `HEAD`-to-local-upstream
+publication. That relation is revision-bound and performs no remote transport.
 The fixed footer is a live communications channel over typed attention and
 passive-revalidation health. A quiet mailbox means no operator attention is
 requested; it is not filled with synthetic heartbeat activity. The mailbox
@@ -195,6 +198,8 @@ turn the UI into a control plane. See [Context Topology
 Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
 [ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
 0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
+Cadence repository state is specified by [ADR
+0036](decisions/0036-cadence-repository-state-and-publication.md).
 
 ## Workloads, Graphs, And Scenarios
 

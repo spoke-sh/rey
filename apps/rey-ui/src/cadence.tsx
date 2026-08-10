@@ -15,6 +15,35 @@ export interface CadenceTick {
   revision: string;
   parent_revisions: string[];
   occurred_at_unix: number | null;
+  publication: "pushed" | "local" | "unknown" | null;
+}
+
+export interface CadenceRepositoryState {
+  id: string;
+  working_tree_state: "clean" | "dirty";
+  staged_entries: number;
+  unstaged_entries: number;
+  untracked_entries: number;
+  conflicted_entries: number;
+  push_state:
+    | "pushed"
+    | "unpushed"
+    | "behind"
+    | "diverged"
+    | "no_upstream"
+    | "detached"
+    | "unborn"
+    | "unknown";
+  branch: string | null;
+  head_revision: string | null;
+  upstream: string | null;
+  upstream_revision: string | null;
+  ahead: number | null;
+  behind: number | null;
+  comparison_basis: "local_tracking_ref";
+  complete: boolean;
+  scope: "tracked_changes_and_untracked_files";
+  omissions: string[];
 }
 
 export interface CadenceLane {
@@ -38,9 +67,10 @@ export interface CadenceSchedule {
 }
 
 export interface CadenceProjection {
-  schema: "rey.ui-cadence.v1";
+  schema: "rey.ui-cadence.v2";
   ordering: "partial";
   source_repository: string | null;
+  repository_state: CadenceRepositoryState | null;
   lanes: CadenceLane[];
   schedules: CadenceSchedule[];
   omissions: string[];
@@ -51,11 +81,27 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
     <main className={sx(chrome.page, styles.page)}>
       <section
         className={sx(styles.section, styles.firstSection)}
-        data-rey-section="01 / RETAINED SEQUENCE"
+        data-rey-section="01 / REPOSITORY STATE"
+      >
+        <CadenceHeading
+          detail="local observation · no remote transport"
+          index="01"
+          kicker="REPOSITORY STATE"
+          title="Working tree and push relation"
+        />
+        <RepositoryStateView
+          repository={cadence.source_repository}
+          state={cadence.repository_state}
+        />
+      </section>
+
+      <section
+        className={sx(styles.section)}
+        data-rey-section="02 / RETAINED SEQUENCE"
       >
         <CadenceHeading
           detail={`${cadence.lanes.length} clocks · ${cadence.ordering} ordering`}
-          index="01"
+          index="02"
           kicker="RETAINED SEQUENCE"
           title="Tick lanes"
         />
@@ -72,11 +118,11 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
 
       <section
         className={sx(styles.section)}
-        data-rey-section="02 / SCHEDULED SCANS"
+        data-rey-section="03 / SCHEDULED SCANS"
       >
         <CadenceHeading
           detail="read-only browser projection · no runtime admission"
-          index="02"
+          index="03"
           kicker="SCHEDULED SCANS"
           title="Mounted observation loops"
         />
@@ -115,11 +161,11 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
 
       <section
         className={sx(styles.section, styles.boundary)}
-        data-rey-section="03 / REFERENCE PLANE"
+        data-rey-section="04 / REFERENCE PLANE"
       >
         <CadenceHeading
           detail={`${cadence.omissions.length} declared ordering boundary`}
-          index="03"
+          index="04"
           kicker="REFERENCE PLANE"
           title="Ordering and omissions"
         />
@@ -137,6 +183,148 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
         </div>
       </section>
     </main>
+  );
+}
+
+function RepositoryStateView({
+  repository,
+  state,
+}: {
+  repository: string | null;
+  state: CadenceRepositoryState | null;
+}) {
+  if (state === null) {
+    return (
+      <div className={sx(chrome.micro, styles.repositoryAbsent)}>
+        REPOSITORY STATE NOT OBSERVED
+      </div>
+    );
+  }
+  return (
+    <div className={sx(styles.repositoryState)}>
+      <article className={sx(styles.stateInstrument)}>
+        <header className={sx(styles.stateInstrumentHeader)}>
+          <div>
+            <span className={sx(chrome.micro)}>WORKING TREE</span>
+            <strong className={sx(styles.stateTitle)}>
+              {state.working_tree_state.toUpperCase()}
+            </strong>
+          </div>
+          <span
+            className={sx(
+              chrome.micro,
+              styles.stateSignal,
+              state.working_tree_state === "clean"
+                ? styles.signalClear
+                : styles.signalAttention,
+            )}
+          >
+            {state.working_tree_state === "clean"
+              ? "NO ATTENTION"
+              : "ATTENTION"}
+          </span>
+        </header>
+        <div className={sx(styles.stateMeasures)}>
+          <StateMeasure label="STAGED" value={state.staged_entries} />
+          <StateMeasure label="UNSTAGED" value={state.unstaged_entries} />
+          <StateMeasure label="UNTRACKED" value={state.untracked_entries} />
+          <StateMeasure label="CONFLICTED" value={state.conflicted_entries} />
+        </div>
+        <footer className={sx(chrome.micro, styles.stateFootnote)}>
+          {state.scope.replaceAll("_", " ")}
+        </footer>
+      </article>
+
+      <article className={sx(styles.stateInstrument)}>
+        <header className={sx(styles.stateInstrumentHeader)}>
+          <div>
+            <span className={sx(chrome.micro)}>PUSH RELATION</span>
+            <strong className={sx(styles.stateTitle)}>
+              {state.push_state.replaceAll("_", " ")}
+            </strong>
+          </div>
+          <span className={sx(chrome.micro, styles.comparisonBasis)}>
+            LOCAL REF
+          </span>
+        </header>
+        <div className={sx(styles.refPath)}>
+          <div>
+            <span className={sx(chrome.micro)}>BRANCH</span>
+            <b>{state.branch ?? "DETACHED"}</b>
+          </div>
+          <i aria-hidden="true">→</i>
+          <div>
+            <span className={sx(chrome.micro)}>UPSTREAM</span>
+            <b>{state.upstream ?? "NOT CONFIGURED"}</b>
+          </div>
+        </div>
+        <div className={sx(styles.publicationMeasures)}>
+          <StateMeasure label="AHEAD" value={state.ahead} />
+          <StateMeasure label="BEHIND" value={state.behind} />
+          <RepositoryRevision
+            label="HEAD"
+            repository={repository}
+            revision={state.head_revision}
+          />
+          <RepositoryRevision
+            label="UPSTREAM"
+            repository={repository}
+            revision={state.upstream_revision}
+          />
+        </div>
+        <footer className={sx(chrome.micro, styles.stateFootnote)}>
+          {state.comparison_basis.replaceAll("_", " ")} · NO NETWORK FETCH
+        </footer>
+      </article>
+      <ul className={sx(styles.repositoryOmissions)}>
+        {state.omissions.map((omission) => (
+          <li key={omission}>BOUND / {omission}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function StateMeasure({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  return (
+    <div className={sx(styles.stateMeasure)}>
+      <span className={sx(chrome.micro)}>{label}</span>
+      <strong className={sx(styles.measureValue)}>{value ?? "—"}</strong>
+    </div>
+  );
+}
+
+function RepositoryRevision({
+  label,
+  repository,
+  revision,
+}: {
+  label: string;
+  repository: string | null;
+  revision: string | null;
+}) {
+  return (
+    <div className={sx(styles.repositoryRevision)}>
+      <span className={sx(chrome.micro)}>{label}</span>
+      {revision === null ? (
+        <strong>—</strong>
+      ) : (
+        <GitCommitLink
+          className={sx(chrome.focusable, styles.commitLink)}
+          fallback="GIT COMMIT / REPOSITORY UNBOUND"
+          repository={repository}
+          revision={revision}
+        >
+          <code>{shortDigest(revision)}</code>
+        </GitCommitLink>
+      )}
+    </div>
   );
 }
 
@@ -185,6 +373,21 @@ function CadenceLaneView({
                   </span>
                   <span className={sx(chrome.micro)}>{tick.ordinal}</span>
                   <span className={sx(chrome.micro)}>{tick.state}</span>
+                  {tick.publication === null ? null : (
+                    <span
+                      className={sx(
+                        chrome.micro,
+                        styles.publication,
+                        tick.publication === "pushed"
+                          ? styles.publicationPushed
+                          : tick.publication === "local"
+                            ? styles.publicationLocal
+                            : styles.publicationUnknown,
+                      )}
+                    >
+                      {tick.publication}
+                    </span>
+                  )}
                   <time className={sx(chrome.micro)}>
                     {formatCadenceTime(tick.occurred_at_unix)}
                   </time>

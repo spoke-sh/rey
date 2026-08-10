@@ -17,9 +17,28 @@ describe("cadence projection", () => {
 
   it("renders every visible Git cadence SHA as its exact GitHub link", () => {
     const cadence: CadenceProjection = {
-      schema: "rey.ui-cadence.v1",
+      schema: "rey.ui-cadence.v2",
       ordering: "partial",
       source_repository: "https://github.com/spoke-sh/rey",
+      repository_state: {
+        id: "blake3:repository-state",
+        working_tree_state: "dirty",
+        staged_entries: 1,
+        unstaged_entries: 2,
+        untracked_entries: 3,
+        conflicted_entries: 0,
+        push_state: "unpushed",
+        branch: "main",
+        head_revision: revision,
+        upstream: "origin/main",
+        upstream_revision: "12c4df4d22488f84726c7072524b9c52c8cf0b03",
+        ahead: 1,
+        behind: 0,
+        comparison_basis: "local_tracking_ref",
+        complete: true,
+        scope: "tracked_changes_and_untracked_files",
+        omissions: ["remote transport was not contacted"],
+      },
       lanes: [
         {
           id: "git-sequence",
@@ -38,6 +57,7 @@ describe("cadence projection", () => {
               revision,
               parent_revisions: ["12c4df4d22488f84726c7072524b9c52c8cf0b03"],
               occurred_at_unix: 1_786_335_192,
+              publication: "local",
             },
           ],
           omissions: [],
@@ -55,5 +75,10 @@ describe("cadence projection", () => {
       `href="https://github.com/spoke-sh/rey/commit/${revision}"`,
     );
     expect(markup).toContain("02ad6ed2…24d9a3");
+    expect(markup).toContain("WORKING TREE");
+    expect(markup).toContain("PUSH RELATION");
+    expect(markup).toContain("unpushed");
+    expect(markup).toContain("local");
+    expect(markup).toContain("NO NETWORK FETCH");
   });
 });

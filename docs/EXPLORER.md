@@ -148,11 +148,14 @@ projection; it does not invalidate the route, reset viewport or scroll state,
 test, run, create, add, commit, or schedule work. Failed background reads retain
 the last good projection and remain visible as delayed revalidation.
 
-`GET /api/v1/cadence` adds `rey.ui-cadence.v1`. It keeps newest-first Git
-reachability and environment-sequence lanes separate, reports truncation and
-shallow boundaries, and describes the existing browser scan contracts without
-claiming server-side or runtime scheduling. Environment commit v1 has no wall
-time, so those ticks explicitly render as order-only.
+`GET /api/v1/cadence` returns `rey.ui-cadence.v2`. Its leading repository-state
+plane separates working-tree attention from the exact local-upstream push
+relation. The remaining lanes keep newest-first Git reachability and
+environment sequence separate, report truncation and shallow boundaries, and
+describe existing browser scan contracts without claiming server-side or
+runtime scheduling. Git tick publication is relative to a retained local
+tracking-ref OID and never implies a network fetch. Environment commit v1 has
+no wall time, so those ticks explicitly render as order-only.
 
 The global footer displays a typed-attention history mailbox, chevrons that
 open the traditional conversation axis of the same plane, and the shortened Rey implementation Git revision linked through
