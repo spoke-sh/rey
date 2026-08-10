@@ -180,6 +180,20 @@ uses observation origin plus destination and a hard hop bound. Remote Spoke
 documents/streams remain Spoke-owned; Rey records public bindings and realized
 lineage rather than implementing competing durable transport.
 
+## Implementation Status
+
+The first topology anchor implements `rey.channel-graph.v1`, canonical graph
+snapshots and semantic deltas, the no-write built-in workspace graph, and a
+symlink-safe, locked, atomically published `CHANNEL WORKING` proposal. Agents
+can inspect it through `rey channels list`, `status`, and `diff`, then apply a
+bounded workspace-contained YAML graph through `rey channels apply`. Human
+patches name semantic stream operations; structured output retains exact
+source, graph, limit, and delta identities.
+
+`CHANNEL HEAD`, `CHANNEL INDEX`, `add`, `commit`, `log`, staged diff, browser
+layout persistence, standalone observations, channel-local admissions, Journal
+seeds, and relay execution are not implemented by that anchor.
+
 ## Consequences
 
 - Feed layout work survives reload immediately while admission remains an

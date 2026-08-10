@@ -314,6 +314,10 @@ nix develop path:$PWD#ci --command just check
 nix develop path:$PWD#ci --command just test
 nix develop path:$PWD#ci --command just build
 nix flake check path:$PWD
+nix run path:$PWD -- channels list --format table
+nix run path:$PWD -- channels status --format table
+nix run path:$PWD -- channels diff --format table
+nix run path:$PWD -- channels apply path/to/channel-graph.yaml --format table
 nix run path:$PWD -- env status
 nix run path:$PWD -- env diff
 nix run path:$PWD -- env add -p

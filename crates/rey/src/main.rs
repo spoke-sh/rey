@@ -15,6 +15,11 @@ use chrono::{DateTime, Utc};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
     ReyError,
+    channels::{
+        ChannelApplyResult, ChannelDiff, ChannelGraph, ChannelGraphChange, ChannelGraphError,
+        ChannelGraphSource, ChannelObjectKind, ChannelStatus, ChannelWorkingState,
+        LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
+    },
     env::{
         EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentApplicationObservation,
         EnvironmentCommit, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
@@ -72,6 +77,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Inspect and propose workspace-local collaboration topology.
+    Channels(ChannelsArgs),
     /// Track bounded compute environment revisions.
     Env(EnvArgs),
     /// Inspect, test, qualify, and execute bounded compute graphs.
@@ -80,6 +87,63 @@ enum Command {
     Journal(JournalArgs),
     /// Serve the Rey operator interface.
     Ui(UiArgs),
+}
+
+#[derive(Debug, Args)]
+struct ChannelsArgs {
+    /// Workspace used as the Channel graph and local-state boundary.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local Channel-state directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: ChannelsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ChannelsCommand {
+    /// List the effective channels, subscriptions, and ordered Feed streams.
+    List(ChannelListArgs),
+    /// Show whether Channel WORKING differs from the built-in graph.
+    Status(ChannelStatusArgs),
+    /// Display the semantic BUILT-IN to WORKING Channel graph delta.
+    Diff(ChannelDiffArgs),
+    /// Validate a workspace-contained YAML graph and write Channel WORKING.
+    Apply(ChannelApplyArgs),
+}
+
+#[derive(Debug, Args)]
+struct ChannelListArgs {
+    /// Human inventory or typed JSON graph snapshot.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelStatusArgs {
+    /// Human working-tree status or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelDiffArgs {
+    /// Human semantic patch or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelApplyArgs {
+    /// Workspace-contained YAML graph using rey.channel-graph.v1.
+    graph: PathBuf,
+
+    /// Human receipt or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -453,11 +517,133 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
+        Command::Channels(args) => channels_command(args),
         Command::Env(args) => env_command(args),
         Command::Workloads(args) => workloads(args),
         Command::Journal(args) => journal_command(args),
         Command::Ui(args) => ui_command(args),
     }
+}
+
+fn channels_command(args: ChannelsArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let store = match args.state_dir {
+        Some(path) if path.is_absolute() => LocalChannelStore::new(path),
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => LocalChannelStore::new(workspace.join(path)),
+        None => LocalChannelStore::default_for_workspace(&workspace),
+    };
+    match args.command {
+        ChannelsCommand::List(command) => channel_list(&store, command),
+        ChannelsCommand::Status(command) => channel_status(&store, command),
+        ChannelsCommand::Diff(command) => channel_diff(&store, command),
+        ChannelsCommand::Apply(command) => channel_apply(&store, &workspace, command),
+    }
+}
+
+fn channel_list(store: &LocalChannelStore, args: ChannelListArgs) -> Result<ExitCode, CliError> {
+    let status = store.status()?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status.working)?,
+        WorkloadOutputFormat::Table => write_channel_list(&mut stdout, &status)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_status(
+    store: &LocalChannelStore,
+    args: ChannelStatusArgs,
+) -> Result<ExitCode, CliError> {
+    let status = store.status()?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
+        WorkloadOutputFormat::Table => write_channel_status(&mut stdout, &status)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_diff(store: &LocalChannelStore, args: ChannelDiffArgs) -> Result<ExitCode, CliError> {
+    let diff = store.diff()?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &diff)?,
+        WorkloadOutputFormat::Table => write_channel_diff(&mut stdout, &diff)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_apply(
+    store: &LocalChannelStore,
+    workspace: &Path,
+    args: ChannelApplyArgs,
+) -> Result<ExitCode, CliError> {
+    let input_path = workspace.join(&args.graph);
+    let metadata = fs::symlink_metadata(&input_path).map_err(|source| CliError::ChannelInput {
+        path: input_path.clone(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::ChannelInputType(input_path));
+    }
+    let canonical = input_path
+        .canonicalize()
+        .map_err(|source| CliError::ChannelInput {
+            path: input_path.clone(),
+            source,
+        })?;
+    if !canonical.starts_with(workspace) {
+        return Err(CliError::ChannelInputEscape(canonical));
+    }
+    if metadata.len() > MAX_CHANNEL_GRAPH_INPUT_BYTES {
+        return Err(CliError::ChannelInputLimit(MAX_CHANNEL_GRAPH_INPUT_BYTES));
+    }
+    let mut bytes = Vec::new();
+    File::open(&canonical)
+        .map_err(|source| CliError::ChannelInput {
+            path: canonical.clone(),
+            source,
+        })?
+        .take(MAX_CHANNEL_GRAPH_INPUT_BYTES.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|source| CliError::ChannelInput {
+            path: canonical.clone(),
+            source,
+        })?;
+    if bytes.len() as u64 > MAX_CHANNEL_GRAPH_INPUT_BYTES {
+        return Err(CliError::ChannelInputLimit(MAX_CHANNEL_GRAPH_INPUT_BYTES));
+    }
+    let graph: ChannelGraph = serde_saphyr::from_slice(&bytes)?;
+    let relative = canonical
+        .strip_prefix(workspace)
+        .expect("workspace containment was checked");
+    let relative = relative
+        .to_str()
+        .ok_or_else(|| CliError::ChannelInputEncoding(canonical.clone()))?;
+    let locator = format!("worktree:///{relative}");
+    let result = store.apply(graph, ChannelGraphSource::worktree(locator, &bytes))?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_channel_apply(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
@@ -1190,6 +1376,274 @@ fn write_ui_startup(
     writeln!(output)?;
     writeln!(output, "  {}", style.dim("Press Ctrl-C to stop the server"))?;
     Ok(())
+}
+
+fn write_channel_list(output: &mut impl Write, status: &ChannelStatus) -> Result<(), CliError> {
+    let snapshot = &status.working;
+    let graph = &snapshot.graph;
+    writeln!(output)?;
+    writeln!(output, "CHANNEL GRAPH")?;
+    write_portfolio_field(
+        output,
+        "Source",
+        &format!(
+            "{} · {}",
+            snapshot.source.kind.label(),
+            snapshot.source.locator
+        ),
+    )?;
+    write_portfolio_field(output, "Snapshot", snapshot.snapshot_id.as_str())?;
+    write_portfolio_field(output, "Graph", snapshot.graph_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Inventory",
+        &format!(
+            "{} · {} · {} · {}",
+            count_noun(graph.channels.len(), "channel"),
+            count_noun(graph.subscriptions.len(), "subscription"),
+            count_noun(graph.streams.len(), "stream"),
+            count_noun(graph.relays.len(), "relay")
+        ),
+    )?;
+
+    writeln!(output)?;
+    writeln!(output, "01 / CHANNELS")?;
+    for channel in &graph.channels {
+        writeln!(
+            output,
+            "  {}@{}  {}",
+            channel.id, channel.revision, channel.name
+        )?;
+        writeln!(
+            output,
+            "    Scope                  {}{}",
+            channel.scope.label(),
+            if channel.broadcast_default {
+                " · default broadcast"
+            } else {
+                ""
+            }
+        )?;
+        writeln!(
+            output,
+            "    Observations           {}",
+            channel
+                .accepted_observation_kinds
+                .iter()
+                .map(|kind| kind.label())
+                .collect::<Vec<_>>()
+                .join(" · ")
+        )?;
+    }
+
+    writeln!(output)?;
+    writeln!(output, "02 / SUBSCRIPTIONS")?;
+    for subscription in &graph.subscriptions {
+        writeln!(
+            output,
+            "  {}@{}  channels {} · {} kinds · limit {}",
+            subscription.id,
+            subscription.revision,
+            subscription.channel_ids.join(", "),
+            subscription.observation_kinds.len(),
+            subscription.limit
+        )?;
+    }
+
+    writeln!(output)?;
+    writeln!(output, "03 / FEED STREAMS")?;
+    for (position, stream_id) in graph.layout.stream_ids.iter().enumerate() {
+        let stream = graph
+            .stream(stream_id)
+            .expect("validated layout references exact streams");
+        writeln!(
+            output,
+            "  {:02}  {}  {}@{} · lens {} · subscription {}",
+            position + 1,
+            stream.name,
+            stream.id,
+            stream.revision,
+            stream.lens,
+            stream.subscription_id
+        )?;
+    }
+    writeln!(
+        output,
+        "  Layout                 {}@{} · {}",
+        graph.layout.id,
+        graph.layout.revision,
+        graph.layout.stream_ids.join(" → ")
+    )?;
+
+    writeln!(output)?;
+    writeln!(output, "04 / RELAYS")?;
+    if graph.relays.is_empty() {
+        writeln!(output, "  none · transport not configured")?;
+    } else {
+        for relay in &graph.relays {
+            writeln!(
+                output,
+                "  {}@{}  {} → {} · {} · {} hops",
+                relay.id,
+                relay.revision,
+                relay.source_channel_id,
+                relay.target_channel_locator,
+                relay.provider_id,
+                relay.hop_limit
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_channel_status(output: &mut impl Write, status: &ChannelStatus) -> Result<(), CliError> {
+    writeln!(output, "On channels built-in")?;
+    if status.state == ChannelWorkingState::Clean {
+        writeln!(output)?;
+        writeln!(output, "nothing to commit, channel working tree clean")?;
+        return Ok(());
+    }
+
+    writeln!(output)?;
+    writeln!(output, "Changes in channel working tree:")?;
+    writeln!(output, "  (use \"rey channels diff\" to review)")?;
+    for change in &status.delta.changes {
+        writeln!(
+            output,
+            "        {:<11} {}: {} · {}",
+            format!("{}:", change.kind.label()),
+            change.object_kind.label(),
+            change.object_id,
+            change.detail
+        )?;
+    }
+    writeln!(output)?;
+    writeln!(output, "channel working tree differs from built-in")?;
+    Ok(())
+}
+
+fn write_channel_diff(output: &mut impl Write, diff: &ChannelDiff) -> Result<(), CliError> {
+    if diff.delta.changes.is_empty() {
+        return Ok(());
+    }
+    writeln!(output)?;
+    writeln!(
+        output,
+        "REY CHANNELS DIFF · {} → {}",
+        diff.delta.source_label, diff.delta.target_label
+    )?;
+    write_portfolio_field(
+        output,
+        "Evidence",
+        &format!("DIFFERENT · {} semantic changes", diff.delta.summary.total),
+    )?;
+    write_portfolio_field(
+        output,
+        "Graphs",
+        &format!("{} → {}", diff.source.graph_id, diff.target.graph_id),
+    )?;
+    write_portfolio_field(
+        output,
+        "Snapshots",
+        &format!("{} → {}", diff.source.snapshot_id, diff.target.snapshot_id),
+    )?;
+    write_portfolio_field(output, "Working source", &diff.target.source.locator)?;
+
+    write_channel_diff_section(output, "01 / CHANNELS", &diff.delta.changes, |change| {
+        change.object_kind == ChannelObjectKind::Channel
+    })?;
+    write_channel_diff_section(
+        output,
+        "02 / SUBSCRIPTIONS",
+        &diff.delta.changes,
+        |change| change.object_kind == ChannelObjectKind::Subscription,
+    )?;
+    write_channel_diff_section(output, "03 / FEED STREAMS", &diff.delta.changes, |change| {
+        matches!(
+            change.object_kind,
+            ChannelObjectKind::Stream | ChannelObjectKind::Layout
+        )
+    })?;
+    write_channel_diff_section(output, "04 / RELAYS", &diff.delta.changes, |change| {
+        change.object_kind == ChannelObjectKind::Relay
+    })?;
+    Ok(())
+}
+
+fn write_channel_diff_section(
+    output: &mut impl Write,
+    heading: &str,
+    changes: &[ChannelGraphChange],
+    include: impl Fn(&ChannelGraphChange) -> bool,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{heading}")?;
+    let mut count = 0_u64;
+    for change in changes.iter().filter(|change| include(change)) {
+        count += 1;
+        writeln!(
+            output,
+            "  {}  {} {} · {}",
+            match change.kind {
+                rey::channels::ChannelChangeKind::Added => "+",
+                rey::channels::ChannelChangeKind::Removed => "-",
+                _ => "~",
+            },
+            change.object_kind.label(),
+            change.object_id,
+            change.detail
+        )?;
+    }
+    if count == 0 {
+        writeln!(output, "  no changes")?;
+    }
+    Ok(())
+}
+
+fn write_channel_apply(
+    output: &mut impl Write,
+    result: &ChannelApplyResult,
+) -> Result<(), CliError> {
+    if !result.applied {
+        writeln!(output, "nothing to apply, channel working tree unchanged")?;
+        return Ok(());
+    }
+    writeln!(output)?;
+    writeln!(output, "CHANNEL GRAPH APPLIED")?;
+    write_portfolio_field(output, "Source", &result.snapshot.source.locator)?;
+    write_portfolio_field(
+        output,
+        "Working snapshot",
+        result.snapshot.snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(output, "Graph", result.snapshot.graph_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Inventory",
+        &format!(
+            "{} · {} · {} · {}",
+            count_noun(result.snapshot.graph.channels.len(), "channel"),
+            count_noun(result.snapshot.graph.subscriptions.len(), "subscription"),
+            count_noun(result.snapshot.graph.streams.len(), "stream"),
+            count_noun(result.snapshot.graph.relays.len(), "relay")
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Changes",
+        &format!(
+            "{} semantic changes · {} renamed · {} moved · {} retargeted",
+            result.delta.summary.total,
+            result.delta.summary.renamed,
+            result.delta.summary.moved,
+            result.delta.summary.retargeted
+        ),
+    )?;
+    Ok(())
+}
+
+fn count_noun(count: usize, noun: &str) -> String {
+    format!("{count} {noun}{}", if count == 1 { "" } else { "s" })
 }
 
 fn write_journal_admission(
@@ -4709,6 +5163,16 @@ enum CliError {
     WorkspaceDirectory(PathBuf),
     #[error("relative state directory {0} escapes the workspace boundary")]
     StateDirectoryEscape(PathBuf),
+    #[error("channel graph {path} could not be read: {source}")]
+    ChannelInput { path: PathBuf, source: io::Error },
+    #[error("channel graph must be a regular non-symlinked file: {0}")]
+    ChannelInputType(PathBuf),
+    #[error("channel graph resolves outside the workspace: {0}")]
+    ChannelInputEscape(PathBuf),
+    #[error("channel graph path is not valid UTF-8: {0}")]
+    ChannelInputEncoding(PathBuf),
+    #[error("channel graph exceeds {0} bytes")]
+    ChannelInputLimit(u64),
     #[error("journal proposal {path} could not be read: {source}")]
     JournalInput { path: PathBuf, source: io::Error },
     #[error("journal proposal must be a regular non-symlinked file: {0}")]
@@ -4740,9 +5204,11 @@ enum CliError {
     #[error(transparent)]
     Journal(#[from] JournalError),
     #[error(transparent)]
+    ChannelGraph(#[from] ChannelGraphError),
+    #[error(transparent)]
     Ui(#[from] ui::UiError),
-    #[error("journal YAML failed: {0}")]
-    JournalYaml(#[from] serde_saphyr::Error),
+    #[error("YAML input failed: {0}")]
+    Yaml(#[from] serde_saphyr::Error),
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]

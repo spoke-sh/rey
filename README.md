@@ -192,6 +192,10 @@ Compiled fixtures are an explicit diagnostic surface selected with
 The product surface stays intentionally small:
 
 ```text
+rey channels list
+rey channels status
+rey channels diff
+rey channels apply <channel-graph.yaml>
 rey env status
 rey env diff
 rey env add [-p]
@@ -220,6 +224,11 @@ executable:
 ```sh
 nix develop
 just setup
+just rey channels list --format table
+just rey channels status --format table
+just rey channels diff --format table
+# After authoring a workspace-contained rey.channel-graph.v1 resource:
+just rey channels apply path/to/channel-graph.yaml --format table
 just rey env status
 just rey env diff
 just rey env add -p
@@ -604,6 +613,13 @@ run graph, compares native ordered text and typed match relations, and projects
 complete, failing, and truncated evidence through `list`, `test`, `status`, and
 `run`.
 
+The first Channel topology slice is also executable. It defines a canonical
+built-in workspace channel, bounded subscription, stable three-stream Feed
+layout, typed semantic deltas, and a symlink-safe atomic WORKING proposal.
+`rey channels list`, `status`, `diff`, and `apply` provide human and structured
+verification without moving observations into the topology index. Immutable
+HEAD/INDEX admission and browser persistence remain the next topology slices.
+
 Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.
 `rey.portfolio-snapshot.v1` and the
@@ -662,12 +678,13 @@ frontier; subscriptions project them into Feed streams; and Journal entries
 deliberately synthesize and cite exact observations. A Journal seed is an
 unretained catch-up projection, not an automatically admitted document.
 Broadcasts associate one observation identity with a bounded local channel set,
-while relays remain explicit provider-backed edges. The first anchor is
-CLI-only: a workspace-local `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING`
-store plus `rey channels apply/status/diff` over the current default layout.
-The following slice adds `rey observations add/list/show` without dirtying that
-topology index. Draggable persistent Feed headers follow only after the same
-state is high-fidelity and reviewable through the agent CLI.
+while relays remain explicit provider-backed edges. The first CLI-only anchor
+is delivered: `rey channels list/status/diff/apply` exposes the canonical
+built-in graph and a symlink-safe, tamper-detecting `CHANNEL WORKING` proposal
+without writing state merely to inspect the default. The next slice adds
+`rey observations add/list/show` without dirtying that topology index. Staged
+Channel admission and draggable persistent Feed headers remain subsequent
+slices over the same high-fidelity agent surface.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

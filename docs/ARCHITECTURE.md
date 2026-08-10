@@ -208,9 +208,11 @@ collaboration-frontier projection. Journal remains the deliberate rich
 synthesis surface and may cite exact observations or begin from an unretained
 Journal seed. Feed, mailbox, conversation, observations, and Journal remain
 different interfaces; channel admission grants no action or transport
-authority. The Channel store, observation log, CLI, browser persistence,
-broadcast, Journal seeding, and relay provider are planned, not implemented
-behavior.
+authority. The first topology slice now implements the canonical built-in
+graph, bounded snapshots/deltas, symlink-safe Channel WORKING store, and
+`channels list/status/diff/apply`. Immutable HEAD/INDEX admission, the
+observation log, browser persistence, broadcast, Journal seeding, and relay
+provider remain planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

@@ -284,10 +284,12 @@ retention-neutral.
 
 ### Channel
 
-A planned stable addressable workspace collaboration boundary. A channel owns
-admission and subscription scope, not observation or Journal content, runtime
-action, or a universal event clock. Feed streams may subscribe to channels but
-are not channels themselves.
+A stable addressable workspace collaboration boundary. The implemented
+built-in graph defines one workspace-local channel; later admission logs will
+associate observations with exact channel revisions. A channel owns admission
+and subscription scope, not observation or Journal content, runtime action, or
+a universal event clock. Feed streams may subscribe to channels but are not
+channels themselves.
 
 ### Channel admission
 
@@ -306,10 +308,11 @@ runtime frontier or make an observation schedulable work.
 ### Channel graph
 
 The bounded relation of channel definitions, subscriptions, Feed streams,
-ordered layouts, and relay declarations. It provides addresses for separate
-observation-admission logs but does not contain their high-cadence history. Its
-local revision loop is separate from environment, workload, runtime, and proof
-identity.
+ordered layouts, and relay declarations. `rey.channel-graph.v1`, the built-in
+default, typed snapshots/deltas, and Channel WORKING proposals are implemented.
+The graph provides addresses for separate observation-admission logs but does
+not contain their high-cadence history. Its local revision loop is separate
+from environment, workload, runtime, and proof identity.
 
 ### Channel index
 
@@ -640,7 +643,9 @@ cursor, attention rows, admission authority, live telemetry, or causal order.
 One independently scrolling, configured lens over the Feed Firehose. A stream
 selects a source plane and filter, such as `signals.journal`, `admission.now`,
 or `flow.failing`, plus an optional human name. Its title is editable inline and
-autosaves into the deep-linkable URL coordinate rather than runtime state.
+currently autosaves into the deep-linkable URL coordinate. The implemented
+Channel graph now gives the built-in Signals, Admission, and Flow streams stable
+topology identities, but the browser is not yet bound to Channel WORKING.
 Repeating, naming, ordering, tuning, or removing a stream changes the human
 projection only; it does not copy, admit, schedule, or mutate source records.
 
@@ -1466,9 +1471,10 @@ distinct.
 ### Subscription
 
 A planned bounded selection over exact channels, observation kinds, filters,
-and limits. A Feed stream projects a subscription through a human visual lens;
-the subscription does not copy observations or establish order across channel
-sequences.
+and limits. The built-in graph now declares the first local subscription; its
+future observation projection is not implemented. A Feed stream projects a
+subscription through a human visual lens; the subscription does not copy
+observations or establish order across channel sequences.
 
 ### Survey
 

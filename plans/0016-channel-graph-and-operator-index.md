@@ -20,18 +20,24 @@ catching up. Relay execution remains a separately gated provider bearing.
 
 - [x] Accept ADR 0040 and distinguish channels, observations, admissions,
   subscriptions, Feed streams, broadcasts, and relays.
-- [ ] Define bounded canonical v1 contracts for channel definitions, Channel
-  observations, admissions, subscriptions, stable Feed streams, ordered
-  layouts, graph revisions, frontier projection, and typed deltas.
-- [ ] Implement a symlink-safe workspace-local channel store with verified
-  `HEAD`, `INDEX`, and `WORKING`, locking, atomic publication, tamper detection,
-  deterministic replay, and explicit local-only guarantees.
-- [ ] Implement `rey channels list`, `status`, `diff`, `apply`, `add`, `commit`,
-  and `log` with Git-shaped human output and machine-clean structured output.
+- [x] Define bounded canonical v1 contracts for channel definitions,
+  subscriptions, stable Feed streams, ordered layouts, relay declarations,
+  graph snapshots, effective limits, and typed semantic deltas.
+- [ ] Define the separate Channel-observation, admission, frontier, and Journal
+  seed contracts.
+- [x] Implement a symlink-safe workspace-local `WORKING` store with locking,
+  atomic publication, tamper detection, deterministic replay, and explicit
+  local-only guarantees.
+- [ ] Extend the local store with verified immutable `HEAD` and staged `INDEX`
+  revisions without moving observation history into the topology index.
+- [x] Implement `rey channels list`, `status`, `diff`, and `apply` with compact
+  human output and machine-clean structured output.
+- [ ] Implement `rey channels add`, `commit`, and `log` plus staged diff with
+  the complete Git-shaped admission loop.
 - [ ] Implement the separate low-latency `rey observations add`, `list`, and
   `show` surface over an immutable local observation/admission log; adding an
   observation must not dirty `CHANNEL WORKING`.
-- [ ] Make empty/default channel state useful without writing files and keep
+- [x] Make empty/default channel state useful without writing files and keep
   layout revision identity out of environment, workload, runtime, and proof
   identities.
 - [ ] Add a bounded UI read/write projection over the same store, with exact
@@ -79,8 +85,14 @@ Freeze the smallest contracts that preserve identity through UI changes:
 - `rey.feed-stream.v1`: stable stream id, name, subscription, visual lens, and
   stream revision;
 - `rey.feed-layout.v1`: ordered unique stream ids plus layout revision;
-- `rey.channel-graph.v1`: exact channel/subscription/stream/layout revisions,
-  source binding, limits, and parent graph identity; and
+- `rey.channel-graph.v1`: canonical channel, subscription, stream, layout, and
+  relay definitions with exact semantic revisions;
+- `rey.channel-graph-snapshot.v1`: graph identity, exact source binding,
+  effective limits, and tamper-detecting snapshot identity;
+- `rey.channel-working.v1`: the exact built-in base graph identity plus one
+  validated WORKING snapshot;
+- `rey.channel-graph-delta.v1`: directed semantic operations between exact
+  graph identities; and
 - `rey.channel-frontier.v1`: a bounded deterministic projection of unresolved
   observations with exact resolution/supersession lineage and omissions.
 
@@ -188,7 +200,7 @@ honest delivery guarantees.
 | Journal seed | one/many exact observations, deterministic proposal, source-revision citations, deep links, no implicit Journal retention or execution |
 | Relay contract | source/target drift, duplicate delivery identity, hop bound, loop rejection, cursor replay, provider absence, explicit unsupported transport |
 
-## Next Concrete Anchor
+## Completed Anchor — Topology WORKING
 
 Implement the contract and CLI-only vertical slice for one built-in local
 channel, one subscription, and the current three-stream default layout:
@@ -202,11 +214,15 @@ channel, one subscription, and the current three-stream default layout:
 5. prove restart, invalid references, duplicate ids, tampering, symlink
    rejection, human output, structured output, and exit codes.
 
-Do not begin browser drag persistence until this anchor gives the agent a
-high-fidelity CLI surface for the same facts.
+This anchor now gives the agent a high-fidelity CLI surface for the same facts.
+The built-in graph is available without local state, while `apply` validates a
+workspace-contained YAML graph and atomically retains only `CHANNEL WORKING`.
 
-The next bounded anchor after topology is one standalone
-`rey.channel-observation.v1` admitted through `rey observations add`, visible in
-`list` and `show`, broadcast to one built-in local channel, and projected into
-an unresolved Channel frontier. Browser “Share observation” and Journal seeding
-follow only after that same observation is inspectable through the CLI.
+## Next Concrete Anchor
+
+Implement one standalone `rey.channel-observation.v1` admitted through
+`rey observations add`, visible in `list` and `show`, broadcast to the built-in
+workspace channel, and projected into an unresolved Channel frontier. Adding
+the observation must leave `CHANNEL WORKING` clean. Browser “Share observation”
+and Journal seeding follow only after that same observation is inspectable
+through the CLI.

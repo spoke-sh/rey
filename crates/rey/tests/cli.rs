@@ -5,6 +5,9 @@ use std::{
     process::{Command, Stdio},
 };
 
+use rey::channels::{
+    ChannelApplyResult, ChannelDiff, ChannelGraphSnapshot, ChannelStatus, ChannelWorkingState,
+};
 use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
@@ -21,6 +24,313 @@ use rey_runtime::{
 };
 use serde_json::Value;
 use tempfile::TempDir;
+
+#[test]
+fn channels_topology_is_cli_first_semantic_and_restart_safe() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let clean = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(clean.status.success());
+    assert!(clean.stderr.is_empty());
+    assert_eq!(
+        String::from_utf8(clean.stdout).unwrap(),
+        "On channels built-in\n\nnothing to commit, channel working tree clean\n"
+    );
+    assert!(!workspace.path().join(".rey").exists());
+
+    let listed = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(listed.status.success());
+    assert!(listed.stderr.is_empty());
+    let listed = String::from_utf8(listed.stdout).unwrap();
+    for evidence in [
+        "CHANNEL GRAPH",
+        "1 channel · 1 subscription · 3 streams · 0 relays",
+        "01 / CHANNELS",
+        "workspace@1  Workspace",
+        "finding · question · progress · blocker · handoff",
+        "02 / SUBSCRIPTIONS",
+        "03 / FEED STREAMS",
+        "01  Signals  signals@1",
+        "02  Admission  admission@1",
+        "03  Flow  flow@1",
+        "signals → admission → flow",
+        "04 / RELAYS",
+        "none · transport not configured",
+    ] {
+        assert!(
+            listed.contains(evidence),
+            "missing Channel evidence: {evidence}"
+        );
+    }
+    assert!(!workspace.path().join(".rey").exists());
+
+    let clean_json = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let clean_json: ChannelStatus = serde_json::from_slice(&clean_json.stdout).unwrap();
+    assert_eq!(clean_json.schema, "rey.channel-status.v1");
+    assert_eq!(clean_json.state, ChannelWorkingState::Clean);
+    assert!(!clean_json.working_present);
+    assert!(clean_json.index.is_none());
+    assert_eq!(clean_json.working.graph.layout.stream_ids[0], "signals");
+
+    let invalid_revision = r#"schema: rey.channel-graph.v1
+channels:
+  - id: workspace
+    revision: 1
+    name: Workspace
+    scope: workspace_local
+    accepted_observation_kinds: [finding, question, progress, blocker, handoff]
+    broadcast_default: true
+subscriptions:
+  - id: workspace
+    revision: 1
+    channel_ids: [workspace]
+    observation_kinds: [finding, question, progress, blocker, handoff]
+    filters: {}
+    limit: 64
+streams:
+  - id: signals
+    revision: 1
+    name: Signals
+    subscription_id: workspace
+    lens: signals
+  - id: admission
+    revision: 1
+    name: Review
+    subscription_id: workspace
+    lens: admission
+  - id: flow
+    revision: 1
+    name: Flow
+    subscription_id: workspace
+    lens: flow
+layout:
+  id: feed
+  revision: 2
+  stream_ids: [admission, signals, flow]
+relays: []
+"#;
+    fs::write(
+        workspace.path().join("invalid-channels.yaml"),
+        invalid_revision,
+    )
+    .unwrap();
+    let invalid = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "apply",
+        "invalid-channels.yaml",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(invalid.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&invalid.stderr)
+            .contains("stream admission changed without advancing its revision")
+    );
+
+    let proposed = invalid_revision.replace(
+        "id: admission\n    revision: 1",
+        "id: admission\n    revision: 2",
+    );
+    fs::write(workspace.path().join("channels.yaml"), proposed).unwrap();
+    let applied = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "apply",
+        "channels.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        applied.status.success(),
+        "{}",
+        String::from_utf8_lossy(&applied.stderr)
+    );
+    assert!(applied.stderr.is_empty());
+    let applied: ChannelApplyResult = serde_json::from_slice(&applied.stdout).unwrap();
+    assert!(applied.applied);
+    assert_eq!(applied.schema, "rey.channel-apply-result.v1");
+    assert_eq!(applied.snapshot.source.locator, "worktree:///channels.yaml");
+    assert_eq!(applied.delta.summary.renamed, 1);
+    assert_eq!(applied.delta.summary.moved, 2);
+    assert!(
+        workspace
+            .path()
+            .join(".rey/channels/working.json")
+            .is_file()
+    );
+
+    let status = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(status.status.success());
+    let status = String::from_utf8(status.stdout).unwrap();
+    for evidence in [
+        "On channels built-in",
+        "Changes in channel working tree:",
+        "renamed:    stream: admission · name \"Admission\" → \"Review\"",
+        "moved:      stream: admission · position 2 → 1",
+        "channel working tree differs from built-in",
+    ] {
+        assert!(
+            status.contains(evidence),
+            "missing status evidence: {evidence}"
+        );
+    }
+    assert!(!status.contains("content_digest"));
+    assert!(!status.contains("provenance"));
+
+    let diff = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "diff",
+        "--format",
+        "table",
+    ]);
+    assert!(diff.status.success());
+    assert!(diff.stderr.is_empty());
+    let diff = String::from_utf8(diff.stdout).unwrap();
+    for evidence in [
+        "REY CHANNELS DIFF · BUILT-IN → WORKING",
+        "01 / CHANNELS",
+        "02 / SUBSCRIPTIONS",
+        "03 / FEED STREAMS",
+        "~  stream admission · name \"Admission\" → \"Review\"",
+        "~  stream admission · position 2 → 1",
+        "04 / RELAYS",
+    ] {
+        assert!(diff.contains(evidence), "missing diff evidence: {evidence}");
+    }
+    assert!(!diff.contains("serialized"));
+
+    let diff_json = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "diff",
+        "--format",
+        "json",
+    ]);
+    let diff_json: ChannelDiff = serde_json::from_slice(&diff_json.stdout).unwrap();
+    assert_eq!(diff_json.schema, "rey.channel-diff.v1");
+    assert_eq!(diff_json.delta.summary.renamed, 1);
+    assert_eq!(diff_json.delta.summary.moved, 2);
+
+    let restarted = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let restarted: ChannelGraphSnapshot = serde_json::from_slice(&restarted.stdout).unwrap();
+    assert_eq!(restarted.source.locator, "worktree:///channels.yaml");
+    assert_eq!(restarted.graph.layout.stream_ids[0], "admission");
+    assert_eq!(restarted.graph.stream("admission").unwrap().name, "Review");
+
+    let repeated = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "apply",
+        "channels.yaml",
+        "--format",
+        "table",
+    ]);
+    assert!(repeated.status.success());
+    assert_eq!(
+        String::from_utf8(repeated.stdout).unwrap(),
+        "nothing to apply, channel working tree unchanged\n"
+    );
+
+    let escaped = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "--state-dir",
+        "../outside",
+        "status",
+    ]);
+    assert_eq!(escaped.status.code(), Some(1));
+    assert!(escaped.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&escaped.stderr).contains("escapes the workspace"));
+
+    let help = run_rey(&["channels", "--help"]);
+    assert!(help.status.success());
+    let help = String::from_utf8(help.stdout).unwrap();
+    for command in ["list", "status", "diff", "apply"] {
+        assert!(help.contains(command));
+    }
+    for unavailable in ["add", "commit", "log"] {
+        assert!(
+            !help
+                .lines()
+                .any(|line| line.trim_start().starts_with(unavailable))
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn channels_apply_rejects_symlinked_graph_input() {
+    use std::os::unix::fs::symlink;
+
+    let workspace = TempDir::new().unwrap();
+    fs::write(workspace.path().join("graph.yaml"), "schema: invalid\n").unwrap();
+    symlink(
+        workspace.path().join("graph.yaml"),
+        workspace.path().join("linked.yaml"),
+    )
+    .unwrap();
+    let output = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace.path().to_str().unwrap(),
+        "apply",
+        "linked.yaml",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("channel graph must be a regular non-symlinked file")
+    );
+    assert!(!workspace.path().join(".rey").exists());
+}
 
 #[test]
 fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {

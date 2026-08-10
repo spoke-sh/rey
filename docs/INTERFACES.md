@@ -72,6 +72,10 @@ interactive admission as environment hunks, and adds bounded dated v2 history.
 Rey's product surface is intentionally small:
 
 ```text
+rey channels [--workspace PATH] [--state-dir PATH] list
+rey channels [--workspace PATH] [--state-dir PATH] status
+rey channels [--workspace PATH] [--state-dir PATH] diff
+rey channels [--workspace PATH] [--state-dir PATH] apply <channel-graph.yaml>
 rey env [--workspace PATH] [--state-dir PATH] status [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] add [-p] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
@@ -88,8 +92,10 @@ rey journal [--workspace PATH] [--state-dir PATH] list
 rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
-`env` inventories and revisions the available compute boundary. `workloads`
-is the public unit for composing and using runtime concepts. `journal` is the
+`channels` exposes the bounded collaboration topology and WORKING proposal;
+its current commands do not admit observations or relay transport. `env`
+inventories and revisions the available compute boundary. `workloads` is the
+public unit for composing and using runtime concepts. `journal` is the
 agent-facing admission and retrieval surface for typed collaboration entries;
 it does not execute their blocks. Spaces, lenses,
 frames, deltas, frontiers, traces, and proofs remain typed evidence and may
@@ -916,18 +922,30 @@ Admission retains its authoritative source bound. Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,
 causal-order claim, or additional HTTP endpoint.
 
-ADR 0040 and Plan 0016 define the next, currently unimplemented Channel
-interface. Its topology surface is planned as `rey channels
-list|status|diff|apply|add|commit|log` over a separate `CHANNEL HEAD → CHANNEL
-INDEX → CHANNEL WORKING` revision loop. Its high-cadence frontier surface is
-planned as `rey observations add|list|show` over standalone immutable Channel
-observations and channel-local admission records that do not dirty the topology
-index. Browser drag/reorder persistence must use the same typed graph store and
-validator after that CLI proof exists. Planned observation broadcast associates
-one observation identity with explicit local channels. `rey journal seed` and
+ADR 0040 and Plan 0016 define the Channel interface. The implemented first
+topology slice provides `rey channels list|status|diff|apply`. It derives one
+built-in workspace-local channel, one bounded subscription, and stable Signals,
+Admission, and Flow stream identities without writing local state. `apply`
+accepts a workspace-contained regular non-symlinked
+`rey.channel-graph.v1` YAML document, canonicalizes bounded definitions,
+rejects duplicate or dangling references and semantic revision reuse, and
+atomically retains a tamper-detecting `.rey/channels/working.json` proposal.
+Human diff output names `added`, `removed`, `modified`, `renamed`, `retargeted`,
+and `moved` operations rather than serialized state; JSON returns exact graph,
+source, limit, identity, and delta envelopes. `status` and `list` remain
+read-only and leave an untouched workspace untouched.
+
+`rey channels add|commit|log`, staged diff, immutable Channel HEAD, and the
+admission index remain planned to complete the separate `CHANNEL HEAD → CHANNEL
+INDEX → CHANNEL WORKING` revision loop. The high-cadence frontier surface is
+also planned as `rey observations add|list|show` over standalone immutable
+Channel observations and channel-local admission records that do not dirty the
+topology index. Browser drag/reorder persistence must use the same typed graph
+store and validator. Planned observation broadcast associates one observation
+identity with explicit local channels. `rey journal seed` and
 `/journal/new?observations=...` project selected exact observations into an
 unretained catch-up proposal; only normal Journal admission creates an entry.
-Planned relay declarations do not enable transport until a provider contract is
+Relay declarations do not enable transport until a provider contract is
 separately admitted.
 
 The startup table and `rey.ui-server.v3` JSON expose exact address, URL,
