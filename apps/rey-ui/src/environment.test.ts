@@ -46,6 +46,7 @@ describe("environment operator projection", () => {
         index: null,
         working: {
           name: "rg",
+          purpose: "Extend bounded source mining with fast text search",
           required: false,
           availability: "unavailable",
           resolved_path: null,

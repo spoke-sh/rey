@@ -20,9 +20,9 @@ use thiserror::Error;
 pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
 pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
-pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v3";
-pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v2";
-pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v1";
+pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v4";
+pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v3";
+pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v2";
 pub const ENVIRONMENT_ADMISSION_INDEX_SCHEMA: &str = "rey.environment-admission-index.v1";
 pub const ENVIRONMENT_ADD_RESULT_SCHEMA: &str = "rey.environment-add-result.v1";
 pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v1";
@@ -337,6 +337,7 @@ pub struct EnvironmentVariableObservation {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EnvironmentApplicationObservation {
     pub name: String,
+    pub purpose: Option<String>,
     pub required: bool,
     pub availability: Availability,
     pub resolved_path: Option<String>,
@@ -385,12 +386,27 @@ pub struct EnvironmentMappingCoordinate {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentApplicationInventoryCoordinate {
+    pub schema: String,
+    pub source_path: String,
+    pub inventory_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentApplicationInventoryStatus {
+    pub head: Option<EnvironmentApplicationInventoryCoordinate>,
+    pub index: Option<EnvironmentApplicationInventoryCoordinate>,
+    pub working: Option<EnvironmentApplicationInventoryCoordinate>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EnvironmentOperatorProjection {
     pub schema: String,
     pub source_label: String,
     pub target_label: String,
     pub complete: bool,
     pub mapping: Option<EnvironmentMappingCoordinate>,
+    pub application_inventory: EnvironmentApplicationInventoryStatus,
     pub summary: EnvironmentOperatorSummary,
     pub variables: Vec<EnvironmentObjectStatus<EnvironmentVariableObservation>>,
     pub applications: Vec<EnvironmentObjectStatus<EnvironmentApplicationObservation>>,
@@ -439,6 +455,11 @@ impl EnvironmentOperatorProjection {
             .iter()
             .filter_map(|application| application.working.as_ref())
             .collect::<Vec<_>>();
+        let application_inventory = EnvironmentApplicationInventoryStatus {
+            head: head.application_inventory.clone(),
+            index: index.application_inventory.clone(),
+            working: working.application_inventory.clone(),
+        };
         let summary = EnvironmentOperatorSummary {
             variables: variables.len() as u64,
             changed_variables: changed_count(&variables),
@@ -466,6 +487,7 @@ impl EnvironmentOperatorProjection {
             target_label: "WORKING".to_owned(),
             complete: working.complete,
             mapping: working.mapping.or(index.mapping).or(head.mapping),
+            application_inventory,
             summary,
             variables,
             applications,
@@ -479,6 +501,7 @@ impl EnvironmentOperatorProjection {
 struct MappedEnvironmentPlane {
     complete: bool,
     mapping: Option<EnvironmentMappingCoordinate>,
+    application_inventory: Option<EnvironmentApplicationInventoryCoordinate>,
     variables: BTreeMap<String, EnvironmentVariableObservation>,
     applications: BTreeMap<String, EnvironmentApplicationObservation>,
     inputs: BTreeMap<String, EnvironmentInputObservation>,
@@ -557,6 +580,7 @@ impl MappedEnvironmentPlane {
                     let EnvironmentMapNode::Executable {
                         id,
                         name,
+                        purpose,
                         required,
                         potential_capabilities,
                     } = provenance.declaration
@@ -569,6 +593,7 @@ impl MappedEnvironmentPlane {
                         id,
                         EnvironmentApplicationObservation {
                             name,
+                            purpose,
                             required,
                             availability: record.availability,
                             resolved_path: record.resolved_location.clone(),
@@ -631,7 +656,34 @@ impl MappedEnvironmentPlane {
                 _ => {}
             }
         }
+        plane.application_inventory = plane
+            .mapping
+            .as_ref()
+            .map(|mapping| application_inventory_coordinate(mapping, &plane.applications));
         Ok(plane)
+    }
+}
+
+fn application_inventory_coordinate(
+    mapping: &EnvironmentMappingCoordinate,
+    applications: &BTreeMap<String, EnvironmentApplicationObservation>,
+) -> EnvironmentApplicationInventoryCoordinate {
+    let mut hasher = SemanticHasher::new("rey.environment-application-inventory.v1");
+    hasher.add_u64(applications.len() as u64);
+    for (id, application) in applications {
+        hasher.add_str(id);
+        hasher.add_str(&application.name);
+        hasher.add_optional_str(application.purpose.as_deref());
+        hasher.add_bool(application.required);
+        hasher.add_u64(application.potential_capabilities.len() as u64);
+        for capability in &application.potential_capabilities {
+            hasher.add_str(capability);
+        }
+    }
+    EnvironmentApplicationInventoryCoordinate {
+        schema: "rey.environment-application-inventory.v1".to_owned(),
+        source_path: mapping.source_path.clone(),
+        inventory_id: hasher.finish().to_string(),
     }
 }
 
@@ -1498,14 +1550,16 @@ pub enum LocalEnvironmentHistoryError {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{collections::BTreeMap, fs};
 
     use rey_environment::{Availability, CapabilityRecord, DiscoveryLimits, TrustClass};
     use tempfile::TempDir;
 
     use super::{
-        EnvironmentAdmissionIndex, EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
+        EnvironmentAdmissionIndex, EnvironmentApplicationObservation, EnvironmentLog,
+        EnvironmentMappingCoordinate, EnvironmentStatus, EnvironmentWorkingState,
         LocalEnvironmentHistory, LocalEnvironmentHistoryError, LocalEnvironmentStore,
+        application_inventory_coordinate,
     };
 
     fn snapshot(version: &str) -> rey_environment::CapabilitySnapshot {
@@ -1533,6 +1587,39 @@ mod tests {
             }],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn application_inventory_identity_excludes_search_outcomes() {
+        let mapping = EnvironmentMappingCoordinate {
+            source_path: "rey.env.yaml".to_owned(),
+            schema: "rey.env-map.v3".to_owned(),
+            graph_id: "blake3:mapping".to_owned(),
+        };
+        let application = |availability, path: Option<&str>| EnvironmentApplicationObservation {
+            name: "rg".to_owned(),
+            purpose: Some("Search bounded source".to_owned()),
+            required: false,
+            availability,
+            resolved_path: path.map(str::to_owned),
+            content_digest: path.map(|_| "blake3:binary".to_owned()),
+            potential_capabilities: vec!["source.search.literal".to_owned()],
+            searched_path_count: 12,
+            error_code: None,
+        };
+        let found = BTreeMap::from([(
+            "rg".to_owned(),
+            application(Availability::Available, Some("/bin/rg")),
+        )]);
+        let missing = BTreeMap::from([(
+            "rg".to_owned(),
+            application(Availability::Unavailable, None),
+        )]);
+
+        assert_eq!(
+            application_inventory_coordinate(&mapping, &found).inventory_id,
+            application_inventory_coordinate(&mapping, &missing).inventory_id
+        );
     }
 
     #[test]

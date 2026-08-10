@@ -231,6 +231,9 @@ function EnvironmentPage() {
   );
   const projection = status.operator;
   const variableLines = environmentVariableDiff(projection.variables);
+  const desired = projection.applications.filter(
+    (application) => application.working !== null,
+  );
   const found = currentApplications(projection.applications, "available");
   const notFound = currentApplications(projection.applications, "unavailable");
   const errors = currentApplications(projection.applications, "error");
@@ -336,9 +339,29 @@ function EnvironmentPage() {
             <h2 className={sx(styles.sectionTitle)}>Applications</h2>
           </div>
           <span className={sx(styles.micro, styles.muted)}>
-            {projection.summary.applications_searched} SEARCHED ·{" "}
-            {projection.summary.applications_found} FOUND ·{" "}
-            {projection.summary.applications_not_found} NOT FOUND
+            {desired.length} DESIRED · {projection.summary.applications_found}{" "}
+            FOUND · {projection.summary.applications_not_found} NOT FOUND
+          </span>
+        </div>
+        <ApplicationInventory
+          applications={desired}
+          inventoryId={
+            projection.application_inventory.working?.inventory_id ?? null
+          }
+          sourcePath={
+            projection.application_inventory.working?.source_path ?? null
+          }
+        />
+        <div className={sx(styles.environmentSearchRecord)}>
+          <div>
+            <span className={sx(styles.micro)}>SEARCH RECORD</span>
+            <strong>WORKING</strong>
+          </div>
+          <code title={status.working_snapshot.semantic_digest}>
+            {shortDigest(status.working_snapshot.semantic_digest)}
+          </code>
+          <span className={sx(styles.micro, styles.muted)}>
+            BOUNDED PATH IDENTITY RESOLUTION · NO EXECUTION
           </span>
         </div>
         <ApplicationGroup label="FOUND" applications={found} tone="found" />
@@ -443,6 +466,62 @@ function EnvironmentPage() {
   );
 }
 
+function ApplicationInventory({
+  applications,
+  inventoryId,
+  sourcePath,
+}: {
+  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[];
+  inventoryId: string | null;
+  sourcePath: string | null;
+}) {
+  return (
+    <div className={sx(styles.environmentApplicationGroup)}>
+      <div className={sx(styles.environmentApplicationGroupHeader)}>
+        <span className={sx(styles.micro)}>DESIRED INVENTORY</span>
+        <strong>{String(applications.length).padStart(2, "0")}</strong>
+      </div>
+      <div className={sx(styles.environmentInventoryRecord)}>
+        <span className={sx(styles.micro, styles.muted)}>RECORD</span>
+        <code title={inventoryId ?? undefined}>
+          {sourcePath ?? "NO MAP"} @ {shortDigest(inventoryId)}
+        </code>
+      </div>
+      {applications.length === 0 ? (
+        <p className={sx(styles.micro, styles.muted)}>NONE</p>
+      ) : (
+        applications.map((application) => {
+          const observation = application.working;
+          if (!observation) return null;
+          return (
+            <div
+              className={sx(styles.environmentApplicationRow)}
+              key={application.object_id}
+            >
+              <span className={sx(styles.environmentApplicationMarker)}>→</span>
+              <div className={sx(styles.environmentApplicationIdentity)}>
+                <strong>{application.object_id}</strong>
+                <code>{observation.name}</code>
+                <small className={sx(styles.micro, styles.muted)}>
+                  {observation.purpose ?? "PURPOSE NOT RECORDED"}
+                </small>
+              </div>
+              <span className={sx(styles.micro, styles.muted)}>
+                {observation.required ? "REQUIRED" : "OPTIONAL"}
+              </span>
+              <p className={sx(styles.environmentCapabilityList)}>
+                {observation.potential_capabilities.length > 0
+                  ? observation.potential_capabilities.join(" · ")
+                  : "NO DESIRED CAPABILITIES"}
+              </p>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 function ApplicationGroup({
   label,
   applications,
@@ -494,13 +573,14 @@ function ApplicationGroup({
                 </small>
               </div>
               <span className={sx(styles.micro, styles.muted)}>
-                {observation.required ? "REQUIRED" : "OPTIONAL"}
+                {tone === "found"
+                  ? "RESOLVED"
+                  : tone === "missing"
+                    ? "UNRESOLVED"
+                    : tone === "removed"
+                      ? "REMOVED"
+                      : "ERROR"}
               </span>
-              {observation.potential_capabilities.length > 0 ? (
-                <p className={sx(styles.environmentCapabilityList)}>
-                  {observation.potential_capabilities.join(" · ")}
-                </p>
-              ) : null}
             </div>
           );
         })

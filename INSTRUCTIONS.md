@@ -194,6 +194,9 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 - Keep discovery read-only. A known version probe has a timeout and output
   bound; discovery never executes arbitrary files merely because they are on
   `PATH`.
+- Keep desired application inventory distinct from search observations. A
+  development dependency is not inventory intent; bind the declaration graph
+  and the resulting capability snapshot as separate exact records.
 - Record provider identity, resolved executable path, version,
   digest/provenance when available, trust class, supported actions, and limits.
 - Revalidate the capability snapshot at action admission. Tool or provider

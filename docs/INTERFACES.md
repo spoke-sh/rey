@@ -26,9 +26,10 @@ the same live workload-list derivation as the CLI.
 ADR 0026 makes `/explore` the default human surface, hard-cuts Instrument to
 Environment at `/environment`, adds the bounded semantic-lens canvas, and
 replaces manual refresh with passive five-second revalidation.
-ADR 0027 hard-cuts the mapping graph to `rey.env-map.v2`, adds bounded
-non-sensitive value capture, and makes `rey env status` plus `/environment`
-two projections of one typed environment delta.
+ADR 0027 adds bounded non-sensitive value capture and makes `rey env status`
+plus `/environment` two projections of one typed environment delta. ADR 0031
+hard-cuts the mapping graph to `rey.env-map.v3` and separates exact desired
+application inventory from bounded search records.
 ADR 0030 adds partially ordered cadence lanes, a provenance-derived agent
 registry, and exact matrix-style Explorer coordinates.
 
@@ -222,19 +223,22 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 
 `status` is the single environment inventory and revision view. It performs a
 fresh observation, retains the complete working snapshot in
-`rey.environment-status.v3`, and derives one typed variable, application,
+`rey.environment-status.v4`, and derives one typed variable, application,
 input, and reference projection over `HEAD → INDEX → WORKING`. Human output
-leads with the env-shaped `HEAD → WORKING` variable diff and the complete
-declared application search, while preserving staged and unstaged counts.
+leads with the env-shaped `HEAD → WORKING` variable diff, the exact desired
+application inventory record, and the complete bounded search record while
+preserving staged and unstaged counts.
 
 `add` replaces the admission index with the fresh working snapshot. `add -p`
 prompts over canonical capability changes and stages only selected rows; its
 interactive mode requires table output. `diff` selects `INDEX → WORKING` by
 default and `HEAD → INDEX` with `--staged`. Its table projection uses the same
 three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
-`02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. The authoritative
-capability assessment remains in the coordinate header; JSON remains
-`rey.environment-diff.v2` and does not replace the typed capability delta with
+`02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. Bounded search first renders
+the exact application-declaration identity as `DESIRED INVENTORY`, then the
+exact target capability snapshot as `SEARCH RECORD`. The authoritative
+capability assessment remains in the coordinate header; JSON is
+`rey.environment-diff.v3` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the
 verified retained index to the linear history at
 `${workspace}/.rey/env/state.json` by default. `log` is newest-first; `-n`
@@ -244,12 +248,13 @@ The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 `${workspace}/.rey/env/index.json` by default. Plain human history is a compact
 revision/evidence/environment/change/mapping/message chronology; patch mode
 adds directed variables, application search, inputs, and topology. Explicit JSON uses
-`rey.environment-status.v3`, `rey.environment-commit-result.v1`, and
+`rey.environment-status.v4`, `rey.environment-commit-result.v1`, and
 `rey.environment-log.v1`.
 
 By convention, observation also loads `rey.env.yaml`; `--map` selects another
-workspace-relative regular YAML file. `rey.env-map.v2` is a closed, bounded
-graph of variable, file, and executable nodes plus declared reference edges.
+workspace-relative regular YAML file. `rey.env-map.v3` is a closed, bounded
+graph of variable, file, and desired executable nodes plus declared reference
+edges. Every desired executable records why it belongs in the inventory.
 Mapped file bytes are not retained. Sensitive variables are presence-only.
 Non-sensitive variables may opt into presence, a value digest, or an exact
 bounded UTF-8 value; files retain bounded identities; executable candidates
@@ -840,9 +845,11 @@ Topology Explorer](EXPLORER.md), [ADR
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded
-application search, and the input/reference plane. Environment state, mapping,
-completeness, and admission counts remain compact metadata within those
-sections rather than separate visual destinations.
+application search, and the input/reference plane. The application plane keeps
+the application-inventory identity and declared purposes distinct from the
+working search snapshot identity and outcomes. Environment state, mapping, completeness, and
+admission counts remain compact metadata within those sections rather than
+separate visual destinations.
 
 The coordinate rail directly beneath the application header remains sticky on
 scrolling routes. Major operator sections declare exact rail coordinates; as a

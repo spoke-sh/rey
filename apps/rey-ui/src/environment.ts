@@ -29,6 +29,7 @@ export interface EnvironmentVariableObservation {
 
 export interface EnvironmentApplicationObservation {
   name: string;
+  purpose: string | null;
   required: boolean;
   availability: EnvironmentAvailability;
   resolved_path: string | null;
@@ -54,7 +55,7 @@ export interface EnvironmentReferenceObservation {
 }
 
 export interface EnvironmentOperatorProjection {
-  schema: "rey.environment-operator-projection.v1";
+  schema: "rey.environment-operator-projection.v2";
   source_label: string;
   target_label: "WORKING";
   complete: boolean;
@@ -63,6 +64,11 @@ export interface EnvironmentOperatorProjection {
     schema: string;
     graph_id: string;
   } | null;
+  application_inventory: {
+    head: EnvironmentApplicationInventoryCoordinate | null;
+    index: EnvironmentApplicationInventoryCoordinate | null;
+    working: EnvironmentApplicationInventoryCoordinate | null;
+  };
   summary: {
     variables: number;
     changed_variables: number;
@@ -81,12 +87,23 @@ export interface EnvironmentOperatorProjection {
   references: EnvironmentObjectStatus<EnvironmentReferenceObservation>[];
 }
 
+export interface EnvironmentApplicationInventoryCoordinate {
+  schema: "rey.environment-application-inventory.v1";
+  source_path: string;
+  inventory_id: string;
+}
+
 export interface EnvironmentStatus {
-  schema: "rey.environment-status.v3";
+  schema: "rey.environment-status.v4";
   head_commit_id: string | null;
   head_sequence: number | null;
   head_snapshot_id: string | null;
   state: "unborn" | "clean" | "changed" | "staged" | "mixed" | "inconclusive";
+  working_snapshot: {
+    semantic_digest: string;
+    complete: boolean;
+    profile: string;
+  };
   operator: EnvironmentOperatorProjection;
   staged_delta: { changes: unknown[] };
   unstaged_delta: { changes: unknown[] };

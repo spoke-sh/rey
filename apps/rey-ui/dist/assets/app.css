@@ -19,6 +19,10 @@
     padding: 0;
   }
 
+  .x6yrr3s {
+    padding: 10px 12px;
+  }
+
   .x15x03d9 {
     padding: 10px 14px;
   }
@@ -135,6 +139,10 @@
 
   .x1r7ld26 {
     border-color: currentColor;
+  }
+
+  .x3qq5vi {
+    border-color: var(--line-soft);
   }
 
   .x6fouwu {
@@ -1065,6 +1073,10 @@
     grid-template-columns: minmax(0, 1fr) minmax(360px, .8fr);
   }
 
+  .x1h7uei1 {
+    grid-template-columns: minmax(150px, auto) minmax(180px, 1fr) auto;
+  }
+
   .x8dh6w8 {
     grid-template-columns: minmax(210px, 1.15fr) minmax(160px, .8fr) minmax(210px, 1fr) minmax(190px, .85fr) minmax(160px, .7fr);
   }
@@ -1848,6 +1860,10 @@
 
   .x1hyhr7 {
     margin-bottom: 34px;
+  }
+
+  .x12nagc {
+    margin-bottom: 4px;
   }
 
   .xu06os2 {

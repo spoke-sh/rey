@@ -231,7 +231,8 @@ unbounded host scan. Initial provider classes may include:
 
 - built-in Rey functions that require no external executable;
 - an agent-authored, deterministically parsed environment mapping graph for
-  relevant variables, input files, executable candidates, and reference edges;
+  relevant variables, input files, desired executable inventory, and reference
+  edges;
 - an explicit local workspace with bounded filesystem access;
 - a Git provider with commit/ref/index/worktree frames and polling;
 - known developer tools resolved from configured paths or `PATH`;
@@ -245,13 +246,16 @@ metadata inspection, or a bounded `--version` invocation. It never executes an
 unknown file merely because it exists.
 
 The mapping graph is a context declaration, not a provider adapter or policy
-grant. Its executable nodes remain potential capabilities until an admitted
-adapter freezes their exact operation contract. The mapping provider projects
-bounded graph, node, edge, variable-presence/digest/value, file-identity, and
-executable-identity evidence into the same snapshot used by environment
-history. Exact variable values are retained only for explicit non-sensitive
-`capture: value` declarations under a byte bound. Sensitive variables remain
-presence-only, and mapped file bytes are never retained.
+grant. Each desired executable declares why it belongs in the inventory. An
+exact semantic identity over those declarations is the inventory record; the
+exact target capability snapshot is a separate bounded search record.
+Executable nodes remain potential capabilities
+until an admitted adapter freezes their exact operation contract. The mapping
+provider projects bounded graph, node, edge, variable-presence/digest/value,
+file-identity, and executable-identity evidence into the snapshot used by
+environment history. Exact variable values are retained only for explicit
+non-sensitive `capture: value` declarations under a byte bound. Sensitive
+variables remain presence-only, and mapped file bytes are never retained.
 
 The capability snapshot is a typed relation. A first schema should be able to
 represent provider id/revision, capability id, kind, resolved location,

@@ -256,16 +256,17 @@ Mapped input files without a declared workload owner appear visibly as
 `CREATE` candidates.
 
 `env status` is the single inventory and revision view. It observes the working
-environment, leads with an env-shaped `HEAD → WORKING` variable diff, and then
-groups every declared application into found, searched-but-not-found, or
-observation-error evidence. The admission summary still distinguishes
+environment, leads with an env-shaped `HEAD → WORKING` variable diff, then
+shows the exact desired-application map before the separate bounded search
+record and its found, searched-but-not-found, or observation-error evidence.
+The admission summary still distinguishes
 `HEAD → INDEX` changes admitted for commit from `INDEX → WORKING` changes not
 yet admitted. `env diff` selects the same three environment planes for
 `INDEX → WORKING`; `env diff --staged` selects them for `HEAD → INDEX`.
 Its human output is directed variable text, bounded application search, then
 input/reference topology—not a generic capability patch. The header still
 reports the authoritative capability-delta assessment and change count;
-`--format json` retains the complete `rey.environment-diff.v2` evidence.
+`--format json` retains the complete `rey.environment-diff.v3` evidence.
 `env add` stages the complete working snapshot, while `env add -p` selects
 capability changes interactively.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
@@ -280,38 +281,49 @@ The checked-in [`rey.env.yaml`](rey.env.yaml) is an agent-generatable mapping
 graph describing the environment surfaces this workspace cares about:
 
 ```yaml
-schema: rey.env-map.v2
+schema: rey.env-map.v3
 nodes:
-  - id: cargo-home
+  - id: path
     kind: variable
-    name: CARGO_HOME
+    name: PATH
     capture: value
   - id: workspace-manifest
     kind: file
     path: Cargo.toml
     required: true
-  - id: cargo
+  - id: git
     kind: executable
-    name: cargo
+    name: git
+    purpose: Inspect repository identity and activation inputs
     required: true
-    potential_capabilities: [rust.build, rust.check, rust.test]
+    potential_capabilities: [git.repository.inspect]
+  - id: rg
+    kind: executable
+    name: rg
+    purpose: Extend bounded source mining with fast text search
+    required: false
+    potential_capabilities: [source.search.literal]
 edges:
-  - from: cargo-home
-    to: cargo
-    relation: configures
-  - from: workspace-manifest
-    to: cargo
-    relation: input_to
+  - from: path
+    to: git
+    relation: resolves
+  - from: path
+    to: rg
+    relation: resolves
 ```
 
 Rey parses this as a closed, bounded graph and projects it into the committed
 capability snapshot. Non-sensitive variables may opt into bounded UTF-8 value,
 digest, or presence capture; sensitive variables are always presence-only.
-Exact values selected with `capture: value`, bounded file identities, resolved
-executable identities, and declared edges therefore remain reproducible across
-the human and structured revision surfaces. Executables are resolved and
-hashed but not invoked, and their declared potential capabilities remain
-visibly unadmitted.
+Exact values selected with `capture: value`, bounded file identities, desired
+application purposes, resolved executable identities, and declared edges
+therefore remain reproducible across the human and structured revision
+surfaces. An exact semantic identity over desired executable declarations is
+the inventory record; the exact target capability snapshot is the search
+record. Executables are resolved and hashed
+but not invoked, and their declared potential capabilities remain visibly
+unadmitted. Cargo remains a development tool without appearing in the desired
+application inventory.
 
 Environment commands default to Git-like human documents and accept explicit
 JSON where no interactive patch selection is required. `status --format json`

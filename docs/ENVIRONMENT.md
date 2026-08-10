@@ -13,9 +13,10 @@ certificates, and bounded local-only bundle retention over this relation. ADR
 capabilities. Plan 0006 now implements the first deterministic built-in local
 source binding and literal-search capability and ADR 0018 composes it through
 the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
-later slices. ADR 0020 added the first explicit environment graph and ADR 0027
-hard-cuts its current contract to `rey.env-map.v2`, adds bounded non-sensitive
-value capture, and derives one operator delta for the CLI and UI. The
+later slices. ADR 0020 added the first explicit environment graph, ADR 0027
+added bounded non-sensitive value capture and one operator delta for the CLI
+and UI, and ADR 0031 hard-cuts the current mapping contract to
+`rey.env-map.v3` with separate desired-application and search records. The
 Git-shaped environment history revisions those observations.
 
 ## Terms
@@ -103,13 +104,13 @@ logical tool name are not interchangeable strings.
 
 The conventional `rey.env.yaml`, or an explicit workspace-relative `--map`
 path, declares the local environment surfaces a programmer or agent has judged
-relevant. The closed `rey.env-map.v2` schema contains:
+relevant. The closed `rey.env-map.v3` schema contains:
 
 - variable nodes with exact names, sensitivity, and `presence`, `digest`, or
   bounded UTF-8 `value` capture;
 - workspace-relative regular-file nodes with a required-admission marker;
-- executable nodes resolved from the captured search path with declared
-  potential capabilities; and
+- desired executable nodes with a required purpose, resolved from the captured
+  search path, and declared potential capabilities; and
 - exact directed edges naming the declared relationship between nodes.
 
 The loader bounds document bytes, strings, nodes, edges, projection rows,
@@ -124,17 +125,20 @@ presence only. A non-sensitive variable may retain presence, a
 domain-separated digest, or its exact bounded UTF-8 value when the mapping
 author explicitly selects `capture: value`. A file records its
 workspace-relative path, regular status, length, and bounded digest. An
-executable records its resolved path, length, digest, and bounded search-path
-count without invocation. Its potential capabilities remain explicitly
-`unadmitted` until a separate adapter freezes operation semantics, arguments,
-effects, trust, and limits.
+canonical executable-declaration subset has its own desired-application
+inventory identity. An executable records its purpose, resolved path, length,
+digest, and bounded search-path
+count without invocation in a separate capability-snapshot search record. Its
+potential capabilities remain explicitly `unadmitted` until a separate adapter
+freezes operation semantics, arguments, effects, trust, and limits.
 
 The provider projects one graph row plus exact node and edge rows into the
 ordinary capability snapshot. `env status` derives a typed operator projection
 over variables, applications, inputs, and references across `HEAD`, `INDEX`,
 and `WORKING`. Its human view leads with the `HEAD → WORKING` env-shaped text
-diff and the full application search; structured output retains the complete
-capability evidence and both authoritative deltas. `env diff`, `env add`,
+diff, presents the exact desired inventory, then presents the full bounded
+application search record; structured output retains the complete capability
+evidence and both authoritative deltas. `env diff`, `env add`,
 `env commit`, and `env log -p` navigate and revision the same relation. The
 YAML graph is a proposal about relevance, not execution authority or proof of a
 dependency.
@@ -331,9 +335,9 @@ planes: committed `HEAD`, the admission `INDEX`, and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty
 capability relations. Without a retained index, the effective index equals
 HEAD. The command reads but never creates or repairs local state. Explicit JSON
-emits `rey.environment-status.v3` with the complete working snapshot, both
+emits `rey.environment-status.v4` with the complete working snapshot, both
 authoritative capability deltas, and
-`rey.environment-operator-projection.v1`. Every mapped object carries exact
+`rey.environment-operator-projection.v2`. Every mapped object carries exact
 HEAD/index/working observations plus staged, unstaged, and overall change
 classification.
 
@@ -349,12 +353,14 @@ or provider authority.
 operator projection for `INDEX → WORKING`; `--staged` selects `HEAD → INDEX`.
 Human output is one compact delta coordinate followed by exactly three
 environment-native evidence planes: directed variable text, bounded
-application search, and input/reference topology. Unchanged mapped objects
-remain bounded context, while insertions, deletions, and modifications use the
-selected source and target observations. The header preserves the authoritative
+application search, and input/reference topology. The bounded-search plane
+shows the exact target application-declaration identity as `DESIRED INVENTORY`
+before the target capability snapshot as `SEARCH RECORD`. Unchanged mapped objects remain bounded context,
+while insertions, deletions, and modifications use the selected source and
+target observations. The header preserves the authoritative
 capability-delta assessment and retained change count, including changes that
 do not project into a mapped human object. The command accepts no loose
-snapshot-file operands. Explicit JSON remains `rey.environment-diff.v2` with
+snapshot-file operands. Explicit JSON is `rey.environment-diff.v3` with
 the complete typed capability delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact

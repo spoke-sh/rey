@@ -223,10 +223,11 @@ retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
-ADR 0027 adds no dependency. The mapping parser hard-cuts to
-`rey.env-map.v2`; bounded UTF-8 values are retained only for explicit
+ADRs 0027 and 0031 add no dependency. The mapping parser hard-cuts to
+`rey.env-map.v3`; desired executables require a bounded purpose, and bounded
+UTF-8 values are retained only for explicit
 non-sensitive `capture: value` nodes. `crates/rey/src/env.rs` derives the
-shared `rey.environment-operator-projection.v1` from the same frozen HEAD,
+shared `rey.environment-operator-projection.v2` from the same frozen HEAD,
 index, and working capability snapshots used by the authoritative deltas.
 `GET|HEAD /api/v1/environment`, `rey env status`, and the React environment
 workbench consume that common derivation. TypeScript projection tests and the

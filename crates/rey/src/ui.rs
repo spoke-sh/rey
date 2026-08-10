@@ -614,10 +614,10 @@ mod tests {
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
-        assert!(environment.contains("\"schema\":\"rey.environment-status.v3\""));
+        assert!(environment.contains("\"schema\":\"rey.environment-status.v4\""));
         assert!(
             environment
-                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v1\"")
+                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v2\"")
         );
 
         let cadence = request(&address, "GET /api/v1/cadence HTTP/1.1");
@@ -635,8 +635,10 @@ mod tests {
         assert!(application.contains("02 / BOUNDED SEARCH"));
         assert!(application.contains("REFERENCE PLANE"));
         assert!(application.contains("Inputs and topology"));
-        assert!(application.contains("RUNTIME CADENCE"));
-        assert!(application.contains("AGENT INDEX"));
+        assert!(application.contains("RETAINED SEQUENCE"));
+        assert!(application.contains("IDENTIFIED AGENTS"));
+        assert!(application.contains("DESIRED INVENTORY"));
+        assert!(application.contains("SEARCH RECORD"));
         assert!(application.contains("LOCATE IN EXPLORER"));
         assert!(application.contains("explore/$kind/$coordinate"));
         assert!(application.contains("NO CURRENT OBJECT SATISFIES THIS IDENTITY"));

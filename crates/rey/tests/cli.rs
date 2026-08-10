@@ -195,7 +195,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "01 / DIRECTED TEXT",
         "Environment variables · 0 tracked · 0 changed",
         "02 / BOUNDED SEARCH",
-        "Applications · 0 searched · 0 found · 0 not found · 0 errors · 0 changed",
+        "APPLICATIONS · 0 searched · 0 found · 0 not found · 0 errors · 0 changed",
         "REFERENCE PLANE",
         "Inputs and topology",
     ] {
@@ -437,7 +437,7 @@ fn env_mapping_graph_is_visible_secret_safe_and_diff_directed() {
     fs::set_permissions(&probe, permissions).unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v2
+        r#"schema: rey.env-map.v3
 nodes:
   - id: mode
     kind: variable
@@ -455,11 +455,13 @@ nodes:
   - id: probe
     kind: executable
     name: rey-map-probe
+    purpose: Search the bounded fixture corpus
     required: true
     potential_capabilities: [source.search]
   - id: missing
     kind: executable
     name: rey-definitely-missing
+    purpose: Exercise missing desired application evidence
     required: false
 edges:
   - from: mode
@@ -548,6 +550,29 @@ edges:
                     .any(|value| value == "unadmitted:source.search")
             })
     }));
+    let probe_application = status_document["operator"]["applications"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|application| application["object_id"] == "probe")
+        .unwrap();
+    assert_eq!(
+        probe_application["working"]["purpose"],
+        "Search the bounded fixture corpus"
+    );
+    assert_eq!(
+        status_document["operator"]["schema"],
+        "rey.environment-operator-projection.v2"
+    );
+    assert_eq!(
+        status_document["operator"]["application_inventory"]["working"]["schema"],
+        "rey.environment-application-inventory.v1"
+    );
+    assert!(
+        status_document["operator"]["application_inventory"]["working"]["inventory_id"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("blake3:"))
+    );
 
     let status = run_rey_with_env(
         &[
@@ -564,10 +589,16 @@ edges:
     let status = String::from_utf8(status.stdout).unwrap();
     for evidence in [
         "REY ENV · EMPTY → WORKING",
-        "Mapping                rey.env.yaml · rey.env-map.v2",
+        "Mapping                rey.env.yaml · rey.env-map.v3",
         "ENVIRONMENT VARIABLES · 2 tracked · 2 changed",
         "+ REY_MODE=development-mode-value",
         "+ REY_SECRET=<present:redacted>",
+        "02 / BOUNDED SEARCH",
+        "DESIRED INVENTORY · 2 declared",
+        "probe                  rey-map-probe · required · source.search",
+        "Purpose              Search the bounded fixture corpus",
+        "SEARCH RECORD · WORKING @",
+        "Method                 bounded PATH identity resolution · no execution",
         "APPLICATIONS · 2 searched",
         "FOUND 1",
         "rey-map-probe",
@@ -635,7 +666,7 @@ edges:
         "+ REY_MODE=production-mode-value",
         "  REY_SECRET=<present:redacted>",
         "02 / BOUNDED SEARCH",
-        "Applications · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
+        "APPLICATIONS · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
         "FOUND 1",
         "rey-map-probe",
         "SEARCHED, NOT FOUND 1",
@@ -672,7 +703,7 @@ edges:
     assert!(diff.status.success());
     assert!(diff.stderr.is_empty());
     let diff: EnvironmentDiff = serde_json::from_slice(&diff.stdout).unwrap();
-    assert_eq!(diff.schema, "rey.environment-diff.v2");
+    assert_eq!(diff.schema, "rey.environment-diff.v3");
     assert!(diff.delta.changes.iter().any(|change| {
         change.key.capability_id == "env.mapping.node.mode"
             && change.changed_fields.contains(&"content_digest".to_owned())
@@ -762,7 +793,7 @@ edges:
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
         "Environment            2 variables · 2 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
-        "Mapping                rey.env.yaml · rey.env-map.v2",
+        "Mapping                rey.env.yaml · rey.env-map.v3",
         "Message\n      update mapped environment",
     ] {
         assert!(
@@ -796,7 +827,7 @@ edges:
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "02 / BOUNDED SEARCH",
-        "Applications · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
+        "APPLICATIONS · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
         "REFERENCE PLANE",
         "INPUTS · 1 tracked · 1 changed",
         "- input.txt · required",
@@ -834,7 +865,7 @@ edges:
 
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v2\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
+        "schema: rey.env-map.v3\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
     )
     .unwrap();
     let invalid = run_rey_with_env(
@@ -879,7 +910,7 @@ fn env_add_patch_stages_selected_capabilities_and_commit_ignores_later_drift() {
     fs::write(workspace.path().join("beta.txt"), "beta one\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v2
+        r#"schema: rey.env-map.v3
 nodes:
   - id: alpha
     kind: file
@@ -1325,7 +1356,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(response.contains("\"theme\":\"precision\""));
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
-    assert!(environment.contains("\"schema\":\"rey.environment-status.v3\""));
+    assert!(environment.contains("\"schema\":\"rey.environment-status.v4\""));
     let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
     assert!(cadence.starts_with("HTTP/1.1 200"));
     assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
@@ -2025,7 +2056,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     fs::write(workspace.path().join("input.txt"), "portfolio surface\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v2
+        r#"schema: rey.env-map.v3
 nodes:
   - id: input
     kind: file

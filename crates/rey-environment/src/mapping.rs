@@ -12,11 +12,11 @@ use thiserror::Error;
 
 use crate::{Availability, CapabilityRecord, TrustClass};
 
-pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v2";
-pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v2";
+pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v3";
+pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v3";
 pub const DEFAULT_ENVIRONMENT_MAP_FILE: &str = "rey.env.yaml";
 pub const ENVIRONMENT_MAP_PROVIDER_ID: &str = "rey.env-map";
-pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 2;
+pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 3;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -107,6 +107,8 @@ pub enum EnvironmentMapNode {
         id: String,
         name: String,
         #[serde(default)]
+        purpose: Option<String>,
+        #[serde(default)]
         required: bool,
         #[serde(default)]
         potential_capabilities: Vec<String>,
@@ -161,11 +163,13 @@ impl EnvironmentMapNode {
             }
             Self::Executable {
                 name,
+                purpose,
                 required,
                 potential_capabilities,
                 ..
             } => {
                 hasher.add_str(name);
+                hasher.add_optional_str(purpose.as_deref());
                 hasher.add_bool(*required);
                 add_strings(hasher, potential_capabilities);
             }
@@ -766,10 +770,15 @@ fn validate_node(
         }
         EnvironmentMapNode::Executable {
             name,
+            purpose,
             potential_capabilities,
             ..
         } => {
             validate_identifier("executable name", name, limits)?;
+            let purpose = purpose
+                .as_deref()
+                .ok_or_else(|| EnvironmentMapError::MissingExecutablePurpose(name.clone()))?;
+            validate_string("executable purpose", purpose, limits)?;
             for capability in potential_capabilities {
                 validate_identifier("potential capability", capability, limits)?;
             }
@@ -1021,6 +1030,8 @@ pub enum EnvironmentMapError {
     InvalidString { field: &'static str, limit: u64 },
     #[error("invalid environment variable name {0}")]
     InvalidVariableName(String),
+    #[error("desired executable {0} is missing its purpose")]
+    MissingExecutablePurpose(String),
     #[error("sensitive environment variable {0} cannot retain a value digest")]
     SensitiveDigest(String),
     #[error("sensitive environment variable {0} cannot retain a raw value")]
@@ -1064,7 +1075,7 @@ mod tests {
     };
 
     const VALID: &str = r#"
-schema: rey.env-map.v2
+schema: rey.env-map.v3
 nodes:
   - id: config
     kind: variable
@@ -1078,6 +1089,7 @@ nodes:
   - id: tool
     kind: executable
     name: rey-tool
+    purpose: Search the bounded workspace source corpus
     required: true
     potential_capabilities: [source.search]
 edges:
@@ -1148,6 +1160,18 @@ edges:
             EnvironmentMap::from_yaml_slice(unknown.as_bytes(), EnvironmentMapLimits::default())
                 .is_err()
         );
+
+        let missing_purpose = VALID.replace(
+            "    purpose: Search the bounded workspace source corpus\n",
+            "",
+        );
+        assert!(matches!(
+            EnvironmentMap::from_yaml_slice(
+                missing_purpose.as_bytes(),
+                EnvironmentMapLimits::default()
+            ),
+            Err(EnvironmentMapError::MissingExecutablePurpose(name)) if name == "rey-tool"
+        ));
     }
 
     #[test]
@@ -1187,6 +1211,7 @@ edges:
         assert_eq!(observation.capabilities.len(), 6);
         let serialized = serde_json::to_string(&observation).unwrap();
         assert!(!serialized.contains("do-not-retain"));
+        assert!(serialized.contains("Search the bounded workspace source corpus"));
         assert!(serialized.contains("unadmitted:source.search"));
         assert!(observation.capabilities.iter().any(|row| {
             row.capability_kind == "potential_executable" && row.content_digest.is_some()
@@ -1217,7 +1242,7 @@ edges:
         let workspace = TempDir::new().unwrap();
         fs::write(
             workspace.path().join("rey.env.yaml"),
-            "schema: rey.env-map.v2\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
+            "schema: rey.env-map.v3\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
         )
         .unwrap();
         let inputs = EnvironmentMapInputs {

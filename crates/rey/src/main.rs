@@ -3013,60 +3013,14 @@ fn write_env_status(
         }
     }
 
-    writeln!(output)?;
-    writeln!(
+    write_environment_application_planes(
         output,
-        "{}",
-        style.bold(&format!(
-            "APPLICATIONS · {} searched",
-            projection.summary.applications_searched
-        ))
-    )?;
-    write_application_group(
-        output,
-        "FOUND",
-        projection.summary.applications_found,
-        &projection.applications,
-        Some(Availability::Available),
+        projection,
         EnvironmentProjectionDirection::HeadToWorking,
+        "WORKING",
+        &status.working_snapshot.semantic_digest,
         style,
     )?;
-    write_application_group(
-        output,
-        "SEARCHED, NOT FOUND",
-        projection.summary.applications_not_found,
-        &projection.applications,
-        Some(Availability::Unavailable),
-        EnvironmentProjectionDirection::HeadToWorking,
-        style,
-    )?;
-    if projection.summary.application_errors > 0 {
-        write_application_group(
-            output,
-            "OBSERVATION ERRORS",
-            projection.summary.application_errors,
-            &projection.applications,
-            Some(Availability::Error),
-            EnvironmentProjectionDirection::HeadToWorking,
-            style,
-        )?;
-    }
-    let removed_applications = projection
-        .applications
-        .iter()
-        .filter(|application| application.working.is_none())
-        .count() as u64;
-    if removed_applications > 0 {
-        write_application_group(
-            output,
-            "NO LONGER SEARCHED",
-            removed_applications,
-            &projection.applications,
-            None,
-            EnvironmentProjectionDirection::HeadToWorking,
-            style,
-        )?;
-    }
 
     if !projection.inputs.is_empty() {
         writeln!(
@@ -3289,6 +3243,156 @@ fn compact_digest(value: &str) -> String {
     }
 }
 
+fn write_environment_application_planes(
+    output: &mut impl Write,
+    projection: &EnvironmentOperatorProjection,
+    direction: EnvironmentProjectionDirection,
+    search_label: &str,
+    search_snapshot: &SemanticDigest,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let desired = projection
+        .applications
+        .iter()
+        .filter(|application| direction.target(application).is_some())
+        .collect::<Vec<_>>();
+    let applications_found =
+        environment_application_count(&projection.applications, direction, Availability::Available);
+    let applications_not_found = environment_application_count(
+        &projection.applications,
+        direction,
+        Availability::Unavailable,
+    );
+    let application_errors =
+        environment_application_count(&projection.applications, direction, Availability::Error);
+    let changed_applications = environment_plane_changed_count(&projection.applications, direction);
+    let removed_applications = projection
+        .applications
+        .iter()
+        .filter(|application| {
+            direction.target(application).is_none() && direction.source(application).is_some()
+        })
+        .count() as u64;
+
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("02 / BOUNDED SEARCH"))?;
+    writeln!(
+        output,
+        "{}",
+        style.bold(&format!("DESIRED INVENTORY · {} declared", desired.len()))
+    )?;
+    let inventory = match direction {
+        EnvironmentProjectionDirection::HeadToIndex => {
+            projection.application_inventory.index.as_ref()
+        }
+        EnvironmentProjectionDirection::IndexToWorking
+        | EnvironmentProjectionDirection::HeadToWorking => {
+            projection.application_inventory.working.as_ref()
+        }
+    };
+    match inventory {
+        Some(inventory) => writeln!(
+            output,
+            "  Record                 {} @ {}",
+            inventory.source_path,
+            compact_digest(&inventory.inventory_id)
+        )?,
+        None => writeln!(output, "  Record                 none · no environment map")?,
+    }
+    if desired.is_empty() {
+        writeln!(output, "  NONE")?;
+    } else {
+        for application in &desired {
+            let observation = direction
+                .target(application)
+                .expect("desired application has a target declaration");
+            let requirement = if observation.required {
+                "required"
+            } else {
+                "optional"
+            };
+            let capabilities = if observation.potential_capabilities.is_empty() {
+                "no desired capabilities".to_owned()
+            } else {
+                observation.potential_capabilities.join(" · ")
+            };
+            writeln!(
+                output,
+                "  {:<22} {} · {requirement} · {capabilities}",
+                application.object_id, observation.name
+            )?;
+            writeln!(
+                output,
+                "    Purpose              {}",
+                observation
+                    .purpose
+                    .as_deref()
+                    .unwrap_or("not recorded by legacy inventory")
+            )?;
+        }
+    }
+
+    writeln!(output)?;
+    writeln!(
+        output,
+        "{}",
+        style.bold(&format!(
+            "SEARCH RECORD · {search_label} @ {}",
+            compact_digest(&search_snapshot.to_string())
+        ))
+    )?;
+    writeln!(
+        output,
+        "  Method                 bounded PATH identity resolution · no execution"
+    )?;
+    writeln!(
+        output,
+        "APPLICATIONS · {} searched · {applications_found} found · {applications_not_found} not found · {application_errors} errors · {changed_applications} changed",
+        desired.len()
+    )?;
+    write_application_group(
+        output,
+        "FOUND",
+        applications_found,
+        &projection.applications,
+        Some(Availability::Available),
+        direction,
+        style,
+    )?;
+    write_application_group(
+        output,
+        "SEARCHED, NOT FOUND",
+        applications_not_found,
+        &projection.applications,
+        Some(Availability::Unavailable),
+        direction,
+        style,
+    )?;
+    if application_errors > 0 {
+        write_application_group(
+            output,
+            "OBSERVATION ERRORS",
+            application_errors,
+            &projection.applications,
+            Some(Availability::Error),
+            direction,
+            style,
+        )?;
+    }
+    if removed_applications > 0 {
+        write_application_group(
+            output,
+            "NO LONGER SEARCHED",
+            removed_applications,
+            &projection.applications,
+            None,
+            direction,
+            style,
+        )?;
+    }
+    Ok(())
+}
+
 fn write_application_group(
     output: &mut impl Write,
     label: &str,
@@ -3376,15 +3480,10 @@ fn write_environment_application(
         .resolved_path
         .as_deref()
         .unwrap_or("not resolved");
-    let requirement = if observation.required {
-        "required"
-    } else {
-        "optional"
-    };
     let change = change.map_or_else(String::new, |change| format!(" · {change}"));
     writeln!(
         output,
-        "    {marker} {:<16} {} · {requirement} · {} PATH entries{change}",
+        "    {marker} {:<16} {} · {} PATH entries{change}",
         observation.name, location, observation.searched_path_count
     )
 }
@@ -3727,74 +3826,14 @@ fn write_environment_transition_planes(
         }
     }
 
-    let applications_searched = projection
-        .applications
-        .iter()
-        .filter(|application| direction.target(application).is_some())
-        .count() as u64;
-    let applications_found =
-        environment_application_count(&projection.applications, direction, Availability::Available);
-    let applications_not_found = environment_application_count(
-        &projection.applications,
-        direction,
-        Availability::Unavailable,
-    );
-    let application_errors =
-        environment_application_count(&projection.applications, direction, Availability::Error);
-    let changed_applications = environment_plane_changed_count(&projection.applications, direction);
-    let removed_applications = projection
-        .applications
-        .iter()
-        .filter(|application| {
-            direction.target(application).is_none() && direction.source(application).is_some()
-        })
-        .count() as u64;
-    writeln!(output)?;
-    writeln!(output, "{}", style.bold("02 / BOUNDED SEARCH"))?;
-    writeln!(
+    write_environment_application_planes(
         output,
-        "Applications · {applications_searched} searched · {applications_found} found · {applications_not_found} not found · {application_errors} errors · {changed_applications} changed"
-    )?;
-    write_application_group(
-        output,
-        "FOUND",
-        applications_found,
-        &projection.applications,
-        Some(Availability::Available),
+        projection,
         direction,
+        &delta.target_label,
+        &delta.target_snapshot,
         style,
     )?;
-    write_application_group(
-        output,
-        "SEARCHED, NOT FOUND",
-        applications_not_found,
-        &projection.applications,
-        Some(Availability::Unavailable),
-        direction,
-        style,
-    )?;
-    if application_errors > 0 {
-        write_application_group(
-            output,
-            "OBSERVATION ERRORS",
-            application_errors,
-            &projection.applications,
-            Some(Availability::Error),
-            direction,
-            style,
-        )?;
-    }
-    if removed_applications > 0 {
-        write_application_group(
-            output,
-            "NO LONGER SEARCHED",
-            removed_applications,
-            &projection.applications,
-            None,
-            direction,
-            style,
-        )?;
-    }
 
     let input_count = environment_plane_count(&projection.inputs, direction);
     let changed_inputs = environment_plane_changed_count(&projection.inputs, direction);

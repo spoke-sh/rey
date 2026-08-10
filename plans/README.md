@@ -22,6 +22,7 @@ completion criteria.
 - [0008 — Environment mapping graph](0008-environment-mapping-graph.md)
 - [0009 — Environment admission index](0009-environment-admission-index.md)
 - [0012 — Environment operator delta](0012-environment-operator-delta.md)
+- [0013 — Application inventory and search records](0013-application-inventory-search-records.md)
 
 ## Plan Rules
 

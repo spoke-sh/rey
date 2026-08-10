@@ -156,7 +156,7 @@ digests must never be presented as source commits.
 The Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
 counts, portfolio attention, and mapped-surface coverage counts. The separate
-`/environment` route now consumes `rey.environment-status.v3` and renders its
+`/environment` route now consumes `rey.environment-status.v4` and renders its
 exact variable, application, input, and reference operator projection. Agent
 neighborhoods are derived from exact workload generation provenance;
 unassigned creation requests do not become fabricated agents. The Explorer
