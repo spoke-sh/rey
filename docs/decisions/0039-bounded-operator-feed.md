@@ -50,15 +50,21 @@ The first lens grammar is deliberately small. Signals selects
 `all|journal|git|environment`, Admission selects `all|now|watch|bound`, and Flow
 selects `all|attention|failing|qualified`. A composition contains at most eight
 lanes and is encoded in the browser URL as
-`?streams={plane}.{filter},...`. This makes a composed inspection plane
-deep-linkable without introducing a server-side preference document, feed
-store, or configuration API. Invalid entries are ignored; an absent or entirely
-invalid composition returns to the three defaults.
+`?streams={plane}.{filter}[~{percent-encoded-name}],...`. Clicking the displayed
+stream title enters a bounded inline editor. Blur or Enter autosaves the
+normalized optional name into the URL, Escape cancels, and an empty name
+restores the derived title. This makes a composed inspection plane deep-linkable
+without introducing a server-side preference document, feed store, or
+configuration API. The Feed route owns and validates the search document;
+autosave replaces that typed route location instead of bypassing TanStack
+Router through the raw browser History API. Invalid entries are ignored; an
+absent or entirely invalid composition returns to the three defaults.
 
 High-fidelity evidence remains present but does not compete with stream-level
 scanning. Journal blocks, Git lineage, and environment transition details are
 collapsed by default and expand in place. The stream header retains only its
-identity, current bound, ordering controls, and entry into the Firehose.
+editable identity, current bound, ordering controls, and entry into the
+Firehose; it does not repeat the active lens as an eyebrow.
 
 The intended later transition is explicit: an admitted proposal may move from
 Admission into Flow only after validated action admission and a retained

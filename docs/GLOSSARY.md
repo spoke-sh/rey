@@ -586,9 +586,10 @@ cursor, attention rows, admission authority, live telemetry, or causal order.
 
 One independently scrolling, configured lens over the Feed Firehose. A stream
 selects a source plane and filter, such as `signals.journal`, `admission.now`,
-or `flow.failing`. Repeating, ordering, tuning, or removing a stream changes the
-human projection only; it does not copy, admit, schedule, or mutate source
-records.
+or `flow.failing`, plus an optional human name. Its title is editable inline and
+autosaves into the deep-linkable URL coordinate rather than runtime state.
+Repeating, naming, ordering, tuning, or removing a stream changes the human
+projection only; it does not copy, admit, schedule, or mutate source records.
 
 ### Firehose
 

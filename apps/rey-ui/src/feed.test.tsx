@@ -94,17 +94,21 @@ describe("high-cadence operator feed", () => {
 
   it("round-trips bounded stream lenses for deep-linked Feed composition", () => {
     const streams = parseFeedStreams(
-      "signals.journal,signals.git,admission.now,flow.failing",
+      "signals.journal~Review%2C%20now%20%7E%20%CE%94,signals.git,admission.now,flow.failing",
     );
 
     expect(streams).toEqual([
-      { kind: "signals", filter: "journal" },
+      {
+        kind: "signals",
+        filter: "journal",
+        name: "Review, now ~ Δ",
+      },
       { kind: "signals", filter: "git" },
       { kind: "admission", filter: "now" },
       { kind: "flow", filter: "failing" },
     ]);
     expect(serializeFeedStreams(streams)).toBe(
-      "signals.journal,signals.git,admission.now,flow.failing",
+      "signals.journal~Review%2C%20now%20%7E%20%CE%94,signals.git,admission.now,flow.failing",
     );
     expect(
       parseFeedStreams(
@@ -135,6 +139,11 @@ describe("high-cadence operator feed", () => {
     portfolio.workloads.push(workload());
     const markup = renderToStaticMarkup(
       createElement(FeedPage, {
+        configuration: [
+          { kind: "signals", filter: "all", name: "Source watch" },
+          { kind: "admission", filter: "all" },
+          { kind: "flow", filter: "all" },
+        ],
         portfolio,
         sources: {
           cadence: cadenceProjection(),
@@ -164,6 +173,10 @@ describe("high-cadence operator feed", () => {
     expect(markup.match(/>TUNE</g)).toHaveLength(3);
     expect(markup).toContain("FIREHOSE");
     expect(markup).toContain('data-feed-streams="3"');
+    expect(markup).toContain('aria-label="Rename Source watch"');
+    expect(markup).toContain(">Source watch</button>");
+    expect(markup).toContain('aria-label="Rename Admission"');
+    expect(markup).not.toContain("ALL LENS");
     expect(markup).toContain(
       `href="https://github.com/spoke-sh/rey/commit/${"a".repeat(40)}"`,
     );

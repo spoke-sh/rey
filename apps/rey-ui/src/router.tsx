@@ -34,7 +34,12 @@ import {
   type EnvironmentObjectStatus,
 } from "./environment";
 import { ExplorePage } from "./explore";
-import { FeedPage } from "./feed";
+import {
+  DEFAULT_FEED_STREAMS,
+  FeedPage,
+  parseFeedStreams,
+  serializeFeedStreams,
+} from "./feed";
 import { GitCommitLink } from "./git-commit-link";
 import {
   defaultJournalBinding,
@@ -73,6 +78,15 @@ export const PRIMARY_NAV_ITEMS = [
 
 export function isViewportLockedPath(pathname: string): boolean {
   return pathname.startsWith("/explore") || pathname.startsWith("/feed");
+}
+
+export function normalizeFeedSearch(search: Record<string, unknown>): {
+  streams?: string;
+} {
+  const streams = search.streams;
+  return typeof streams === "string" && streams.length <= 4_096
+    ? { streams }
+    : {};
 }
 
 export function activateCommunicationAxis(
@@ -939,7 +953,23 @@ function ExploreRoutePage() {
 function FeedRoutePage() {
   const initialSources = feedRoute.useLoaderData();
   const { document: sources } = usePassiveDocument(initialSources, loadFeed);
-  return <FeedPage portfolio={usePortfolio()} sources={sources} />;
+  const search = feedRoute.useSearch();
+  const navigate = feedRoute.useNavigate();
+  return (
+    <FeedPage
+      configuration={parseFeedStreams(search.streams ?? null)}
+      onConfigurationChange={(streams) => {
+        const encoded = serializeFeedStreams(streams);
+        const defaultEncoding = serializeFeedStreams(DEFAULT_FEED_STREAMS);
+        void navigate({
+          replace: true,
+          search: encoded === defaultEncoding ? {} : { streams: encoded },
+        });
+      }}
+      portfolio={usePortfolio()}
+      sources={sources}
+    />
+  );
 }
 
 function ExploreCoordinateRoutePage() {
@@ -1024,6 +1054,7 @@ const exploreRoute = createRoute({
 const feedRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "feed",
+  validateSearch: normalizeFeedSearch,
   loader: loadFeed,
   component: FeedRoutePage,
 });

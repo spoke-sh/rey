@@ -6,6 +6,7 @@ import {
   CommunicationBackdrop,
   ConversationSurface,
   isViewportLockedPath,
+  normalizeFeedSearch,
   PRIMARY_NAV_ITEMS,
   router,
 } from "./router";
@@ -26,6 +27,16 @@ describe("operator routes", () => {
     expect(isViewportLockedPath("/feed")).toBe(true);
     expect(isViewportLockedPath("/explore")).toBe(true);
     expect(isViewportLockedPath("/cadence")).toBe(false);
+  });
+
+  it("retains bounded Feed stream composition in typed route search", () => {
+    expect(
+      normalizeFeedSearch({
+        streams: "signals.journal~Review,admission.now",
+      }),
+    ).toEqual({ streams: "signals.journal~Review,admission.now" });
+    expect(normalizeFeedSearch({ streams: 3 })).toEqual({});
+    expect(normalizeFeedSearch({ streams: "x".repeat(4_097) })).toEqual({});
   });
 
   it("opens, closes, and switches the two communication axes", () => {

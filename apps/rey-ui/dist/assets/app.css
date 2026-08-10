@@ -453,10 +453,6 @@
     margin-block: 28px;
   }
 
-  .x8q42hb {
-    margin-block: 2px;
-  }
-
   .xap8y5u {
     margin-block: 46px;
   }
@@ -1001,6 +997,10 @@
     cursor: pointer;
   }
 
+  .x1ed109x {
+    cursor: text;
+  }
+
   .x1lliihq {
     display: block;
   }
@@ -1459,6 +1459,10 @@
 
   .x1dor1uw {
     letter-spacing: .1em;
+  }
+
+  .x1i21sxh {
+    letter-spacing: normal;
   }
 
   .x14e8iwm {
@@ -2084,6 +2088,10 @@
     border-bottom-color: var(--line);
   }
 
+  .x1wsj93a {
+    border-bottom-color: var(--rey-accent);
+  }
+
   .x19zgz3n {
     border-bottom-color: var(--rey-foreground);
   }
@@ -2166,6 +2174,10 @@
 
   .x32b0ac {
     border-right-style: solid;
+  }
+
+  .xgfja2r {
+    border-right-width: 0;
   }
 
   .xs1s249 {
@@ -2438,6 +2450,10 @@
 
   .x172nv4w {
     max-width: 1840px;
+  }
+
+  .x1racy4e {
+    max-width: 220px;
   }
 
   .x17fpy1y {
@@ -2734,6 +2750,10 @@
 
   .xci0xqf {
     width: 7px;
+  }
+
+  .xeetqtf:hover {
+    border-bottom-color: var(--rey-foreground);
   }
 
   @media (width <= 760px) {

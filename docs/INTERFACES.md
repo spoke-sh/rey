@@ -892,11 +892,16 @@ can add, tune, reorder, repeat, or remove streams up to an eight-lane display
 bound. Signals filters are `all|journal|git|environment`; Admission filters are
 `all|now|watch|bound`; Flow filters are
 `all|attention|failing|qualified`. The ordered composition uses the query
-grammar `?streams={plane}.{filter},...`, for example
-`?streams=signals.journal,admission.now,flow.failing`. Invalid entries are
-ignored and an entirely invalid or absent composition uses the three defaults.
-The URL is browser projection state and a deep-link boundary, not a retained
-runtime configuration or new API.
+grammar `?streams={plane}.{filter}[~{percent-encoded-name}],...`, for example
+`?streams=signals.journal~Review,admission.now,flow.failing`. A stream title is
+an inline editor: blur or Enter normalizes and autosaves at most 48 Unicode
+scalar values into the URL; Escape cancels, and an empty or derived-default
+name removes the suffix. Invalid entries are ignored and an entirely invalid or
+absent composition uses the three defaults. The URL is browser projection state
+and a deep-link boundary, not a retained runtime configuration or new API. The
+TanStack Feed route validates and owns this search state; autosave replaces the
+current route location rather than writing around the router with the raw
+browser History API.
 
 Signals renders rich Git, environment, and Journal posts, including bounded
 Journal block previews and exact Git lineage. Evidence bodies are collapsed by

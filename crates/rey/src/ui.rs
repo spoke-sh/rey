@@ -932,6 +932,8 @@ mod tests {
         assert!(application.contains("STREAM COORDINATE"));
         assert!(application.contains("ADD STREAM"));
         assert!(application.contains("APPLY LENS"));
+        assert!(application.contains("Rename stream"));
+        assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
         assert!(application.contains("INSPECT-ONLY"));
         assert!(application.contains("Display order is not causal order"));

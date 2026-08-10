@@ -177,8 +177,10 @@ reordered, removed, or repeated, and the Firehose rail can add up to eight
 lanes. Signal lenses select all, Journal, Git, or environment records;
 Admission lenses select all, NOW, WATCH, or BOUND posture; Flow lenses select
 all, attention-bearing, failing, or qualified workloads. The exact composition
-is encoded in the `streams` URL parameter rather than retained as new runtime
-state. Post evidence is collapsed by default and expands in place.
+and each optional human stream name are encoded in the `streams` URL parameter
+rather than retained as new runtime state. Clicking a stream title edits it
+inline and autosaves on blur or Enter. Post evidence is collapsed by default
+and expands in place.
 
 Timestamped Signals use newest-first display order followed by source-ordered
 records with no wall time. This is not causal order, unread state, or a durable

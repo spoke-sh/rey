@@ -264,11 +264,13 @@ new streams or tunes, reorders, and removes existing ones. Each stream is a
 bounded lens—Journal-only Signals, NOW-only Admission, and failing-workload
 Flow can coexist without copying their source records. The composition is
 encoded in the `streams` URL parameter for deep linking and is capped at eight
-lanes. Evidence bodies stay collapsed until requested so the feed remains
-scannable. Git, environment-admission, and Journal posts retain exact evidence
-without presenting their display order as causality or a durable global event
-log. Admission does not move work into Flow until a later explicit validated
-browser contract exists. `/agents` is the shared Journal index:
+lanes. Clicking a stream title edits its optional name inline; blur or Enter
+autosaves the name into that same URL coordinate. Evidence bodies stay
+collapsed until requested so the feed remains scannable. Git,
+environment-admission, and Journal posts retain exact evidence without
+presenting their display order as causality or a durable global event log.
+Admission does not move work into Flow until a later explicit validated browser
+contract exists. `/agents` is the shared Journal index:
 retained human and agent notebook entries sit beside
 current derived system recommendations without being confused for assignments
 or execution. New entries use `/journal/new`; selecting or admitting an entry

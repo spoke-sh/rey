@@ -37,6 +37,7 @@ export type FeedStreamFilter =
 export interface FeedStreamSpec {
   kind: FeedStreamKind;
   filter: FeedStreamFilter;
+  name?: string;
 }
 
 export const DEFAULT_FEED_STREAMS: FeedStreamSpec[] = [
@@ -57,11 +58,22 @@ export function parseFeedStreams(value: string | null): FeedStreamSpec[] {
     .split(",")
     .slice(0, FEED_STREAM_LIMIT)
     .flatMap((token): FeedStreamSpec[] => {
-      const [kindValue, filterValue, ...rest] = token.split(".");
-      if (rest.length > 0 || !isFeedStreamKind(kindValue)) return [];
+      const [coordinate, encodedName, ...nameRest] = token.split("~");
+      if (nameRest.length > 0) return [];
+      const [kindValue, filterValue, ...coordinateRest] =
+        coordinate!.split(".");
+      if (coordinateRest.length > 0 || !isFeedStreamKind(kindValue)) return [];
       const filter = filterValue ?? "all";
       if (!isFeedStreamFilter(kindValue, filter)) return [];
-      return [{ kind: kindValue, filter }];
+      let name: string | undefined;
+      if (encodedName !== undefined) {
+        try {
+          name = normalizeFeedStreamName(decodeURIComponent(encodedName));
+        } catch {
+          return [];
+        }
+      }
+      return [{ kind: kindValue, filter, ...(name ? { name } : {}) }];
     });
   return streams.length > 0
     ? streams
@@ -71,8 +83,24 @@ export function parseFeedStreams(value: string | null): FeedStreamSpec[] {
 export function serializeFeedStreams(streams: FeedStreamSpec[]): string {
   return streams
     .slice(0, FEED_STREAM_LIMIT)
-    .map((stream) => `${stream.kind}.${stream.filter}`)
+    .map((stream) => {
+      const name = normalizeFeedStreamName(stream.name ?? "");
+      const encodedName = name
+        ? `~${encodeURIComponent(name).replaceAll("~", "%7E")}`
+        : "";
+      return `${stream.kind}.${stream.filter}${encodedName}`;
+    })
     .join(",");
+}
+
+export function normalizeFeedStreamName(value: string): string | undefined {
+  const normalized = value
+    .toWellFormed()
+    .replace(/\p{Cc}+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return undefined;
+  return Array.from(normalized).slice(0, 48).join("");
 }
 
 export interface InspectionRow {
@@ -295,21 +323,25 @@ export function deriveFeedEvents(
 }
 
 export function FeedPage({
+  configuration,
+  onConfigurationChange,
   portfolio,
   sources,
 }: {
+  configuration?: FeedStreamSpec[];
+  onConfigurationChange?: (streams: FeedStreamSpec[]) => void;
   portfolio: WorkloadList;
   sources: FeedSources;
 }) {
   const queue = deriveInspectionQueue(portfolio, sources.cadence);
   const events = deriveFeedEvents(sources.cadence, sources.journal);
-  const [streams, setStreams] = useState<FeedStreamSpec[]>(() =>
-    typeof window === "undefined"
-      ? parseFeedStreams(null)
-      : parseFeedStreams(
-          new URL(window.location.href).searchParams.get("streams"),
-        ),
+  const [streams, setStreams] = useState<FeedStreamSpec[]>(
+    () =>
+      configuration?.map((stream) => ({ ...stream })) ?? parseFeedStreams(null),
   );
+  const configurationKey = configuration
+    ? serializeFeedStreams(configuration)
+    : null;
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<FeedStreamSpec>({
     kind: "signals",
@@ -325,26 +357,14 @@ export function FeedPage({
   ).length;
 
   useEffect(() => {
-    const readLocation = () =>
-      setStreams(
-        parseFeedStreams(
-          new URL(window.location.href).searchParams.get("streams"),
-        ),
-      );
-    window.addEventListener("popstate", readLocation);
-    return () => window.removeEventListener("popstate", readLocation);
-  }, []);
+    if (configurationKey !== null)
+      setStreams(parseFeedStreams(configurationKey));
+  }, [configurationKey]);
 
   const publishStreams = (next: FeedStreamSpec[]) => {
     const bounded = next.slice(0, FEED_STREAM_LIMIT);
     setStreams(bounded);
-    if (typeof window === "undefined") return;
-    const location = new URL(window.location.href);
-    const encoded = serializeFeedStreams(bounded);
-    const defaultEncoding = serializeFeedStreams(DEFAULT_FEED_STREAMS);
-    if (encoded === defaultEncoding) location.searchParams.delete("streams");
-    else location.searchParams.set("streams", encoded);
-    window.history.pushState({}, "", location);
+    onConfigurationChange?.(bounded);
   };
 
   const openFirehose = (target: number | "new") => {
@@ -380,6 +400,20 @@ export function FeedPage({
     publishStreams(next);
   };
 
+  const renameStream = (index: number, name: string) => {
+    const normalized = normalizeFeedStreamName(name);
+    const current = streams[index];
+    if (!current) return;
+    const derived = streamTitle({ ...current, name: undefined });
+    const customName = normalized === derived ? undefined : normalized;
+    if (current.name === customName) return;
+    publishStreams(
+      streams.map((stream, candidate) =>
+        candidate === index ? { ...stream, name: customName } : stream,
+      ),
+    );
+  };
+
   return (
     <main className={sx(styles.page)} data-feed-streams={streams.length}>
       {streams.map((stream, index) => (
@@ -389,6 +423,7 @@ export function FeedPage({
           key={`${index}:${stream.kind}:${stream.filter}`}
           omissions={omissions}
           onMove={moveStream}
+          onRename={renameStream}
           onTune={openFirehose}
           portfolio={portfolio}
           queue={queue}
@@ -440,6 +475,7 @@ function FeedStream({
   index,
   omissions,
   onMove,
+  onRename,
   onTune,
   portfolio,
   queue,
@@ -453,6 +489,7 @@ function FeedStream({
   index: number;
   omissions: string[];
   onMove: (index: number, offset: -1 | 1) => void;
+  onRename: (index: number, name: string) => void;
   onTune: (index: number) => void;
   portfolio: WorkloadList;
   queue: InspectionRow[];
@@ -482,11 +519,11 @@ function FeedStream({
     >
       <LaneHeader
         detail={streamDetail(stream, count, sourceEventCount, ready)}
-        filter={stream.filter}
         id={id}
         index={String(index + 1).padStart(2, "0")}
         onMoveLeft={index > 0 ? () => onMove(index, -1) : null}
         onMoveRight={index < streamCount - 1 ? () => onMove(index, 1) : null}
+        onRename={(name) => onRename(index, name)}
         onTune={() => onTune(index)}
         title={streamTitle(stream)}
       />
@@ -615,7 +652,9 @@ function FirehoseConfigurator({
                   draft.kind === kind && styles.recipeActive,
                 )}
                 key={kind}
-                onClick={() => onChange({ kind, filter: "all" })}
+                onClick={() =>
+                  onChange({ kind, filter: "all", name: draft.name })
+                }
                 type="button"
               >
                 <strong>{kind.toUpperCase()}</strong>
@@ -646,7 +685,7 @@ function FirehoseConfigurator({
         </fieldset>
         <div className={sx(styles.firehosePreview)}>
           <span className={sx(chrome.micro)}>STREAM COORDINATE</span>
-          <code>{`${draft.kind}.${draft.filter}`}</code>
+          <code>{serializeFeedStreams([draft])}</code>
           <p>
             Saved in the Feed URL. Source records stay owned by their existing
             runtime contracts.
@@ -880,20 +919,20 @@ function QuietPost({ detail, title }: { detail: string; title: string }) {
 
 function LaneHeader({
   detail,
-  filter,
   id,
   index,
   onMoveLeft,
   onMoveRight,
+  onRename,
   onTune,
   title,
 }: {
   detail: string;
-  filter: FeedStreamFilter;
   id: string;
   index: string;
   onMoveLeft: (() => void) | null;
   onMoveRight: (() => void) | null;
+  onRename: (name: string) => void;
   onTune: () => void;
   title: string;
 }) {
@@ -901,12 +940,7 @@ function LaneHeader({
     <header className={sx(styles.laneHeader)}>
       <div className={sx(styles.laneIdentity)}>
         <span className={sx(styles.laneIndex)}>{index}</span>
-        <div>
-          <span className={sx(chrome.micro)}>{filterLabel(filter)} LENS</span>
-          <h1 className={sx(styles.laneTitle)} id={id}>
-            {title}
-          </h1>
-        </div>
+        <EditableStreamTitle id={id} onCommit={onRename} title={title} />
       </div>
       <div className={sx(styles.laneMeta)}>
         <span className={sx(chrome.micro)}>{detail}</span>
@@ -939,6 +973,65 @@ function LaneHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+function EditableStreamTitle({
+  id,
+  onCommit,
+  title,
+}: {
+  id: string;
+  onCommit: (name: string) => void;
+  title: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(title);
+
+  useEffect(() => {
+    if (!editing) setValue(title);
+  }, [editing, title]);
+
+  if (editing) {
+    return (
+      <input
+        aria-label="Stream name"
+        autoFocus
+        className={sx(styles.streamTitleInput)}
+        id={id}
+        maxLength={96}
+        onBlur={() => {
+          onCommit(value);
+          setEditing(false);
+        }}
+        onChange={(event) => setValue(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            setValue(title);
+            setEditing(false);
+          }
+        }}
+        value={value}
+      />
+    );
+  }
+
+  return (
+    <h1 className={sx(styles.laneTitle)} id={id}>
+      <button
+        aria-label={`Rename ${title}`}
+        className={sx(styles.streamTitleButton)}
+        onClick={() => {
+          setValue(title);
+          setEditing(true);
+        }}
+        title="Rename stream"
+        type="button"
+      >
+        {title}
+      </button>
+    </h1>
   );
 }
 
@@ -1375,6 +1468,7 @@ function filterWorkloads(
 }
 
 function streamTitle(stream: FeedStreamSpec): string {
+  if (stream.name) return stream.name;
   if (stream.filter === "all")
     return stream.kind[0]!.toUpperCase() + stream.kind.slice(1);
   return `${filterLabel(stream.filter)} ${stream.kind}`;

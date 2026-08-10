@@ -71,6 +71,8 @@ stream lenses through a bounded, deep-linkable URL grammar.
 - [x] Refine Feed into a calmer composition surface with collapsed evidence and
   a Firehose rail that adds, tunes, reorders, repeats, and removes up to eight
   URL-addressed stream lenses.
+- [x] Make each stream title an inline, autosaving optional name and remove the
+  redundant lens eyebrow from the compact stream header.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.
@@ -306,7 +308,9 @@ vertical streams separate rich Signals, inspect-only Admission, and admitted
 workload Flow. The later Firehose refinement makes those streams repeatable and
 configurable: source-specific lens recipes can be added, tuned, reordered, and
 removed under an eight-lane bound, with the exact composition carried in the
-URL. Evidence bodies collapse until requested so exact Git lineage, Journal
+URL. Stream titles are inline editors whose bounded optional names autosave into
+that coordinate; redundant lens eyebrows are removed. Evidence bodies collapse
+until requested so exact Git lineage, Journal
 prose/query/frame/diff/map/action previews, and environment transitions remain
 available without flattening the scanning hierarchy. The signal window caps at
 64 records, discloses folded records and unsupported workload clocks, preserves
@@ -315,9 +319,9 @@ GitHub boundary. ADR 0039 keeps Feed distinct from Cadence and Explorer,
 specifies the future admission-to-Flow transition, and leaves `/` on the
 explicitly selected Explorer default. Focused derivation, ordering, bound,
 composition-grammar, rendering, route, embedded-asset, and deep-link proof
-brings the frontend to 47/47 tests. `just check` passes formatting, TypeScript,
+brings the frontend to 48/48 tests. `just check` passes formatting, TypeScript,
 production build, Clippy, and flake evaluation; `just test` passes 154/154 Rust
-tests, 47/47 frontend tests, and every documentation test.
+tests, 48/48 frontend tests, and every documentation test.
 
 ## Next Concrete Anchor
 
