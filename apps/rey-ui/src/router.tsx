@@ -140,17 +140,6 @@ function RootLayout() {
               className={sx(
                 styles.focusable,
                 styles.navLink,
-                pathname.startsWith("/workloads") && styles.navLinkActive,
-              )}
-              to="/workloads"
-            >
-              Workloads
-            </Link>
-            <Link
-              activeProps={{ "aria-current": "page" }}
-              className={sx(
-                styles.focusable,
-                styles.navLink,
                 pathname.startsWith("/cadence") && styles.navLinkActive,
               )}
               to="/cadence"
@@ -167,6 +156,17 @@ function RootLayout() {
               to="/agents"
             >
               Agents
+            </Link>
+            <Link
+              activeProps={{ "aria-current": "page" }}
+              className={sx(
+                styles.focusable,
+                styles.navLink,
+                pathname.startsWith("/workloads") && styles.navLinkActive,
+              )}
+              to="/workloads"
+            >
+              Workloads
             </Link>
             <Link
               activeProps={{ "aria-current": "page" }}
