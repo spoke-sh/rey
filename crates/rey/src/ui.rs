@@ -16,6 +16,8 @@ const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const HIFI_GRAMMAR_REVISION: &str = "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e";
+const REY_SOURCE_REPOSITORY: &str = "https://github.com/spoke-sh/rey";
+const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 
 const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
 const APP_JAVASCRIPT: &[u8] = include_bytes!("../../../apps/rey-ui/dist/assets/app.js");
@@ -47,6 +49,8 @@ pub struct UiServerDescriptor {
     pub grammar_revision: String,
     pub entry_route: String,
     pub live_refresh_interval_ms: u64,
+    pub source_repository: String,
+    pub implementation_revision: String,
 }
 
 pub struct UiServer {
@@ -79,6 +83,8 @@ impl UiServer {
             grammar_revision: HIFI_GRAMMAR_REVISION.to_owned(),
             entry_route: "/explore".to_owned(),
             live_refresh_interval_ms: LIVE_REFRESH_INTERVAL_MS,
+            source_repository: REY_SOURCE_REPOSITORY.to_owned(),
+            implementation_revision: REY_IMPLEMENTATION_REVISION.to_owned(),
         };
         Ok(Self {
             server,
@@ -284,6 +290,11 @@ mod tests {
         assert!(descriptor.read_only);
         assert_eq!(descriptor.grammar, "kinetic");
         assert_eq!(descriptor.theme, "precision");
+        assert_eq!(
+            descriptor.source_repository,
+            "https://github.com/spoke-sh/rey"
+        );
+        assert!(!descriptor.implementation_revision.is_empty());
         assert_eq!(
             descriptor.grammar_revision,
             "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"

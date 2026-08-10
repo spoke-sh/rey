@@ -51,6 +51,9 @@ topology canvas. It reads the same bounded workload portfolio projection as
   wheel input has only the semantic-lens meaning.
 - [x] Remove manual Refresh and passively revalidate the read-only portfolio at
   a reported 5000 ms interval.
+- [x] Bind the footer to the exact Rey implementation revision and link the
+  complete Git object id without confusing semantic BLAKE3 identities for
+  source commits.
 - [x] Cover root redirect, both top-level routes, lens ordering, bounds,
   identity preservation, and folded-evidence disclosure.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence

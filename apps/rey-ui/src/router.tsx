@@ -20,6 +20,7 @@ import {
   derivePortfolioMetrics,
   scenarioPercent,
   shortDigest,
+  sourceCommitUrl,
   workloadJourney,
   type AttentionRow,
   type WorkloadDraft,
@@ -147,7 +148,10 @@ function RootLayout() {
           {precisionTheme?.label.toUpperCase()}
         </span>
         <span>GRAPH → SCENARIO → DELTA → ATTENTION</span>
-        <span>{shortDigest(portfolio.attention.attention_id)}</span>
+        <ImplementationLink
+          repository={portfolio.ui_server.source_repository}
+          revision={portfolio.ui_server.implementation_revision}
+        />
       </footer>
     </div>
   );
@@ -820,6 +824,28 @@ function EmptySurface({ children }: { children: ReactNode }) {
       {children}
       <i className={sx(styles.emptyLine)} />
     </div>
+  );
+}
+
+function ImplementationLink({
+  repository,
+  revision,
+}: {
+  repository: string;
+  revision: string;
+}) {
+  const href = sourceCommitUrl(repository, revision);
+  if (!href) return <span>SOURCE REVISION UNKNOWN</span>;
+  return (
+    <a
+      className={sx(styles.focusable, styles.footerLink)}
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+      title={`Open Rey commit ${revision}`}
+    >
+      {shortDigest(revision)}
+    </a>
   );
 }
 

@@ -190,3 +190,11 @@ export function shortDigest(digest: string | null | undefined): string {
   const value = digest.startsWith("blake3:") ? digest.slice(7) : digest;
   return value.length > 16 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 }
+
+export function sourceCommitUrl(
+  repository: string,
+  revision: string,
+): string | null {
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(revision)) return null;
+  return `${repository.replace(/\/$/, "")}/commit/${revision}`;
+}

@@ -785,10 +785,15 @@ index, just like `workloads list`.
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, read-only authority, workspace, catalog root, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
-and 5000 ms passive revalidation interval. Static assets
+5000 ms passive revalidation interval, canonical Rey source repository, and
+implementation Git revision. Static assets
 are embedded into the binary, authored presentation is extracted from StyleX
 modules into a layered atomic stylesheet, and browser responses carry
 restrictive security headers.
+
+The footer shortens the implementation revision only for presentation. Its
+GitHub link uses the complete 40- or 64-hex Git object id; BLAKE3 attention and
+snapshot identities are not linked as commits.
 
 The Refresh control does not exist. Root-route invalidation passively reloads
 the read-only portfolio every five seconds. `ContextCanvas` projects that

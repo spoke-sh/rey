@@ -12,6 +12,7 @@
   };
 
   outputs = {
+    self,
     crane,
     flake-utils,
     nixpkgs,
@@ -50,6 +51,7 @@
         src = cargoSource;
         strictDeps = true;
         cargoExtraArgs = "--locked --workspace --all-features";
+        REY_BUILD_REVISION = self.rev or self.dirtyRev or "unknown";
       };
       cargoArtifacts = craneLib.buildDepsOnly (commonCargoArgs
         // {

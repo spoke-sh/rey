@@ -1024,6 +1024,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Human entry            /explore",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
         "/api/v1/health · /api/v1/workloads",
+        "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
         assert!(table.contains(evidence), "missing UI evidence: {evidence}");
     }
@@ -1069,19 +1070,20 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert_eq!(descriptor["entry_route"], "/explore");
     assert_eq!(descriptor["live_refresh_interval_ms"], 5_000);
     assert_eq!(
+        descriptor["source_repository"],
+        "https://github.com/spoke-sh/rey"
+    );
+    assert!(descriptor["implementation_revision"].is_string());
+    assert_eq!(
         descriptor["grammar_revision"],
         "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"
     );
-    network_child.kill().unwrap();
+    let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
     let mut warning = String::new();
-    network_child
-        .stderr
-        .take()
-        .unwrap()
-        .read_to_string(&mut warning)
-        .unwrap();
-    network_child.wait().unwrap();
+    network_stderr.read_line(&mut warning).unwrap();
     assert!(warning.contains("listening beyond loopback without authentication"));
+    network_child.kill().unwrap();
+    network_child.wait().unwrap();
 }
 
 #[test]

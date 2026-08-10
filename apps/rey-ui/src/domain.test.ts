@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   derivePortfolioMetrics,
   scenarioPercent,
+  shortDigest,
+  sourceCommitUrl,
   workloadJourney,
   type WorkloadList,
   type WorkloadSummary,
@@ -108,5 +110,16 @@ describe("portfolio projection", () => {
   it("keeps typed empty scenario coverage at zero", () => {
     expect(scenarioPercent(0, 0)).toBe(0);
     expect(scenarioPercent(2, 3)).toBe(67);
+  });
+
+  it("links the short footer label through the complete source commit", () => {
+    const revision = "02ad6ed24744dbeabb0b8bef5a64d547f424d9a3";
+    expect(shortDigest(revision)).toBe("02ad6ed2…24d9a3");
+    expect(sourceCommitUrl("https://github.com/spoke-sh/rey", revision)).toBe(
+      `https://github.com/spoke-sh/rey/commit/${revision}`,
+    );
+    expect(sourceCommitUrl("https://github.com/spoke-sh/rey", "unknown")).toBe(
+      null,
+    );
   });
 });

@@ -223,6 +223,12 @@ retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
+`crates/rey/build.rs` binds the composition binary to its implementation Git
+revision. A clean Nix build supplies `self.rev`; local Cargo builds resolve the
+repository HEAD and register both HEAD and its symbolic ref as rebuild inputs.
+Unavailable or non-hex revisions fail to `unknown`, in which case the UI does
+not manufacture a GitHub commit link.
+
 The next mining implementation should continue to prefer existing
 Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser
 framework, regex engine, tree/graph library, visualization library, async

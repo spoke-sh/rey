@@ -889,4 +889,11 @@ export const environmentStyles = stylex.create({
     paddingBlock: 12,
     paddingInline: 24,
   },
+  footerLink: {
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    color: "inherit",
+    textDecoration: "none",
+  },
 });

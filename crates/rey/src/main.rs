@@ -1021,6 +1021,14 @@ fn write_ui_startup(
     write_portfolio_field(output, "Catalog", &descriptor.catalog_root)?;
     write_portfolio_field(output, "API", "/api/v1/health · /api/v1/workloads")?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
+    write_portfolio_field(
+        output,
+        "Implementation",
+        &format!(
+            "{} · {}",
+            descriptor.source_repository, descriptor.implementation_revision
+        ),
+    )?;
     writeln!(output)?;
     writeln!(output, "  {}", style.dim("Press Ctrl-C to stop the server"))?;
     Ok(())

@@ -102,6 +102,11 @@ revalidates every 5000 ms from `GET /api/v1/workloads`. Revalidation changes
 only the browser projection; it does not test, run, create, commit, or schedule
 a workload.
 
+The global footer displays the shortened Rey implementation Git revision and
+links it through the complete revision to the canonical GitHub commit. This is
+separate from the BLAKE3 portfolio-attention identity: semantic evidence
+digests must never be presented as source commits.
+
 The first topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
 counts, portfolio attention, and mapped-surface coverage counts. It does not
