@@ -5,10 +5,29 @@ import {
   activateCommunicationAxis,
   CommunicationBackdrop,
   ConversationSurface,
+  isViewportLockedPath,
+  PRIMARY_NAV_ITEMS,
   router,
 } from "./router";
 
 describe("operator routes", () => {
+  it("places Feed before Explorer and keeps Environment last", () => {
+    expect(PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
+      "Feed",
+      "Explore",
+      "Cadence",
+      "Agents",
+      "Workloads",
+      "Environment",
+    ]);
+  });
+
+  it("gives Feed and Explorer the remaining viewport without document scroll", () => {
+    expect(isViewportLockedPath("/feed")).toBe(true);
+    expect(isViewportLockedPath("/explore")).toBe(true);
+    expect(isViewportLockedPath("/cadence")).toBe(false);
+  });
+
   it("opens, closes, and switches the two communication axes", () => {
     expect(activateCommunicationAxis(null, "mailbox")).toBe("mailbox");
     expect(activateCommunicationAxis("mailbox", "mailbox")).toBeNull();
@@ -41,7 +60,8 @@ describe("operator routes", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("matches cadence, agents, Journal documents, and Explorer coordinates", () => {
+  it("matches feed, cadence, agents, Journal documents, and Explorer coordinates", () => {
+    expect(router.matchRoutes("/feed").at(-1)?.routeId).toBe("/feed");
     expect(router.matchRoutes("/cadence").at(-1)?.routeId).toBe("/cadence");
     expect(router.matchRoutes("/agents").at(-1)?.routeId).toBe("/agents");
     expect(router.matchRoutes("/journal/new").at(-1)?.routeId).toBe(

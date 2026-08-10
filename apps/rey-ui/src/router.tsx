@@ -20,6 +20,7 @@ import {
   admitJournalEntry,
   loadCadence,
   loadEnvironment,
+  loadFeed,
   loadJournal,
   loadPortfolio,
   type OperatorContext,
@@ -33,6 +34,7 @@ import {
   type EnvironmentObjectStatus,
 } from "./environment";
 import { ExplorePage } from "./explore";
+import { FeedPage } from "./feed";
 import { GitCommitLink } from "./git-commit-link";
 import {
   defaultJournalBinding,
@@ -59,6 +61,19 @@ const precision = kineticThemeMaterials.precision;
 const PortfolioContext = createContext<OperatorContext | null>(null);
 
 export type CommunicationAxis = "mailbox" | "conversation";
+
+export const PRIMARY_NAV_ITEMS = [
+  { label: "Feed", to: "/feed", prefixes: ["/feed"] },
+  { label: "Explore", to: "/explore", prefixes: ["/explore"] },
+  { label: "Cadence", to: "/cadence", prefixes: ["/cadence"] },
+  { label: "Agents", to: "/agents", prefixes: ["/agents", "/journal"] },
+  { label: "Workloads", to: "/workloads", prefixes: ["/workloads"] },
+  { label: "Environment", to: "/environment", prefixes: ["/environment"] },
+] as const;
+
+export function isViewportLockedPath(pathname: string): boolean {
+  return pathname.startsWith("/explore") || pathname.startsWith("/feed");
+}
 
 export function activateCommunicationAxis(
   current: CommunicationAxis | null,
@@ -101,6 +116,7 @@ function RootLayout() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const viewportLocked = isViewportLockedPath(pathname);
   const activeSection = useActiveRailSection(pathname);
   const rootStyle = {
     ...getKineticMaterialStyle(precision),
@@ -114,16 +130,13 @@ function RootLayout() {
       <div
         className={sx(
           styles.environment,
-          pathname.startsWith("/explore") && styles.environmentViewport,
+          viewportLocked && styles.environmentViewport,
         )}
         data-theme="precision"
         style={rootStyle}
       >
         <header
-          className={sx(
-            styles.topbar,
-            pathname.startsWith("/explore") && styles.viewportFixed,
-          )}
+          className={sx(styles.topbar, viewportLocked && styles.viewportFixed)}
         >
           <Link className={sx(styles.focusable, styles.wordmark)} to="/explore">
             <span className={sx(styles.wordmarkMark)}>R</span>
@@ -138,66 +151,25 @@ function RootLayout() {
             aria-label="Primary navigation"
             className={sx(styles.primaryNav)}
           >
-            <Link
-              activeProps={{ "aria-current": "page" }}
-              className={sx(
-                styles.focusable,
-                styles.navLink,
-                pathname.startsWith("/explore") && styles.navLinkActive,
-              )}
-              to="/explore"
-            >
-              Explore
-            </Link>
-            <Link
-              activeProps={{ "aria-current": "page" }}
-              className={sx(
-                styles.focusable,
-                styles.navLink,
-                pathname.startsWith("/cadence") && styles.navLinkActive,
-              )}
-              to="/cadence"
-            >
-              Cadence
-            </Link>
-            <Link
-              activeProps={{ "aria-current": "page" }}
-              aria-current={
-                pathname.startsWith("/journal") ? "page" : undefined
-              }
-              className={sx(
-                styles.focusable,
-                styles.navLink,
-                (pathname.startsWith("/agents") ||
-                  pathname.startsWith("/journal")) &&
-                  styles.navLinkActive,
-              )}
-              to="/agents"
-            >
-              Agents
-            </Link>
-            <Link
-              activeProps={{ "aria-current": "page" }}
-              className={sx(
-                styles.focusable,
-                styles.navLink,
-                pathname.startsWith("/workloads") && styles.navLinkActive,
-              )}
-              to="/workloads"
-            >
-              Workloads
-            </Link>
-            <Link
-              activeProps={{ "aria-current": "page" }}
-              className={sx(
-                styles.focusable,
-                styles.navLink,
-                pathname.startsWith("/environment") && styles.navLinkActive,
-              )}
-              to="/environment"
-            >
-              Environment
-            </Link>
+            {PRIMARY_NAV_ITEMS.map((item) => {
+              const active = item.prefixes.some((prefix) =>
+                pathname.startsWith(prefix),
+              );
+              return (
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={sx(
+                    styles.focusable,
+                    styles.navLink,
+                    active && styles.navLinkActive,
+                  )}
+                  key={item.to}
+                  to={item.to}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </header>
 
@@ -205,7 +177,7 @@ function RootLayout() {
           className={sx(
             styles.micro,
             styles.coordinateRail,
-            pathname.startsWith("/explore") && styles.viewportFixed,
+            viewportLocked && styles.viewportFixed,
           )}
           aria-hidden="true"
         >
@@ -229,7 +201,7 @@ function RootLayout() {
           className={sx(
             styles.micro,
             styles.footer,
-            pathname.startsWith("/explore") && styles.viewportFixed,
+            viewportLocked && styles.viewportFixed,
           )}
         >
           <button
@@ -964,6 +936,12 @@ function ExploreRoutePage() {
   return <ExplorePage portfolio={usePortfolio()} />;
 }
 
+function FeedRoutePage() {
+  const initialSources = feedRoute.useLoaderData();
+  const { document: sources } = usePassiveDocument(initialSources, loadFeed);
+  return <FeedPage portfolio={usePortfolio()} sources={sources} />;
+}
+
 function ExploreCoordinateRoutePage() {
   const portfolio = usePortfolio();
   const { coordinate: segment, kind } = exploreCoordinateRoute.useParams();
@@ -1043,6 +1021,13 @@ const exploreRoute = createRoute({
   component: ExploreRoutePage,
 });
 
+const feedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "feed",
+  loader: loadFeed,
+  component: FeedRoutePage,
+});
+
 const exploreCoordinateRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "explore/$kind/$coordinate",
@@ -1098,6 +1083,7 @@ const workloadDetailRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  feedRoute,
   exploreRoute,
   exploreCoordinateRoute,
   cadenceRoute,
@@ -1122,6 +1108,7 @@ declare module "@tanstack/react-router" {
 }
 
 function routeCoordinate(pathname: string): string {
+  if (pathname.startsWith("/feed")) return "FEED / SIGNALS · ADMISSION · FLOW";
   if (pathname.startsWith("/explore")) return "EXPLORE / CONTEXT TOPOLOGY";
   if (pathname.startsWith("/cadence")) return "CADENCE / TICKS";
   if (pathname.startsWith("/agents")) return "AGENTS";

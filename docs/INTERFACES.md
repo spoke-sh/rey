@@ -837,8 +837,8 @@ TanStack Router application plus `GET|HEAD /api/v1/health`,
 authentication or an origin check on every explicitly configured listener.
 Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
-`/explore`. The application routes are `/explore`, exact matrix-style Explorer
-coordinates, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
+`/explore`. The application routes are `/feed`, `/explore`, exact matrix-style
+Explorer coordinates, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
@@ -884,6 +884,33 @@ coverage, mining and delta counts, attention, and retained evidence identities.
 It does not load the environment inventory, schedule work, infer an assigned
 agent, or claim live process telemetry.
 
+`/feed` composes those existing workload, Cadence, and Journal reads into a
+high-cadence inspection projection. It occupies the remaining application
+viewport as independently scrolling vertical streams plus a Firehose control
+rail. The default composition is Signals, Admission, and Flow, but the Firehose
+can add, tune, reorder, repeat, or remove streams up to an eight-lane display
+bound. Signals filters are `all|journal|git|environment`; Admission filters are
+`all|now|watch|bound`; Flow filters are
+`all|attention|failing|qualified`. The ordered composition uses the query
+grammar `?streams={plane}.{filter},...`, for example
+`?streams=signals.journal,admission.now,flow.failing`. Invalid entries are
+ignored and an entirely invalid or absent composition uses the three defaults.
+The URL is browser projection state and a deep-link boundary, not a retained
+runtime configuration or new API.
+
+Signals renders rich Git, environment, and Journal posts, including bounded
+Journal block previews and exact Git lineage. Evidence bodies are collapsed by
+default and expand in place. Admission ranks unresolved typed attention and
+repository/request/qualification posture without writing a new attention
+relation or exposing an effect control. Flow renders admitted workload
+qualification, scenario, run, mining, delta, and reasoning-surface posture; it
+does not claim live execution telemetry. Signal wall time is display ordering
+only, and order-only records follow the timestamped window. The recent Signals
+window renders at most 64 records and reports older folded source records;
+Admission retains its authoritative source bound. Feed has no read cursor,
+unread count, drag-to-admit behavior, pagination, durable stream retention,
+causal-order claim, or additional HTTP endpoint.
+
 The startup table and `rey.ui-server.v3` JSON expose exact address, URL,
 loopback status, unauthenticated Journal-write authority,
 workspace, catalog root, application,
@@ -914,7 +941,7 @@ or mislinking the SHA. BLAKE3 identities and non-Git revisions are not linked
 as commits.
 
 The Refresh control does not exist. Mounted application state passively reloads
-the read-only portfolio and environment delta every five seconds without
+the read-only portfolio, Feed sources, and environment delta every five seconds without
 invalidating or remounting the active route. A failed background request keeps
 the last good document and reports delayed revalidation; it does not reset the
 viewport. `ContextCanvas` projects the portfolio document through landscape,

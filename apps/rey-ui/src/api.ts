@@ -18,6 +18,11 @@ export type OperatorContext = WorkloadList & {
   ui_server: UiServerIdentity;
 };
 
+export interface FeedSources {
+  cadence: CadenceProjection;
+  journal: JournalProjection;
+}
+
 export async function loadPortfolio(): Promise<OperatorContext> {
   const [portfolioResponse, healthResponse] = await Promise.all([
     fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
@@ -64,6 +69,11 @@ export async function loadCadence(): Promise<CadenceProjection> {
     throw new Error(`Cadence request failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as CadenceProjection;
+}
+
+export async function loadFeed(): Promise<FeedSources> {
+  const [cadence, journal] = await Promise.all([loadCadence(), loadJournal()]);
+  return { cadence, journal };
 }
 
 export async function loadJournal(): Promise<JournalProjection> {

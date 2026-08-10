@@ -9,7 +9,8 @@
   [ADR 0035](../docs/decisions/0035-agent-recommendations-and-observed-work.md),
   [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md),
   [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md),
-  [ADR 0038](../docs/decisions/0038-unauthenticated-hyperlinkable-journal.md)
+  [ADR 0038](../docs/decisions/0038-unauthenticated-hyperlinkable-journal.md),
+  [ADR 0039](../docs/decisions/0039-bounded-operator-feed.md)
 
 ## Outcome
 
@@ -37,7 +38,10 @@ coordinates make exact topology records shareable. `/journal/new` is the
 unauthenticated human authoring route; exact `/journal/{slug}` documents and
 block fragments make retained reasoning directly citable. `/workloads` and its
 exact detail routes use dense evidence relations for admitted revisions and
-agentic creation requests.
+agentic creation requests. `/feed` precedes Explorer in navigation and presents
+rich Signals, Admission, and Flow streams as the likely primary inspection
+plane for a high-cadence project. Its Firehose composes repeatable, filtered
+stream lenses through a bounded, deep-linkable URL grammar.
 
 ## Completion Checklist
 
@@ -61,6 +65,12 @@ agentic creation requests.
   source dimensions on explicit aligned relations.
 - [x] Continue the workload table grammar through exact admitted runtime,
   binding, and mining relations plus request posture and handoff bindings.
+- [x] Add `/feed` before Explorer in primary navigation as three independently
+  scrolling TweetDeck-like streams for rich Signals, inspect-only Admission,
+  and observed workload Flow, with exact deep links and source boundaries.
+- [x] Refine Feed into a calmer composition surface with collapsed evidence and
+  a Firehose rail that adds, tunes, reorders, repeats, and removes up to eight
+  URL-addressed stream lenses.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.
@@ -289,6 +299,25 @@ relation labels ship in the Rust binary. `just check`, `just test`, `just
 build`, and `nix build path:$PWD#rey --no-link` pass with 40/40 frontend tests,
 154/154 Rust tests, Clippy with warnings denied, documentation tests, and flake
 evaluation.
+
+The bounded Feed extension on 2026-08-10 adds `/feed` before Explorer in the
+primary navigation. Its default three viewport-bound, independently scrolling
+vertical streams separate rich Signals, inspect-only Admission, and admitted
+workload Flow. The later Firehose refinement makes those streams repeatable and
+configurable: source-specific lens recipes can be added, tuned, reordered, and
+removed under an eight-lane bound, with the exact composition carried in the
+URL. Evidence bodies collapse until requested so exact Git lineage, Journal
+prose/query/frame/diff/map/action previews, and environment transitions remain
+available without flattening the scanning hierarchy. The signal window caps at
+64 records, discloses folded records and unsupported workload clocks, preserves
+order-only environment admissions, and links exact Git SHAs through the shared
+GitHub boundary. ADR 0039 keeps Feed distinct from Cadence and Explorer,
+specifies the future admission-to-Flow transition, and leaves `/` on the
+explicitly selected Explorer default. Focused derivation, ordering, bound,
+composition-grammar, rendering, route, embedded-asset, and deep-link proof
+brings the frontend to 47/47 tests. `just check` passes formatting, TypeScript,
+production build, Clippy, and flake evaluation; `just test` passes 154/154 Rust
+tests, 47/47 frontend tests, and every documentation test.
 
 ## Next Concrete Anchor
 

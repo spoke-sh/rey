@@ -802,7 +802,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(19)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(20)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -928,6 +928,13 @@ mod tests {
         assert!(application.contains("WORKING TREE"));
         assert!(application.contains("PUSH RELATION"));
         assert!(application.contains("NO NETWORK FETCH"));
+        assert!(application.contains("data-feed-stream"));
+        assert!(application.contains("STREAM COORDINATE"));
+        assert!(application.contains("ADD STREAM"));
+        assert!(application.contains("APPLY LENS"));
+        assert!(application.contains("Share an observation"));
+        assert!(application.contains("INSPECT-ONLY"));
+        assert!(application.contains("Display order is not causal order"));
         assert!(application.contains("data-kinetic-dense-table"));
         assert!(application.contains("Admitted workload revisions"));
         assert!(application.contains("Workload creation requests"));
@@ -954,6 +961,10 @@ mod tests {
         assert!(explore.starts_with("HTTP/1.1 200"));
         assert!(explore.contains("Content-Security-Policy"));
         assert!(explore.contains("<title>Rey / Explore</title>"));
+
+        let feed = request(&address, "GET /feed HTTP/1.1");
+        assert!(feed.starts_with("HTTP/1.1 200"));
+        assert!(feed.contains("<title>Rey / Explore</title>"));
 
         let environment = request(&address, "GET /environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));

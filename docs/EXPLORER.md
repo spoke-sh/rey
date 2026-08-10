@@ -1,7 +1,9 @@
-# Context Topology Explorer
+# Operator Feed And Context Topology Explorer
 
-The Rey Explorer is the human operator's primary collaboration surface. It
-maps the bounded context Rey can currently explain, lets the operator move
+The Rey UI is the human operator's primary collaboration surface. `/feed`
+projects high-cadence change through rich Signals, Admission, and Flow streams,
+while the Rey
+Explorer maps the bounded context Rey can currently explain and lets the operator move
 between semantic scales, and preserves exact runtime identities while the
 visual grammar changes. Agents continue to use the `rey` CLI as their primary
 execution and diagnostic interface.
@@ -17,7 +19,7 @@ The intended division of labor is:
 
 | Persona | Primary surface | Normal use |
 | --- | --- | --- |
-| Human operator | `rey ui` and `/explore` | Orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
+| Human operator | `rey ui`, `/feed`, and `/explore` | Triage bounded change, orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
 | Agent or coding harness | `rey` CLI and structured output | Create, test, run, diagnose, and revise workloads through admitted contracts |
 | Human diagnosing a problem | `rey` CLI | Drop beneath the visual projection to inspect exact command evidence, verbosity layers, stderr, and exit semantics |
 
@@ -64,11 +66,13 @@ and a native full-screen mode. A control step cannot skip a semantic regime.
 Selecting a landscape coordinate advances to neighborhoods; selecting a
 neighborhood advances to its object view.
 
-`/explore` and its exact coordinate routes own exactly the browser space
-remaining below Rey's application chrome. The route is height-locked to
-`100dvh`, the document cannot scroll, and the canvas flexes into the remaining
-space. Wheel input therefore has one meaning on this route: move the semantic
-lens. `/cadence`, `/agents`, `/environment`, and `/workloads` remain ordinary
+`/explore`, its exact coordinate routes, and `/feed` own exactly the browser
+space remaining below Rey's application chrome. Explorer is height-locked to
+`100dvh`; its document cannot scroll and wheel input moves the semantic lens.
+Feed is also viewport-bound, but explicitly divides its remaining space into
+independently scrolling vertical streams and a narrow Firehose control rail.
+Additional streams extend horizontally instead of creating document scroll.
+`/cadence`, `/agents`, `/environment`, and `/workloads` remain ordinary
 scrollable documents.
 
 ## Projection Invariants
@@ -134,6 +138,9 @@ request for unimplemented historical reconstruction. See [ADR
 
 `GET /` redirects to `/explore`. The application routes are:
 
+- `/feed`: a TweetDeck-like workspace whose default rich Git/environment/
+  Journal Signals, current inspect-only Admission, and admitted workload Flow
+  streams can be composed from the Firehose;
 - `/explore`: the context-topology canvas and default human entry;
 - `/explore/{kind}/{identity};...`: an exact matrix-style Explorer coordinate;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
@@ -151,9 +158,9 @@ request for unimplemented historical reconstruction. See [ADR
 - `/workloads/$workloadId`: dense runtime/request posture and exact binding
   relations, plus the admitted revision's bounded mining output.
 
-The Refresh control has been removed. The root workload, mounted environment,
-and Journal projections passively revalidate every 5000 ms from their typed
-GET endpoints. Revalidation changes only the browser
+The Refresh control has been removed. The root workload, mounted Feed,
+environment, Cadence, and Journal projections passively revalidate every 5000
+ms from their typed GET endpoints. Revalidation changes only the browser
 projection; it does not invalidate the route, reset viewport or scroll state,
 test, run, create, add, commit, or schedule work. Failed background reads retain
 the last good projection and remain visible as delayed revalidation.
@@ -161,6 +168,24 @@ the last good projection and remain visible as delayed revalidation.
 Journal entries point at Explorer; they do not enter its source topology by
 being admitted. See [Collaboration Journal](JOURNAL.md) for the typed notebook,
 author paths, and separate execution boundary.
+
+`/feed` does not replace Cadence or portfolio attention. Its independently
+scrollable streams are bounded lenses over one Firehose: Signals carries rich
+posts and source bounds, Admission carries current proposals and rationale, and
+Flow carries admitted workload progress. The default three lanes can be tuned,
+reordered, removed, or repeated, and the Firehose rail can add up to eight
+lanes. Signal lenses select all, Journal, Git, or environment records;
+Admission lenses select all, NOW, WATCH, or BOUND posture; Flow lenses select
+all, attention-bearing, failing, or qualified workloads. The exact composition
+is encoded in the `streams` URL parameter rather than retained as new runtime
+state. Post evidence is collapsed by default and expands in place.
+
+Timestamped Signals use newest-first display order followed by source-ordered
+records with no wall time. This is not causal order, unread state, or a durable
+global event log. Admission is inspect-only and cannot move a post into Flow.
+The first slice renders at most 64 recent Signals and reports older folded
+records. See
+[ADR 0039](decisions/0039-bounded-operator-feed.md).
 
 `GET /api/v1/cadence` returns `rey.ui-cadence.v2`. Its leading repository-state
 plane separates working-tree attention from the exact local-upstream push

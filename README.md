@@ -256,8 +256,20 @@ semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations use matrix-style coordinates such as
 `/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
-bindings remain visible instead of drifting silently. `/agents` is the shared
-Journal index: retained human and agent notebook entries sit beside
+bindings remain visible instead of drifting silently. `/feed` comes first in
+primary navigation as the high-cadence inspection plane. Its default
+composition is three TweetDeck-like vertical streams: rich Signals,
+inspect-only Admission, and observed workload Flow. A quiet Firehose rail adds
+new streams or tunes, reorders, and removes existing ones. Each stream is a
+bounded lens—Journal-only Signals, NOW-only Admission, and failing-workload
+Flow can coexist without copying their source records. The composition is
+encoded in the `streams` URL parameter for deep linking and is capped at eight
+lanes. Evidence bodies stay collapsed until requested so the feed remains
+scannable. Git, environment-admission, and Journal posts retain exact evidence
+without presenting their display order as causality or a durable global event
+log. Admission does not move work into Flow until a later explicit validated
+browser contract exists. `/agents` is the shared Journal index:
+retained human and agent notebook entries sit beside
 current derived system recommendations without being confused for assignments
 or execution. New entries use `/journal/new`; selecting or admitting an entry
 enters its exact `/journal/{slug}` document, and each typed block has a stable
@@ -280,8 +292,8 @@ admission, source, and target remain aligned instead of being folded into
 cards; each row links to its exact workload or handoff detail. Exact admitted
 details continue the grammar through runtime posture, binding, and mining
 relations. Exact creation-request details use request posture and binding
-relations so the coding-harness boundary remains explicit. The
-manual Refresh control is gone: the read-only workload and environment
+relations so the coding-harness boundary remains explicit. The manual Refresh
+control is gone: the read-only workload, Feed, Cadence, Journal, and environment
 documents passively revalidate every five seconds in mounted application state.
 Revalidation never navigates, remounts the active route, or changes the
 operator's scroll position.
@@ -621,7 +633,8 @@ exact owner. Parser/symbol mining remains a later tool for investigating
 attention, not the portfolio strategy itself.
 
 [Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
-surface. `/explore` is now the default context-topology map with semantic zoom,
+surface. `/feed` is the bounded high-cadence inspection plane and `/explore`
+remains the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
 matrix-style deep links, a shared typed Journal, an observed-work ledger, and a
 partially ordered cadence view. Humans can author retained Explore-bound prose
