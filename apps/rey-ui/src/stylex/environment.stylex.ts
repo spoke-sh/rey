@@ -57,9 +57,10 @@ export const environmentStyles = stylex.create({
     borderBottomWidth: 1,
     display: "grid",
     gridTemplateColumns: {
-      default: "minmax(220px, 0.7fr) minmax(320px, 1.2fr) minmax(280px, 0.8fr)",
-      "@media (max-width: 1050px)": "220px 1fr auto",
-      "@media (max-width: 760px)": "1fr auto",
+      default: "minmax(220px, 1fr) auto minmax(220px, 1fr)",
+      "@media (max-width: 1050px)":
+        "minmax(170px, 1fr) auto minmax(170px, 1fr)",
+      "@media (max-width: 760px)": "1fr",
     },
     minHeight: 72,
     position: "sticky",
@@ -125,6 +126,7 @@ export const environmentStyles = stylex.create({
       "@media (max-width: 760px)": "1 / -1",
     },
     gridRow: { default: "auto", "@media (max-width: 760px)": 2 },
+    justifyContent: "center",
     order: { default: 0, "@media (max-width: 760px)": 3 },
   },
   navLink: {
@@ -176,20 +178,6 @@ export const environmentStyles = stylex.create({
     justifyContent: "center",
     minWidth: 22,
     paddingInline: 6,
-  },
-  topbarActions: {
-    alignItems: "center",
-    display: "flex",
-    gap: 24,
-    justifyContent: "flex-end",
-    paddingBlock: { default: 10, "@media (max-width: 760px)": 9 },
-    paddingInline: { default: 22, "@media (max-width: 760px)": 14 },
-  },
-  liveState: {
-    alignItems: "center",
-    display: { default: "flex", "@media (max-width: 1050px)": "none" },
-    gap: 8,
-    whiteSpace: "nowrap",
   },
   statusDot: {
     backgroundColor: "#237047",

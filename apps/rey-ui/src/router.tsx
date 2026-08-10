@@ -116,14 +116,6 @@ function RootLayout() {
             </span>
           </Link>
         </nav>
-        <div className={sx(styles.topbarActions)}>
-          <div
-            className={sx(styles.micro, styles.liveState)}
-            title="Read-only live portfolio projection"
-          >
-            <i className={sx(styles.statusDot)} /> LIVE / READ ONLY
-          </div>
-        </div>
       </header>
 
       <div
