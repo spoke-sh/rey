@@ -1,8 +1,9 @@
 # ADR 0031: Desired Application Inventory And Search Records
 
-- Status: Accepted
+- Status: Accepted; conventional map and checked-in inventory superseded by ADR 0032
 - Date: 2026-08-09
 - Supersedes: the undifferentiated application presentation in [ADR 0027](0027-environment-operator-delta.md)
+- Superseded in part by: [ADR 0032](0032-seed-discovery-survey-and-live-communications.md)
 
 ## Context
 

@@ -35,7 +35,8 @@ guide experiments but do not outrank the architecture until accepted.
 | [0028](0028-environment-three-plane-diff.md) | Accepted | Three-plane human env diff for unstaged and staged directions with unchanged authoritative JSON |
 | [0029](0029-environment-history-projection.md) | Accepted | Compact environment chronology and three-plane patch expansion over retained transitions |
 | [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted | Partial-order cadence, provenance-derived agent registry, and matrix-style exact Explorer coordinates |
-| [0031](0031-desired-application-inventory-and-search-records.md) | Accepted | Exact desired-application declaration records separated from bounded search records |
+| [0031](0031-desired-application-inventory-and-search-records.md) | Accepted; conventional map superseded by 0032 | Exact desired-application declaration records separated from bounded search records |
+| [0032](0032-seed-discovery-survey-and-live-communications.md) | Accepted | Process-owned seed discovery, explicit agent maps, locator survey, cadence processing, and a live operator mailbox |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

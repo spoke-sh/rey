@@ -614,10 +614,10 @@ mod tests {
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
-        assert!(environment.contains("\"schema\":\"rey.environment-status.v4\""));
+        assert!(environment.contains("\"schema\":\"rey.environment-status.v5\""));
         assert!(
             environment
-                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v2\"")
+                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v3\"")
         );
 
         let cadence = request(&address, "GET /api/v1/cadence HTTP/1.1");
@@ -639,6 +639,10 @@ mod tests {
         assert!(application.contains("IDENTIFIED AGENTS"));
         assert!(application.contains("DESIRED INVENTORY"));
         assert!(application.contains("SEARCH RECORD"));
+        assert!(application.contains("PROCESS SEEDS"));
+        assert!(application.contains("LIVE / OPERATOR CHANNEL"));
+        assert!(application.contains("No operator attention is requested"));
+        assert!(application.contains("MAILBOX"));
         assert!(application.contains("LOCATE IN EXPLORER"));
         assert!(application.contains("explore/$kind/$coordinate"));
         assert!(application.contains("NO CURRENT OBJECT SATISFIES THIS IDENTITY"));
@@ -646,6 +650,7 @@ mod tests {
         assert!(application.contains("--kinetic-light-highlight"));
         assert!(application.contains("--kinetic-shadow-soft-y"));
         assert!(!application.contains("WORKING TREE"));
+        assert!(!application.contains("TICK → GRAPH → SCENARIO → DELTA → ATTENTION"));
 
         let stylesheet = request(&address, "GET /assets/app.css HTTP/1.1");
         assert!(stylesheet.starts_with("HTTP/1.1 200"));

@@ -16,8 +16,11 @@ the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
 later slices. ADR 0020 added the first explicit environment graph, ADR 0027
 added bounded non-sensitive value capture and one operator delta for the CLI
 and UI, and ADR 0031 hard-cuts the current mapping contract to
-`rey.env-map.v3` with separate desired-application and search records. The
-Git-shaped environment history revisions those observations.
+`rey.env-map.v3` with separate desired-application and search records. ADR
+0032 removes the conventional map bootstrap: the process now owns the fixed
+`HOME`, `PWD`, and `PATH` discovery seeds, while mappings are explicit
+agent-generatable reasoning resources. The Git-shaped environment history
+revisions those observations.
 
 ## Terms
 
@@ -44,6 +47,8 @@ Git-shaped environment history revisions those observations.
 - Exact capability snapshots participate in action and proof identity.
 - Mining discovery names semantic operations and limitations; a tool name or
   server version alone never implies search, parse, index, or query parity.
+- Bootstrap discovery observes only `HOME`, `PWD`, and `PATH`; it never infers
+  project or Spoke relevance from an ambient variable name.
 
 ## Provider Contract
 
@@ -100,11 +105,36 @@ permission.
 Locations are provider-scoped. A local path, Spoke path, URL, object URI, and
 logical tool name are not interchangeable strings.
 
-## Environment Mapping Graph
+## Process-Owned Discovery Seeds
 
-The conventional `rey.env.yaml`, or an explicit workspace-relative `--map`
-path, declares the local environment surfaces a programmer or agent has judged
-relevant. The closed `rey.env-map.v3` schema contains:
+The standalone process begins with exactly three environment-variable seeds:
+
+```text
+HOME · PWD · PATH
+```
+
+Their bounded UTF-8 values, availability, value digests, and capture errors
+are typed `environment_seed` capability rows under
+`rey.discovery-seeds.v1`. This fixed set is compiled into Rey. Discovery does
+not load a project configuration file, enumerate arbitrary variables, source
+shell profiles, or recursively scan any seed path.
+
+The current compiled desired-application inventory contains the declared
+`git` and `rg` identity adapters and their purposes. PATH resolution and fixed
+bounded identity probes produce the separate search record. Discovery does not
+turn either application into authority for arbitrary execution.
+
+`SPOKE_ENDPOINT` and `SPOKE_TOKEN` are not discovery seeds. An agent may later
+propose them in a reasoning map if frozen project evidence supports their
+relevance; the token must remain presence-only. A future Spoke provider should
+prefer its public discovery contract over ambient variable convention.
+
+## Agent-Generated Reasoning Map
+
+An explicit workspace-relative `--map` resource declares environment surfaces
+an agent, programmer, or deterministic rule has judged relevant after
+discovery. A file named `rey.env.yaml` has no conventional meaning and is not
+loaded unless the caller names it. The closed `rey.env-map.v3` schema contains:
 
 - variable nodes with exact names, sensitivity, and `presence`, `digest`, or
   bounded UTF-8 `value` capture;
@@ -140,22 +170,22 @@ diff, presents the exact desired inventory, then presents the full bounded
 application search record; structured output retains the complete capability
 evidence and both authoritative deltas. `env diff`, `env add`,
 `env commit`, and `env log -p` navigate and revision the same relation. The
-YAML graph is a proposal about relevance, not execution authority or proof of a
-dependency.
+YAML graph is a generated or authored proposal about relevance, not bootstrap
+configuration, execution authority, or proof of a dependency.
 
 ## Discovery Lifecycle
 
-1. Resolve allowed provider configuration without executing project hooks.
-2. Run built-in discovery under total time, result-row, and output-byte limits.
-3. Resolve known local tools from explicit paths or configured search paths.
-4. Run only provider-declared, read-only identity probes with individual
-   timeout and capture limits.
-5. Probe configured remote providers such as Spoke through their public health
-   and capability contracts.
-6. Normalize results into a capability frame and content identity.
-7. Freeze the snapshot used for lens materialization and action admission.
-8. Re-probe only at an explicit transition boundary and compute a directed
-   capability delta.
+1. **Discovery:** capture the process-owned `HOME`, `PWD`, and `PATH` seed set,
+   explicit workspace, built-in capabilities, and declared adapter search
+   results under total time, row, and byte limits.
+2. **Reasoning over discovery:** present the frozen record to policy. An agent
+   may generate a bounded `rey.env-map.v3` resource; Rey parses it only when
+   explicitly supplied and never accepts it as action authority.
+3. **Survey:** resolve admitted locators to exact source anchors with explicit
+   provider, revision, limit, completeness, and error evidence. See
+   [Locators](LOCATORS.md).
+4. **Process:** incrementally consume survey artifacts and independent cadence
+   ticks, derive deltas and attention, then repeat from a transition boundary.
 
 Partial discovery remains visible. One failed provider does not erase healthy
 providers unless the selected profile requires all of them.
@@ -335,9 +365,10 @@ planes: committed `HEAD`, the admission `INDEX`, and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty
 capability relations. Without a retained index, the effective index equals
 HEAD. The command reads but never creates or repairs local state. Explicit JSON
-emits `rey.environment-status.v4` with the complete working snapshot, both
+emits `rey.environment-status.v5` with the complete working snapshot, both
 authoritative capability deltas, and
-`rey.environment-operator-projection.v2`. Every mapped object carries exact
+`rey.environment-operator-projection.v3`. Every process seed and explicitly
+mapped object carries exact
 HEAD/index/working observations plus staged, unstaged, and overall change
 classification.
 
@@ -360,7 +391,7 @@ while insertions, deletions, and modifications use the selected source and
 target observations. The header preserves the authoritative
 capability-delta assessment and retained change count, including changes that
 do not project into a mapped human object. The command accepts no loose
-snapshot-file operands. Explicit JSON is `rey.environment-diff.v3` with
+snapshot-file operands. Explicit JSON is `rey.environment-diff.v4` with
 the complete typed capability delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact

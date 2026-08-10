@@ -1,7 +1,8 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    ffi::OsString,
+    collections::BTreeMap,
+    ffi::{OsStr, OsString},
     fs,
     io::{self, Read},
     path::{Path, PathBuf},
@@ -37,6 +38,9 @@ use std::os::unix::process::CommandExt;
 pub const CAPABILITY_RELATION: &str = "rey.capabilities";
 pub const CAPABILITY_SCHEMA_VERSION: &str = "1";
 pub const LOCAL_PROVIDER_REVISION: u64 = 1;
+pub const DISCOVERY_SEED_PROVIDER_ID: &str = "rey.discovery-seed";
+pub const DISCOVERY_SEED_SCHEMA: &str = "rey.discovery-seeds.v1";
+pub const DISCOVERY_SEED_NAMES: [&str; 3] = ["HOME", "PWD", "PATH"];
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -342,7 +346,25 @@ fn canonical_arrays<'a>(
 pub struct LocalDiscovery {
     pub workspace: PathBuf,
     pub search_paths: Vec<PathBuf>,
+    pub seed_values: BTreeMap<String, OsString>,
     pub limits: DiscoveryLimits,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DiscoverySeedProvenance {
+    pub schema: String,
+    pub name: String,
+    pub value: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DiscoveryApplicationProvenance {
+    pub schema: String,
+    pub name: String,
+    pub purpose: String,
+    pub required: bool,
+    pub potential_capabilities: Vec<String>,
+    pub search_path_count: u64,
 }
 
 impl LocalDiscovery {
@@ -350,9 +372,14 @@ impl LocalDiscovery {
         let search_paths = std::env::var_os("PATH")
             .map(|path| std::env::split_paths(&path).collect())
             .unwrap_or_default();
+        let seed_values = DISCOVERY_SEED_NAMES
+            .into_iter()
+            .filter_map(|name| std::env::var_os(name).map(|value| (name.to_owned(), value)))
+            .collect();
         Self {
             workspace,
             search_paths,
+            seed_values,
             limits,
         }
     }
@@ -373,6 +400,13 @@ impl LocalDiscovery {
             workspace_capability(&workspace),
             source_search_capability(&workspace),
         ];
+        for name in DISCOVERY_SEED_NAMES {
+            capabilities.push(discovery_seed_capability(
+                name,
+                self.seed_values.get(name).map(OsString::as_os_str),
+                self.limits.max_capture_bytes,
+            )?);
+        }
         for adapter in TOOL_ADAPTERS {
             capabilities.push(self.inspect_tool(adapter, &workspace, started));
         }
@@ -385,14 +419,21 @@ impl LocalDiscovery {
         workspace: &Path,
         started: Instant,
     ) -> CapabilityRecord {
+        let search_path_count = self.search_paths.len() as u64;
         let Some(program) = resolve_executable(adapter.name, &self.search_paths) else {
-            return unavailable_tool(adapter, "not_found", "not found in configured search paths");
+            return unavailable_tool(
+                adapter,
+                search_path_count,
+                "not_found",
+                "not found in configured search paths",
+            );
         };
         let total = Duration::from_millis(self.limits.total_timeout_ms);
         let Some(remaining) = total.checked_sub(started.elapsed()) else {
             return error_tool(
                 adapter,
                 &program,
+                search_path_count,
                 "discovery_deadline",
                 "total discovery deadline elapsed",
             );
@@ -410,18 +451,21 @@ impl LocalDiscovery {
             Ok(output) if output.timed_out => error_tool(
                 adapter,
                 &program,
+                search_path_count,
                 "probe_timeout",
                 "identity probe exceeded its deadline",
             ),
             Ok(output) if output.overflowed => error_tool(
                 adapter,
                 &program,
+                search_path_count,
                 "probe_output_limit",
                 "identity probe exceeded its capture limit",
             ),
             Ok(output) if !output.status.success() => error_tool(
                 adapter,
                 &program,
+                search_path_count,
                 "probe_nonzero",
                 &format!(
                     "identity probe exited with {}",
@@ -429,10 +473,22 @@ impl LocalDiscovery {
                 ),
             ),
             Ok(output) => match parse_version(&output.stdout) {
-                Ok(version) => available_tool(adapter, &program, version),
-                Err(detail) => error_tool(adapter, &program, "probe_malformed", detail),
+                Ok(version) => available_tool(adapter, &program, version, search_path_count),
+                Err(detail) => error_tool(
+                    adapter,
+                    &program,
+                    search_path_count,
+                    "probe_malformed",
+                    detail,
+                ),
             },
-            Err(error) => error_tool(adapter, &program, "probe_failed", &error.to_string()),
+            Err(error) => error_tool(
+                adapter,
+                &program,
+                search_path_count,
+                "probe_failed",
+                &error.to_string(),
+            ),
         }
     }
 }
@@ -440,6 +496,8 @@ impl LocalDiscovery {
 struct ToolAdapter {
     name: &'static str,
     capability_id: &'static str,
+    purpose: &'static str,
+    required: bool,
     args: &'static [&'static str],
 }
 
@@ -447,14 +505,93 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     ToolAdapter {
         name: "git",
         capability_id: "tool.git.identity",
+        purpose: "Inspect repository identity and activation inputs",
+        required: false,
         args: &["--version"],
     },
     ToolAdapter {
         name: "rg",
         capability_id: "tool.ripgrep.identity",
+        purpose: "Extend bounded source mining with fast text search",
+        required: false,
         args: &["--version"],
     },
 ];
+
+fn discovery_seed_capability(
+    name: &str,
+    value: Option<&OsStr>,
+    max_capture_bytes: u64,
+) -> Result<CapabilityRecord, DiscoveryError> {
+    let (availability, captured_value, content_digest, error_code) = match value {
+        None => (Availability::Unavailable, None, None, None),
+        Some(value) => match value.to_str() {
+            None => (
+                Availability::Error,
+                None,
+                None,
+                Some("seed_not_utf8".to_owned()),
+            ),
+            Some(value) if value.len() as u64 > max_capture_bytes => (
+                Availability::Error,
+                None,
+                None,
+                Some("seed_capture_limit".to_owned()),
+            ),
+            Some(value) => {
+                let mut hasher = SemanticHasher::new("rey.discovery-seed-value.v1");
+                hasher.add_str(name);
+                hasher.add_str(value);
+                (
+                    Availability::Available,
+                    Some(value.to_owned()),
+                    Some(hasher.finish().to_string()),
+                    None,
+                )
+            }
+        },
+    };
+    let provenance = DiscoverySeedProvenance {
+        schema: DISCOVERY_SEED_SCHEMA.to_owned(),
+        name: name.to_owned(),
+        value: captured_value,
+    };
+    Ok(CapabilityRecord {
+        provider_id: DISCOVERY_SEED_PROVIDER_ID.to_owned(),
+        provider_revision: LOCAL_PROVIDER_REVISION,
+        provider_kind: "process_discovery".to_owned(),
+        capability_id: format!("env.seed.{}", name.to_ascii_lowercase()),
+        capability_kind: "environment_seed".to_owned(),
+        resolved_location: Some(format!("env://{name}")),
+        version: Some(DISCOVERY_SEED_SCHEMA.to_owned()),
+        content_digest,
+        provenance: Some(serde_json::to_string(&provenance)?),
+        availability,
+        trust_class: TrustClass::DiscoveredLocal,
+        operations: vec!["observe_seed_value".to_owned()],
+        enforced_limits: vec![
+            "fixed_seed_set".to_owned(),
+            format!("max_bytes={max_capture_bytes}"),
+            "no_shell_profile_loading".to_owned(),
+        ],
+        unsupported_limits: Vec::new(),
+        observed_at: None,
+        error_code,
+        error_detail: None,
+    })
+}
+
+fn application_provenance(adapter: &ToolAdapter, search_path_count: u64) -> String {
+    serde_json::json!(DiscoveryApplicationProvenance {
+        schema: "rey.discovery-application.v1".to_owned(),
+        name: adapter.name.to_owned(),
+        purpose: adapter.purpose.to_owned(),
+        required: adapter.required,
+        potential_capabilities: vec![adapter.capability_id.to_owned()],
+        search_path_count,
+    })
+    .to_string()
+}
 
 fn builtin_capability() -> CapabilityRecord {
     CapabilityRecord {
@@ -546,7 +683,12 @@ fn source_search_capability(workspace: &Path) -> CapabilityRecord {
     }
 }
 
-fn available_tool(adapter: &ToolAdapter, program: &Path, version: String) -> CapabilityRecord {
+fn available_tool(
+    adapter: &ToolAdapter,
+    program: &Path,
+    version: String,
+    search_path_count: u64,
+) -> CapabilityRecord {
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
         provider_revision: LOCAL_PROVIDER_REVISION,
@@ -556,7 +698,7 @@ fn available_tool(adapter: &ToolAdapter, program: &Path, version: String) -> Cap
         resolved_location: Some(program.display().to_string()),
         version: Some(version),
         content_digest: None,
-        provenance: Some("configured_search_path_and_fixed_version_probe".to_owned()),
+        provenance: Some(application_provenance(adapter, search_path_count)),
         availability: Availability::Available,
         trust_class: TrustClass::DiscoveredLocal,
         operations: vec!["inspect_identity".to_owned()],
@@ -573,17 +715,43 @@ fn available_tool(adapter: &ToolAdapter, program: &Path, version: String) -> Cap
     }
 }
 
-fn unavailable_tool(adapter: &ToolAdapter, code: &str, detail: &str) -> CapabilityRecord {
-    failed_tool(adapter, None, Availability::Unavailable, code, detail)
+fn unavailable_tool(
+    adapter: &ToolAdapter,
+    search_path_count: u64,
+    code: &str,
+    detail: &str,
+) -> CapabilityRecord {
+    failed_tool(
+        adapter,
+        None,
+        search_path_count,
+        Availability::Unavailable,
+        code,
+        detail,
+    )
 }
 
-fn error_tool(adapter: &ToolAdapter, program: &Path, code: &str, detail: &str) -> CapabilityRecord {
-    failed_tool(adapter, Some(program), Availability::Error, code, detail)
+fn error_tool(
+    adapter: &ToolAdapter,
+    program: &Path,
+    search_path_count: u64,
+    code: &str,
+    detail: &str,
+) -> CapabilityRecord {
+    failed_tool(
+        adapter,
+        Some(program),
+        search_path_count,
+        Availability::Error,
+        code,
+        detail,
+    )
 }
 
 fn failed_tool(
     adapter: &ToolAdapter,
     program: Option<&Path>,
+    search_path_count: u64,
     availability: Availability,
     code: &str,
     detail: &str,
@@ -597,7 +765,7 @@ fn failed_tool(
         resolved_location: program.map(|path| path.display().to_string()),
         version: None,
         content_digest: None,
-        provenance: None,
+        provenance: Some(application_provenance(adapter, search_path_count)),
         availability,
         trust_class: TrustClass::DiscoveredLocal,
         operations: Vec::new(),
@@ -833,7 +1001,7 @@ pub enum DiscoveryError {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf, time::Duration};
+    use std::{collections::BTreeMap, ffi::OsString, fs, path::PathBuf, time::Duration};
 
     use tempfile::TempDir;
 
@@ -849,13 +1017,14 @@ mod tests {
         let snapshot = LocalDiscovery {
             workspace: workspace.path().to_owned(),
             search_paths: Vec::new(),
+            seed_values: BTreeMap::new(),
             limits: DiscoveryLimits::default(),
         }
         .inspect()
         .unwrap();
 
         assert_eq!(snapshot.profile, "standalone");
-        assert_eq!(snapshot.capabilities.len(), 5);
+        assert_eq!(snapshot.capabilities.len(), 8);
         assert_eq!(
             snapshot
                 .capabilities
@@ -864,7 +1033,7 @@ mod tests {
                 .count(),
             3
         );
-        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 5);
+        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 8);
         let source_search = snapshot
             .capabilities
             .iter()
@@ -887,11 +1056,58 @@ mod tests {
         let repeated = LocalDiscovery {
             workspace: workspace.path().to_owned(),
             search_paths: Vec::new(),
+            seed_values: BTreeMap::new(),
             limits: DiscoveryLimits::default(),
         }
         .inspect()
         .unwrap();
         assert_eq!(snapshot.semantic_digest, repeated.semantic_digest);
+    }
+
+    #[test]
+    fn process_owned_discovery_records_only_home_pwd_and_path_seeds() {
+        let workspace = TempDir::new().unwrap();
+        let seed_values = [
+            ("HOME".to_owned(), OsString::from("/home/operator")),
+            ("PWD".to_owned(), OsString::from("/workspace/project")),
+            ("PATH".to_owned(), OsString::from("/bin:/usr/bin")),
+            ("SPOKE_TOKEN".to_owned(), OsString::from("must-not-be-read")),
+        ]
+        .into_iter()
+        .collect();
+        let snapshot = LocalDiscovery {
+            workspace: workspace.path().to_owned(),
+            search_paths: Vec::new(),
+            seed_values,
+            limits: DiscoveryLimits::default(),
+        }
+        .inspect()
+        .unwrap();
+
+        let seeds = snapshot
+            .capabilities
+            .iter()
+            .filter(|row| row.capability_kind == "environment_seed")
+            .collect::<Vec<_>>();
+        assert_eq!(seeds.len(), 3);
+        assert!(
+            seeds
+                .iter()
+                .all(|row| row.provider_id == "rey.discovery-seed")
+        );
+        assert!(seeds.iter().all(|row| {
+            !row.provenance
+                .as_deref()
+                .unwrap_or_default()
+                .contains("SPOKE")
+        }));
+        assert_eq!(
+            seeds
+                .iter()
+                .map(|row| row.capability_id.as_str())
+                .collect::<Vec<_>>(),
+            ["env.seed.home", "env.seed.path", "env.seed.pwd"]
+        );
     }
 
     #[test]

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveAgentIndex,
   derivePortfolioMetrics,
+  operatorMailboxRows,
   scenarioPercent,
   shortDigest,
   sourceCommitUrl,
@@ -106,6 +107,40 @@ describe("portfolio projection", () => {
     expect(workloadJourney(summary("inconclusive"))).toBe("RESTORE EVIDENCE");
     expect(workloadJourney(summary("stale"))).toBe("RETEST");
     expect(workloadJourney(summary("qualified"))).toBe("RUN COMPLETE");
+  });
+
+  it("keeps policy-excluded rows out of the live operator mailbox", () => {
+    const document = portfolio([]);
+    document.attention.rows = [
+      {
+        row_id: "ready",
+        action: "create",
+        subject_kind: "surface",
+        subject_id: "src/lib.rs",
+        reason: "unowned surface",
+        readiness: "ready",
+        evidence_ids: ["surface:1"],
+        dependency_ids: [],
+        priority: 10,
+        estimated_cost_units: 1,
+      },
+      {
+        row_id: "excluded",
+        action: "policy_excluded",
+        subject_kind: "workload",
+        subject_id: "fixture",
+        reason: "diagnostic catalog",
+        readiness: "excluded",
+        evidence_ids: [],
+        dependency_ids: [],
+        priority: 0,
+        estimated_cost_units: 0,
+      },
+    ];
+
+    expect(operatorMailboxRows(document).map((row) => row.row_id)).toEqual([
+      "ready",
+    ]);
   });
 
   it("keeps typed empty scenario coverage at zero", () => {

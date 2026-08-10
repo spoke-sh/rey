@@ -89,6 +89,9 @@ scrollable documents.
   viewport rather than causing document scroll and making the wheel ambiguous.
 - Passive revalidation may replace the source snapshot, but it cannot silently
   mutate runtime state. The UI identifies itself as live and read-only.
+- The fixed footer is a live communications channel. Its mailbox contains only
+  typed attention or revalidation failure evidence; zero messages explicitly
+  means no operator attention is requested.
 - A coordinate whose `at` revision no longer matches is stale. A coordinate
   whose identity is absent is missing. Neither may silently drift to a current
   object while retaining the old URI.
@@ -148,15 +151,16 @@ shallow boundaries, and describes the existing browser scan contracts without
 claiming server-side or runtime scheduling. Environment commit v1 has no wall
 time, so those ticks explicitly render as order-only.
 
-The global footer displays the shortened Rey implementation Git revision and
-links it through the complete revision to the canonical GitHub commit. This is
-separate from the BLAKE3 portfolio-attention identity: semantic evidence
-digests must never be presented as source commits.
+The global footer displays a typed-attention mailbox, chevrons that reveal its
+bottom sheet, and the shortened Rey implementation Git revision linked through
+the complete revision to the canonical GitHub commit. This is separate from
+the BLAKE3 portfolio-attention identity: semantic evidence digests must never
+be presented as source commits.
 
 The Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
 counts, portfolio attention, and mapped-surface coverage counts. The separate
-`/environment` route now consumes `rey.environment-status.v4` and renders its
+`/environment` route now consumes `rey.environment-status.v5` and renders its
 exact variable, application, input, and reference operator projection. Agent
 neighborhoods are derived from exact workload generation provenance;
 unassigned creation requests do not become fabricated agents. The Explorer

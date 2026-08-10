@@ -55,7 +55,7 @@ export interface EnvironmentReferenceObservation {
 }
 
 export interface EnvironmentOperatorProjection {
-  schema: "rey.environment-operator-projection.v2";
+  schema: "rey.environment-operator-projection.v3";
   source_label: string;
   target_label: "WORKING";
   complete: boolean;
@@ -94,7 +94,7 @@ export interface EnvironmentApplicationInventoryCoordinate {
 }
 
 export interface EnvironmentStatus {
-  schema: "rey.environment-status.v4";
+  schema: "rey.environment-status.v5";
   head_commit_id: string | null;
   head_sequence: number | null;
   head_snapshot_id: string | null;

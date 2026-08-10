@@ -270,7 +270,7 @@ enum EnvCommand {
 
 #[derive(Clone, Debug, Args)]
 struct EnvDiscoveryArgs {
-    /// Workspace-relative environment mapping graph; defaults to rey.env.yaml when present.
+    /// Explicit workspace-relative agent-generated environment mapping resource.
     #[arg(long)]
     map: Option<PathBuf>,
 
@@ -2974,13 +2974,20 @@ fn write_env_status(
         status.staged_delta.changes.len(),
         status.unstaged_delta.changes.len()
     )?;
+    writeln!(
+        output,
+        "  Discovery seeds        HOME · PWD · PATH · process-owned"
+    )?;
     match &projection.mapping {
         Some(mapping) => writeln!(
             output,
-            "  Mapping                {} · {}",
+            "  Reasoning map          {} · {}",
             mapping.source_path, mapping.schema
         )?,
-        None => writeln!(output, "  Mapping                none · no rey.env.yaml")?,
+        None => writeln!(
+            output,
+            "  Reasoning map          none · no explicit --map resource"
+        )?,
     }
 
     writeln!(output)?;
@@ -3001,7 +3008,10 @@ fn write_env_status(
         ))
     )?;
     if projection.variables.is_empty() {
-        writeln!(output, "  (no variables selected by the environment map)")?;
+        writeln!(
+            output,
+            "  (no process seeds or explicit mapping variables observed)"
+        )?;
     } else {
         for variable in &projection.variables {
             write_environment_variable_diff(
@@ -3297,7 +3307,10 @@ fn write_environment_application_planes(
             inventory.source_path,
             compact_digest(&inventory.inventory_id)
         )?,
-        None => writeln!(output, "  Record                 none · no environment map")?,
+        None => writeln!(
+            output,
+            "  Record                 none · no desired applications"
+        )?,
     }
     if desired.is_empty() {
         writeln!(output, "  NONE")?;
@@ -3343,7 +3356,7 @@ fn write_environment_application_planes(
     )?;
     writeln!(
         output,
-        "  Method                 bounded PATH identity resolution · no execution"
+        "  Method                 declared adapters · bounded PATH resolution · fixed identity probes only"
     )?;
     writeln!(
         output,
@@ -3717,10 +3730,13 @@ fn write_env_log(
         match environment_snapshot_mapping(&commit.snapshot) {
             Some((source_path, schema)) => writeln!(
                 output,
-                "  Mapping                {} · {}",
+                "  Reasoning map          {} · {}",
                 source_path, schema
             )?,
-            None => writeln!(output, "  Mapping                none · no rey.env.yaml")?,
+            None => writeln!(
+                output,
+                "  Reasoning map          none · process discovery only"
+            )?,
         }
         writeln!(output, "  Message")?;
         for line in commit.message.lines() {
@@ -3815,7 +3831,10 @@ fn write_environment_transition_planes(
         ))
     )?;
     if variable_count == 0 {
-        writeln!(output, "  (no variables selected by the environment map)")?;
+        writeln!(
+            output,
+            "  (no process seeds or explicit mapping variables observed)"
+        )?;
     } else {
         for variable in projection
             .variables
@@ -4106,11 +4125,14 @@ fn mapping_counts(snapshot: &CapabilitySnapshot) -> MappingCounts {
 fn write_mapping_summary(output: &mut impl Write, snapshot: &CapabilitySnapshot) -> io::Result<()> {
     let counts = mapping_counts(snapshot);
     if counts.graphs == 0 {
-        writeln!(output, "  Mapping                none · no rey.env.yaml")
+        writeln!(
+            output,
+            "  Reasoning map          none · process discovery only"
+        )
     } else {
         writeln!(
             output,
-            "  Mapping                {} {} · {} {} · {} {} · {} {} · {} {}",
+            "  Reasoning map          {} {} · {} {} · {} {} · {} {} · {} {}",
             counts.graphs,
             plural(counts.graphs, "graph", "graphs"),
             counts.variables,
@@ -4129,7 +4151,7 @@ fn write_mapping_summary(output: &mut impl Write, snapshot: &CapabilitySnapshot)
         {
             writeln!(
                 output,
-                "  Mapping graph          {} · {}",
+                "  Reasoning graph        {} · {}",
                 graph.resolved_location.as_deref().unwrap_or("unknown"),
                 graph.content_digest.as_deref().unwrap_or("unbound")
             )?;

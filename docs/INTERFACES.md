@@ -32,6 +32,9 @@ hard-cuts the mapping graph to `rey.env-map.v3` and separates exact desired
 application inventory from bounded search records.
 ADR 0030 adds partially ordered cadence lanes, a provenance-derived agent
 registry, and exact matrix-style Explorer coordinates.
+ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
+explicit agent-map input, establishes locator survey as the next boundary, and
+turns the footer into a live typed-attention mailbox.
 
 ## Interface Principles
 
@@ -223,7 +226,7 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 
 `status` is the single environment inventory and revision view. It performs a
 fresh observation, retains the complete working snapshot in
-`rey.environment-status.v4`, and derives one typed variable, application,
+`rey.environment-status.v5`, and derives one typed variable, application,
 input, and reference projection over `HEAD → INDEX → WORKING`. Human output
 leads with the env-shaped `HEAD → WORKING` variable diff, the exact desired
 application inventory record, and the complete bounded search record while
@@ -238,7 +241,7 @@ three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
 the exact application-declaration identity as `DESIRED INVENTORY`, then the
 exact target capability snapshot as `SEARCH RECORD`. The authoritative
 capability assessment remains in the coordinate header; JSON is
-`rey.environment-diff.v3` and does not replace the typed capability delta with
+`rey.environment-diff.v4` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the
 verified retained index to the linear history at
 `${workspace}/.rey/env/state.json` by default. `log` is newest-first; `-n`
@@ -248,11 +251,13 @@ The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 `${workspace}/.rey/env/index.json` by default. Plain human history is a compact
 revision/evidence/environment/change/mapping/message chronology; patch mode
 adds directed variables, application search, inputs, and topology. Explicit JSON uses
-`rey.environment-status.v4`, `rey.environment-commit-result.v1`, and
+`rey.environment-status.v5`, `rey.environment-commit-result.v1`, and
 `rey.environment-log.v1`.
 
-By convention, observation also loads `rey.env.yaml`; `--map` selects another
-workspace-relative regular YAML file. `rey.env-map.v3` is a closed, bounded
+Discovery always records the process-owned `HOME`, `PWD`, and `PATH` seeds and
+the compiled desired-adapter inventory. It loads no project configuration by
+convention. `--map` explicitly selects an agent-generated workspace-relative
+regular YAML resource. `rey.env-map.v3` is a closed, bounded
 graph of variable, file, and desired executable nodes plus declared reference
 edges. Every desired executable records why it belongs in the inventory.
 Mapped file bytes are not retained. Sensitive variables are presence-only.
@@ -824,9 +829,13 @@ are embedded into the binary, authored presentation is extracted from StyleX
 modules into a layered atomic stylesheet, and browser responses carry
 restrictive security headers.
 
-The footer shortens the implementation revision only for presentation. Its
-GitHub link uses the complete 40- or 64-hex Git object id; BLAKE3 attention and
-snapshot identities are not linked as commits.
+The fixed footer is the live operator communications channel. Its mailbox
+count and bottom sheet derive from typed portfolio-attention rows and passive
+revalidation failures; an empty sheet states that no operator attention is
+requested. It never invents heartbeat messages. Center chevrons reveal or
+hide the sheet. The footer shortens the implementation revision only for
+presentation, and its GitHub link uses the complete 40- or 64-hex Git object
+id; BLAKE3 attention and snapshot identities are not linked as commits.
 
 The Refresh control does not exist. Mounted application state passively reloads
 the read-only portfolio and environment delta every five seconds without

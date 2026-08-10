@@ -56,9 +56,10 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "REY ENV · EMPTY → WORKING",
         "State                  UNBORN",
         "Admission              0 staged",
-        "Mapping                none · no rey.env.yaml",
-        "ENVIRONMENT VARIABLES · 0 tracked · 0 changed",
-        "APPLICATIONS · 0 searched",
+        "Discovery seeds        HOME · PWD · PATH · process-owned",
+        "Reasoning map          none · no explicit --map resource",
+        "ENVIRONMENT VARIABLES · 3 tracked · 3 changed",
+        "APPLICATIONS · 2 searched",
         "No environment commits yet; add the working environment before committing.",
     ] {
         assert!(
@@ -168,8 +169,8 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "REY ENV · ENV@1 → WORKING",
         "State                  CHANGED",
         "Admission              0 staged · 1 working capability changes",
-        "ENVIRONMENT VARIABLES · 0 tracked · 0 changed",
-        "APPLICATIONS · 0 searched",
+        "ENVIRONMENT VARIABLES · 3 tracked · 0 changed",
+        "APPLICATIONS · 2 searched",
     ] {
         assert!(
             changed.contains(evidence),
@@ -193,9 +194,9 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "View                   UNSTAGED",
         "Evidence               DIFFERENT · 1 authoritative capability change",
         "01 / DIRECTED TEXT",
-        "Environment variables · 0 tracked · 0 changed",
+        "Environment variables · 3 tracked · 0 changed",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 0 searched · 0 found · 0 not found · 0 errors · 0 changed",
+        "APPLICATIONS · 2 searched",
         "REFERENCE PLANE",
         "Inputs and topology",
     ] {
@@ -266,7 +267,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "2 total · 2 shown · newest first",
         "Revision               ENV@2 · parent ENV@1",
         "Evidence               ENV@1 → ENV@2 · DIFFERENT · 1 authoritative capability change",
-        "Environment            0 variables · 0 applications · 0 inputs · 0 references · complete",
+        "Environment            3 variables · 2 applications · 0 inputs · 0 references · complete",
         "Changes                0 variables · 0 applications · 0 inputs · 0 references",
         "Message\n      stage fixture",
     ] {
@@ -485,12 +486,44 @@ edges:
         ("REY_SECRET", "never-retain-this-secret"),
     ];
 
+    let process_only = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "status",
+            "--format",
+            "json",
+        ],
+        &variables,
+    );
+    assert!(process_only.status.success());
+    let process_only: Value = serde_json::from_slice(&process_only.stdout).unwrap();
+    assert!(process_only["operator"]["mapping"].is_null());
+    assert!(
+        process_only["operator"]["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|variable| variable["working"]["name"] != "REY_MODE"
+                && variable["working"]["name"] != "REY_SECRET")
+    );
+    assert!(
+        process_only["operator"]["applications"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|application| application["working"]["name"] != "rey-map-probe")
+    );
+
     let inspected = run_rey_with_env(
         &[
             "env",
             "--workspace",
             workspace_path,
             "status",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "json",
         ],
@@ -562,7 +595,7 @@ edges:
     );
     assert_eq!(
         status_document["operator"]["schema"],
-        "rey.environment-operator-projection.v2"
+        "rey.environment-operator-projection.v3"
     );
     assert_eq!(
         status_document["operator"]["application_inventory"]["working"]["schema"],
@@ -580,6 +613,8 @@ edges:
             "--workspace",
             workspace_path,
             "status",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "table",
         ],
@@ -589,18 +624,18 @@ edges:
     let status = String::from_utf8(status.stdout).unwrap();
     for evidence in [
         "REY ENV · EMPTY → WORKING",
-        "Mapping                rey.env.yaml · rey.env-map.v3",
-        "ENVIRONMENT VARIABLES · 2 tracked · 2 changed",
+        "Reasoning map          rey.env.yaml · rey.env-map.v3",
+        "ENVIRONMENT VARIABLES · 5 tracked · 5 changed",
         "+ REY_MODE=development-mode-value",
         "+ REY_SECRET=<present:redacted>",
         "02 / BOUNDED SEARCH",
-        "DESIRED INVENTORY · 2 declared",
+        "DESIRED INVENTORY · 4 declared",
         "probe                  rey-map-probe · required · source.search",
         "Purpose              Search the bounded fixture corpus",
         "SEARCH RECORD · WORKING @",
-        "Method                 bounded PATH identity resolution · no execution",
-        "APPLICATIONS · 2 searched",
-        "FOUND 1",
+        "Method                 declared adapters · bounded PATH resolution · fixed identity probes only",
+        "APPLICATIONS · 4 searched",
+        "FOUND 3",
         "rey-map-probe",
         "SEARCHED, NOT FOUND 1",
         "rey-definitely-missing",
@@ -618,6 +653,8 @@ edges:
             "--workspace",
             workspace_path,
             "add",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "json",
         ],
@@ -648,6 +685,8 @@ edges:
             "--workspace",
             workspace_path,
             "diff",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "table",
         ],
@@ -660,14 +699,14 @@ edges:
         "REY ENV DIFF · INDEX → WORKING",
         "View                   UNSTAGED",
         "01 / DIRECTED TEXT",
-        "Environment variables · 2 tracked · 1 changed",
+        "Environment variables · 5 tracked · 1 changed",
         "@@ INDEX → WORKING",
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "  REY_SECRET=<present:redacted>",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
-        "FOUND 1",
+        "APPLICATIONS · 4 searched · 3 found · 1 not found · 0 errors · 0 changed",
+        "FOUND 3",
         "rey-map-probe",
         "SEARCHED, NOT FOUND 1",
         "rey-definitely-missing",
@@ -695,6 +734,8 @@ edges:
             "--workspace",
             workspace_path,
             "diff",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "json",
         ],
@@ -703,7 +744,7 @@ edges:
     assert!(diff.status.success());
     assert!(diff.stderr.is_empty());
     let diff: EnvironmentDiff = serde_json::from_slice(&diff.stdout).unwrap();
-    assert_eq!(diff.schema, "rey.environment-diff.v3");
+    assert_eq!(diff.schema, "rey.environment-diff.v4");
     assert!(diff.delta.changes.iter().any(|change| {
         change.key.capability_id == "env.mapping.node.mode"
             && change.changed_fields.contains(&"content_digest".to_owned())
@@ -726,6 +767,8 @@ edges:
             "--workspace",
             workspace_path,
             "add",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "json",
         ],
@@ -738,6 +781,8 @@ edges:
             "--workspace",
             workspace_path,
             "diff",
+            "--map",
+            "rey.env.yaml",
             "--staged",
             "--format",
             "table",
@@ -791,9 +836,9 @@ edges:
         "REY ENV LOG",
         "Revision               ENV@2 · parent ENV@1",
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
-        "Environment            2 variables · 2 applications · 1 input · 2 references · complete",
+        "Environment            5 variables · 4 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
-        "Mapping                rey.env.yaml · rey.env-map.v3",
+        "Reasoning map          rey.env.yaml · rey.env-map.v3",
         "Message\n      update mapped environment",
     ] {
         assert!(
@@ -827,7 +872,7 @@ edges:
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
+        "APPLICATIONS · 4 searched · 3 found · 1 not found · 0 errors · 0 changed",
         "REFERENCE PLANE",
         "INPUTS · 1 tracked · 1 changed",
         "- input.txt · required",
@@ -874,6 +919,8 @@ edges:
             "--workspace",
             workspace_path,
             "status",
+            "--map",
+            "rey.env.yaml",
             "--format",
             "json",
         ],
@@ -925,9 +972,16 @@ nodes:
     .unwrap();
 
     assert!(
-        run_rey(&["env", "--workspace", workspace_path, "add"])
-            .status
-            .success()
+        run_rey(&[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--map",
+            "rey.env.yaml",
+        ])
+        .status
+        .success()
     );
     assert!(
         run_rey(&[
@@ -950,6 +1004,8 @@ nodes:
         workspace_path,
         "add",
         "-p",
+        "--map",
+        "rey.env.yaml",
         "--format",
         "json",
     ]);
@@ -958,7 +1014,15 @@ nodes:
     assert!(String::from_utf8_lossy(&invalid_format.stderr).contains("requires human table"));
 
     let partial = run_rey_with_stdin_env(
-        &["env", "--workspace", workspace_path, "add", "-p"],
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "-p",
+            "--map",
+            "rey.env.yaml",
+        ],
         "y\nn\n",
         &[],
     );
@@ -979,6 +1043,8 @@ nodes:
         "--workspace",
         workspace_path,
         "status",
+        "--map",
+        "rey.env.yaml",
         "--format",
         "json",
     ]);
@@ -1014,6 +1080,8 @@ nodes:
         "--workspace",
         workspace_path,
         "status",
+        "--map",
+        "rey.env.yaml",
         "--format",
         "json",
     ]);
@@ -1356,7 +1424,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(response.contains("\"theme\":\"precision\""));
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
-    assert!(environment.contains("\"schema\":\"rey.environment-status.v4\""));
+    assert!(environment.contains("\"schema\":\"rey.environment-status.v5\""));
     let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
     assert!(cadence.starts_with("HTTP/1.1 200"));
     assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
@@ -2071,6 +2139,8 @@ edges: []
         "--workspace",
         workspace_path,
         "add",
+        "--map",
+        "rey.env.yaml",
         "--format",
         "json",
     ]);

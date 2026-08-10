@@ -139,6 +139,10 @@ export interface PortfolioMetrics {
   runsPending: number;
 }
 
+export function operatorMailboxRows(portfolio: WorkloadList): AttentionRow[] {
+  return portfolio.attention.rows.filter((row) => row.readiness !== "excluded");
+}
+
 export function derivePortfolioMetrics(
   portfolio: WorkloadList,
 ): PortfolioMetrics {

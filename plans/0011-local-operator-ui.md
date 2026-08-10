@@ -3,7 +3,8 @@
 - Status: Active
 - Decisions: [ADR 0025](../docs/decisions/0025-local-operator-ui.md),
   [ADR 0026](../docs/decisions/0026-context-topology-explorer.md),
-  [ADR 0030](../docs/decisions/0030-operator-cadence-agents-and-explorer-coordinates.md)
+  [ADR 0030](../docs/decisions/0030-operator-cadence-agents-and-explorer-coordinates.md),
+  [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md)
 
 ## Outcome
 
@@ -75,6 +76,9 @@ records shareable without becoming runtime authority.
   visible stale/missing resolution.
 - [x] Keep the coordinate rail fixed beneath the header and advance its exact
   numbered section coordinate as the operator scrolls through a route.
+- [x] Make the global footer a fixed live communications channel with a typed
+  attention mailbox, subtle count, quiet state, revalidation failures, sliding
+  bottom sheet, and exact implementation revision.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 

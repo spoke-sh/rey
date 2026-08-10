@@ -1,8 +1,4 @@
-import {
-  getKineticMaterialStyle,
-  kineticGrammar,
-  kineticThemeMaterials,
-} from "@hifi/kinetic";
+import { getKineticMaterialStyle, kineticThemeMaterials } from "@hifi/kinetic";
 import {
   Link,
   Outlet,
@@ -29,6 +25,7 @@ import {
 } from "./api";
 import { CadencePage } from "./cadence";
 import {
+  operatorMailboxRows,
   scenarioPercent,
   shortDigest,
   sourceCommitUrl,
@@ -53,9 +50,6 @@ import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
 const precision = kineticThemeMaterials.precision;
-const precisionTheme = kineticGrammar.themes.find(
-  (theme) => theme.name === "precision",
-);
 const PortfolioContext = createContext<OperatorContext | null>(null);
 
 function usePassiveDocument<T>(initialDocument: T, load: () => Promise<T>) {
@@ -82,10 +76,12 @@ function usePortfolio(): OperatorContext {
 
 function RootLayout() {
   const initialPortfolio = rootRoute.useLoaderData();
-  const { document: portfolio } = usePassiveDocument(
+  const { document: portfolio, error: portfolioError } = usePassiveDocument(
     initialPortfolio,
     loadPortfolio,
   );
+  const [communicationsOpen, setCommunicationsOpen] = useState(false);
+  const mailbox = operatorMailboxRows(portfolio);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -201,6 +197,13 @@ function RootLayout() {
 
         <Outlet />
 
+        <CommunicationsPanel
+          error={portfolioError}
+          open={communicationsOpen}
+          portfolio={portfolio}
+          onClose={() => setCommunicationsOpen(false)}
+        />
+
         <footer
           className={sx(
             styles.micro,
@@ -208,11 +211,46 @@ function RootLayout() {
             pathname.startsWith("/explore") && styles.viewportFixed,
           )}
         >
-          <span>
-            HIFI / {kineticGrammar.label.toUpperCase()} /{" "}
-            {precisionTheme?.label.toUpperCase()}
-          </span>
-          <span>TICK → GRAPH → SCENARIO → DELTA → ATTENTION</span>
+          <button
+            aria-controls="rey-communications"
+            aria-expanded={communicationsOpen}
+            className={sx(
+              styles.focusable,
+              styles.footerButton,
+              styles.footerMailbox,
+            )}
+            onClick={() => setCommunicationsOpen(true)}
+            type="button"
+          >
+            <span>MAILBOX</span>
+            <span
+              className={sx(
+                styles.mailboxCount,
+                (mailbox.length > 0 || portfolioError) &&
+                  styles.mailboxCountActive,
+              )}
+            >
+              {mailbox.length + (portfolioError ? 1 : 0)}
+            </span>
+          </button>
+          <button
+            aria-controls="rey-communications"
+            aria-expanded={communicationsOpen}
+            aria-label={
+              communicationsOpen
+                ? "Close runtime communications"
+                : "Open runtime communications"
+            }
+            className={sx(
+              styles.focusable,
+              styles.footerButton,
+              styles.communicationToggle,
+            )}
+            onClick={() => setCommunicationsOpen((open) => !open)}
+            type="button"
+          >
+            {communicationsOpen ? "⌄ ⌄ ⌄" : "⌃ ⌃ ⌃"}
+          </button>
           <ImplementationLink
             repository={portfolio.ui_server.source_repository}
             revision={portfolio.ui_server.implementation_revision}
@@ -220,6 +258,93 @@ function RootLayout() {
         </footer>
       </div>
     </PortfolioContext.Provider>
+  );
+}
+
+function CommunicationsPanel({
+  error,
+  onClose,
+  open,
+  portfolio,
+}: {
+  error: Error | null;
+  onClose: () => void;
+  open: boolean;
+  portfolio: OperatorContext;
+}) {
+  const messages = operatorMailboxRows(portfolio);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, open]);
+
+  return (
+    <aside
+      aria-hidden={!open}
+      aria-label="Runtime communications"
+      className={sx(
+        styles.communicationsPanel,
+        open && styles.communicationsPanelOpen,
+      )}
+      id="rey-communications"
+    >
+      <header className={sx(styles.communicationsHeader)}>
+        <div>
+          <p className={sx(styles.micro, styles.sectionKicker)}>
+            LIVE / OPERATOR CHANNEL
+          </p>
+          <h2 className={sx(styles.sectionTitle)}>Mailbox</h2>
+        </div>
+        <div className={sx(styles.communicationsCoordinate)}>
+          <span className={sx(styles.micro, styles.muted)}>
+            ATTENTION / {shortDigest(portfolio.attention.attention_id)}
+          </span>
+          <span className={sx(styles.micro)}>
+            {messages.length + (error ? 1 : 0)} UNREAD
+          </span>
+        </div>
+      </header>
+      <div className={sx(styles.communicationsBody)} aria-live="polite">
+        {error ? (
+          <article className={sx(styles.communicationMessage)}>
+            <span className={sx(styles.micro, styles.toneWarning)}>
+              REVALIDATION DELAYED
+            </span>
+            <strong>Portfolio projection</strong>
+            <p>{error.message}</p>
+          </article>
+        ) : null}
+        {messages.map((message) => (
+          <article
+            className={sx(styles.communicationMessage)}
+            key={message.row_id}
+          >
+            <span className={sx(styles.micro, styles.communicationAction)}>
+              {message.action} / {message.readiness}
+            </span>
+            <strong>
+              {message.subject_kind} / {message.subject_id}
+            </strong>
+            <p>{message.reason}</p>
+            <small className={sx(styles.micro, styles.muted)}>
+              PRIORITY {message.priority} · {message.evidence_ids.length}{" "}
+              EVIDENCE · {message.dependency_ids.length} DEPENDENCIES
+            </small>
+          </article>
+        ))}
+        {!error && messages.length === 0 ? (
+          <div className={sx(styles.communicationsQuiet)}>
+            <span className={sx(styles.micro)}>NO NEWS</span>
+            <strong>No operator attention is requested.</strong>
+            <p>Rey continues to observe the live cadence.</p>
+          </div>
+        ) : null}
+      </div>
+    </aside>
   );
 }
 
@@ -270,8 +395,8 @@ function EnvironmentPage() {
               )}
               title={refreshError?.message}
             >
-              {projection.mapping?.source_path ?? "NO MAP"} ·{" "}
-              {projection.mapping?.schema ?? "UNMAPPED"} ·{" "}
+              {projection.mapping?.source_path ?? "PROCESS SEEDS"} ·{" "}
+              {projection.mapping?.schema ?? "REY.DISCOVERY-SEEDS.V1"} ·{" "}
               {refreshError
                 ? "REVALIDATION DELAYED"
                 : projection.complete
@@ -361,7 +486,7 @@ function EnvironmentPage() {
             {shortDigest(status.working_snapshot.semantic_digest)}
           </code>
           <span className={sx(styles.micro, styles.muted)}>
-            BOUNDED PATH IDENTITY RESOLUTION · NO EXECUTION
+            DECLARED ADAPTERS · BOUNDED PATH RESOLUTION · FIXED IDENTITY PROBES
           </span>
         </div>
         <ApplicationGroup label="FOUND" applications={found} tone="found" />

@@ -14,7 +14,6 @@ use crate::{Availability, CapabilityRecord, TrustClass};
 
 pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v3";
 pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v3";
-pub const DEFAULT_ENVIRONMENT_MAP_FILE: &str = "rey.env.yaml";
 pub const ENVIRONMENT_MAP_PROVIDER_ID: &str = "rey.env-map";
 pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 3;
 
@@ -370,25 +369,21 @@ impl EnvironmentMapObservation {
         limits: EnvironmentMapLimits,
     ) -> Result<Option<Self>, EnvironmentMapError> {
         limits.verify()?;
+        let Some(selected_path) = selected_path else {
+            return Ok(None);
+        };
         let workspace = workspace
             .canonicalize()
             .map_err(|source| EnvironmentMapError::Path {
                 path: workspace.to_owned(),
                 source,
             })?;
-        let relative = selected_path
-            .map(Path::to_owned)
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_ENVIRONMENT_MAP_FILE));
+        let relative = selected_path.to_owned();
         validate_relative_path(&relative)?;
         let path = workspace.join(&relative);
         validate_no_symlinks(&workspace, &path)?;
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
-            Err(error)
-                if error.kind() == std::io::ErrorKind::NotFound && selected_path.is_none() =>
-            {
-                return Ok(None);
-            }
             Err(source) => return Err(EnvironmentMapError::Path { path, source }),
         };
         if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -1065,7 +1060,7 @@ pub enum EnvironmentMapError {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, ffi::OsString, fs};
+    use std::{collections::BTreeMap, ffi::OsString, fs, path::Path};
 
     use tempfile::TempDir;
 
@@ -1197,9 +1192,19 @@ edges:
             )]),
             search_paths: vec![bin],
         };
+        assert!(
+            EnvironmentMapObservation::load(
+                workspace.path(),
+                None,
+                &inputs,
+                EnvironmentMapLimits::default(),
+            )
+            .unwrap()
+            .is_none()
+        );
         let observation = EnvironmentMapObservation::load(
             workspace.path(),
-            None,
+            Some(Path::new("rey.env.yaml")),
             &inputs,
             EnvironmentMapLimits::default(),
         )
@@ -1220,7 +1225,7 @@ edges:
         fs::remove_file(workspace.path().join("input.txt")).unwrap();
         let unavailable = EnvironmentMapObservation::load(
             workspace.path(),
-            None,
+            Some(Path::new("rey.env.yaml")),
             &EnvironmentMapInputs::default(),
             EnvironmentMapLimits::default(),
         )
@@ -1254,7 +1259,7 @@ edges:
         };
         let observation = EnvironmentMapObservation::load(
             workspace.path(),
-            None,
+            Some(Path::new("rey.env.yaml")),
             &inputs,
             EnvironmentMapLimits::default(),
         )
@@ -1275,7 +1280,12 @@ edges:
             ..EnvironmentMapLimits::default()
         };
         assert!(matches!(
-            EnvironmentMapObservation::load(workspace.path(), None, &inputs, limits),
+            EnvironmentMapObservation::load(
+                workspace.path(),
+                Some(Path::new("rey.env.yaml")),
+                &inputs,
+                limits,
+            ),
             Err(EnvironmentMapError::VariableValueLimit { .. })
         ));
     }
@@ -1318,7 +1328,7 @@ edges:
             assert!(matches!(
                 EnvironmentMapObservation::load(
                     workspace.path(),
-                    None,
+                    Some(Path::new("rey.env.yaml")),
                     &EnvironmentMapInputs::default(),
                     EnvironmentMapLimits::default(),
                 ),

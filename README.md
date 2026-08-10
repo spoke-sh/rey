@@ -38,6 +38,26 @@ projection of authoritative evidence. It preserves direction, scope,
 completeness, and deep links to exact sources; color never carries unique
 meaning.
 
+## Context Lifecycle
+
+Rey keeps four phases separate:
+
+1. **Discovery** starts inside the compiled process from only `HOME`, `PWD`,
+   and `PATH`. Declared built-in adapters may perform bounded identity
+   discovery; no project configuration file or Spoke variable is assumed.
+2. **Reasoning over discovery** gives that frozen record to an agent, rule, or
+   human. A coding harness may emit an explicit `rey.env-map.v3` reasoning
+   resource describing useful variables, input files, desired applications,
+   and relationships.
+3. **Survey** uses canonical locators to anchor exact environment, worktree,
+   Git, workload, and provider objects without conflating identity with
+   retrieval or authority.
+4. **Process** incrementally consumes surveyed artifacts and independent
+   cadence ticks, derives deltas, and raises typed attention.
+
+See [Environment and Capabilities](docs/ENVIRONMENT.md),
+[Locators](docs/LOCATORS.md), and [ADR 0032](docs/decisions/0032-seed-discovery-survey-and-live-communications.md).
+
 ## The Runtime Loop
 
 ```text
@@ -266,7 +286,7 @@ yet admitted. `env diff` selects the same three environment planes for
 Its human output is directed variable text, bounded application search, then
 input/reference topology—not a generic capability patch. The header still
 reports the authoritative capability-delta assessment and change count;
-`--format json` retains the complete `rey.environment-diff.v3` evidence.
+`--format json` retains the complete `rey.environment-diff.v4` evidence.
 `env add` stages the complete working snapshot, while `env add -p` selects
 capability changes interactively.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
@@ -277,42 +297,31 @@ transition through the same directed text, bounded search, and reference
 planes. This is bounded single-process local state, not a Git object store or
 a Spoke-durable log.
 
-The checked-in [`rey.env.yaml`](rey.env.yaml) is an agent-generatable mapping
-graph describing the environment surfaces this workspace cares about:
+There is no implicit environment configuration file. Discovery always records
+the process-owned `HOME`, `PWD`, and `PATH` seed set and the current compiled
+application-adapter inventory. A coding harness may later generate a bounded
+reasoning map, and the caller supplies that resource explicitly:
 
 ```yaml
 schema: rey.env-map.v3
 nodes:
-  - id: path
-    kind: variable
-    name: PATH
-    capture: value
   - id: workspace-manifest
     kind: file
     path: Cargo.toml
     required: true
-  - id: git
+  - id: parser
     kind: executable
-    name: git
-    purpose: Inspect repository identity and activation inputs
-    required: true
-    potential_capabilities: [git.repository.inspect]
-  - id: rg
-    kind: executable
-    name: rg
-    purpose: Extend bounded source mining with fast text search
+    name: tree-sitter
+    purpose: Parse source anchors discovered during survey
     required: false
-    potential_capabilities: [source.search.literal]
-edges:
-  - from: path
-    to: git
-    relation: resolves
-  - from: path
-    to: rg
-    relation: resolves
+    potential_capabilities: [source.parse.syntax-tree]
 ```
 
-Rey parses this as a closed, bounded graph and projects it into the committed
+```sh
+rey env status --map agent.environment.yaml
+```
+
+Rey parses the explicit resource as a closed, bounded graph and projects it into the committed
 capability snapshot. Non-sensitive variables may opt into bounded UTF-8 value,
 digest, or presence capture; sensitive variables are always presence-only.
 Exact values selected with `capture: value`, bounded file identities, desired
@@ -471,6 +480,7 @@ Rey is not:
 - [Runtime](docs/RUNTIME.md) — transition machine and reasoning surfaces.
 - [Frontier](docs/FRONTIER.md) — canonical work, progress, and scheduling.
 - [Environment](docs/ENVIRONMENT.md) — providers, capabilities, and profiles.
+- [Locators](docs/LOCATORS.md) — exact survey anchors and resolution contracts.
 - [Git](docs/GIT.md) — source identity, polling, and activation.
 - [Diffs](docs/DIFFS.md) — typed, textual, and structural comparison.
 - [Proofs](docs/PROOFS.md) — claims, evidence, certificates, and staleness.
@@ -487,7 +497,8 @@ includes bounded standalone capability discovery, allowlisted `git` and `rg`
 identity probes, a partial read-only Git observation, typed capability
 snapshot deltas, Arrow and Tabular Diff projections, scoped capability
 certificates, bounded local proof bundles, verified local environment commits,
-an agent-generatable environment mapping graph, compact `status`, exact
+process-owned discovery seeds, explicit agent-generatable environment mapping
+resources, compact `status`, exact
 staged/unstaged `diff`, full and partial `add`, index-only commits, and
 patch-bearing `log`, a formal runtime reducer, canonical
 frontier/progress/scheduling contracts, bounded reasoning-surface contracts, the
@@ -534,9 +545,15 @@ surface. `/explore` is now the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
 matrix-style deep links, provenance-derived agent neighborhoods, and a
 partially ordered cadence view. Its next concrete anchor is to replace
-aggregate context counts with exact admitted environment-mapping objects before
-adding scenario and directed-delta routes with the same progressive evidence
-layers as `workloads test -v/-vv`.
+aggregate context counts with exact locator-bound survey objects before adding
+scenario and directed-delta routes with the same progressive evidence layers
+as `workloads test -v/-vv`.
+
+[Plan 0014](plans/0014-seed-discovery-and-locator-survey.md) carries the new
+context lifecycle. Process-owned seed discovery, explicit reasoning-map input,
+and the live mailbox are implemented. Its next concrete anchor is a
+dependency-light `rey-locator` crate plus high-fidelity agent CLI commands to
+generate and validate mapping resources and display exact locator anchors.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

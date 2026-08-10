@@ -12,9 +12,9 @@ describe("environment operator projection", () => {
   it("renders a directed env-shaped variable replacement with admission state", () => {
     const variable: EnvironmentObjectStatus<EnvironmentVariableObservation> = {
       object_id: "endpoint",
-      head: observation("SPOKE_ENDPOINT", "http://old"),
-      index: observation("SPOKE_ENDPOINT", "http://old"),
-      working: observation("SPOKE_ENDPOINT", "http://new"),
+      head: observation("REY_MODE", "observe"),
+      index: observation("REY_MODE", "observe"),
+      working: observation("REY_MODE", "process"),
       changes: {
         head_to_index: "unchanged",
         index_to_working: "modified",
@@ -24,15 +24,15 @@ describe("environment operator projection", () => {
 
     expect(environmentVariableDiff([variable])).toEqual([
       {
-        key: "endpoint:deleted:SPOKE_ENDPOINT=http://old",
+        key: "endpoint:deleted:REY_MODE=observe",
         kind: "deleted",
-        text: "SPOKE_ENDPOINT=http://old",
+        text: "REY_MODE=observe",
         admission: "working",
       },
       {
-        key: "endpoint:inserted:SPOKE_ENDPOINT=http://new",
+        key: "endpoint:inserted:REY_MODE=process",
         kind: "inserted",
-        text: "SPOKE_ENDPOINT=http://new",
+        text: "REY_MODE=process",
         admission: "working",
       },
     ]);

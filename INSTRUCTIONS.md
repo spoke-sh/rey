@@ -17,15 +17,17 @@ Procedural guidance for humans and agents working on Rey.
    scheduling contracts.
 8. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
    or capability admission.
-9. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
+9. `docs/LOCATORS.md` before changing locator syntax, resolution, anchors, or
+   survey behavior.
+10. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
    cursors, triggers, or workload activation.
-10. `docs/DIFFS.md` before changing frames, comparison, normalization, or
+11. `docs/DIFFS.md` before changing frames, comparison, normalization, or
    renderings.
-11. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
-12. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
-13. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
-14. `plans/README.md` and the active plans before implementation work.
-15. `docs/decisions/README.md` for accepted choices that constrain the work.
+12. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
+13. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
+14. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
+15. `plans/README.md` and the active plans before implementation work.
+16. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 
@@ -49,7 +51,8 @@ Procedural guidance for humans and agents working on Rey.
 ## Current Development Interface
 
 Rey has a pinned Nix Rust/TypeScript toolchain, an eleven-crate Cargo workspace, a
-Git-shaped `env` CLI with a bounded YAML mapping graph, verified local
+Git-shaped `env` CLI with process-owned `HOME`/`PWD`/`PATH` discovery seeds,
+explicit agent-generated mapping resources, verified local
 capability status, a `HEAD → INDEX → WORKING` admission plane, partial/full
 add, index-only commits, and patch history,
 lower-level proof and bounded local-only bundle contracts behind the runtime,
@@ -66,7 +69,8 @@ mounted browser scans on explicit partial-order clocks. `/agents` indexes exact
 generator provenance and deep-links to matrix-style Explorer coordinates. The
 UI starts from the CLI, passively revalidates the same workload-list
 derivation, defaults to loopback, and is neither a mutation plane nor a public
-Rey service. Workspace packages retain coding-harness provenance and
+Rey service. Its fixed footer is a live typed-attention mailbox; an empty
+mailbox means no operator attention is requested. Workspace packages retain coding-harness provenance and
 freeze generated scenarios at admission. The first mining workload now executes exact local
 literal search, typed match comparison, ordered line comparison, bounded
 frontier selection, and reasoning-surface projection through those commands.

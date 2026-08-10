@@ -11,7 +11,8 @@ use rey_diff::{
     compare_capabilities,
 };
 use rey_environment::{
-    Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryError, EnvironmentMapEdge,
+    Availability, CapabilityRecord, CapabilitySnapshot, DISCOVERY_SEED_PROVIDER_ID,
+    DiscoveryApplicationProvenance, DiscoveryError, DiscoverySeedProvenance, EnvironmentMapEdge,
     EnvironmentMapNode, EnvironmentMapNodeProvenance, VariableCapture,
 };
 use serde::{Deserialize, Serialize};
@@ -20,9 +21,9 @@ use thiserror::Error;
 pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
 pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
-pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v4";
-pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v3";
-pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v2";
+pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v5";
+pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v4";
+pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v3";
 pub const ENVIRONMENT_ADMISSION_INDEX_SCHEMA: &str = "rey.environment-admission-index.v1";
 pub const ENVIRONMENT_ADD_RESULT_SCHEMA: &str = "rey.environment-add-result.v1";
 pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v1";
@@ -515,11 +516,59 @@ impl MappedEnvironmentPlane {
             ..Self::default()
         };
         let mut revisions = BTreeMap::<String, u64>::new();
-        for record in snapshot
-            .capabilities
-            .iter()
-            .filter(|record| record.provider_id == "rey.env-map")
-        {
+        for record in &snapshot.capabilities {
+            if record.provider_id == DISCOVERY_SEED_PROVIDER_ID
+                && record.capability_kind == "environment_seed"
+            {
+                let provenance: DiscoverySeedProvenance =
+                    serde_json::from_str(record.provenance.as_deref().ok_or_else(|| {
+                        LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+                            "{} is missing seed provenance",
+                            record.capability_id
+                        ))
+                    })?)
+                    .map_err(|error| {
+                        LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+                            "{} seed provenance is invalid: {error}",
+                            record.capability_id
+                        ))
+                    })?;
+                let id = format!("seed-{}", provenance.name.to_ascii_lowercase());
+                plane.variables.insert(
+                    id,
+                    EnvironmentVariableObservation {
+                        name: provenance.name,
+                        sensitive: false,
+                        capture: VariableCapture::Value,
+                        availability: record.availability,
+                        value: provenance.value,
+                        value_digest: record.content_digest.clone(),
+                        error_code: record.error_code.clone(),
+                    },
+                );
+                continue;
+            }
+            if record.provider_kind == "known_tool" && record.capability_kind == "identity_probe" {
+                let provenance = discovery_application_provenance(record)?;
+                plane.applications.insert(
+                    format!("process-{}", provenance.name),
+                    EnvironmentApplicationObservation {
+                        name: provenance.name,
+                        purpose: Some(provenance.purpose),
+                        required: provenance.required,
+                        availability: record.availability,
+                        resolved_path: record.resolved_location.clone(),
+                        content_digest: record.content_digest.clone(),
+                        potential_capabilities: provenance.potential_capabilities,
+                        searched_path_count: provenance.search_path_count,
+                        error_code: record.error_code.clone(),
+                    },
+                );
+                continue;
+            }
+            if record.provider_id != "rey.env-map" {
+                continue;
+            }
             if record.capability_kind == "environment_map" {
                 if plane.mapping.is_none()
                     || revisions
@@ -656,16 +705,52 @@ impl MappedEnvironmentPlane {
                 _ => {}
             }
         }
-        plane.application_inventory = plane
-            .mapping
-            .as_ref()
-            .map(|mapping| application_inventory_coordinate(mapping, &plane.applications));
+        if !plane.applications.is_empty() {
+            let source_path = plane.mapping.as_ref().map_or_else(
+                || "rey process".to_owned(),
+                |mapping| format!("rey process + {}", mapping.source_path),
+            );
+            plane.application_inventory = Some(application_inventory_coordinate(
+                source_path,
+                &plane.applications,
+            ));
+        }
         Ok(plane)
     }
 }
 
+fn discovery_application_provenance(
+    record: &CapabilityRecord,
+) -> Result<DiscoveryApplicationProvenance, LocalEnvironmentHistoryError> {
+    if let Some(provenance) = record.provenance.as_deref()
+        && let Ok(provenance) = serde_json::from_str(provenance)
+    {
+        return Ok(provenance);
+    }
+    let (name, purpose) = match record.capability_id.as_str() {
+        "tool.git.identity" => ("git", "Inspect repository identity and activation inputs"),
+        "tool.ripgrep.identity" => ("rg", "Extend bounded source mining with fast text search"),
+        _ => {
+            return Err(LocalEnvironmentHistoryError::EnvironmentProjection(
+                format!(
+                    "{} application provenance is missing or invalid",
+                    record.capability_id
+                ),
+            ));
+        }
+    };
+    Ok(DiscoveryApplicationProvenance {
+        schema: "rey.discovery-application.v1".to_owned(),
+        name: name.to_owned(),
+        purpose: purpose.to_owned(),
+        required: false,
+        potential_capabilities: vec![record.capability_id.clone()],
+        search_path_count: 0,
+    })
+}
+
 fn application_inventory_coordinate(
-    mapping: &EnvironmentMappingCoordinate,
+    source_path: String,
     applications: &BTreeMap<String, EnvironmentApplicationObservation>,
 ) -> EnvironmentApplicationInventoryCoordinate {
     let mut hasher = SemanticHasher::new("rey.environment-application-inventory.v1");
@@ -682,7 +767,7 @@ fn application_inventory_coordinate(
     }
     EnvironmentApplicationInventoryCoordinate {
         schema: "rey.environment-application-inventory.v1".to_owned(),
-        source_path: mapping.source_path.clone(),
+        source_path,
         inventory_id: hasher.finish().to_string(),
     }
 }
@@ -1557,9 +1642,8 @@ mod tests {
 
     use super::{
         EnvironmentAdmissionIndex, EnvironmentApplicationObservation, EnvironmentLog,
-        EnvironmentMappingCoordinate, EnvironmentStatus, EnvironmentWorkingState,
-        LocalEnvironmentHistory, LocalEnvironmentHistoryError, LocalEnvironmentStore,
-        application_inventory_coordinate,
+        EnvironmentStatus, EnvironmentWorkingState, LocalEnvironmentHistory,
+        LocalEnvironmentHistoryError, LocalEnvironmentStore, application_inventory_coordinate,
     };
 
     fn snapshot(version: &str) -> rey_environment::CapabilitySnapshot {
@@ -1591,11 +1675,6 @@ mod tests {
 
     #[test]
     fn application_inventory_identity_excludes_search_outcomes() {
-        let mapping = EnvironmentMappingCoordinate {
-            source_path: "rey.env.yaml".to_owned(),
-            schema: "rey.env-map.v3".to_owned(),
-            graph_id: "blake3:mapping".to_owned(),
-        };
         let application = |availability, path: Option<&str>| EnvironmentApplicationObservation {
             name: "rg".to_owned(),
             purpose: Some("Search bounded source".to_owned()),
@@ -1617,8 +1696,8 @@ mod tests {
         )]);
 
         assert_eq!(
-            application_inventory_coordinate(&mapping, &found).inventory_id,
-            application_inventory_coordinate(&mapping, &missing).inventory_id
+            application_inventory_coordinate("rey process".to_owned(), &found).inventory_id,
+            application_inventory_coordinate("rey process".to_owned(), &missing).inventory_id
         );
     }
 

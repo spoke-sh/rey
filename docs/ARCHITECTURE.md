@@ -169,6 +169,9 @@ retains the exact catalog/detail routes. `/agents` derives exact generator
 tuples from workload provenance and locates them in the Explorer. `/cadence`
 keeps bounded Git reachability, environment sequence, and mounted browser scan
 schedules on separate clocks instead of fabricating a total event order.
+The fixed footer is a live communications channel over typed attention and
+passive-revalidation health. A quiet mailbox means no operator attention is
+requested; it is not filled with synthetic heartbeat activity.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
@@ -229,8 +232,9 @@ Scenarios](WORKLOADS.md).
 Environment awareness is provided through narrow providers rather than an
 unbounded host scan. Initial provider classes may include:
 
+- process-owned `HOME`, `PWD`, and `PATH` discovery seeds;
 - built-in Rey functions that require no external executable;
-- an agent-authored, deterministically parsed environment mapping graph for
+- an explicitly supplied, agent-authored environment mapping resource for
   relevant variables, input files, desired executable inventory, and reference
   edges;
 - an explicit local workspace with bounded filesystem access;
@@ -245,6 +249,9 @@ may use narrowly defined read-only operations such as executable resolution,
 metadata inspection, or a bounded `--version` invocation. It never executes an
 unknown file merely because it exists.
 
+Bootstrap discovery loads no project configuration and assumes no Spoke
+variable names. The frozen discovery record becomes input to agent reasoning;
+an emitted mapping resource enters observation only through explicit `--map`.
 The mapping graph is a context declaration, not a provider adapter or policy
 grant. Each desired executable declares why it belongs in the inventory. An
 exact semantic identity over those declarations is the inventory record; the

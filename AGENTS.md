@@ -42,13 +42,14 @@ exists.
 8. `docs/RUNTIME.md`
 9. `docs/FRONTIER.md`
 10. `docs/ENVIRONMENT.md`
-11. `docs/GIT.md`
-12. `docs/DIFFS.md`
-13. `docs/PROOFS.md`
-14. `docs/INTERFACES.md`
-15. `docs/DEVELOPMENT.md`
-16. `plans/README.md` and the active plans
-17. `docs/decisions/README.md`
+11. `docs/LOCATORS.md`
+12. `docs/GIT.md`
+13. `docs/DIFFS.md`
+14. `docs/PROOFS.md`
+15. `docs/INTERFACES.md`
+16. `docs/DEVELOPMENT.md`
+17. `plans/README.md` and the active plans
+18. `docs/decisions/README.md`
 
 ## Core Principles
 
@@ -118,6 +119,13 @@ exists.
   landscape aggregate with neighborhoods and then exact objects, but it cannot
   change source truth, silently widen scope, hide projection omissions, or
   imply a relationship that is not present in typed evidence.
+- Keep the operator UI live. Passive revalidation or a future retained event
+  stream must carry changed typed runtime state into the interface without a
+  manual refresh ritual. No news is good news: use the persistent footer
+  communications channel for attention, delayed revalidation, admissions,
+  and other actionable ticks, while a quiet channel explicitly means no
+  operator attention is requested. Never fabricate activity to make the UI
+  appear alive.
 
 ## Target System Shape
 
@@ -127,6 +135,7 @@ The implemented and target ownership map is:
 rey                 env/workload/UI CLI, local revision state, catalog/orchestration
 rey-core            identities, revisions, limits, and shared contracts
 rey-mining          mining operations, requests/results, artifacts, and views
+rey-locator         canonical locator syntax, dimensions, and resolution outcomes
 rey-dataframe       frame schemas, Polars helpers, and Arrow codecs
 rey-environment     bounded capability discovery and local context providers
 rey-git             repository snapshots, semantic index, polling, and activation
@@ -162,11 +171,16 @@ update the stale artifact in the same change.
 
 - Make hard cutovers during pre-alpha development unless a plan explicitly
   defines migration behavior.
-- Probe only declared environment surfaces with bounded read-only discovery;
-  finding a tool does not grant permission to execute it.
-- Treat `rey.env.yaml` as an agent-generatable relevance graph, not authority:
-  never retain raw variable values, follow escaping/symlinked inputs, invoke a
-  mapped executable, or admit its potential capabilities without an adapter.
+- Begin discovery from only the process-owned `HOME`, `PWD`, and `PATH` seed
+  set. Do not load a project configuration file, source shell profiles, or
+  infer Spoke configuration during bootstrap.
+- Probe only process-declared adapters or explicitly supplied reasoning-map
+  surfaces with bounded read-only discovery; finding a tool does not grant
+  permission to execute it.
+- Treat an explicitly supplied `rey.env-map.v3` document as an
+  agent-generatable reasoning resource, not authority: never retain sensitive
+  values, follow escaping/symlinked inputs, invoke a mapped executable, or
+  admit its potential capabilities without an adapter.
 - Preserve the environment admission plane: `status` observes
   `HEAD → INDEX → WORKING`, `add` alone changes the index, and `commit` records
   only the verified index without re-observing ambient state. Admission to
