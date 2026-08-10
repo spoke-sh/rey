@@ -130,6 +130,15 @@ exists.
   guess a repository binding, or treat semantic digests and non-Git revisions
   as commits; when the repository is unbound, show that boundary instead of
   the SHA.
+- Give every retained Journal document a stable human-readable route that also
+  carries its exact content identity. Journal index selection must enter that
+  route, new-entry controls must enter `/journal/new`, and typed blocks must
+  expose fragment permalinks. Never trap authored reasoning inside an
+  unaddressable dashboard component.
+- Journal author labels are self-asserted. The UI intentionally admits bounded
+  Journal documents without authentication on any explicitly configured bind;
+  never present those labels as verified identities or expand document
+  admission into query, action, assignment, or proof authority.
 - Preserve semantic identity across visual lens changes. Zoom may replace a
   landscape aggregate with neighborhoods and then exact objects, but it cannot
   change source truth, silently widen scope, hide projection omissions, or

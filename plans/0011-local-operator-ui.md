@@ -8,7 +8,8 @@
   [ADR 0034](../docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md),
   [ADR 0035](../docs/decisions/0035-agent-recommendations-and-observed-work.md),
   [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md),
-  [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md)
+  [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md),
+  [ADR 0038](../docs/decisions/0038-unauthenticated-hyperlinkable-journal.md)
 
 ## Outcome
 
@@ -32,12 +33,15 @@ Explore-bound collaboration Journal and summarizes observed work from retained
 evidence. Current Journal rows include derived system entries plus retained
 human and agent notebook documents admitted through one typed contract. Agent
 application discovery remains in Environment. Matrix-style Explorer
-coordinates make exact topology records shareable.
+coordinates make exact topology records shareable. `/journal/new` is the
+unauthenticated human authoring route; exact `/journal/{slug}` documents and
+block fragments make retained reasoning directly citable.
 
 ## Completion Checklist
 
-- [x] Accept ADR 0025 and bound the UI as a local read-only operator projection,
-  not a public or durable Rey service.
+- [x] Accept ADR 0025 and bound the UI as a local operator projection, not a
+  public, durable, or execution-control Rey service; later Journal admission
+  remains one explicitly narrow write exception.
 - [x] Add `rey ui` with loopback defaults, configurable IP/port, ephemeral-port
   support, machine output, exact startup evidence, and a non-loopback warning.
 - [x] Serve embedded SPA assets, deep-link fallback, health, and live workload
@@ -111,6 +115,11 @@ coordinates make exact topology records shareable.
 - [x] Define and implement the shared Journal entry schema, exact Explorer
   binding, human UI composer, agent CLI admission, retained order, limits, and
   supersession behavior.
+- [x] Admit bounded human Journal documents without authentication on every
+  explicit listener while preserving validation and zero execution authority.
+- [x] Route creation through `/journal/new`, selection through an exact
+  identity-bearing `/journal/{slug}`, and every typed block through a stable
+  fragment permalink.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 
@@ -242,13 +251,24 @@ The Journal admission extension implements that pending handshake. One shared
 validator now accepts six typed notebook blocks, canonical exact Explorer
 bindings, content identities, idempotent ordered admission, backward
 supersession, and hard document/state limits. `rey journal add` is the agent
-author surface; `/agents` is the human composer and retained rich-block
-renderer. Human POST is exact-origin and loopback-only, while a network bind
-remains read-only. Query and action blocks are inert at document admission.
+author surface; `/agents` is the retained index and `/journal/new` is the human
+composer. Human POST is intentionally unauthenticated on loopback and network
+binds; the startup warning makes network exposure explicit. Exact entry slugs
+include the complete content identity, and each block exposes a fragment
+permalink. Query and action blocks are inert at document admission.
 The complete format and authority boundary live in `docs/JOURNAL.md`. `just
 check`, `just test`, and `just build` pass with 35/35 frontend tests, 154/154
 Rust tests, every documentation test, Clippy with warnings denied, and flake
 evaluation.
+
+The hyperlinkable Journal extension on 2026-08-10 advances the UI envelopes to
+`rey.ui-server.v3` and `rey.ui-journal.v2`. The retained index now enters exact
+identity-bearing document routes, `/journal/new` redirects after admission,
+and every typed block exposes a fragment permalink. A real `0.0.0.0`
+listener admitted a human proposal with no credentials or `Origin`; startup
+reported the unauthenticated write boundary. `just check`, `just test`, and
+`just build` pass with 36/36 frontend tests, 154/154 Rust tests, all
+documentation tests, Clippy with warnings denied, and flake evaluation.
 
 ## Next Concrete Anchor
 

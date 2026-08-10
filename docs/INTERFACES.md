@@ -36,7 +36,9 @@ runtime options and a task/operation plane derived from the current frontier.
 ADR 0035 keeps runtime inventory in Environment and raises `/agents` to ranked
 recommendations plus retained-work insight.
 ADR 0037 adds the bounded Explore-bound collaboration Journal, shared agent
-CLI and loopback human admission, and inert typed notebook blocks.
+CLI and human admission, and inert typed notebook blocks. ADR 0038 makes that
+admission intentionally unauthenticated on every explicit bind and gives every
+entry and block an exact browser address.
 ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
 explicit agent-map input, establishes locator survey as the next boundary, and
 turns the footer into a live typed-attention mailbox.
@@ -101,10 +103,10 @@ reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 `ui` is primarily a presentation command, not a peer runtime resource. It starts on
 `127.0.0.1:5714` unless configured otherwise, reports exact exposure and
 provenance, `/explore` human entry, and passive revalidation interval. It
-serves read-only workload, environment, cadence, and Explorer projections. On
-the exact same-origin loopback listener it also admits bounded human Journal
-entries; an explicit non-loopback bind disables that write and emits a warning
-because this slice has no authentication.
+serves read-only workload, environment, cadence, and Explorer projections and
+admits bounded human Journal documents without authentication. An explicit
+non-loopback bind exposes that narrow write to reachable clients and emits a
+warning.
 
 The implemented slice behaves as follows:
 
@@ -831,12 +833,13 @@ operator projection started explicitly by the operator. It serves the embedded
 TanStack Router application plus `GET|HEAD /api/v1/health`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`,
 `GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its only write is
-`POST /api/v1/journal`, and that route is enabled only on a loopback listener
-for an exact same-origin JSON request. Other methods are rejected. Deep browser
+`POST /api/v1/journal`, which accepts bounded human JSON proposals without
+authentication or an origin check on every explicitly configured listener.
+Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/explore`. The application routes are `/explore`, exact matrix-style Explorer
-coordinates, `/cadence`, `/agents`, `/environment`, `/workloads`, and
-`/workloads/$workloadId`. The workload endpoint is
+coordinates, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
+`/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
@@ -856,8 +859,10 @@ endpoint does not poll refs, activate a workload, or retain browser reads.
 system-authored rows derive from creation requests and non-excluded attention
 in the workload-list document. Its authored entries come from the ordered
 `rey.journal-log.v1` returned by the Journal endpoint. The human block composer
-admits prose, an exact Explorer map binding, and an optional read-only query
-declaration. Agent YAML admitted by `rey journal add` may additionally carry
+at `/journal/new` admits prose, an exact Explorer map binding, and an optional
+read-only query declaration, then enters the exact retained `/journal/{slug}`
+document. Journal blocks expose stable `#block-{block-id}` permalinks. Agent
+YAML admitted by `rey journal add` may additionally carry
 bounded frame, directed diff, and proposed-action blocks. Admission is
 content-identified and idempotent; it retains no arbitrary HTML and executes
 no block. The same canonical-coordinate, revision-consistency, block, and byte
@@ -867,8 +872,8 @@ coverage, mining and delta counts, attention, and retained evidence identities.
 It does not load the environment inventory, schedule work, infer an assigned
 agent, or claim live process telemetry.
 
-The startup table and `rey.ui-server.v2` JSON expose exact address, URL,
-loopback status, read-only/network authority, scoped Journal-write authority,
+The startup table and `rey.ui-server.v3` JSON expose exact address, URL,
+loopback status, unauthenticated Journal-write authority,
 workspace, catalog root, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
 5000 ms passive revalidation interval, canonical Rey source repository, and

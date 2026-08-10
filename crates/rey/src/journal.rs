@@ -223,6 +223,18 @@ pub struct JournalEntry {
 }
 
 impl JournalEntry {
+    #[must_use]
+    pub fn slug(&self) -> String {
+        let title = ascii_slug_component(&self.title, Some(80));
+        let identity = ascii_slug_component(self.entry_id.as_str(), None);
+        format!(
+            "j{}-{}--{}",
+            self.sequence,
+            if title.is_empty() { "entry" } else { &title },
+            identity
+        )
+    }
+
     fn from_proposal(
         proposal: JournalEntryProposal,
         sequence: u64,
@@ -279,6 +291,30 @@ impl JournalEntry {
         }
         Ok(())
     }
+}
+
+fn ascii_slug_component(value: &str, limit: Option<usize>) -> String {
+    let mut slug = String::new();
+    let mut separator = false;
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() {
+            if separator && !slug.is_empty() {
+                slug.push('-');
+            }
+            slug.push(char::from(byte.to_ascii_lowercase()));
+            separator = false;
+        } else {
+            separator = true;
+        }
+        if limit.is_some_and(|limit| slug.len() >= limit) {
+            break;
+        }
+    }
+    slug.truncate(limit.unwrap_or(slug.len()).min(slug.len()));
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    slug
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1058,6 +1094,13 @@ mod tests {
         let first = store.admit(proposal(), "2026-08-10T20:00:00Z").unwrap();
         assert!(first.admitted);
         assert_eq!(first.entry.sequence, 1);
+        assert_eq!(
+            first.entry.slug(),
+            format!(
+                "j1-inspect-source-coverage--{}",
+                first.entry.entry_id.as_str().replace(':', "-")
+            )
+        );
         assert_eq!(first.log.entries.len(), 1);
         let repeated = store.admit(proposal(), "2026-08-10T20:01:00Z").unwrap();
         assert!(!repeated.admitted);

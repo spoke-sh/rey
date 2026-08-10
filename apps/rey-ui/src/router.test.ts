@@ -41,9 +41,19 @@ describe("operator routes", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("matches cadence, agents, and matrix-style Explorer coordinates", () => {
+  it("matches cadence, agents, Journal documents, and Explorer coordinates", () => {
     expect(router.matchRoutes("/cadence").at(-1)?.routeId).toBe("/cadence");
     expect(router.matchRoutes("/agents").at(-1)?.routeId).toBe("/agents");
+    expect(router.matchRoutes("/journal/new").at(-1)?.routeId).toBe(
+      "/journal/new",
+    );
+    const journal = router
+      .matchRoutes("/journal/j1-context--blake3-entry")
+      .at(-1);
+    expect(journal?.routeId).toBe("/journal/$slug");
+    expect(journal?.params).toMatchObject({
+      slug: "j1-context--blake3-entry",
+    });
     const coordinate = router
       .matchRoutes(
         "/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness",

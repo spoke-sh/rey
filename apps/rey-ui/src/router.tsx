@@ -43,6 +43,13 @@ import {
 import { ExplorePage } from "./explore";
 import { GitCommitLink } from "./git-commit-link";
 import {
+  defaultJournalBinding,
+  JournalDocumentPage,
+  JournalNewPage,
+  journalEntrySlug,
+  resolveJournalEntry,
+} from "./journal";
+import {
   parseExplorerCoordinate,
   resolveExplorerCoordinate,
 } from "./explorer-coordinate";
@@ -158,10 +165,15 @@ function RootLayout() {
             </Link>
             <Link
               activeProps={{ "aria-current": "page" }}
+              aria-current={
+                pathname.startsWith("/journal") ? "page" : undefined
+              }
               className={sx(
                 styles.focusable,
                 styles.navLink,
-                pathname.startsWith("/agents") && styles.navLinkActive,
+                (pathname.startsWith("/agents") ||
+                  pathname.startsWith("/journal")) &&
+                  styles.navLinkActive,
               )}
               to="/agents"
             >
@@ -454,9 +466,9 @@ export function ConversationSurface() {
             </span>
             <strong>No Rey or agent session is connected.</strong>
             <p>
-              This server is a read-only operator projection. A conversation
-              transport, participant identity, retention contract, and message
-              admission path must be bound before communication can begin.
+              This server has no conversation admission path. A transport,
+              participant identity, retention contract, and message contract
+              must be bound before communication can begin.
             </p>
           </div>
         </div>
@@ -1412,20 +1424,40 @@ function CadenceRoutePage() {
 
 function AgentsRoutePage() {
   const initialJournal = agentsRoute.useLoaderData();
+  const { document: journal } = usePassiveDocument(initialJournal, loadJournal);
+  return <AgentsPage journal={journal} portfolio={usePortfolio()} />;
+}
+
+function JournalNewRoutePage() {
+  const initialJournal = journalNewRoute.useLoaderData();
   const { document: journal, publish } = usePassiveDocument(
     initialJournal,
     loadJournal,
   );
+  const navigate = journalNewRoute.useNavigate();
   return (
-    <AgentsPage
-      journal={journal}
+    <JournalNewPage
+      binding={defaultJournalBinding(usePortfolio())}
       onAdmit={async (proposal) => {
         const admission = await admitJournalEntry(proposal);
         publish({ ...journal, log: admission.log });
+        await navigate({
+          params: { slug: journalEntrySlug(admission.entry) },
+          to: "/journal/$slug",
+        });
+        return admission.entry;
       }}
-      portfolio={usePortfolio()}
+      onClose={() => void navigate({ to: "/agents" })}
     />
   );
+}
+
+function JournalEntryRoutePage() {
+  const initialJournal = journalEntryRoute.useLoaderData();
+  const { document: journal } = usePassiveDocument(initialJournal, loadJournal);
+  const { slug } = journalEntryRoute.useParams();
+  const entry = resolveJournalEntry(journal.log, slug);
+  return entry ? <JournalDocumentPage entry={entry} /> : <NotFoundPage />;
 }
 
 const rootRoute = createRootRoute({
@@ -1470,6 +1502,20 @@ const agentsRoute = createRoute({
   component: AgentsRoutePage,
 });
 
+const journalNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "journal/new",
+  loader: loadJournal,
+  component: JournalNewRoutePage,
+});
+
+const journalEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "journal/$slug",
+  loader: loadJournal,
+  component: JournalEntryRoutePage,
+});
+
 const environmentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "environment",
@@ -1495,6 +1541,8 @@ const routeTree = rootRoute.addChildren([
   exploreCoordinateRoute,
   cadenceRoute,
   agentsRoute,
+  journalNewRoute,
+  journalEntryRoute,
   environmentRoute,
   workloadsRoute,
   workloadDetailRoute,
@@ -1516,6 +1564,7 @@ function routeCoordinate(pathname: string): string {
   if (pathname.startsWith("/explore")) return "EXPLORE / CONTEXT TOPOLOGY";
   if (pathname.startsWith("/cadence")) return "CADENCE / TICKS";
   if (pathname.startsWith("/agents")) return "AGENTS";
+  if (pathname.startsWith("/journal")) return "JOURNAL";
   if (pathname.startsWith("/environment")) return "ENVIRONMENT";
   if (pathname.startsWith("/workloads")) return "WORKLOADS";
   return "UNRESOLVED";

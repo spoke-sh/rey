@@ -47,6 +47,31 @@ Matrix dimensions are lexically ordered. The decoded `at` value must equal
 context; Explorer resolution, rather than journal admission, determines
 whether that exact context is current, stale, or missing.
 
+## Document Addresses
+
+Every retained entry and typed block has a stable browser address:
+
+```text
+/agents                                      Journal index
+/journal/new                                 new human entry
+/journal/{slug}                              exact retained entry
+/journal/{slug}#block-{block-id}             exact typed block
+```
+
+The canonical slug is
+`j{sequence}-{bounded-ascii-title}--{normalized-full-entry-id}`. The readable
+title aids recognition; the complete content identity prevents two documents
+from collapsing onto one route. Entry routes resolve exactly and never fall
+back to a title, prefix, sequence, or current document. Selecting an entry in
+the index enters its canonical route, and successful creation replaces
+`/journal/new` with the admitted entry route.
+
+Block ids are unique within an entry and become fragment permalinks. A block
+heading links to its own fragment so prose, query, frame, diff, Explore, and
+action context can be cited without copying the document. These addresses are
+presentation coordinates over retained Journal state; they do not turn a URL
+into admission or execution authority.
+
 ## Notebook Blocks
 
 The ordered block document is the high-fidelity communication grammar. It is
@@ -65,10 +90,10 @@ Frame, diff, and action blocks are communication surfaces, not proof merely
 because an author submitted them. Exact evidence locators and the runtime's
 normal validators remain authoritative.
 
-This is the first implemented authoring envelope. The human composer currently
+This is the first implemented authoring envelope. The `/journal/new` composer currently
 creates prose, exact Explore, and optional read-only SQL cells. Agent proposals
 may use every block type, so richer retained artifacts render immediately in
-the same `/agents` Journal.
+the same Journal document interface.
 
 ## Authoring Surfaces
 
@@ -83,10 +108,12 @@ rey journal list
 regular, non-symlinked, contained beneath the workspace, and at most 1 MiB.
 The command does not execute any block.
 
-Humans write through the `/agents` composer. The HTTP admission boundary is
-available only when `rey ui` is bound to loopback and the request carries the
-exact same browser origin. It accepts only `author.kind: human`. A non-loopback
-UI remains a read-only network projection and visibly disables the composer.
+Humans enter through `/journal/new`. `POST /api/v1/journal` accepts a bounded
+JSON proposal on every address the operator explicitly binds. It requires no
+session, credential, token, cookie, or matching `Origin`, and it accepts only
+`author.kind: human`. Author ids are therefore self-asserted labels, not
+authenticated principals. Whoever can reach a non-loopback listener can
+submit a Journal document; Rey warns about that write boundary at startup.
 
 Rey's system entries remain deterministic projections from workload requests
 and attention. They are not copied into the authored log, so retained human or
@@ -95,8 +122,10 @@ agent statements stay distinguishable from current derived frontier state.
 Both authoring paths use the same validator, content identity, ordered local
 log, entry/block limits, and atomic locked publication beneath
 `.rey/journal/journal.json`. This local log is standalone runtime state, not a
-claim of Spoke durability, multi-user consistency, authentication, or remote
-retention.
+claim of Spoke durability, multi-user consistency, authenticated identity, or
+remote retention. Unauthenticated admission does not weaken validation,
+content identity, limits, atomic publication, or the rule that Journal blocks
+carry no execution authority.
 
 ## Example Agent Proposal
 
@@ -132,5 +161,6 @@ blocks:
 ```
 
 See [Context Topology Explorer](EXPLORER.md) for coordinate resolution and
-[ADR 0037](decisions/0037-explore-bound-collaboration-journal.md) for the
-decision boundary.
+[ADR 0037](decisions/0037-explore-bound-collaboration-journal.md) plus [ADR
+0038](decisions/0038-unauthenticated-hyperlinkable-journal.md) for the decision
+boundary.

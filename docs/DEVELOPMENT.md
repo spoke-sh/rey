@@ -205,10 +205,11 @@ v5, test batch to v4, and run view to v2. Runtime results and local retained
 state remain unchanged because a draft is catalog state, not execution state.
 
 ADR 0025 adds `tiny_http` 0.12 to the composition binary for a narrow
-synchronous local operator listener. ADR 0037 adds one same-origin,
-loopback-only Journal POST to its otherwise read-only data plane. It
-deliberately adds no async runtime, TLS, authentication, background scheduler,
-or general persistence/service topology.
+synchronous local operator listener. ADR 0037 adds one bounded Journal POST;
+ADR 0038 admits that document without authentication or an origin check on
+every explicitly configured listener. It deliberately adds no async runtime,
+TLS, authenticated identity, background scheduler, or general
+persistence/service topology.
 The TypeScript application uses locked React, TanStack Router, TypeScript,
 Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
@@ -224,9 +225,11 @@ Node at runtime.
 ADR 0037 adds no dependency. `crates/rey/src/journal.rs` owns the shared typed
 entry validator, semantic identity, idempotent ordered log, hard limits,
 symlink checks, file lock, and atomic local publication. `rey journal add`
-admits agent YAML; `POST /api/v1/journal` admits human JSON only on exact-origin
-loopback. Both retain beneath `.rey/journal` by default and execute no notebook
-block. The Journal format is specified in `docs/JOURNAL.md`.
+admits agent YAML; `POST /api/v1/journal` admits validated human JSON without
+authentication on every explicit bind. Both retain beneath `.rey/journal` by
+default and execute no notebook block. Exact entry routes and block fragments
+make the retained document interface deeply hyperlinkable. The Journal format
+is specified in `docs/JOURNAL.md`.
 
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
 derives bounded landscape, neighborhood, and object scenes from

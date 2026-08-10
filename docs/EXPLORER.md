@@ -90,8 +90,8 @@ scrollable documents.
   chrome or explanatory copy grows, the canvas must still fit the remaining
   viewport rather than causing document scroll and making the wheel ambiguous.
 - Passive revalidation may replace the source snapshot, but it cannot silently
-  mutate runtime state. Explorer remains read-only even when the loopback UI
-  admits a separate Journal entry.
+  mutate runtime state. Explorer remains read-only even when the UI admits a
+  separate Journal entry.
 - The fixed footer is a live communications channel. Its mailbox contains only
   typed attention or revalidation failure evidence; zero messages explicitly
   means no operator attention is requested. `MAILBOX` selects that history
@@ -137,9 +137,11 @@ request for unimplemented historical reconstruction. See [ADR
 - `/explore`: the context-topology canvas and default human entry;
 - `/explore/{kind}/{identity};...`: an exact matrix-style Explorer coordinate;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
-- `/agents`: an Explore-bound human/agent/system Journal and observed-work
-  ledger; derived system entries remain distinct from retained human/agent
-  documents, and the human composer is writable only on exact-origin loopback;
+- `/agents`: the Explore-bound Journal index and observed-work ledger; derived
+  system entries remain distinct from retained human/agent documents;
+- `/journal/new`: the unauthenticated, validated human Journal composer;
+- `/journal/{slug}`: one exact retained Journal document, with typed blocks
+  addressed by `#block-{block-id}` fragments;
 - `/environment`: three stacked Kinetic Precision evidence sections over the
   exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
   bounded search, and the reference plane;

@@ -73,7 +73,6 @@ describe("agent collaboration intelligence", () => {
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
         journal: emptyJournal(),
-        onAdmit: async () => undefined,
         portfolio: emptyPortfolio(),
       }),
     );
@@ -83,26 +82,23 @@ describe("agent collaboration intelligence", () => {
     expect(markup).toContain('data-journal-admission="available"');
     expect(markup).toContain("WRITE A JOURNAL ENTRY");
     expect(markup).toContain("HUMAN + AGENT · EXPLORE-BOUND");
-    expect(markup).toContain("LOOPBACK ADMISSION AVAILABLE");
+    expect(markup).toContain("UNAUTHENTICATED · VALIDATED DOCUMENT ADMISSION");
+    expect(markup).toContain('href="/journal/new"');
     expect(markup).not.toContain("disabled");
     expect(markup).not.toContain("RECOMMENDATION BASIS");
   });
 
-  it("keeps Journal admission visibly unavailable on a network projection", () => {
-    const journal = emptyJournal();
-    journal.write_enabled = false;
-    journal.authority = "read_only_network_projection";
+  it("keeps Journal admission available without an authentication boundary", () => {
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
-        journal,
-        onAdmit: async () => undefined,
+        journal: emptyJournal(),
         portfolio: emptyPortfolio(),
       }),
     );
 
-    expect(markup).toContain('data-journal-admission="unavailable"');
-    expect(markup).toContain("NETWORK PROJECTION · READ ONLY");
-    expect(markup).toContain("disabled");
+    expect(markup).toContain('data-journal-admission="available"');
+    expect(markup).toContain('href="/journal/new"');
+    expect(markup).not.toContain("AUTHENTICATION REQUIRED");
   });
 
   it("reports observed work from retained results rather than agent activity", () => {
@@ -127,9 +123,9 @@ describe("agent collaboration intelligence", () => {
 
 function emptyJournal(): JournalProjection {
   return {
-    schema: "rey.ui-journal.v1",
+    schema: "rey.ui-journal.v2",
     write_enabled: true,
-    authority: "loopback_same_origin",
+    authority: "unauthenticated_journal_admission",
     log: {
       schema: "rey.journal-log.v1",
       log_id: "blake3:empty",

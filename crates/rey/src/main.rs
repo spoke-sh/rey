@@ -597,7 +597,7 @@ fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
     stdout.flush()?;
     if !descriptor.loopback_only {
         eprintln!(
-            "rey: warning: UI is listening beyond loopback without authentication; protect access externally"
+            "rey: warning: UI is listening beyond loopback with unauthenticated Journal writes enabled; protect access externally"
         );
     }
     server.serve()?;
@@ -1160,11 +1160,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "Data plane",
-        if descriptor.journal_write_enabled {
-            "LIVE READS · LOOPBACK JOURNAL WRITE"
-        } else {
-            "LIVE READ-ONLY NETWORK PROJECTION"
-        },
+        "LIVE READS · UNAUTHENTICATED JOURNAL WRITE",
     )?;
     write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
     write_portfolio_field(
@@ -1223,6 +1219,7 @@ fn write_journal_admission(
         ),
     )?;
     write_portfolio_field(output, "Explore", &entry.binding.coordinate)?;
+    write_portfolio_field(output, "Document", &format!("/journal/{}", entry.slug()))?;
     write_portfolio_field(output, "Blocks", &entry.blocks.len().to_string())?;
     write_portfolio_field(output, "Identity", entry.entry_id.as_str())?;
     writeln!(output)?;
@@ -1254,6 +1251,7 @@ fn write_journal_log(output: &mut impl Write, log: &JournalLog) -> Result<(), Cl
             entry.author.id
         )?;
         writeln!(output, "  {}", entry.binding.coordinate)?;
+        writeln!(output, "  /journal/{}", entry.slug())?;
         writeln!(
             output,
             "  {} · {} blocks · {}",

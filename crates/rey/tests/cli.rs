@@ -1583,6 +1583,7 @@ blocks:
     assert!(repeated.contains("JOURNAL ENTRY ALREADY ADMITTED"));
     assert!(repeated.contains("agent / codex"));
     assert!(repeated.contains("/explore/workload/source-mining"));
+    assert!(repeated.contains("/journal/j1-inspect-source-coverage--blake3-"));
 
     let listed = run_rey_workspace(&[
         "journal",
@@ -1655,7 +1656,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Exposure               LOOPBACK ONLY",
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
-        "Data plane             LIVE READS · LOOPBACK JOURNAL WRITE",
+        "Data plane             LIVE READS · UNAUTHENTICATED JOURNAL WRITE",
         "Human entry            /explore",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
         "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads",
@@ -1703,11 +1704,11 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut descriptor_line = String::new();
     network_stdout.read_line(&mut descriptor_line).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor_line).unwrap();
-    assert_eq!(descriptor["schema"], "rey.ui-server.v2");
+    assert_eq!(descriptor["schema"], "rey.ui-server.v3");
     assert_eq!(descriptor["host"], "0.0.0.0");
     assert_eq!(descriptor["loopback_only"], false);
-    assert_eq!(descriptor["read_only"], true);
-    assert_eq!(descriptor["journal_write_enabled"], false);
+    assert_eq!(descriptor["read_only"], false);
+    assert_eq!(descriptor["journal_write_enabled"], true);
     assert_eq!(descriptor["application"], "tanstack_router");
     assert_eq!(descriptor["grammar"], "kinetic");
     assert_eq!(descriptor["theme"], "precision");
@@ -1725,7 +1726,32 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
     let mut warning = String::new();
     network_stderr.read_line(&mut warning).unwrap();
-    assert!(warning.contains("listening beyond loopback without authentication"));
+    assert!(warning.contains("unauthenticated Journal writes enabled"));
+
+    let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
+    let proposal = serde_json::json!({
+        "schema": "rey.journal-entry-proposal.v1",
+        "title": "Write through the network listener",
+        "author": { "kind": "human", "id": "operator" },
+        "binding": {
+            "coordinate": "/explore/portfolio/current;at=blake3%3Anetwork;lens=landscape",
+            "source_revision": "blake3:network"
+        },
+        "blocks": [{
+            "kind": "prose",
+            "id": "context",
+            "document": [{ "kind": "paragraph", "text": "No authentication required." }]
+        }]
+    })
+    .to_string();
+    let admitted = http_request_with_body(
+        &network_address,
+        "POST /api/v1/journal HTTP/1.1",
+        &[("Content-Type", "application/json")],
+        &proposal,
+    );
+    assert!(admitted.starts_with("HTTP/1.1 201"));
+    assert!(admitted.contains("\"admitted\":true"));
     network_child.kill().unwrap();
     network_child.wait().unwrap();
 }
@@ -2535,12 +2561,26 @@ fn run_rey_with_stdin_env(
 }
 
 fn http_request(address: &str, request_line: &str) -> String {
+    http_request_with_body(address, request_line, &[], "")
+}
+
+fn http_request_with_body(
+    address: &str,
+    request_line: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+) -> String {
     let mut stream = TcpStream::connect(address).unwrap();
     write!(
         stream,
-        "{request_line}\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+        "{request_line}\r\nHost: {address}\r\nConnection: close\r\nContent-Length: {}\r\n",
+        body.len()
     )
     .unwrap();
+    for (name, value) in headers {
+        write!(stream, "{name}: {value}\r\n").unwrap();
+    }
+    write!(stream, "\r\n{body}").unwrap();
     let mut response = String::new();
     stream.read_to_string(&mut response).unwrap();
     response

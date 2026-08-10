@@ -1269,6 +1269,10 @@
     grid-template-columns: 74px minmax(0, 1fr) auto;
   }
 
+  .xwtgn66 {
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+  }
+
   .x1qj1mfr {
     grid-template-columns: 95px 1fr;
   }
@@ -1766,20 +1770,12 @@
     outline-width: 3px;
   }
 
-  .x1oqui1x:disabled {
-    background-color: #0000;
-  }
-
   .x1bc7zwr:disabled {
     background-color: var(--line);
   }
 
   .x2s5p8x:disabled {
     color: var(--muted);
-  }
-
-  .x1s07b3s:disabled {
-    cursor: not-allowed;
   }
 
   .xjb0foi:disabled {
@@ -1943,6 +1939,12 @@
   @media (width <= 680px) {
     .x1nvs98y.x1nvs98y {
       grid-template-columns: 58px minmax(0, 1fr);
+    }
+  }
+
+  @media (width <= 700px) {
+    .xa6q810.xa6q810 {
+      grid-template-columns: 62px minmax(0, 1fr);
     }
   }
 
@@ -2616,6 +2618,10 @@
 
   .x1gv0tr7 {
     right: 24px;
+  }
+
+  .x1sstcl6 {
+    scroll-margin-top: 118px;
   }
 
   .x13vifvy {

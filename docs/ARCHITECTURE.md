@@ -45,10 +45,11 @@ Rey separates eight responsibilities:
 
 These are responsibility boundaries, not requirements for separate processes.
 The first topology is a local Rey process. `rey ui` attaches an operator
-projection to that process; its only browser write is bounded Journal
-admission on the exact same-origin loopback listener. It is not a separate
-runtime or scheduler, and a non-loopback listener remains read-only. A Spoke
-provider, when configured or discovered, uses Spoke's routed HTTP interface.
+projection to that process; its only browser write is bounded unauthenticated
+Journal admission on any explicitly configured listener. It is not a separate
+runtime or scheduler, and Journal admission grants no compute authority. A
+Spoke provider, when configured or discovered, uses Spoke's routed HTTP
+interface.
 
 ## System Graph
 
@@ -170,9 +171,10 @@ moving topology authority into the URL. `/environment` projects the same typed
 retains the exact catalog/detail routes. `/agents` begins with the Journal:
 current requests and non-excluded attention produce derived system entries;
 retained human and agent entries use one bounded typed contract and point to
-exact `/explore` coordinates. Humans admit through the same-origin loopback
-composer, agents through `rey journal add`, and neither path executes notebook
-blocks. It then projects an
+exact `/explore` coordinates. `/journal/new` admits human entries and routes
+to their exact `/journal/{slug}` document; entry blocks expose stable fragment
+permalinks. Agents admit through `rey journal add`, and neither path executes
+notebook blocks. It then projects an
 observed-work ledger from exact workload revisions, tests, runs, mining
 outputs, deltas, and attention. Journal entries communicate direction without
 becoming assignments or execution authority. Tasks still organize intent,
@@ -200,17 +202,18 @@ typed Kinetic material values remain runtime data; Rey's typed documents
 remain authoritative.
 
 The listener defaults to loopback and carries no authentication, multi-user,
-or remote-service guarantee. Its only write is bounded local Journal admission
-from the exact browser origin. An explicit non-loopback bind disables that
-write and remains a read-only network projection; neither mode turns the UI
-into an execution control plane. See [Context Topology
+or remote-service guarantee. Its only write is bounded unauthenticated local
+Journal admission. An explicit non-loopback bind exposes that write to every
+client that can reach the listener and therefore emits a warning; no bind
+turns the UI into an execution control plane. See [Context Topology
 Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
 [ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
 0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
 Cadence repository state is specified by [ADR
 0036](decisions/0036-cadence-repository-state-and-publication.md).
 The shared collaboration Journal is specified by [ADR
-0037](decisions/0037-explore-bound-collaboration-journal.md) and
+0037](decisions/0037-explore-bound-collaboration-journal.md), [ADR
+0038](decisions/0038-unauthenticated-hyperlinkable-journal.md), and
 [Collaboration Journal](JOURNAL.md).
 
 ## Workloads, Graphs, And Scenarios

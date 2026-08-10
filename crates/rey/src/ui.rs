@@ -21,11 +21,11 @@ use serde_json::json;
 use thiserror::Error;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
-const UI_SERVER_SCHEMA: &str = "rey.ui-server.v2";
+const UI_SERVER_SCHEMA: &str = "rey.ui-server.v3";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v2";
-const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v1";
+const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
@@ -191,8 +191,8 @@ impl UiServer {
             host: bound.ip().to_string(),
             port: bound.port(),
             loopback_only: bound.ip().is_loopback(),
-            read_only: !bound.ip().is_loopback(),
-            journal_write_enabled: bound.ip().is_loopback(),
+            read_only: false,
+            journal_write_enabled: true,
             workspace: config.workspace.display().to_string(),
             catalog_root: config.catalog_directory.display().to_string(),
             application: "tanstack_router".to_owned(),
@@ -317,12 +317,7 @@ impl UiServer {
                 &UiJournalProjection {
                     schema: UI_JOURNAL_SCHEMA.to_owned(),
                     write_enabled: self.descriptor.journal_write_enabled,
-                    authority: if self.descriptor.journal_write_enabled {
-                        "loopback_same_origin"
-                    } else {
-                        "read_only_network_projection"
-                    }
-                    .to_owned(),
+                    authority: "unauthenticated_journal_admission".to_owned(),
                     log,
                 },
             ),
@@ -331,21 +326,6 @@ impl UiServer {
     }
 
     fn admit_journal(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
-        if !self.descriptor.journal_write_enabled {
-            return json_error(
-                StatusCode(403),
-                "journal_write_forbidden",
-                "journal writes are enabled only on the loopback UI listener",
-            );
-        }
-        let origin = request_header(request, "Origin");
-        if origin != Some(self.descriptor.url.as_str()) {
-            return json_error(
-                StatusCode(403),
-                "journal_origin_rejected",
-                "journal writes require the exact same-origin loopback UI",
-            );
-        }
         let content_type = request_header(request, "Content-Type");
         if content_type != Some("application/json") {
             return json_error(
@@ -793,7 +773,7 @@ mod tests {
     use super::{UiServer, UiServerConfig};
 
     #[test]
-    fn server_scopes_journal_writes_to_loopback_and_serves_the_operator_ui() {
+    fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {
         let workspace = TempDir::new().unwrap();
         let server = UiServer::bind(UiServerConfig {
             workspace: workspace.path().to_owned(),
@@ -805,6 +785,7 @@ mod tests {
         })
         .unwrap();
         let descriptor = server.descriptor();
+        assert_eq!(descriptor.schema, "rey.ui-server.v3");
         assert!(descriptor.loopback_only);
         assert!(!descriptor.read_only);
         assert!(descriptor.journal_write_enabled);
@@ -821,7 +802,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(17)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(19)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -851,8 +832,9 @@ mod tests {
 
         let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
         assert!(journal.starts_with("HTTP/1.1 200"));
-        assert!(journal.contains("\"schema\":\"rey.ui-journal.v1\""));
+        assert!(journal.contains("\"schema\":\"rey.ui-journal.v2\""));
         assert!(journal.contains("\"write_enabled\":true"));
+        assert!(journal.contains("\"authority\":\"unauthenticated_journal_admission\""));
         assert!(journal.contains("\"entries\":[]"));
 
         let proposal = serde_json::json!({
@@ -879,8 +861,8 @@ mod tests {
             ],
             &proposal,
         );
-        assert!(cross_origin.starts_with("HTTP/1.1 403"));
-        assert!(cross_origin.contains("\"category\":\"journal_origin_rejected\""));
+        assert!(cross_origin.starts_with("HTTP/1.1 201"));
+        assert!(cross_origin.contains("\"admitted\":true"));
 
         let agent_proposal = proposal.replace("\"kind\":\"human\"", "\"kind\":\"agent\"");
         let wrong_author = request_with_body(
@@ -904,9 +886,9 @@ mod tests {
             ],
             &proposal,
         );
-        assert!(admitted.starts_with("HTTP/1.1 201"));
+        assert!(admitted.starts_with("HTTP/1.1 200"));
         assert!(admitted.contains("\"schema\":\"rey.journal-admission.v1\""));
-        assert!(admitted.contains("\"admitted\":true"));
+        assert!(admitted.contains("\"admitted\":false"));
         assert!(admitted.contains("\"kind\":\"human\""));
 
         let application = request(&address, "GET /assets/app.js HTTP/1.1");
@@ -920,6 +902,10 @@ mod tests {
         assert!(application.contains("01 / JOURNAL"));
         assert!(application.contains("WRITE A JOURNAL ENTRY"));
         assert!(application.contains("HUMAN + AGENT · EXPLORE-BOUND"));
+        assert!(application.contains("UNAUTHENTICATED · VALIDATED DOCUMENT ADMISSION"));
+        assert!(application.contains("journal/$slug"));
+        assert!(application.contains("JOURNAL / NEW"));
+        assert!(application.contains("JOURNAL / ENTRY"));
         assert!(!application.contains("RECOMMENDATION BASIS"));
         assert!(application.contains("WORK LEDGER"));
         assert!(!application.contains("RETAINED RESULTS / NOT LIVE AGENT TELEMETRY"));
@@ -969,6 +955,14 @@ mod tests {
         let agents = request(&address, "GET /agents HTTP/1.1");
         assert!(agents.starts_with("HTTP/1.1 200"));
         assert!(agents.contains("<title>Rey / Explore</title>"));
+
+        let journal_new = request(&address, "GET /journal/new HTTP/1.1");
+        assert!(journal_new.starts_with("HTTP/1.1 200"));
+        assert!(journal_new.contains("<title>Rey / Explore</title>"));
+
+        let journal_entry = request(&address, "GET /journal/j1-example HTTP/1.1");
+        assert!(journal_entry.starts_with("HTTP/1.1 200"));
+        assert!(journal_entry.contains("<title>Rey / Explore</title>"));
 
         let coordinate = request(
             &address,

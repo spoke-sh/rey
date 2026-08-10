@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-10
 - Extends: the recommendation plane in [ADR 0035](0035-agent-recommendations-and-observed-work.md)
+- Extended: browser admission and document addressing in [ADR 0038](0038-unauthenticated-hyperlinkable-journal.md)
 
 ## Context
 

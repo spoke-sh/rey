@@ -11,10 +11,8 @@ import { agentsStyles as styles } from "./stylex/agents.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 import {
-  defaultJournalBinding,
-  JournalComposer,
+  JournalCreateLink,
   JournalEntries,
-  type JournalEntryProposal,
   type JournalProjection,
 } from "./journal";
 
@@ -204,11 +202,9 @@ function readinessOrder(readiness: AttentionReadiness): number {
 
 export function AgentsPage({
   journal,
-  onAdmit,
   portfolio,
 }: {
   journal: JournalProjection;
-  onAdmit: (proposal: JournalEntryProposal) => Promise<void>;
   portfolio: WorkloadList;
 }) {
   const systemEntries = deriveJournalEntries(portfolio);
@@ -231,7 +227,7 @@ export function AgentsPage({
           title="What should happen next"
         />
         {journal.log.entries.length > 0 ? (
-          <JournalEntries entries={journal.log.entries} />
+          <JournalEntries compact entries={journal.log.entries} />
         ) : null}
         {totalEntries === 0 ? (
           <div className={sx(chrome.micro, styles.empty)}>
@@ -253,11 +249,7 @@ export function AgentsPage({
             ))}
           </div>
         ) : null}
-        <JournalComposer
-          binding={defaultJournalBinding(portfolio)}
-          onAdmit={onAdmit}
-          writeEnabled={journal.write_enabled}
-        />
+        <JournalCreateLink />
       </section>
 
       <section

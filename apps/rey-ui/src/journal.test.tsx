@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import type { WorkloadList } from "./domain";
 import {
   defaultJournalBinding,
+  journalBlockFragment,
+  journalEntrySlug,
   JournalEntries,
+  resolveJournalEntry,
   type RetainedJournalEntry,
 } from "./journal";
 
@@ -35,9 +38,33 @@ describe("collaboration Journal", () => {
       "NEXT ACTION",
       "REFINE",
       "OPEN MAP →",
+      'href="#block-query"',
     ]) {
       expect(markup).toContain(evidence);
     }
+  });
+
+  it("gives retained entries exact slugs and block-level deep links", () => {
+    const retained = entry();
+    const slug = "j1-mine-the-remaining-surface--blake3-entry";
+    expect(journalEntrySlug(retained)).toBe(slug);
+    expect(
+      resolveJournalEntry(
+        {
+          schema: "rey.journal-log.v1",
+          log_id: "blake3:log",
+          entries: [retained],
+        },
+        slug,
+      ),
+    ).toBe(retained);
+    expect(journalBlockFragment("coverage/query")).toBe("block-coverage/query");
+
+    const markup = renderToStaticMarkup(
+      createElement(JournalEntries, { compact: true, entries: [retained] }),
+    );
+    expect(markup).toContain(`href="/journal/${slug}"`);
+    expect(markup).toContain(`data-journal-slug="${slug}"`);
   });
 });
 

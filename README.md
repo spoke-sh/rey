@@ -246,7 +246,7 @@ just rey workloads --catalog conformance run rey.fixture.source-search \
 just rey journal add path/to/agent-entry.yaml
 just rey journal list
 just rey ui
-# Explicit network exposure; Rey warns and disables Journal writes because the server has no authentication.
+# Explicit network exposure; Rey warns that reachable clients can write unauthenticated Journal documents.
 just rey ui --host 0.0.0.0 --port 5714
 ```
 
@@ -256,10 +256,12 @@ semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations use matrix-style coordinates such as
 `/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
-bindings remain visible instead of drifting silently. `/agents` begins with
-the shared Journal: retained human and agent notebook entries sit beside
+bindings remain visible instead of drifting silently. `/agents` is the shared
+Journal index: retained human and agent notebook entries sit beside
 current derived system recommendations without being confused for assignments
-or execution. Its second section is an observed-work ledger over retained
+or execution. New entries use `/journal/new`; selecting or admitting an entry
+enters its exact `/journal/{slug}` document, and each typed block has a stable
+fragment permalink. Its second section is an observed-work ledger over retained
 portfolio evidence. Agent applications remain on `/environment`.
 `/cadence` presents Git reachability, Rey environment admissions, and
 mounted passive scans as separate partially ordered tick lanes rather than a
@@ -291,9 +293,10 @@ StyleX Vite integration into one deterministic atomic stylesheet; runtime
 Kinetic material values remain typed custom properties.
 The server defaults to `127.0.0.1:5714`, accepts explicit `--host` and `--port`
 values, and reports its exact exposure before serving. Its data projections
-are read-only. The exact same-origin loopback listener additionally admits
-bounded human Journal entries; binding beyond loopback disables that write and
-remains an operator-controlled, unauthenticated read-only boundary. See
+are read-only. Its one write admits validated human Journal entries without
+authentication on every explicit bind; a non-loopback bind therefore warns
+that every reachable client can write. Journal admission remains separate from
+compute and proof authority. See
 [Context Topology Explorer](docs/EXPLORER.md) for lens and coordinate semantics
 and [Collaboration Journal](docs/JOURNAL.md) for the notebook block and
 admission contracts.
@@ -613,8 +616,10 @@ surface. `/explore` is now the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
 matrix-style deep links, a shared typed Journal, an observed-work ledger, and a
 partially ordered cadence view. Humans can author retained Explore-bound prose
-and read-only query cells on loopback; agents admit the same bounded format
-through `rey journal add`, including frame, diff, and action cells. The next
+and read-only query cells at `/journal/new` without authentication; exact entry
+routes and block fragments make the retained notebook deeply hyperlinkable.
+Agents admit the same bounded format through `rey journal add`, including
+frame, diff, and action cells. The next
 concrete anchor is a separate query-execution handshake that can turn one
 retained declaration into an exact frame/diff result without granting document
 admission implicit compute authority. Exact locator-bound Explorer objects and

@@ -42,6 +42,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0035](0035-agent-recommendations-and-observed-work.md) | Accepted; recommendation plane extended by 0037 | Evidence-ranked agent recommendations and observed-work ledger; runtime inventory remains in Environment |
 | [0036](0036-cadence-repository-state-and-publication.md) | Accepted | Working-tree attention and exact local-upstream publication state in cadence |
 | [0037](0037-explore-bound-collaboration-journal.md) | Accepted | Shared human, agent, and system Journal entries bound to exact Explorer coordinates |
+| [0038](0038-unauthenticated-hyperlinkable-journal.md) | Accepted | Unauthenticated Journal writes plus exact entry and block hyperlinks |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

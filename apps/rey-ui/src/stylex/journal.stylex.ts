@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 const mono = 'var(--mono, "SFMono-Regular", Consolas, monospace)';
 
 export const journalStyles = stylex.create({
+  page: { paddingTop: "clamp(46px, 6vw, 88px)" },
   entries: { display: "grid", gap: 24, marginTop: 28 },
   entry: {
     backgroundColor: "var(--surface)",
@@ -23,6 +24,22 @@ export const journalStyles = stylex.create({
     },
     padding: "22px 24px",
   },
+  entryLink: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": "var(--surface-strong)",
+    },
+    color: "inherit",
+    textDecoration: "none",
+  },
+  entrySelection: {
+    alignItems: "end",
+    display: "grid",
+    fontFamily: mono,
+    fontSize: "0.64rem",
+    gap: 12,
+    justifyItems: "end",
+  },
   entryOrdinal: {
     alignItems: "center",
     backgroundColor: "var(--rey-foreground)",
@@ -39,6 +56,7 @@ export const journalStyles = stylex.create({
     backgroundColor: "var(--surface)",
     minWidth: 0,
     padding: "24px 26px",
+    scrollMarginTop: 118,
   },
   blockHeader: {
     alignItems: "center",
@@ -48,6 +66,7 @@ export const journalStyles = stylex.create({
     justifyContent: "space-between",
     marginBottom: 18,
   },
+  blockPermalink: { color: "inherit", textDecoration: "none" },
   proseBlock: { backgroundColor: "var(--surface-strong)" },
   proseDocument: { lineHeight: 1.72, maxWidth: 900 },
   exploreBlock: { display: "grid", gap: 13 },
@@ -119,13 +138,12 @@ export const journalStyles = stylex.create({
     backgroundColor: {
       default: "transparent",
       ":hover": "var(--surface)",
-      ":disabled": "transparent",
     },
     borderColor: "var(--line)",
     borderStyle: "dashed",
     borderWidth: 1,
-    color: { default: "var(--rey-foreground)", ":disabled": "var(--muted)" },
-    cursor: { default: "pointer", ":disabled": "not-allowed" },
+    color: "var(--rey-foreground)",
+    cursor: "pointer",
     display: "grid",
     fontFamily: "inherit",
     gap: 9,
@@ -133,6 +151,7 @@ export const journalStyles = stylex.create({
     opacity: 1,
     padding: 48,
     textAlign: "center",
+    textDecoration: "none",
     width: "100%",
   },
   composer: {
@@ -246,4 +265,31 @@ export const journalStyles = stylex.create({
     justifyContent: "space-between",
     padding: "20px 26px",
   },
+  documentNav: {
+    alignItems: "center",
+    display: "flex",
+    justifyContent: "space-between",
+    marginBlock: 28,
+  },
+  routeHeading: {
+    alignItems: "end",
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "grid",
+    gap: 20,
+    gridTemplateColumns: {
+      default: "92px minmax(0, 1fr) auto",
+      "@media (max-width: 700px)": "62px minmax(0, 1fr)",
+    },
+    paddingBottom: 17,
+  },
+  routeIndex: {
+    fontFamily:
+      'var(--display, "Arial Narrow", "Roboto Condensed", sans-serif)',
+    fontSize: "2.8rem",
+    fontWeight: 900,
+    lineHeight: 0.8,
+  },
+  routeKicker: { marginBlock: 0, marginBottom: 5 },
 });
