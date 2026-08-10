@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-08-10
 - Extends: [ADR 0030](0030-operator-cadence-agents-and-explorer-coordinates.md), [ADR 0035](0035-agent-recommendations-and-observed-work.md), and [ADR 0037](0037-explore-bound-collaboration-journal.md)
+- Extended by: [ADR 0040](0040-workspace-channels-and-operator-index.md), which supersedes URL-only Feed-layout retention
 
 ## Context
 
@@ -99,7 +100,7 @@ decision once real use validates that bearing.
   can still show retained activity and results.
 - Wall-time sorting cannot be interpreted as causality or as a complete global
   chronology.
-- URL stream state is intentionally projection-only; durable personal or team
-  feed layouts require a later owned configuration contract.
+- URL stream state is projection-only in this slice; ADR 0040 defines the later
+  workspace-local Channel index while preserving URLs as detached previews.
 - Durable operator cursors, read state, stream pagination, aggregation windows,
   cross-clock causal edges, and Spoke-backed feeds remain later contracts.

@@ -25,6 +25,9 @@ current boundary.
 | Discovery and execution | Finding an executable or provider records availability. It does not admit invocation or assignment. |
 | Process success and semantic success | A provider process can exit successfully while the expected and observed states still differ. Post-action observation and evaluation determine semantic outcome. |
 | Completeness and coverage | Completeness asks whether one observation satisfied its lens contract. Coverage asks how much of a declared domain was observed. Neither implies the other. |
+| Channel observation and runtime observation | A Channel observation is a compact collaboration statement over exact evidence. A runtime observation is provider/runtime evidence such as a frame or action result; citing it does not transfer ownership to the collaboration plane. |
+| Channel observation and Journal entry | An observation is a low-latency standalone frontier unit. A Journal entry is deliberate notebook synthesis that may cite and compose exact observations. |
+| Channel frontier and runtime frontier | The Channel frontier projects unresolved collaboration observations for catch-up and communication. The runtime frontier derives schedulable unresolved work from typed deltas and claims. |
 | Delta and rendering | The typed or native directed delta is authoritative. A patch, table, graph, metric panel, or Tabular Diff document is a bounded projection of it. |
 | Environment commit and Git commit | An environment commit retains an admitted capability snapshot in Rey's local linear history. It neither creates a Git object nor mutates the discovered environment. |
 | Graph order and frontier scheduling | Graph edges order nodes inside one graph execution. Frontier scheduling selects unresolved evidence between transitions or graph revisions. |
@@ -194,6 +197,13 @@ observations, commits a baseline, and derives an initial frontier or explicit
 stop. Bootstrap has no imaginary predecessor and cannot claim directional
 progress.
 
+### Broadcast
+
+Planned channel admission of one immutable Channel-observation identity to an
+explicit bounded set of channels. Broadcast retains channel-local admission
+edges rather than copying observation content, and it grants no action,
+assignment, proof, relay, or remote-delivery authority.
+
 ### Budget
 
 The remaining bounded allowance for work, usually expressed through time,
@@ -271,6 +281,49 @@ A canonical assessment artifact binding a claim to exact inputs, evidence,
 limits, comparator, and evaluator identities. Verification recomputes those
 bindings rather than trusting a stored status. A certificate alone is
 retention-neutral.
+
+### Channel
+
+A planned stable addressable workspace collaboration boundary. A channel owns
+admission and subscription scope, not observation or Journal content, runtime
+action, or a universal event clock. Feed streams may subscribe to channels but
+are not channels themselves.
+
+### Channel admission
+
+The planned association of one exact Channel observation with one exact channel
+at a channel-local sequence position. It preserves observation identity and
+bounds; admission does not authenticate the author or grant compute/effect
+authority.
+
+### Channel frontier
+
+The planned bounded deterministic projection of retained Channel observations
+that have not been resolved or superseded by exact later observation relations.
+It represents the collaboration catch-up surface and does not replace Rey's
+runtime frontier or make an observation schedulable work.
+
+### Channel graph
+
+The bounded relation of channel definitions, subscriptions, Feed streams,
+ordered layouts, and relay declarations. It provides addresses for separate
+observation-admission logs but does not contain their high-cadence history. Its
+local revision loop is separate from environment, workload, runtime, and proof
+identity.
+
+### Channel index
+
+The staged channel-graph proposal between channel HEAD and WORKING. Planned
+`rey channels add [-p]` admits selected semantic changes to this index, and
+`rey channels commit` retains exactly the verified index.
+
+### Channel observation
+
+A planned compact immutable collaboration statement retained independently
+from the Journal. It binds an exact subject locator, bounded kind and statement,
+desired delta or frontier relation, evidence locators, source revision, author
+label, completeness/limits, and exact resolution or supersession relations.
+Findings, questions, progress, blockers, and handoffs are common kinds.
 
 ### Claim
 
@@ -769,6 +822,13 @@ One typed unit inside a Journal entry: prose, Explore reference, read-only
 query declaration, frame preview, directed diff, or proposed action. Every
 block has a stable fragment permalink and explicit bounds.
 
+### Journal seed
+
+A planned deterministic, unretained Journal-entry proposal projected from one
+or more exact Channel observations for a human or agent catching up. It cites
+the selected observation identities and source revisions and becomes a Journal
+entry only through normal Journal admission.
+
 ### Journey
 
 A human-readable projection over known workflow operation states, such as
@@ -1151,6 +1211,13 @@ A bounded typed collection with declared schema, keys, ordering, completeness,
 limits, and lineage. DataFrames are Rey's in-process representation for
 relations, while authored and native artifacts remain in their natural forms.
 
+### Relay
+
+A planned explicit provider-backed channel-graph edge that forwards admitted
+observations to another channel. A relay freezes source/target locators,
+filters, provider capability, authority, cursor, hop/idempotency bounds, and
+attempt/delivery lineage; defining a channel never enables transport.
+
 ### Relational mining
 
 Mining over typed collections using operations such as retrieve, select,
@@ -1395,6 +1462,13 @@ A directed comparison of declared tree or graph entities under explicit
 identity, parent/edge, ordering, parser/index, alignment, and completeness
 rules. Moves, modifications, edge changes, and unresolved alignment remain
 distinct.
+
+### Subscription
+
+A planned bounded selection over exact channels, observation kinds, filters,
+and limits. A Feed stream projects a subscription through a human visual lens;
+the subscription does not copy observations or establish order across channel
+sequences.
 
 ### Survey
 

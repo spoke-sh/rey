@@ -92,6 +92,24 @@ execution, and broader provider behavior.
 - Add bounded recurring Git polling, activation coalescing, and resumable cursor
   processing.
 
+## Cross-Cutting — Workspace Collaboration Channels
+
+- Define stable channels, standalone Channel observations, observation
+  admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and
+  relays without inventing a global clock.
+- Implement a workspace-local `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING`
+  revision loop and high-fidelity `rey channels` CLI.
+- Persist Feed composition and pointer/keyboard stream movement through the
+  same typed working state while retaining URL layouts as detached previews.
+- Admit compact observations independently of the Channel topology index,
+  derive the unresolved collaboration frontier, and broadcast one observation
+  identity to the visible bounded local default channel set without granting
+  execution authority.
+- Project selected exact observations into an unretained Journal seed for
+  catch-up; require normal Journal admission before it becomes a retained entry.
+- Specify relay provider, cursor, hop, idempotency, loop-prevention, delivery,
+  and omission contracts before enabling local or remote transport.
+
 ## Phase 4 — Admitted Mutation
 
 - Define effect classes and allowed targets.

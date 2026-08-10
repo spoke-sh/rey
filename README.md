@@ -655,5 +655,19 @@ and the live two-axis communication plane are implemented. Its next concrete anc
 dependency-light `rey-locator` crate plus high-fidelity agent CLI commands to
 generate and validate mapping resources and display exact locator anchors.
 
+[Plan 0016](plans/0016-channel-graph-and-operator-index.md) carries the Channel
+graph and agentic-networking bearing. Channels become stable collaboration
+boundaries; compact standalone Channel observations retain the collaboration
+frontier; subscriptions project them into Feed streams; and Journal entries
+deliberately synthesize and cite exact observations. A Journal seed is an
+unretained catch-up projection, not an automatically admitted document.
+Broadcasts associate one observation identity with a bounded local channel set,
+while relays remain explicit provider-backed edges. The first anchor is
+CLI-only: a workspace-local `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING`
+store plus `rey channels apply/status/diff` over the current default layout.
+The following slice adds `rey observations add/list/show` without dirtying that
+topology index. Draggable persistent Feed headers follow only after the same
+state is high-fidelity and reviewable through the agent CLI.
+
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

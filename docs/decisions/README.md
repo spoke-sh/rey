@@ -44,6 +44,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0037](0037-explore-bound-collaboration-journal.md) | Accepted | Shared human, agent, and system Journal entries bound to exact Explorer coordinates |
 | [0038](0038-unauthenticated-hyperlinkable-journal.md) | Accepted | Unauthenticated Journal writes plus exact entry and block hyperlinks |
 | [0039](0039-bounded-operator-feed.md) | Accepted | Bounded high-cadence inspection queue and signal feed without inventing a global event log |
+| [0040](0040-workspace-channels-and-operator-index.md) | Accepted | Standalone frontier observations, Journal seeds, workspace-local channel graph, Git-shaped operator index, Feed persistence, and relay boundary |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

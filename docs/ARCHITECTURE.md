@@ -198,6 +198,20 @@ operator/Rey/agent conversation axis with a conventional transcript and
 composer. The current read-only server has no admitted chat transport, so the
 composer is disabled and no UI-owned transcript is invented.
 
+[ADR 0040](decisions/0040-workspace-channels-and-operator-index.md) defines the
+next collaboration substrate without changing those implemented boundaries.
+A workspace-local Channel graph will address channels, subscriptions, Feed
+streams, ordered layouts, and explicit relay declarations through a separate
+Git-shaped operator index. Standalone immutable Channel observations and their
+channel-local admissions remain outside that topology index and form a bounded
+collaboration-frontier projection. Journal remains the deliberate rich
+synthesis surface and may cite exact observations or begin from an unretained
+Journal seed. Feed, mailbox, conversation, observations, and Journal remain
+different interfaces; channel admission grants no action or transport
+authority. The Channel store, observation log, CLI, browser persistence,
+broadcast, Journal seeding, and relay provider are planned, not implemented
+behavior.
+
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
 language. StyleX owns compiled structural and stateful presentation while

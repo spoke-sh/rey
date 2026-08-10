@@ -916,6 +916,20 @@ Admission retains its authoritative source bound. Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,
 causal-order claim, or additional HTTP endpoint.
 
+ADR 0040 and Plan 0016 define the next, currently unimplemented Channel
+interface. Its topology surface is planned as `rey channels
+list|status|diff|apply|add|commit|log` over a separate `CHANNEL HEAD → CHANNEL
+INDEX → CHANNEL WORKING` revision loop. Its high-cadence frontier surface is
+planned as `rey observations add|list|show` over standalone immutable Channel
+observations and channel-local admission records that do not dirty the topology
+index. Browser drag/reorder persistence must use the same typed graph store and
+validator after that CLI proof exists. Planned observation broadcast associates
+one observation identity with explicit local channels. `rey journal seed` and
+`/journal/new?observations=...` project selected exact observations into an
+unretained catch-up proposal; only normal Journal admission creates an entry.
+Planned relay declarations do not enable transport until a provider contract is
+separately admitted.
+
 The startup table and `rey.ui-server.v3` JSON expose exact address, URL,
 loopback status, unauthenticated Journal-write authority,
 workspace, catalog root, application,

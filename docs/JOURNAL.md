@@ -1,13 +1,15 @@
 # Collaboration Journal
 
-The Rey Journal is the shared, retained reasoning surface between a human
-operator, an agent, and Rey's deterministic frontier projection. It sits
-between transient conversation and executable workload admission:
+The Rey Journal is the shared, retained synthesis surface between a human
+operator, an agent, and Rey's exact evidence. It sits after transient
+conversation and compact Channel observations but before executable workload
+admission:
 
 ```text
-conversation → entry proposal → validate → retain → project → supersede
-                                      │
-                                      └─ no execution authority
+conversation ───────────────┐
+Channel observations → Journal seed → entry proposal → validate → retain
+                                                │
+                                                └─ no execution authority
 ```
 
 A Journal entry can explain context, carry a read-only query declaration,
@@ -126,6 +128,22 @@ claim of Spoke durability, multi-user consistency, authenticated identity, or
 remote retention. Unauthenticated admission does not weaken validation,
 content identity, limits, atomic publication, or the rule that Journal blocks
 carry no execution authority.
+
+## Planned Channel Relationship
+
+[ADR 0040](decisions/0040-workspace-channels-and-operator-index.md) keeps the
+Journal separate from compact Channel observations. Observations are immutable,
+standalone frontier statements with exact evidence and source bindings;
+Journals are deliberate notebook syntheses that may cite several observations.
+A future broadcast will retain one observation and associate its identity with
+one or more explicit local channels without creating or duplicating a Journal
+entry. `rey journal seed <observation-id>...` and
+`/journal/new?observations=...` will create deterministic, unretained catch-up
+proposals that preserve exact observation citations. Only ordinary Journal
+admission retains the resulting document or its inert query/action blocks. This
+observation, channel-admission, seed, and relay behavior is planned by
+[Plan 0016](../plans/0016-channel-graph-and-operator-index.md) and is not part of
+the currently implemented Journal commands or HTTP endpoint.
 
 ## Example Agent Proposal
 
