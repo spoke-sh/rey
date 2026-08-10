@@ -10,6 +10,7 @@ name = "rey"
 path = "src/main.rs"
 
 [dependencies]
+chrono.workspace = true
 clap.workspace = true
 rey-core = { path = "../rey-core" }
 rey-diff = { path = "../rey-diff" }

@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use chrono::{DateTime, Utc};
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::{
     CapabilityDelta, CapabilityKey, DeltaAssessment, DeltaLimits, DeltaOptions,
@@ -18,15 +19,16 @@ use rey_environment::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
-pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
+pub const LEGACY_ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
+pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v2";
+pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v2";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
 pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v5";
 pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v4";
 pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v3";
 pub const ENVIRONMENT_ADMISSION_INDEX_SCHEMA: &str = "rey.environment-admission-index.v1";
 pub const ENVIRONMENT_ADD_RESULT_SCHEMA: &str = "rey.environment-add-result.v1";
-pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v1";
+pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v2";
 pub const MAX_ENVIRONMENT_COMMITS: usize = 256;
 pub const MAX_ENVIRONMENT_STATE_BYTES: u64 = 16 * 1_024 * 1_024;
 pub const MAX_ENVIRONMENT_MESSAGE_BYTES: usize = 4_096;
@@ -40,6 +42,8 @@ pub struct EnvironmentCommit {
     pub commit_id: SemanticDigest,
     pub sequence: u64,
     pub parent_commit_id: Option<SemanticDigest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub committed_at_unix: Option<i64>,
     pub message: String,
     pub snapshot: CapabilitySnapshot,
 }
@@ -51,6 +55,22 @@ impl EnvironmentCommit {
         message: impl Into<String>,
         snapshot: CapabilitySnapshot,
     ) -> Result<Self, LocalEnvironmentHistoryError> {
+        Self::new_at(
+            sequence,
+            parent_commit_id,
+            Utc::now().timestamp(),
+            message,
+            snapshot,
+        )
+    }
+
+    pub fn new_at(
+        sequence: u64,
+        parent_commit_id: Option<SemanticDigest>,
+        committed_at_unix: i64,
+        message: impl Into<String>,
+        snapshot: CapabilitySnapshot,
+    ) -> Result<Self, LocalEnvironmentHistoryError> {
         let message = normalize_message(message.into())?;
         if sequence == 0 {
             return Err(LocalEnvironmentHistoryError::InvalidSequence {
@@ -58,10 +78,13 @@ impl EnvironmentCommit {
                 actual: sequence,
             });
         }
+        validate_commit_timestamp(committed_at_unix)?;
         snapshot.verify()?;
         let commit_id = commit_digest(
+            ENVIRONMENT_COMMIT_SCHEMA,
             sequence,
             parent_commit_id.as_ref(),
+            Some(committed_at_unix),
             &message,
             &snapshot.semantic_digest,
         );
@@ -70,17 +93,33 @@ impl EnvironmentCommit {
             commit_id,
             sequence,
             parent_commit_id,
+            committed_at_unix: Some(committed_at_unix),
             message,
             snapshot,
         })
     }
 
     pub fn verify(&self) -> Result<(), LocalEnvironmentHistoryError> {
-        if self.schema != ENVIRONMENT_COMMIT_SCHEMA {
-            return Err(LocalEnvironmentHistoryError::UnsupportedCommitSchema {
-                actual: self.schema.clone(),
-            });
-        }
+        let committed_at_unix = match self.schema.as_str() {
+            LEGACY_ENVIRONMENT_COMMIT_SCHEMA => {
+                if self.committed_at_unix.is_some() {
+                    return Err(LocalEnvironmentHistoryError::UnexpectedCommitTimestamp);
+                }
+                None
+            }
+            ENVIRONMENT_COMMIT_SCHEMA => {
+                let committed_at_unix = self
+                    .committed_at_unix
+                    .ok_or(LocalEnvironmentHistoryError::MissingCommitTimestamp)?;
+                validate_commit_timestamp(committed_at_unix)?;
+                Some(committed_at_unix)
+            }
+            _ => {
+                return Err(LocalEnvironmentHistoryError::UnsupportedCommitSchema {
+                    actual: self.schema.clone(),
+                });
+            }
+        };
         if self.sequence == 0 {
             return Err(LocalEnvironmentHistoryError::InvalidSequence {
                 expected: 1,
@@ -93,8 +132,10 @@ impl EnvironmentCommit {
         }
         self.snapshot.verify()?;
         let actual = commit_digest(
+            &self.schema,
             self.sequence,
             self.parent_commit_id.as_ref(),
+            committed_at_unix,
             &self.message,
             &self.snapshot.semantic_digest,
         );
@@ -1521,17 +1562,32 @@ fn normalize_message(message: String) -> Result<String, LocalEnvironmentHistoryE
 }
 
 fn commit_digest(
+    schema: &str,
     sequence: u64,
     parent_commit_id: Option<&SemanticDigest>,
+    committed_at_unix: Option<i64>,
     message: &str,
     snapshot_id: &SemanticDigest,
 ) -> SemanticDigest {
-    let mut hasher = SemanticHasher::new(ENVIRONMENT_COMMIT_SCHEMA);
+    let mut hasher = SemanticHasher::new(schema);
     hasher.add_u64(sequence);
     hasher.add_optional_str(parent_commit_id.map(SemanticDigest::as_str));
+    if schema == ENVIRONMENT_COMMIT_SCHEMA {
+        hasher.add_str(
+            &committed_at_unix
+                .expect("v2 commits require a timestamp")
+                .to_string(),
+        );
+    }
     hasher.add_str(message);
     hasher.add_str(snapshot_id.as_str());
     hasher.finish()
+}
+
+fn validate_commit_timestamp(committed_at_unix: i64) -> Result<(), LocalEnvironmentHistoryError> {
+    DateTime::<Utc>::from_timestamp(committed_at_unix, 0)
+        .ok_or(LocalEnvironmentHistoryError::InvalidCommitTimestamp { committed_at_unix })?;
+    Ok(())
 }
 
 fn admission_index_digest(
@@ -1585,6 +1641,12 @@ pub enum LocalEnvironmentHistoryError {
     MessageNul,
     #[error("environment commit message is not canonical")]
     NonCanonicalMessage,
+    #[error("environment commit v2 is missing its commit timestamp")]
+    MissingCommitTimestamp,
+    #[error("legacy environment commit unexpectedly contains a commit timestamp")]
+    UnexpectedCommitTimestamp,
+    #[error("environment commit timestamp {committed_at_unix} is outside the supported range")]
+    InvalidCommitTimestamp { committed_at_unix: i64 },
     #[error("nothing to commit; working environment matches snapshot {0}")]
     NothingToCommit(SemanticDigest),
     #[error("nothing staged in the environment admission index")]
@@ -1641,9 +1703,10 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        EnvironmentAdmissionIndex, EnvironmentApplicationObservation, EnvironmentLog,
-        EnvironmentStatus, EnvironmentWorkingState, LocalEnvironmentHistory,
-        LocalEnvironmentHistoryError, LocalEnvironmentStore, application_inventory_coordinate,
+        EnvironmentAdmissionIndex, EnvironmentApplicationObservation, EnvironmentCommit,
+        EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
+        LEGACY_ENVIRONMENT_COMMIT_SCHEMA, LocalEnvironmentHistory, LocalEnvironmentHistoryError,
+        LocalEnvironmentStore, application_inventory_coordinate, commit_digest,
     };
 
     fn snapshot(version: &str) -> rey_environment::CapabilitySnapshot {
@@ -1709,6 +1772,7 @@ mod tests {
             Err(LocalEnvironmentHistoryError::EmptyMessage)
         ));
         let first = history.commit("baseline", snapshot("1")).unwrap();
+        assert!(first.committed_at_unix.is_some());
         assert!(matches!(
             history.commit("empty", snapshot("1")),
             Err(LocalEnvironmentHistoryError::NothingToCommit(_))
@@ -1755,6 +1819,36 @@ mod tests {
             message_tampered.verify(),
             Err(LocalEnvironmentHistoryError::CommitDigest { .. })
         ));
+
+        let mut timestamp_tampered = LocalEnvironmentHistory::default();
+        timestamp_tampered
+            .commit("baseline", snapshot("1"))
+            .unwrap();
+        timestamp_tampered.commits[0].committed_at_unix = timestamp_tampered.commits[0]
+            .committed_at_unix
+            .map(|timestamp| timestamp + 1);
+        assert!(matches!(
+            timestamp_tampered.verify(),
+            Err(LocalEnvironmentHistoryError::CommitDigest { .. })
+        ));
+    }
+
+    #[test]
+    fn legacy_undated_commits_remain_verifiable() {
+        let snapshot = snapshot("1");
+        let mut commit =
+            EnvironmentCommit::new_at(1, None, 1_786_406_400, "baseline", snapshot).unwrap();
+        commit.schema = LEGACY_ENVIRONMENT_COMMIT_SCHEMA.to_owned();
+        commit.committed_at_unix = None;
+        commit.commit_id = commit_digest(
+            LEGACY_ENVIRONMENT_COMMIT_SCHEMA,
+            commit.sequence,
+            None,
+            None,
+            &commit.message,
+            &commit.snapshot.semantic_digest,
+        );
+        commit.verify().unwrap();
     }
 
     #[test]

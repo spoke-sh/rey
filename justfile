@@ -19,7 +19,7 @@ setup:
   @pnpm --dir apps/rey-ui install --frozen-lockfile
 
 rey *args:
-  @cargo run -p rey --bin rey -- "$@"
+  @cargo run --quiet -p rey --bin rey -- "$@"
 
 check:
   @git diff --check

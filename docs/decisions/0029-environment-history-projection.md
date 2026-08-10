@@ -6,6 +6,8 @@
 - Supersedes the default human `env log` and `env log -p` projections in:
   [ADR 0019](0019-git-shaped-environment-history.md) and
   [ADR 0020](0020-environment-mapping-graph.md)
+- Commit header, date, and structured schemas superseded by:
+  [ADR 0033](0033-git-shaped-environment-loop-fidelity.md)
 
 ## Context
 

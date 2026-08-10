@@ -10,17 +10,18 @@ use std::{
     process::ExitCode,
 };
 
+use chrono::{DateTime, Utc};
 use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
     ReyError,
     env::{
         EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentApplicationObservation,
-        EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode, EnvironmentInputObservation,
-        EnvironmentLog, EnvironmentObjectChange, EnvironmentObjectStatus,
-        EnvironmentOperatorProjection, EnvironmentReferenceObservation, EnvironmentStatus,
-        EnvironmentVariableObservation, EnvironmentWorkingState, LocalEnvironmentHistory,
-        LocalEnvironmentHistoryError, LocalEnvironmentStore, effective_index_snapshot,
-        stage_selected_capabilities,
+        EnvironmentCommit, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
+        EnvironmentInputObservation, EnvironmentLog, EnvironmentObjectChange,
+        EnvironmentObjectStatus, EnvironmentOperatorProjection, EnvironmentReferenceObservation,
+        EnvironmentStatus, EnvironmentVariableObservation, EnvironmentWorkingState,
+        LocalEnvironmentHistory, LocalEnvironmentHistoryError, LocalEnvironmentStore,
+        effective_index_snapshot, stage_selected_capabilities,
     },
     inspect_environment, inspect_environment_with_mapping,
     workloads::{
@@ -41,7 +42,6 @@ use rey_environment::{
     Availability, CapabilitySnapshot, DiscoveryLimits, EnvironmentMapLimits, SourceBindingLimits,
     VariableCapture,
 };
-use rey_git::GitLimits;
 use rey_mining::{MiningCompleteness, MiningLimits};
 use rey_runtime::{
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
@@ -317,7 +317,7 @@ struct EnvStatusArgs {
 
 #[derive(Debug, Args)]
 struct EnvAddArgs {
-    /// Interactively select capability changes to admit.
+    /// Interactively confirm environment hunks to admit.
     #[arg(short = 'p', long = "patch")]
     patch: bool,
 
@@ -350,7 +350,7 @@ struct EnvCommitArgs {
 
 #[derive(Debug, Args)]
 struct EnvLogArgs {
-    /// Render the exact parent-to-commit capability patch.
+    /// Render the exact parent-to-commit environment patch.
     #[arg(short = 'p', long = "patch")]
     patch: bool,
 
@@ -660,12 +660,7 @@ fn workload_test(
         .iter()
         .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
     {
-        inspect_environment(
-            &source_fixture_root(),
-            DiscoveryLimits::default(),
-            GitLimits::default(),
-        )?
-        .semantic_digest
+        inspect_environment(&source_fixture_root(), DiscoveryLimits::default())?.semantic_digest
     } else {
         SemanticHasher::new("rey.no-mining-capability-snapshot.v1").finish()
     };
@@ -801,8 +796,7 @@ fn workload_run(
             if args.max_matches == 0 {
                 return Err(CliError::InvalidLimit);
             }
-            let snapshot =
-                inspect_environment(workspace, DiscoveryLimits::default(), GitLimits::default())?;
+            let snapshot = inspect_environment(workspace, DiscoveryLimits::default())?;
             let mining_limits = MiningLimits {
                 max_matches: args.max_matches,
                 max_rows: args.max_matches,
@@ -2706,7 +2700,6 @@ fn env_add(
     let working = inspect_environment_with_mapping(
         workspace,
         args.discovery.limits()?,
-        GitLimits::default(),
         args.discovery.map.as_deref(),
         EnvironmentMapLimits::default(),
     )?;
@@ -2717,7 +2710,7 @@ fn env_add(
     let initial =
         EnvironmentStatus::derive(&history, previous_index, working.clone(), args.max_changes)?;
     let (candidate, selected_count) = if args.patch {
-        let selected = select_capability_changes(&initial.unstaged_delta)?;
+        let selected = select_capability_changes(&initial.unstaged_delta, &initial.operator)?;
         (
             stage_selected_capabilities(&before, &working, &selected)?,
             selected.len() as u64,
@@ -2781,7 +2774,6 @@ fn env_diff(
     let snapshot = inspect_environment_with_mapping(
         workspace,
         args.discovery.limits()?,
-        GitLimits::default(),
         args.discovery.map.as_deref(),
         EnvironmentMapLimits::default(),
     )?;
@@ -2858,6 +2850,7 @@ fn environment_log_projections(
 
 fn select_capability_changes(
     delta: &CapabilityDelta,
+    projection: &EnvironmentOperatorProjection,
 ) -> Result<std::collections::BTreeSet<rey_diff::CapabilityKey>, CliError> {
     if delta.changes.is_empty() {
         return Err(LocalEnvironmentHistoryError::NothingToAdd.into());
@@ -2871,12 +2864,12 @@ fn select_capability_changes(
     writeln!(output, "{}", style.cyan_bold("ENVIRONMENT ADMISSION PATCH"))?;
     writeln!(
         output,
-        "  Delta                  INDEX → WORKING · {} capability changes",
+        "  Working tree           INDEX → WORKING · {} hunks",
         delta.changes.len()
     )?;
     writeln!(
         output,
-        "  Selection              y stage · n skip · a all · d none · q quit · ? help"
+        "  Selection              y stage · n skip · q quit · a all · d done · ? help"
     )?;
     for (position, change) in delta.changes.iter().enumerate() {
         if stage_all {
@@ -2886,13 +2879,13 @@ fn select_capability_changes(
         writeln!(output)?;
         writeln!(
             output,
-            "Change {}/{}",
+            "Hunk {}/{}",
             position.saturating_add(1),
             delta.changes.len()
         )?;
-        write_capability_change(&mut output, change, style)?;
+        write_environment_admission_hunk(&mut output, change, projection, style)?;
         loop {
-            write!(output, "Stage this capability change [y,n,q,a,d,?]? ")?;
+            write!(output, "Stage this hunk [y,n,q,a,d,?]? ")?;
             output.flush()?;
             let mut answer = String::new();
             if input.read_line(&mut answer)? == 0 {
@@ -2923,7 +2916,7 @@ fn select_capability_changes(
                 }
                 "?" => writeln!(
                     output,
-                    "  y stage this change; n skip; a stage this and all remaining; d/q stop selecting"
+                    "  y stage this hunk; n skip; q quit; a stage this and all remaining; d leave this and all remaining unstaged"
                 )?,
                 _ => writeln!(output, "  expected y, n, q, a, d, or ?")?,
             }
@@ -2936,6 +2929,209 @@ fn select_capability_changes(
     }
 }
 
+fn write_environment_admission_hunk(
+    output: &mut impl Write,
+    change: &CapabilityChange,
+    projection: &EnvironmentOperatorProjection,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    let direction = EnvironmentProjectionDirection::IndexToWorking;
+    let capability_kind = change
+        .after
+        .as_ref()
+        .or(change.before.as_ref())
+        .map(|record| record.capability_kind.as_str());
+    let object_id = environment_change_object_id(change);
+
+    if change.key.capability_id == "git.repository.inspect" {
+        write_environment_hunk_header(output, "git", "repository", change.kind, style)?;
+        let marker = match change.kind {
+            CapabilityChangeKind::Inserted => style.green("+"),
+            CapabilityChangeKind::Deleted => style.red("-"),
+            CapabilityChangeKind::Modified => style.yellow("~"),
+        };
+        writeln!(
+            output,
+            "  {marker} Git repository state: HEAD + semantic index"
+        )?;
+        writeln!(
+            output,
+            "      Scope                Git state belongs to cadence and workload activation, not environment admission"
+        )?;
+        return Ok(());
+    }
+
+    match capability_kind {
+        Some("environment_seed" | "environment_variable") => {
+            if let Some(variable) = projection
+                .variables
+                .iter()
+                .find(|variable| variable.object_id == object_id)
+            {
+                write_environment_hunk_header(
+                    output,
+                    "variable",
+                    &variable.object_id,
+                    change.kind,
+                    style,
+                )?;
+                write_environment_variable_diff(output, variable, direction, style)?;
+                return Ok(());
+            }
+        }
+        Some("identity_probe" | "potential_executable") => {
+            if let Some(application) = projection.applications.iter().find(|application| {
+                application.object_id == object_id
+                    || direction
+                        .target(application)
+                        .or_else(|| direction.source(application))
+                        .is_some_and(|observation| {
+                            observation
+                                .potential_capabilities
+                                .contains(&change.key.capability_id)
+                        })
+            }) {
+                write_environment_hunk_header(
+                    output,
+                    "application",
+                    &application.object_id,
+                    change.kind,
+                    style,
+                )?;
+                write_environment_application_diff(output, application, direction, style)?;
+                return Ok(());
+            }
+        }
+        Some("input_file") => {
+            if let Some(input) = projection
+                .inputs
+                .iter()
+                .find(|input| input.object_id == object_id)
+            {
+                write_environment_hunk_header(
+                    output,
+                    "input",
+                    &input.object_id,
+                    change.kind,
+                    style,
+                )?;
+                write_environment_input_diff(output, input, direction, style)?;
+                return Ok(());
+            }
+        }
+        Some("environment_edge") => {
+            if let Some(reference) = projection
+                .references
+                .iter()
+                .find(|reference| reference.object_id == object_id)
+            {
+                write_environment_hunk_header(
+                    output,
+                    "reference",
+                    &reference.object_id,
+                    change.kind,
+                    style,
+                )?;
+                write_environment_reference_diff(output, reference, direction, style)?;
+                return Ok(());
+            }
+        }
+        _ => {}
+    }
+
+    write_environment_hunk_header(
+        output,
+        "capability",
+        &format!(
+            "{}@{}/{}",
+            change.key.provider_id, change.key.provider_revision, change.key.capability_id
+        ),
+        change.kind,
+        style,
+    )?;
+    write_capability_change(output, change, style)?;
+    Ok(())
+}
+
+fn environment_change_object_id(change: &CapabilityChange) -> String {
+    if let Some(name) = change.key.capability_id.strip_prefix("env.seed.") {
+        return format!("seed-{name}");
+    }
+    change
+        .key
+        .capability_id
+        .strip_prefix("env.mapping.node.")
+        .unwrap_or(&change.key.capability_id)
+        .to_owned()
+}
+
+fn write_environment_hunk_header(
+    output: &mut impl Write,
+    kind: &str,
+    object_id: &str,
+    change: CapabilityChangeKind,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let path = format!("environment/{kind}/{object_id}");
+    writeln!(output, "diff --rey a/{path} b/{path}")?;
+    writeln!(
+        output,
+        "{}",
+        style.dim(&format!(
+            "@@ INDEX → WORKING · {}",
+            capability_change_kind_label(change)
+        ))
+    )
+}
+
+const fn capability_change_kind_label(change: CapabilityChangeKind) -> &'static str {
+    match change {
+        CapabilityChangeKind::Inserted => "new",
+        CapabilityChangeKind::Deleted => "deleted",
+        CapabilityChangeKind::Modified => "modified",
+    }
+}
+
+fn write_environment_application_diff(
+    output: &mut impl Write,
+    application: &EnvironmentObjectStatus<EnvironmentApplicationObservation>,
+    direction: EnvironmentProjectionDirection,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    match direction.change(application) {
+        EnvironmentObjectChange::Unchanged => {}
+        EnvironmentObjectChange::Inserted => {
+            if let Some(observation) = direction.target(application) {
+                write_environment_application(output, observation, &style.green("+"), None)?;
+            }
+        }
+        EnvironmentObjectChange::Deleted => {
+            if let Some(observation) = direction.source(application) {
+                write_environment_application(output, observation, &style.red("-"), None)?;
+            }
+        }
+        EnvironmentObjectChange::Modified => {
+            if let Some(observation) = direction.source(application) {
+                write_environment_application(
+                    output,
+                    observation,
+                    &style.red("-"),
+                    Some("before"),
+                )?;
+            }
+            if let Some(observation) = direction.target(application) {
+                write_environment_application(
+                    output,
+                    observation,
+                    &style.green("+"),
+                    Some("after"),
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn write_env_status(
     output: &mut impl Write,
     workspace: &Path,
@@ -2944,23 +3140,24 @@ fn write_env_status(
 ) -> Result<(), CliError> {
     let projection = &status.operator;
     writeln!(output)?;
+    let head = status.head_sequence.map_or_else(
+        || "no commits yet".to_owned(),
+        |sequence| format!("ENV@{sequence}"),
+    );
     writeln!(
         output,
         "{}",
-        style.cyan_bold(&format!(
-            "REY ENV · {} → {}",
-            projection.source_label, projection.target_label
-        ))
+        style.cyan_bold(&format!("On environment {head}"))
     )?;
     writeln!(output, "  Workspace              {}", workspace.display())?;
     writeln!(
         output,
-        "  State                  {}",
+        "  Working tree           {}",
         environment_state_label(status.state, style)
     )?;
     writeln!(
         output,
-        "  Observation            {} · profile {}",
+        "  Observation            {} · {}",
         if projection.complete {
             style.green("COMPLETE")
         } else {
@@ -2970,13 +3167,11 @@ fn write_env_status(
     )?;
     writeln!(
         output,
-        "  Admission              {} staged · {} working capability changes",
-        status.staged_delta.changes.len(),
-        status.unstaged_delta.changes.len()
-    )?;
-    writeln!(
-        output,
-        "  Discovery seeds        HOME · PWD · PATH · process-owned"
+        "  Applications           {} desired · {} found · {} not found · {} errors",
+        projection.summary.applications_searched,
+        projection.summary.applications_found,
+        projection.summary.applications_not_found,
+        projection.summary.application_errors
     )?;
     match &projection.mapping {
         Some(mapping) => writeln!(
@@ -2990,103 +3185,261 @@ fn write_env_status(
         )?,
     }
 
-    writeln!(output)?;
-    writeln!(
-        output,
-        "{}",
-        style.bold(&format!(
-            "ENVIRONMENT VARIABLES · {} tracked · {} changed",
-            projection.summary.variables, projection.summary.changed_variables
-        ))
-    )?;
-    writeln!(
-        output,
-        "{}",
-        style.dim(&format!(
-            "@@ {} → {}",
-            projection.source_label, projection.target_label
-        ))
-    )?;
-    if projection.variables.is_empty() {
-        writeln!(
-            output,
-            "  (no process seeds or explicit mapping variables observed)"
-        )?;
-    } else {
-        for variable in &projection.variables {
-            write_environment_variable_diff(
-                output,
-                variable,
-                EnvironmentProjectionDirection::HeadToWorking,
-                style,
-            )?;
-        }
-    }
-
-    write_environment_application_planes(
+    write_environment_status_changes(
         output,
         projection,
-        EnvironmentProjectionDirection::HeadToWorking,
-        "WORKING",
-        &status.working_snapshot.semantic_digest,
+        EnvironmentProjectionDirection::HeadToIndex,
+        &status.staged_delta,
+        "Changes to be committed:",
+        "  (use \"rey env diff --staged\" to review)",
+        true,
         style,
     )?;
-
-    if !projection.inputs.is_empty() {
-        writeln!(
-            output,
-            "\n{}",
-            style.bold(&format!(
-                "INPUTS · {} tracked · {} changed",
-                projection.summary.inputs, projection.summary.changed_inputs
-            ))
-        )?;
-        for input in &projection.inputs {
-            write_environment_input(
-                output,
-                input,
-                EnvironmentProjectionDirection::HeadToWorking,
-                style,
-            )?;
-        }
-    }
-
-    if projection.summary.references > 0 {
-        writeln!(
-            output,
-            "\nREFERENCES · {} declared · exact topology available in `--format json`",
-            projection.summary.references
-        )?;
-    }
+    write_environment_status_changes(
+        output,
+        projection,
+        EnvironmentProjectionDirection::IndexToWorking,
+        &status.unstaged_delta,
+        "Changes not staged for environment commit:",
+        "  (use \"rey env diff\" to review; \"rey env add\" or \"rey env add -p\" to stage)",
+        false,
+        style,
+    )?;
 
     writeln!(output)?;
     match status.state {
         EnvironmentWorkingState::Unborn => writeln!(
             output,
-            "No environment commits yet; add the working environment before committing."
+            "No environment commits yet. Use `rey env add` to begin tracking this environment."
         )?,
-        EnvironmentWorkingState::Clean => writeln!(
-            output,
-            "Nothing to commit; HEAD, the admission index, and working environment agree."
-        )?,
+        EnvironmentWorkingState::Clean => {
+            writeln!(output, "nothing to commit, working environment clean")?
+        }
         EnvironmentWorkingState::Changed => writeln!(
             output,
-            "Working changes are not admitted. Review `rey env diff`, then run `rey env add`."
+            "no changes added to environment commit (use `rey env add` or `rey env add -p`)"
         )?,
-        EnvironmentWorkingState::Staged => writeln!(
-            output,
-            "Admission index is ready to commit; the working environment matches it."
-        )?,
+        EnvironmentWorkingState::Staged => {
+            writeln!(output, "changes staged in the environment admission index")?
+        }
         EnvironmentWorkingState::Mixed => writeln!(
             output,
-            "Admission index has commit-ready changes and additional unstaged working drift."
+            "staged changes and unstaged environment drift are both present"
         )?,
         EnvironmentWorkingState::Inconclusive => writeln!(
             output,
-            "Working evidence is incomplete; the delta cannot establish a clean environment."
+            "working evidence is incomplete; Rey cannot establish a clean environment"
         )?,
     }
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_environment_status_changes(
+    output: &mut impl Write,
+    projection: &EnvironmentOperatorProjection,
+    direction: EnvironmentProjectionDirection,
+    delta: &CapabilityDelta,
+    heading: &str,
+    hint: &str,
+    staged: bool,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    if delta.changes.is_empty() {
+        return Ok(());
+    }
+    writeln!(output)?;
+    writeln!(output, "{heading}")?;
+    writeln!(output, "{hint}")?;
+
+    for variable in projection
+        .variables
+        .iter()
+        .filter(|object| direction.change(object) != EnvironmentObjectChange::Unchanged)
+    {
+        let observation = direction
+            .target(variable)
+            .or_else(|| direction.source(variable));
+        if let Some(observation) = observation {
+            write_environment_status_entry(
+                output,
+                direction.change(variable),
+                &format!("environment variable: {}", observation.name),
+                staged,
+                style,
+            )?;
+        }
+    }
+    for application in projection
+        .applications
+        .iter()
+        .filter(|object| direction.change(object) != EnvironmentObjectChange::Unchanged)
+    {
+        let observation = direction
+            .target(application)
+            .or_else(|| direction.source(application));
+        if let Some(observation) = observation {
+            write_environment_status_entry(
+                output,
+                direction.change(application),
+                &format!("application: {}", observation.name),
+                staged,
+                style,
+            )?;
+        }
+    }
+    for input in projection
+        .inputs
+        .iter()
+        .filter(|object| direction.change(object) != EnvironmentObjectChange::Unchanged)
+    {
+        let observation = direction.target(input).or_else(|| direction.source(input));
+        if let Some(observation) = observation {
+            write_environment_status_entry(
+                output,
+                direction.change(input),
+                &format!("input: {}", observation.path),
+                staged,
+                style,
+            )?;
+        }
+    }
+    for reference in projection
+        .references
+        .iter()
+        .filter(|object| direction.change(object) != EnvironmentObjectChange::Unchanged)
+    {
+        let observation = direction
+            .target(reference)
+            .or_else(|| direction.source(reference));
+        if let Some(observation) = observation {
+            write_environment_status_entry(
+                output,
+                direction.change(reference),
+                &format!(
+                    "reference: {} --{}--> {}",
+                    observation.from, observation.relation, observation.to
+                ),
+                staged,
+                style,
+            )?;
+        }
+    }
+
+    for change in delta
+        .changes
+        .iter()
+        .filter(|change| !environment_change_is_projected(change, projection, direction))
+    {
+        write_environment_status_entry(
+            output,
+            environment_capability_object_change(change.kind),
+            &environment_capability_status_description(change),
+            staged,
+            style,
+        )?;
+    }
+    Ok(())
+}
+
+fn environment_change_is_projected(
+    change: &CapabilityChange,
+    projection: &EnvironmentOperatorProjection,
+    direction: EnvironmentProjectionDirection,
+) -> bool {
+    let Some(record) = change.after.as_ref().or(change.before.as_ref()) else {
+        return false;
+    };
+    let object_id = environment_change_object_id(change);
+    match record.capability_kind.as_str() {
+        "environment_seed" | "environment_variable" => projection.variables.iter().any(|object| {
+            object.object_id == object_id
+                && direction.change(object) != EnvironmentObjectChange::Unchanged
+        }),
+        "identity_probe" | "potential_executable" => projection.applications.iter().any(|object| {
+            direction.change(object) != EnvironmentObjectChange::Unchanged
+                && (object.object_id == object_id
+                    || direction
+                        .target(object)
+                        .or_else(|| direction.source(object))
+                        .is_some_and(|observation| {
+                            observation
+                                .potential_capabilities
+                                .contains(&change.key.capability_id)
+                        }))
+        }),
+        "input_file" => projection.inputs.iter().any(|object| {
+            object.object_id == object_id
+                && direction.change(object) != EnvironmentObjectChange::Unchanged
+        }),
+        "environment_edge" => projection.references.iter().any(|object| {
+            object.object_id == object_id
+                && direction.change(object) != EnvironmentObjectChange::Unchanged
+        }),
+        _ => false,
+    }
+}
+
+const fn environment_capability_object_change(
+    change: CapabilityChangeKind,
+) -> EnvironmentObjectChange {
+    match change {
+        CapabilityChangeKind::Inserted => EnvironmentObjectChange::Inserted,
+        CapabilityChangeKind::Deleted => EnvironmentObjectChange::Deleted,
+        CapabilityChangeKind::Modified => EnvironmentObjectChange::Modified,
+    }
+}
+
+fn environment_capability_status_description(change: &CapabilityChange) -> String {
+    let record = change.after.as_ref().or(change.before.as_ref());
+    let capability_id = change.key.capability_id.as_str();
+    let label = match capability_id {
+        "frame.arrow-stream" => "typed interchange: Arrow stream frames",
+        "git.repository.inspect" => "Git repository state: HEAD + semantic index",
+        "source.search.literal-utf8" => "mining capability: literal UTF-8 source search",
+        "workspace.metadata" => "context surface: workspace metadata",
+        "tool.git.identity" => "application capability: Git identity probe",
+        "tool.ripgrep.identity" => "application capability: ripgrep identity probe",
+        "env.mapping.graph" => "reasoning map",
+        _ => record.map_or("capability", |record| {
+            match record.capability_kind.as_str() {
+                "context_surface" => "context surface",
+                "source_mining" => "mining capability",
+                "typed_frame" => "typed interchange",
+                "environment_map" => "reasoning map",
+                _ => "capability",
+            }
+        }),
+    };
+    format!("{label} ({capability_id})")
+}
+
+fn write_environment_status_entry(
+    output: &mut impl Write,
+    change: EnvironmentObjectChange,
+    description: &str,
+    staged: bool,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let line = format!(
+        "{:<10} {description}",
+        environment_object_change_label(change)
+    );
+    let line = if staged {
+        style.green(&line)
+    } else {
+        style.red(&line)
+    };
+    writeln!(output, "        {line}")
+}
+
+const fn environment_object_change_label(change: EnvironmentObjectChange) -> &'static str {
+    match change {
+        EnvironmentObjectChange::Unchanged => "unchanged:",
+        EnvironmentObjectChange::Inserted => "new:",
+        EnvironmentObjectChange::Deleted => "deleted:",
+        EnvironmentObjectChange::Modified => "modified:",
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -3501,40 +3854,6 @@ fn write_environment_application(
     )
 }
 
-fn write_environment_input(
-    output: &mut impl Write,
-    input: &EnvironmentObjectStatus<EnvironmentInputObservation>,
-    direction: EnvironmentProjectionDirection,
-    style: TerminalStyle,
-) -> io::Result<()> {
-    let observation = direction
-        .target(input)
-        .or_else(|| direction.source(input))
-        .expect("merged environment input has at least one observation");
-    let marker = match observation.availability {
-        Availability::Available => style.green("+"),
-        Availability::Unavailable => style.yellow("?"),
-        Availability::Error => style.red("!"),
-    };
-    let digest = observation
-        .content_digest
-        .as_deref()
-        .map(compact_digest)
-        .unwrap_or_else(|| "unbound".to_owned());
-    let requirement = if observation.required {
-        "required"
-    } else {
-        "optional"
-    };
-    writeln!(
-        output,
-        "  {marker} {} · {requirement} · {} · {} bytes",
-        observation.path,
-        digest,
-        observation.byte_length.unwrap_or(0)
-    )
-}
-
 fn write_env_add(
     output: &mut impl Write,
     store: &LocalEnvironmentStore,
@@ -3676,19 +3995,26 @@ fn write_env_log(
         writeln!(
             output,
             "{}{}",
-            style.bold(&format!("commit {}", commit.commit_id)),
+            style.bold(&format!(
+                "commit ENV@{} {}",
+                commit.sequence, commit.commit_id
+            )),
             if head { " (HEAD)" } else { "" }
         )?;
         writeln!(
             output,
-            "  Revision               ENV@{} · parent {}",
-            commit.sequence,
-            if commit.sequence == 1 {
-                "EMPTY".to_owned()
-            } else {
-                format!("ENV@{}", commit.sequence - 1)
-            }
+            "Parent: {}",
+            commit.parent_commit_id.as_ref().map_or_else(
+                || "EMPTY".to_owned(),
+                |parent| format!("ENV@{} {parent}", commit.sequence.saturating_sub(1))
+            )
         )?;
+        writeln!(output, "Date:   {}", format_environment_commit_date(commit))?;
+        writeln!(output)?;
+        for line in commit.message.lines() {
+            writeln!(output, "    {line}")?;
+        }
+        writeln!(output)?;
         writeln!(
             output,
             "  Evidence               {} → {} · {} · {} authoritative capability {}",
@@ -3738,10 +4064,6 @@ fn write_env_log(
                 "  Reasoning map          none · process discovery only"
             )?,
         }
-        writeln!(output, "  Message")?;
-        for line in commit.message.lines() {
-            writeln!(output, "      {line}")?;
-        }
         if log.patch {
             write_environment_transition_planes(
                 output,
@@ -3753,6 +4075,18 @@ fn write_env_log(
         }
     }
     Ok(())
+}
+
+fn format_environment_commit_date(commit: &EnvironmentCommit) -> String {
+    commit.committed_at_unix.map_or_else(
+        || "unknown (legacy environment commit)".to_owned(),
+        |timestamp| {
+            DateTime::<Utc>::from_timestamp(timestamp, 0).map_or_else(
+                || "invalid timestamp".to_owned(),
+                |date| date.format("%a %b %e %H:%M:%S %Y %z").to_string(),
+            )
+        },
+    )
 }
 
 fn environment_snapshot_mapping(snapshot: &CapabilitySnapshot) -> Option<(&str, &str)> {
@@ -4227,6 +4561,13 @@ fn write_capability_change(
         }
         CapabilityChangeKind::Modified => {
             for field in &change.changed_fields {
+                if field == "provenance" || field == "error_detail" {
+                    writeln!(
+                        output,
+                        "      {field}: changed · structured value omitted; inspect with `rey env diff --format json`"
+                    )?;
+                    continue;
+                }
                 writeln!(
                     output,
                     "      {field}: {} → {}",
@@ -4280,9 +4621,18 @@ fn capability_field(
         return Ok("null".to_owned());
     };
     let value = serde_json::to_value(record)?;
-    Ok(value
+    let rendered = value
         .get(field)
-        .map_or_else(|| "<missing>".to_owned(), serde_json::Value::to_string))
+        .map_or_else(|| "<missing>".to_owned(), serde_json::Value::to_string);
+    const MAX_CAPABILITY_FIELD_CHARS: usize = 180;
+    if rendered.chars().count() <= MAX_CAPABILITY_FIELD_CHARS {
+        return Ok(rendered);
+    }
+    let prefix = rendered.chars().take(140).collect::<String>();
+    Ok(format!(
+        "{prefix}…<{} chars omitted>",
+        rendered.chars().count().saturating_sub(140)
+    ))
 }
 
 fn environment_state_label(state: EnvironmentWorkingState, style: TerminalStyle) -> String {

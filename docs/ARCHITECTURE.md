@@ -372,10 +372,13 @@ See [Mining Context Into Evidence](MINING.md) and
 
 ## Git Provider And Activation
 
-Git is a specialized environment provider for software spaces. It observes the
-object database, commit graph, refs, per-worktree HEAD and index, and optionally
-bounded worktree status. It produces typed repository, ref, commit, parent,
-path-change, index-entry, status, and activation relations.
+Git is a specialized context and activation provider for software spaces. It
+observes the object database, commit graph, refs, per-worktree HEAD and index,
+and optionally bounded worktree status. It produces typed repository, ref,
+commit, parent, path-change, index-entry, status, and activation relations.
+Repository state is not folded into the `rey env` admission snapshot: that
+surface retains the `git` application identity, while cadence and workload
+activation retain exact Git observations on their own clock.
 
 A poll compares the current repository snapshot with its last completely
 processed cursor. Fast-forward refs can expose newly reachable commits; rewinds
@@ -661,7 +664,9 @@ bounded content-addressed local proof bundles with explicit filesystem-only
 guarantees. The `env` CLI now adds a verified bounded linear history of
 capability snapshots: `status` derives HEAD-to-working state, `commit` accepts
 one non-empty semantic revision, and `log -p` reopens exact parent-directed
-capability patches. These environment commits are local Rey observations, not
+environment patches. Status separates staged and unstaged working-tree rows,
+interactive add confirms environment-native hunks, and new commit identities
+bind explicit retention time. These environment commits are local Rey observations, not
 Git objects or Spoke-durable revisions. `rey-runtime` implements the pure
 formal state reducer through an explicit scheduling phase; `rey-frontier`
 implements canonical frontier, progress, and bounded selection contracts; and

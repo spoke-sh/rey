@@ -53,14 +53,17 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(unborn.stderr.is_empty());
     let unborn = String::from_utf8(unborn.stdout).unwrap();
     for evidence in [
-        "REY ENV · EMPTY → WORKING",
-        "State                  UNBORN",
-        "Admission              0 staged",
-        "Discovery seeds        HOME · PWD · PATH · process-owned",
+        "On environment no commits yet",
+        "Working tree           UNBORN",
+        "Applications           2 desired · 2 found · 0 not found · 0 errors",
         "Reasoning map          none · no explicit --map resource",
-        "ENVIRONMENT VARIABLES · 3 tracked · 3 changed",
-        "APPLICATIONS · 2 searched",
-        "No environment commits yet; add the working environment before committing.",
+        "Changes not staged for environment commit:",
+        "new:       environment variable: HOME",
+        "new:       application: git",
+        "new:       typed interchange: Arrow stream frames (frame.arrow-stream)",
+        "new:       mining capability: literal UTF-8 source search (source.search.literal-utf8)",
+        "new:       context surface: workspace metadata (workspace.metadata)",
+        "No environment commits yet. Use `rey env add`",
     ] {
         assert!(
             unborn.contains(evidence),
@@ -125,7 +128,10 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(first.status.success());
     assert!(first.stderr.is_empty());
     let first: EnvironmentCommitResult = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(first.schema, "rey.environment-commit-result.v2");
+    assert_eq!(first.commit.schema, "rey.environment-commit.v2");
     assert_eq!(first.commit.sequence, 1);
+    assert!(first.commit.committed_at_unix.is_some());
     assert_eq!(first.commit.message, "baseline");
     assert!(first.commit.parent_commit_id.is_none());
     assert_eq!(first.delta.source_label, "EMPTY");
@@ -155,7 +161,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
             .success()
     );
 
-    let changed = run_rey(&[
+    let git_changed = run_rey(&[
         "env",
         "--workspace",
         workspace_path,
@@ -163,40 +169,77 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "--format",
         "table",
     ]);
+    assert!(git_changed.status.success());
+    let git_changed = String::from_utf8(git_changed.stdout).unwrap();
+    assert!(git_changed.contains("Working tree           CLEAN"));
+    assert!(git_changed.contains("nothing to commit, working environment clean"));
+    assert!(!git_changed.contains("git.repository.inspect"));
+
+    let git_diff = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "diff",
+        "--format",
+        "json",
+    ]);
+    assert!(git_diff.status.success());
+    let git_diff: EnvironmentDiff = serde_json::from_slice(&git_diff.stdout).unwrap();
+    assert!(git_diff.delta.changes.is_empty());
+
+    let changed_path = format!(
+        "{}:/rey-environment-path-drift",
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let drift = [("PATH", changed_path.as_str())];
+    let changed = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "status",
+            "--format",
+            "table",
+        ],
+        &drift,
+    );
     assert!(changed.status.success());
     let changed = String::from_utf8(changed.stdout).unwrap();
     for evidence in [
-        "REY ENV · ENV@1 → WORKING",
-        "State                  CHANGED",
-        "Admission              0 staged · 1 working capability changes",
-        "ENVIRONMENT VARIABLES · 3 tracked · 0 changed",
-        "APPLICATIONS · 2 searched",
+        "On environment ENV@1",
+        "Working tree           CHANGED",
+        "Changes not staged for environment commit:",
+        "modified:  environment variable: PATH",
+        "modified:  application: git",
+        "modified:  application: rg",
+        "no changes added to environment commit",
     ] {
         assert!(
             changed.contains(evidence),
             "missing changed evidence: {evidence}"
         );
     }
-    assert!(!changed.contains("git.repository.inspect"));
-
-    let diff = run_rey(&[
-        "env",
-        "--workspace",
-        workspace_path,
-        "diff",
-        "--format",
-        "table",
-    ]);
+    let diff = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "diff",
+            "--format",
+            "table",
+        ],
+        &drift,
+    );
     assert!(diff.status.success());
     let diff = String::from_utf8(diff.stdout).unwrap();
     for evidence in [
         "REY ENV DIFF · INDEX → WORKING",
         "View                   UNSTAGED",
-        "Evidence               DIFFERENT · 1 authoritative capability change",
+        "Evidence               DIFFERENT · 3 authoritative capability changes",
         "01 / DIRECTED TEXT",
-        "Environment variables · 3 tracked · 0 changed",
+        "Environment variables · 3 tracked · 1 changed",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 2 searched",
+        "APPLICATIONS · 2 searched · 2 found · 0 not found · 0 errors · 2 changed",
         "REFERENCE PLANE",
         "Inputs and topology",
     ] {
@@ -205,18 +248,21 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(!diff.contains("CAPABILITY PATCH"));
     assert!(!diff.contains("git.repository.inspect"));
 
-    let added = run_rey(&[
-        "env",
-        "--workspace",
-        workspace_path,
-        "add",
-        "--format",
-        "table",
-    ]);
+    let added = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--format",
+            "table",
+        ],
+        &drift,
+    );
     assert!(added.status.success());
     let added = String::from_utf8(added.stdout).unwrap();
     assert!(added.contains("ENVIRONMENT ADMISSION"));
-    assert!(added.contains("1 capability changes admitted"));
+    assert!(added.contains("3 capability changes admitted"));
     assert!(added.contains("0 changes remain unstaged · EQUAL"));
 
     let staged_diff = run_rey(&[
@@ -232,7 +278,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert_eq!(staged_diff.mode, EnvironmentDiffMode::Staged);
     assert_eq!(staged_diff.delta.source_label, "ENV@1");
     assert_eq!(staged_diff.delta.target_label, "INDEX");
-    assert_eq!(staged_diff.delta.summary.modified, 1);
+    assert_eq!(staged_diff.delta.summary.modified, 3);
 
     let second = run_rey(&[
         "env",
@@ -265,11 +311,13 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     for evidence in [
         "REY ENV LOG",
         "2 total · 2 shown · newest first",
-        "Revision               ENV@2 · parent ENV@1",
-        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 1 authoritative capability change",
+        "commit ENV@2 ",
+        "Parent: ENV@1 ",
+        "Date:   ",
+        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 3 authoritative capability changes",
         "Environment            3 variables · 2 applications · 0 inputs · 0 references · complete",
-        "Changes                0 variables · 0 applications · 0 inputs · 0 references",
-        "Message\n      stage fixture",
+        "Changes                1 variable · 2 applications · 0 inputs · 0 references",
+        "    stage fixture",
     ] {
         assert!(log.contains(evidence), "missing log evidence: {evidence}");
     }
@@ -277,6 +325,22 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(!log.contains("CAPABILITY PATCH"));
     assert!(!log.contains("Delta id"));
     assert!(!log.contains("Retention"));
+
+    let one = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-n",
+        "1",
+        "--format",
+        "table",
+    ]);
+    assert!(one.status.success());
+    let one = String::from_utf8(one.stdout).unwrap();
+    assert!(one.contains("1 shown"));
+    assert!(one.contains("stage fixture"));
+    assert!(!one.contains("baseline"));
 
     let patch_log = run_rey(&[
         "env",
@@ -295,8 +359,10 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     for evidence in [
         "REY ENV LOG",
         "2 total · 2 shown · newest first",
-        "Revision               ENV@2 · parent ENV@1",
-        "Message\n      stage fixture",
+        "commit ENV@2 ",
+        "Parent: ENV@1 ",
+        "Date:   ",
+        "    stage fixture",
         "01 / DIRECTED TEXT",
         "@@ ENV@1 → ENV@2",
         "02 / BOUNDED SEARCH",
@@ -412,6 +478,20 @@ fn status_json_is_machine_clean_and_contains_the_complete_inventory() {
             .capabilities
             .iter()
             .all(|row| !row.provider_id.contains("spoke"))
+    );
+    assert!(
+        status
+            .working_snapshot
+            .capabilities
+            .iter()
+            .any(|row| row.capability_id == "tool.git.identity")
+    );
+    assert!(
+        status
+            .working_snapshot
+            .capabilities
+            .iter()
+            .all(|row| row.capability_id != "git.repository.inspect")
     );
     assert_eq!(status.staged_delta.source_label, "EMPTY");
     assert_eq!(status.unstaged_delta.target_label, "WORKING");
@@ -623,22 +703,17 @@ edges:
     assert!(status.status.success());
     let status = String::from_utf8(status.stdout).unwrap();
     for evidence in [
-        "REY ENV · EMPTY → WORKING",
+        "On environment no commits yet",
+        "Working tree           UNBORN",
         "Reasoning map          rey.env.yaml · rey.env-map.v3",
-        "ENVIRONMENT VARIABLES · 5 tracked · 5 changed",
-        "+ REY_MODE=development-mode-value",
-        "+ REY_SECRET=<present:redacted>",
-        "02 / BOUNDED SEARCH",
-        "DESIRED INVENTORY · 4 declared",
-        "probe                  rey-map-probe · required · source.search",
-        "Purpose              Search the bounded fixture corpus",
-        "SEARCH RECORD · WORKING @",
-        "Method                 declared adapters · bounded PATH resolution · fixed identity probes only",
-        "APPLICATIONS · 4 searched",
-        "FOUND 3",
-        "rey-map-probe",
-        "SEARCHED, NOT FOUND 1",
-        "rey-definitely-missing",
+        "Applications           4 desired · 3 found · 1 not found · 0 errors",
+        "Changes not staged for environment commit:",
+        "new:       environment variable: REY_MODE",
+        "new:       environment variable: REY_SECRET",
+        "new:       application: rey-map-probe",
+        "new:       application: rey-definitely-missing",
+        "new:       input: input.txt",
+        "new:       reference: mode --locates--> input",
     ] {
         assert!(
             status.contains(evidence),
@@ -834,12 +909,14 @@ edges:
     let log = String::from_utf8(log.stdout).unwrap();
     for evidence in [
         "REY ENV LOG",
-        "Revision               ENV@2 · parent ENV@1",
+        "commit ENV@2 ",
+        "Parent: ENV@1 ",
+        "Date:   ",
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
         "Environment            5 variables · 4 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
         "Reasoning map          rey.env.yaml · rey.env-map.v3",
-        "Message\n      update mapped environment",
+        "    update mapped environment",
     ] {
         assert!(
             log.contains(evidence),
@@ -902,7 +979,8 @@ edges:
     assert!(json_log.status.success());
     assert!(json_log.stderr.is_empty());
     let json_log: EnvironmentLog = serde_json::from_slice(&json_log.stdout).unwrap();
-    assert_eq!(json_log.schema, "rey.environment-log.v1");
+    assert_eq!(json_log.schema, "rey.environment-log.v2");
+    assert!(json_log.entries[0].commit.committed_at_unix.is_some());
     assert!(json_log.patch);
     assert_eq!(json_log.entries.len(), 1);
     assert_eq!(json_log.entries[0].delta.source_label, "ENV@1");
@@ -1033,8 +1111,10 @@ nodes:
     );
     let partial = String::from_utf8(partial.stdout).unwrap();
     assert!(partial.contains("ENVIRONMENT ADMISSION PATCH"));
-    assert!(partial.contains("Change 1/2"));
-    assert!(partial.contains("Change 2/2"));
+    assert!(partial.contains("Hunk 1/2"));
+    assert!(partial.contains("Hunk 2/2"));
+    assert!(partial.contains("diff --rey a/environment/"));
+    assert!(partial.contains("Stage this hunk [y,n,q,a,d,?]?"));
     assert!(partial.contains("1 capability changes admitted"));
     assert!(partial.contains("1 changes remain unstaged"));
 
@@ -1090,6 +1170,73 @@ nodes:
     assert!(after.admission_index.is_none());
     assert!(after.staged_delta.changes.is_empty());
     assert_eq!(after.unstaged_delta.summary.modified, 2);
+}
+
+#[test]
+fn env_add_patch_never_dumps_structured_provenance() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("alpha.txt"), "alpha\n").unwrap();
+    fs::write(workspace.path().join("beta.txt"), "beta\n").unwrap();
+    fs::write(
+        workspace.path().join("rey.env.yaml"),
+        "schema: rey.env-map.v3\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n",
+    )
+    .unwrap();
+    assert!(
+        run_rey(&[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--map",
+            "rey.env.yaml",
+        ])
+        .status
+        .success()
+    );
+    assert!(
+        run_rey(&[
+            "env",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "baseline map",
+        ])
+        .status
+        .success()
+    );
+    fs::write(
+        workspace.path().join("rey.env.yaml"),
+        "schema: rey.env-map.v3\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n  - id: beta\n    kind: file\n    path: beta.txt\n    required: true\n",
+    )
+    .unwrap();
+
+    let partial = run_rey_with_stdin_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "-p",
+            "--map",
+            "rey.env.yaml",
+        ],
+        "y\nn\n",
+        &[],
+    );
+    assert!(
+        partial.status.success(),
+        "{}",
+        String::from_utf8_lossy(&partial.stderr)
+    );
+    let partial = String::from_utf8(partial.stdout).unwrap();
+    assert!(partial.contains("env.mapping.graph"));
+    assert!(partial.contains(
+        "provenance: changed · structured value omitted; inspect with `rey env diff --format json`"
+    ));
+    assert!(!partial.contains("\\\"nodes\\\""));
 }
 
 #[test]

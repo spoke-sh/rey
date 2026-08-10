@@ -35,6 +35,8 @@ registry, and exact matrix-style Explorer coordinates.
 ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
 explicit agent-map input, establishes locator survey as the next boundary, and
 turns the footer into a live typed-attention mailbox.
+ADR 0033 restores a compact Git-shaped environment working-tree view, projects
+interactive admission as environment hunks, and adds bounded dated v2 history.
 
 ## Interface Principles
 
@@ -227,14 +229,18 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 `status` is the single environment inventory and revision view. It performs a
 fresh observation, retains the complete working snapshot in
 `rey.environment-status.v5`, and derives one typed variable, application,
-input, and reference projection over `HEAD → INDEX → WORKING`. Human output
-leads with the env-shaped `HEAD → WORKING` variable diff, the exact desired
-application inventory record, and the complete bounded search record while
-preserving staged and unstaged counts.
+input, and reference projection over `HEAD → INDEX → WORKING`. Human output is
+a compact working-tree view: current `ENV@n`, observation and application
+search health, then environment-native staged and unstaged groups. Exact
+values, complete search records, and topology are delegated to `diff`;
+unprojected authoritative capability changes receive a human semantic label and
+retain their exact capability id.
 
 `add` replaces the admission index with the fresh working snapshot. `add -p`
-prompts over canonical capability changes and stages only selected rows; its
-interactive mode requires table output. `diff` selects `INDEX → WORKING` by
+prompts over canonical capability changes as confirmable `diff --rey`
+environment hunks and stages only selected rows; its interactive mode requires
+table output. Generic hunks omit raw structured provenance and point to the
+structured diff. `diff` selects `INDEX → WORKING` by
 default and `HEAD → INDEX` with `--staged`. Its table projection uses the same
 three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
 `02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. Bounded search first renders
@@ -244,15 +250,18 @@ capability assessment remains in the coordinate header; JSON is
 `rey.environment-diff.v4` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the
 verified retained index to the linear history at
-`${workspace}/.rey/env/state.json` by default. `log` is newest-first; `-n`
-bounds selection and `-p` expands each exact parent-to-commit transition
-through the three environment-native planes.
+`${workspace}/.rey/env/state.json` by default. New v2 commits bind an integer
+Unix commit time as explicit retention metadata. `log` is newest-first; `-n`
+bounds selection, every entry shows `ENV@n`, semantic parent, date, and
+message, and `-p` expands each exact parent-to-commit transition through the
+three environment-native planes. Legacy v1 commits remain readable with an
+explicitly unknown date.
 The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 `${workspace}/.rey/env/index.json` by default. Plain human history is a compact
 revision/evidence/environment/change/mapping/message chronology; patch mode
-adds directed variables, application search, inputs, and topology. Explicit JSON uses
-`rey.environment-status.v5`, `rey.environment-commit-result.v1`, and
-`rey.environment-log.v1`.
+adds directed variables, application search, inputs, and topology. Explicit
+JSON uses `rey.environment-status.v5`,
+`rey.environment-commit-result.v2`, and `rey.environment-log.v2`.
 
 Discovery always records the process-owned `HOME`, `PWD`, and `PATH` seeds and
 the compiled desired-adapter inventory. It loads no project configuration by
@@ -267,6 +276,11 @@ retain the bounded search-path count and are resolved and hashed but never
 invoked by the mapping provider. Declared potential capabilities remain
 unadmitted. One graph row and exact node/edge rows make the mapping and its
 observed drift visible in every environment revision surface.
+
+The desired inventory includes the `git` executable, but environment snapshots
+exclude repository HEAD, ref, semantic-index, and reachability observations.
+Those remain first-class through `rey-git`, cadence, and exact workload
+activation evidence; Git movement alone is not an environment delta.
 
 Admission accepts evidence into history; it does not admit executable action or
 turn potential capabilities into provider contracts. There is no pathspec,

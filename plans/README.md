@@ -24,6 +24,7 @@ completion criteria.
 - [0009 — Environment admission index](0009-environment-admission-index.md)
 - [0012 — Environment operator delta](0012-environment-operator-delta.md)
 - [0013 — Application inventory and search records](0013-application-inventory-search-records.md)
+- [0015 — Git-shaped environment loop fidelity](0015-git-shaped-environment-loop-fidelity.md)
 
 ## Plan Rules
 

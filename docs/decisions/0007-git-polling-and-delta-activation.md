@@ -6,6 +6,8 @@
   [ADR 0005](0005-environment-awareness-and-optional-spoke.md), and
   [ADR 0006](0006-rey-spoke-recursive-improvement.md)
 - Narrowed by: [ADR 0015](0015-workload-centered-product.md)
+- Environment-admission placement narrowed by:
+  [ADR 0033](0033-git-shaped-environment-loop-fidelity.md)
 
 ## Context
 

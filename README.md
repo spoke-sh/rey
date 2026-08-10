@@ -167,7 +167,7 @@ rey env status
 rey env diff
 rey env add [-p]
 rey env commit -m <message>
-rey env log [-p]
+rey env log [-p] [-n <count>]
 rey workloads create <workload-id> [--title <title>] [--intent <intent>]
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
@@ -195,6 +195,7 @@ just rey env add -p
 just rey env add
 just rey env commit -m 'accept local toolchain'
 just rey env log
+just rey env log -n 3
 just rey env log -p
 just rey workloads create api-drift \
   --title 'API drift mining' \
@@ -275,32 +276,42 @@ retained workload evidence, and retained environment HEAD/admission index.
 Mapped input files without a declared workload owner appear visibly as
 `CREATE` candidates.
 
-`env status` is the single inventory and revision view. It observes the working
-environment, leads with an env-shaped `HEAD → WORKING` variable diff, then
-shows the exact desired-application map before the separate bounded search
-record and its found, searched-but-not-found, or observation-error evidence.
-The admission summary still distinguishes
-`HEAD → INDEX` changes admitted for commit from `INDEX → WORKING` changes not
-yet admitted. `env diff` selects the same three environment planes for
+`env status` is the compact working-tree view. It observes the working
+environment, identifies the current `ENV@n` revision, reports observation and
+application-search health, then separates environment-native objects into
+changes staged in the admission index and changes not yet staged. Exact values,
+search records, and topology remain in `env diff`; authoritative capability
+changes that do not map to an operator object remain visible as individually
+named typed entries with their exact capability ids. `env diff` selects the three environment planes for
 `INDEX → WORKING`; `env diff --staged` selects them for `HEAD → INDEX`.
 Its human output is directed variable text, bounded application search, then
 input/reference topology—not a generic capability patch. The header still
 reports the authoritative capability-delta assessment and change count;
 `--format json` retains the complete `rey.environment-diff.v4` evidence.
-`env add` stages the complete working snapshot, while `env add -p` selects
-capability changes interactively.
+`env add` stages the complete working snapshot, while `env add -p` presents
+each canonical capability change as a confirmable environment-variable,
+application, input, or reference hunk. Generic capability hunks never print raw
+structured provenance; exact machine evidence remains in `env diff --format
+json`.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
-without re-observing ambient state. `env log` renders a compact newest-first
-chronology of revision, evidence, environment scope, changed dimensions,
-mapping, and message. `env log -p` expands each selected parent-to-commit
+without re-observing ambient state. New commits bind their commit time into a
+v2 identity. `env log -n <count>` bounds a newest-first chronology whose header
+shows `ENV@n`, semantic commit and parent ids, date, and message; legacy v1
+commits explicitly have an unknown date. Evidence, environment scope, changed
+dimensions, and mapping follow. `env log -p` expands each selected parent-to-commit
 transition through the same directed text, bounded search, and reference
 planes. This is bounded single-process local state, not a Git object store or
 a Spoke-durable log.
 
 There is no implicit environment configuration file. Discovery always records
 the process-owned `HOME`, `PWD`, and `PATH` seed set and the current compiled
-application-adapter inventory. A coding harness may later generate a bounded
-reasoning map, and the caller supplies that resource explicitly:
+application-adapter inventory.
+The `git` application identity belongs to this inventory, but repository HEAD,
+semantic index entries, and commit reachability do not. Those are Git cadence
+and workload-activation evidence, so Git movement never dirties environment
+admission by itself.
+A coding harness may later generate a bounded reasoning map, and the caller
+supplies that resource explicitly:
 
 ```yaml
 schema: rey.env-map.v3

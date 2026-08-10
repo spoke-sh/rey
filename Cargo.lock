@@ -2469,6 +2469,7 @@ dependencies = [
 name = "rey"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "rey-core",
  "rey-diff",

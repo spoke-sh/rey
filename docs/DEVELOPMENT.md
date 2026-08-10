@@ -111,7 +111,9 @@ Current behavior is:
   feature so the Rust binary embeds the current application.
 - `fmt` formats authored TypeScript/StyleX, Rust, and `flake.nix`; exact vendored
   Hifi sources are excluded from mechanical rewriting.
-- `rey` runs the `rey` binary through Cargo.
+- `rey` runs the `rey` binary through Cargo with build progress suppressed so
+  the terminal surface is Rey's output; compiler diagnostics and failures still
+  reach stderr.
 
 ## Rust Conventions
 
@@ -303,6 +305,7 @@ nix run path:$PWD -- env diff
 nix run path:$PWD -- env add -p
 nix run path:$PWD -- env add
 nix run path:$PWD -- env commit -m 'accept local toolchain'
+nix run path:$PWD -- env log -n 3
 nix run path:$PWD -- env log -p
 nix run path:$PWD -- env status --format json
 nix run path:$PWD -- workloads list --format table

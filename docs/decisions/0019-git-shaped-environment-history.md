@@ -7,6 +7,8 @@
   [ADR 0021](0021-environment-admission-index.md)
 - Default human log projection superseded by:
   [ADR 0029](0029-environment-history-projection.md)
+- Commit timestamp and default human loop superseded by:
+  [ADR 0033](0033-git-shaped-environment-loop-fidelity.md)
 
 ## Context
 

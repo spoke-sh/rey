@@ -12,6 +12,12 @@ truncation, and a semantic sequence identity. Ref frames, movement
 classification, general graph traversal, worktree status, polling, triggers,
 activations, and complete index flag semantics remain Plan 0001 work.
 
+Git is not part of the `rey env` admission snapshot. That loop discovers the
+`git` executable as an application, while this provider owns repository HEAD,
+refs, semantic index, reachability, and later activation evidence on a separate
+clock. A Git transition can direct a workload without manufacturing an
+environment-variable or application-identity change.
+
 ## Purpose
 
 A software project already has a useful feedback structure:

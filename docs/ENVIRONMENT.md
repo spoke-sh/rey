@@ -124,6 +124,13 @@ The current compiled desired-application inventory contains the declared
 bounded identity probes produce the separate search record. Discovery does not
 turn either application into authority for arbitrary execution.
 
+Environment discovery retains the `git` executable identity but does not run
+repository inspection or add `git.repository.inspect` to the environment
+snapshot. HEAD, refs, semantic index entries, and commit reachability belong to
+the separate Git cadence/activation provider. Moving Git HEAD or staging files
+therefore leaves the environment snapshot unchanged unless a declared
+environment input, variable, or application observation also changed.
+
 `SPOKE_ENDPOINT` and `SPOKE_TOKEN` are not discovery seeds. An agent may later
 propose them in a reasoning map if frozen project evidence supports their
 relevance; the token must remain presence-only. A future Spoke provider should
@@ -165,10 +172,11 @@ freezes operation semantics, arguments, effects, trust, and limits.
 The provider projects one graph row plus exact node and edge rows into the
 ordinary capability snapshot. `env status` derives a typed operator projection
 over variables, applications, inputs, and references across `HEAD`, `INDEX`,
-and `WORKING`. Its human view leads with the `HEAD → WORKING` env-shaped text
-diff, presents the exact desired inventory, then presents the full bounded
-application search record; structured output retains the complete capability
-evidence and both authoritative deltas. `env diff`, `env add`,
+and `WORKING`. Its human view summarizes staged and unstaged environment-native
+objects plus application-search health; `env diff` presents the exact directed
+text, desired inventory, bounded search record, inputs, and topology.
+Structured output retains the complete capability evidence and both
+authoritative deltas. `env diff`, `env add`,
 `env commit`, and `env log -p` navigate and revision the same relation. The
 YAML graph is a generated or authored proposal about relevance, not bootstrap
 configuration, execution authority, or proof of a dependency.
@@ -359,9 +367,10 @@ evidence unless the workload contract selected it as a required input.
 
 ## Local Environment Revisions
 
-ADRs 0019 through 0021 and ADR 0027 implement the Git-shaped interaction over
-capability snapshots. `rey env status` observes the explicit workspace and presents three
-planes: committed `HEAD`, the admission `INDEX`, and fresh `WORKING` evidence.
+ADRs 0019 through 0021, ADR 0027, and ADR 0033 implement the Git-shaped
+interaction over capability snapshots. `rey env status` observes the explicit
+workspace and derives three planes: committed `HEAD`, the admission `INDEX`,
+and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty
 capability relations. Without a retained index, the effective index equals
 HEAD. The command reads but never creates or repairs local state. Explicit JSON
@@ -370,13 +379,22 @@ authoritative capability deltas, and
 `rey.environment-operator-projection.v3`. Every process seed and explicitly
 mapped object carries exact
 HEAD/index/working observations plus staged, unstaged, and overall change
-classification.
+classification. Its default human projection is a compact working-tree view:
+current `ENV@n`, observation and application-search health, then separate
+environment-native “changes to be committed” and “changes not staged” groups.
+It directs exact review to `env diff` and `env diff --staged` instead of
+repeating the full three-plane evidence. Authoritative capability changes with
+no mapped operator object remain visible as individually named semantic entries
+with exact capability ids.
 
 `rey env add` retains the exact working snapshot as a HEAD-bound
 `rey.environment-admission-index.v1`. `add -p` prompts over the canonical
-`INDEX → WORKING` capability changes and applies only selected rows. File bytes
-never enter the selection interface; an explicitly value-captured variable is
-part of the retained capability observation. Staging a
+`INDEX → WORKING` capability changes and applies only selected rows. Every
+prompt renders an environment-native `diff --rey` hunk for a variable,
+application, input, or reference when possible, with an exact capability
+fallback. The fallback names changed semantic fields but omits raw structured
+provenance and directs exact inspection to JSON. File bytes never enter the selection interface; an explicitly
+value-captured variable is part of the retained capability observation. Staging a
 mapped executable accepts its observation for history but grants no execution
 or provider authority.
 
@@ -396,22 +414,27 @@ the complete typed capability delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact
 verified admission-index snapshot, then clears the index after history
-publication. The commit id binds a monotonic local sequence, exact parent
-commit, canonical message, and snapshot id. It deliberately excludes ambient
-author and wall-clock values. Incomplete snapshots can be committed as explicit
-degradation evidence; they do not become complete through retention.
+publication. A new `rey.environment-commit.v2` id binds a monotonic local
+sequence, exact parent commit, integer Unix commit time, canonical message, and
+snapshot id. The time records when Rey retained the observation; it is not a
+trusted causal clock, discovery timestamp, or author identity. Existing v1
+commits remain verifiable without a date. Incomplete snapshots can be committed
+as explicit degradation evidence; they do not become complete through
+retention.
 
 `rey env log` verifies the entire retained chain, selects commits newest first
-under an explicit count bound, and recomputes every selected parent-to-commit
-capability delta. Its human chronology keeps the semantic commit id, revision,
-delta assessment, authoritative change count, environment scope, changed
-dimensions, mapping, and message visible without reopening provider records.
+under the `-n <count>` bound, and recomputes every selected parent-to-commit
+capability delta. Its human chronology begins with Git-shaped `commit ENV@n`,
+parent, date, and indented message fields, then keeps delta assessment,
+authoritative change count, environment scope, changed dimensions, and mapping
+visible without reopening provider records. Undated v1 commits say their date
+is unknown rather than fabricating one.
 `-p` expands each selected transition, including `EMPTY → ENV@1`, through
 directed variable text, bounded application search, and input/reference
 topology derived only from the retained parent and commit snapshots. It
-performs no fresh observation. Explicit JSON remains
-`rey.environment-log.v1` with the complete commits, snapshots, and typed
-capability deltas.
+performs no fresh observation. Explicit JSON is `rey.environment-log.v2` with
+the complete commits, snapshots, typed capability deltas, and commit-time
+metadata; commit commands emit `rey.environment-commit-result.v2`.
 
 The default `rey.local-environment-history.v1` state lives at
 `${workspace}/.rey/env/state.json`; the separate admission index lives at
@@ -423,6 +446,12 @@ transaction; an index left after a successful commit is stale and rejected. It
 is not a Git object database and claims no pathspec, reset/restore, branches,
 merges, rewrite, `fsync`, locking, authenticated writer, remote durability, or
 Spoke revision semantics.
+
+History created before ADR 0033 may contain a retained
+`git.repository.inspect` row. Its chain remains exact and verifiable. The first
+new observation treats that legacy row as a deletion from environment scope;
+the compact patch explains that Git state moved to cadence and workload
+activation. Subsequent environment revisions contain no repository snapshot.
 
 Retained environment revisions are also portfolio-mining inputs. Read-only
 `workloads list` and `status` consume the exact admission-index snapshot when
