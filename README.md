@@ -277,10 +277,13 @@ Mapped input files without a declared workload owner appear visibly as
 `CREATE` candidates.
 
 `env status` is the compact working-tree view. It observes the working
-environment, identifies the current `ENV@n` revision, reports observation and
-application-search health, then separates environment-native objects into
-changes staged in the admission index and changes not yet staged. Exact values,
-search records, and topology remain in `env diff`; authoritative capability
+environment, identifies the current `ENV@n` revision, then separates
+environment-native objects into changes staged in the admission index and
+changes not yet staged. A clean working environment renders only that revision
+coordinate and the clean result. Workspace, observation, application-search,
+and reasoning-map summaries do not pad the human status surface; complete
+evidence remains in structured status, while exact values, search records, and
+topology remain in `env diff`. Authoritative capability
 changes that do not map to an operator object remain visible as individually
 named typed entries with their exact capability ids. `env diff` selects the three environment planes for
 `INDEX → WORKING`; `env diff --staged` selects them for `HEAD → INDEX`.

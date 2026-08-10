@@ -230,9 +230,11 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 fresh observation, retains the complete working snapshot in
 `rey.environment-status.v5`, and derives one typed variable, application,
 input, and reference projection over `HEAD → INDEX → WORKING`. Human output is
-a compact working-tree view: current `ENV@n`, observation and application
-search health, then environment-native staged and unstaged groups. Exact
-values, complete search records, and topology are delegated to `diff`;
+a compact working-tree view: current `ENV@n`, then environment-native staged
+and unstaged groups when present. Clean status contains only the coordinate and
+clean result. Workspace, health, inventory, and mapping summaries remain in
+the structured status evidence. Exact values, complete search records, and
+topology are delegated to `diff`;
 unprojected authoritative capability changes receive a human semantic label and
 retain their exact capability id.
 

@@ -2681,7 +2681,7 @@ fn env_status(
     match args.format {
         EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &status)?,
         EnvHistoryOutputFormat::Table => {
-            write_env_status(&mut stdout, workspace, &status, TerminalStyle::stdout())?
+            write_env_status(&mut stdout, &status, TerminalStyle::stdout())?
         }
     }
     Ok(ExitCode::SUCCESS)
@@ -3134,56 +3134,15 @@ fn write_environment_application_diff(
 
 fn write_env_status(
     output: &mut impl Write,
-    workspace: &Path,
     status: &EnvironmentStatus,
     style: TerminalStyle,
 ) -> Result<(), CliError> {
     let projection = &status.operator;
-    writeln!(output)?;
     let head = status.head_sequence.map_or_else(
         || "no commits yet".to_owned(),
         |sequence| format!("ENV@{sequence}"),
     );
-    writeln!(
-        output,
-        "{}",
-        style.cyan_bold(&format!("On environment {head}"))
-    )?;
-    writeln!(output, "  Workspace              {}", workspace.display())?;
-    writeln!(
-        output,
-        "  Working tree           {}",
-        environment_state_label(status.state, style)
-    )?;
-    writeln!(
-        output,
-        "  Observation            {} · {}",
-        if projection.complete {
-            style.green("COMPLETE")
-        } else {
-            style.red("INCOMPLETE")
-        },
-        status.working_snapshot.profile
-    )?;
-    writeln!(
-        output,
-        "  Applications           {} desired · {} found · {} not found · {} errors",
-        projection.summary.applications_searched,
-        projection.summary.applications_found,
-        projection.summary.applications_not_found,
-        projection.summary.application_errors
-    )?;
-    match &projection.mapping {
-        Some(mapping) => writeln!(
-            output,
-            "  Reasoning map          {} · {}",
-            mapping.source_path, mapping.schema
-        )?,
-        None => writeln!(
-            output,
-            "  Reasoning map          none · no explicit --map resource"
-        )?,
-    }
+    writeln!(output, "On environment {head}")?;
 
     write_environment_status_changes(
         output,
@@ -4468,17 +4427,6 @@ fn capability_field(
         "{prefix}…<{} chars omitted>",
         rendered.chars().count().saturating_sub(140)
     ))
-}
-
-fn environment_state_label(state: EnvironmentWorkingState, style: TerminalStyle) -> String {
-    match state {
-        EnvironmentWorkingState::Unborn => style.yellow("UNBORN"),
-        EnvironmentWorkingState::Clean => style.green("CLEAN"),
-        EnvironmentWorkingState::Changed => style.yellow("CHANGED"),
-        EnvironmentWorkingState::Staged => style.green("STAGED"),
-        EnvironmentWorkingState::Mixed => style.yellow("MIXED"),
-        EnvironmentWorkingState::Inconclusive => style.red("INCONCLUSIVE"),
-    }
 }
 
 fn delta_assessment_label(assessment: DeltaAssessment, style: TerminalStyle) -> String {

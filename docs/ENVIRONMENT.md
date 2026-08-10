@@ -380,12 +380,15 @@ authoritative capability deltas, and
 mapped object carries exact
 HEAD/index/working observations plus staged, unstaged, and overall change
 classification. Its default human projection is a compact working-tree view:
-current `ENV@n`, observation and application-search health, then separate
-environment-native “changes to be committed” and “changes not staged” groups.
-It directs exact review to `env diff` and `env diff --staged` instead of
-repeating the full three-plane evidence. Authoritative capability changes with
-no mapped operator object remain visible as individually named semantic entries
-with exact capability ids.
+current `ENV@n`, then separate environment-native “changes to be committed” and
+“changes not staged” groups when either exists. A clean view contains only the
+environment coordinate and clean result. Workspace, working-state,
+observation-health, application-search, and reasoning-map summaries remain in
+the structured status evidence rather than padding the default terminal view.
+The human view directs exact review to `env diff` and `env diff --staged`
+instead of repeating the full three-plane evidence. Authoritative capability
+changes with no mapped operator object remain visible as individually named
+semantic entries with exact capability ids.
 
 `rey env add` retains the exact working snapshot as a HEAD-bound
 `rey.environment-admission-index.v1`. `add -p` prompts over the canonical

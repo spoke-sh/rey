@@ -13,8 +13,9 @@ preserving authoritative typed deltas.
 
 - [x] Replace the default `env status` wall with staged and unstaged
   working-tree groups over environment-native objects.
-- [x] Preserve observation, application-search, reasoning-map, and unmapped
-  authoritative-change evidence in the compact view.
+- [x] Keep observation, application-search, and reasoning-map evidence in
+  structured status and diff while the human view remains change-directed.
+- [x] Reduce clean human status to its environment coordinate and result.
 - [x] Render `env add -p` as confirmable environment hunks without changing
   canonical capability-key staging.
 - [x] Keep the Git application identity in environment discovery while moving

@@ -54,9 +54,6 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     let unborn = String::from_utf8(unborn.stdout).unwrap();
     for evidence in [
         "On environment no commits yet",
-        "Working tree           UNBORN",
-        "Applications           2 desired · 2 found · 0 not found · 0 errors",
-        "Reasoning map          none · no explicit --map resource",
         "Changes not staged for environment commit:",
         "new:       environment variable: HOME",
         "new:       application: git",
@@ -69,6 +66,15 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
             unborn.contains(evidence),
             "missing status evidence: {evidence}"
         );
+    }
+    for inventory_detail in [
+        "Workspace              ",
+        "Working tree           ",
+        "Observation            ",
+        "Applications           ",
+        "Reasoning map          ",
+    ] {
+        assert!(!unborn.contains(inventory_detail));
     }
     assert!(!workspace.path().join(".rey").exists());
 
@@ -171,9 +177,10 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     ]);
     assert!(git_changed.status.success());
     let git_changed = String::from_utf8(git_changed.stdout).unwrap();
-    assert!(git_changed.contains("Working tree           CLEAN"));
-    assert!(git_changed.contains("nothing to commit, working environment clean"));
-    assert!(!git_changed.contains("git.repository.inspect"));
+    assert_eq!(
+        git_changed,
+        "On environment ENV@1\n\nnothing to commit, working environment clean\n"
+    );
 
     let git_diff = run_rey(&[
         "env",
@@ -207,7 +214,6 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     let changed = String::from_utf8(changed.stdout).unwrap();
     for evidence in [
         "On environment ENV@1",
-        "Working tree           CHANGED",
         "Changes not staged for environment commit:",
         "modified:  environment variable: PATH",
         "modified:  application: git",
@@ -703,9 +709,6 @@ edges:
     let status = String::from_utf8(status.stdout).unwrap();
     for evidence in [
         "On environment no commits yet",
-        "Working tree           UNBORN",
-        "Reasoning map          rey.env.yaml · rey.env-map.v3",
-        "Applications           4 desired · 3 found · 1 not found · 0 errors",
         "Changes not staged for environment commit:",
         "new:       environment variable: REY_MODE",
         "new:       environment variable: REY_SECRET",

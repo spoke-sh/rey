@@ -27,9 +27,8 @@ do not map to a variable, application, input, or reference.
 ## Decision
 
 `rey env status` is a compact working-tree view. It identifies the current
-`ENV@n` HEAD (or an unborn environment), working-tree state, observation
-completeness, desired-application search summary, and reasoning-map coordinate.
-It then renders separate Git-shaped groups:
+`ENV@n` HEAD (or an unborn environment), then renders separate Git-shaped
+groups when they contain changes:
 
 ```text
 Changes to be committed:
@@ -37,9 +36,12 @@ Changes not staged for environment commit:
 ```
 
 Rows name environment-native objects and classify them as new, modified, or
-deleted. The view does not repeat exact values, binary identities, or topology
-details; `rey env diff --staged`, `rey env diff`, and structured status remain
-the drill-down surfaces. Capability changes without an operator object are
+deleted. When both groups are empty, the human view contains only the
+environment coordinate and the clean result. It does not repeat workspace,
+working-state, observation-health, desired-application, reasoning-map, exact
+value, binary identity, or topology summaries. `rey env diff --staged`,
+`rey env diff`, and structured status remain the drill-down surfaces.
+Capability changes without an operator object are
 reported individually with a stable human semantic label and exact capability
 id rather than hidden behind an aggregate count.
 
@@ -112,6 +114,7 @@ records. Status, admission-index, add-result, and diff schemas do not change.
   Git without pretending environment records are Git objects.
 - Status stays compact while exact current and staged evidence remains one
   command away.
+- Clean status is two lines of information rather than an inventory dashboard.
 - Patch selection is human-verifiable in environment vocabulary while staging
   remains keyed by authoritative capability identities.
 - Git application discovery stays visible without copying repository snapshots
