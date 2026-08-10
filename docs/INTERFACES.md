@@ -844,6 +844,12 @@ application search, and the input/reference plane. Environment state, mapping,
 completeness, and admission counts remain compact metadata within those
 sections rather than separate visual destinations.
 
+The coordinate rail directly beneath the application header remains sticky on
+scrolling routes. Major operator sections declare exact rail coordinates; as a
+section crosses the application chrome, its numbered heading replaces the
+route-level coordinate in the rail's single context slot. The rail observes
+navigation state only and does not mutate route or runtime state.
+
 This listener does not establish a public API, long-running daemon contract,
 multi-user scheduler, remote policy gateway, authentication system, or durable
 service. Those capabilities still require explicit identity, authorization,

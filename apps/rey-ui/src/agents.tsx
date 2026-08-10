@@ -17,7 +17,10 @@ export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
   const agents = deriveAgentIndex(portfolio);
   return (
     <main className={sx(chrome.page, styles.page)}>
-      <section className={sx(styles.section, styles.firstSection)}>
+      <section
+        className={sx(styles.section, styles.firstSection)}
+        data-rey-section="01 / IDENTIFIED AGENTS"
+      >
         <AgentHeading
           detail={`${agents.length} exact producer + revision coordinates`}
           index="01"
@@ -44,7 +47,10 @@ export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
         )}
       </section>
 
-      <section className={sx(styles.section)}>
+      <section
+        className={sx(styles.section)}
+        data-rey-section="02 / UNASSIGNED HANDOFFS"
+      >
         <AgentHeading
           detail={`${portfolio.drafts.length} request-only workload entries`}
           index="02"

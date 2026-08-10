@@ -73,6 +73,8 @@ records shareable without becoming runtime authority.
 - [x] Formalize canonical matrix-style Explorer coordinates with unique
   unordered dimensions, exact `at` bindings, agent roles, route tests, and
   visible stale/missing resolution.
+- [x] Keep the coordinate rail fixed beneath the header and advance its exact
+  numbered section coordinate as the operator scrolls through a route.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 

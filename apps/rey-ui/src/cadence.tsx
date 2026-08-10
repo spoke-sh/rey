@@ -48,7 +48,10 @@ export interface CadenceProjection {
 export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
   return (
     <main className={sx(chrome.page, styles.page)}>
-      <section className={sx(styles.section, styles.firstSection)}>
+      <section
+        className={sx(styles.section, styles.firstSection)}
+        data-rey-section="01 / RETAINED SEQUENCE"
+      >
         <CadenceHeading
           detail={`${cadence.lanes.length} clocks · ${cadence.ordering} ordering`}
           index="01"
@@ -66,7 +69,10 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
         </div>
       </section>
 
-      <section className={sx(styles.section)}>
+      <section
+        className={sx(styles.section)}
+        data-rey-section="02 / SCHEDULED SCANS"
+      >
         <CadenceHeading
           detail="read-only browser projection · no runtime admission"
           index="02"
@@ -106,7 +112,10 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
         </div>
       </section>
 
-      <section className={sx(styles.section, styles.boundary)}>
+      <section
+        className={sx(styles.section, styles.boundary)}
+        data-rey-section="03 / REFERENCE PLANE"
+      >
         <CadenceHeading
           detail={`${cadence.omissions.length} declared ordering boundary`}
           index="03"

@@ -184,6 +184,9 @@ export const environmentStyles = stylex.create({
   },
   coordinateRail: {
     alignItems: "center",
+    backdropFilter: "blur(14px)",
+    backgroundColor:
+      "color-mix(in srgb, var(--rey-background) 94%, transparent)",
     borderBottomColor: "var(--line)",
     borderBottomStyle: "solid",
     borderBottomWidth: 1,
@@ -191,6 +194,9 @@ export const environmentStyles = stylex.create({
     gap: 12,
     minHeight: 32,
     paddingInline: 24,
+    position: "sticky",
+    top: 72,
+    zIndex: 19,
   },
   railLine: {
     backgroundColor: "var(--line)",

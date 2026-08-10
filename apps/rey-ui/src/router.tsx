@@ -48,6 +48,7 @@ import {
   resolveExplorerCoordinate,
 } from "./explorer-coordinate";
 import { startPassiveRevalidation } from "./passive";
+import { activeSectionAt, SECTION_RAIL_ATTRIBUTE } from "./section-rail";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
@@ -88,6 +89,7 @@ function RootLayout() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const activeSection = useActiveRailSection(pathname);
   const rootStyle = {
     ...getKineticMaterialStyle(precision),
     "--rey-accent": precision.accentColor,
@@ -192,7 +194,7 @@ function RootLayout() {
         >
           <span>00</span>
           <i className={sx(styles.railLine)} />
-          <span>{routeCoordinate(pathname)}</span>
+          <span>{activeSection ?? routeCoordinate(pathname)}</span>
           <i className={sx(styles.railLine)} />
           <span>{new Date().getUTCFullYear()}</span>
         </div>
@@ -238,7 +240,10 @@ function EnvironmentPage() {
 
   return (
     <main className={sx(styles.page, styles.environmentPage)}>
-      <section className={sx(styles.environmentDiffSurface)}>
+      <section
+        className={sx(styles.environmentDiffSurface)}
+        data-rey-section="01 / DIRECTED TEXT"
+      >
         <div className={sx(styles.environmentPanelHeader)}>
           <div>
             <p className={sx(styles.micro, styles.sectionKicker)}>
@@ -319,7 +324,10 @@ function EnvironmentPage() {
         </div>
       </section>
 
-      <section className={sx(styles.environmentApplications)}>
+      <section
+        className={sx(styles.environmentApplications)}
+        data-rey-section="02 / BOUNDED SEARCH"
+      >
         <div className={sx(styles.environmentPanelHeader)}>
           <div>
             <p className={sx(styles.micro, styles.sectionKicker)}>
@@ -355,7 +363,10 @@ function EnvironmentPage() {
         ) : null}
       </section>
 
-      <section className={sx(styles.environmentTopology)}>
+      <section
+        className={sx(styles.environmentTopology)}
+        data-rey-section="03 / REFERENCE PLANE"
+      >
         <div className={sx(styles.environmentPanelHeader)}>
           <div className={sx(styles.environmentReferenceHeading)}>
             <span className={sx(styles.sectionIndex)}>03</span>
@@ -526,6 +537,7 @@ function WorkloadsPage() {
       <section
         className={sx(styles.sectionSpacing)}
         aria-labelledby="admitted-heading"
+        data-rey-section="01 / EXECUTABLE"
       >
         <SectionHeading
           index="01"
@@ -547,6 +559,7 @@ function WorkloadsPage() {
       <section
         className={sx(styles.sectionSpacing)}
         aria-labelledby="draft-heading"
+        data-rey-section="02 / AGENTIC HANDOFF"
       >
         <SectionHeading
           index="02"
@@ -594,7 +607,10 @@ function WorkloadDetailPage() {
           <DetailPanel label="GRAPH" value="MISSING" />
           <DetailPanel label="SCENARIO ORACLE" value="NOT ADMITTED" />
         </div>
-        <section className={sx(styles.sectionSpacing, styles.evidenceSurface)}>
+        <section
+          className={sx(styles.sectionSpacing, styles.evidenceSurface)}
+          data-rey-section="01 / REQUEST BINDING"
+        >
           <h2 className={sx(styles.sectionTitle, styles.panelTitle)}>
             REQUEST BINDING
           </h2>
@@ -643,7 +659,10 @@ function WorkloadDetailPage() {
           value={(workload.last_run_status ?? "NOT RUN").toUpperCase()}
         />
       </div>
-      <section className={sx(styles.sectionSpacing, styles.evidenceSurface)}>
+      <section
+        className={sx(styles.sectionSpacing, styles.evidenceSurface)}
+        data-rey-section="01 / LOCAL CONFORMANCE"
+      >
         <div className={sx(styles.conformanceHeading)}>
           <span>LOCAL CONFORMANCE</span>
           <strong className={sx(styles.conformanceValue)}>{percent}%</strong>
@@ -665,7 +684,10 @@ function WorkloadDetailPage() {
           <span>{workload.optional} optional</span>
         </div>
       </section>
-      <section className={sx(styles.sectionSpacing, styles.evidenceSurface)}>
+      <section
+        className={sx(styles.sectionSpacing, styles.evidenceSurface)}
+        data-rey-section="02 / EXACT BINDINGS"
+      >
         <h2 className={sx(styles.sectionTitle, styles.panelTitle)}>
           EXACT BINDINGS
         </h2>
@@ -701,6 +723,7 @@ function WorkloadDetailPage() {
           styles.evidenceSurface,
           styles.miningPanel,
         )}
+        data-rey-section="03 / MINING / EVIDENCE"
       >
         <h2
           className={sx(
@@ -1127,4 +1150,45 @@ function routeCoordinate(pathname: string): string {
   if (pathname.startsWith("/environment")) return "ENVIRONMENT";
   if (pathname.startsWith("/workloads")) return "WORKLOADS";
   return "UNRESOLVED";
+}
+
+function useActiveRailSection(pathname: string): string | null {
+  const [active, setActive] = useState<{
+    pathname: string;
+    section: string | null;
+  }>({ pathname, section: null });
+
+  useEffect(() => {
+    let frame: number | null = null;
+    const update = () => {
+      frame = null;
+      const sections = Array.from(
+        document.querySelectorAll<HTMLElement>(`[${SECTION_RAIL_ATTRIBUTE}]`),
+        (section) => ({
+          label: section.dataset.reySection ?? "",
+          top: section.getBoundingClientRect().top,
+        }),
+      ).filter((section) => section.label.length > 0);
+      const section = activeSectionAt(sections, 105);
+      setActive((current) =>
+        current.pathname === pathname && current.section === section
+          ? current
+          : { pathname, section },
+      );
+    };
+    const schedule = () => {
+      if (frame === null) frame = window.requestAnimationFrame(update);
+    };
+
+    schedule();
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, { passive: true });
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+    };
+  }, [pathname]);
+
+  return active.pathname === pathname ? active.section : null;
 }
