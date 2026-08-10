@@ -199,10 +199,12 @@ just rey ui --host 0.0.0.0 --port 5714
 redirects to `/explore`, a full-screen-capable context-topology canvas whose
 semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
-delta objects. The former Instrument dashboard hard-cuts to Environment at
-`/environment`; `/workloads` remains the exact catalog projection. The manual
-Refresh control is gone: the same read-only workload document passively
-revalidates every five seconds.
+delta objects. `/environment` is the first native diff-directed workbench: it
+projects the same bounded `HEAD → INDEX → WORKING` environment document as the
+CLI, leading with tracked variable changes and the complete declared
+application search. `/workloads` remains the exact catalog projection. The
+manual Refresh control is gone: the read-only workload and environment
+documents passively revalidate every five seconds.
 
 The server embeds a TanStack Router application expressed with
 [Hifi](https://github.com/rupurt/hifi)'s Kinetic grammar and Precision theme.
@@ -243,8 +245,11 @@ Mapped input files without a declared workload owner appear visibly as
 `CREATE` candidates.
 
 `env status` is the single inventory and revision view. It observes the working
-environment and presents `HEAD → INDEX` changes admitted for commit beside
-`INDEX → WORKING` changes not yet admitted. `env diff` opens the unstaged patch;
+environment, leads with an env-shaped `HEAD → WORKING` variable diff, and then
+groups every declared application into found, searched-but-not-found, or
+observation-error evidence. The admission summary still distinguishes
+`HEAD → INDEX` changes admitted for commit from `INDEX → WORKING` changes not
+yet admitted. `env diff` opens the unstaged capability patch;
 `env diff --staged` opens the commit-ready patch. `env add` stages the complete
 working snapshot, while `env add -p` selects capability changes interactively.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
@@ -256,12 +261,12 @@ The checked-in [`rey.env.yaml`](rey.env.yaml) is an agent-generatable mapping
 graph describing the environment surfaces this workspace cares about:
 
 ```yaml
-schema: rey.env-map.v1
+schema: rey.env-map.v2
 nodes:
   - id: cargo-home
     kind: variable
     name: CARGO_HOME
-    capture: digest
+    capture: value
   - id: workspace-manifest
     kind: file
     path: Cargo.toml
@@ -281,17 +286,19 @@ edges:
 ```
 
 Rey parses this as a closed, bounded graph and projects it into the committed
-capability snapshot. Variable presence and opted-in digests, bounded file
-identities, resolved executable identities, and declared edges therefore
-appear in the human and structured `status`, `diff`, `add`, `commit`, and
-`log -p` surfaces. Raw variable values are never retained; sensitive variables are
-presence-only. Executables are resolved and hashed but not invoked, and their
-declared potential capabilities remain visibly unadmitted.
+capability snapshot. Non-sensitive variables may opt into bounded UTF-8 value,
+digest, or presence capture; sensitive variables are always presence-only.
+Exact values selected with `capture: value`, bounded file identities, resolved
+executable identities, and declared edges therefore remain reproducible across
+the human and structured revision surfaces. Executables are resolved and
+hashed but not invoked, and their declared potential capabilities remain
+visibly unadmitted.
 
 Environment commands default to Git-like human documents and accept explicit
 JSON where no interactive patch selection is required. `status --format json`
 contains the complete working capability snapshot, optional admission index,
-and both authoritative deltas.
+both authoritative capability deltas, and the shared typed variable,
+application, input, and reference operator projection used by `/environment`.
 Workload commands support human tables and structured JSON; redirected `auto`
 selects JSON. `workloads test` keeps passing scenarios compact by default and
 always opens failing diffs. `-v` adds matching evidence, while `-vv` binds

@@ -16,6 +16,8 @@ use rey_environment::{
 use rey_git::{GitError, GitInspector, GitLimits};
 use thiserror::Error;
 
+use crate::env::{EnvironmentStatus, LocalEnvironmentStore};
+
 pub fn inspect_environment(
     workspace: &Path,
     discovery_limits: DiscoveryLimits,
@@ -66,6 +68,30 @@ pub fn inspect_environment_with_mapping(
     Ok(snapshot)
 }
 
+pub fn current_environment_status(
+    store: &LocalEnvironmentStore,
+    workspace: &Path,
+    discovery_limits: DiscoveryLimits,
+    map_path: Option<&Path>,
+    max_changes: u64,
+) -> Result<EnvironmentStatus, ReyError> {
+    let history = store.load()?;
+    let index = store.load_index(&history)?;
+    let snapshot = inspect_environment_with_mapping(
+        workspace,
+        discovery_limits,
+        GitLimits::default(),
+        map_path,
+        EnvironmentMapLimits::default(),
+    )?;
+    Ok(EnvironmentStatus::derive(
+        &history,
+        index,
+        snapshot,
+        max_changes,
+    )?)
+}
+
 fn git_error_capability(workspace: &Path, error: &GitError) -> CapabilityRecord {
     CapabilityRecord {
         provider_id: "rey.git".to_owned(),
@@ -102,6 +128,8 @@ pub enum ReyError {
     Discovery(#[from] DiscoveryError),
     #[error(transparent)]
     EnvironmentMap(#[from] EnvironmentMapError),
+    #[error(transparent)]
+    EnvironmentState(#[from] crate::env::LocalEnvironmentHistoryError),
 }
 
 #[cfg(test)]

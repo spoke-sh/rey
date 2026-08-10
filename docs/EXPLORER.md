@@ -92,27 +92,29 @@ remain ordinary scrollable documents.
 `GET /` redirects to `/explore`. The application routes are:
 
 - `/explore`: the context-topology canvas and default human entry;
-- `/environment`: the previous portfolio/environment dashboard, hard-cut from
-  the old Instrument name;
+- `/environment`: a Kinetic Precision workbench over the exact typed
+  `HEAD → INDEX → WORKING` environment delta;
 - `/workloads`: admitted workload and creation-request catalog; and
 - `/workloads/$workloadId`: exact workload or request detail.
 
-The Refresh control has been removed. The root workload projection passively
-revalidates every 5000 ms from `GET /api/v1/workloads`. Revalidation changes
-only the browser projection; it does not test, run, create, commit, or schedule
-a workload.
+The Refresh control has been removed. The root workload and environment
+projections passively revalidate every 5000 ms from `GET /api/v1/workloads`
+and `GET /api/v1/environment`. Revalidation changes only the browser
+projection; it does not test, run, create, add, commit, or schedule work.
 
 The global footer displays the shortened Rey implementation Git revision and
 links it through the complete revision to the canonical GitHub commit. This is
 separate from the BLAKE3 portfolio-attention identity: semantic evidence
 digests must never be presented as source commits.
 
-The first topology is intentionally narrow. It is derived from
+The Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
-counts, portfolio attention, and mapped-surface coverage counts. It does not
-yet contain the full `rey env status` mapping graph, source spans, scenario
-deltas, or proof manifests. Aggregates are labeled as aggregates; the Explorer
-must not imply that unavailable environment objects have been rendered.
+counts, portfolio attention, and mapped-surface coverage counts. The separate
+`/environment` route now consumes `rey.environment-status.v3` and renders its
+exact variable, application, input, and reference operator projection. The
+Explorer does not yet contain those exact environment nodes, source spans,
+scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
+Explorer must not imply that unavailable objects have been rendered.
 
 ## React Boundaries
 
@@ -127,10 +129,10 @@ invent a second graph inside a visualization component.
 
 ## Next Boundaries
 
-The next useful expansion is an exact environment-topology API that projects
-the committed/admitted/working mapping graph into `/environment` and
-`/explore`, followed by scenario/delta object routes that preserve the CLI
-`-v`/`-vv` evidence ladder. URL-addressable focus, search, and bounded
+The next useful expansion is to connect the exact environment projection now
+available at `/environment` to the Explorer topology, followed by
+scenario/delta object routes that preserve the CLI `-v`/`-vv` evidence ladder.
+URL-addressable focus, search, and bounded
 neighborhood filters should arrive before a high-cardinality topology.
 
 Browser mutation, workload campaign controls, authentication, multi-user

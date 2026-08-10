@@ -107,16 +107,16 @@ all passed. The packaged output resolved to
 
 ## Next Concrete Anchor
 
-Project the exact environment admission topology already visible through
-`rey env status` into typed read-only UI evidence. `/environment` should expose
-`HEAD → INDEX → WORKING` state and admitted variable/file/executable mapping
-objects; `/explore` should replace aggregate context counts with those exact
-nodes and relationships. Preserve digests and secret-safe handling, and do not
-let the canvas probe ambient state independently.
+Plan 0012 delivered the shared `HEAD → INDEX → WORKING` environment operator
+delta, the high-fidelity `rey env status` document, and the exact read-only
+`/environment` workbench without independent browser probing. `/explore` still
+uses aggregate environment coverage and should eventually consume these exact
+nodes and relationships.
 
-After that anchor, project retained scenario results and authoritative
-`EXPECTED → OBSERVED` deltas from `rey workloads test -v/-vv` into exact
-workload/scenario routes without inventing a UI-only evidence model.
+The nearer operator-UI anchor is to project retained scenario results and
+authoritative `EXPECTED → OBSERVED` deltas from
+`rey workloads test -v/-vv` into exact workload/scenario routes without
+inventing a UI-only evidence model.
 
 ## Deferred
 

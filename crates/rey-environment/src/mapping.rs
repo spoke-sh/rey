@@ -10,12 +10,13 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Availability, CapabilityRecord, LOCAL_PROVIDER_REVISION, TrustClass};
+use crate::{Availability, CapabilityRecord, TrustClass};
 
-pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v1";
-pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v1";
+pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v2";
+pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v2";
 pub const DEFAULT_ENVIRONMENT_MAP_FILE: &str = "rey.env.yaml";
 pub const ENVIRONMENT_MAP_PROVIDER_ID: &str = "rey.env-map";
+pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 2;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -25,6 +26,7 @@ pub struct EnvironmentMapLimits {
     pub max_edges: u64,
     pub max_projection_rows: u64,
     pub max_string_bytes: u64,
+    pub max_variable_value_bytes: u64,
     pub max_input_file_bytes: u64,
     pub max_total_input_bytes: u64,
     pub max_executable_bytes: u64,
@@ -38,6 +40,7 @@ impl Default for EnvironmentMapLimits {
             max_edges: 64,
             max_projection_rows: 48,
             max_string_bytes: 512,
+            max_variable_value_bytes: 16_384,
             max_input_file_bytes: 16_777_216,
             max_total_input_bytes: 67_108_864,
             max_executable_bytes: 67_108_864,
@@ -52,6 +55,7 @@ impl EnvironmentMapLimits {
             || self.max_edges == 0
             || self.max_projection_rows == 0
             || self.max_string_bytes == 0
+            || self.max_variable_value_bytes == 0
             || self.max_input_file_bytes == 0
             || self.max_total_input_bytes == 0
             || self.max_executable_bytes == 0
@@ -68,13 +72,16 @@ pub enum VariableCapture {
     #[default]
     Presence,
     Digest,
+    Value,
 }
 
 impl VariableCapture {
-    const fn as_str(self) -> &'static str {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Presence => "presence",
             Self::Digest => "digest",
+            Self::Value => "value",
         }
     }
 }
@@ -339,6 +346,18 @@ pub struct EnvironmentMapObservation {
     pub capabilities: Vec<CapabilityRecord>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnvironmentMapNodeProvenance {
+    pub declaration: EnvironmentMapNode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub captured_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_path_count: Option<u64>,
+}
+
 impl EnvironmentMapObservation {
     pub fn load(
         workspace: &Path,
@@ -421,36 +440,61 @@ fn observe_node(
         } => {
             let value = inputs.variables.get(OsStr::new(name));
             let content_digest = match (value, capture) {
-                (Some(value), VariableCapture::Digest) => {
+                (Some(value), VariableCapture::Digest | VariableCapture::Value) => {
                     Some(os_value_digest(name, value).to_string())
+                }
+                _ => None,
+            };
+            let captured_value = match (value, capture) {
+                (Some(value), VariableCapture::Value) => {
+                    let value = value
+                        .to_str()
+                        .ok_or_else(|| EnvironmentMapError::VariableValueEncoding(name.clone()))?;
+                    if value.len() as u64 > limits.max_variable_value_bytes {
+                        return Err(EnvironmentMapError::VariableValueLimit {
+                            name: name.clone(),
+                            limit: limits.max_variable_value_bytes,
+                            actual: value.len() as u64,
+                        });
+                    }
+                    Some(value.to_owned())
                 }
                 _ => None,
             };
             Ok(CapabilityRecord {
                 provider_id: ENVIRONMENT_MAP_PROVIDER_ID.to_owned(),
-                provider_revision: LOCAL_PROVIDER_REVISION,
+                provider_revision: ENVIRONMENT_MAP_PROVIDER_REVISION,
                 provider_kind: "environment_mapping".to_owned(),
                 capability_id: format!("env.mapping.node.{id}"),
                 capability_kind: "environment_variable".to_owned(),
                 resolved_location: Some(format!("env://{name}")),
                 version: None,
                 content_digest,
-                provenance: Some(serde_json::to_string(node)?),
+                provenance: Some(node_provenance(node, None, captured_value, None)?),
                 availability: if value.is_some() {
                     Availability::Available
                 } else {
                     Availability::Unavailable
                 },
                 trust_class: TrustClass::ExplicitLocal,
-                operations: vec!["observe_presence".to_owned()],
-                enforced_limits: vec![
-                    "no_raw_value_retention".to_owned(),
-                    if *sensitive {
-                        "sensitive_presence_only".to_owned()
-                    } else {
-                        "declared_capture_mode".to_owned()
-                    },
-                ],
+                operations: vec![match capture {
+                    VariableCapture::Presence => "observe_presence".to_owned(),
+                    VariableCapture::Digest => "observe_digest".to_owned(),
+                    VariableCapture::Value => "observe_value".to_owned(),
+                }],
+                enforced_limits: vec![if *sensitive {
+                    "sensitive_presence_only".to_owned()
+                } else {
+                    format!(
+                        "capture={}{}",
+                        capture.as_str(),
+                        if *capture == VariableCapture::Value {
+                            format!(";max_bytes={}", limits.max_variable_value_bytes)
+                        } else {
+                            String::new()
+                        }
+                    )
+                }],
                 unsupported_limits: Vec::new(),
                 observed_at: None,
                 error_code: None,
@@ -463,14 +507,14 @@ fn observe_node(
                 observe_file(workspace, &full_path, limits, total_input_bytes);
             Ok(CapabilityRecord {
                 provider_id: ENVIRONMENT_MAP_PROVIDER_ID.to_owned(),
-                provider_revision: LOCAL_PROVIDER_REVISION,
+                provider_revision: ENVIRONMENT_MAP_PROVIDER_REVISION,
                 provider_kind: "environment_mapping".to_owned(),
                 capability_id: format!("env.mapping.node.{id}"),
                 capability_kind: "input_file".to_owned(),
                 resolved_location: Some(path.to_string_lossy().into_owned()),
                 version: None,
                 content_digest,
-                provenance: Some(node_provenance(node, byte_length.as_deref())?),
+                provenance: Some(node_provenance(node, byte_length, None, None)?),
                 availability,
                 trust_class: TrustClass::ExplicitLocal,
                 operations: vec!["observe_identity".to_owned()],
@@ -520,14 +564,19 @@ fn observe_node(
             };
             Ok(CapabilityRecord {
                 provider_id: ENVIRONMENT_MAP_PROVIDER_ID.to_owned(),
-                provider_revision: LOCAL_PROVIDER_REVISION,
+                provider_revision: ENVIRONMENT_MAP_PROVIDER_REVISION,
                 provider_kind: "environment_mapping".to_owned(),
                 capability_id: format!("env.mapping.node.{id}"),
                 capability_kind: "potential_executable".to_owned(),
                 resolved_location: location,
                 version: None,
                 content_digest: digest,
-                provenance: Some(node_provenance(node, byte_length.as_deref())?),
+                provenance: Some(node_provenance(
+                    node,
+                    byte_length,
+                    None,
+                    Some(inputs.search_paths.len() as u64),
+                )?),
                 availability,
                 trust_class: TrustClass::DiscoveredLocal,
                 operations: vec!["resolve_identity".to_owned()],
@@ -631,7 +680,7 @@ fn graph_capability(
     }
     Ok(CapabilityRecord {
         provider_id: ENVIRONMENT_MAP_PROVIDER_ID.to_owned(),
-        provider_revision: LOCAL_PROVIDER_REVISION,
+        provider_revision: ENVIRONMENT_MAP_PROVIDER_REVISION,
         provider_kind: "environment_mapping".to_owned(),
         capability_id: "env.mapping.graph".to_owned(),
         capability_kind: "environment_map".to_owned(),
@@ -663,7 +712,7 @@ fn edge_capability(edge: &EnvironmentMapEdge) -> Result<CapabilityRecord, Enviro
     edge.add_semantics(&mut hasher);
     Ok(CapabilityRecord {
         provider_id: ENVIRONMENT_MAP_PROVIDER_ID.to_owned(),
-        provider_revision: LOCAL_PROVIDER_REVISION,
+        provider_revision: ENVIRONMENT_MAP_PROVIDER_REVISION,
         provider_kind: "environment_mapping".to_owned(),
         capability_id: format!(
             "env.mapping.edge.{}.{}.{}",
@@ -707,6 +756,9 @@ fn validate_node(
             if *sensitive && *capture == VariableCapture::Digest {
                 return Err(EnvironmentMapError::SensitiveDigest(name.clone()));
             }
+            if *sensitive && *capture == VariableCapture::Value {
+                return Err(EnvironmentMapError::SensitiveValue(name.clone()));
+            }
         }
         EnvironmentMapNode::File { path, .. } => {
             validate_string("file path", &path.to_string_lossy(), limits)?;
@@ -728,17 +780,15 @@ fn validate_node(
 
 fn node_provenance(
     node: &EnvironmentMapNode,
-    byte_length: Option<&str>,
+    byte_length: Option<String>,
+    captured_value: Option<String>,
+    search_path_count: Option<u64>,
 ) -> Result<String, EnvironmentMapError> {
-    #[derive(Serialize)]
-    struct NodeProvenance<'a> {
-        declaration: &'a EnvironmentMapNode,
-        byte_length: Option<&'a str>,
-    }
-
-    Ok(serde_json::to_string(&NodeProvenance {
-        declaration: node,
+    Ok(serde_json::to_string(&EnvironmentMapNodeProvenance {
+        declaration: node.clone(),
         byte_length,
+        captured_value,
+        search_path_count,
     })?)
 }
 
@@ -926,6 +976,7 @@ fn add_limits(hasher: &mut SemanticHasher, limits: &EnvironmentMapLimits) {
     hasher.add_u64(limits.max_edges);
     hasher.add_u64(limits.max_projection_rows);
     hasher.add_u64(limits.max_string_bytes);
+    hasher.add_u64(limits.max_variable_value_bytes);
     hasher.add_u64(limits.max_input_file_bytes);
     hasher.add_u64(limits.max_total_input_bytes);
     hasher.add_u64(limits.max_executable_bytes);
@@ -972,6 +1023,16 @@ pub enum EnvironmentMapError {
     InvalidVariableName(String),
     #[error("sensitive environment variable {0} cannot retain a value digest")]
     SensitiveDigest(String),
+    #[error("sensitive environment variable {0} cannot retain a raw value")]
+    SensitiveValue(String),
+    #[error("environment variable {0} is not valid UTF-8 for value capture")]
+    VariableValueEncoding(String),
+    #[error("environment variable {name} exceeds the {limit}-byte value capture limit ({actual})")]
+    VariableValueLimit {
+        name: String,
+        limit: u64,
+        actual: u64,
+    },
     #[error("environment mapping path {0} escapes the workspace")]
     PathEscape(PathBuf),
     #[error("environment mapping path {0} is symlinked or not a safe regular file")]
@@ -999,11 +1060,11 @@ mod tests {
 
     use super::{
         Availability, EnvironmentMap, EnvironmentMapError, EnvironmentMapInputs,
-        EnvironmentMapLimits, EnvironmentMapObservation,
+        EnvironmentMapLimits, EnvironmentMapNodeProvenance, EnvironmentMapObservation,
     };
 
     const VALID: &str = r#"
-schema: rey.env-map.v1
+schema: rey.env-map.v2
 nodes:
   - id: config
     kind: variable
@@ -1073,6 +1134,14 @@ edges:
             EnvironmentMap::from_yaml_slice(sensitive.as_bytes(), EnvironmentMapLimits::default()),
             Err(EnvironmentMapError::SensitiveDigest(_))
         ));
+        let sensitive_value = sensitive.replace("capture: digest", "capture: value");
+        assert!(matches!(
+            EnvironmentMap::from_yaml_slice(
+                sensitive_value.as_bytes(),
+                EnvironmentMapLimits::default()
+            ),
+            Err(EnvironmentMapError::SensitiveValue(_))
+        ));
 
         let unknown = VALID.replace("capture: digest", "capture: digest\n    surprise: true");
         assert!(
@@ -1141,6 +1210,49 @@ edges:
                 row.capability_id == capability_id && row.availability == Availability::Unavailable
             }));
         }
+    }
+
+    #[test]
+    fn explicit_value_capture_is_bounded_and_retained_in_typed_provenance() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(
+            workspace.path().join("rey.env.yaml"),
+            "schema: rey.env-map.v2\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
+        )
+        .unwrap();
+        let inputs = EnvironmentMapInputs {
+            variables: BTreeMap::from([(
+                OsString::from("REY_MODE"),
+                OsString::from("development"),
+            )]),
+            search_paths: Vec::new(),
+        };
+        let observation = EnvironmentMapObservation::load(
+            workspace.path(),
+            None,
+            &inputs,
+            EnvironmentMapLimits::default(),
+        )
+        .unwrap()
+        .unwrap();
+        let variable = observation
+            .capabilities
+            .iter()
+            .find(|row| row.capability_id == "env.mapping.node.mode")
+            .unwrap();
+        let provenance: EnvironmentMapNodeProvenance =
+            serde_json::from_str(variable.provenance.as_deref().unwrap()).unwrap();
+        assert_eq!(provenance.captured_value.as_deref(), Some("development"));
+        assert!(variable.content_digest.is_some());
+
+        let limits = EnvironmentMapLimits {
+            max_variable_value_bytes: 4,
+            ..EnvironmentMapLimits::default()
+        };
+        assert!(matches!(
+            EnvironmentMapObservation::load(workspace.path(), None, &inputs, limits),
+            Err(EnvironmentMapError::VariableValueLimit { .. })
+        ));
     }
 
     #[test]

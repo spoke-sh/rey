@@ -4,7 +4,12 @@ use std::{
     path::PathBuf,
 };
 
-use rey::workloads::{LocalWorkloadStore, WorkloadCatalog};
+use rey::{
+    current_environment_status,
+    env::LocalEnvironmentStore,
+    workloads::{LocalWorkloadStore, WorkloadCatalog},
+};
+use rey_environment::DiscoveryLimits;
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
@@ -140,6 +145,7 @@ impl UiServer {
         let response = match path {
             "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
+            "/api/v1/environment" => self.environment(),
             "/api/v1/workloads" => self.workloads(),
             path if path.starts_with("/api/") => json_error(
                 StatusCode(404),
@@ -182,6 +188,24 @@ impl UiServer {
         match result {
             Ok(list) => json_response(StatusCode(200), &list),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
+        }
+    }
+
+    fn environment(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalEnvironmentStore::default_for_workspace(&self.config.workspace);
+        match current_environment_status(
+            &store,
+            &self.config.workspace,
+            DiscoveryLimits::default(),
+            None,
+            4_096,
+        ) {
+            Ok(status) => json_response(StatusCode(200), &status),
+            Err(error) => json_error(
+                StatusCode(500),
+                "environment_unavailable",
+                &error.to_string(),
+            ),
         }
     }
 }
@@ -300,7 +324,7 @@ mod tests {
             "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"
         );
         let address = descriptor.address.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(8)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(9)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -310,6 +334,14 @@ mod tests {
         let workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(workloads.starts_with("HTTP/1.1 200"));
         assert!(workloads.contains("\"schema\":\"rey.workload-list.v5\""));
+
+        let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
+        assert!(environment.starts_with("HTTP/1.1 200"));
+        assert!(environment.contains("\"schema\":\"rey.environment-status.v3\""));
+        assert!(
+            environment
+                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v1\"")
+        );
 
         let application = request(&address, "GET /assets/app.js HTTP/1.1");
         assert!(application.starts_with("HTTP/1.1 200"));
@@ -346,8 +378,49 @@ mod tests {
             "{request_line}\r\nHost: {address}\r\nConnection: close\r\n\r\n"
         )
         .unwrap();
-        let mut response = String::new();
-        stream.read_to_string(&mut response).unwrap();
-        response
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).unwrap();
+        let header_end = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .unwrap();
+        let headers = std::str::from_utf8(&response[..header_end]).unwrap();
+        let body = &response[header_end + 4..];
+        let body = if headers
+            .lines()
+            .any(|line| line.eq_ignore_ascii_case("Transfer-Encoding: chunked"))
+        {
+            decode_chunked(body)
+        } else {
+            body.to_vec()
+        };
+        format!("{headers}\r\n\r\n{}", String::from_utf8(body).unwrap())
+    }
+
+    fn decode_chunked(encoded: &[u8]) -> Vec<u8> {
+        let mut decoded = Vec::new();
+        let mut cursor = 0;
+        loop {
+            let line_end = encoded[cursor..]
+                .windows(2)
+                .position(|window| window == b"\r\n")
+                .map(|offset| cursor + offset)
+                .unwrap();
+            let size = std::str::from_utf8(&encoded[cursor..line_end])
+                .unwrap()
+                .split(';')
+                .next()
+                .and_then(|value| usize::from_str_radix(value.trim(), 16).ok())
+                .unwrap();
+            cursor = line_end + 2;
+            if size == 0 {
+                break;
+            }
+            decoded.extend_from_slice(&encoded[cursor..cursor + size]);
+            cursor += size;
+            assert_eq!(&encoded[cursor..cursor + 2], b"\r\n");
+            cursor += 2;
+        }
+        decoded
     }
 }

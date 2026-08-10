@@ -223,6 +223,16 @@ retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
+ADR 0027 adds no dependency. The mapping parser hard-cuts to
+`rey.env-map.v2`; bounded UTF-8 values are retained only for explicit
+non-sensitive `capture: value` nodes. `crates/rey/src/env.rs` derives the
+shared `rey.environment-operator-projection.v1` from the same frozen HEAD,
+index, and working capability snapshots used by the authoritative deltas.
+`GET|HEAD /api/v1/environment`, `rey env status`, and the React environment
+workbench consume that common derivation. TypeScript projection tests and the
+Rust HTTP/CLI tests are the interface proof; the browser never probes the host
+independently.
+
 `crates/rey/build.rs` binds the composition binary to its implementation Git
 revision. A clean Nix build supplies `self.rev`; local Cargo builds resolve the
 repository HEAD and register both HEAD and its symbolic ref as rebuild inputs.

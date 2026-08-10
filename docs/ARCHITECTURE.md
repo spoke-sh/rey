@@ -161,8 +161,9 @@ deeper diagnostic plane. The Explorer projects one context topology through a
 semantic lens: landscape aggregates become workload/attention neighborhoods,
 then exact graph/scenario/evidence/delta objects as zoom and focus change.
 Identity, relationship classification, bounds, and omissions survive those
-visual transitions. `/environment` retains the previous dashboard and
-`/workloads` retains the exact catalog/detail routes.
+visual transitions. `/environment` projects the same typed
+`HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
+retains the exact catalog/detail routes.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
@@ -240,9 +241,11 @@ unknown file merely because it exists.
 The mapping graph is a context declaration, not a provider adapter or policy
 grant. Its executable nodes remain potential capabilities until an admitted
 adapter freezes their exact operation contract. The mapping provider projects
-bounded graph, node, edge, variable-presence/digest, file-identity, and
+bounded graph, node, edge, variable-presence/digest/value, file-identity, and
 executable-identity evidence into the same snapshot used by environment
-history. Raw environment values and mapped file bytes are not retained.
+history. Exact variable values are retained only for explicit non-sensitive
+`capture: value` declarations under a byte bound. Sensitive variables remain
+presence-only, and mapped file bytes are never retained.
 
 The capability snapshot is a typed relation. A first schema should be able to
 represent provider id/revision, capability id, kind, resolved location,

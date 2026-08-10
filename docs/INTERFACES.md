@@ -26,6 +26,9 @@ the same live workload-list derivation as the CLI.
 ADR 0026 makes `/explore` the default human surface, hard-cuts Instrument to
 Environment at `/environment`, adds the bounded semantic-lens canvas, and
 replaces manual refresh with passive five-second revalidation.
+ADR 0027 hard-cuts the mapping graph to `rey.env-map.v2`, adds bounded
+non-sensitive value capture, and makes `rey env status` plus `/environment`
+two projections of one typed environment delta.
 
 ## Interface Principles
 
@@ -216,9 +219,10 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 
 `status` is the single environment inventory and revision view. It performs a
 fresh observation, retains the complete working snapshot in
-`rey.environment-status.v2`, and presents `HEAD → INDEX` changes to be committed
-separately from `INDEX → WORKING` changes not staged for admission. Human
-output lists bounded previews with explicit omission counts.
+`rey.environment-status.v3`, and derives one typed variable, application,
+input, and reference projection over `HEAD → INDEX → WORKING`. Human output
+leads with the env-shaped `HEAD → WORKING` variable diff and the complete
+declared application search, while preserving staged and unstaged counts.
 
 `add` replaces the admission index with the fresh working snapshot. `add -p`
 prompts over canonical capability changes and stages only selected rows; its
@@ -231,16 +235,17 @@ bounds selection and `-p` expands each exact parent-to-commit capability patch.
 The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 `${workspace}/.rey/env/index.json` by default. Human history output exposes full commit, parent, snapshot, delta, comparator,
 completeness, capability, limit, and retention evidence. Explicit JSON uses
-`rey.environment-status.v2`, `rey.environment-commit-result.v1`, and
+`rey.environment-status.v3`, `rey.environment-commit-result.v1`, and
 `rey.environment-log.v1`.
 
 By convention, observation also loads `rey.env.yaml`; `--map` selects another
-workspace-relative regular YAML file. `rey.env-map.v1` is a closed, bounded
+workspace-relative regular YAML file. `rey.env-map.v2` is a closed, bounded
 graph of variable, file, and executable nodes plus declared reference edges.
-Raw environment values and file bytes are not retained. Sensitive variables
-are presence-only. Non-sensitive variables may opt into a value digest; files
-retain bounded identities; executable candidates are resolved and hashed but
-never invoked by the mapping provider. Declared potential capabilities remain
+Mapped file bytes are not retained. Sensitive variables are presence-only.
+Non-sensitive variables may opt into presence, a value digest, or an exact
+bounded UTF-8 value; files retain bounded identities; executable candidates
+retain the bounded search-path count and are resolved and hashed but never
+invoked by the mapping provider. Declared potential capabilities remain
 unadmitted. One graph row and exact node/edge rows make the mapping and its
 observed drift visible in every environment revision surface.
 
@@ -775,12 +780,15 @@ operation's idempotency contract rather than one generic retry rule.
 `rey ui` is the implemented exception to a CLI-only topology: a bounded,
 read-only HTTP projection started explicitly by the operator. It serves the
 embedded TanStack Router application, `GET|HEAD /api/v1/health`, and
-`GET|HEAD /api/v1/workloads`; all other methods are rejected. Deep browser
+`GET|HEAD /api/v1/workloads` plus `GET|HEAD /api/v1/environment`; all other
+methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/explore`. The application routes are `/explore`, `/environment`,
 `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
-index, just like `workloads list`.
+index, just like `workloads list`. The environment endpoint is derived anew
+from the selected workspace map and local environment history through the same
+function as `env status`; it does not create UI-owned evidence.
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, read-only authority, workspace, catalog root, application,
@@ -796,8 +804,9 @@ GitHub link uses the complete 40- or 64-hex Git object id; BLAKE3 attention and
 snapshot identities are not linked as commits.
 
 The Refresh control does not exist. Root-route invalidation passively reloads
-the read-only portfolio every five seconds. `ContextCanvas` projects that
-document through landscape, neighborhood, and object regimes with bounded
+the read-only portfolio and environment delta every five seconds.
+`ContextCanvas` projects the portfolio document through landscape,
+neighborhood, and object regimes with bounded
 omission disclosures; full screen, pan, focus, and zoom do not widen the data
 or action authority. See [Context Topology Explorer](EXPLORER.md) and [ADR
 0026](decisions/0026-context-topology-explorer.md).

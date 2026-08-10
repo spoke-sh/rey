@@ -21,6 +21,7 @@ completion criteria.
 - [0007 — Git-shaped env CLI](0007-git-shaped-env-cli.md)
 - [0008 — Environment mapping graph](0008-environment-mapping-graph.md)
 - [0009 — Environment admission index](0009-environment-admission-index.md)
+- [0012 — Environment operator delta](0012-environment-operator-delta.md)
 
 ## Plan Rules
 

@@ -13,9 +13,10 @@ certificates, and bounded local-only bundle retention over this relation. ADR
 capabilities. Plan 0006 now implements the first deterministic built-in local
 source binding and literal-search capability and ADR 0018 composes it through
 the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
-later slices. ADR 0020 adds the first explicit `rey.env-map.v1` graph of
-relevant variables, input files, executable candidates, and reference edges;
-the Git-shaped environment history revisions its observations.
+later slices. ADR 0020 added the first explicit environment graph and ADR 0027
+hard-cuts its current contract to `rey.env-map.v2`, adds bounded non-sensitive
+value capture, and derives one operator delta for the CLI and UI. The
+Git-shaped environment history revisions those observations.
 
 ## Terms
 
@@ -102,33 +103,38 @@ logical tool name are not interchangeable strings.
 
 The conventional `rey.env.yaml`, or an explicit workspace-relative `--map`
 path, declares the local environment surfaces a programmer or agent has judged
-relevant. The closed `rey.env-map.v1` schema contains:
+relevant. The closed `rey.env-map.v2` schema contains:
 
-- variable nodes with exact names, sensitivity, and `presence` or `digest`
-  capture;
+- variable nodes with exact names, sensitivity, and `presence`, `digest`, or
+  bounded UTF-8 `value` capture;
 - workspace-relative regular-file nodes with a required-admission marker;
 - executable nodes resolved from the captured search path with declared
   potential capabilities; and
 - exact directed edges naming the declared relationship between nodes.
 
 The loader bounds document bytes, strings, nodes, edges, projection rows,
-individual file bytes, total file bytes, and executable bytes. It rejects
-unknown fields, duplicate ids or edges, missing endpoints, self-edges, path
-escape, symlinked mapping/input paths, and sensitive digest capture. Node and
-edge order is canonicalized before graph identity is computed.
+individual variable values, individual file bytes, total file bytes, and
+executable bytes. It rejects unknown fields, duplicate ids or edges, missing
+endpoints, self-edges, path escape, symlinked mapping/input paths, invalid
+UTF-8 value capture, and sensitive digest or value capture. Node and edge order
+is canonicalized before graph identity is computed.
 
-Observation never retains raw variable values or file bytes. A sensitive
-variable records presence only; a non-sensitive variable may retain a
-domain-separated digest. A file records its workspace-relative path, regular
-status, length, and bounded digest. An executable records its resolved path,
-length, and digest without invocation. Its potential capabilities remain
-explicitly `unadmitted` until a separate adapter freezes operation semantics,
-arguments, effects, trust, and limits.
+Observation never retains mapped file bytes. A sensitive variable records
+presence only. A non-sensitive variable may retain presence, a
+domain-separated digest, or its exact bounded UTF-8 value when the mapping
+author explicitly selects `capture: value`. A file records its
+workspace-relative path, regular status, length, and bounded digest. An
+executable records its resolved path, length, digest, and bounded search-path
+count without invocation. Its potential capabilities remain explicitly
+`unadmitted` until a separate adapter freezes operation semantics, arguments,
+effects, trust, and limits.
 
 The provider projects one graph row plus exact node and edge rows into the
-ordinary capability snapshot. `env status` is the complete human and structured
-inventory, including mapping dimensions, the optional admission index, and
-both staged and unstaged changed-row identities. `env diff`, `env add`,
+ordinary capability snapshot. `env status` derives a typed operator projection
+over variables, applications, inputs, and references across `HEAD`, `INDEX`,
+and `WORKING`. Its human view leads with the `HEAD → WORKING` env-shaped text
+diff and the full application search; structured output retains the complete
+capability evidence and both authoritative deltas. `env diff`, `env add`,
 `env commit`, and `env log -p` navigate and revision the same relation. The
 YAML graph is a proposal about relevance, not execution authority or proof of a
 dependency.
@@ -319,19 +325,23 @@ evidence unless the workload contract selected it as a required input.
 
 ## Local Environment Revisions
 
-ADRs 0019 through 0021 implement the Git-shaped interaction over capability
-snapshots. `rey env status` observes the explicit workspace and presents three
+ADRs 0019 through 0021 and ADR 0027 implement the Git-shaped interaction over
+capability snapshots. `rey env status` observes the explicit workspace and presents three
 planes: committed `HEAD`, the admission `INDEX`, and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty
 capability relations. Without a retained index, the effective index equals
 HEAD. The command reads but never creates or repairs local state. Explicit JSON
-emits `rey.environment-status.v2` with the complete working snapshot and both
-authoritative deltas.
+emits `rey.environment-status.v3` with the complete working snapshot, both
+authoritative capability deltas, and
+`rey.environment-operator-projection.v1`. Every mapped object carries exact
+HEAD/index/working observations plus staged, unstaged, and overall change
+classification.
 
 `rey env add` retains the exact working snapshot as a HEAD-bound
 `rey.environment-admission-index.v1`. `add -p` prompts over the canonical
-`INDEX → WORKING` capability changes and applies only selected rows. Raw
-variable values and file bytes never enter the selection interface. Staging a
+`INDEX → WORKING` capability changes and applies only selected rows. File bytes
+never enter the selection interface; an explicitly value-captured variable is
+part of the retained capability observation. Staging a
 mapped executable accepts its observation for history but grants no execution
 or provider authority.
 

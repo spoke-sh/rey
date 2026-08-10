@@ -15,17 +15,21 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, type CSSProperties, type ReactNode } from "react";
-import { loadPortfolio } from "./api";
+import { loadEnvironment, loadPortfolio } from "./api";
 import {
-  derivePortfolioMetrics,
   scenarioPercent,
   shortDigest,
   sourceCommitUrl,
   workloadJourney,
-  type AttentionRow,
   type WorkloadDraft,
   type WorkloadSummary,
 } from "./domain";
+import {
+  currentApplications,
+  environmentVariableDiff,
+  type EnvironmentApplicationObservation,
+  type EnvironmentObjectStatus,
+} from "./environment";
 import { ExplorePage } from "./explore";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -96,17 +100,6 @@ function RootLayout() {
             className={sx(
               styles.focusable,
               styles.navLink,
-              pathname.startsWith("/environment") && styles.navLinkActive,
-            )}
-            to="/environment"
-          >
-            Environment
-          </Link>
-          <Link
-            activeProps={{ "aria-current": "page" }}
-            className={sx(
-              styles.focusable,
-              styles.navLink,
               pathname.startsWith("/workloads") && styles.navLinkActive,
             )}
             to="/workloads"
@@ -115,6 +108,17 @@ function RootLayout() {
             <span className={sx(styles.navCount)}>
               {portfolio.catalog.workload_count}
             </span>
+          </Link>
+          <Link
+            activeProps={{ "aria-current": "page" }}
+            className={sx(
+              styles.focusable,
+              styles.navLink,
+              pathname.startsWith("/environment") && styles.navLinkActive,
+            )}
+            to="/environment"
+          >
+            Environment
           </Link>
         </nav>
       </header>
@@ -158,169 +162,335 @@ function RootLayout() {
 }
 
 function EnvironmentPage() {
-  const portfolio = rootRoute.useLoaderData();
-  const metrics = derivePortfolioMetrics(portfolio);
-  const attentionTotal = portfolio.attention.rows.length;
+  const status = environmentRoute.useLoaderData();
+  const projection = status.operator;
+  const variableLines = environmentVariableDiff(projection.variables);
+  const found = currentApplications(projection.applications, "available");
+  const notFound = currentApplications(projection.applications, "unavailable");
+  const errors = currentApplications(projection.applications, "error");
+  const removed = projection.applications.filter(
+    (application) => application.working === null && application.head !== null,
+  );
 
   return (
     <main className={sx(styles.page)}>
-      <section className={sx(styles.heroGrid)}>
+      <section className={sx(styles.environmentHero)}>
         <div>
           <p className={sx(styles.micro, styles.eyebrow)}>
-            ENVIRONMENT / PORTFOLIO CONTROL
+            ENVIRONMENT / {projection.source_label} → {projection.target_label}
           </p>
-          <h1 className={sx(styles.displayTitle, styles.heroTitle)}>
-            DELTA
-            <span className={sx(styles.heroTitleAccent)}>DIRECTS WORK.</span>
+          <h1 className={sx(styles.displayTitle, styles.environmentTitle)}>
+            WORKING TREE
           </h1>
           <p className={sx(styles.heroIntro)}>
-            A live, bounded projection of workload qualification, scenario
-            conformance, retained evidence, and the attention frontier.
+            The bounded process environment Rey has been asked to care about,
+            compared directly with its last committed observation.
           </p>
-          <div className={sx(styles.heroLinks)}>
-            <Link
-              className={sx(
-                styles.focusable,
-                styles.controlLabel,
-                styles.mechanicalLink,
-              )}
-              to="/workloads"
-            >
-              OPEN WORKLOAD PORTFOLIO{" "}
-              <span className={sx(styles.mechanicalArrow)} aria-hidden="true">
-                →
-              </span>
-            </Link>
+          <div className={sx(styles.environmentCoordinate)}>
             <span className={sx(styles.controlLabel)}>
-              {portfolio.catalog.kind.replaceAll("_", " ").toUpperCase()}
+              {projection.mapping?.source_path ?? "NO ENVIRONMENT MAP"}
+            </span>
+            <span className={sx(styles.micro, styles.muted)}>
+              {projection.mapping?.schema ?? "UNMAPPED"}
             </span>
           </div>
         </div>
 
         <KineticSurface
-          className={sx(styles.portfolioMachine)}
+          className={sx(styles.environmentMachine)}
           theme="precision"
         >
-          <div className={sx(styles.machineScale)} aria-hidden="true">
-            {Array.from({ length: 13 }, (_, index) => (
-              <i className={sx(styles.machineScaleTick)} key={index} />
-            ))}
-          </div>
-          <div className={sx(styles.machineReadout)}>
+          <div className={sx(styles.environmentMachineHeader)}>
             <span className={sx(styles.micro)}>
-              ATTENTION / READY + BLOCKED
+              OPERATOR DELTA / LIVE PROBE
             </span>
-            <output className={sx(styles.machineOutput)}>
-              {String(attentionTotal).padStart(3, "0")}
+            <span
+              className={sx(
+                styles.micro,
+                projection.complete ? styles.stateGood : styles.toneDanger,
+              )}
+            >
+              {projection.complete ? "COMPLETE" : "INCOMPLETE"}
+            </span>
+          </div>
+          <div className={sx(styles.environmentStateReadout)}>
+            <output className={sx(styles.environmentStateValue)}>
+              {status.state}
             </output>
-            <small className={sx(styles.micro)}>
-              {portfolio.attention.rows.length === 0
-                ? "CONVERGED SURFACE"
-                : "UNRESOLVED SURFACE"}
-            </small>
+            <span className={sx(styles.micro, styles.muted)}>
+              {projection.source_label} / INDEX / {projection.target_label}
+            </span>
           </div>
-          <div className={sx(styles.machineStatusGrid)}>
-            <MetricCell
-              label="QUALIFIED"
-              value={`${metrics.qualified}/${metrics.admitted}`}
+          <div className={sx(styles.environmentAdmissionRail)}>
+            <span>
+              <strong>{status.staged_delta.changes.length}</strong> staged
+            </span>
+            <i
+              aria-hidden="true"
+              className={sx(styles.environmentAdmissionLine)}
             />
-            <MetricCell label="DRAFT" value={metrics.drafts} />
-            <MetricCell label="FAILING" value={metrics.failing} tone="danger" />
-            <MetricCell label="STALE" value={metrics.stale} tone="warning" />
-          </div>
-          <div className={sx(styles.micro, styles.machinePlate)}>
-            <span>m / {precision.mass.toFixed(2)} kg</span>
-            <span>k / {precision.stiffness.toFixed(0)} N·m</span>
-            <span>ζ / {precision.damping.toFixed(0)}</span>
+            <span>
+              <strong>{status.unstaged_delta.changes.length}</strong> working
+            </span>
           </div>
         </KineticSurface>
       </section>
 
       <section
         className={sx(styles.metricStrip)}
-        aria-label="Portfolio metrics"
+        aria-label="Environment metrics"
       >
         <MetricPanel
           index="01"
-          label="INVENTORY"
-          primary={metrics.total}
-          secondary={`${metrics.admitted} admitted · ${metrics.drafts} draft`}
+          label="VARIABLES"
+          primary={projection.summary.variables}
+          secondary={`${projection.summary.changed_variables} changed`}
         />
         <MetricPanel
           index="02"
-          label="SCENARIOS"
-          primary={`${metrics.scenariosPassed}/${metrics.scenariosRequired}`}
-          secondary="required branches passing"
+          label="APPLICATIONS"
+          primary={`${projection.summary.applications_found}/${projection.summary.applications_searched}`}
+          secondary="found / searched"
         />
         <MetricPanel
           index="03"
-          label="RUNS"
-          primary={metrics.runsPassed}
-          secondary={`${metrics.runsBlocked} blocked · ${metrics.runsPending} pending`}
+          label="NOT FOUND"
+          primary={projection.summary.applications_not_found}
+          secondary={`${projection.summary.application_errors} observation errors`}
         />
         <MetricPanel
           index="04"
-          label="COVERAGE"
-          primary={`${portfolio.attention.summary.owned_surfaces}/${portfolio.attention.summary.surfaces}`}
-          secondary={`${portfolio.attention.summary.unowned_surfaces} unowned surfaces`}
+          label="TOPOLOGY"
+          primary={projection.summary.references}
+          secondary={`${projection.summary.inputs} inputs`}
         />
       </section>
 
       <section
-        className={sx(styles.sectionSpacing)}
-        aria-labelledby="attention-heading"
+        className={sx(styles.environmentWorkbench)}
+        aria-label="Environment delta workbench"
       >
-        <SectionHeading
-          index="01"
-          kicker="OUTER LOOP"
-          title="Attention frontier"
-          detail={`${portfolio.attention.rows.length} retained rows / priority ordered`}
-        />
-        {portfolio.attention.rows.length === 0 ? (
-          <EmptySurface>NO UNRESOLVED PORTFOLIO ATTENTION</EmptySurface>
-        ) : (
-          <div
-            className={sx(styles.attentionTable)}
-            role="table"
-            aria-label="Attention frontier"
-          >
-            <div
-              className={sx(styles.attentionGrid, styles.attentionHeader)}
-              role="row"
-            >
-              <span role="columnheader">ACTION</span>
-              <span role="columnheader">SUBJECT</span>
-              <span role="columnheader">REASON</span>
-              <span role="columnheader">READINESS</span>
-              <span role="columnheader">P / C</span>
+        <section className={sx(styles.environmentDiffSurface)}>
+          <div className={sx(styles.environmentPanelHeader)}>
+            <div>
+              <p className={sx(styles.micro, styles.sectionKicker)}>
+                01 / DIRECTED TEXT
+              </p>
+              <h2 className={sx(styles.sectionTitle)}>Environment variables</h2>
             </div>
-            {portfolio.attention.rows.map((row) => (
-              <AttentionLine key={row.row_id} row={row} />
-            ))}
+            <span className={sx(styles.micro, styles.muted)}>
+              @@ {projection.source_label} → {projection.target_label}
+            </span>
           </div>
-        )}
+          <div
+            className={sx(styles.environmentDiffDocument)}
+            role="table"
+            aria-label="Environment variable diff"
+          >
+            {variableLines.length === 0 ? (
+              <div className={sx(styles.environmentDiffEmpty)}>
+                NO VARIABLES SELECTED BY THE ENVIRONMENT MAP
+              </div>
+            ) : (
+              variableLines.map((line, index) => (
+                <div
+                  className={sx(
+                    styles.environmentDiffRow,
+                    line.kind === "inserted" && styles.environmentDiffInserted,
+                    line.kind === "deleted" && styles.environmentDiffDeleted,
+                    line.kind === "context" && styles.environmentDiffContext,
+                  )}
+                  key={`${line.key}:${index}`}
+                  role="row"
+                >
+                  <span className={sx(styles.environmentLineNumber)}>
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className={sx(styles.environmentDiffMarker)}>
+                    {line.kind === "inserted"
+                      ? "+"
+                      : line.kind === "deleted"
+                        ? "−"
+                        : "·"}
+                  </span>
+                  <code className={sx(styles.environmentDiffCode)}>
+                    {line.text}
+                  </code>
+                  <span className={sx(styles.environmentAdmissionTag)}>
+                    {line.admission}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <aside className={sx(styles.environmentApplications)}>
+          <div className={sx(styles.environmentPanelHeader)}>
+            <div>
+              <p className={sx(styles.micro, styles.sectionKicker)}>
+                02 / BOUNDED SEARCH
+              </p>
+              <h2 className={sx(styles.sectionTitle)}>Applications</h2>
+            </div>
+            <span className={sx(styles.micro, styles.muted)}>
+              {projection.summary.applications_searched} SEARCHED
+            </span>
+          </div>
+          <ApplicationGroup label="FOUND" applications={found} tone="found" />
+          <ApplicationGroup
+            label="SEARCHED, NOT FOUND"
+            applications={notFound}
+            tone="missing"
+          />
+          {errors.length > 0 ? (
+            <ApplicationGroup
+              label="OBSERVATION ERRORS"
+              applications={errors}
+              tone="error"
+            />
+          ) : null}
+          {removed.length > 0 ? (
+            <ApplicationGroup
+              label="NO LONGER SEARCHED"
+              applications={removed}
+              tone="removed"
+            />
+          ) : null}
+        </aside>
       </section>
 
-      <section
-        className={sx(styles.sectionSpacing)}
-        aria-labelledby="workload-preview-heading"
-      >
+      <section className={sx(styles.environmentTopology)}>
         <SectionHeading
-          index="02"
-          kicker="INNER LOOPS"
-          title="Workload mechanisms"
-          detail={`${portfolio.catalog.admitted_count} admitted / ${portfolio.catalog.draft_count} awaiting harness`}
+          index="03"
+          kicker="REFERENCE PLANE"
+          title="Inputs and topology"
+          detail={`${projection.summary.inputs} inputs / ${projection.summary.references} declared edges`}
         />
-        <div className={sx(styles.twoColumnGrid)}>
-          {portfolio.workloads.slice(0, 4).map((workload) => (
-            <WorkloadCard key={workload.workload.id} workload={workload} />
-          ))}
-          {portfolio.drafts.slice(0, 2).map((draft) => (
-            <DraftCard draft={draft} key={draft.request.workload_id} />
-          ))}
+        <div className={sx(styles.environmentTopologyGrid)}>
+          <div className={sx(styles.environmentInputList)}>
+            {projection.inputs.map((input) => {
+              const observation = input.working ?? input.head;
+              if (!observation) return null;
+              return (
+                <div
+                  className={sx(styles.environmentInputRow)}
+                  key={input.object_id}
+                >
+                  <span
+                    className={sx(
+                      styles.environmentPresence,
+                      observation.availability === "available"
+                        ? styles.stateGood
+                        : input.working === null
+                          ? styles.toneDanger
+                          : styles.toneWarning,
+                    )}
+                  >
+                    {input.working === null
+                      ? "−"
+                      : observation.availability === "available"
+                        ? "+"
+                        : "?"}
+                  </span>
+                  <strong>{observation.path}</strong>
+                  <span className={sx(styles.micro, styles.muted)}>
+                    {observation.required ? "REQUIRED" : "OPTIONAL"} ·{" "}
+                    {observation.byte_length ?? 0} BYTES ·{" "}
+                    {input.changes.head_to_working.toUpperCase()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className={sx(styles.environmentReferenceList)}>
+            {projection.references.map((reference) => {
+              const observation = reference.working ?? reference.head;
+              if (!observation) return null;
+              return (
+                <div
+                  className={sx(styles.environmentReferenceRow)}
+                  key={reference.object_id}
+                >
+                  <span>{observation.from}</span>
+                  <strong>
+                    {observation.relation.replaceAll("_", " ")} /{" "}
+                    {reference.changes.head_to_working.toUpperCase()}
+                  </strong>
+                  <span>{observation.to}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
     </main>
+  );
+}
+
+function ApplicationGroup({
+  label,
+  applications,
+  tone,
+}: {
+  label: string;
+  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[];
+  tone: "found" | "missing" | "error" | "removed";
+}) {
+  return (
+    <section className={sx(styles.environmentApplicationGroup)}>
+      <div className={sx(styles.environmentApplicationGroupHeader)}>
+        <span className={sx(styles.micro)}>{label}</span>
+        <strong>{String(applications.length).padStart(2, "0")}</strong>
+      </div>
+      {applications.length === 0 ? (
+        <p className={sx(styles.micro, styles.muted)}>NONE</p>
+      ) : (
+        applications.map((application) => {
+          const observation = application.working ?? application.head;
+          if (!observation) return null;
+          return (
+            <div
+              className={sx(styles.environmentApplicationRow)}
+              key={application.object_id}
+            >
+              <span
+                className={sx(
+                  styles.environmentApplicationMarker,
+                  tone === "found" && styles.stateGood,
+                  tone === "missing" && styles.toneWarning,
+                  (tone === "error" || tone === "removed") && styles.toneDanger,
+                )}
+              >
+                {tone === "found"
+                  ? "+"
+                  : tone === "missing"
+                    ? "?"
+                    : tone === "removed"
+                      ? "−"
+                      : "!"}
+              </span>
+              <div className={sx(styles.environmentApplicationIdentity)}>
+                <strong>{observation.name}</strong>
+                <code>{observation.resolved_path ?? "NOT RESOLVED"}</code>
+                <small className={sx(styles.micro, styles.muted)}>
+                  {observation.searched_path_count} PATH ENTRIES ·{" "}
+                  {application.changes.head_to_working.toUpperCase()}
+                </small>
+              </div>
+              <span className={sx(styles.micro, styles.muted)}>
+                {observation.required ? "REQUIRED" : "OPTIONAL"}
+              </span>
+              {observation.potential_capabilities.length > 0 ? (
+                <p className={sx(styles.environmentCapabilityList)}>
+                  {observation.potential_capabilities.join(" · ")}
+                </p>
+              ) : null}
+            </div>
+          );
+        })
+      )}
+    </section>
   );
 }
 
@@ -661,50 +831,6 @@ function DraftCard({ draft }: { draft: WorkloadDraft }) {
   );
 }
 
-function AttentionLine({ row }: { row: AttentionRow }) {
-  return (
-    <div
-      className={sx(
-        styles.attentionGrid,
-        styles.attentionRow,
-        row.readiness === "excluded" && styles.readinessExcluded,
-      )}
-      role="row"
-    >
-      <strong
-        className={sx(styles.attentionText, styles.attentionAction)}
-        role="cell"
-      >
-        {row.action.toUpperCase()}
-      </strong>
-      <span
-        className={sx(styles.attentionText, styles.attentionSubject)}
-        role="cell"
-      >
-        {row.subject_id}
-      </span>
-      <span
-        className={sx(styles.attentionText, styles.attentionReason)}
-        role="cell"
-      >
-        {row.reason.replaceAll("_", " ")}
-      </span>
-      <span className={sx(styles.attentionText)} role="cell">
-        <i
-          className={sx(
-            styles.statusDot,
-            row.readiness === "blocked" && styles.statusDotBlocked,
-          )}
-        />{" "}
-        {row.readiness.toUpperCase()}
-      </span>
-      <code className={sx(styles.attentionText)} role="cell">
-        {row.priority} / {row.estimated_cost_units}
-      </code>
-    </div>
-  );
-}
-
 function MetricPanel({
   index,
   label,
@@ -865,7 +991,7 @@ function PendingPage() {
     <main className={sx(styles.systemPage)}>
       <div className={sx(styles.loader)}>
         <i className={sx(styles.loaderSpinner)} />
-        <span>CALIBRATING PORTFOLIO</span>
+        <span>CALIBRATING RUNTIME</span>
       </div>
     </main>
   );
@@ -876,7 +1002,7 @@ function ErrorPage({ error }: { error: Error }) {
     <main className={sx(styles.systemPage)}>
       <p className={sx(styles.micro, styles.eyebrow)}>READ FAILURE</p>
       <h1 className={sx(styles.displayTitle, styles.systemTitle)}>
-        PORTFOLIO UNAVAILABLE
+        RUNTIME PROJECTION UNAVAILABLE
       </h1>
       <pre className={sx(styles.systemError)}>{error.message}</pre>
     </main>
@@ -931,6 +1057,7 @@ const exploreRoute = createRoute({
 const environmentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "environment",
+  loader: loadEnvironment,
   component: EnvironmentPage,
 });
 

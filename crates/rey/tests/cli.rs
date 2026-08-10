@@ -53,14 +53,12 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(unborn.stderr.is_empty());
     let unborn = String::from_utf8(unborn.stdout).unwrap();
     for evidence in [
-        "ENVIRONMENT STATUS",
+        "REY ENV · EMPTY → WORKING",
         "State                  UNBORN",
-        "HEAD                   no commits",
-        "Admission index        matches HEAD · no retained index",
-        "Delta                  EMPTY → INDEX · EQUAL",
-        "Delta                  INDEX → WORKING · DIFFERENT",
-        "Changes not staged for admission:",
-        "use `rey env add` to admit all working changes",
+        "Admission              0 staged",
+        "Mapping                none · no rey.env.yaml",
+        "ENVIRONMENT VARIABLES · 0 tracked · 0 changed",
+        "APPLICATIONS · 0 searched",
         "No environment commits yet; add the working environment before committing.",
     ] {
         assert!(
@@ -167,17 +165,18 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(changed.status.success());
     let changed = String::from_utf8(changed.stdout).unwrap();
     for evidence in [
+        "REY ENV · ENV@1 → WORKING",
         "State                  CHANGED",
-        "Delta                  ENV@1 → INDEX · EQUAL",
-        "Delta                  INDEX → WORKING · DIFFERENT",
-        "Changes not staged for admission:",
-        "git.repository.inspect",
+        "Admission              0 staged · 1 working capability changes",
+        "ENVIRONMENT VARIABLES · 0 tracked · 0 changed",
+        "APPLICATIONS · 0 searched",
     ] {
         assert!(
             changed.contains(evidence),
             "missing changed evidence: {evidence}"
         );
     }
+    assert!(!changed.contains("git.repository.inspect"));
 
     let diff = run_rey(&[
         "env",
@@ -396,12 +395,12 @@ fn env_mapping_graph_is_visible_secret_safe_and_diff_directed() {
     fs::set_permissions(&probe, permissions).unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: mode
     kind: variable
     name: REY_MODE
-    capture: digest
+    capture: value
   - id: secret
     kind: variable
     name: REY_SECRET
@@ -416,6 +415,10 @@ nodes:
     name: rey-map-probe
     required: true
     potential_capabilities: [source.search]
+  - id: missing
+    kind: executable
+    name: rey-definitely-missing
+    required: false
 edges:
   - from: mode
     to: input
@@ -457,7 +460,7 @@ edges:
     assert!(inspected.stderr.is_empty());
     let rendered = String::from_utf8(inspected.stdout.clone()).unwrap();
     assert!(!rendered.contains("never-retain-this-secret"));
-    assert!(!rendered.contains("development-mode-value"));
+    assert!(rendered.contains("development-mode-value"));
     assert!(!invocation_marker.exists());
     let status_document: Value = serde_json::from_slice(&inspected.stdout).unwrap();
     let rows = status_document["working_snapshot"]["capabilities"]
@@ -466,6 +469,24 @@ edges:
     assert!(rows.iter().any(|row| {
         row["capability_id"] == "env.mapping.graph" && row["capability_kind"] == "environment_map"
     }));
+    assert_eq!(
+        status_document["operator"]["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|variable| variable["object_id"] == "mode")
+            .unwrap()["working"]["value"],
+        "development-mode-value"
+    );
+    assert!(
+        status_document["operator"]["variables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|variable| variable["object_id"] == "secret")
+            .unwrap()["working"]["value"]
+            .is_null()
+    );
     assert!(rows.iter().any(|row| {
         row["capability_id"] == "env.mapping.node.secret"
             && row["content_digest"].is_null()
@@ -499,10 +520,24 @@ edges:
     );
     assert!(status.status.success());
     let status = String::from_utf8(status.stdout).unwrap();
-    assert!(status.contains(
-        "Mapping                1 graph · 2 variables · 1 file · 1 executable · 2 edges"
-    ));
-    assert!(status.contains("Mapping graph          rey.env.yaml · blake3:"));
+    for evidence in [
+        "REY ENV · EMPTY → WORKING",
+        "Mapping                rey.env.yaml · rey.env-map.v2",
+        "ENVIRONMENT VARIABLES · 2 tracked · 2 changed",
+        "+ REY_MODE=development-mode-value",
+        "+ REY_SECRET=<present:redacted>",
+        "APPLICATIONS · 2 searched",
+        "FOUND 1",
+        "rey-map-probe",
+        "SEARCHED, NOT FOUND 1",
+        "rey-definitely-missing",
+    ] {
+        assert!(
+            status.contains(evidence),
+            "missing env status evidence: {evidence}"
+        );
+    }
+    assert!(!status.contains("never-retain-this-secret"));
 
     let added = run_rey_with_env(
         &[
@@ -566,7 +601,7 @@ edges:
 
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v1\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
+        "schema: rey.env-map.v2\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
     )
     .unwrap();
     let invalid = run_rey_with_env(
@@ -593,7 +628,7 @@ fn env_add_patch_stages_selected_capabilities_and_commit_ignores_later_drift() {
     fs::write(workspace.path().join("beta.txt"), "beta one\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: alpha
     kind: file
@@ -1020,10 +1055,10 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Exposure               LOOPBACK ONLY",
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
-        "Data plane             LIVE READ-ONLY PORTFOLIO",
+        "Data plane             LIVE READ-ONLY RUNTIME",
         "Human entry            /explore",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/workloads",
+        "/api/v1/health · /api/v1/environment · /api/v1/workloads",
         "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
         assert!(table.contains(evidence), "missing UI evidence: {evidence}");
@@ -1036,6 +1071,9 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let response = http_request(address, "GET /api/v1/health HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"theme\":\"precision\""));
+    let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
+    assert!(environment.starts_with("HTTP/1.1 200"));
+    assert!(environment.contains("\"schema\":\"rey.environment-status.v3\""));
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();
     assert!(table_output.stderr.is_empty());
@@ -1731,7 +1769,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     fs::write(workspace.path().join("input.txt"), "portfolio surface\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: input
     kind: file

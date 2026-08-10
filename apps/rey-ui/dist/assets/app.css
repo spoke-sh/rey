@@ -73,6 +73,10 @@
     border-color: color-mix(in srgb,var(--rey-foreground) 16%,transparent);
   }
 
+  .x1r7ld26 {
+    border-color: currentColor;
+  }
+
   .x6fouwu {
     border-color: var(--line);
   }
@@ -193,6 +197,10 @@
     gap: 4px;
   }
 
+  .x1nejdyq {
+    gap: 5px;
+  }
+
   .x17d4w8g {
     gap: 6px;
   }
@@ -205,12 +213,20 @@
     gap: 8px;
   }
 
+  .xybustw {
+    gap: clamp(36px, 7vw, 100px);
+  }
+
   .xhotzo {
     gap: clamp(42px, 7vw, 112px);
   }
 
   .x1osaytk {
     grid-column: 1 / -1;
+  }
+
+  .x17d9j0x {
+    grid-column: 2 / -1;
   }
 
   .xm5moh1 {
@@ -277,12 +293,24 @@
     padding-block: 12px;
   }
 
+  .xxlmvz2 {
+    padding-block: 14px;
+  }
+
   .x1b9wmvo {
     padding-block: 15px;
   }
 
   .x1ks14e7 {
     padding-block: 17px;
+  }
+
+  .x1xg6qyv {
+    padding-block: 22px;
+  }
+
+  .xj8oexa {
+    padding-block: 2px;
   }
 
   .xknfcqp {
@@ -337,8 +365,16 @@
     padding-inline: 28px;
   }
 
+  .xfn1xvj {
+    padding-inline: 4px;
+  }
+
   .x1xijbu4 {
     padding-inline: 6px;
+  }
+
+  .xlkn9b3 {
+    padding-inline: 7px;
   }
 
   .xwxjhcm {
@@ -413,12 +449,20 @@
     align-content: center;
   }
 
+  .xcdzlcm {
+    align-content: space-between;
+  }
+
   .x6s0dn4 {
     align-items: center;
   }
 
   .xpqajaz {
     align-items: end;
+  }
+
+  .x7a106z {
+    align-items: start;
   }
 
   .x1qjc9v5 {
@@ -465,6 +509,14 @@
     background-color: #d8d9d4;
   }
 
+  .xtl4qay {
+    background-color: #2370471a;
+  }
+
+  .xozbt9y {
+    background-color: #b72d2517;
+  }
+
   .x1e34mce {
     background-color: color-mix(in srgb,var(--rey-accent) 8%,var(--surface));
   }
@@ -479,6 +531,10 @@
 
   .x1d9ei38 {
     background-color: color-mix(in srgb,var(--rey-background) 92%,transparent);
+  }
+
+  .xnd4aj6 {
+    background-color: color-mix(in srgb,var(--rey-background) 94%,black);
   }
 
   .x114gelf {
@@ -561,8 +617,20 @@
     box-sizing: border-box;
   }
 
+  .x1alzgzc {
+    color: #175c39;
+  }
+
   .xvnbrsj {
     color: #181b1b;
+  }
+
+  .x8e5rsw {
+    color: #237047;
+  }
+
+  .x1wiwloc {
+    color: #8d251f;
   }
 
   .x1xz8lni {
@@ -705,12 +773,20 @@
     font-size: .64rem;
   }
 
+  .x1ll8agd {
+    font-size: .66rem;
+  }
+
   .x1tbhdkz {
     font-size: .67rem;
   }
 
   .x191ayms {
     font-size: .68rem;
+  }
+
+  .x19lu64v {
+    font-size: .69rem;
   }
 
   .x19xyp9s {
@@ -801,6 +877,14 @@
     font-size: clamp(3.8rem, 8vw, 8rem);
   }
 
+  .x44opl9 {
+    font-size: clamp(4.6rem, 10vw, 10rem);
+  }
+
+  .xmumzqf {
+    font-size: clamp(4rem, 8vw, 7.2rem);
+  }
+
   .xjli2k5 {
     font-size: clamp(4rem, 9vw, 8rem);
   }
@@ -849,8 +933,20 @@
     grid-template-columns: 180px minmax(0, 1fr);
   }
 
+  .x134kloy {
+    grid-template-columns: 1fr auto 1fr;
+  }
+
   .x52fmzj {
     grid-template-columns: 1fr auto;
+  }
+
+  .x1f6jiog {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+
+  .x1gn7j7t {
+    grid-template-columns: 44px 28px minmax(max-content, 1fr) auto;
   }
 
   .x1jl6fm1 {
@@ -861,12 +957,24 @@
     grid-template-columns: 95px 1fr;
   }
 
+  .x1g3yg12 {
+    grid-template-columns: auto 1fr auto;
+  }
+
   .xy0r652 {
     grid-template-columns: minmax(0, .9fr) minmax(470px, 1.1fr);
   }
 
+  .x1luw524 {
+    grid-template-columns: minmax(0, 1.15fr) minmax(390px, .85fr);
+  }
+
   .x1bp9wsa {
     grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+  }
+
+  .xt16qkr {
+    grid-template-columns: minmax(0, 1.55fr) minmax(350px, .65fr);
   }
 
   .xxqdoqy {
@@ -941,6 +1049,10 @@
     letter-spacing: .05em;
   }
 
+  .x1dgsrnt {
+    letter-spacing: .06em;
+  }
+
   .xwhmn0f {
     letter-spacing: .07em;
   }
@@ -961,8 +1073,16 @@
     line-height: .7;
   }
 
+  .xgehjgm {
+    line-height: .78;
+  }
+
   .x11avn7m {
     line-height: .8;
+  }
+
+  .xramuv7 {
+    line-height: .85;
   }
 
   .x1xirri6 {
@@ -989,6 +1109,10 @@
     line-height: 1.45;
   }
 
+  .x1evy7pa {
+    line-height: 1.5;
+  }
+
   .x1jjo3f5 {
     line-height: 1.55;
   }
@@ -1003,6 +1127,10 @@
 
   .xp6acfy {
     opacity: .58;
+  }
+
+  .x190dgpg {
+    opacity: .65;
   }
 
   .x1g77sc7 {
@@ -1085,6 +1213,10 @@
     stroke: var(--rey-background);
   }
 
+  .x2b8uid {
+    text-align: center;
+  }
+
   .xdpxx8g {
     text-align: left;
   }
@@ -1156,6 +1288,10 @@
   .x87ps6o {
     -webkit-user-select: none;
     user-select: none;
+  }
+
+  .x1sdyfia {
+    white-space: pre;
   }
 
   .x1vjfegm {
@@ -1422,6 +1558,10 @@
     border-top-color: #0000;
   }
 
+  .xx27447 {
+    border-top-color: var(--line-soft);
+  }
+
   .x23dydh {
     border-top-color: var(--line);
   }
@@ -1542,6 +1682,10 @@
     margin-bottom: 16px;
   }
 
+  .x1c436fg {
+    margin-bottom: 18px;
+  }
+
   .x91k8ka {
     margin-bottom: 22px;
   }
@@ -1566,8 +1710,16 @@
     margin-bottom: clamp(70px, 10vw, 140px);
   }
 
+  .x1xf2x8q {
+    margin-bottom: clamp(70px, 9vw, 120px);
+  }
+
   .xcmxlu1 {
     margin-left: 14px;
+  }
+
+  .x1gh5o4n {
+    margin-left: 24px;
   }
 
   .x1x0meh9 {
@@ -1608,6 +1760,14 @@
 
   .xjoi5kz {
     margin-top: clamp(68px, 9vw, 120px);
+  }
+
+  .x17z2rr8 {
+    margin-top: clamp(70px, 9vw, 120px);
+  }
+
+  .xg9928t {
+    max-height: 680px;
   }
 
   .x7ab17h {
@@ -1660,6 +1820,14 @@
 
   .x1awnzvw {
     min-height: 190px;
+  }
+
+  .x9l5fec {
+    min-height: 220px;
+  }
+
+  .xjjci79 {
+    min-height: 250px;
   }
 
   .x21xpn4 {
@@ -1734,6 +1902,10 @@
     padding-bottom: 15px;
   }
 
+  .xzxdvmt {
+    padding-bottom: 17px;
+  }
+
   .x1hhzuzn {
     padding-bottom: 18px;
   }
@@ -1746,12 +1918,24 @@
     padding-left: 28px;
   }
 
+  .xcicffo {
+    padding-right: 10px;
+  }
+
+  .x3zn8db {
+    padding-right: 13px;
+  }
+
   .xexx8yu {
     padding-top: 0;
   }
 
   .xyinxu5 {
     padding-top: 14px;
+  }
+
+  .x109j2v6 {
+    padding-top: 18px;
   }
 
   .x1p5oq8j {
@@ -1973,8 +2157,16 @@
   --display: "Arial Narrow","Roboto Condensed","Helvetica Neue",sans-serif;
 }
 
+.xt5am0k {
+  --kinetic-surface-min-height: 410px;
+}
+
 .xuy55y4 {
   --kinetic-surface-min-height: 590px;
+}
+
+.xr28z7m {
+  --kinetic-surface-padding: clamp(28px,4vw,48px);
 }
 
 .x6lehw7 {

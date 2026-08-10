@@ -14,10 +14,12 @@ use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
     ReyError,
     env::{
-        EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentCommitResult, EnvironmentDiff,
-        EnvironmentDiffMode, EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
-        LocalEnvironmentHistoryError, LocalEnvironmentStore, MAX_ENVIRONMENT_COMMITS,
-        effective_index_snapshot, stage_selected_capabilities,
+        EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentApplicationObservation,
+        EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode, EnvironmentInputObservation,
+        EnvironmentLog, EnvironmentObjectChange, EnvironmentObjectStatus, EnvironmentStatus,
+        EnvironmentVariableObservation, EnvironmentWorkingState, LocalEnvironmentHistoryError,
+        LocalEnvironmentStore, MAX_ENVIRONMENT_COMMITS, effective_index_snapshot,
+        stage_selected_capabilities,
     },
     inspect_environment, inspect_environment_with_mapping,
     workloads::{
@@ -35,7 +37,8 @@ use rey_diff::{
     TextLineKind, source_match_table_projection, text_patch_projection,
 };
 use rey_environment::{
-    CapabilitySnapshot, DiscoveryLimits, EnvironmentMapLimits, SourceBindingLimits,
+    Availability, CapabilitySnapshot, DiscoveryLimits, EnvironmentMapLimits, SourceBindingLimits,
+    VariableCapture,
 };
 use rey_git::GitLimits;
 use rey_mining::{MiningCompleteness, MiningLimits};
@@ -48,7 +51,7 @@ use rey_runtime::{
 use serde::Serialize;
 use thiserror::Error;
 
-const ENV_STATUS_CHANGE_PREVIEW: usize = 32;
+const ENVIRONMENT_VALUE_DISPLAY_CHARS: usize = 180;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -1007,7 +1010,7 @@ fn write_ui_startup(
     )?;
     write_portfolio_field(output, "Application", "TANSTACK ROUTER · EMBEDDED")?;
     write_portfolio_field(output, "Grammar", "HIFI KINETIC · PRECISION")?;
-    write_portfolio_field(output, "Data plane", "LIVE READ-ONLY PORTFOLIO")?;
+    write_portfolio_field(output, "Data plane", "LIVE READ-ONLY RUNTIME")?;
     write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
     write_portfolio_field(
         output,
@@ -1019,7 +1022,11 @@ fn write_ui_startup(
     )?;
     write_portfolio_field(output, "Workspace", &descriptor.workspace)?;
     write_portfolio_field(output, "Catalog", &descriptor.catalog_root)?;
-    write_portfolio_field(output, "API", "/api/v1/health · /api/v1/workloads")?;
+    write_portfolio_field(
+        output,
+        "API",
+        "/api/v1/health · /api/v1/environment · /api/v1/workloads",
+    )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(
         output,
@@ -2668,26 +2675,19 @@ fn env_status(
     workspace: &Path,
     args: EnvStatusArgs,
 ) -> Result<ExitCode, CliError> {
-    let history = store.load()?;
-    let index = store.load_index(&history)?;
-    let snapshot = inspect_environment_with_mapping(
+    let status = rey::current_environment_status(
+        store,
         workspace,
         args.discovery.limits()?,
-        GitLimits::default(),
         args.discovery.map.as_deref(),
-        EnvironmentMapLimits::default(),
+        args.max_changes,
     )?;
-    let status = EnvironmentStatus::derive(&history, index, snapshot, args.max_changes)?;
     let mut stdout = io::stdout().lock();
     match args.format {
         EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &status)?,
-        EnvHistoryOutputFormat::Table => write_env_status(
-            &mut stdout,
-            workspace,
-            store,
-            &status,
-            TerminalStyle::stdout(),
-        )?,
+        EnvHistoryOutputFormat::Table => {
+            write_env_status(&mut stdout, workspace, &status, TerminalStyle::stdout())?
+        }
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -2900,90 +2900,148 @@ fn select_capability_changes(
 fn write_env_status(
     output: &mut impl Write,
     workspace: &Path,
-    store: &LocalEnvironmentStore,
     status: &EnvironmentStatus,
     style: TerminalStyle,
 ) -> Result<(), CliError> {
-    let counts = capability_counts(&status.working_snapshot);
+    let projection = &status.operator;
     writeln!(output)?;
-    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT STATUS"))?;
+    writeln!(
+        output,
+        "{}",
+        style.cyan_bold(&format!(
+            "REY ENV · {} → {}",
+            projection.source_label, projection.target_label
+        ))
+    )?;
     writeln!(output, "  Workspace              {}", workspace.display())?;
     writeln!(
         output,
         "  State                  {}",
         environment_state_label(status.state, style)
     )?;
-    match (
-        &status.head_commit_id,
-        status.head_sequence,
-        &status.head_snapshot_id,
-    ) {
-        (Some(commit), Some(sequence), Some(snapshot)) => {
-            writeln!(output, "  HEAD                   ENV@{sequence} · {commit}")?;
-            writeln!(output, "  HEAD snapshot          {snapshot}")?;
-        }
-        _ => writeln!(output, "  HEAD                   no commits")?,
-    }
-    match &status.admission_index {
-        Some(index) => writeln!(
-            output,
-            "  Admission index        {} · snapshot {}",
-            index.index_id, index.snapshot.semantic_digest
-        )?,
-        None => writeln!(
-            output,
-            "  Admission index        matches HEAD · no retained index"
-        )?,
-    }
     writeln!(
         output,
-        "  Working snapshot       {}",
-        status.working_snapshot.semantic_digest
-    )?;
-    writeln!(
-        output,
-        "  Observation            profile {} · {}",
-        status.working_snapshot.profile,
-        if status.working_snapshot.complete {
-            "complete"
+        "  Observation            {} · profile {}",
+        if projection.complete {
+            style.green("COMPLETE")
         } else {
-            "incomplete"
+            style.red("INCOMPLETE")
+        },
+        status.working_snapshot.profile
+    )?;
+    writeln!(
+        output,
+        "  Admission              {} staged · {} working capability changes",
+        status.staged_delta.changes.len(),
+        status.unstaged_delta.changes.len()
+    )?;
+    match &projection.mapping {
+        Some(mapping) => writeln!(
+            output,
+            "  Mapping                {} · {}",
+            mapping.source_path, mapping.schema
+        )?,
+        None => writeln!(output, "  Mapping                none · no rey.env.yaml")?,
+    }
+
+    writeln!(output)?;
+    writeln!(
+        output,
+        "{}",
+        style.bold(&format!(
+            "ENVIRONMENT VARIABLES · {} tracked · {} changed",
+            projection.summary.variables, projection.summary.changed_variables
+        ))
+    )?;
+    writeln!(
+        output,
+        "{}",
+        style.dim(&format!(
+            "@@ {} → {}",
+            projection.source_label, projection.target_label
+        ))
+    )?;
+    if projection.variables.is_empty() {
+        writeln!(output, "  (no variables selected by the environment map)")?;
+    } else {
+        for variable in &projection.variables {
+            write_environment_variable_diff(output, variable, style)?;
         }
-    )?;
+    }
+
+    writeln!(output)?;
     writeln!(
         output,
-        "  Capabilities           {} total · {} available · {} unavailable · {} errors",
-        counts.total, counts.available, counts.unavailable, counts.errors
+        "{}",
+        style.bold(&format!(
+            "APPLICATIONS · {} searched",
+            projection.summary.applications_searched
+        ))
     )?;
-    write_mapping_summary(output, &status.working_snapshot)?;
-    write_delta_summary(output, &status.staged_delta, style)?;
-    write_delta_summary(output, &status.unstaged_delta, style)?;
-    writeln!(
+    write_application_group(
         output,
-        "  Local state            history {} · index {}",
-        store.path().display(),
-        store.index_path().display()
+        "FOUND",
+        projection.summary.applications_found,
+        &projection.applications,
+        Some(Availability::Available),
+        style,
     )?;
-    if !status.staged_delta.changes.is_empty() {
-        writeln!(output)?;
-        writeln!(output, "Changes to be committed:")?;
-        write_change_preview(output, &status.staged_delta)?;
-        writeln!(
+    write_application_group(
+        output,
+        "SEARCHED, NOT FOUND",
+        projection.summary.applications_not_found,
+        &projection.applications,
+        Some(Availability::Unavailable),
+        style,
+    )?;
+    if projection.summary.application_errors > 0 {
+        write_application_group(
             output,
-            "  use `rey env diff --staged` to inspect the exact patch"
+            "OBSERVATION ERRORS",
+            projection.summary.application_errors,
+            &projection.applications,
+            Some(Availability::Error),
+            style,
         )?;
     }
-    if !status.unstaged_delta.changes.is_empty() {
-        writeln!(output)?;
-        writeln!(output, "Changes not staged for admission:")?;
-        write_change_preview(output, &status.unstaged_delta)?;
-        writeln!(output, "  use `rey env add` to admit all working changes")?;
+    let removed_applications = projection
+        .applications
+        .iter()
+        .filter(|application| application.working.is_none())
+        .count() as u64;
+    if removed_applications > 0 {
+        write_application_group(
+            output,
+            "NO LONGER SEARCHED",
+            removed_applications,
+            &projection.applications,
+            None,
+            style,
+        )?;
+    }
+
+    if !projection.inputs.is_empty() {
         writeln!(
             output,
-            "  use `rey env add -p` to select capability changes"
+            "\n{}",
+            style.bold(&format!(
+                "INPUTS · {} tracked · {} changed",
+                projection.summary.inputs, projection.summary.changed_inputs
+            ))
         )?;
-        writeln!(output, "  use `rey env diff` to inspect the exact patch")?;
+        for input in &projection.inputs {
+            write_environment_input(output, input, style)?;
+        }
     }
+
+    if projection.summary.references > 0 {
+        writeln!(
+            output,
+            "\nREFERENCES · {} declared · exact topology available in `--format json`",
+            projection.summary.references
+        )?;
+    }
+
     writeln!(output)?;
     match status.state {
         EnvironmentWorkingState::Unborn => writeln!(
@@ -3014,30 +3072,216 @@ fn write_env_status(
     Ok(())
 }
 
-fn write_change_preview(output: &mut impl Write, delta: &CapabilityDelta) -> io::Result<()> {
-    for change in delta.changes.iter().take(ENV_STATUS_CHANGE_PREVIEW) {
-        let marker = match change.kind {
-            CapabilityChangeKind::Inserted => "new",
-            CapabilityChangeKind::Deleted => "deleted",
-            CapabilityChangeKind::Modified => "modified",
+fn write_environment_variable_diff(
+    output: &mut impl Write,
+    variable: &EnvironmentObjectStatus<EnvironmentVariableObservation>,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    match variable.changes.head_to_working {
+        EnvironmentObjectChange::Unchanged => {
+            if let Some(observation) = variable.working.as_ref().or(variable.head.as_ref()) {
+                writeln!(
+                    output,
+                    "{}",
+                    style.dim(&format!("  {}", environment_variable_line(observation)))
+                )?;
+            }
+        }
+        EnvironmentObjectChange::Inserted => {
+            if let Some(observation) = &variable.working {
+                writeln!(
+                    output,
+                    "{}",
+                    style.green(&format!("+ {}", environment_variable_line(observation)))
+                )?;
+            }
+        }
+        EnvironmentObjectChange::Deleted => {
+            if let Some(observation) = &variable.head {
+                writeln!(
+                    output,
+                    "{}",
+                    style.red(&format!("- {}", environment_variable_line(observation)))
+                )?;
+            }
+        }
+        EnvironmentObjectChange::Modified => {
+            if let Some(observation) = &variable.head {
+                writeln!(
+                    output,
+                    "{}",
+                    style.red(&format!("- {}", environment_variable_line(observation)))
+                )?;
+            }
+            if let Some(observation) = &variable.working {
+                writeln!(
+                    output,
+                    "{}",
+                    style.green(&format!("+ {}", environment_variable_line(observation)))
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn environment_variable_line(observation: &EnvironmentVariableObservation) -> String {
+    let value = match observation.availability {
+        Availability::Unavailable => "<unset>".to_owned(),
+        Availability::Error => format!(
+            "<error:{}>",
+            observation
+                .error_code
+                .as_deref()
+                .unwrap_or("observation_failed")
+        ),
+        Availability::Available => match observation.capture {
+            VariableCapture::Value => observation
+                .value
+                .as_deref()
+                .map(escape_environment_value)
+                .unwrap_or_else(|| legacy_variable_value(observation)),
+            VariableCapture::Digest => observation
+                .value_digest
+                .as_deref()
+                .map(compact_digest)
+                .map(|digest| format!("<digest:{digest}>"))
+                .unwrap_or_else(|| "<present>".to_owned()),
+            VariableCapture::Presence => {
+                if observation.sensitive {
+                    "<present:redacted>".to_owned()
+                } else {
+                    "<present>".to_owned()
+                }
+            }
+        },
+    };
+    format!("{}={value}", observation.name)
+}
+
+fn legacy_variable_value(observation: &EnvironmentVariableObservation) -> String {
+    observation
+        .value_digest
+        .as_deref()
+        .map(compact_digest)
+        .map(|digest| format!("<legacy-digest:{digest}>"))
+        .unwrap_or_else(|| "<present>".to_owned())
+}
+
+fn escape_environment_value(value: &str) -> String {
+    let escaped = value
+        .chars()
+        .flat_map(char::escape_default)
+        .collect::<String>();
+    let count = escaped.chars().count();
+    if count <= ENVIRONMENT_VALUE_DISPLAY_CHARS {
+        return escaped;
+    }
+    let prefix_length = 112;
+    let suffix_length = 42;
+    let prefix = escaped.chars().take(prefix_length).collect::<String>();
+    let suffix = escaped
+        .chars()
+        .skip(count.saturating_sub(suffix_length))
+        .collect::<String>();
+    format!(
+        "{prefix}…<{} chars omitted>…{suffix}",
+        count.saturating_sub(prefix_length + suffix_length)
+    )
+}
+
+fn compact_digest(value: &str) -> String {
+    if value.len() <= 22 {
+        value.to_owned()
+    } else {
+        format!("{}…{}", &value[..12], &value[value.len() - 6..])
+    }
+}
+
+fn write_application_group(
+    output: &mut impl Write,
+    label: &str,
+    count: u64,
+    applications: &[EnvironmentObjectStatus<EnvironmentApplicationObservation>],
+    availability: Option<Availability>,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    writeln!(output, "  {label} {count}")?;
+    for application in applications.iter().filter(|application| {
+        if let Some(availability) = availability {
+            application
+                .working
+                .as_ref()
+                .is_some_and(|working| working.availability == availability)
+        } else {
+            application.working.is_none()
+        }
+    }) {
+        let observation = application
+            .working
+            .as_ref()
+            .or(application.head.as_ref())
+            .expect("merged environment application has at least one observation");
+        let marker = match observation.availability {
+            Availability::Available => style.green("+"),
+            Availability::Unavailable => style.yellow("?"),
+            Availability::Error => style.red("!"),
+        };
+        let location = observation
+            .resolved_path
+            .as_deref()
+            .unwrap_or("not resolved");
+        let requirement = if observation.required {
+            "required"
+        } else {
+            "optional"
+        };
+        let change = if application.changes.head_to_working == EnvironmentObjectChange::Unchanged {
+            String::new()
+        } else {
+            format!(" · {}", application.changes.head_to_working.as_str())
         };
         writeln!(
             output,
-            "  {marker:<8} {} / {}",
-            change.key.provider_id, change.key.capability_id
-        )?;
-    }
-    let omitted = delta
-        .changes
-        .len()
-        .saturating_sub(ENV_STATUS_CHANGE_PREVIEW);
-    if omitted > 0 {
-        writeln!(
-            output,
-            "  ... {omitted} more changed capabilities not shown"
+            "    {marker} {:<16} {} · {requirement} · {} PATH entries{change}",
+            observation.name, location, observation.searched_path_count
         )?;
     }
     Ok(())
+}
+
+fn write_environment_input(
+    output: &mut impl Write,
+    input: &EnvironmentObjectStatus<EnvironmentInputObservation>,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let observation = input
+        .working
+        .as_ref()
+        .or(input.head.as_ref())
+        .expect("merged environment input has at least one observation");
+    let marker = match observation.availability {
+        Availability::Available => style.green("+"),
+        Availability::Unavailable => style.yellow("?"),
+        Availability::Error => style.red("!"),
+    };
+    let digest = observation
+        .content_digest
+        .as_deref()
+        .map(compact_digest)
+        .unwrap_or_else(|| "unbound".to_owned());
+    let requirement = if observation.required {
+        "required"
+    } else {
+        "optional"
+    };
+    writeln!(
+        output,
+        "  {marker} {} · {requirement} · {} · {} bytes",
+        observation.path,
+        digest,
+        observation.byte_length.unwrap_or(0)
+    )
 }
 
 fn write_env_add(

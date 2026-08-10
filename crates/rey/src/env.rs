@@ -10,15 +10,19 @@ use rey_diff::{
     CapabilityDelta, CapabilityKey, DeltaAssessment, DeltaLimits, DeltaOptions,
     compare_capabilities,
 };
-use rey_environment::{CapabilityRecord, CapabilitySnapshot, DiscoveryError};
+use rey_environment::{
+    Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryError, EnvironmentMapEdge,
+    EnvironmentMapNode, EnvironmentMapNodeProvenance, VariableCapture,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
 pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
-pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v2";
+pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v3";
 pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v2";
+pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v1";
 pub const ENVIRONMENT_ADMISSION_INDEX_SCHEMA: &str = "rey.environment-admission-index.v1";
 pub const ENVIRONMENT_ADD_RESULT_SCHEMA: &str = "rey.environment-add-result.v1";
 pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v1";
@@ -282,6 +286,414 @@ impl EnvironmentWorkingState {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvironmentObjectChange {
+    Unchanged,
+    Inserted,
+    Deleted,
+    Modified,
+}
+
+impl EnvironmentObjectChange {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unchanged => "unchanged",
+            Self::Inserted => "inserted",
+            Self::Deleted => "deleted",
+            Self::Modified => "modified",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentPlaneChanges {
+    pub head_to_index: EnvironmentObjectChange,
+    pub index_to_working: EnvironmentObjectChange,
+    pub head_to_working: EnvironmentObjectChange,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentObjectStatus<T> {
+    pub object_id: String,
+    pub head: Option<T>,
+    pub index: Option<T>,
+    pub working: Option<T>,
+    pub changes: EnvironmentPlaneChanges,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentVariableObservation {
+    pub name: String,
+    pub sensitive: bool,
+    pub capture: VariableCapture,
+    pub availability: Availability,
+    pub value: Option<String>,
+    pub value_digest: Option<String>,
+    pub error_code: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentApplicationObservation {
+    pub name: String,
+    pub required: bool,
+    pub availability: Availability,
+    pub resolved_path: Option<String>,
+    pub content_digest: Option<String>,
+    pub potential_capabilities: Vec<String>,
+    pub searched_path_count: u64,
+    pub error_code: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentInputObservation {
+    pub path: String,
+    pub required: bool,
+    pub availability: Availability,
+    pub content_digest: Option<String>,
+    pub byte_length: Option<u64>,
+    pub error_code: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentReferenceObservation {
+    pub from: String,
+    pub to: String,
+    pub relation: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentOperatorSummary {
+    pub variables: u64,
+    pub changed_variables: u64,
+    pub applications_searched: u64,
+    pub applications_found: u64,
+    pub applications_not_found: u64,
+    pub application_errors: u64,
+    pub changed_applications: u64,
+    pub inputs: u64,
+    pub changed_inputs: u64,
+    pub references: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentMappingCoordinate {
+    pub source_path: String,
+    pub schema: String,
+    pub graph_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentOperatorProjection {
+    pub schema: String,
+    pub source_label: String,
+    pub target_label: String,
+    pub complete: bool,
+    pub mapping: Option<EnvironmentMappingCoordinate>,
+    pub summary: EnvironmentOperatorSummary,
+    pub variables: Vec<EnvironmentObjectStatus<EnvironmentVariableObservation>>,
+    pub applications: Vec<EnvironmentObjectStatus<EnvironmentApplicationObservation>>,
+    pub inputs: Vec<EnvironmentObjectStatus<EnvironmentInputObservation>>,
+    pub references: Vec<EnvironmentObjectStatus<EnvironmentReferenceObservation>>,
+}
+
+impl EnvironmentOperatorProjection {
+    fn derive(
+        head: &CapabilitySnapshot,
+        index: &CapabilitySnapshot,
+        working: &CapabilitySnapshot,
+        source_label: String,
+    ) -> Result<Self, LocalEnvironmentHistoryError> {
+        let head = MappedEnvironmentPlane::derive(head)?;
+        let index = MappedEnvironmentPlane::derive(index)?;
+        let working = MappedEnvironmentPlane::derive(working)?;
+        let variables = merge_objects(&head.variables, &index.variables, &working.variables);
+        let applications = merge_objects(
+            &head.applications,
+            &index.applications,
+            &working.applications,
+        );
+        let inputs = merge_objects(&head.inputs, &index.inputs, &working.inputs);
+        let references = merge_objects(&head.references, &index.references, &working.references);
+        let working_applications = applications
+            .iter()
+            .filter_map(|application| application.working.as_ref())
+            .collect::<Vec<_>>();
+        let summary = EnvironmentOperatorSummary {
+            variables: variables.len() as u64,
+            changed_variables: changed_count(&variables),
+            applications_searched: working_applications.len() as u64,
+            applications_found: working_applications
+                .iter()
+                .filter(|application| application.availability == Availability::Available)
+                .count() as u64,
+            applications_not_found: working_applications
+                .iter()
+                .filter(|application| application.availability == Availability::Unavailable)
+                .count() as u64,
+            application_errors: working_applications
+                .iter()
+                .filter(|application| application.availability == Availability::Error)
+                .count() as u64,
+            changed_applications: changed_count(&applications),
+            inputs: inputs.len() as u64,
+            changed_inputs: changed_count(&inputs),
+            references: references.len() as u64,
+        };
+        Ok(Self {
+            schema: ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA.to_owned(),
+            source_label,
+            target_label: "WORKING".to_owned(),
+            complete: working.complete,
+            mapping: working.mapping.or(index.mapping).or(head.mapping),
+            summary,
+            variables,
+            applications,
+            inputs,
+            references,
+        })
+    }
+}
+
+#[derive(Default)]
+struct MappedEnvironmentPlane {
+    complete: bool,
+    mapping: Option<EnvironmentMappingCoordinate>,
+    variables: BTreeMap<String, EnvironmentVariableObservation>,
+    applications: BTreeMap<String, EnvironmentApplicationObservation>,
+    inputs: BTreeMap<String, EnvironmentInputObservation>,
+    references: BTreeMap<String, EnvironmentReferenceObservation>,
+}
+
+impl MappedEnvironmentPlane {
+    fn derive(snapshot: &CapabilitySnapshot) -> Result<Self, LocalEnvironmentHistoryError> {
+        let mut plane = Self {
+            complete: snapshot.complete,
+            ..Self::default()
+        };
+        let mut revisions = BTreeMap::<String, u64>::new();
+        for record in snapshot
+            .capabilities
+            .iter()
+            .filter(|record| record.provider_id == "rey.env-map")
+        {
+            if record.capability_kind == "environment_map" {
+                if plane.mapping.is_none()
+                    || revisions
+                        .get("env.mapping.graph")
+                        .is_none_or(|revision| *revision <= record.provider_revision)
+                {
+                    plane.mapping = Some(EnvironmentMappingCoordinate {
+                        source_path: record.resolved_location.clone().unwrap_or_default(),
+                        schema: record
+                            .version
+                            .clone()
+                            .unwrap_or_else(|| "unknown".to_owned()),
+                        graph_id: record
+                            .content_digest
+                            .clone()
+                            .unwrap_or_else(|| "unknown".to_owned()),
+                    });
+                    revisions.insert("env.mapping.graph".to_owned(), record.provider_revision);
+                }
+                continue;
+            }
+            if revisions
+                .get(&record.capability_id)
+                .is_some_and(|revision| *revision > record.provider_revision)
+            {
+                continue;
+            }
+            match record.capability_kind.as_str() {
+                "environment_variable" => {
+                    let provenance = node_provenance(record)?;
+                    let EnvironmentMapNode::Variable {
+                        id,
+                        name,
+                        sensitive,
+                        capture,
+                    } = provenance.declaration
+                    else {
+                        return Err(LocalEnvironmentHistoryError::EnvironmentProjection(
+                            format!("{} has non-variable provenance", record.capability_id),
+                        ));
+                    };
+                    plane.variables.insert(
+                        id.clone(),
+                        EnvironmentVariableObservation {
+                            name,
+                            sensitive,
+                            capture,
+                            availability: record.availability,
+                            value: provenance.captured_value,
+                            value_digest: record.content_digest.clone(),
+                            error_code: record.error_code.clone(),
+                        },
+                    );
+                    revisions.insert(record.capability_id.clone(), record.provider_revision);
+                }
+                "potential_executable" => {
+                    let provenance = node_provenance(record)?;
+                    let EnvironmentMapNode::Executable {
+                        id,
+                        name,
+                        required,
+                        potential_capabilities,
+                    } = provenance.declaration
+                    else {
+                        return Err(LocalEnvironmentHistoryError::EnvironmentProjection(
+                            format!("{} has non-executable provenance", record.capability_id),
+                        ));
+                    };
+                    plane.applications.insert(
+                        id,
+                        EnvironmentApplicationObservation {
+                            name,
+                            required,
+                            availability: record.availability,
+                            resolved_path: record.resolved_location.clone(),
+                            content_digest: record.content_digest.clone(),
+                            potential_capabilities,
+                            searched_path_count: provenance.search_path_count.unwrap_or(0),
+                            error_code: record.error_code.clone(),
+                        },
+                    );
+                    revisions.insert(record.capability_id.clone(), record.provider_revision);
+                }
+                "input_file" => {
+                    let provenance = node_provenance(record)?;
+                    let EnvironmentMapNode::File { id, path, required } = provenance.declaration
+                    else {
+                        return Err(LocalEnvironmentHistoryError::EnvironmentProjection(
+                            format!("{} has non-file provenance", record.capability_id),
+                        ));
+                    };
+                    plane.inputs.insert(
+                        id,
+                        EnvironmentInputObservation {
+                            path: path.to_string_lossy().into_owned(),
+                            required,
+                            availability: record.availability,
+                            content_digest: record.content_digest.clone(),
+                            byte_length: provenance
+                                .byte_length
+                                .as_deref()
+                                .and_then(|length| length.parse().ok()),
+                            error_code: record.error_code.clone(),
+                        },
+                    );
+                    revisions.insert(record.capability_id.clone(), record.provider_revision);
+                }
+                "environment_edge" => {
+                    let edge: EnvironmentMapEdge =
+                        serde_json::from_str(record.provenance.as_deref().ok_or_else(|| {
+                            LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+                                "{} is missing edge provenance",
+                                record.capability_id
+                            ))
+                        })?)
+                        .map_err(|error| {
+                            LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+                                "{} edge provenance is invalid: {error}",
+                                record.capability_id
+                            ))
+                        })?;
+                    plane.references.insert(
+                        record.capability_id.clone(),
+                        EnvironmentReferenceObservation {
+                            from: edge.from,
+                            to: edge.to,
+                            relation: edge.relation,
+                        },
+                    );
+                    revisions.insert(record.capability_id.clone(), record.provider_revision);
+                }
+                _ => {}
+            }
+        }
+        Ok(plane)
+    }
+}
+
+fn node_provenance(
+    record: &CapabilityRecord,
+) -> Result<EnvironmentMapNodeProvenance, LocalEnvironmentHistoryError> {
+    let value = record.provenance.as_deref().ok_or_else(|| {
+        LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+            "{} is missing node provenance",
+            record.capability_id
+        ))
+    })?;
+    if let Ok(provenance) = serde_json::from_str(value) {
+        return Ok(provenance);
+    }
+    let declaration: EnvironmentMapNode = serde_json::from_str(value).map_err(|error| {
+        LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+            "{} node provenance is invalid: {error}",
+            record.capability_id
+        ))
+    })?;
+    Ok(EnvironmentMapNodeProvenance {
+        declaration,
+        byte_length: None,
+        captured_value: None,
+        search_path_count: None,
+    })
+}
+
+fn merge_objects<T: Clone + Eq>(
+    head: &BTreeMap<String, T>,
+    index: &BTreeMap<String, T>,
+    working: &BTreeMap<String, T>,
+) -> Vec<EnvironmentObjectStatus<T>> {
+    let keys = head
+        .keys()
+        .chain(index.keys())
+        .chain(working.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    keys.into_iter()
+        .map(|object_id| {
+            let head = head.get(&object_id).cloned();
+            let index = index.get(&object_id).cloned();
+            let working = working.get(&object_id).cloned();
+            let changes = EnvironmentPlaneChanges {
+                head_to_index: classify_object_change(head.as_ref(), index.as_ref()),
+                index_to_working: classify_object_change(index.as_ref(), working.as_ref()),
+                head_to_working: classify_object_change(head.as_ref(), working.as_ref()),
+            };
+            EnvironmentObjectStatus {
+                object_id,
+                head,
+                index,
+                working,
+                changes,
+            }
+        })
+        .collect()
+}
+
+fn classify_object_change<T: Eq>(
+    source: Option<&T>,
+    target: Option<&T>,
+) -> EnvironmentObjectChange {
+    match (source, target) {
+        (None, None) => EnvironmentObjectChange::Unchanged,
+        (None, Some(_)) => EnvironmentObjectChange::Inserted,
+        (Some(_), None) => EnvironmentObjectChange::Deleted,
+        (Some(source), Some(target)) if source == target => EnvironmentObjectChange::Unchanged,
+        (Some(_), Some(_)) => EnvironmentObjectChange::Modified,
+    }
+}
+
+fn changed_count<T>(objects: &[EnvironmentObjectStatus<T>]) -> u64 {
+    objects
+        .iter()
+        .filter(|object| object.changes.head_to_working != EnvironmentObjectChange::Unchanged)
+        .count() as u64
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EnvironmentStatus {
     pub schema: String,
@@ -291,6 +703,7 @@ pub struct EnvironmentStatus {
     pub admission_index: Option<EnvironmentAdmissionIndex>,
     pub working_snapshot: CapabilitySnapshot,
     pub state: EnvironmentWorkingState,
+    pub operator: EnvironmentOperatorProjection,
     pub staged_delta: CapabilityDelta,
     pub unstaged_delta: CapabilityDelta,
 }
@@ -357,6 +770,12 @@ impl EnvironmentStatus {
             }
             (DeltaAssessment::Equal, DeltaAssessment::Equal) => EnvironmentWorkingState::Clean,
         };
+        let operator = EnvironmentOperatorProjection::derive(
+            head_snapshot,
+            index_snapshot,
+            &working_snapshot,
+            staged_delta.source_label.clone(),
+        )?;
         Ok(Self {
             schema: ENVIRONMENT_STATUS_SCHEMA.to_owned(),
             head_commit_id: history.head().map(|head| head.commit_id.clone()),
@@ -367,6 +786,7 @@ impl EnvironmentStatus {
             admission_index,
             working_snapshot,
             state,
+            operator,
             staged_delta,
             unstaged_delta,
         })
@@ -1023,6 +1443,8 @@ pub enum LocalEnvironmentHistoryError {
     LogLimit { limit: usize, actual: usize },
     #[error("maximum changes must be greater than zero")]
     ZeroChangeLimit,
+    #[error("environment operator projection could not be derived: {0}")]
+    EnvironmentProjection(String),
     #[error("environment state {path} could not be read: {source}")]
     Read {
         path: PathBuf,
