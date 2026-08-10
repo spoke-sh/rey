@@ -9,15 +9,10 @@
     "noEmit": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "paths": {
-      "@hifi/core": ["./vendor/hifi/packages/core/src/index.ts"],
-      "@hifi/kinetic": ["./vendor/hifi/packages/kinetic/src/index.ts"],
-      "@hifi/kinetic/grammar": ["./vendor/hifi/packages/kinetic/src/grammar.ts"]
-    },
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2024",
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src", "vendor", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }

@@ -25,7 +25,7 @@ const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
-const HIFI_GRAMMAR_REVISION: &str = "git:0440cfe774405070facdb1106f3e247fa980060f";
+const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c5";
 const REY_SOURCE_REPOSITORY: &str = "https://github.com/spoke-sh/rey";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 
@@ -598,7 +598,7 @@ mod tests {
         assert!(!descriptor.implementation_revision.is_empty());
         assert_eq!(
             descriptor.grammar_revision,
-            "git:0440cfe774405070facdb1106f3e247fa980060f"
+            "git:058c6504fc10740360717e97e687fd77bef6a5c5"
         );
         let address = descriptor.address.clone();
         let handle = thread::spawn(move || server.serve_bounded(Some(13)).unwrap());

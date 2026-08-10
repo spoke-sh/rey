@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@hifi/core':
+        specifier: github:rupurt/hifi#058c6504fc10740360717e97e687fd77bef6a5c5&path:packages/core
+        version: https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core
+      '@hifi/kinetic':
+        specifier: github:rupurt/hifi#058c6504fc10740360717e97e687fd77bef6a5c5&path:packages/kinetic
+        version: https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/kinetic(@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core)(react@19.2.8)
       '@stylexjs/stylex':
         specifier: ^0.19.0
         version: 0.19.0
@@ -139,6 +145,19 @@ packages:
 
   '@dual-bundle/import-meta-resolve@4.2.1':
     resolution: {integrity: sha512-id+7YRUgoUX6CgV0DtuhirQWodeeA7Lf4i2x71JS/vtA5pRb/hIGWlw+G6MeXvsM+MXrz0VAydTGElX1rAfgPg==}
+
+  '@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core':
+    resolution: {gitHosted: true, integrity: sha512-Jj44XC69UguzIHhh6izKRpfKlWFe0YR0alsHkPQfWWqT3cfqImvj4CrSCrLbheQVCzJCEYyFCeqilw/tMVmlZg==, path: packages/core, tarball: https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5}
+    version: 0.1.0
+    engines: {node: '>=20'}
+
+  '@hifi/kinetic@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/kinetic':
+    resolution: {gitHosted: true, integrity: sha512-Jj44XC69UguzIHhh6izKRpfKlWFe0YR0alsHkPQfWWqT3cfqImvj4CrSCrLbheQVCzJCEYyFCeqilw/tMVmlZg==, path: packages/kinetic, tarball: https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5}
+    version: 0.1.0
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@hifi/core': ^0.1.0
+      react: '>=18.2.0 <20'
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -997,6 +1016,13 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@dual-bundle/import-meta-resolve@4.2.1': {}
+
+  '@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core': {}
+
+  '@hifi/kinetic@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/kinetic(@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core)(react@19.2.8)':
+    dependencies:
+      '@hifi/core': https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core
+      react: 19.2.8
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

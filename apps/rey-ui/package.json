@@ -10,12 +10,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "check": "pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run build",
-    "format": "prettier --write index.html src vite.config.ts vitest.config.ts tsconfig.json package.json",
-    "format:check": "prettier --check index.html src vite.config.ts vitest.config.ts tsconfig.json package.json",
+    "format": "prettier --write index.html src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
+    "format:check": "prettier --check index.html src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@hifi/core": "github:rupurt/hifi#058c6504fc10740360717e97e687fd77bef6a5c5&path:packages/core",
+    "@hifi/kinetic": "github:rupurt/hifi#058c6504fc10740360717e97e687fd77bef6a5c5&path:packages/kinetic",
     "@stylexjs/stylex": "^0.19.0",
     "@tanstack/react-router": "^1.170.23",
     "react": "^19.2.8",

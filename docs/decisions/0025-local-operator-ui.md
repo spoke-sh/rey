@@ -14,9 +14,10 @@ projection must not introduce a second runtime, store, scheduler, or semantic
 assessment path.
 
 The requested interface is a TanStack Router TypeScript application expressed
-with Hifi's Kinetic grammar and Precision theme. `@hifi/kinetic` is not
-published in the package registry at the accepted revision, so the build cannot
-depend on an ambient sibling checkout or an unpinned branch.
+with Hifi's Kinetic grammar and Precision theme. The packages are not published
+in the package registry at the accepted revision, so the build uses exact
+Git-hosted package paths rather than an ambient sibling checkout or an unpinned
+branch.
 
 An HTTP listener also changes Rey's dependency and exposure boundary. The
 existing prohibition on a public, authenticated, multi-user Rey service still
@@ -51,14 +52,17 @@ security policy and related browser hardening headers. Request targets are
 bounded. ADR 0026 later admits bounded passive browser revalidation; no
 WebSocket or write endpoint is implied.
 
-The application imports exact upstream Hifi core and Kinetic sources vendored
-under `apps/rey-ui/vendor/hifi`, with the upstream MIT license and revision
-`0440cfe774405070facdb1106f3e247fa980060f` recorded. The initial integration
-used `5874cdfe0c237ddd35bb121824a166ebb5b5654e`; the current pin adds Hifi's
-directional control travel and layered lighting model. Rey uses the Kinetic
-grammar and the `precision` material theme directly. Vendoring is a temporary
-reproducibility boundary, not ownership of Hifi; a published pinned package may
-replace it in a later explicit change.
+The application imports `@hifi/core` and `@hifi/kinetic` as pnpm Git-hosted
+monorepo packages pinned to revision
+`058c6504fc10740360717e97e687fd77bef6a5c5`. The lockfile resolves both package
+paths to that exact GitHub codeload artifact, and `pnpm-workspace.yaml` admits
+build scripts only for those two exact URLs. Hifi declares Core as Kinetic's
+peer contract, while Rey installs both explicitly. The initial vendored
+integration used `5874cdfe0c237ddd35bb121824a166ebb5b5654e`; source vendoring
+ended at this revision. The current package adds Hifi's typed dense-table
+alignment surface and material color properties while retaining directional
+control travel and layered lighting. Rey uses the Kinetic grammar and the
+`precision` material theme directly.
 
 Rey follows Hifi's StyleX application architecture introduced by upstream
 commit `9a981c5`: every authored structural, stateful, responsive, motion, and

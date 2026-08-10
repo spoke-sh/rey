@@ -1560,7 +1560,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Human entry            /explore",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
         "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/workloads",
-        "Grammar revision       git:0440cfe774405070facdb1106f3e247fa980060f",
+        "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
         assert!(table.contains(evidence), "missing UI evidence: {evidence}");
@@ -1620,7 +1620,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(descriptor["implementation_revision"].is_string());
     assert_eq!(
         descriptor["grammar_revision"],
-        "git:0440cfe774405070facdb1106f3e247fa980060f"
+        "git:058c6504fc10740360717e97e687fd77bef6a5c5"
     );
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
     let mut warning = String::new();

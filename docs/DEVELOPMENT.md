@@ -109,8 +109,8 @@ Current behavior is:
   runner, and always runs Rust documentation tests.
 - `build` builds deterministic UI assets before every workspace crate and
   feature so the Rust binary embeds the current application.
-- `fmt` formats authored TypeScript/StyleX, Rust, and `flake.nix`; exact vendored
-  Hifi sources are excluded from mechanical rewriting.
+- `fmt` formats authored TypeScript/StyleX, pnpm workspace policy, Rust, and
+  `flake.nix`; installed Hifi packages remain immutable dependency artifacts.
 - `rey` runs the `rey` binary through Cargo with build progress suppressed so
   the terminal surface is Rey's output; compiler diagnostics and failures still
   reach stderr.
@@ -211,11 +211,13 @@ The TypeScript application uses locked React, TanStack Router, TypeScript,
 Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
 CSS asset while typed Kinetic material values remain runtime custom
-properties. Exact MIT-licensed Hifi core/Kinetic sources are
-vendored at the revision recorded in `apps/rey-ui/vendor/hifi/UPSTREAM.md`
-because the Kinetic package is not published at that revision. Crane's filtered
-source includes built `apps/rey-ui/dist` assets consumed by Rust
-`include_bytes!` calls; the package does not need Node at runtime.
+properties. Exact MIT-licensed Hifi core/Kinetic Git packages are pinned to one
+GitHub revision in `apps/rey-ui/package.json` and `pnpm-lock.yaml`. The pnpm
+workspace policy admits build scripts only for those exact two codeload
+artifacts; no ambient sibling checkout or arbitrary dependency build is
+trusted. Crane's filtered source includes built `apps/rey-ui/dist` assets
+consumed by Rust `include_bytes!` calls; the packaged Rey binary does not need
+Node at runtime.
 
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
 derives bounded landscape, neighborhood, and object scenes from

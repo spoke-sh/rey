@@ -40,11 +40,12 @@ coordinates make exact topology records shareable.
   portfolio endpoints through a bounded synchronous server.
 - [x] Build portfolio, workload-list, and workload-detail routes with TanStack
   Router and direct Kinetic/Precision grammar imports.
-- [x] Pin and record exact Hifi upstream sources and license without relying on
-  an ambient sibling checkout.
-- [x] Track exact Hifi head `0440cfe`, including its directional Kinetic
-  control travel and layered lighting, and keep every authored application rule
-  in StyleX modules using the official extraction plugin and CSS layers.
+- [x] Pin exact Hifi Core and Kinetic Git packages without relying on an
+  ambient sibling checkout, copied source, or an unbounded dependency script.
+- [x] Track exact Hifi head `058c650`, including its typed dense-table
+  alignment surface, material color properties, directional Kinetic control
+  travel, and layered lighting, and keep every authored application rule in
+  StyleX modules using the official extraction plugin and CSS layers.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.
@@ -155,6 +156,14 @@ The embedded bundle now contains upstream's directional press coordinates and
 layered Kinetic lighting properties; the CLI reports the full revision.
 `just check`, `just test`, and the clean Nix package build passed, with the
 package resolving to `/nix/store/hns4rkgg0p3k6s064vjfakwc0mi64j2r-rey`.
+
+The Hifi refresh on 2026-08-10 ended source vendoring and pinned pnpm's
+Git-hosted Core and Kinetic package paths to remote `origin/main` revision
+`058c650`. Upstream package preparation now builds Core before Kinetic,
+declares Core as Kinetic's peer contract, and serializes clean package smoke
+builds. Rey's lockfile resolves both packages to the same GitHub codeload SHA,
+and its build allowlist names only those exact artifacts. The CLI and health
+descriptor report the same full revision.
 
 The environment scroll-stability correction removes router invalidation from
 the polling path and adds two focused scheduler tests. All 12 frontend tests,

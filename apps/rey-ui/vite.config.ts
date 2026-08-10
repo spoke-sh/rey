@@ -2,8 +2,6 @@ import stylex from "@stylexjs/unplugin";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
-const fromUi = (path: string) => new URL(path, import.meta.url).pathname;
-
 function stylexCssTarget(): Plugin {
   const resolvedId = "\0virtual:rey-stylex.css";
 
@@ -38,20 +36,4 @@ export default defineConfig({
     stylexCssTarget(),
     react(),
   ],
-  resolve: {
-    alias: [
-      {
-        find: "@hifi/kinetic/grammar",
-        replacement: fromUi("./vendor/hifi/packages/kinetic/src/grammar.ts"),
-      },
-      {
-        find: "@hifi/core",
-        replacement: fromUi("./vendor/hifi/packages/core/src/index.ts"),
-      },
-      {
-        find: "@hifi/kinetic",
-        replacement: fromUi("./vendor/hifi/packages/kinetic/src/index.ts"),
-      },
-    ],
-  },
 });
