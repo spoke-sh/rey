@@ -34,8 +34,9 @@ topology canvas. It reads the same bounded workload portfolio projection as
   Router and direct Kinetic/Precision grammar imports.
 - [x] Pin and record exact Hifi upstream sources and license without relying on
   an ambient sibling checkout.
-- [x] Track Hifi head `5874cdf` and migrate every authored application rule to
-  StyleX modules using the official extraction plugin and CSS layers.
+- [x] Track exact Hifi head `0440cfe`, including its directional Kinetic
+  control travel and layered lighting, and keep every authored application rule
+  in StyleX modules using the official extraction plugin and CSS layers.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.
@@ -77,9 +78,10 @@ Captured on 2026-08-09:
 
 ```text
 nix develop path:$PWD --command just check
-# frontend typecheck, 3/3 UI tests, Vite build, Rustfmt, Clippy, and flake evaluation passed
+# frontend formatting/typecheck, 12/12 UI tests, Vite build, Rustfmt, Clippy,
+# and flake evaluation passed
 nix develop path:$PWD --command just test
-# 135/135 Rust tests, 3/3 UI tests, and all documentation tests passed
+# 136/136 Rust tests, 12/12 UI tests, and all documentation tests passed
 nix develop path:$PWD --command just build
 # deterministic UI assets and the complete Rust workspace built
 nix build path:$PWD#rey --no-link
@@ -95,9 +97,12 @@ the initial environment rendered live qualification, scenario, run, coverage, at
 catalog, graph, and evidence data without console/server failure.
 
 After Hifi's StyleX migration on the same date, the upstream checkout was
-verified at `5874cdf`, every vendored core/Kinetic source was diffed against
-that head, and the UI was rebuilt without a handwritten stylesheet. The server
-test opens the embedded `app.css` and proves extracted StyleX priority layers.
+initially verified at `5874cdf`, every vendored core/Kinetic source was diffed
+against that head, and the UI was rebuilt without a handwritten stylesheet.
+The pin was later advanced to `0440cfe`; the two changed Kinetic component
+sources are exact upstream copies, while the remaining vendored sources and MIT
+license are byte-identical. The server test opens the embedded `app.css` and
+proves extracted StyleX priority layers.
 Desktop portfolio/workload captures and a 700×1200 responsive capture preserved
 the Precision operator surface. `just check`, `just test`, `just build`, and the clean
 Nix package build passed again after the migration.
@@ -108,6 +113,12 @@ redirect plus `/explore` and `/environment`, and retained all 135 Rust tests.
 `just check`, `just test`, `just build`, and `nix build path:$PWD#rey --no-link`
 all passed. The packaged output resolved to
 `/nix/store/wx6cr2xzv68ixxg058yf62ym46bd9pwn-rey`.
+
+The Hifi refresh on 2026-08-09 advanced the exact grammar pin to `0440cfe`.
+The embedded bundle now contains upstream's directional press coordinates and
+layered Kinetic lighting properties; the CLI reports the full revision.
+`just check`, `just test`, and the clean Nix package build passed, with the
+package resolving to `/nix/store/hns4rkgg0p3k6s064vjfakwc0mi64j2r-rey`.
 
 The environment scroll-stability correction removes router invalidation from
 the polling path and adds two focused scheduler tests. All 12 frontend tests,

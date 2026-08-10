@@ -20,7 +20,7 @@ const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
-const HIFI_GRAMMAR_REVISION: &str = "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e";
+const HIFI_GRAMMAR_REVISION: &str = "git:0440cfe774405070facdb1106f3e247fa980060f";
 const REY_SOURCE_REPOSITORY: &str = "https://github.com/spoke-sh/rey";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 
@@ -321,7 +321,7 @@ mod tests {
         assert!(!descriptor.implementation_revision.is_empty());
         assert_eq!(
             descriptor.grammar_revision,
-            "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"
+            "git:0440cfe774405070facdb1106f3e247fa980060f"
         );
         let address = descriptor.address.clone();
         let handle = thread::spawn(move || server.serve_bounded(Some(9)).unwrap());
@@ -350,6 +350,9 @@ mod tests {
         assert!(application.contains("02 / BOUNDED SEARCH"));
         assert!(application.contains("REFERENCE PLANE"));
         assert!(application.contains("Inputs and topology"));
+        assert!(application.contains("--kinetic-control-press-x"));
+        assert!(application.contains("--kinetic-light-highlight"));
+        assert!(application.contains("--kinetic-shadow-soft-y"));
         assert!(!application.contains("WORKING TREE"));
 
         let stylesheet = request(&address, "GET /assets/app.css HTTP/1.1");

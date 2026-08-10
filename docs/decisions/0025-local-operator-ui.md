@@ -53,7 +53,9 @@ WebSocket or write endpoint is implied.
 
 The application imports exact upstream Hifi core and Kinetic sources vendored
 under `apps/rey-ui/vendor/hifi`, with the upstream MIT license and revision
-`5874cdfe0c237ddd35bb121824a166ebb5b5654e` recorded. It uses the Kinetic
+`0440cfe774405070facdb1106f3e247fa980060f` recorded. The initial integration
+used `5874cdfe0c237ddd35bb121824a166ebb5b5654e`; the current pin adds Hifi's
+directional control travel and layered lighting model. Rey uses the Kinetic
 grammar and the `precision` material theme directly. Vendoring is a temporary
 reproducibility boundary, not ownership of Hifi; a published pinned package may
 replace it in a later explicit change.

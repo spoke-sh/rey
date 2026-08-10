@@ -28,7 +28,11 @@ export function KineticButton({
     Math.min(420, Math.max(70, 56000 / selected.stiffness + selected.damping * 2.2)),
   )
   const travel = selected.travel * selected.actuation
-  const restingShadow = Math.max(2, selected.travel * 0.7)
+  const travelX = Math.max(0.5, travel * 0.42)
+  const shadowY = Math.max(3, selected.travel * 0.68)
+  const shadowX = Math.max(1, shadowY * 0.42)
+  const softShadowY = shadowY + 6
+  const softShadowX = Math.max(2, softShadowY * 0.42)
 
   return (
     <button
@@ -69,11 +73,11 @@ export function KineticButton({
         border: `1px solid color-mix(in srgb, ${selected.foregroundColor} 38%, transparent)`,
         borderRadius: selected.radius,
         boxShadow: pressed
-          ? `0 1px 1px color-mix(in srgb, ${selected.foregroundColor} 18%, transparent), inset 0 2px ${Math.max(3, selected.mass * 3)}px color-mix(in srgb, ${selected.foregroundColor} 18%, transparent)`
-          : `0 ${restingShadow}px 0 color-mix(in srgb, ${selected.foregroundColor} 34%, transparent), 0 ${restingShadow + 5}px ${Math.max(8, selected.mass * 7)}px color-mix(in srgb, ${selected.foregroundColor} 18%, transparent)`,
+          ? `inset 2px 2px ${Math.max(3, selected.mass * 3)}px color-mix(in srgb, ${selected.foregroundColor} 22%, transparent), inset -1px -1px 0 color-mix(in srgb, white 24%, transparent), 1px 1px 0 color-mix(in srgb, ${selected.foregroundColor} 28%, transparent)`
+          : `inset 1px 1px 0 color-mix(in srgb, white 56%, transparent), inset -1px -1px 0 color-mix(in srgb, ${selected.foregroundColor} 20%, transparent), ${shadowX}px ${shadowY}px 0 color-mix(in srgb, ${selected.foregroundColor} 34%, transparent), ${softShadowX}px ${softShadowY}px ${Math.max(8, selected.mass * 7)}px color-mix(in srgb, ${selected.foregroundColor} 18%, transparent)`,
         color: selected.foregroundColor,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transform: `translateY(${pressed ? travel : 0}px)`,
+        transform: pressed ? `translate(${travelX}px, ${travel}px)` : 'translate(0, 0)',
         transition: `transform ${duration}ms cubic-bezier(0.2, ${Math.min(1.8, 0.8 + selected.restitution)}, 0.25, 1), box-shadow ${Math.max(70, duration * 0.6)}ms ease`,
         ...style,
       }}
