@@ -20,6 +20,10 @@ bounded set of applications found and searched but not found.
   committed, admitted, and working planes.
 - [x] Rewrite `rey env status` as a bounded environment diff rather than a
   generic capability inventory.
+- [x] Apply the same three-plane operator grammar to default and staged
+  `rey env diff` output while retaining the authoritative v2 JSON delta.
+- [x] Reduce `rey env log` to an environment-native chronology and make `-p`
+  expand exact retained transitions through the same three planes.
 - [x] Add `GET|HEAD /api/v1/environment` from the same derivation used by the
   CLI.
 - [x] Replace the portfolio-shaped `/environment` page with a Kinetic Precision
@@ -44,6 +48,10 @@ The high-fidelity proof is visible through:
 ```text
 rey env status
 rey env status --format json
+rey env diff
+rey env diff --staged
+rey env log
+rey env log -p
 rey ui
 ```
 
@@ -53,10 +61,10 @@ Captured on 2026-08-09:
 
 ```text
 nix develop path:$PWD --command just check
-# Prettier, TypeScript, 10/10 UI tests, Vite, Rustfmt, Clippy -D warnings,
+# Prettier, TypeScript, 12/12 UI tests, Vite, Rustfmt, Clippy -D warnings,
 # git diff validation, and flake evaluation passed
 nix develop path:$PWD --command just test
-# 136/136 Rust tests, 10/10 UI tests, and every documentation test passed
+# 136/136 Rust tests, 12/12 UI tests, and every documentation test passed
 nix develop path:$PWD --command just build
 # deterministic UI assets and the complete Rust workspace built
 nix build path:$PWD#rey --no-link --print-out-paths
@@ -70,6 +78,21 @@ generic capability wall. Its live `/api/v1/environment` response returned
 `rey.environment-status.v3` and
 `rey.environment-operator-projection.v1` from the same workspace. The
 `SPOKE_TOKEN` observation remained `capture: presence` with a null value.
+
+The human `rey env diff` now renders its selected `INDEX → WORKING` or
+`HEAD → INDEX` direction as directed variable text, bounded application search,
+and input/reference topology. Focused fixtures prove both directions, literal
+before/after values, found/not-found context, input identity changes, exact
+edges, secret redaction, stdout/stderr/exit behavior, and unchanged
+`rey.environment-diff.v2` JSON.
+
+Plain `rey env log` now keeps each selected revision, authoritative evidence
+coordinate, environment scope, mapped change counts, mapping, and message
+visible without reopening provider bookkeeping. `log -p` derives the three
+evidence planes from exact retained parent/commit snapshots, including
+`EMPTY → ENV@1`; focused fixtures prove compact versus expanded output,
+historical before/after values, found/not-found context, topology, redaction,
+bounds, and unchanged `rey.environment-log.v1` JSON.
 
 Focused fixtures additionally prove sensitive digest/value rejection,
 non-sensitive value bounds and typed retention, found/not-found application

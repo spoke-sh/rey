@@ -7,7 +7,7 @@ use std::{
 
 use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
-    EnvironmentStatus, EnvironmentWorkingState,
+    EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
 };
 use rey::workloads::{
     QualificationState, WorkloadCatalogKind, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
@@ -189,13 +189,20 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(diff.status.success());
     let diff = String::from_utf8(diff.stdout).unwrap();
     for evidence in [
-        "View                   UNSTAGED · INDEX → WORKING",
-        "CAPABILITY PATCH INDEX → WORKING",
-        "git.repository.inspect (modified)",
-        "content_digest:",
+        "REY ENV DIFF · INDEX → WORKING",
+        "View                   UNSTAGED",
+        "Evidence               DIFFERENT · 1 authoritative capability change",
+        "01 / DIRECTED TEXT",
+        "Environment variables · 0 tracked · 0 changed",
+        "02 / BOUNDED SEARCH",
+        "Applications · 0 searched · 0 found · 0 not found · 0 errors · 0 changed",
+        "REFERENCE PLANE",
+        "Inputs and topology",
     ] {
         assert!(diff.contains(evidence), "missing diff evidence: {evidence}");
     }
+    assert!(!diff.contains("CAPABILITY PATCH"));
+    assert!(!diff.contains("git.repository.inspect"));
 
     let added = run_rey(&[
         "env",
@@ -241,6 +248,35 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(second.contains("[env 2] stage fixture"));
     assert!(second.contains("Delta                  ENV@1 → INDEX · DIFFERENT"));
 
+    let log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-n",
+        "2",
+        "--format",
+        "table",
+    ]);
+    assert!(log.status.success());
+    assert!(log.stderr.is_empty());
+    let log = String::from_utf8(log.stdout).unwrap();
+    for evidence in [
+        "REY ENV LOG",
+        "2 total · 2 shown · newest first",
+        "Revision               ENV@2 · parent ENV@1",
+        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 1 authoritative capability change",
+        "Environment            0 variables · 0 applications · 0 inputs · 0 references · complete",
+        "Changes                0 variables · 0 applications · 0 inputs · 0 references",
+        "Message\n      stage fixture",
+    ] {
+        assert!(log.contains(evidence), "missing log evidence: {evidence}");
+    }
+    assert!(!log.contains("01 / DIRECTED TEXT"));
+    assert!(!log.contains("CAPABILITY PATCH"));
+    assert!(!log.contains("Delta id"));
+    assert!(!log.contains("Retention"));
+
     let patch_log = run_rey(&[
         "env",
         "--workspace",
@@ -253,20 +289,26 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "table",
     ]);
     assert!(patch_log.status.success());
+    assert!(patch_log.stderr.is_empty());
     let patch_log = String::from_utf8(patch_log.stdout).unwrap();
     for evidence in [
-        "ENVIRONMENT HISTORY",
+        "REY ENV LOG",
         "2 total · 2 shown · newest first",
-        "Sequence               ENV@2",
+        "Revision               ENV@2 · parent ENV@1",
         "Message\n      stage fixture",
-        "CAPABILITY PATCH ENV@1 → ENV@2",
-        "CAPABILITY PATCH EMPTY → ENV@1",
+        "01 / DIRECTED TEXT",
+        "@@ ENV@1 → ENV@2",
+        "02 / BOUNDED SEARCH",
+        "REFERENCE PLANE",
+        "@@ EMPTY → ENV@1",
     ] {
         assert!(
             patch_log.contains(evidence),
             "missing log evidence: {evidence}"
         );
     }
+    assert_eq!(patch_log.matches("01 / DIRECTED TEXT").count(), 2);
+    assert!(!patch_log.contains("CAPABILITY PATCH"));
 
     let env_help = run_rey(&["env", "--help"]);
     assert!(env_help.status.success());
@@ -576,6 +618,53 @@ edges:
             workspace_path,
             "diff",
             "--format",
+            "table",
+        ],
+        &changed_variables,
+    );
+    assert!(diff.status.success());
+    assert!(diff.stderr.is_empty());
+    let diff = String::from_utf8(diff.stdout).unwrap();
+    for evidence in [
+        "REY ENV DIFF · INDEX → WORKING",
+        "View                   UNSTAGED",
+        "01 / DIRECTED TEXT",
+        "Environment variables · 2 tracked · 1 changed",
+        "@@ INDEX → WORKING",
+        "- REY_MODE=development-mode-value",
+        "+ REY_MODE=production-mode-value",
+        "  REY_SECRET=<present:redacted>",
+        "02 / BOUNDED SEARCH",
+        "Applications · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
+        "FOUND 1",
+        "rey-map-probe",
+        "SEARCHED, NOT FOUND 1",
+        "rey-definitely-missing",
+        "REFERENCE PLANE",
+        "Inputs and topology",
+        "INPUTS · 1 tracked · 1 changed",
+        "- input.txt · required",
+        "+ input.txt · required",
+        "TOPOLOGY · 2 declared edges · 0 changed",
+        "mode --locates--> input",
+        "input --consumed_by--> probe",
+    ] {
+        assert!(
+            diff.contains(evidence),
+            "missing mapped diff evidence: {evidence}\n{diff}"
+        );
+    }
+    assert!(!diff.contains("never-retain-this-secret"));
+    assert!(!diff.contains("a-different-secret"));
+    assert!(!diff.contains("CAPABILITY PATCH"));
+
+    let diff = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "diff",
+            "--format",
             "json",
         ],
         &changed_variables,
@@ -583,6 +672,7 @@ edges:
     assert!(diff.status.success());
     assert!(diff.stderr.is_empty());
     let diff: EnvironmentDiff = serde_json::from_slice(&diff.stdout).unwrap();
+    assert_eq!(diff.schema, "rey.environment-diff.v2");
     assert!(diff.delta.changes.iter().any(|change| {
         change.key.capability_id == "env.mapping.node.mode"
             && change.changed_fields.contains(&"content_digest".to_owned())
@@ -598,6 +688,149 @@ edges:
             .iter()
             .any(|change| change.key.capability_id == "env.mapping.node.secret")
     );
+
+    let staged = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--format",
+            "json",
+        ],
+        &changed_variables,
+    );
+    assert!(staged.status.success());
+    let staged_diff = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "diff",
+            "--staged",
+            "--format",
+            "table",
+        ],
+        &changed_variables,
+    );
+    assert!(staged_diff.status.success());
+    assert!(staged_diff.stderr.is_empty());
+    let staged_diff = String::from_utf8(staged_diff.stdout).unwrap();
+    for evidence in [
+        "REY ENV DIFF · ENV@1 → INDEX",
+        "View                   STAGED",
+        "@@ ENV@1 → INDEX",
+        "- REY_MODE=development-mode-value",
+        "+ REY_MODE=production-mode-value",
+        "INPUTS · 1 tracked · 1 changed",
+    ] {
+        assert!(
+            staged_diff.contains(evidence),
+            "missing staged diff evidence: {evidence}\n{staged_diff}"
+        );
+    }
+
+    let committed = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "update mapped environment",
+        "--format",
+        "json",
+    ]);
+    assert!(committed.status.success());
+    assert!(committed.stderr.is_empty());
+
+    let log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-n",
+        "1",
+        "--format",
+        "table",
+    ]);
+    assert!(log.status.success());
+    assert!(log.stderr.is_empty());
+    let log = String::from_utf8(log.stdout).unwrap();
+    for evidence in [
+        "REY ENV LOG",
+        "Revision               ENV@2 · parent ENV@1",
+        "Evidence               ENV@1 → ENV@2 · DIFFERENT",
+        "Environment            2 variables · 2 applications · 1 input · 2 references · complete",
+        "Changes                1 variable · 0 applications · 1 input · 0 references",
+        "Mapping                rey.env.yaml · rey.env-map.v2",
+        "Message\n      update mapped environment",
+    ] {
+        assert!(
+            log.contains(evidence),
+            "missing mapped log evidence: {evidence}\n{log}"
+        );
+    }
+    assert!(!log.contains("01 / DIRECTED TEXT"));
+    assert!(!log.contains("Snapshot"));
+    assert!(!log.contains("Capabilities"));
+    assert!(!log.contains("Delta id"));
+    assert!(!log.contains("Retention"));
+
+    let patch_log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-p",
+        "-n",
+        "1",
+        "--format",
+        "table",
+    ]);
+    assert!(patch_log.status.success());
+    assert!(patch_log.stderr.is_empty());
+    let patch_log = String::from_utf8(patch_log.stdout).unwrap();
+    for evidence in [
+        "01 / DIRECTED TEXT",
+        "@@ ENV@1 → ENV@2",
+        "- REY_MODE=development-mode-value",
+        "+ REY_MODE=production-mode-value",
+        "02 / BOUNDED SEARCH",
+        "Applications · 2 searched · 1 found · 1 not found · 0 errors · 0 changed",
+        "REFERENCE PLANE",
+        "INPUTS · 1 tracked · 1 changed",
+        "- input.txt · required",
+        "+ input.txt · required",
+        "TOPOLOGY · 2 declared edges · 0 changed",
+    ] {
+        assert!(
+            patch_log.contains(evidence),
+            "missing mapped patch log evidence: {evidence}\n{patch_log}"
+        );
+    }
+    assert!(!patch_log.contains("never-retain-this-secret"));
+    assert!(!patch_log.contains("a-different-secret"));
+    assert!(!patch_log.contains("CAPABILITY PATCH"));
+
+    let json_log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-p",
+        "-n",
+        "1",
+        "--format",
+        "json",
+    ]);
+    assert!(json_log.status.success());
+    assert!(json_log.stderr.is_empty());
+    let json_log: EnvironmentLog = serde_json::from_slice(&json_log.stdout).unwrap();
+    assert_eq!(json_log.schema, "rey.environment-log.v1");
+    assert!(json_log.patch);
+    assert_eq!(json_log.entries.len(), 1);
+    assert_eq!(json_log.entries[0].delta.source_label, "ENV@1");
+    assert_eq!(json_log.entries[0].delta.target_label, "ENV@2");
 
     fs::write(
         workspace.path().join("rey.env.yaml"),
@@ -618,6 +851,24 @@ edges:
     assert_eq!(invalid.status.code(), Some(1));
     assert!(invalid.stdout.is_empty());
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("cannot retain a value digest"));
+
+    let retained_log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-p",
+        "-n",
+        "1",
+        "--format",
+        "table",
+    ]);
+    assert!(retained_log.status.success());
+    assert!(retained_log.stderr.is_empty());
+    let retained_log = String::from_utf8(retained_log.stdout).unwrap();
+    assert!(retained_log.contains("+ REY_MODE=production-mode-value"));
+    assert!(retained_log.contains("rey-map-probe"));
+    assert!(retained_log.contains("mode --locates--> input"));
 }
 
 #[test]

@@ -5,6 +5,8 @@
 - Extended and CLI surface superseded by:
   [ADR 0020](0020-environment-mapping-graph.md) and
   [ADR 0021](0021-environment-admission-index.md)
+- Default human log projection superseded by:
+  [ADR 0029](0029-environment-history-projection.md)
 
 ## Context
 

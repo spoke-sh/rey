@@ -345,9 +345,17 @@ part of the retained capability observation. Staging a
 mapped executable accepts its observation for history but grants no execution
 or provider authority.
 
-`rey env diff` repeats the fresh bounded observation and renders
-`INDEX → WORKING`; `--staged` renders `HEAD → INDEX`. It accepts no loose
-snapshot-file operands. Explicit JSON emits `rey.environment-diff.v2`.
+`rey env diff` repeats the fresh bounded observation and selects the shared
+operator projection for `INDEX → WORKING`; `--staged` selects `HEAD → INDEX`.
+Human output is one compact delta coordinate followed by exactly three
+environment-native evidence planes: directed variable text, bounded
+application search, and input/reference topology. Unchanged mapped objects
+remain bounded context, while insertions, deletions, and modifications use the
+selected source and target observations. The header preserves the authoritative
+capability-delta assessment and retained change count, including changes that
+do not project into a mapped human object. The command accepts no loose
+snapshot-file operands. Explicit JSON remains `rey.environment-diff.v2` with
+the complete typed capability delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact
 verified admission-index snapshot, then clears the index after history
@@ -356,12 +364,17 @@ commit, canonical message, and snapshot id. It deliberately excludes ambient
 author and wall-clock values. Incomplete snapshots can be committed as explicit
 degradation evidence; they do not become complete through retention.
 
-`rey env log -p` verifies the entire retained chain, selects commits newest
-first under an explicit count bound, and recomputes every selected
-parent-to-commit capability delta. The root patch is `EMPTY → ENV@1`. Patch
-projections expose exact snapshot and delta ids, comparator identity,
-completeness, limits, insertions, deletions, modified fields, operations,
-trust, and locations.
+`rey env log` verifies the entire retained chain, selects commits newest first
+under an explicit count bound, and recomputes every selected parent-to-commit
+capability delta. Its human chronology keeps the semantic commit id, revision,
+delta assessment, authoritative change count, environment scope, changed
+dimensions, mapping, and message visible without reopening provider records.
+`-p` expands each selected transition, including `EMPTY → ENV@1`, through
+directed variable text, bounded application search, and input/reference
+topology derived only from the retained parent and commit snapshots. It
+performs no fresh observation. Explicit JSON remains
+`rey.environment-log.v1` with the complete commits, snapshots, and typed
+capability deltas.
 
 The default `rey.local-environment-history.v1` state lives at
 `${workspace}/.rey/env/state.json`; the separate admission index lives at

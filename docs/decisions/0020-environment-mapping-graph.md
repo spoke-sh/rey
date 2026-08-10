@@ -4,6 +4,11 @@
 - Date: 2026-08-08
 - Extends: [ADR 0019](0019-git-shaped-environment-history.md)
 - CLI revision loop superseded by: [ADR 0021](0021-environment-admission-index.md)
+- Default human status and diff projections superseded by:
+  [ADR 0027](0027-environment-operator-delta.md) and
+  [ADR 0028](0028-environment-three-plane-diff.md)
+- Default human log projection superseded by:
+  [ADR 0029](0029-environment-history-projection.md)
 
 ## Context
 

@@ -226,15 +226,21 @@ declared application search, while preserving staged and unstaged counts.
 
 `add` replaces the admission index with the fresh working snapshot. `add -p`
 prompts over canonical capability changes and stages only selected rows; its
-interactive mode requires table output. `diff` renders `INDEX → WORKING` by
-default and `HEAD → INDEX` with `--staged`; JSON uses
-`rey.environment-diff.v2`. `commit` performs no discovery and appends only the
+interactive mode requires table output. `diff` selects `INDEX → WORKING` by
+default and `HEAD → INDEX` with `--staged`. Its table projection uses the same
+three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
+`02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. The authoritative
+capability assessment remains in the coordinate header; JSON remains
+`rey.environment-diff.v2` and does not replace the typed capability delta with
+the human projection. `commit` performs no discovery and appends only the
 verified retained index to the linear history at
 `${workspace}/.rey/env/state.json` by default. `log` is newest-first; `-n`
-bounds selection and `-p` expands each exact parent-to-commit capability patch.
+bounds selection and `-p` expands each exact parent-to-commit transition
+through the three environment-native planes.
 The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
-`${workspace}/.rey/env/index.json` by default. Human history output exposes full commit, parent, snapshot, delta, comparator,
-completeness, capability, limit, and retention evidence. Explicit JSON uses
+`${workspace}/.rey/env/index.json` by default. Plain human history is a compact
+revision/evidence/environment/change/mapping/message chronology; patch mode
+adds directed variables, application search, inputs, and topology. Explicit JSON uses
 `rey.environment-status.v3`, `rey.environment-commit-result.v1`, and
 `rey.environment-log.v1`.
 
@@ -289,8 +295,9 @@ Environment status, add, diff, commit, and log are mixed structured envelopes. T
 default to human output, like Git commands, even when redirected; automation
 must request `--format json` explicitly. `status` carries the full structured
 inventory while keeping its human view navigable. Default `diff` opens the
-unstaged working patch, `diff --staged` opens the commit patch, and `log -p`
-controls expansion of retained patches.
+unstaged three-plane environment projection, `diff --staged` opens the staged
+projection, and `log -p` controls three-plane expansion of retained
+parent-to-commit transitions.
 The JSON log retains authoritative typed deltas regardless of whether the
 human patch was requested.
 
@@ -812,6 +819,12 @@ neighborhood, and object regimes with bounded
 omission disclosures; full screen, pan, focus, and zoom do not widen the data
 or action authority. See [Context Topology Explorer](EXPLORER.md) and [ADR
 0026](decisions/0026-context-topology-explorer.md).
+
+`/environment` has no dashboard hero or metric strip. Its entire route body is
+three full-width stacked evidence sections: directed variable text, bounded
+application search, and the input/reference plane. Environment state, mapping,
+completeness, and admission counts remain compact metadata within those
+sections rather than separate visual destinations.
 
 This listener does not establish a public API, long-running daemon contract,
 multi-user scheduler, remote policy gateway, authentication system, or durable

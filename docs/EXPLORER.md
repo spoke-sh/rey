@@ -92,8 +92,9 @@ remain ordinary scrollable documents.
 `GET /` redirects to `/explore`. The application routes are:
 
 - `/explore`: the context-topology canvas and default human entry;
-- `/environment`: a Kinetic Precision workbench over the exact typed
-  `HEAD → INDEX → WORKING` environment delta;
+- `/environment`: three stacked Kinetic Precision evidence sections over the
+  exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
+  bounded search, and the reference plane;
 - `/workloads`: admitted workload and creation-request catalog; and
 - `/workloads/$workloadId`: exact workload or request detail.
 

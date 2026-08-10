@@ -346,6 +346,11 @@ mod tests {
         let application = request(&address, "GET /assets/app.js HTTP/1.1");
         assert!(application.starts_with("HTTP/1.1 200"));
         assert!(application.contains("text/javascript"));
+        assert!(application.contains("01 / DIRECTED TEXT"));
+        assert!(application.contains("02 / BOUNDED SEARCH"));
+        assert!(application.contains("REFERENCE PLANE"));
+        assert!(application.contains("Inputs and topology"));
+        assert!(!application.contains("WORKING TREE"));
 
         let stylesheet = request(&address, "GET /assets/app.css HTTP/1.1");
         assert!(stylesheet.starts_with("HTTP/1.1 200"));

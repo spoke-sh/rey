@@ -399,6 +399,25 @@ pub struct EnvironmentOperatorProjection {
 }
 
 impl EnvironmentOperatorProjection {
+    pub fn derive_transition(
+        source: Option<&CapabilitySnapshot>,
+        target: &CapabilitySnapshot,
+        source_label: String,
+        target_label: String,
+    ) -> Result<Self, LocalEnvironmentHistoryError> {
+        let empty;
+        let source = match source {
+            Some(source) => source,
+            None => {
+                empty = empty_snapshot_like(target)?;
+                &empty
+            }
+        };
+        let mut projection = Self::derive(source, source, target, source_label)?;
+        projection.target_label = target_label;
+        Ok(projection)
+    }
+
     fn derive(
         head: &CapabilitySnapshot,
         index: &CapabilitySnapshot,
@@ -822,11 +841,16 @@ impl EnvironmentDiff {
     ) -> Result<Self, LocalEnvironmentHistoryError> {
         let status =
             EnvironmentStatus::derive(history, admission_index, working_snapshot, max_changes)?;
+        Ok(Self::from_status(status, mode))
+    }
+
+    #[must_use]
+    pub fn from_status(status: EnvironmentStatus, mode: EnvironmentDiffMode) -> Self {
         let delta = match mode {
             EnvironmentDiffMode::Unstaged => status.unstaged_delta,
             EnvironmentDiffMode::Staged => status.staged_delta,
         };
-        Ok(Self {
+        Self {
             schema: ENVIRONMENT_DIFF_SCHEMA.to_owned(),
             mode,
             head_commit_id: status.head_commit_id,
@@ -835,7 +859,7 @@ impl EnvironmentDiff {
             admission_index: status.admission_index,
             working_snapshot: status.working_snapshot,
             delta,
-        })
+        }
     }
 }
 

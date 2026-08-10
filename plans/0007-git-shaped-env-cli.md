@@ -5,7 +5,9 @@
 - Decision: [ADR 0019](../docs/decisions/0019-git-shaped-environment-history.md)
 - Extended by: [Plan 0008](0008-environment-mapping-graph.md),
   [Plan 0009](0009-environment-admission-index.md), and
-  [ADR 0021](../docs/decisions/0021-environment-admission-index.md)
+  [ADR 0021](../docs/decisions/0021-environment-admission-index.md);
+  human log projection superseded by
+  [ADR 0029](../docs/decisions/0029-environment-history-projection.md)
 
 ## Outcome
 

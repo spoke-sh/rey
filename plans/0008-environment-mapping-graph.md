@@ -4,7 +4,9 @@
 - Completed: 2026-08-08
 - Decision: [ADR 0020](../docs/decisions/0020-environment-mapping-graph.md)
 - Extended by: [Plan 0009](0009-environment-admission-index.md) and
-  [ADR 0021](../docs/decisions/0021-environment-admission-index.md)
+  [ADR 0021](../docs/decisions/0021-environment-admission-index.md);
+  human log projection superseded by
+  [ADR 0029](../docs/decisions/0029-environment-history-projection.md)
 
 ## Outcome
 

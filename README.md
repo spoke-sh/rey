@@ -147,7 +147,7 @@ rey env status
 rey env diff
 rey env add [-p]
 rey env commit -m <message>
-rey env log -p
+rey env log [-p]
 rey workloads create <workload-id> [--title <title>] [--intent <intent>]
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
@@ -174,6 +174,7 @@ just rey env diff
 just rey env add -p
 just rey env add
 just rey env commit -m 'accept local toolchain'
+just rey env log
 just rey env log -p
 just rey workloads create api-drift \
   --title 'API drift mining' \
@@ -199,10 +200,11 @@ just rey ui --host 0.0.0.0 --port 5714
 redirects to `/explore`, a full-screen-capable context-topology canvas whose
 semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
-delta objects. `/environment` is the first native diff-directed workbench: it
-projects the same bounded `HEAD → INDEX → WORKING` environment document as the
-CLI, leading with tracked variable changes and the complete declared
-application search. `/workloads` remains the exact catalog projection. The
+delta objects. `/environment` projects the same bounded
+`HEAD → INDEX → WORKING` environment document as the CLI through exactly three
+stacked evidence sections: `01 / DIRECTED TEXT` for variables,
+`02 / BOUNDED SEARCH` for applications, and `03` `REFERENCE PLANE` for inputs
+and topology. `/workloads` remains the exact catalog projection. The
 manual Refresh control is gone: the read-only workload and environment
 documents passively revalidate every five seconds in mounted application state.
 Revalidation never navigates, remounts the active route, or changes the
@@ -251,13 +253,21 @@ environment, leads with an env-shaped `HEAD → WORKING` variable diff, and then
 groups every declared application into found, searched-but-not-found, or
 observation-error evidence. The admission summary still distinguishes
 `HEAD → INDEX` changes admitted for commit from `INDEX → WORKING` changes not
-yet admitted. `env diff` opens the unstaged capability patch;
-`env diff --staged` opens the commit-ready patch. `env add` stages the complete
-working snapshot, while `env add -p` selects capability changes interactively.
+yet admitted. `env diff` selects the same three environment planes for
+`INDEX → WORKING`; `env diff --staged` selects them for `HEAD → INDEX`.
+Its human output is directed variable text, bounded application search, then
+input/reference topology—not a generic capability patch. The header still
+reports the authoritative capability-delta assessment and change count;
+`--format json` retains the complete `rey.environment-diff.v2` evidence.
+`env add` stages the complete working snapshot, while `env add -p` selects
+capability changes interactively.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
-without re-observing ambient state. `env log -p` renders newest commits and
-their parent-directed patches. This is bounded single-process local state, not
-a Git object store or a Spoke-durable log.
+without re-observing ambient state. `env log` renders a compact newest-first
+chronology of revision, evidence, environment scope, changed dimensions,
+mapping, and message. `env log -p` expands each selected parent-to-commit
+transition through the same directed text, bounded search, and reference
+planes. This is bounded single-process local state, not a Git object store or
+a Spoke-durable log.
 
 The checked-in [`rey.env.yaml`](rey.env.yaml) is an agent-generatable mapping
 graph describing the environment surfaces this workspace cares about:
@@ -383,9 +393,10 @@ limits. Discovery remains read-only and separate from action admission.
 The `env` CLI makes those observations revisionable. `status` computes
 `HEAD → INDEX → WORKING`, `add` explicitly accepts observations into a bounded
 admission index, `commit` records exactly that index in a local linear history,
-and `log -p` reopens directed deltas. Environment commits record evidence; they
-neither mutate the discovered environment nor create Git commits. Admission to
-history does not grant execution authority to a mapped tool.
+and `log -p` reopens those directed deltas through the environment-native
+three-plane projection. Environment commits record evidence; they neither
+mutate the discovered environment nor create Git commits. Admission to history
+does not grant execution authority to a mapped tool.
 
 Git is both a source-binding provider and a natural activation surface. Commit,
 ref, semantic index, and declared worktree deltas can select affected workload

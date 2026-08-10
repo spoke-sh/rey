@@ -1,5 +1,4 @@
 import {
-  KineticSurface,
   getKineticMaterialStyle,
   kineticGrammar,
   kineticThemeMaterials,
@@ -209,36 +208,19 @@ function EnvironmentPage() {
   );
 
   return (
-    <main className={sx(styles.page)}>
-      <section className={sx(styles.environmentHero)}>
-        <div>
-          <p className={sx(styles.micro, styles.eyebrow)}>
-            ENVIRONMENT / {projection.source_label} → {projection.target_label}
-          </p>
-          <h1 className={sx(styles.displayTitle, styles.environmentTitle)}>
-            WORKING TREE
-          </h1>
-          <p className={sx(styles.heroIntro)}>
-            The bounded process environment Rey has been asked to care about,
-            compared directly with its last committed observation.
-          </p>
-          <div className={sx(styles.environmentCoordinate)}>
-            <span className={sx(styles.controlLabel)}>
-              {projection.mapping?.source_path ?? "NO ENVIRONMENT MAP"}
-            </span>
-            <span className={sx(styles.micro, styles.muted)}>
-              {projection.mapping?.schema ?? "UNMAPPED"}
-            </span>
+    <main className={sx(styles.page, styles.environmentPage)}>
+      <section className={sx(styles.environmentDiffSurface)}>
+        <div className={sx(styles.environmentPanelHeader)}>
+          <div>
+            <p className={sx(styles.micro, styles.sectionKicker)}>
+              01 / DIRECTED TEXT
+            </p>
+            <h1 className={sx(styles.sectionTitle)}>Environment variables</h1>
           </div>
-        </div>
-
-        <KineticSurface
-          className={sx(styles.environmentMachine)}
-          theme="precision"
-        >
-          <div className={sx(styles.environmentMachineHeader)}>
-            <span className={sx(styles.micro)}>
-              OPERATOR DELTA / LIVE PROBE
+          <div className={sx(styles.environmentPanelMeta)}>
+            <span className={sx(styles.micro, styles.muted)}>
+              @@ {projection.source_label} → {projection.target_label} ·{" "}
+              {status.state}
             </span>
             <span
               className={sx(
@@ -251,167 +233,115 @@ function EnvironmentPage() {
               )}
               title={refreshError?.message}
             >
+              {projection.mapping?.source_path ?? "NO MAP"} ·{" "}
+              {projection.mapping?.schema ?? "UNMAPPED"} ·{" "}
               {refreshError
                 ? "REVALIDATION DELAYED"
                 : projection.complete
                   ? "COMPLETE"
                   : "INCOMPLETE"}
             </span>
-          </div>
-          <div className={sx(styles.environmentStateReadout)}>
-            <output className={sx(styles.environmentStateValue)}>
-              {status.state}
-            </output>
             <span className={sx(styles.micro, styles.muted)}>
-              {projection.source_label} / INDEX / {projection.target_label}
+              {status.staged_delta.changes.length} STAGED ·{" "}
+              {status.unstaged_delta.changes.length} WORKING
             </span>
           </div>
-          <div className={sx(styles.environmentAdmissionRail)}>
-            <span>
-              <strong>{status.staged_delta.changes.length}</strong> staged
-            </span>
-            <i
-              aria-hidden="true"
-              className={sx(styles.environmentAdmissionLine)}
-            />
-            <span>
-              <strong>{status.unstaged_delta.changes.length}</strong> working
-            </span>
-          </div>
-        </KineticSurface>
-      </section>
-
-      <section
-        className={sx(styles.metricStrip)}
-        aria-label="Environment metrics"
-      >
-        <MetricPanel
-          index="01"
-          label="VARIABLES"
-          primary={projection.summary.variables}
-          secondary={`${projection.summary.changed_variables} changed`}
-        />
-        <MetricPanel
-          index="02"
-          label="APPLICATIONS"
-          primary={`${projection.summary.applications_found}/${projection.summary.applications_searched}`}
-          secondary="found / searched"
-        />
-        <MetricPanel
-          index="03"
-          label="NOT FOUND"
-          primary={projection.summary.applications_not_found}
-          secondary={`${projection.summary.application_errors} observation errors`}
-        />
-        <MetricPanel
-          index="04"
-          label="TOPOLOGY"
-          primary={projection.summary.references}
-          secondary={`${projection.summary.inputs} inputs`}
-        />
-      </section>
-
-      <section
-        className={sx(styles.environmentWorkbench)}
-        aria-label="Environment delta workbench"
-      >
-        <section className={sx(styles.environmentDiffSurface)}>
-          <div className={sx(styles.environmentPanelHeader)}>
-            <div>
-              <p className={sx(styles.micro, styles.sectionKicker)}>
-                01 / DIRECTED TEXT
-              </p>
-              <h2 className={sx(styles.sectionTitle)}>Environment variables</h2>
+        </div>
+        <div
+          className={sx(styles.environmentDiffDocument)}
+          role="table"
+          aria-label="Environment variable diff"
+        >
+          {variableLines.length === 0 ? (
+            <div className={sx(styles.environmentDiffEmpty)}>
+              NO VARIABLES SELECTED BY THE ENVIRONMENT MAP
             </div>
-            <span className={sx(styles.micro, styles.muted)}>
-              @@ {projection.source_label} → {projection.target_label}
-            </span>
-          </div>
-          <div
-            className={sx(styles.environmentDiffDocument)}
-            role="table"
-            aria-label="Environment variable diff"
-          >
-            {variableLines.length === 0 ? (
-              <div className={sx(styles.environmentDiffEmpty)}>
-                NO VARIABLES SELECTED BY THE ENVIRONMENT MAP
+          ) : (
+            variableLines.map((line, index) => (
+              <div
+                className={sx(
+                  styles.environmentDiffRow,
+                  line.kind === "inserted" && styles.environmentDiffInserted,
+                  line.kind === "deleted" && styles.environmentDiffDeleted,
+                  line.kind === "context" && styles.environmentDiffContext,
+                )}
+                key={`${line.key}:${index}`}
+                role="row"
+              >
+                <span className={sx(styles.environmentLineNumber)}>
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className={sx(styles.environmentDiffMarker)}>
+                  {line.kind === "inserted"
+                    ? "+"
+                    : line.kind === "deleted"
+                      ? "−"
+                      : "·"}
+                </span>
+                <code className={sx(styles.environmentDiffCode)}>
+                  {line.text}
+                </code>
+                <span className={sx(styles.environmentAdmissionTag)}>
+                  {line.admission}
+                </span>
               </div>
-            ) : (
-              variableLines.map((line, index) => (
-                <div
-                  className={sx(
-                    styles.environmentDiffRow,
-                    line.kind === "inserted" && styles.environmentDiffInserted,
-                    line.kind === "deleted" && styles.environmentDiffDeleted,
-                    line.kind === "context" && styles.environmentDiffContext,
-                  )}
-                  key={`${line.key}:${index}`}
-                  role="row"
-                >
-                  <span className={sx(styles.environmentLineNumber)}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className={sx(styles.environmentDiffMarker)}>
-                    {line.kind === "inserted"
-                      ? "+"
-                      : line.kind === "deleted"
-                        ? "−"
-                        : "·"}
-                  </span>
-                  <code className={sx(styles.environmentDiffCode)}>
-                    {line.text}
-                  </code>
-                  <span className={sx(styles.environmentAdmissionTag)}>
-                    {line.admission}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+            ))
+          )}
+        </div>
+      </section>
 
-        <aside className={sx(styles.environmentApplications)}>
-          <div className={sx(styles.environmentPanelHeader)}>
-            <div>
-              <p className={sx(styles.micro, styles.sectionKicker)}>
-                02 / BOUNDED SEARCH
-              </p>
-              <h2 className={sx(styles.sectionTitle)}>Applications</h2>
-            </div>
-            <span className={sx(styles.micro, styles.muted)}>
-              {projection.summary.applications_searched} SEARCHED
-            </span>
+      <section className={sx(styles.environmentApplications)}>
+        <div className={sx(styles.environmentPanelHeader)}>
+          <div>
+            <p className={sx(styles.micro, styles.sectionKicker)}>
+              02 / BOUNDED SEARCH
+            </p>
+            <h2 className={sx(styles.sectionTitle)}>Applications</h2>
           </div>
-          <ApplicationGroup label="FOUND" applications={found} tone="found" />
+          <span className={sx(styles.micro, styles.muted)}>
+            {projection.summary.applications_searched} SEARCHED ·{" "}
+            {projection.summary.applications_found} FOUND ·{" "}
+            {projection.summary.applications_not_found} NOT FOUND
+          </span>
+        </div>
+        <ApplicationGroup label="FOUND" applications={found} tone="found" />
+        <ApplicationGroup
+          label="SEARCHED, NOT FOUND"
+          applications={notFound}
+          tone="missing"
+        />
+        {errors.length > 0 ? (
           <ApplicationGroup
-            label="SEARCHED, NOT FOUND"
-            applications={notFound}
-            tone="missing"
+            label="OBSERVATION ERRORS"
+            applications={errors}
+            tone="error"
           />
-          {errors.length > 0 ? (
-            <ApplicationGroup
-              label="OBSERVATION ERRORS"
-              applications={errors}
-              tone="error"
-            />
-          ) : null}
-          {removed.length > 0 ? (
-            <ApplicationGroup
-              label="NO LONGER SEARCHED"
-              applications={removed}
-              tone="removed"
-            />
-          ) : null}
-        </aside>
+        ) : null}
+        {removed.length > 0 ? (
+          <ApplicationGroup
+            label="NO LONGER SEARCHED"
+            applications={removed}
+            tone="removed"
+          />
+        ) : null}
       </section>
 
       <section className={sx(styles.environmentTopology)}>
-        <SectionHeading
-          index="03"
-          kicker="REFERENCE PLANE"
-          title="Inputs and topology"
-          detail={`${projection.summary.inputs} inputs / ${projection.summary.references} declared edges`}
-        />
+        <div className={sx(styles.environmentPanelHeader)}>
+          <div className={sx(styles.environmentReferenceHeading)}>
+            <span className={sx(styles.sectionIndex)}>03</span>
+            <div>
+              <p className={sx(styles.micro, styles.sectionKicker)}>
+                REFERENCE PLANE
+              </p>
+              <h2 className={sx(styles.sectionTitle)}>Inputs and topology</h2>
+            </div>
+          </div>
+          <span className={sx(styles.micro, styles.muted)}>
+            {projection.summary.inputs} INPUTS · {projection.summary.references}{" "}
+            DECLARED EDGES
+          </span>
+        </div>
         <div className={sx(styles.environmentTopologyGrid)}>
           <div className={sx(styles.environmentInputList)}>
             {projection.inputs.map((input) => {
@@ -483,7 +413,7 @@ function ApplicationGroup({
   tone: "found" | "missing" | "error" | "removed";
 }) {
   return (
-    <section className={sx(styles.environmentApplicationGroup)}>
+    <div className={sx(styles.environmentApplicationGroup)}>
       <div className={sx(styles.environmentApplicationGroupHeader)}>
         <span className={sx(styles.micro)}>{label}</span>
         <strong>{String(applications.length).padStart(2, "0")}</strong>
@@ -535,7 +465,7 @@ function ApplicationGroup({
           );
         })
       )}
-    </section>
+    </div>
   );
 }
 
@@ -873,32 +803,6 @@ function DraftCard({ draft }: { draft: WorkloadDraft }) {
         INSPECT HANDOFF →
       </span>
     </Link>
-  );
-}
-
-function MetricPanel({
-  index,
-  label,
-  primary,
-  secondary,
-}: {
-  index: string;
-  label: string;
-  primary: ReactNode;
-  secondary: string;
-}) {
-  return (
-    <article className={sx(styles.metricPanel)}>
-      <span className={sx(styles.micro)}>
-        {index} / {label}
-      </span>
-      <strong className={sx(styles.metricPanelValue)}>{primary}</strong>
-      <small
-        className={sx(styles.micro, styles.muted, styles.metricPanelDetail)}
-      >
-        {secondary}
-      </small>
-    </article>
   );
 }
 

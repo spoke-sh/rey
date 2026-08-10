@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-08
 - Supersedes CLI portions of: [ADR 0020](0020-environment-mapping-graph.md)
+- Default human diff projection superseded by:
+  [ADR 0028](0028-environment-three-plane-diff.md)
 
 ## Context
 

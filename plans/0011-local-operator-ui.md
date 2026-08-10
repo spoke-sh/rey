@@ -53,6 +53,8 @@ topology canvas. It reads the same bounded workload portfolio projection as
   a reported 5000 ms interval.
 - [x] Keep passive portfolio and environment revalidation in mounted projection
   state so polling cannot remount the active route or reset viewport position.
+- [x] Reduce `/environment` to three full-width stacked evidence sections:
+  directed text, bounded search, and the reference plane.
 - [x] Bind the footer to the exact Rey implementation revision and link the
   complete Git object id without confusing semantic BLAKE3 identities for
   source commits.
