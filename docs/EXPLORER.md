@@ -91,7 +91,10 @@ scrollable documents.
   mutate runtime state. The UI identifies itself as live and read-only.
 - The fixed footer is a live communications channel. Its mailbox contains only
   typed attention or revalidation failure evidence; zero messages explicitly
-  means no operator attention is requested.
+  means no operator attention is requested. `MAILBOX` selects that history
+  axis; the center chevrons select the separate operator/Rey/agent conversation
+  axis. Selecting the active axis closes the plane, selecting the other axis
+  switches it, and either Escape or a click on the background closes it.
 - A coordinate whose `at` revision no longer matches is stale. A coordinate
   whose identity is absent is missing. Neither may silently drift to a current
   object while retaining the old URI.
@@ -151,11 +154,14 @@ shallow boundaries, and describes the existing browser scan contracts without
 claiming server-side or runtime scheduling. Environment commit v1 has no wall
 time, so those ticks explicitly render as order-only.
 
-The global footer displays a typed-attention mailbox, chevrons that reveal its
-bottom sheet, and the shortened Rey implementation Git revision linked through
+The global footer displays a typed-attention history mailbox, chevrons that
+open the traditional conversation axis of the same plane, and the shortened Rey implementation Git revision linked through
 the complete revision to the canonical GitHub commit. This is separate from
 the BLAKE3 portfolio-attention identity: semantic evidence digests must never
-be presented as source commits.
+be presented as source commits. Mailbox history is currently only the mounted
+projection. The conversation transcript is empty and its composer disabled
+because no transport, agent session, message admission, or retention contract
+exists yet.
 
 The Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining

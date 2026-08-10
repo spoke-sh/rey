@@ -52,6 +52,15 @@ import { className as sx } from "./stylex/shared.stylex";
 const precision = kineticThemeMaterials.precision;
 const PortfolioContext = createContext<OperatorContext | null>(null);
 
+export type CommunicationAxis = "mailbox" | "conversation";
+
+export function activateCommunicationAxis(
+  current: CommunicationAxis | null,
+  requested: CommunicationAxis,
+): CommunicationAxis | null {
+  return current === requested ? null : requested;
+}
+
 function usePassiveDocument<T>(initialDocument: T, load: () => Promise<T>) {
   const [document, setDocument] = useState(initialDocument);
   const [error, setError] = useState<Error | null>(null);
@@ -80,7 +89,8 @@ function RootLayout() {
     initialPortfolio,
     loadPortfolio,
   );
-  const [communicationsOpen, setCommunicationsOpen] = useState(false);
+  const [communicationAxis, setCommunicationAxis] =
+    useState<CommunicationAxis | null>(null);
   const mailbox = operatorMailboxRows(portfolio);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -197,11 +207,11 @@ function RootLayout() {
 
         <Outlet />
 
-        <CommunicationsPanel
+        <CommunicationPlane
+          axis={communicationAxis}
           error={portfolioError}
-          open={communicationsOpen}
           portfolio={portfolio}
-          onClose={() => setCommunicationsOpen(false)}
+          onClose={() => setCommunicationAxis(null)}
         />
 
         <footer
@@ -213,13 +223,22 @@ function RootLayout() {
         >
           <button
             aria-controls="rey-communications"
-            aria-expanded={communicationsOpen}
+            aria-expanded={communicationAxis === "mailbox"}
+            aria-label={
+              communicationAxis === "mailbox"
+                ? "Close mailbox history"
+                : "Open mailbox history"
+            }
             className={sx(
               styles.focusable,
               styles.footerButton,
               styles.footerMailbox,
             )}
-            onClick={() => setCommunicationsOpen(true)}
+            onClick={() =>
+              setCommunicationAxis((axis) =>
+                activateCommunicationAxis(axis, "mailbox"),
+              )
+            }
             type="button"
           >
             <span>MAILBOX</span>
@@ -235,21 +254,25 @@ function RootLayout() {
           </button>
           <button
             aria-controls="rey-communications"
-            aria-expanded={communicationsOpen}
+            aria-expanded={communicationAxis === "conversation"}
             aria-label={
-              communicationsOpen
-                ? "Close runtime communications"
-                : "Open runtime communications"
+              communicationAxis === "conversation"
+                ? "Close Rey conversation"
+                : "Open Rey conversation"
             }
             className={sx(
               styles.focusable,
               styles.footerButton,
               styles.communicationToggle,
             )}
-            onClick={() => setCommunicationsOpen((open) => !open)}
+            onClick={() =>
+              setCommunicationAxis((axis) =>
+                activateCommunicationAxis(axis, "conversation"),
+              )
+            }
             type="button"
           >
-            {communicationsOpen ? "⌄ ⌄ ⌄" : "⌃ ⌃ ⌃"}
+            {communicationAxis === "conversation" ? "⌄ ⌄ ⌄" : "⌃ ⌃ ⌃"}
           </button>
           <ImplementationLink
             repository={portfolio.ui_server.source_repository}
@@ -261,18 +284,23 @@ function RootLayout() {
   );
 }
 
-function CommunicationsPanel({
+function CommunicationPlane({
+  axis,
   error,
   onClose,
-  open,
   portfolio,
 }: {
+  axis: CommunicationAxis | null;
   error: Error | null;
   onClose: () => void;
-  open: boolean;
   portfolio: OperatorContext;
 }) {
-  const messages = operatorMailboxRows(portfolio);
+  const [lastAxis, setLastAxis] = useState<CommunicationAxis>("mailbox");
+  const open = axis !== null;
+  const visibleAxis = axis ?? lastAxis;
+  useEffect(() => {
+    if (axis) setLastAxis(axis);
+  }, [axis]);
   useEffect(() => {
     if (!open) return;
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
@@ -283,28 +311,75 @@ function CommunicationsPanel({
   }, [onClose, open]);
 
   return (
-    <aside
-      aria-hidden={!open}
-      aria-label="Runtime communications"
+    <>
+      <CommunicationBackdrop onClose={onClose} open={open} />
+      <aside
+        aria-hidden={!open}
+        aria-label={
+          visibleAxis === "mailbox"
+            ? "Mailbox history"
+            : "Rey agent operator conversation"
+        }
+        className={sx(
+          styles.communicationsPanel,
+          open && styles.communicationsPanelOpen,
+        )}
+        data-communication-axis={visibleAxis}
+        id="rey-communications"
+      >
+        {visibleAxis === "mailbox" ? (
+          <MailboxHistory error={error} portfolio={portfolio} />
+        ) : (
+          <ConversationSurface />
+        )}
+      </aside>
+    </>
+  );
+}
+
+export function CommunicationBackdrop({
+  onClose,
+  open,
+}: {
+  onClose: () => void;
+  open: boolean;
+}) {
+  return (
+    <div
+      aria-hidden="true"
       className={sx(
-        styles.communicationsPanel,
-        open && styles.communicationsPanelOpen,
+        styles.communicationsBackdrop,
+        open && styles.communicationsBackdropOpen,
       )}
-      id="rey-communications"
-    >
+      data-communication-backdrop=""
+      onClick={onClose}
+    />
+  );
+}
+
+function MailboxHistory({
+  error,
+  portfolio,
+}: {
+  error: Error | null;
+  portfolio: OperatorContext;
+}) {
+  const messages = operatorMailboxRows(portfolio);
+  return (
+    <>
       <header className={sx(styles.communicationsHeader)}>
         <div>
           <p className={sx(styles.micro, styles.sectionKicker)}>
-            LIVE / OPERATOR CHANNEL
+            HISTORY / RUNTIME ATTENTION
           </p>
-          <h2 className={sx(styles.sectionTitle)}>Mailbox</h2>
+          <h2 className={sx(styles.sectionTitle)}>Mailbox history</h2>
         </div>
         <div className={sx(styles.communicationsCoordinate)}>
           <span className={sx(styles.micro, styles.muted)}>
             ATTENTION / {shortDigest(portfolio.attention.attention_id)}
           </span>
           <span className={sx(styles.micro)}>
-            {messages.length + (error ? 1 : 0)} UNREAD
+            {messages.length + (error ? 1 : 0)} ACTIVE · CURRENT PROJECTION
           </span>
         </div>
       </header>
@@ -339,12 +414,88 @@ function CommunicationsPanel({
         {!error && messages.length === 0 ? (
           <div className={sx(styles.communicationsQuiet)}>
             <span className={sx(styles.micro)}>NO NEWS</span>
-            <strong>No operator attention is requested.</strong>
-            <p>Rey continues to observe the live cadence.</p>
+            <strong>No mailbox entries in the current projection.</strong>
+            <p>
+              Durable communication history is not available in this runtime.
+            </p>
           </div>
         ) : null}
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function ConversationSurface() {
+  return (
+    <>
+      <header className={sx(styles.communicationsHeader)}>
+        <div>
+          <p className={sx(styles.micro, styles.sectionKicker)}>
+            REY / AGENT / OPERATOR
+          </p>
+          <h2 className={sx(styles.sectionTitle)}>Conversation</h2>
+        </div>
+        <div className={sx(styles.communicationsCoordinate)}>
+          <span className={sx(styles.micro, styles.muted)}>SESSION / NONE</span>
+          <span className={sx(styles.micro)}>TRANSPORT / UNAVAILABLE</span>
+        </div>
+      </header>
+      <div className={sx(styles.conversationBody)}>
+        <div
+          aria-live="polite"
+          className={sx(styles.conversationThread)}
+          role="log"
+        >
+          <div className={sx(styles.conversationBoundary)} role="status">
+            <span className={sx(styles.micro, styles.toneWarning)}>
+              NO ADMITTED CONVERSATION
+            </span>
+            <strong>No Rey or agent session is connected.</strong>
+            <p>
+              This server is a read-only operator projection. A conversation
+              transport, participant identity, retention contract, and message
+              admission path must be bound before communication can begin.
+            </p>
+          </div>
+        </div>
+        <form
+          className={sx(styles.conversationComposer)}
+          onSubmit={(event) => event.preventDefault()}
+        >
+          <label
+            className={sx(styles.micro, styles.conversationLabel)}
+            htmlFor="rey-conversation-message"
+          >
+            MESSAGE
+          </label>
+          <textarea
+            aria-describedby="rey-conversation-boundary"
+            className={sx(styles.conversationInput)}
+            disabled
+            id="rey-conversation-message"
+            placeholder="Connect an admitted Rey / agent session to send a message"
+            rows={3}
+          />
+          <button
+            className={sx(styles.conversationSend)}
+            disabled
+            type="submit"
+          >
+            SEND ↗
+          </button>
+          <small
+            className={sx(
+              styles.micro,
+              styles.muted,
+              styles.conversationBoundaryNote,
+            )}
+            id="rey-conversation-boundary"
+          >
+            BOUND / NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY
+          </small>
+        </form>
+      </div>
+    </>
   );
 }
 

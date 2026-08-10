@@ -851,8 +851,15 @@ restrictive security headers.
 The fixed footer is the live operator communications channel. Its mailbox
 count and bottom sheet derive from typed portfolio-attention rows and passive
 revalidation failures; an empty sheet states that no operator attention is
-requested. It never invents heartbeat messages. Center chevrons reveal or
-hide the sheet. The footer shortens the implementation revision only for
+requested. It never invents heartbeat messages. The mailbox button selects the
+history axis; the center chevrons select a separate traditional conversation
+axis for operator ↔ Rey ↔ agent communication. Selecting the active axis
+closes the plane, selecting the other switches axes, and either Escape or a
+click on the background closes it.
+The history axis currently identifies itself as the current mounted projection,
+not a durable event store. The conversation axis exposes a transcript and
+composer but explicitly has no session or transport; sending is disabled and
+no UI-only messages are retained. The footer shortens the implementation revision only for
 presentation, and its GitHub link uses the complete 40- or 64-hex Git object
 id. The same invariant applies everywhere in the browser: a contractually Git
 commit SHA is the exact GitHub commit link, never inert text. When no exact

@@ -171,7 +171,11 @@ keeps bounded Git reachability, environment sequence, and mounted browser scan
 schedules on separate clocks instead of fabricating a total event order.
 The fixed footer is a live communications channel over typed attention and
 passive-revalidation health. A quiet mailbox means no operator attention is
-requested; it is not filled with synthetic heartbeat activity.
+requested; it is not filled with synthetic heartbeat activity. The mailbox
+control selects the history axis. The center chevrons select a separate
+operator/Rey/agent conversation axis with a conventional transcript and
+composer. The current read-only server has no admitted chat transport, so the
+composer is disabled and no UI-owned transcript is invented.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

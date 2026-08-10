@@ -31,8 +31,16 @@
     padding: 12px 20px;
   }
 
+  .xc7ga6q {
+    padding: 12px;
+  }
+
   .x1x93lg1 {
     padding: 14px 24px;
+  }
+
+  .x1c9j6tf {
+    padding: 16px clamp(18px, 3vw, 30px);
   }
 
   .x1tamke2 {
@@ -83,12 +91,20 @@
     padding: 7px 9px;
   }
 
+  .x1028wpp {
+    padding: clamp(18px, 3vw, 30px);
+  }
+
   .xeey41z {
     padding: clamp(20px, 3vw, 34px);
   }
 
   .xwg63yq {
     padding: clamp(22px, 3vw, 42px);
+  }
+
+  .x1wflxzm {
+    padding: clamp(22px, 4vw, 48px);
   }
 
   .xcfnw1t {
@@ -569,6 +585,10 @@
     align-content: center;
   }
 
+  .x4465f1 {
+    align-content: end;
+  }
+
   .xcdzlcm {
     align-content: space-between;
   }
@@ -591,6 +611,10 @@
 
   .x7fd4wk {
     align-self: end;
+  }
+
+  .xkh2ocl {
+    align-self: stretch;
   }
 
   .xegkacw {
@@ -671,6 +695,10 @@
 
   .x1n0t8t9 {
     background-color: color-mix(in srgb,var(--rey-foreground) 10%,transparent);
+  }
+
+  .x162wp98 {
+    background-color: color-mix(in srgb,var(--rey-foreground) 8%,transparent);
   }
 
   .x1dsfllb {
@@ -1117,6 +1145,10 @@
     grid-template-columns: minmax(0, .9fr) minmax(470px, 1.1fr);
   }
 
+  .xju1xpo {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .x1oyd7ug {
     grid-template-columns: minmax(0, 1fr) minmax(360px, .8fr);
   }
@@ -1151,6 +1183,10 @@
 
   .xkgyxu0 {
     grid-template-columns: repeat(5, 1fr);
+  }
+
+  .xpjnb55 {
+    grid-template-rows: minmax(180px, 1fr) auto;
   }
 
   .xl56j7k {
@@ -1293,6 +1329,10 @@
     opacity: .58;
   }
 
+  .x1uy6g52 {
+    opacity: .62;
+  }
+
   .x190dgpg {
     opacity: .65;
   }
@@ -1359,6 +1399,10 @@
 
   .x7wzq59 {
     position: sticky;
+  }
+
+  .xtt52l0 {
+    resize: none;
   }
 
   .xkcv6ua {
@@ -1461,6 +1505,10 @@
     transition-duration: 0s;
   }
 
+  .x19991ni {
+    transition-property: opacity;
+  }
+
   .x14visiu {
     transition-property: transform, box-shadow, border-color;
   }
@@ -1512,6 +1560,10 @@
 
   .xzkaem6 {
     z-index: 3;
+  }
+
+  .x16nlfvd {
+    z-index: 48;
   }
 
   .x1ygf0dq {
@@ -2098,6 +2150,10 @@
     max-width: 610px;
   }
 
+  .xwnkcuf {
+    max-width: 720px;
+  }
+
   .xhkz4we {
     max-width: min(48vw, 680px);
   }
@@ -2150,6 +2206,10 @@
     min-height: 34px;
   }
 
+  .x1dby22o {
+    min-height: 360px;
+  }
+
   .x141feeh {
     min-height: 38px;
   }
@@ -2168,6 +2228,10 @@
 
   .x1qafhyn {
     min-height: 72px;
+  }
+
+  .xzbw6zd {
+    min-height: 74px;
   }
 
   .x1r3qdcx {
@@ -2208,6 +2272,10 @@
 
   .x1drip2q {
     min-width: 42px;
+  }
+
+  .xd5yu7s {
+    min-width: 94px;
   }
 
   .xw2csxc {

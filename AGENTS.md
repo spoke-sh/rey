@@ -132,6 +132,12 @@ exists.
   and other actionable ticks, while a quiet channel explicitly means no
   operator attention is requested. Never fabricate activity to make the UI
   appear alive.
+- Keep the communication plane's axes distinct. The mailbox is runtime and
+  attention history; the conversation axis is operator ↔ Rey ↔ agent dialogue
+  through a traditional transcript and composer. Never use one control as an
+  alias for the other or imply a writable chat session, participant identity,
+  retention guarantee, or message admission path that the runtime has not
+  bound. An unavailable transport must leave the composer visibly disabled.
 
 ## Target System Shape
 

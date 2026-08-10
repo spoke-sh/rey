@@ -69,8 +69,10 @@ mounted browser scans on explicit partial-order clocks. `/agents` indexes exact
 generator provenance and deep-links to matrix-style Explorer coordinates. The
 UI starts from the CLI, passively revalidates the same workload-list
 derivation, defaults to loopback, and is neither a mutation plane nor a public
-Rey service. Its fixed footer is a live typed-attention mailbox; an empty
-mailbox means no operator attention is requested. Workspace packages retain coding-harness provenance and
+Rey service. Its fixed footer is a two-axis communication plane: the mailbox
+shows the current typed-attention history projection, while chevrons open an
+operator/Rey/agent chat shell whose composer remains disabled until a
+conversation transport is admitted. Workspace packages retain coding-harness provenance and
 freeze generated scenarios at admission. The first mining workload now executes exact local
 literal search, typed match comparison, ordered line comparison, bounded
 frontier selection, and reasoning-surface projection through those commands.

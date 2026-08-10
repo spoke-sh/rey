@@ -640,8 +640,12 @@ mod tests {
         assert!(application.contains("DESIRED INVENTORY"));
         assert!(application.contains("SEARCH RECORD"));
         assert!(application.contains("PROCESS SEEDS"));
-        assert!(application.contains("LIVE / OPERATOR CHANNEL"));
-        assert!(application.contains("No operator attention is requested"));
+        assert!(application.contains("HISTORY / RUNTIME ATTENTION"));
+        assert!(application.contains("Mailbox history"));
+        assert!(application.contains("REY / AGENT / OPERATOR"));
+        assert!(application.contains("data-communication-backdrop"));
+        assert!(application.contains("No Rey or agent session is connected"));
+        assert!(application.contains("NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY"));
         assert!(application.contains("MAILBOX"));
         assert!(application.contains("LOCATE IN EXPLORER"));
         assert!(application.contains("explore/$kind/$coordinate"));

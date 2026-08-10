@@ -82,6 +82,15 @@ records shareable without becoming runtime authority.
 - [x] Make the global footer a fixed live communications channel with a typed
   attention mailbox, subtle count, quiet state, revalidation failures, sliding
   bottom sheet, and exact implementation revision.
+- [x] Separate the footer communication controls: mailbox selects history,
+  chevrons select operator/Rey/agent conversation, and Escape closes either.
+- [x] Dismiss either communication axis by clicking the background while
+  preserving interaction inside the bottom sheet.
+- [x] Render the conversation axis with a traditional transcript and composer
+  while explicitly disabling sends when no transport is admitted.
+- [ ] Define and implement the agent-visible conversation CLI/API contract,
+  participant and session identities, message admission, bounded retention,
+  and exact read/write authority.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 
@@ -165,8 +174,15 @@ Git cadence revision through one `GitCommitLink` boundary. Component proof
 requires the visible compact SHA itself to carry the complete GitHub commit
 URL, and cadence rendering proves the same contract end to end. An unbound
 repository renders an explicit boundary without exposing an inert SHA. `just
-check`, `just test`, and `just build` pass with 26/26 UI tests, 142/142 Rust
+check`, `just test`, and `just build` pass with 29/29 UI tests, 142/142 Rust
 tests, and every documentation test.
+
+The communication-plane refinement gives mailbox history and conversation
+separate tested axes. Selecting the active axis closes the plane and selecting
+the other switches it. Escape and the background close either axis while the
+sheet remains interactive. The chat axis uses a conventional transcript/composer
+grammar but proves the present authority boundary with no session, no
+transport, no retention, and a disabled send action.
 
 ## Next Concrete Anchor
 
@@ -176,15 +192,16 @@ delta, the high-fidelity `rey env status` document, and the exact read-only
 uses aggregate environment coverage and should eventually consume these exact
 nodes and relationships.
 
-The nearer operator-UI anchor is to project retained scenario results and
-authoritative `EXPECTED → OBSERVED` deltas from
-`rey workloads test -v/-vv` into exact workload/scenario routes without
-inventing a UI-only evidence model.
+The nearer operator-UI anchor is to define the communication contract before
+making chat writable: exact operator/Rey/agent identities, session and message
+ordering, admission, bounded retention, cancellation, authority, and an
+agent-visible CLI surface. Scenario/delta routes remain the next evidence
+projection after that boundary.
 
 ## Deferred
 
-Mutation controls, campaign execution from the browser, WebSockets, URL-
-addressable canvas focus, high-cardinality search, multi-user identity,
-authentication, TLS, remote deployment,
+Workload and campaign mutation controls, WebSockets as an assumed conversation
+transport, URL-addressable canvas focus, high-cardinality search, multi-user
+identity, authentication, TLS, remote deployment,
 Spoke-backed streams, and a general Rey service topology are not part of this
 slice.

@@ -48,9 +48,19 @@ an explicit agent map extends that inventory and retains its own source.
 
 The operator UI is live. Its fixed footer is a communications channel backed
 by typed attention and passive-revalidation state. The left mailbox shows a
-subtle count, the center chevrons reveal a bottom sheet, and the source
-revision remains on the right. An empty mailbox explicitly means no operator
-attention is requested. The UI never fabricates traffic to appear active.
+subtle count and selects the history axis of the bottom communication plane.
+The center chevrons select a separate conversation axis shaped as a traditional
+operator ↔ Rey ↔ agent transcript and composer. Selecting an already-active
+axis closes the plane, selecting the other switches axes, and Escape closes
+either. Clicking the background also closes the active plane without making the
+sheet itself a dismissal target. The source revision remains on the right.
+
+The current history axis is only the latest mounted attention/revalidation
+projection and says so; it does not claim durable mailbox retention. The
+current conversation axis has no admitted agent session, transport, participant
+identity, message admission, or retention contract. It renders those omissions
+and disables its composer. The browser never fabricates messages, retains an
+independent transcript, or creates a mutation path around the read-only server.
 
 Structured environment contracts advance to `rey.environment-status.v5`,
 `rey.environment-operator-projection.v3`, and `rey.environment-diff.v4` because
@@ -67,3 +77,6 @@ the operator projection.
   desired-inventory/search boundary without requiring code inspection.
 - Survey needs a canonical locator library and CLI generation/validation
   surface before broad background processing or generic scheduling expands.
+- A communication transport remains enabling work until an agent-visible CLI
+  contract, participant/session identity, message admission, retention, and
+  bounded read/write authority are implemented and proven.

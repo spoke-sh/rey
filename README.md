@@ -241,6 +241,13 @@ documents passively revalidate every five seconds in mounted application state.
 Revalidation never navigates, remounts the active route, or changes the
 operator's scroll position.
 
+The fixed footer addresses one communication plane along two axes. `MAILBOX`
+opens runtime and attention history; it is currently bounded to the latest
+mounted projection because Rey has no durable mailbox store. The center
+chevrons open a traditional operator ↔ Rey ↔ agent transcript and composer.
+No conversation transport or admitted agent session exists yet, so that axis
+states the boundary and disables sending instead of fabricating a chat.
+
 The server embeds a TanStack Router application expressed with
 [Hifi](https://github.com/rupurt/hifi)'s Kinetic grammar and Precision theme.
 All authored application styles are StyleX modules compiled by the official
@@ -565,13 +572,14 @@ surface. `/explore` is now the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
 matrix-style deep links, provenance-derived agent neighborhoods, and a
 partially ordered cadence view. Its next concrete anchor is to replace
-aggregate context counts with exact locator-bound survey objects before adding
-scenario and directed-delta routes with the same progressive evidence layers
-as `workloads test -v/-vv`.
+the explicitly unavailable conversation boundary with exact participant,
+session, message, admission, retention, and authority contracts exposed to
+agents through the CLI. Exact locator-bound Explorer objects and scenario
+delta routes remain subsequent evidence projections.
 
 [Plan 0014](plans/0014-seed-discovery-and-locator-survey.md) carries the new
 context lifecycle. Process-owned seed discovery, explicit reasoning-map input,
-and the live mailbox are implemented. Its next concrete anchor is a
+and the live two-axis communication plane are implemented. Its next concrete anchor is a
 dependency-light `rey-locator` crate plus high-fidelity agent CLI commands to
 generate and validate mapping resources and display exact locator anchors.
 
