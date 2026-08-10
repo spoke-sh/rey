@@ -28,7 +28,6 @@ import {
   operatorMailboxRows,
   scenarioPercent,
   shortDigest,
-  sourceCommitUrl,
   workloadJourney,
   type WorkloadDraft,
   type WorkloadSummary,
@@ -40,6 +39,7 @@ import {
   type EnvironmentObjectStatus,
 } from "./environment";
 import { ExplorePage } from "./explore";
+import { GitCommitLink } from "./git-commit-link";
 import {
   parseExplorerCoordinate,
   resolveExplorerCoordinate,
@@ -1166,18 +1166,14 @@ function ImplementationLink({
   repository: string;
   revision: string;
 }) {
-  const href = sourceCommitUrl(repository, revision);
-  if (!href) return <span>SOURCE REVISION UNKNOWN</span>;
   return (
-    <a
+    <GitCommitLink
       className={sx(styles.focusable, styles.footerLink)}
-      href={href}
-      rel="noreferrer"
-      target="_blank"
+      fallback="SOURCE REVISION UNKNOWN"
+      repository={repository}
+      revision={revision}
       title={`Open Rey commit ${revision}`}
-    >
-      {shortDigest(revision)}
-    </a>
+    />
   );
 }
 

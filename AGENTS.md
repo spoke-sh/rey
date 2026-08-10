@@ -115,6 +115,12 @@ exists.
   projection of the same typed evidence exposed by the CLI. It must identify
   its exposure, authority, source revisions, omissions, and limits; a polished
   UI cannot introduce an independent assessment or mutation path.
+- Whenever the browser UI displays a value contractually identified as a Git
+  commit SHA, make that displayed SHA itself an exact link to the commit on
+  the bound GitHub repository. Never render a known Git SHA as inert text,
+  guess a repository binding, or treat semantic digests and non-Git revisions
+  as commits; when the repository is unbound, show that boundary instead of
+  the SHA.
 - Preserve semantic identity across visual lens changes. Zoom may replace a
   landscape aggregate with neighborhoods and then exact objects, but it cannot
   change source truth, silently widen scope, hide projection omissions, or

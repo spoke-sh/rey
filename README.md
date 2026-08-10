@@ -227,7 +227,11 @@ bindings remain visible instead of drifting silently. `/agents` indexes exact
 generator provenance and links each identified agent into that coordinate
 plane. `/cadence` presents Git reachability, Rey environment admissions, and
 mounted passive scans as separate partially ordered tick lanes rather than a
-fictional global event log. `/environment` projects the same bounded
+fictional global event log. Every displayed Git commit SHA is itself an exact
+GitHub commit link when the source repository is bound; Rey exposes an unbound
+repository boundary instead of rendering an inert or guessed SHA. Semantic
+digests and non-Git revisions are never linked as commits. `/environment`
+projects the same bounded
 `HEAD → INDEX → WORKING` environment document as the CLI through exactly three
 stacked evidence sections: `01 / DIRECTED TEXT` for variables,
 `02 / BOUNDED SEARCH` for applications, and `03` `REFERENCE PLANE` for inputs

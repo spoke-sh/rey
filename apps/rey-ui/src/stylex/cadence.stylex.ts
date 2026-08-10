@@ -110,6 +110,13 @@ export const cadenceStyles = stylex.create({
     marginTop: 18,
     paddingTop: 13,
   },
+  commitLink: {
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    color: "inherit",
+    textDecoration: "none",
+  },
   laneOmissions: {
     backgroundColor: "color-mix(in srgb, #b57417 9%, transparent)",
     color: "#704609",

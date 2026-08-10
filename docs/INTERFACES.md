@@ -854,7 +854,11 @@ revalidation failures; an empty sheet states that no operator attention is
 requested. It never invents heartbeat messages. Center chevrons reveal or
 hide the sheet. The footer shortens the implementation revision only for
 presentation, and its GitHub link uses the complete 40- or 64-hex Git object
-id; BLAKE3 attention and snapshot identities are not linked as commits.
+id. The same invariant applies everywhere in the browser: a contractually Git
+commit SHA is the exact GitHub commit link, never inert text. When no exact
+repository binding exists, the UI exposes that boundary instead of displaying
+or mislinking the SHA. BLAKE3 identities and non-Git revisions are not linked
+as commits.
 
 The Refresh control does not exist. Mounted application state passively reloads
 the read-only portfolio and environment delta every five seconds without

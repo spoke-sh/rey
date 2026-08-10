@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { shortDigest, sourceCommitUrl } from "./domain";
+import { shortDigest } from "./domain";
+import { GitCommitLink } from "./git-commit-link";
 import { cadenceStyles as styles } from "./stylex/cadence.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -191,12 +192,12 @@ function CadenceLaneView({
                 <h3>{tick.title}</h3>
                 <p>{tick.detail}</p>
                 <div className={sx(styles.tickBinding)}>
-                  <code>{shortDigest(tick.revision)}</code>
+                  <TickRevision repository={repository} tick={tick} />
                   <span>
                     {tick.parent_revisions.length} PARENT
                     {tick.parent_revisions.length === 1 ? "" : "S"}
                   </span>
-                  <TickLink repository={repository} tick={tick} />
+                  <TickLink tick={tick} />
                 </div>
               </div>
             </li>
@@ -214,22 +215,31 @@ function CadenceLaneView({
   );
 }
 
-function TickLink({
+function TickLink({ tick }: { tick: CadenceTick }) {
+  if (tick.kind === "git_commit") return null;
+  return <Link to="/environment">OPEN ENVIRONMENT →</Link>;
+}
+
+function TickRevision({
   repository,
   tick,
 }: {
   repository: string | null;
   tick: CadenceTick;
 }) {
-  if (tick.kind === "git_commit") {
-    const href = repository ? sourceCommitUrl(repository, tick.revision) : null;
-    return href ? (
-      <a href={href} rel="noreferrer" target="_blank">
-        OPEN COMMIT ↗
-      </a>
-    ) : null;
+  if (tick.kind !== "git_commit") {
+    return <code>{shortDigest(tick.revision)}</code>;
   }
-  return <Link to="/environment">OPEN ENVIRONMENT →</Link>;
+  return (
+    <GitCommitLink
+      className={sx(chrome.focusable, styles.commitLink)}
+      fallback="GIT COMMIT / REPOSITORY UNBOUND"
+      repository={repository}
+      revision={tick.revision}
+    >
+      <code>{shortDigest(tick.revision)}</code>
+    </GitCommitLink>
+  );
 }
 
 function CadenceHeading({

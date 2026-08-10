@@ -88,9 +88,11 @@ is a partial-order projection made of explicit lanes:
 
 The Git lane is reachable-history evidence, not an append log, ref-movement
 classifier, poll cursor, or activation stream. A shallow or truncated history
-is incomplete. A commit links to Rey's canonical GitHub repository only when
-the selected workspace HEAD equals the running Rey implementation revision;
-an arbitrary workspace is never mislabeled as Rey source. The schedules are
+is incomplete. Every displayed Git commit SHA is itself a link to the exact
+commit on Rey's canonical GitHub repository, but only when the selected
+workspace HEAD equals the running Rey implementation revision. Without that
+binding, cadence shows the repository boundary instead of an inert SHA; an
+arbitrary workspace is never mislabeled as Rey source. The schedules are
 mounted browser projection behavior, not the
 generic runtime scheduler. Cadence never interleaves Git and environment ticks
 unless later retained evidence supplies an explicit cross-clock edge.
@@ -106,5 +108,7 @@ unless later retained evidence supplies an explicit cross-clock edge.
 - Cadence is useful now but honestly partial: it cannot claim every Git
   transition, globally order an environment admission, or present passive UI
   reads as admitted runtime work.
+- Git SHA presentation is actionable by construction without confusing
+  semantic digests or unbound repositories for GitHub commits.
 - Complete Git ref polling, activation replay, runtime scheduling, and durable
   event streams remain owned by their existing plans and contracts.

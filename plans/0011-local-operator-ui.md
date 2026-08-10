@@ -64,6 +64,9 @@ records shareable without becoming runtime authority.
 - [x] Bind the footer to the exact Rey implementation revision and link the
   complete Git object id without confusing semantic BLAKE3 identities for
   source commits.
+- [x] Enforce one browser invariant for every known Git SHA: the displayed SHA
+  itself links to the exact GitHub commit, while unbound repositories and
+  non-Git identities remain explicit.
 - [x] Cover root redirect, both top-level routes, lens ordering, bounds,
   identity preservation, and folded-evidence disclosure.
 - [x] Add `/cadence` with bounded reachable Git commits, verified Rey
@@ -156,6 +159,14 @@ tests, the production build, Rustfmt, Clippy with warnings denied, and flake
 evaluation. `just test` passed 138/138 Rust tests, 19/19 UI tests, and every
 documentation test. `just build` and the clean Nix package build passed; the
 package resolved to `/nix/store/m9dvhkwfkh2ykdvsad357gxdn29prscf-rey`.
+
+The Git-SHA presentation invariant on 2026-08-10 routes the footer and every
+Git cadence revision through one `GitCommitLink` boundary. Component proof
+requires the visible compact SHA itself to carry the complete GitHub commit
+URL, and cadence rendering proves the same contract end to end. An unbound
+repository renders an explicit boundary without exposing an inert SHA. `just
+check`, `just test`, and `just build` pass with 26/26 UI tests, 142/142 Rust
+tests, and every documentation test.
 
 ## Next Concrete Anchor
 
