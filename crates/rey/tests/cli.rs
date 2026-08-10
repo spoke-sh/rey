@@ -1309,7 +1309,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Data plane             LIVE READ-ONLY RUNTIME",
         "Human entry            /explore",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/environment · /api/v1/workloads",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/workloads",
         "Grammar revision       git:0440cfe774405070facdb1106f3e247fa980060f",
         "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
@@ -1326,6 +1326,10 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
     assert!(environment.contains("\"schema\":\"rey.environment-status.v3\""));
+    let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
+    assert!(cadence.starts_with("HTTP/1.1 200"));
+    assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
+    assert!(cadence.contains("\"ordering\":\"partial\""));
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();
     assert!(table_output.stderr.is_empty());

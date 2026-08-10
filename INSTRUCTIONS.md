@@ -61,9 +61,12 @@ workload commands, and a read-only `rey ui` operator surface. Humans land on
 the `/explore` context-topology canvas and normally remain in the UI; agents
 use the CLI as their primary runtime interface, with humans descending to it
 for exact diagnosis. The former Instrument dashboard is Environment at
-`/environment`. The UI starts from the CLI, passively revalidates the same
-workload-list derivation, defaults to loopback, and is neither a mutation plane
-nor a public Rey service. Workspace packages retain coding-harness provenance and
+`/environment`. `/cadence` keeps bounded Git reachability, Rey admissions, and
+mounted browser scans on explicit partial-order clocks. `/agents` indexes exact
+generator provenance and deep-links to matrix-style Explorer coordinates. The
+UI starts from the CLI, passively revalidates the same workload-list
+derivation, defaults to loopback, and is neither a mutation plane nor a public
+Rey service. Workspace packages retain coding-harness provenance and
 freeze generated scenarios at admission. The first mining workload now executes exact local
 literal search, typed match comparison, ordered line comparison, bounded
 frontier selection, and reasoning-surface projection through those commands.

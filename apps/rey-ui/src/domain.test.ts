@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveAgentIndex,
   derivePortfolioMetrics,
   scenarioPercent,
   shortDigest,
@@ -121,5 +122,49 @@ describe("portfolio projection", () => {
     expect(sourceCommitUrl("https://github.com/spoke-sh/rey", "unknown")).toBe(
       null,
     );
+  });
+
+  it("indexes exact generator identities without merging producer revisions", () => {
+    const first = summary("qualified");
+    first.provenance = {
+      origin: "workspace_package",
+      source: "workloads/first/workload.yaml",
+      source_digest: "package:first",
+      generation: {
+        kind: "coding_harness",
+        producer: "codex",
+        producer_revision: "gpt-5",
+      },
+      admission: { state: "accepted", scenario_oracle: "frozen" },
+    };
+    first.attention_rows = 2;
+    const second = summary("failing");
+    second.provenance = {
+      ...first.provenance,
+      source: "workloads/second/workload.yaml",
+      source_digest: "package:second",
+    };
+    const previous = summary("stale");
+    previous.provenance = {
+      ...first.provenance,
+      source: "workloads/previous/workload.yaml",
+      source_digest: "package:previous",
+      generation: {
+        kind: "coding_harness",
+        producer: "codex",
+        producer_revision: "gpt-4.9",
+      },
+    };
+
+    const agents = deriveAgentIndex(portfolio([first, second, previous]));
+
+    expect(agents).toHaveLength(2);
+    expect(agents[1]).toMatchObject({
+      id: "coding_harness:codex@gpt-5",
+      workload_ids: ["rey.failing", "rey.qualified"],
+      scenarios_passed: 3,
+      scenarios_required: 4,
+      attention_rows: 2,
+    });
   });
 });

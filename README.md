@@ -200,7 +200,13 @@ just rey ui --host 0.0.0.0 --port 5714
 redirects to `/explore`, a full-screen-capable context-topology canvas whose
 semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
-delta objects. `/environment` projects the same bounded
+delta objects. Exact locations use matrix-style coordinates such as
+`/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
+bindings remain visible instead of drifting silently. `/agents` indexes exact
+generator provenance and links each identified agent into that coordinate
+plane. `/cadence` presents Git reachability, Rey environment admissions, and
+mounted passive scans as separate partially ordered tick lanes rather than a
+fictional global event log. `/environment` projects the same bounded
 `HEAD → INDEX → WORKING` environment document as the CLI through exactly three
 stacked evidence sections: `01 / DIRECTED TEXT` for variables,
 `02 / BOUNDED SEARCH` for applications, and `03` `REFERENCE PLANE` for inputs
@@ -219,7 +225,8 @@ The server defaults to `127.0.0.1:5714`, accepts explicit `--host` and `--port`
 values, and reports its exact exposure before serving. Its API is read-only;
 binding beyond loopback is an operator-controlled, unauthenticated boundary.
 See [Context Topology Explorer](docs/EXPLORER.md) for the lens, focus,
-relationship, omission, and operator/agent interface contracts.
+coordinate, relationship, omission, cadence, and operator/agent interface
+contracts.
 
 The default catalog contains the checked-in, coding-harness-generated
 `rey.portfolio.label-normalization` package. Its exact YAML graph and frozen
@@ -512,11 +519,12 @@ attention, not the portfolio strategy itself.
 
 [Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
 surface. `/explore` is now the default context-topology map with semantic zoom,
-pan, selection-driven focus, full screen, visible bounds, and passive
-revalidation. Its next concrete anchor is to replace aggregate context counts
-with exact admitted environment-mapping objects before adding scenario and
-directed-delta routes with the same progressive evidence layers as
-`workloads test -v/-vv`.
+pan, selection-driven focus, full screen, visible bounds, passive revalidation,
+matrix-style deep links, provenance-derived agent neighborhoods, and a
+partially ordered cadence view. Its next concrete anchor is to replace
+aggregate context counts with exact admitted environment-mapping objects before
+adding scenario and directed-delta routes with the same progressive evidence
+layers as `workloads test -v/-vv`.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

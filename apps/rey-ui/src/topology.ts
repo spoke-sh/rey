@@ -1,9 +1,11 @@
 import type {
+  AgentSummary,
   AttentionRow,
   WorkloadDraft,
   WorkloadList,
   WorkloadSummary,
 } from "./domain";
+import { deriveAgentIndex } from "./domain";
 
 export type LensRegime = "landscape" | "neighborhoods" | "objects";
 export type TopologyTone =
@@ -107,6 +109,7 @@ function buildLandscape(
     0,
   );
   const attention = portfolio.attention.rows.length;
+  const agents = deriveAgentIndex(portfolio);
 
   return {
     regime: "landscape",
@@ -162,11 +165,11 @@ function buildLandscape(
         attention > 0 ? "attention" : "healthy",
       ),
       node(
-        "drafts",
-        "cluster:drafts",
-        "REQUESTS",
-        "Agentic handoffs",
-        `${portfolio.catalog.draft_count} awaiting coding harness`,
+        "agents",
+        "cluster:agents",
+        "AGENTS",
+        "Generator provenance",
+        `${agents.length} identified · ${portfolio.catalog.draft_count} unassigned`,
         315,
         555,
         265,
@@ -202,7 +205,7 @@ function buildLandscape(
         "directs",
         "selects",
       ),
-      edge("drafts-workloads", "drafts", "workloads", "contains", "admits"),
+      edge("agents-workloads", "agents", "workloads", "produces", "proposes"),
       edge("context-portfolio", "context", "portfolio", "contains", "bounds"),
     ],
     omissions: [],
@@ -213,10 +216,14 @@ function buildNeighborhoods(
   portfolio: WorkloadList,
   focusId: string,
 ): TopologyScene {
-  const candidates: Array<WorkloadSummary | WorkloadDraft> = [
+  const workloadCandidates: Array<WorkloadSummary | WorkloadDraft> = [
     ...portfolio.workloads,
     ...portfolio.drafts,
   ];
+  const agentCandidates = deriveAgentIndex(portfolio);
+  const showAgents =
+    focusId === "cluster:agents" || focusId.startsWith("agent:");
+  const candidates = showAgents ? agentCandidates : workloadCandidates;
   const visibleCandidates = candidates.slice(0, NEIGHBORHOOD_LIMIT);
   const visibleAttention = portfolio.attention.rows.slice(
     0,
@@ -225,6 +232,22 @@ function buildNeighborhoods(
   const nodes: TopologyNode[] = [];
 
   visibleCandidates.forEach((candidate, index) => {
+    if ("producer" in candidate) {
+      nodes.push(
+        node(
+          `agent:${candidate.id}`,
+          `agent:${candidate.id}`,
+          "AGENT",
+          candidate.producer,
+          `${candidate.kind.replaceAll("_", " ")} · ${candidate.producer_revision} · ${candidate.workload_ids.length} outputs`,
+          205 + (index % 2) * 255,
+          150 + Math.floor(index / 2) * 150,
+          220,
+          candidate.attention_rows > 0 ? "attention" : "healthy",
+        ),
+      );
+      return;
+    }
     const isDraft = "request" in candidate;
     const workloadId = isDraft
       ? candidate.request.workload_id
@@ -281,20 +304,22 @@ function buildNeighborhoods(
   const attentionOmissions =
     portfolio.attention.rows.length - visibleAttention.length;
   if (candidateOmissions > 0)
-    omissions.push(`${candidateOmissions} workload neighborhoods omitted`);
+    omissions.push(
+      `${candidateOmissions} ${showAgents ? "agent" : "workload"} neighborhoods omitted`,
+    );
   if (attentionOmissions > 0)
     omissions.push(`${attentionOmissions} attention neighborhoods omitted`);
 
   return {
     regime: "neighborhoods",
     label: "CONTEXT NEIGHBORHOODS",
-    detail: `${candidates.length} workload · ${portfolio.attention.rows.length} attention`,
+    detail: `${candidates.length} ${showAgents ? "agent" : "workload"} · ${portfolio.attention.rows.length} attention`,
     focus_id: focusId,
     regions: [
       {
         id: "workload-region",
-        label: "WORKLOAD NEIGHBORHOODS",
-        detail: `${candidates.length} bounded compute contexts`,
+        label: showAgents ? "AGENT NEIGHBORHOODS" : "WORKLOAD NEIGHBORHOODS",
+        detail: `${candidates.length} bounded ${showAgents ? "generator" : "compute"} contexts`,
         x: 55,
         y: 55,
         width: 520,
@@ -341,7 +366,159 @@ function buildObjects(
     );
     if (row) return attentionObjectScene(portfolio, row, focusId);
   }
+  if (focusId.startsWith("agent:")) {
+    const agentId = focusId.slice("agent:".length);
+    const agent = deriveAgentIndex(portfolio).find(
+      (candidate) => candidate.id === agentId,
+    );
+    if (agent) return agentObjectScene(portfolio, agent, focusId);
+  }
   return portfolioObjectScene(portfolio, focusId);
+}
+
+function agentObjectScene(
+  portfolio: WorkloadList,
+  agent: AgentSummary,
+  focusId: string,
+): TopologyScene {
+  const outputs = portfolio.workloads.filter((workload) =>
+    agent.workload_ids.includes(workload.workload.id),
+  );
+  const attention = outputs.reduce(
+    (total, workload) => total + workload.attention_rows,
+    0,
+  );
+  return {
+    regime: "objects",
+    label: "AGENT OBJECTS",
+    detail: `${agent.producer} / ${agent.producer_revision}`,
+    focus_id: focusId,
+    regions: [
+      {
+        id: "agent-boundary",
+        label: "GENERATOR PROVENANCE",
+        detail: agent.id,
+        x: 45,
+        y: 55,
+        width: 1110,
+        height: 610,
+        tone: attention > 0 ? "attention" : "healthy",
+      },
+    ],
+    nodes: [
+      node(
+        "agent-context-object",
+        "cluster:context",
+        "PROVENANCE",
+        agent.kind.replaceAll("_", " "),
+        "admitted workload package declarations",
+        150,
+        355,
+        215,
+        "neutral",
+      ),
+      node(
+        "agent-object",
+        focusId,
+        "AGENT",
+        agent.producer,
+        agent.id,
+        405,
+        355,
+        225,
+        "accent",
+      ),
+      node(
+        "agent-revision-object",
+        focusId,
+        "REVISION",
+        agent.producer_revision,
+        "exact producer revision declared at generation",
+        675,
+        205,
+        235,
+        "healthy",
+      ),
+      node(
+        "agent-output-object",
+        outputs[0] ? `workload:${outputs[0].workload.id}` : "cluster:workloads",
+        "ADMITTED OUTPUTS",
+        `${outputs.length} workload${outputs.length === 1 ? "" : "s"}`,
+        outputs[0]?.workload.id ?? "no retained output",
+        675,
+        505,
+        235,
+        outputs.length > 0 ? "healthy" : "blocked",
+        outputs[0]?.workload.id,
+      ),
+      node(
+        "agent-scenario-object",
+        focusId,
+        "FROZEN ORACLES",
+        `${agent.scenarios_passed}/${agent.scenarios_required} passing`,
+        "qualification remains runtime-owned",
+        960,
+        205,
+        225,
+        agent.scenarios_passed === agent.scenarios_required &&
+          agent.scenarios_required > 0
+          ? "healthy"
+          : "attention",
+      ),
+      node(
+        "agent-attention-object",
+        "cluster:attention",
+        "ATTENTION",
+        `${attention} directed row${attention === 1 ? "" : "s"}`,
+        "agent provenance cannot resolve runtime deltas",
+        960,
+        505,
+        225,
+        attention > 0 ? "attention" : "healthy",
+      ),
+    ],
+    edges: [
+      edge(
+        "agent-context-agent-object",
+        "agent-context-object",
+        "agent-object",
+        "observes",
+        "identifies",
+      ),
+      edge(
+        "agent-revision-agent-object",
+        "agent-revision-object",
+        "agent-object",
+        "contains",
+        "binds",
+      ),
+      edge(
+        "agent-agent-output-object",
+        "agent-object",
+        "agent-output-object",
+        "produces",
+        "proposes",
+      ),
+      edge(
+        "agent-output-scenario-object",
+        "agent-output-object",
+        "agent-scenario-object",
+        "produces",
+        "qualifies",
+      ),
+      edge(
+        "agent-scenario-attention-object",
+        "agent-scenario-object",
+        "agent-attention-object",
+        "produces",
+        "diff directs",
+      ),
+    ],
+    omissions:
+      outputs.length > 1
+        ? [`${outputs.length - 1} additional workload outputs folded`]
+        : [],
+  };
 }
 
 function workloadObjectScene(
@@ -843,9 +1020,13 @@ function portfolioObjectScene(
 }
 
 function resolveObjectFocus(portfolio: WorkloadList, focusId: string): string {
-  if (focusId.startsWith("workload:") || focusId.startsWith("attention:"))
+  if (
+    focusId.startsWith("workload:") ||
+    focusId.startsWith("attention:") ||
+    focusId.startsWith("agent:")
+  )
     return focusId;
-  if (focusId === "cluster:workloads" || focusId === "cluster:drafts") {
+  if (focusId === "cluster:workloads") {
     const workloadId =
       portfolio.workloads[0]?.workload.id ??
       portfolio.drafts[0]?.request.workload_id;
@@ -853,6 +1034,10 @@ function resolveObjectFocus(portfolio: WorkloadList, focusId: string): string {
   }
   if (focusId === "cluster:attention" && portfolio.attention.rows[0])
     return `attention:${portfolio.attention.rows[0].row_id}`;
+  if (focusId === "cluster:agents") {
+    const agent = deriveAgentIndex(portfolio)[0];
+    if (agent) return `agent:${agent.id}`;
+  }
   return focusId;
 }
 

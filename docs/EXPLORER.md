@@ -26,7 +26,7 @@ evidence when investigation requires it.
 
 ## Presentation Concepts
 
-The Explorer formalizes seven presentation concepts. They are React/read-model
+The Explorer formalizes eight presentation concepts. They are React/read-model
 concepts, not new runtime entities:
 
 ```text
@@ -38,6 +38,8 @@ Neighborhood     = bounded objects around one meaningful coordinate
 Focus            = selected coordinate retained while changing scale
 Omission         = evidence that the current projection folded or excluded
                    known objects because of declared limits
+Coordinate       = shareable kind + identity + revision + lens location that
+                   resolves against the same bounded source projection
 ```
 
 Relationships are always labeled. The first slice uses `contains`, `directs`,
@@ -60,11 +62,12 @@ and a native full-screen mode. A control step cannot skip a semantic regime.
 Selecting a landscape coordinate advances to neighborhoods; selecting a
 neighborhood advances to its object view.
 
-`/explore` owns exactly the browser space remaining below Rey's application
-chrome. The route is height-locked to `100dvh`, the document cannot scroll,
-and the canvas flexes into the remaining space. Wheel input therefore has one
-meaning on this route: move the semantic lens. `/environment` and `/workloads`
-remain ordinary scrollable documents.
+`/explore` and its exact coordinate routes own exactly the browser space
+remaining below Rey's application chrome. The route is height-locked to
+`100dvh`, the document cannot scroll, and the canvas flexes into the remaining
+space. Wheel input therefore has one meaning on this route: move the semantic
+lens. `/cadence`, `/agents`, `/environment`, and `/workloads` remain ordinary
+scrollable documents.
 
 ## Projection Invariants
 
@@ -86,12 +89,46 @@ remain ordinary scrollable documents.
   viewport rather than causing document scroll and making the wheel ambiguous.
 - Passive revalidation may replace the source snapshot, but it cannot silently
   mutate runtime state. The UI identifies itself as live and read-only.
+- A coordinate whose `at` revision no longer matches is stale. A coordinate
+  whose identity is absent is missing. Neither may silently drift to a current
+  object while retaining the old URI.
+
+## Explorer Coordinate URIs
+
+The canonical v1 coordinate shape is:
+
+```text
+/explore/{kind}/{identity};at={revision};lens={regime}[;role={agent-role}]
+```
+
+The hierarchy selects an object family and identity. Semicolon parameters are
+unique, unordered named dimensions inspired by the
+[Matrix URI design note](https://www.w3.org/DesignIssues/MatrixURIs.html).
+Rey's serializer emits the stable lexical order `at`, `lens`, `role`; the
+parser accepts any order and rejects duplicates, unknown dimensions, empty
+values, missing non-cluster `at` bindings, invalid regimes, and ambiguous agent
+roles. Relative matrix references are not part of the contract.
+
+Current kinds are `portfolio`, `cluster`, `workload`, `attention`, and `agent`.
+Current lens values are `landscape`, `neighborhoods`, and `objects`. Agent
+coordinates require `role=coding_harness|rule|human`. For example:
+
+```text
+/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness
+```
+
+`at` binds the revision supplied by the current source projection; it is not a
+request for unimplemented historical reconstruction. See [ADR
+0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
 
 ## Implemented Routes
 
 `GET /` redirects to `/explore`. The application routes are:
 
 - `/explore`: the context-topology canvas and default human entry;
+- `/explore/{kind}/{identity};...`: an exact matrix-style Explorer coordinate;
+- `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
+- `/agents`: provenance-derived agent registry with Explorer deep links;
 - `/environment`: three stacked Kinetic Precision evidence sections over the
   exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
   bounded search, and the reference plane;
@@ -105,6 +142,12 @@ projection; it does not invalidate the route, reset viewport or scroll state,
 test, run, create, add, commit, or schedule work. Failed background reads retain
 the last good projection and remain visible as delayed revalidation.
 
+`GET /api/v1/cadence` adds `rey.ui-cadence.v1`. It keeps newest-first Git
+reachability and environment-sequence lanes separate, reports truncation and
+shallow boundaries, and describes the existing browser scan contracts without
+claiming server-side or runtime scheduling. Environment commit v1 has no wall
+time, so those ticks explicitly render as order-only.
+
 The global footer displays the shortened Rey implementation Git revision and
 links it through the complete revision to the canonical GitHub commit. This is
 separate from the BLAKE3 portfolio-attention identity: semantic evidence
@@ -114,8 +157,10 @@ The Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
 counts, portfolio attention, and mapped-surface coverage counts. The separate
 `/environment` route now consumes `rey.environment-status.v3` and renders its
-exact variable, application, input, and reference operator projection. The
-Explorer does not yet contain those exact environment nodes, source spans,
+exact variable, application, input, and reference operator projection. Agent
+neighborhoods are derived from exact workload generation provenance;
+unassigned creation requests do not become fabricated agents. The Explorer
+does not yet contain exact environment nodes, Git commit objects, source spans,
 scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
 Explorer must not imply that unavailable objects have been rendered.
 
@@ -135,8 +180,8 @@ invent a second graph inside a visualization component.
 The next useful expansion is to connect the exact environment projection now
 available at `/environment` to the Explorer topology, followed by
 scenario/delta object routes that preserve the CLI `-v`/`-vv` evidence ladder.
-URL-addressable focus, search, and bounded
-neighborhood filters should arrive before a high-cardinality topology.
+Search and bounded neighborhood filters should arrive before a
+high-cardinality topology.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and Spoke-backed streams remain separate decisions.

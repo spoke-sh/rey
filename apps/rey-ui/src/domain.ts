@@ -113,6 +113,18 @@ export interface WorkloadList {
   };
 }
 
+export interface AgentSummary {
+  id: string;
+  kind: GeneratorProvenance["kind"];
+  producer: string;
+  producer_revision: string;
+  workload_ids: string[];
+  package_sources: string[];
+  scenarios_passed: number;
+  scenarios_required: number;
+  attention_rows: number;
+}
+
 export interface PortfolioMetrics {
   total: number;
   admitted: number;
@@ -161,6 +173,58 @@ export function derivePortfolioMetrics(
   }
 
   return metrics;
+}
+
+export function agentIdentity(
+  kind: GeneratorProvenance["kind"],
+  producer: string,
+  producerRevision: string,
+): string {
+  return `${kind}:${producer}@${producerRevision}`;
+}
+
+export function deriveAgentIndex(portfolio: WorkloadList): AgentSummary[] {
+  const agents = new Map<string, AgentSummary>();
+  for (const workload of portfolio.workloads) {
+    const generation = workload.provenance?.generation;
+    if (!generation) continue;
+    const id = agentIdentity(
+      generation.kind,
+      generation.producer,
+      generation.producer_revision,
+    );
+    const existing = agents.get(id) ?? {
+      id,
+      kind: generation.kind,
+      producer: generation.producer,
+      producer_revision: generation.producer_revision,
+      workload_ids: [],
+      package_sources: [],
+      scenarios_passed: 0,
+      scenarios_required: 0,
+      attention_rows: 0,
+    };
+    existing.workload_ids.push(workload.workload.id);
+    if (workload.provenance?.source) {
+      existing.package_sources.push(workload.provenance.source);
+    }
+    existing.scenarios_passed += workload.passed;
+    existing.scenarios_required += workload.required;
+    existing.attention_rows += workload.attention_rows;
+    agents.set(id, existing);
+  }
+  return [...agents.values()]
+    .map((agent) => ({
+      ...agent,
+      package_sources: [...new Set(agent.package_sources)].sort(),
+      workload_ids: [...new Set(agent.workload_ids)].sort(),
+    }))
+    .sort(
+      (left, right) =>
+        left.producer.localeCompare(right.producer) ||
+        left.producer_revision.localeCompare(right.producer_revision) ||
+        left.kind.localeCompare(right.kind),
+    );
 }
 
 export function workloadJourney(workload: WorkloadSummary): string {

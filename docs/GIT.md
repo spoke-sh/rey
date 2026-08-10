@@ -5,9 +5,12 @@ Git is both a source of exact code identities and a pollable change substrate
 for software-development workloads. The first Plan 0001 slice implements a
 read-only contained repository observation through bounded direct Git argv. It
 records repository/worktree identity, object format, bare/shallow state, HEAD,
-and a partial logical index-entry digest. Ref frames, graph traversal,
-worktree status, polling, triggers, activations, and complete index flag
-semantics remain Plan 0001 work.
+and a partial logical index-entry digest. The operator cadence slice also reads
+the newest 24 commits currently reachable from `HEAD`, preserving exact OIDs,
+ordered parents, committer time, subject, object format, shallow state,
+truncation, and a semantic sequence identity. Ref frames, movement
+classification, general graph traversal, worktree status, polling, triggers,
+activations, and complete index flag semantics remain Plan 0001 work.
 
 ## Purpose
 
@@ -35,6 +38,11 @@ sideways, commits can be replaced by rebases, the index is mutable, and a
 worktree may be shared with other processes. Rey therefore polls snapshots and
 derives explicit directed deltas rather than treating `git log` output as an
 append-only queue.
+
+The implemented `/cadence` Git lane is correspondingly labeled reachable HEAD
+history, not a commit event stream. It is newest-first, bounded, and incomplete
+when shallow or truncated. It neither advances a cursor nor infers that the
+visible commits were appended since a prior observation.
 
 ## Git Surfaces
 

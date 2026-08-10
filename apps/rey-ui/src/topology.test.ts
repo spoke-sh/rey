@@ -140,4 +140,45 @@ describe("context topology lens", () => {
     );
     expect(scene.omissions).toEqual(["1 evidence references folded"]);
   });
+
+  it("projects admitted generator provenance as an exact agent neighborhood", () => {
+    const generated: WorkloadList = {
+      ...portfolio,
+      workloads: [
+        {
+          ...portfolio.workloads[0]!,
+          provenance: {
+            origin: "workspace_package",
+            source: "workloads/example/workload.yaml",
+            source_digest: "package:1",
+            generation: {
+              kind: "coding_harness",
+              producer: "codex",
+              producer_revision: "gpt-5",
+            },
+            admission: { state: "accepted", scenario_oracle: "frozen" },
+          },
+        },
+      ],
+    };
+
+    const neighborhoods = buildTopologyScene(
+      generated,
+      NEIGHBORHOOD_LENS_ZOOM,
+      "cluster:agents",
+    );
+    const objects = buildTopologyScene(
+      generated,
+      OBJECT_LENS_ZOOM,
+      "agent:coding_harness:codex@gpt-5",
+    );
+
+    expect(neighborhoods.nodes).toContainEqual(
+      expect.objectContaining({ family: "AGENT", label: "codex" }),
+    );
+    expect(objects.label).toBe("AGENT OBJECTS");
+    expect(objects.nodes).toContainEqual(
+      expect.objectContaining({ family: "REVISION", label: "gpt-5" }),
+    );
+  });
 });

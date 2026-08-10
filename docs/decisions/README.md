@@ -34,6 +34,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0027](0027-environment-operator-delta.md) | Accepted | Shared CLI/UI environment delta, bounded value capture, env-shaped variable diff, and found/not-found application evidence |
 | [0028](0028-environment-three-plane-diff.md) | Accepted | Three-plane human env diff for unstaged and staged directions with unchanged authoritative JSON |
 | [0029](0029-environment-history-projection.md) | Accepted | Compact environment chronology and three-plane patch expansion over retained transitions |
+| [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted | Partial-order cadence, provenance-derived agent registry, and matrix-style exact Explorer coordinates |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

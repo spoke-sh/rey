@@ -12,6 +12,11 @@ import {
   type WheelEvent,
 } from "react";
 import type { WorkloadList } from "./domain";
+import {
+  explorerCoordinatePath,
+  zoomForExplorerLens,
+  type ExplorerCoordinateResolution,
+} from "./explorer-coordinate";
 import { exploreStyles as styles } from "./stylex/explore.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 import {
@@ -33,6 +38,7 @@ import {
 
 interface ContextCanvasProps {
   portfolio: WorkloadList;
+  coordinate?: ExplorerCoordinateResolution;
 }
 
 interface Point {
@@ -42,7 +48,7 @@ interface Point {
 
 const zeroPoint: Point = { x: 0, y: 0 };
 
-export function ExplorePage({ portfolio }: ContextCanvasProps) {
+export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
   return (
     <main className={sx(styles.explorePage)}>
       <header className={sx(styles.exploreHeading)}>
@@ -58,22 +64,39 @@ export function ExplorePage({ portfolio }: ContextCanvasProps) {
           does not change the underlying evidence.
         </p>
       </header>
-      <ContextCanvas portfolio={portfolio} />
+      {coordinate && coordinate.status !== "current" ? (
+        <div className={sx(styles.coordinateBoundary)} role="status">
+          <strong>{coordinate.status.toUpperCase()} COORDINATE</strong>
+          <code>{explorerCoordinatePath(coordinate.coordinate)}</code>
+          <span>
+            {coordinate.actual_at
+              ? `CURRENT BINDING / ${coordinate.actual_at}`
+              : "NO CURRENT OBJECT SATISFIES THIS IDENTITY"}
+          </span>
+        </div>
+      ) : null}
+      <ContextCanvas coordinate={coordinate} portfolio={portfolio} />
     </main>
   );
 }
 
-export function ContextCanvas({ portfolio }: ContextCanvasProps) {
+export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<
     | { pointerId: number; origin: Point; pan: Point; distance: number }
     | undefined
   >(undefined);
-  const [zoom, setZoom] = useState(DEFAULT_LENS_ZOOM);
+  const [zoom, setZoom] = useState(
+    coordinate
+      ? zoomForExplorerLens(coordinate.coordinate.lens)
+      : DEFAULT_LENS_ZOOM,
+  );
   const [pan, setPan] = useState<Point>(zeroPoint);
   const [fitScale, setFitScale] = useState(1);
-  const [focusId, setFocusId] = useState("cluster:portfolio");
+  const [focusId, setFocusId] = useState(
+    coordinate?.focus_id ?? "cluster:portfolio",
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const scene = useMemo(
@@ -81,6 +104,13 @@ export function ContextCanvas({ portfolio }: ContextCanvasProps) {
     [focusId, portfolio, zoom],
   );
   const renderedScale = fitScale * (zoom / DEFAULT_LENS_ZOOM);
+
+  useEffect(() => {
+    if (!coordinate) return;
+    setFocusId(coordinate.focus_id);
+    setZoom(zoomForExplorerLens(coordinate.coordinate.lens));
+    setPan(zeroPoint);
+  }, [coordinate?.coordinate.lens, coordinate?.focus_id, coordinate?.status]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -277,6 +307,11 @@ export function ContextCanvas({ portfolio }: ContextCanvasProps) {
             ? `BOUNDED / ${scene.omissions.join(" · ")}`
             : "BOUNDED / NO PROJECTION OMISSIONS"}
         </span>
+        {coordinate ? (
+          <code className={sx(styles.coordinateUri)}>
+            {explorerCoordinatePath(coordinate.coordinate)}
+          </code>
+        ) : null}
       </footer>
     </section>
   );

@@ -29,6 +29,8 @@ replaces manual refresh with passive five-second revalidation.
 ADR 0027 hard-cuts the mapping graph to `rey.env-map.v2`, adds bounded
 non-sensitive value capture, and makes `rey env status` plus `/environment`
 two projections of one typed environment delta.
+ADR 0030 adds partially ordered cadence lanes, a provenance-derived agent
+registry, and exact matrix-style Explorer coordinates.
 
 ## Interface Principles
 
@@ -84,8 +86,9 @@ reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 `ui` is a presentation command, not a peer runtime resource. It starts on
 `127.0.0.1:5714` unless configured otherwise, reports exact exposure and
 provenance, `/explore` human entry, and passive revalidation interval. It
-serves a read-only browser projection of the workload portfolio. An explicit
-non-loopback bind emits a warning because this slice has no authentication.
+serves read-only workload, environment, cadence, agent, and Explorer
+projections. An explicit non-loopback bind emits a warning because this slice
+has no authentication.
 
 The implemented slice behaves as follows:
 
@@ -786,16 +789,26 @@ operation's idempotency contract rather than one generic retry rule.
 
 `rey ui` is the implemented exception to a CLI-only topology: a bounded,
 read-only HTTP projection started explicitly by the operator. It serves the
-embedded TanStack Router application, `GET|HEAD /api/v1/health`, and
-`GET|HEAD /api/v1/workloads` plus `GET|HEAD /api/v1/environment`; all other
-methods are rejected. Deep browser
+embedded TanStack Router application, `GET|HEAD /api/v1/health`,
+`GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`, and
+`GET|HEAD /api/v1/cadence`; all other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
-`/explore`. The application routes are `/explore`, `/environment`,
-`/workloads`, and `/workloads/$workloadId`. The workload endpoint is
+`/explore`. The application routes are `/explore`, exact matrix-style Explorer
+coordinates, `/cadence`, `/agents`, `/environment`, `/workloads`, and
+`/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
+
+The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
+reachable history and Rey environment sequence as separate clocks, with exact
+limits, parents, revisions, completeness, and omissions. It also describes the
+existing mounted-browser revalidation schedules. That schedule description is
+not runtime scheduler state, and the endpoint does not poll refs, activate a
+workload, or retain browser reads. `/agents` requires no independent endpoint:
+it derives exact generator tuples and unassigned handoffs from the same
+workload-list document as `/workloads`.
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, read-only authority, workspace, catalog root, application,
@@ -817,8 +830,13 @@ the last good document and reports delayed revalidation; it does not reset the
 viewport. `ContextCanvas` projects the portfolio document through landscape,
 neighborhood, and object regimes with bounded
 omission disclosures; full screen, pan, focus, and zoom do not widen the data
-or action authority. See [Context Topology Explorer](EXPLORER.md) and [ADR
-0026](decisions/0026-context-topology-explorer.md).
+or action authority. Exact coordinates have the shape
+`/explore/{kind}/{identity};at={revision};lens={regime}` with a required
+`role` dimension for agents. Matrix dimensions are unordered and unique;
+canonical links sort them, and stale bindings remain visible. See [Context
+Topology Explorer](EXPLORER.md), [ADR
+0026](decisions/0026-context-topology-explorer.md), and [ADR
+0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded

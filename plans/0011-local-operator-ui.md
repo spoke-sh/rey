@@ -2,7 +2,8 @@
 
 - Status: Active
 - Decisions: [ADR 0025](../docs/decisions/0025-local-operator-ui.md),
-  [ADR 0026](../docs/decisions/0026-context-topology-explorer.md)
+  [ADR 0026](../docs/decisions/0026-context-topology-explorer.md),
+  [ADR 0030](../docs/decisions/0030-operator-cadence-agents-and-explorer-coordinates.md)
 
 ## Outcome
 
@@ -21,6 +22,9 @@ The application is an embedded TanStack Router application using Hifi's
 Kinetic grammar with the Precision theme. `/explore` is the default context-
 topology canvas. It reads the same bounded workload portfolio projection as
 `rey workloads list`; it does not mutate state or create a second scheduler.
+`/cadence` keeps observable clocks partially ordered, `/agents` indexes exact
+generator provenance, and matrix-style Explorer coordinates make those
+records shareable without becoming runtime authority.
 
 ## Completion Checklist
 
@@ -61,6 +65,14 @@ topology canvas. It reads the same bounded workload portfolio projection as
   source commits.
 - [x] Cover root redirect, both top-level routes, lens ordering, bounds,
   identity preservation, and folded-evidence disclosure.
+- [x] Add `/cadence` with bounded reachable Git commits, verified Rey
+  environment admissions, explicit scan contracts, partial ordering, and
+  visible omissions.
+- [x] Add `/agents` as a traditional provenance-derived registry with
+  unassigned handoffs and exact agent neighborhoods in Explorer.
+- [x] Formalize canonical matrix-style Explorer coordinates with unique
+  unordered dimensions, exact `at` bindings, agent roles, route tests, and
+  visible stale/missing resolution.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 
@@ -126,6 +138,18 @@ TypeScript validation, formatting, and the production asset build pass; failed
 or overlapping refreshes cannot replace the last good mounted document. The
 complete 136-test Rust suite and documentation tests also pass, and the updated
 package resolves to `/nix/store/fjaxdy5w9k8ycicr03l310rdm1ajk51q-rey`.
+
+The cadence/agent/coordinate extension on 2026-08-09 adds a bounded
+`rey.git-commit-sequence.v1`, the read-only `rey.ui-cadence.v1` endpoint,
+partial-order tick lanes, an exact generator registry, agent object scenes,
+and canonical matrix-style coordinate parsing/resolution. Focused proof now
+covers Git bounds and parents, agent aggregation, URI ordering and rejection,
+stale bindings, topology projection, route matching, embedded routes, and API
+method safety. `just check` passed frontend formatting/typecheck, 19/19 UI
+tests, the production build, Rustfmt, Clippy with warnings denied, and flake
+evaluation. `just test` passed 138/138 Rust tests, 19/19 UI tests, and every
+documentation test. `just build` and the clean Nix package build passed; the
+package resolved to `/nix/store/m9dvhkwfkh2ykdvsad357gxdn29prscf-rey`.
 
 ## Next Concrete Anchor
 

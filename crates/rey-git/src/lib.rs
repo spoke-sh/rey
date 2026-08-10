@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const GIT_SNAPSHOT_SCHEMA: &str = "rey.git-repository.v1";
+pub const GIT_COMMIT_SEQUENCE_SCHEMA: &str = "rey.git-commit-sequence.v1";
+pub const MAX_GIT_COMMIT_SEQUENCE: usize = 256;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitLimits {
@@ -93,6 +95,27 @@ pub struct GitHead {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GitCommitRecord {
+    pub commit_oid: String,
+    pub parent_oids: Vec<String>,
+    pub committed_at_unix: i64,
+    pub subject: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GitCommitSequence {
+    pub schema: String,
+    pub sequence_id: SemanticDigest,
+    pub object_format: String,
+    pub head_oid: Option<String>,
+    pub commits: Vec<GitCommitRecord>,
+    pub complete: bool,
+    pub shallow: bool,
+    pub max_commits: u64,
+    pub omissions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitIndexSummary {
     pub entry_digest: SemanticDigest,
     pub entry_count: u64,
@@ -150,6 +173,7 @@ impl GitSnapshot {
             operations: vec![
                 "inspect_head".to_owned(),
                 "inspect_index_entries".to_owned(),
+                "inspect_recent_commits".to_owned(),
                 "inspect_repository".to_owned(),
             ],
             enforced_limits: vec![
@@ -302,6 +326,157 @@ impl GitInspector {
             index,
             complete,
             limits: self.limits.clone(),
+        }))
+    }
+
+    pub fn inspect_recent_commits(
+        &self,
+        max_commits: usize,
+    ) -> Result<Option<GitCommitSequence>, GitError> {
+        if max_commits == 0 || max_commits > MAX_GIT_COMMIT_SEQUENCE {
+            return Err(GitError::HistoryLimit {
+                actual: max_commits,
+                limit: MAX_GIT_COMMIT_SEQUENCE,
+            });
+        }
+        let deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        let git_directory_output =
+            self.git(&workspace, &["rev-parse", "--absolute-git-dir"], deadline)?;
+        if !git_directory_output.status.success() {
+            return Ok(None);
+        }
+        let git_directory = canonical_output_path(&git_directory_output.stdout)?;
+        ensure_beneath(&git_directory, &workspace)?;
+        let object_format =
+            self.git_line(&workspace, &["rev-parse", "--show-object-format"], deadline)?;
+        let shallow = self.git_bool(
+            &workspace,
+            &["rev-parse", "--is-shallow-repository"],
+            deadline,
+        )?;
+        let head = self.git(
+            &workspace,
+            &["rev-parse", "--verify", "HEAD^{commit}"],
+            deadline,
+        )?;
+        if !head.status.success() {
+            let complete = !shallow;
+            let mut hasher = SemanticHasher::new(GIT_COMMIT_SEQUENCE_SCHEMA);
+            hasher.add_str(&object_format);
+            hasher.add_bool(shallow);
+            hasher.add_bool(complete);
+            hasher.add_u64(max_commits as u64);
+            return Ok(Some(GitCommitSequence {
+                schema: GIT_COMMIT_SEQUENCE_SCHEMA.to_owned(),
+                sequence_id: hasher.finish(),
+                object_format,
+                head_oid: None,
+                commits: Vec::new(),
+                complete,
+                shallow,
+                max_commits: max_commits as u64,
+                omissions: if shallow {
+                    vec!["repository history is shallow".to_owned()]
+                } else {
+                    Vec::new()
+                },
+            }));
+        }
+        let bounded_count = max_commits.saturating_add(1);
+        let max_count = format!("--max-count={bounded_count}");
+        let output = self
+            .git(
+                &workspace,
+                &[
+                    "log",
+                    "-z",
+                    max_count.as_str(),
+                    "--format=%H%x00%P%x00%ct%x00%s",
+                ],
+                deadline,
+            )?
+            .success("read bounded Git commit sequence")?;
+        let mut fields = output.split(|byte| *byte == 0).collect::<Vec<_>>();
+        if fields.last().is_some_and(|field| field.is_empty()) {
+            fields.pop();
+        }
+        if fields.len() % 4 != 0 {
+            return Err(GitError::MalformedHistory(
+                "commit sequence does not contain four fields per record",
+            ));
+        }
+        let mut commits = Vec::with_capacity(fields.len() / 4);
+        for record in fields.chunks_exact(4) {
+            let commit_oid = parse_utf8_history_field(record[0])?;
+            if !valid_oid(commit_oid, &object_format) {
+                return Err(GitError::MalformedHistory("commit oid is invalid"));
+            }
+            let parents = parse_utf8_history_field(record[1])?;
+            let parent_oids = if parents.is_empty() {
+                Vec::new()
+            } else {
+                parents
+                    .split(' ')
+                    .map(|parent| {
+                        if valid_oid(parent, &object_format) {
+                            Ok(parent.to_owned())
+                        } else {
+                            Err(GitError::MalformedHistory("parent oid is invalid"))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            let committed_at_unix = parse_utf8_history_field(record[2])?
+                .parse::<i64>()
+                .map_err(|_| GitError::MalformedHistory("commit time is invalid"))?;
+            let subject = parse_utf8_history_field(record[3])?.to_owned();
+            commits.push(GitCommitRecord {
+                commit_oid: commit_oid.to_owned(),
+                parent_oids,
+                committed_at_unix,
+                subject,
+            });
+        }
+        let truncated = commits.len() > max_commits;
+        commits.truncate(max_commits);
+        let complete = !truncated && !shallow;
+        let mut omissions = Vec::new();
+        if truncated {
+            omissions.push(format!(
+                "reachable history beyond the newest {max_commits} commits was not inspected"
+            ));
+        }
+        if shallow {
+            omissions.push("repository history is shallow".to_owned());
+        }
+        let mut hasher = SemanticHasher::new(GIT_COMMIT_SEQUENCE_SCHEMA);
+        hasher.add_str(&object_format);
+        hasher.add_bool(shallow);
+        hasher.add_bool(complete);
+        hasher.add_u64(max_commits as u64);
+        for commit in &commits {
+            hasher.add_str(&commit.commit_oid);
+            hasher.add_u64(commit.parent_oids.len() as u64);
+            for parent in &commit.parent_oids {
+                hasher.add_str(parent);
+            }
+            hasher.add_str(&commit.committed_at_unix.to_string());
+            hasher.add_str(&commit.subject);
+        }
+        Ok(Some(GitCommitSequence {
+            schema: GIT_COMMIT_SEQUENCE_SCHEMA.to_owned(),
+            sequence_id: hasher.finish(),
+            object_format,
+            head_oid: commits.first().map(|commit| commit.commit_oid.clone()),
+            commits,
+            complete,
+            shallow,
+            max_commits: max_commits as u64,
+            omissions,
         }))
     }
 
@@ -496,6 +671,20 @@ fn parse_line(output: &[u8]) -> Result<&str, GitError> {
     }
 }
 
+fn parse_utf8_history_field(field: &[u8]) -> Result<&str, GitError> {
+    std::str::from_utf8(field)
+        .map_err(|_| GitError::MalformedHistory("commit metadata is not UTF-8"))
+}
+
+fn valid_oid(value: &str, object_format: &str) -> bool {
+    let expected = match object_format {
+        "sha1" => 40,
+        "sha256" => 64,
+        _ => return false,
+    };
+    value.len() == expected && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
 fn canonical_output_path(output: &[u8]) -> Result<PathBuf, GitError> {
     let path = output_path(output)?;
     fs::canonicalize(&path).map_err(|source| GitError::Path { path, source })
@@ -557,6 +746,10 @@ pub enum GitError {
     MalformedIndex(&'static str),
     #[error("Git index exceeds {0} logical entries")]
     IndexEntryLimit(u64),
+    #[error("Git commit sequence limit {actual} is outside 1..={limit}")]
+    HistoryLimit { actual: usize, limit: usize },
+    #[error("malformed Git commit sequence: {0}")]
+    MalformedHistory(&'static str),
 }
 
 #[cfg(test)]
@@ -607,6 +800,59 @@ mod tests {
     fn non_repository_is_absent_not_an_error() {
         let directory = TempDir::new().unwrap();
         assert!(inspector(directory.path()).inspect().unwrap().is_none());
+        assert!(
+            inspector(directory.path())
+                .inspect_recent_commits(8)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn unborn_repository_is_a_complete_typed_empty_sequence() {
+        let directory = TempDir::new().unwrap();
+        git(directory.path(), &["init", "-q"]);
+
+        let sequence = inspector(directory.path())
+            .inspect_recent_commits(8)
+            .unwrap()
+            .unwrap();
+
+        assert!(sequence.complete);
+        assert!(sequence.commits.is_empty());
+        assert!(sequence.head_oid.is_none());
+        assert!(sequence.omissions.is_empty());
+    }
+
+    #[test]
+    fn recent_commit_sequence_is_newest_first_bounded_and_exact() {
+        let directory = repository();
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "second"]);
+
+        let inspect = inspector(directory.path());
+        let complete = inspect.inspect_recent_commits(8).unwrap().unwrap();
+        assert_eq!(complete.schema, "rey.git-commit-sequence.v1");
+        assert_eq!(complete.commits.len(), 2);
+        assert_eq!(complete.commits[0].subject, "second");
+        assert_eq!(complete.commits[1].subject, "initial");
+        assert_eq!(
+            complete.commits[0].parent_oids,
+            vec![complete.commits[1].commit_oid.clone()]
+        );
+        assert_eq!(
+            complete.head_oid,
+            Some(complete.commits[0].commit_oid.clone())
+        );
+        assert!(complete.complete);
+        assert!(complete.omissions.is_empty());
+
+        let bounded = inspect.inspect_recent_commits(1).unwrap().unwrap();
+        assert_eq!(bounded.commits.len(), 1);
+        assert!(!bounded.complete);
+        assert_eq!(bounded.omissions.len(), 1);
+        assert!(bounded.omissions[0].contains("newest 1 commits"));
     }
 
     #[test]

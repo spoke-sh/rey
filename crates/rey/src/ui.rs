@@ -1,4 +1,5 @@
 use std::{
+    env,
     io::Cursor,
     net::{IpAddr, SocketAddr},
     path::PathBuf,
@@ -9,7 +10,8 @@ use rey::{
     env::LocalEnvironmentStore,
     workloads::{LocalWorkloadStore, WorkloadCatalog},
 };
-use rey_environment::DiscoveryLimits;
+use rey_environment::{DiscoveryLimits, resolve_executable};
+use rey_git::{GitInspector, GitLimits};
 use serde::Serialize;
 use serde_json::json;
 use thiserror::Error;
@@ -18,8 +20,11 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
+const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
+const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
+const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
 const HIFI_GRAMMAR_REVISION: &str = "git:0440cfe774405070facdb1106f3e247fa980060f";
 const REY_SOURCE_REPOSITORY: &str = "https://github.com/spoke-sh/rey";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
@@ -56,6 +61,51 @@ pub struct UiServerDescriptor {
     pub live_refresh_interval_ms: u64,
     pub source_repository: String,
     pub implementation_revision: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiCadenceTick {
+    id: String,
+    kind: String,
+    state: String,
+    ordinal: String,
+    title: String,
+    detail: String,
+    revision: String,
+    parent_revisions: Vec<String>,
+    occurred_at_unix: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiCadenceLane {
+    id: String,
+    label: String,
+    clock: String,
+    ordering: String,
+    complete: bool,
+    ticks: Vec<UiCadenceTick>,
+    omissions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiCadenceSchedule {
+    id: String,
+    label: String,
+    source: String,
+    interval_ms: u64,
+    activation: String,
+    authority: String,
+    retention: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiCadenceProjection {
+    schema: String,
+    ordering: String,
+    source_repository: Option<String>,
+    lanes: Vec<UiCadenceLane>,
+    schedules: Vec<UiCadenceSchedule>,
+    omissions: Vec<String>,
 }
 
 pub struct UiServer {
@@ -145,6 +195,7 @@ impl UiServer {
         let response = match path {
             "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
+            "/api/v1/cadence" => self.cadence(),
             "/api/v1/environment" => self.environment(),
             "/api/v1/workloads" => self.workloads(),
             path if path.starts_with("/api/") => json_error(
@@ -207,6 +258,232 @@ impl UiServer {
                 &error.to_string(),
             ),
         }
+    }
+
+    fn cadence(&self) -> Response<Cursor<Vec<u8>>> {
+        match self.cadence_projection() {
+            Ok(cadence) => json_response(StatusCode(200), &cadence),
+            Err(detail) => json_error(StatusCode(500), "cadence_unavailable", &detail),
+        }
+    }
+
+    fn cadence_projection(&self) -> Result<UiCadenceProjection, String> {
+        let environment_store =
+            LocalEnvironmentStore::default_for_workspace(&self.config.workspace);
+        let history = environment_store
+            .load()
+            .map_err(|error| error.to_string())?;
+        let index = environment_store
+            .load_index(&history)
+            .map_err(|error| error.to_string())?;
+        let environment_total = history.commits.len();
+        let mut environment_ticks = Vec::new();
+        if let Some(index) = index {
+            environment_ticks.push(UiCadenceTick {
+                id: index.index_id.to_string(),
+                kind: "rey_admission".to_owned(),
+                state: "staged".to_owned(),
+                ordinal: "INDEX".to_owned(),
+                title: "Environment admission index".to_owned(),
+                detail: format!(
+                    "{} capabilities staged against {}",
+                    index.snapshot.capabilities.len(),
+                    index
+                        .base_commit_id
+                        .as_ref()
+                        .map_or("EMPTY", |revision| revision.as_str())
+                ),
+                revision: index.index_id.to_string(),
+                parent_revisions: index
+                    .base_commit_id
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+                occurred_at_unix: None,
+            });
+        }
+        environment_ticks.extend(
+            history
+                .commits
+                .iter()
+                .rev()
+                .take(CADENCE_ENVIRONMENT_COMMIT_LIMIT)
+                .map(|commit| UiCadenceTick {
+                    id: commit.commit_id.to_string(),
+                    kind: "rey_admission".to_owned(),
+                    state: "committed".to_owned(),
+                    ordinal: format!("ENV@{}", commit.sequence),
+                    title: commit.message.clone(),
+                    detail: format!(
+                        "{} capabilities · {} snapshot",
+                        commit.snapshot.capabilities.len(),
+                        if commit.snapshot.complete {
+                            "complete"
+                        } else {
+                            "incomplete"
+                        }
+                    ),
+                    revision: commit.commit_id.to_string(),
+                    parent_revisions: commit
+                        .parent_commit_id
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                    occurred_at_unix: None,
+                }),
+        );
+        let environment_complete = environment_total <= CADENCE_ENVIRONMENT_COMMIT_LIMIT;
+        let environment_omissions = if environment_complete {
+            Vec::new()
+        } else {
+            vec![format!(
+                "{} older environment admissions omitted",
+                environment_total - CADENCE_ENVIRONMENT_COMMIT_LIMIT
+            )]
+        };
+
+        let mut projection_omissions = Vec::new();
+        let mut source_repository = None;
+        let git_lane = match env::var_os("PATH")
+            .map(|path| env::split_paths(&path).collect::<Vec<_>>())
+            .and_then(|paths| resolve_executable("git", &paths))
+        {
+            Some(git_program) => {
+                let inspector = GitInspector {
+                    git_program,
+                    workspace: self.config.workspace.clone(),
+                    limits: GitLimits::default(),
+                };
+                match inspector.inspect_recent_commits(CADENCE_GIT_COMMIT_LIMIT) {
+                    Ok(Some(sequence)) => {
+                        if sequence.head_oid.as_deref() == Some(REY_IMPLEMENTATION_REVISION) {
+                            source_repository = Some(REY_SOURCE_REPOSITORY.to_owned());
+                        }
+                        UiCadenceLane {
+                            id: sequence.sequence_id.to_string(),
+                            label: "Git commits".to_owned(),
+                            clock: "reachable_head_history".to_owned(),
+                            ordering: "newest_first".to_owned(),
+                            complete: sequence.complete,
+                            ticks: sequence
+                                .commits
+                                .iter()
+                                .enumerate()
+                                .map(|(index, commit)| UiCadenceTick {
+                                    id: format!("git:{}", commit.commit_oid),
+                                    kind: "git_commit".to_owned(),
+                                    state: "observed".to_owned(),
+                                    ordinal: if index == 0 {
+                                        "HEAD".to_owned()
+                                    } else {
+                                        format!("HEAD~{index}")
+                                    },
+                                    title: commit.subject.clone(),
+                                    detail: format!(
+                                        "{} parent{} · {}",
+                                        commit.parent_oids.len(),
+                                        if commit.parent_oids.len() == 1 {
+                                            ""
+                                        } else {
+                                            "s"
+                                        },
+                                        sequence.object_format
+                                    ),
+                                    revision: commit.commit_oid.clone(),
+                                    parent_revisions: commit.parent_oids.clone(),
+                                    occurred_at_unix: Some(commit.committed_at_unix),
+                                })
+                                .collect(),
+                            omissions: sequence.omissions,
+                        }
+                    }
+                    Ok(None) => UiCadenceLane {
+                        id: "git:absent".to_owned(),
+                        label: "Git commits".to_owned(),
+                        clock: "reachable_head_history".to_owned(),
+                        ordering: "newest_first".to_owned(),
+                        complete: false,
+                        ticks: Vec::new(),
+                        omissions: vec!["workspace is not a bounded Git repository".to_owned()],
+                    },
+                    Err(error) => {
+                        projection_omissions
+                            .push(format!("Git cadence inspection failed: {error}"));
+                        UiCadenceLane {
+                            id: "git:error".to_owned(),
+                            label: "Git commits".to_owned(),
+                            clock: "reachable_head_history".to_owned(),
+                            ordering: "newest_first".to_owned(),
+                            complete: false,
+                            ticks: Vec::new(),
+                            omissions: vec![error.to_string()],
+                        }
+                    }
+                }
+            }
+            None => UiCadenceLane {
+                id: "git:unavailable".to_owned(),
+                label: "Git commits".to_owned(),
+                clock: "reachable_head_history".to_owned(),
+                ordering: "newest_first".to_owned(),
+                complete: false,
+                ticks: Vec::new(),
+                omissions: vec!["git executable was not found on the declared PATH".to_owned()],
+            },
+        };
+        let environment_lane = UiCadenceLane {
+            id: history.head().map_or_else(
+                || "environment:unborn".to_owned(),
+                |head| head.commit_id.to_string(),
+            ),
+            label: "Rey admissions".to_owned(),
+            clock: "environment_sequence".to_owned(),
+            ordering: "newest_first".to_owned(),
+            complete: environment_complete,
+            ticks: environment_ticks,
+            omissions: environment_omissions,
+        };
+        projection_omissions.push(
+            "Git and Rey admission clocks have no proven total ordering; environment v1 commits retain sequence but no wall time"
+                .to_owned(),
+        );
+
+        Ok(UiCadenceProjection {
+            schema: UI_CADENCE_SCHEMA.to_owned(),
+            ordering: "partial".to_owned(),
+            source_repository,
+            lanes: vec![git_lane, environment_lane],
+            schedules: vec![
+                UiCadenceSchedule {
+                    id: "ui.portfolio.passive-revalidation".to_owned(),
+                    label: "Portfolio scan".to_owned(),
+                    source: "/api/v1/workloads".to_owned(),
+                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
+                    activation: "application_mounted".to_owned(),
+                    authority: "mounted_browser_projection".to_owned(),
+                    retention: "last_good_document".to_owned(),
+                },
+                UiCadenceSchedule {
+                    id: "ui.environment.passive-revalidation".to_owned(),
+                    label: "Environment scan".to_owned(),
+                    source: "/api/v1/environment".to_owned(),
+                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
+                    activation: "environment_route_mounted".to_owned(),
+                    authority: "mounted_browser_projection".to_owned(),
+                    retention: "last_good_document".to_owned(),
+                },
+                UiCadenceSchedule {
+                    id: "ui.cadence.passive-revalidation".to_owned(),
+                    label: "Cadence scan".to_owned(),
+                    source: "/api/v1/cadence".to_owned(),
+                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
+                    activation: "cadence_route_mounted".to_owned(),
+                    authority: "mounted_browser_projection".to_owned(),
+                    retention: "last_good_document".to_owned(),
+                },
+            ],
+            omissions: projection_omissions,
+        })
     }
 }
 
@@ -324,7 +601,7 @@ mod tests {
             "git:0440cfe774405070facdb1106f3e247fa980060f"
         );
         let address = descriptor.address.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(9)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(13)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -343,6 +620,14 @@ mod tests {
                 .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v1\"")
         );
 
+        let cadence = request(&address, "GET /api/v1/cadence HTTP/1.1");
+        assert!(cadence.starts_with("HTTP/1.1 200"));
+        assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
+        assert!(cadence.contains("\"ordering\":\"partial\""));
+        assert!(cadence.contains("\"source_repository\":null"));
+        assert!(cadence.contains("ui.portfolio.passive-revalidation"));
+        assert!(cadence.contains("ui.cadence.passive-revalidation"));
+
         let application = request(&address, "GET /assets/app.js HTTP/1.1");
         assert!(application.starts_with("HTTP/1.1 200"));
         assert!(application.contains("text/javascript"));
@@ -350,6 +635,11 @@ mod tests {
         assert!(application.contains("02 / BOUNDED SEARCH"));
         assert!(application.contains("REFERENCE PLANE"));
         assert!(application.contains("Inputs and topology"));
+        assert!(application.contains("RUNTIME CADENCE"));
+        assert!(application.contains("AGENT INDEX"));
+        assert!(application.contains("LOCATE IN EXPLORER"));
+        assert!(application.contains("explore/$kind/$coordinate"));
+        assert!(application.contains("NO CURRENT OBJECT SATISFIES THIS IDENTITY"));
         assert!(application.contains("--kinetic-control-press-x"));
         assert!(application.contains("--kinetic-light-highlight"));
         assert!(application.contains("--kinetic-shadow-soft-y"));
@@ -372,6 +662,21 @@ mod tests {
         let environment = request(&address, "GET /environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
         assert!(environment.contains("<title>Rey / Explore</title>"));
+
+        let cadence = request(&address, "GET /cadence HTTP/1.1");
+        assert!(cadence.starts_with("HTTP/1.1 200"));
+        assert!(cadence.contains("<title>Rey / Explore</title>"));
+
+        let agents = request(&address, "GET /agents HTTP/1.1");
+        assert!(agents.starts_with("HTTP/1.1 200"));
+        assert!(agents.contains("<title>Rey / Explore</title>"));
+
+        let coordinate = request(
+            &address,
+            "GET /explore/agent/codex;at=gpt-5;lens=objects HTTP/1.1",
+        );
+        assert!(coordinate.starts_with("HTTP/1.1 200"));
+        assert!(coordinate.contains("<title>Rey / Explore</title>"));
 
         let rejected = request(&address, "POST /api/v1/workloads HTTP/1.1");
         assert!(rejected.starts_with("HTTP/1.1 405"));

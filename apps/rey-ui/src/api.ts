@@ -1,4 +1,5 @@
 import type { WorkloadList } from "./domain";
+import type { CadenceProjection } from "./cadence";
 import type { EnvironmentStatus } from "./environment";
 
 export interface UiServerIdentity {
@@ -45,4 +46,15 @@ export async function loadEnvironment(): Promise<EnvironmentStatus> {
     );
   }
   return (await response.json()) as EnvironmentStatus;
+}
+
+export async function loadCadence(): Promise<CadenceProjection> {
+  const response = await fetch("/api/v1/cadence", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Cadence request failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as CadenceProjection;
 }

@@ -161,9 +161,14 @@ deeper diagnostic plane. The Explorer projects one context topology through a
 semantic lens: landscape aggregates become workload/attention neighborhoods,
 then exact graph/scenario/evidence/delta objects as zoom and focus change.
 Identity, relationship classification, bounds, and omissions survive those
-visual transitions. `/environment` projects the same typed
+visual transitions. Matrix-style coordinate routes bind kind, identity,
+revision, lens, and agent role so other operator views can deep-link without
+moving topology authority into the URL. `/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
-retains the exact catalog/detail routes.
+retains the exact catalog/detail routes. `/agents` derives exact generator
+tuples from workload provenance and locates them in the Explorer. `/cadence`
+keeps bounded Git reachability, environment sequence, and mounted browser scan
+schedules on separate clocks instead of fabricating a total event order.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
@@ -176,7 +181,8 @@ durability, multi-user, or remote-service guarantee. An explicit non-loopback
 bind only changes network reachability; it does not grant browser mutation or
 turn the UI into a control plane. See [Context Topology
 Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
-[ADR 0026](decisions/0026-context-topology-explorer.md).
+[ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
+0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md).
 
 ## Workloads, Graphs, And Scenarios
 
@@ -592,7 +598,7 @@ The first design proposes these Rust ownership boundaries:
 | `rey-mining` | provider-neutral mining operation/request/result, artifact, completeness, dependency, and visualization contracts; no query engine, parser bundle, or storage |
 | `rey-dataframe` | frame metadata, Polars schemas, Arrow codecs, and bounded rendering |
 | `rey-environment` | capability discovery, snapshots, provider contracts, and local context adapters |
-| `rey-git` | repository identity, commit/ref/index frames, polling cursors, triggers, and activations |
+| `rey-git` | repository identity, bounded current reachable-commit sequence, commit/ref/index frames, polling cursors, triggers, and activations |
 | `rey-diff` | relational, text, and structural comparison contracts, typed changes, summaries, and diff projections |
 | `rey-runtime` | workload/graph/scenario lifecycle, spaces, lenses, actions, transitions, budgets, cancellation, and trace assembly |
 | `rey-frontier` | canonical frontier/progress relations, prioritization inputs, convergence evaluation, and bounded deterministic selection |

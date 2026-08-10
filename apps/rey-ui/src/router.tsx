@@ -20,7 +20,14 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { loadEnvironment, loadPortfolio, type OperatorContext } from "./api";
+import { AgentsPage } from "./agents";
+import {
+  loadCadence,
+  loadEnvironment,
+  loadPortfolio,
+  type OperatorContext,
+} from "./api";
+import { CadencePage } from "./cadence";
 import {
   scenarioPercent,
   shortDigest,
@@ -36,6 +43,10 @@ import {
   type EnvironmentObjectStatus,
 } from "./environment";
 import { ExplorePage } from "./explore";
+import {
+  parseExplorerCoordinate,
+  resolveExplorerCoordinate,
+} from "./explorer-coordinate";
 import { startPassiveRevalidation } from "./passive";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -84,7 +95,6 @@ function RootLayout() {
     "--rey-foreground": precision.foregroundColor,
     "--rey-radius": `${precision.radius}px`,
   } as CSSProperties;
-
   return (
     <PortfolioContext.Provider value={portfolio}>
       <div
@@ -134,10 +144,29 @@ function RootLayout() {
               )}
               to="/workloads"
             >
-              Workloads{" "}
-              <span className={sx(styles.navCount)}>
-                {portfolio.catalog.workload_count}
-              </span>
+              Workloads
+            </Link>
+            <Link
+              activeProps={{ "aria-current": "page" }}
+              className={sx(
+                styles.focusable,
+                styles.navLink,
+                pathname.startsWith("/cadence") && styles.navLinkActive,
+              )}
+              to="/cadence"
+            >
+              Cadence
+            </Link>
+            <Link
+              activeProps={{ "aria-current": "page" }}
+              className={sx(
+                styles.focusable,
+                styles.navLink,
+                pathname.startsWith("/agents") && styles.navLinkActive,
+              )}
+              to="/agents"
+            >
+              Agents
             </Link>
             <Link
               activeProps={{ "aria-current": "page" }}
@@ -181,7 +210,7 @@ function RootLayout() {
             HIFI / {kineticGrammar.label.toUpperCase()} /{" "}
             {precisionTheme?.label.toUpperCase()}
           </span>
-          <span>GRAPH → SCENARIO → DELTA → ATTENTION</span>
+          <span>TICK → GRAPH → SCENARIO → DELTA → ATTENTION</span>
           <ImplementationLink
             repository={portfolio.ui_server.source_repository}
             revision={portfolio.ui_server.implementation_revision}
@@ -985,6 +1014,32 @@ function ExploreRoutePage() {
   return <ExplorePage portfolio={usePortfolio()} />;
 }
 
+function ExploreCoordinateRoutePage() {
+  const portfolio = usePortfolio();
+  const { coordinate: segment, kind } = exploreCoordinateRoute.useParams();
+  const coordinate = parseExplorerCoordinate(kind, segment);
+  if (!coordinate) return <NotFoundPage />;
+  return (
+    <ExplorePage
+      coordinate={resolveExplorerCoordinate(portfolio, coordinate)}
+      portfolio={portfolio}
+    />
+  );
+}
+
+function CadenceRoutePage() {
+  const initialCadence = cadenceRoute.useLoaderData();
+  const { document: cadence, error } = usePassiveDocument(
+    initialCadence,
+    loadCadence,
+  );
+  return <CadencePage cadence={cadence} refreshError={error} />;
+}
+
+function AgentsRoutePage() {
+  return <AgentsPage portfolio={usePortfolio()} />;
+}
+
 const rootRoute = createRootRoute({
   component: RootLayout,
   loader: loadPortfolio,
@@ -1005,6 +1060,25 @@ const exploreRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "explore",
   component: ExploreRoutePage,
+});
+
+const exploreCoordinateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "explore/$kind/$coordinate",
+  component: ExploreCoordinateRoutePage,
+});
+
+const cadenceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "cadence",
+  loader: loadCadence,
+  component: CadenceRoutePage,
+});
+
+const agentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "agents",
+  component: AgentsRoutePage,
 });
 
 const environmentRoute = createRoute({
@@ -1029,6 +1103,9 @@ const workloadDetailRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   exploreRoute,
+  exploreCoordinateRoute,
+  cadenceRoute,
+  agentsRoute,
   environmentRoute,
   workloadsRoute,
   workloadDetailRoute,
@@ -1048,6 +1125,8 @@ declare module "@tanstack/react-router" {
 
 function routeCoordinate(pathname: string): string {
   if (pathname.startsWith("/explore")) return "EXPLORE / CONTEXT TOPOLOGY";
+  if (pathname.startsWith("/cadence")) return "CADENCE / TICKS";
+  if (pathname.startsWith("/agents")) return "AGENTS / PROVENANCE";
   if (pathname.startsWith("/environment")) return "ENVIRONMENT";
   if (pathname.startsWith("/workloads")) return "WORKLOADS";
   return "UNRESOLVED";
