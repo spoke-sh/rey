@@ -104,13 +104,17 @@ exists.
   explicitly as incomplete enabling work. Do not report the feature or bearing
   complete, and close the end-to-end CLI verification path before broadening
   the implementation into additional capabilities.
+- A browser interface starts at an explicit `rey` CLI command and remains a
+  projection of the same typed evidence exposed by the CLI. It must identify
+  its exposure, authority, source revisions, omissions, and limits; a polished
+  UI cannot introduce an independent assessment or mutation path.
 
 ## Target System Shape
 
 The implemented and target ownership map is:
 
 ```text
-rey                 env/workload CLI, local revision state, catalog/orchestration
+rey                 env/workload/UI CLI, local revision state, catalog/orchestration
 rey-core            identities, revisions, limits, and shared contracts
 rey-mining          mining operations, requests/results, artifacts, and views
 rey-dataframe       frame schemas, Polars helpers, and Arrow codecs

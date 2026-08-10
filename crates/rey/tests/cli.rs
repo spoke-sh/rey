@@ -1,6 +1,7 @@
 use std::{
     fs,
-    io::Write,
+    io::{BufRead, BufReader, Read, Write},
+    net::TcpStream,
     process::{Command, Stdio},
 };
 
@@ -982,6 +983,104 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
 }
 
 #[test]
+fn ui_cli_serves_the_embedded_precision_instrument_with_explicit_exposure() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let mut table_child = Command::new(env!("CARGO_BIN_EXE_rey"))
+        .args([
+            "ui",
+            "--workspace",
+            workspace_path,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--format",
+            "table",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let table_stdout = table_child.stdout.take().unwrap();
+    let mut table_reader = BufReader::new(table_stdout);
+    let mut table = String::new();
+    loop {
+        let mut line = String::new();
+        assert!(table_reader.read_line(&mut line).unwrap() > 0);
+        table.push_str(&line);
+        if line.contains("Press Ctrl-C") {
+            break;
+        }
+    }
+    for evidence in [
+        "REY UI",
+        "Status                 LISTENING",
+        "Exposure               LOOPBACK ONLY",
+        "Application            TANSTACK ROUTER · EMBEDDED",
+        "Grammar                HIFI KINETIC · PRECISION",
+        "Data plane             LIVE READ-ONLY PORTFOLIO",
+        "/api/v1/health · /api/v1/workloads",
+    ] {
+        assert!(table.contains(evidence), "missing UI evidence: {evidence}");
+    }
+    let address = table
+        .lines()
+        .find_map(|line| line.trim_start().strip_prefix("Address").map(str::trim))
+        .filter(|address| !address.is_empty())
+        .unwrap();
+    let response = http_request(address, "GET /api/v1/health HTTP/1.1");
+    assert!(response.starts_with("HTTP/1.1 200"));
+    assert!(response.contains("\"theme\":\"precision\""));
+    table_child.kill().unwrap();
+    let table_output = table_child.wait_with_output().unwrap();
+    assert!(table_output.stderr.is_empty());
+
+    let mut network_child = Command::new(env!("CARGO_BIN_EXE_rey"))
+        .args([
+            "ui",
+            "--workspace",
+            workspace_path,
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "0",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut network_stdout = BufReader::new(network_child.stdout.take().unwrap());
+    let mut descriptor_line = String::new();
+    network_stdout.read_line(&mut descriptor_line).unwrap();
+    let descriptor: Value = serde_json::from_str(&descriptor_line).unwrap();
+    assert_eq!(descriptor["schema"], "rey.ui-server.v1");
+    assert_eq!(descriptor["host"], "0.0.0.0");
+    assert_eq!(descriptor["loopback_only"], false);
+    assert_eq!(descriptor["read_only"], true);
+    assert_eq!(descriptor["application"], "tanstack_router");
+    assert_eq!(descriptor["grammar"], "kinetic");
+    assert_eq!(descriptor["theme"], "precision");
+    assert_eq!(
+        descriptor["grammar_revision"],
+        "git:5874cdfe0c237ddd35bb121824a166ebb5b5654e"
+    );
+    network_child.kill().unwrap();
+    let mut warning = String::new();
+    network_child
+        .stderr
+        .take()
+        .unwrap()
+        .read_to_string(&mut warning)
+        .unwrap();
+    network_child.wait().unwrap();
+    assert!(warning.contains("listening beyond loopback without authentication"));
+}
+
+#[test]
 fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     let workspace = TempDir::new().unwrap();
     let output = run_rey(&[
@@ -1781,4 +1880,16 @@ fn run_rey_with_stdin_env(
         .write_all(input.as_bytes())
         .unwrap();
     child.wait_with_output().unwrap()
+}
+
+fn http_request(address: &str, request_line: &str) -> String {
+    let mut stream = TcpStream::connect(address).unwrap();
+    write!(
+        stream,
+        "{request_line}\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    response
 }

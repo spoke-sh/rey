@@ -45,6 +45,7 @@ The default shell contains:
 - Rust compiler, Cargo, standard sources, Rustfmt, and Clippy;
 - `rust-analyzer`;
 - `cargo-nextest`;
+- Node.js 24 and pnpm for the embedded operator UI;
 - `just`, Git, curl, jq, and certificate roots;
 - `mold` on Linux; and
 - Alejandra as the Nix formatter.
@@ -99,14 +100,17 @@ just fmt
 
 Current behavior is:
 
-- `setup` prints pinned Rust, Cargo, and Just versions and fetches the locked
-  dependencies.
-- `check` runs `git diff --check`, Rustfmt, Clippy with warnings denied, and
-  flake evaluation when Nix is available.
-- `test` runs nextest when available, falls back to Cargo's test runner, and
-  always runs Rust documentation tests.
-- `build` builds every workspace crate and feature.
-- `fmt` formats Rust and formats `flake.nix` when Nix is available.
+- `setup` prints pinned Rust, Cargo, and Just versions, fetches locked Cargo
+  dependencies, and installs the frozen pnpm graph.
+- `check` runs `git diff --check`, TypeScript formatting/type/tests/build,
+  Rustfmt, Clippy with warnings denied, and flake evaluation when Nix is
+  available.
+- `test` runs UI tests, nextest when available, falls back to Cargo's test
+  runner, and always runs Rust documentation tests.
+- `build` builds deterministic UI assets before every workspace crate and
+  feature so the Rust binary embeds the current application.
+- `fmt` formats authored TypeScript/StyleX, Rust, and `flake.nix`; exact vendored
+  Hifi sources are excluded from mechanical rewriting.
 - `rey` runs the `rey` binary through Cargo.
 
 ## Rust Conventions
@@ -198,6 +202,19 @@ are v1. Draft-aware catalog descriptors advance to v2; list/status advance to
 v5, test batch to v4, and run view to v2. Runtime results and local retained
 state remain unchanged because a draft is catalog state, not execution state.
 
+ADR 0025 adds `tiny_http` 0.12 to the composition binary for a narrow
+synchronous, read-only local operator listener. It deliberately adds no async
+runtime, TLS, authentication, background scheduler, or persistence topology.
+The TypeScript application uses locked React, TanStack Router, TypeScript,
+Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
+live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
+CSS asset while typed Kinetic material values remain runtime custom
+properties. Exact MIT-licensed Hifi core/Kinetic sources are
+vendored at the revision recorded in `apps/rey-ui/vendor/hifi/UPSTREAM.md`
+because the Kinetic package is not published at that revision. Crane's filtered
+source includes built `apps/rey-ui/dist` assets consumed by Rust
+`include_bytes!` calls; the package does not need Node at runtime.
+
 The next mining implementation should continue to prefer existing
 Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser
 framework, regex engine, tree/graph library, visualization library, async
@@ -258,4 +275,6 @@ nix run path:$PWD -- workloads list --format table
 nix run path:$PWD -- workloads test rey.fixture.text-normalize --format table -vv
 nix run path:$PWD -- workloads test rey.portfolio.attention --format table -vv
 nix run path:$PWD -- workloads run rey.portfolio.attention --format table
+nix run path:$PWD -- ui
+nix run path:$PWD -- ui --host 0.0.0.0 --port 5714
 ```

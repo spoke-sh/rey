@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
 
+mod ui;
+
 use std::{
     collections::BTreeMap,
     io::{self, BufRead, IsTerminal, Write},
+    net::IpAddr,
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -64,6 +67,35 @@ enum Command {
     Env(EnvArgs),
     /// Inspect, test, qualify, and execute bounded compute graphs.
     Workloads(WorkloadsArgs),
+    /// Serve the read-only Rey operator interface.
+    Ui(UiArgs),
+}
+
+#[derive(Debug, Args)]
+struct UiArgs {
+    /// Workspace projected through the read-only UI.
+    #[arg(long, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local workload-state directory; relative paths resolve below the workspace.
+    #[arg(long)]
+    state_dir: Option<PathBuf>,
+
+    /// Workspace-relative workload package root.
+    #[arg(long, default_value = "workloads")]
+    catalog_dir: PathBuf,
+
+    /// IP address to bind; defaults to IPv4 loopback.
+    #[arg(long, default_value = "127.0.0.1")]
+    host: IpAddr,
+
+    /// TCP port to bind; use 0 to select an available ephemeral port.
+    #[arg(long, default_value_t = 5_714)]
+    port: u16,
+
+    /// Startup representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -369,7 +401,62 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
         Command::Env(args) => env_command(args),
         Command::Workloads(args) => workloads(args),
+        Command::Ui(args) => ui_command(args),
     }
+}
+
+fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let state_directory = match args.state_dir {
+        Some(path) if path.is_absolute() => path,
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey").join("workloads"),
+    };
+    let server = ui::UiServer::bind(ui::UiServerConfig {
+        workspace,
+        state_directory,
+        catalog_directory: args.catalog_dir,
+        host: args.host,
+        port: args.port,
+    })?;
+    let descriptor = server.descriptor();
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &descriptor)?,
+        WorkloadOutputFormat::Table => write_ui_startup(&mut stdout, &descriptor)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    stdout.flush()?;
+    if !descriptor.loopback_only {
+        eprintln!(
+            "rey: warning: UI is listening beyond loopback without authentication; protect access externally"
+        );
+    }
+    server.serve()?;
+    Ok(ExitCode::SUCCESS)
+}
+
+fn relative_path_escapes(path: &Path) -> bool {
+    path.components().any(|component| {
+        matches!(
+            component,
+            std::path::Component::ParentDir
+                | std::path::Component::RootDir
+                | std::path::Component::Prefix(_)
+        )
+    })
 }
 
 fn env_command(args: EnvArgs) -> Result<ExitCode, CliError> {
@@ -472,6 +559,23 @@ fn workload_list(
     catalog: &WorkloadCatalog,
     args: WorkloadListArgs,
 ) -> Result<ExitCode, CliError> {
+    let list = current_workload_list(store, workspace, catalog)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
+        WorkloadOutputFormat::Table => {
+            write_workload_list(&mut stdout, &list, TerminalStyle::stdout())?;
+        }
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn current_workload_list(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    catalog: &WorkloadCatalog,
+) -> Result<WorkloadList, CliError> {
     let state = store.load()?;
     let summaries = catalog
         .workloads
@@ -492,15 +596,7 @@ fn workload_list(
         catalog.drafts.clone(),
         attention,
     );
-    let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
-        WorkloadOutputFormat::Table => {
-            write_workload_list(&mut stdout, &list, TerminalStyle::stdout())?;
-        }
-        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
-    }
-    Ok(ExitCode::SUCCESS)
+    Ok(list)
 }
 
 fn workload_status(
@@ -888,6 +984,37 @@ impl WorkloadPortfolioSummary {
         }
         summary
     }
+}
+
+fn write_ui_startup(
+    output: &mut impl Write,
+    descriptor: &ui::UiServerDescriptor,
+) -> Result<(), CliError> {
+    let style = TerminalStyle::stdout();
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("REY UI"))?;
+    write_portfolio_field(output, "Status", &style.green("LISTENING"))?;
+    write_portfolio_field(output, "Address", &descriptor.address)?;
+    write_portfolio_field(output, "URL", &descriptor.url)?;
+    write_portfolio_field(
+        output,
+        "Exposure",
+        &if descriptor.loopback_only {
+            style.green("LOOPBACK ONLY")
+        } else {
+            style.yellow("NETWORK EXPOSED · NO AUTHENTICATION")
+        },
+    )?;
+    write_portfolio_field(output, "Application", "TANSTACK ROUTER · EMBEDDED")?;
+    write_portfolio_field(output, "Grammar", "HIFI KINETIC · PRECISION")?;
+    write_portfolio_field(output, "Data plane", "LIVE READ-ONLY PORTFOLIO")?;
+    write_portfolio_field(output, "Workspace", &descriptor.workspace)?;
+    write_portfolio_field(output, "Catalog", &descriptor.catalog_root)?;
+    write_portfolio_field(output, "API", "/api/v1/health · /api/v1/workloads")?;
+    write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
+    writeln!(output)?;
+    writeln!(output, "  {}", style.dim("Press Ctrl-C to stop the server"))?;
+    Ok(())
 }
 
 fn write_workload_create(
@@ -3430,6 +3557,8 @@ enum CliError {
     WorkloadCatalog(#[from] WorkloadCatalogError),
     #[error(transparent)]
     EnvironmentState(#[from] LocalEnvironmentHistoryError),
+    #[error(transparent)]
+    Ui(#[from] ui::UiError),
     #[error("JSON output failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]

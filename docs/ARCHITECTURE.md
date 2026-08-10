@@ -44,8 +44,10 @@ Rey separates eight responsibilities:
    graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
-The first topology is a local Rey process. A Spoke provider, when configured or
-discovered, uses Spoke's routed HTTP interface.
+The first topology is a local Rey process. `rey ui` may attach a read-only
+loopback operator projection to that process; it is not a separate runtime,
+scheduler, or store. A Spoke provider, when configured or discovered, uses
+Spoke's routed HTTP interface.
 
 ## System Graph
 
@@ -149,6 +151,22 @@ Working DataFrames and queues are never the only durable copy of authored
 content. A frame may be reproducible from exact sources and a lens, or retained
 as an Arrow evidence artifact when replay cost, external volatility, or proof
 requirements demand it.
+
+## Operator Projection
+
+`rey ui` embeds a TanStack Router single-page application and serves the live
+bounded workload-list document used by the CLI. Browser routes organize the
+portfolio, attention frontier, workload identities, provenance, scenario
+coverage, and mining evidence without changing their assessment. Hifi's
+Kinetic grammar with the Precision theme defines the interaction and material
+language. StyleX owns compiled structural and stateful presentation while
+typed Kinetic material values remain runtime data; Rey's typed documents
+remain authoritative.
+
+The listener defaults to loopback, is read-only, and carries no authentication,
+durability, multi-user, or remote-service guarantee. An explicit non-loopback
+bind only changes network reachability; it does not grant browser mutation or
+turn the UI into a control plane. See [ADR 0025](decisions/0025-local-operator-ui.md).
 
 ## Workloads, Graphs, And Scenarios
 

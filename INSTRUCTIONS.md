@@ -48,7 +48,7 @@ Procedural guidance for humans and agents working on Rey.
 
 ## Current Development Interface
 
-Rey has a pinned Nix Rust toolchain, an eleven-crate Cargo workspace, a
+Rey has a pinned Nix Rust/TypeScript toolchain, an eleven-crate Cargo workspace, a
 Git-shaped `env` CLI with a bounded YAML mapping graph, verified local
 capability status, a `HEAD → INDEX → WORKING` admission plane, partial/full
 add, index-only commits, and patch history,
@@ -56,14 +56,18 @@ lower-level proof and bounded local-only bundle contracts behind the runtime,
 pure runtime-state, frontier/progress/scheduling, and
 reasoning-surface contracts, plus a bounded workspace workload-package catalog,
 an explicitly selected built-in conformance catalog, typed DAG executor,
-scenario evaluator, qualification record, local result provider, and four
-workload commands. Workspace packages retain coding-harness provenance and
+scenario evaluator, qualification record, local result provider, five
+workload commands, and a read-only `rey ui` operator instrument. The UI starts
+from the CLI, uses the same workload-list derivation, defaults to loopback, and
+is neither a mutation plane nor a public Rey service. Workspace packages retain coding-harness provenance and
 freeze generated scenarios at admission. The first mining workload now executes exact local
 literal search, typed match comparison, ordered line comparison, bounded
 frontier selection, and reasoning-surface projection through those commands.
-Do not generalize that fixed provider and workload-specific derivation into
+Do not generalize that fixed provider, workload-specific derivation, or local
+operator server into
 regex or parser breadth, external tool execution, recurring scheduling,
-activation, Spoke durability, or Spoke process-lineage behavior.
+activation, browser mutation, authentication, remote service topology, Spoke
+durability, or Spoke process-lineage behavior.
 
 Enter the environment and use:
 

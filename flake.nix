@@ -37,7 +37,13 @@
       };
 
       craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
-      cargoSource = craneLib.cleanCargoSource ./.;
+      cargoSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          (craneLib.fileset.commonCargoSources ./.)
+          ./apps/rey-ui/dist
+        ];
+      };
       commonCargoArgs = {
         pname = "rey-workspace";
         version = "0.1.0";
@@ -96,6 +102,8 @@
           pkgs.git
           pkgs.jq
           pkgs.just
+          pkgs.nodejs_24
+          pkgs.pnpm
         ]
         ++ pkgs.lib.optionals pkgs.stdenv.isLinux [pkgs.mold];
 

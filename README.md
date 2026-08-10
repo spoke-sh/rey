@@ -154,6 +154,7 @@ rey workloads test [<workload-id>] [-v|-vv]
 rey workloads run <workload-id> --input <utf8>
 rey workloads status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
+rey ui [--host <ip>] [--port <port>]
 ```
 
 Mining operations are capabilities used inside workload graphs and reasoning
@@ -189,7 +190,20 @@ just rey workloads --catalog conformance run rey.fixture.source-search \
   --input evidence \
   --source crates/rey-environment/tests/fixtures/source-corpus/alpha.txt \
   --format table
+just rey ui
+# Explicit network exposure; Rey warns because this read-only server has no authentication.
+just rey ui --host 0.0.0.0 --port 5714
 ```
+
+`rey ui` opens the same live workload portfolio as a persistent visual
+instrument. It serves an embedded TanStack Router application expressed with
+[Hifi](https://github.com/rupurt/hifi)'s Kinetic grammar and Precision theme.
+All authored application styles are StyleX modules compiled by the official
+StyleX Vite integration into one deterministic atomic stylesheet; runtime
+Kinetic material values remain typed custom properties.
+The server defaults to `127.0.0.1:5714`, accepts explicit `--host` and `--port`
+values, and reports its exact exposure before serving. Its API is read-only;
+binding beyond loopback is an operator-controlled, unauthenticated boundary.
 
 The default catalog contains the checked-in, coding-harness-generated
 `rey.portfolio.label-normalization` package. Its exact YAML graph and frozen
@@ -440,7 +454,7 @@ Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.
 `rey.portfolio-snapshot.v1` and the
 Polars-backed `rey.workload-attention.v1` relation are executable through the
-scenario-qualified `rey.portfolio.attention` workload. The four workload
+scenario-qualified `rey.portfolio.attention` workload. The five workload
 commands expose current attention, coverage, exact relation evidence, and
 qualification-gated retained-input evaluation. Ready work, capability/evidence
 blockers, and policy exclusions remain separate facts.
@@ -465,6 +479,11 @@ the row resolved. The first real payload will admit ownership for one mapped
 input, then change that retained source revision and derive `RETEST` for the
 exact owner. Parser/symbol mining remains a later tool for investigating
 attention, not the portfolio strategy itself.
+
+[Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
+surface. The first Kinetic/Precision portfolio is implemented; its next
+concrete anchor is exact scenario and directed-delta navigation with the same
+progressive evidence layers as `workloads test -v/-vv`.
 
 The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
 activation and the first routed Spoke proof.

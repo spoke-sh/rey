@@ -36,12 +36,19 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] test [<workload-id>] [-v|-
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--catalog-dir PATH] status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
+rey ui [--workspace PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 The environment group inventories available compute. The workloads group
 declares what that compute is for, hands creation requests to a coding harness,
 measures whether an admitted generated graph behaves as expected, and runs a
 qualified graph against admitted inputs.
+
+`rey ui` is a read-only visual projection of this same workload plane. It
+derives its live portfolio from the same catalog/result inputs as `workloads
+list`, then provides portfolio, workload-list, and exact workload routes. It
+does not define a second catalog, qualification rule, attention relation, or
+mutation path. See [ADR 0025](decisions/0025-local-operator-ui.md).
 
 The default catalog is the workspace package catalog. The checked-in
 `rey.portfolio.label-normalization` package is a small end-to-end proof: its

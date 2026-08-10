@@ -9,6 +9,7 @@ completion criteria.
 - [0001 — Foundation and first delta proof](0001-foundation.md) — continuing
   Git/Spoke foundation track
 - [0010 — Portfolio mining and workload attention](0010-portfolio-mining-and-workload-attention.md) — active workload-centered implementation bearing
+- [0011 — Local operator UI](0011-local-operator-ui.md) — active high-fidelity collaboration surface
 
 ## Completed
 

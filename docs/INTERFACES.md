@@ -21,6 +21,8 @@ ADR 0022 adds ongoing portfolio mining, the typed workload-attention relation,
 and its workload-centered list/test/run/status projections.
 ADR 0023 adds `rey.workload-package.v1`, coding-harness provenance, frozen
 scenario admission, and product/conformance catalog separation.
+ADR 0025 adds the loopback-first, read-only `rey ui` operator projection using
+the same live workload-list derivation as the CLI.
 
 ## Interface Principles
 
@@ -60,6 +62,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] test [<workload-id>] [-v|-
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--catalog-dir PATH] status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
+rey ui [--workspace PATH] [--state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 `env` inventories and revisions the available compute boundary. `workloads`
@@ -71,6 +74,12 @@ that users must manually orchestrate.
 Mining follows the same rule. Search, parse, index, group, traverse, diff, and
 visualize are discoverable operation contracts composed inside workloads and
 reasoning surfaces, not an accepted `rey mining` resource hierarchy.
+
+`ui` is a presentation command, not a peer runtime resource. It starts on
+`127.0.0.1:5714` unless configured otherwise, reports exact exposure and
+provenance, and serves a read-only browser projection of the workload
+portfolio. An explicit non-loopback bind emits a warning because this slice
+has no authentication.
 
 The implemented slice behaves as follows:
 
@@ -758,9 +767,24 @@ Errors must report which state changed and which did not. Retrying a read,
 proposal, compute submission, artifact publication, or mutation follows that
 operation's idempotency contract rather than one generic retry rule.
 
-## No Rey Service Yet
+## Local Operator UI, Not A Public Rey Service
 
-The initial topology is a local CLI/library with built-in and environment
-providers plus an optional Spoke client. A long-running Rey service, public HTTP
-API, multi-user scheduler, or remote policy gateway needs a later plan and
-explicit identity, authorization, durability, and topology decisions.
+`rey ui` is the implemented exception to a CLI-only topology: a bounded,
+read-only HTTP projection started explicitly by the operator. It serves the
+embedded TanStack Router application, `GET|HEAD /api/v1/health`, and
+`GET|HEAD /api/v1/workloads`; all other methods are rejected. Deep browser
+routes receive the embedded application shell. The workload endpoint is
+derived anew from the selected workspace catalog and retained local result
+index, just like `workloads list`.
+
+The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
+loopback status, read-only authority, workspace, catalog root, application,
+Kinetic grammar, Precision theme, and pinned grammar revision. Static assets
+are embedded into the binary, authored presentation is extracted from StyleX
+modules into a layered atomic stylesheet, and browser responses carry
+restrictive security headers.
+
+This listener does not establish a public API, long-running daemon contract,
+multi-user scheduler, remote policy gateway, authentication system, or durable
+service. Those capabilities still require explicit identity, authorization,
+durability, and topology decisions. See [ADR 0025](decisions/0025-local-operator-ui.md).

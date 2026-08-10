@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@hifi/core": ["./vendor/hifi/packages/core/src/index.ts"],
+      "@hifi/kinetic": ["./vendor/hifi/packages/kinetic/src/index.ts"],
+      "@hifi/kinetic/grammar": ["./vendor/hifi/packages/kinetic/src/grammar.ts"]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2024",
+    "types": ["vite/client", "vitest/globals"]
+  },
+  "include": ["src", "vendor", "vite.config.ts"]
+}
