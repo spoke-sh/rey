@@ -548,6 +548,8 @@ Rey is not:
 - [Constitution](CONSTITUTION.md) — durable values and invariants.
 - [Contributor Instructions](INSTRUCTIONS.md) — working loop and verification.
 - [Architecture](docs/ARCHITECTURE.md) — ownership and end-to-end data flow.
+- [Glossary](docs/GLOSSARY.md) — canonical project vocabulary and important
+  semantic distinctions.
 - [Mining Context Into Evidence](docs/MINING.md) — relational/source mining,
   operation, result, visualization, and runtime contracts.
 - [Workloads](docs/WORKLOADS.md) — public composition, compute graphs,
