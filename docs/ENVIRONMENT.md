@@ -125,6 +125,8 @@ The current compiled desired-application inventory contains the declared
 presence for agent runtimes without starting them; fixed bounded identity
 probes remain limited to the non-interactive `git` and `rg` adapters. Discovery
 does not turn a found application into assignment or execution authority.
+`/environment` is the human owner of this desired/search evidence; higher-order
+views may consume exact capabilities but do not repeat the executable inventory.
 
 Environment discovery retains the `git` executable identity but does not run
 repository inspection or add `git.repository.inspect` to the environment

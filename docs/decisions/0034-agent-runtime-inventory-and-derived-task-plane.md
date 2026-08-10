@@ -4,6 +4,9 @@
 - Date: 2026-08-10
 - Extends: [ADR 0032](0032-seed-discovery-survey-and-live-communications.md)
 - Supersedes: the `/agents` registry projection in [ADR 0030](0030-operator-cadence-agents-and-explorer-coordinates.md)
+- Superseded: the `/agents` runtime-inventory presentation is replaced by [ADR
+  0035](0035-agent-recommendations-and-observed-work.md); runtime discovery and
+  task/operation concepts remain current.
 
 ## Context
 

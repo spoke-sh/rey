@@ -38,7 +38,8 @@ guide experiments but do not outrank the architecture until accepted.
 | [0031](0031-desired-application-inventory-and-search-records.md) | Accepted; conventional map superseded by 0032 | Exact desired-application declaration records separated from bounded search records |
 | [0032](0032-seed-discovery-survey-and-live-communications.md) | Accepted | Process-owned seed discovery, explicit agent maps, locator survey, cadence processing, and a two-axis operator communication plane |
 | [0033](0033-git-shaped-environment-loop-fidelity.md) | Accepted | Compact status, provenance-safe patch admission, dated v2 history, and Git/environment clock separation |
-| [0034](0034-agent-runtime-inventory-and-derived-task-plane.md) | Accepted | Process-owned agent runtime discovery, derived task/operation plane, and non-retained journeys |
+| [0034](0034-agent-runtime-inventory-and-derived-task-plane.md) | Accepted; `/agents` presentation superseded by 0035 | Process-owned agent runtime discovery, derived task/operation plane, and non-retained journeys |
+| [0035](0035-agent-recommendations-and-observed-work.md) | Accepted | Evidence-ranked agent recommendations and observed-work ledger; runtime inventory remains in Environment |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

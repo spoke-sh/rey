@@ -305,8 +305,9 @@ Spoke query semantics.
 
 ## Current Truth And First Slice
 
-Current Rey discovers process-declared `rg`, `git`, and major agent-runtime
-executables by bounded identity probes, observes part of one Git repository, operates on typed
+Current Rey discovers process-declared `rg` and `git` through bounded identity
+probes and major agent runtimes through non-executing PATH presence scans,
+observes part of one Git repository, operates on typed
 capability frames, implements ordered UTF-8 line deltas, and exposes
 canonical `rey.mining-operation.v1`, `rey.mining-request.v1`, and
 `rey.mining-result.v2` manifests. Result v2 makes observed wall time optional

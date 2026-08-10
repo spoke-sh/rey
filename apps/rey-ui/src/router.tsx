@@ -1409,18 +1409,7 @@ function CadenceRoutePage() {
 }
 
 function AgentsRoutePage() {
-  const initialEnvironment = agentsRoute.useLoaderData();
-  const { document: environment, error: refreshError } = usePassiveDocument(
-    initialEnvironment,
-    loadEnvironment,
-  );
-  return (
-    <AgentsPage
-      environment={environment}
-      portfolio={usePortfolio()}
-      refreshError={refreshError}
-    />
-  );
+  return <AgentsPage portfolio={usePortfolio()} />;
 }
 
 const rootRoute = createRootRoute({
@@ -1461,7 +1450,6 @@ const cadenceRoute = createRoute({
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
-  loader: loadEnvironment,
   component: AgentsRoutePage,
 });
 

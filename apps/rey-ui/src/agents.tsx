@@ -1,87 +1,75 @@
 import { Link } from "@tanstack/react-router";
-import type {
-  EnvironmentApplicationObservation,
-  EnvironmentStatus,
-} from "./environment";
-import type {
-  AttentionAction,
-  AttentionReadiness,
-  WorkloadList,
+import {
+  scenarioPercent,
+  shortDigest,
+  workloadJourney,
+  type AttentionAction,
+  type AttentionReadiness,
+  type WorkloadList,
 } from "./domain";
-import { shortDigest } from "./domain";
 import { agentsStyles as styles } from "./stylex/agents.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
-export type CollaborationOperation =
-  "AUTHOR" | "REFINE" | "RESOLVE" | "SURVEY" | "TEST";
+export type RecommendedOperation = "AUTHOR" | "REFINE" | "RESOLVE" | "TEST";
 
-export interface CollaborationTask {
+export interface SystemRecommendation {
   id: string;
   subject_id: string;
   subject_kind: "surface" | "workload";
-  objective: string;
-  operation: CollaborationOperation;
+  operation: RecommendedOperation;
+  profile: string;
+  reason: string;
+  source: "ATTENTION" | "REQUEST" | "REQUEST + ATTENTION";
   readiness: AttentionReadiness;
   priority: number;
+  estimated_cost_units: number;
   evidence_count: number;
   dependency_count: number;
   workload_id: string | null;
 }
 
-export interface AgentRuntime {
+export interface WorkInsight {
   id: string;
-  application: EnvironmentApplicationObservation;
+  workload_id: string;
+  title: string;
+  kind: "ADMITTED" | "REQUEST";
+  revision: string;
+  observed_operation: "ADMISSION" | "REQUEST" | "RUN" | "TEST";
+  result: string;
+  journey: string;
+  scenarios_passed: number;
+  scenarios_required: number;
+  artifact_summary: string;
+  attention_rows: number;
+  evidence_id: string | null;
 }
 
-const workflowLanes = [
-  {
-    label: "CONTEXT",
-    operations: ["DISCOVER", "REASON", "SURVEY", "PROCESS"],
-  },
-  {
-    label: "WORKLOAD",
-    operations: ["ORIENT", "AUTHOR", "TEST", "REFINE", "RUN"],
-  },
-] as const;
-
-export function deriveAgentRuntimes(status: EnvironmentStatus): AgentRuntime[] {
-  return status.operator.applications
-    .flatMap((application) => {
-      const observation = application.working;
-      return observation?.potential_capabilities.some((capability) =>
-        capability.startsWith("agent.runtime."),
-      )
-        ? [{ id: application.object_id, application: observation }]
-        : [];
-    })
-    .sort((left, right) =>
-      left.application.name.localeCompare(right.application.name),
-    );
-}
-
-export function deriveCollaborationTasks(
+export function deriveSystemRecommendations(
   portfolio: WorkloadList,
-): CollaborationTask[] {
+): SystemRecommendation[] {
   const attentionBySubject = new Map(
     portfolio.attention.rows
       .filter((row) => row.readiness !== "excluded")
       .map((row) => [`${row.subject_kind}:${row.subject_id}`, row]),
   );
-  const tasks: CollaborationTask[] = [];
+  const recommendations: SystemRecommendation[] = [];
 
   for (const draft of portfolio.drafts) {
     const key = `workload:${draft.request.workload_id}`;
     const attention = attentionBySubject.get(key);
     if (attention) attentionBySubject.delete(key);
-    tasks.push({
+    recommendations.push({
       id: draft.request.request_id,
       subject_id: draft.request.workload_id,
       subject_kind: "workload",
-      objective: draft.request.intent ?? draft.request.title,
       operation: "AUTHOR",
+      profile: "CODING HARNESS",
+      reason: draft.request.intent ?? draft.request.title,
+      source: attention ? "REQUEST + ATTENTION" : "REQUEST",
       readiness: attention?.readiness ?? "ready",
       priority: attention?.priority ?? 0,
+      estimated_cost_units: attention?.estimated_cost_units ?? 0,
       evidence_count: attention?.evidence_ids.length ?? 0,
       dependency_count: attention?.dependency_ids.length ?? 0,
       workload_id: draft.request.workload_id,
@@ -89,14 +77,18 @@ export function deriveCollaborationTasks(
   }
 
   for (const attention of attentionBySubject.values()) {
-    tasks.push({
+    const operation = recommendationOperation(attention.action);
+    recommendations.push({
       id: attention.row_id,
       subject_id: attention.subject_id,
       subject_kind: attention.subject_kind,
-      objective: attention.reason,
-      operation: attentionOperation(attention.action),
+      operation,
+      profile: recommendedProfile(operation),
+      reason: attention.reason,
+      source: "ATTENTION",
       readiness: attention.readiness,
       priority: attention.priority,
+      estimated_cost_units: attention.estimated_cost_units,
       evidence_count: attention.evidence_ids.length,
       dependency_count: attention.dependency_ids.length,
       workload_id:
@@ -104,15 +96,67 @@ export function deriveCollaborationTasks(
     });
   }
 
-  return tasks.sort(
+  return recommendations.sort(
     (left, right) =>
       readinessOrder(left.readiness) - readinessOrder(right.readiness) ||
       right.priority - left.priority ||
+      left.estimated_cost_units - right.estimated_cost_units ||
       left.subject_id.localeCompare(right.subject_id),
   );
 }
 
-function attentionOperation(action: AttentionAction): CollaborationOperation {
+export function deriveWorkInsights(portfolio: WorkloadList): WorkInsight[] {
+  const admitted = portfolio.workloads.map((workload): WorkInsight => {
+    const observedOperation = workload.last_run_status
+      ? "RUN"
+      : workload.last_test_result_id
+        ? "TEST"
+        : "ADMISSION";
+    return {
+      id: `workload:${workload.workload.id}`,
+      workload_id: workload.workload.id,
+      title: workload.title,
+      kind: "ADMITTED",
+      revision: `R${workload.workload.revision}`,
+      observed_operation: observedOperation,
+      result:
+        observedOperation === "RUN"
+          ? (workload.last_run_status ?? "unknown").toUpperCase()
+          : workload.qualification.toUpperCase(),
+      journey: workloadJourney(workload),
+      scenarios_passed: workload.passed,
+      scenarios_required: workload.required,
+      artifact_summary: `${workload.mining_results} mining · ${workload.relation_deltas} deltas · ${workload.reasoning_surfaces} surfaces`,
+      attention_rows: workload.attention_rows,
+      evidence_id: workload.last_test_result_id,
+    };
+  });
+  const requested = portfolio.drafts.map((draft): WorkInsight => ({
+    id: `request:${draft.request.request_id}`,
+    workload_id: draft.request.workload_id,
+    title: draft.request.intent ?? draft.request.title,
+    kind: "REQUEST",
+    revision: "DRAFT",
+    observed_operation: "REQUEST",
+    result: "AWAITING AUTHOR",
+    journey: "AUTHOR",
+    scenarios_passed: 0,
+    scenarios_required: 0,
+    artifact_summary: "graph pending · scenario oracle pending",
+    attention_rows: portfolio.attention.rows.filter(
+      (row) =>
+        row.subject_kind === "workload" &&
+        row.subject_id === draft.request.workload_id &&
+        row.readiness !== "excluded",
+    ).length,
+    evidence_id: draft.request.request_id,
+  }));
+  return [...admitted, ...requested];
+}
+
+function recommendationOperation(
+  action: AttentionAction,
+): RecommendedOperation {
   switch (action) {
     case "create":
       return "AUTHOR";
@@ -121,9 +165,20 @@ function attentionOperation(action: AttentionAction): CollaborationOperation {
     case "retest":
       return "TEST";
     case "block":
-      return "RESOLVE";
     case "policy_excluded":
-      return "SURVEY";
+      return "RESOLVE";
+  }
+}
+
+function recommendedProfile(operation: RecommendedOperation): string {
+  switch (operation) {
+    case "AUTHOR":
+    case "REFINE":
+      return "CODING HARNESS";
+    case "TEST":
+      return "QUALIFICATION RUNNER";
+    case "RESOLVE":
+      return "SURVEY / OPERATOR";
   }
 }
 
@@ -133,79 +188,57 @@ function readinessOrder(readiness: AttentionReadiness): number {
   return 2;
 }
 
-export function AgentsPage({
-  environment,
-  portfolio,
-  refreshError,
-}: {
-  environment: EnvironmentStatus;
-  portfolio: WorkloadList;
-  refreshError: Error | null;
-}) {
-  const tasks = deriveCollaborationTasks(portfolio);
-  const runtimes = deriveAgentRuntimes(environment);
-  const found = runtimes.filter(
-    (runtime) => runtime.application.availability === "available",
-  );
+export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
+  const recommendations = deriveSystemRecommendations(portfolio);
+  const insights = deriveWorkInsights(portfolio);
+  const ready = recommendations.filter(
+    (recommendation) => recommendation.readiness === "ready",
+  ).length;
 
   return (
     <main className={sx(chrome.page, styles.page)}>
       <section
         className={sx(styles.section, styles.firstSection)}
-        data-rey-section="01 / TASK PLANE"
+        data-rey-section="01 / SYSTEM RECOMMENDATIONS"
       >
         <AgentHeading
-          detail={`${tasks.length} current frontier tasks · derived, not retained`}
+          detail={`${ready} ready · ${recommendations.length - ready} blocked · typed frontier evidence`}
           index="01"
-          kicker="TASK PLANE"
-          title="Bounded collaboration"
+          kicker="SYSTEM RECOMMENDATIONS"
+          title="What should happen next"
         />
-        <div className={sx(styles.workflowGrammar)}>
-          <div className={sx(styles.workflowGrammarLabel)}>
-            <span className={sx(chrome.micro)}>OPERATION GRAMMAR</span>
-            <strong>Tasks enter one bounded operation.</strong>
-            <p>
-              Workflows organize artifact movement. Journeys are derived from
-              operation state; Rey does not retain a second pile of journey
-              objects.
-            </p>
-          </div>
-          <div className={sx(styles.workflowLanes)}>
-            {workflowLanes.map((lane) => (
-              <div className={sx(styles.workflowLane)} key={lane.label}>
-                <span className={sx(chrome.micro)}>{lane.label}</span>
-                <div className={sx(styles.workflowOperations)}>
-                  {lane.operations.map((operation, index) => (
-                    <span className={sx(styles.workflowStep)} key={operation}>
-                      <strong>{operation}</strong>
-                      {index < lane.operations.length - 1 ? (
-                        <i className={sx(styles.workflowArrow)}>→</i>
-                      ) : null}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className={sx(styles.recommendationBoundary)}>
+          <span className={sx(chrome.micro)}>RECOMMENDATION BASIS</span>
+          <strong>REQUEST + ATTENTION + DELTA</strong>
+          <p>
+            Rey ranks unresolved work from retained evidence. It recommends an
+            operation and capability profile; it does not fabricate an agent
+            assignment or let a proposer declare success.
+          </p>
         </div>
-        {tasks.length === 0 ? (
+        {recommendations.length === 0 ? (
           <div className={sx(chrome.micro, styles.empty)}>
-            NO BOUNDED COLLABORATION TASKS ON THE CURRENT FRONTIER
+            NO AGENT WORK RECOMMENDED BY CURRENT EVIDENCE
           </div>
         ) : (
-          <div className={sx(styles.taskTable)} role="table">
+          <div className={sx(styles.table)} role="table">
             <div
-              className={sx(chrome.micro, styles.taskTableHeader)}
+              className={sx(chrome.micro, styles.recommendationHeader)}
               role="row"
             >
-              <span>TASK / SUBJECT</span>
-              <span>CURRENT OPERATION</span>
-              <span>ARTIFACT BOUND</span>
-              <span>ASSIGNMENT</span>
+              <span>RANK / SUBJECT</span>
+              <span>RECOMMENDATION</span>
+              <span>WHY NOW</span>
+              <span>BOUNDS</span>
+              <span>READINESS</span>
               <span>LOCATION</span>
             </div>
-            {tasks.map((task, index) => (
-              <TaskRow index={index} key={task.id} task={task} />
+            {recommendations.map((recommendation, index) => (
+              <RecommendationRow
+                index={index}
+                key={recommendation.id}
+                recommendation={recommendation}
+              />
             ))}
           </div>
         )}
@@ -213,74 +246,93 @@ export function AgentsPage({
 
       <section
         className={sx(styles.section)}
-        data-rey-section="02 / AGENT RUNTIMES"
+        data-rey-section="02 / WORK LEDGER"
       >
         <AgentHeading
-          detail={`${runtimes.length} desired · ${found.length} found · ${runtimes.length - found.length} unresolved`}
+          detail={`${portfolio.workloads.length} admitted · ${portfolio.drafts.length} requested · current bounded portfolio`}
           index="02"
-          kicker="AGENT RUNTIMES"
-          title="Collaboration applications"
+          kicker="WORK LEDGER"
+          title="Observed work"
         />
-        <div className={sx(styles.runtimeBoundary)}>
-          <span className={sx(chrome.micro)}>DISCOVERY BOUNDARY</span>
-          <strong>FOUND ≠ ADMITTED TO ACT</strong>
+        <div className={sx(styles.ledgerBoundary)}>
+          <span className={sx(chrome.micro)}>EVIDENCE BOUNDARY</span>
+          <strong>RETAINED RESULTS / NOT LIVE AGENT TELEMETRY</strong>
           <p>
-            Rey searches its process-owned inventory through bounded PATH
-            resolution without starting agent CLIs. Assignment, execution, and
-            an Explorer locator remain separate admissions.
+            Rows summarize admitted revisions, tests, runs, mined artifacts, and
+            current attention. Rey does not yet claim who is actively working or
+            stream process activity.
           </p>
-          {refreshError ? (
-            <small className={sx(chrome.micro, styles.runtimeError)}>
-              REVALIDATION DELAYED · {refreshError.message}
-            </small>
-          ) : null}
         </div>
-        <div className={sx(styles.runtimeGrid)}>
-          {runtimes.map((runtime, index) => (
-            <RuntimeCard index={index} key={runtime.id} runtime={runtime} />
-          ))}
-        </div>
+        {insights.length === 0 ? (
+          <div className={sx(chrome.micro, styles.empty)}>
+            NO WORK HAS ENTERED THE CURRENT PORTFOLIO
+          </div>
+        ) : (
+          <div className={sx(styles.table)} role="table">
+            <div className={sx(chrome.micro, styles.ledgerHeader)} role="row">
+              <span>SUBJECT</span>
+              <span>LAST OBSERVED</span>
+              <span>RESULT</span>
+              <span>ARTIFACT OUTPUT</span>
+              <span>SYSTEM READ</span>
+              <span>LOCATION</span>
+            </div>
+            {insights.map((insight, index) => (
+              <InsightRow index={index} insight={insight} key={insight.id} />
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
 }
 
-function TaskRow({ task, index }: { task: CollaborationTask; index: number }) {
-  const artifactCount = task.evidence_count + task.dependency_count;
+function RecommendationRow({
+  recommendation,
+  index,
+}: {
+  recommendation: SystemRecommendation;
+  index: number;
+}) {
   return (
-    <article className={sx(styles.taskRow)} role="row">
-      <div className={sx(styles.taskIdentity)}>
+    <article className={sx(styles.recommendationRow)} role="row">
+      <div className={sx(styles.identity)}>
         <span className={sx(styles.ordinal)}>
           {String(index + 1).padStart(2, "0")}
         </span>
-        <div>
-          <strong>{task.subject_id}</strong>
-          <code title={task.id}>{shortDigest(task.id)}</code>
-          <p className={sx(styles.taskObjective)}>{task.objective}</p>
+        <div className={sx(styles.identityDetail)}>
+          <strong>{recommendation.subject_id}</strong>
+          <code title={recommendation.id}>
+            {shortDigest(recommendation.id)}
+          </code>
+          <span className={sx(chrome.micro)}>
+            {recommendation.subject_kind}
+          </span>
         </div>
       </div>
-      <div className={sx(styles.operationBinding)}>
-        <strong>{task.operation}</strong>
-        <span className={sx(chrome.micro)}>{task.subject_kind} task</span>
+      <div className={sx(styles.operation)}>
+        <strong>{recommendation.operation}</strong>
+        <span className={sx(chrome.micro)}>{recommendation.profile}</span>
       </div>
-      <div className={sx(styles.artifactBinding)}>
-        <strong>{artifactCount}</strong>
+      <div className={sx(styles.reason)}>
+        <p className={sx(styles.reasonText)}>{recommendation.reason}</p>
+        <span className={sx(chrome.micro)}>{recommendation.source}</span>
+      </div>
+      <div className={sx(styles.bounds)}>
+        <strong>
+          P{recommendation.priority} · C{recommendation.estimated_cost_units}
+        </strong>
         <span>
-          {task.evidence_count} evidence · {task.dependency_count} dependencies
+          {recommendation.evidence_count} evidence ·{" "}
+          {recommendation.dependency_count} dependencies
         </span>
       </div>
-      <div className={sx(styles.assignment)}>
-        <strong>{task.readiness.toUpperCase()}</strong>
-        <span className={sx(chrome.micro)}>AGENT / UNASSIGNED</span>
+      <div className={sx(styles.readiness)}>
+        <strong>{recommendation.readiness.toUpperCase()}</strong>
+        <span className={sx(chrome.micro)}>ASSIGNMENT / OPEN</span>
       </div>
-      {task.workload_id ? (
-        <Link
-          className={sx(styles.locate)}
-          params={{ workloadId: task.workload_id }}
-          to="/workloads/$workloadId"
-        >
-          OPEN TASK SUBJECT →
-        </Link>
+      {recommendation.workload_id ? (
+        <TaskLink workloadId={recommendation.workload_id} />
       ) : (
         <span className={sx(chrome.micro, styles.unlocated)}>
           LOCATOR / PENDING
@@ -290,68 +342,74 @@ function TaskRow({ task, index }: { task: CollaborationTask; index: number }) {
   );
 }
 
-function RuntimeCard({
-  runtime,
+function InsightRow({
+  insight,
   index,
 }: {
-  runtime: AgentRuntime;
+  insight: WorkInsight;
   index: number;
 }) {
-  const { application } = runtime;
-  const status = application.availability;
+  const percent = scenarioPercent(
+    insight.scenarios_passed,
+    insight.scenarios_required,
+  );
   return (
-    <article className={sx(styles.runtimeCard)}>
-      <header className={sx(styles.runtimeCardHeader)}>
+    <article className={sx(styles.ledgerRow)} role="row">
+      <div className={sx(styles.identity)}>
         <span className={sx(styles.ordinal)}>
           {String(index + 1).padStart(2, "0")}
         </span>
-        <div className={sx(styles.runtimeIdentity)}>
-          <h3 className={sx(styles.runtimeTitle)}>{application.name}</h3>
-          <p className={sx(styles.runtimePurpose)}>{application.purpose}</p>
+        <div className={sx(styles.identityDetail)}>
+          <strong>{insight.workload_id}</strong>
+          <p className={sx(styles.identityDescription)}>{insight.title}</p>
+          <span className={sx(chrome.micro)}>
+            {insight.kind} · {insight.revision}
+          </span>
         </div>
-        <span
-          className={sx(
-            chrome.micro,
-            styles.runtimeStatus,
-            status === "available" && styles.runtimeFound,
-            status === "unavailable" && styles.runtimeMissing,
-            status === "error" && styles.runtimeError,
-          )}
-        >
-          {status === "available"
-            ? "FOUND"
-            : status === "unavailable"
-              ? "NOT FOUND"
-              : "PROBE ERROR"}
-        </span>
-      </header>
-      <dl className={sx(styles.runtimeDefinitions)}>
-        <div className={sx(styles.runtimeDefinition)}>
-          <dt className={sx(styles.runtimeTerm)}>SEARCH</dt>
-          <dd className={sx(styles.runtimeValue)}>
-            {application.resolved_path ?? "PATH / UNRESOLVED"}
-          </dd>
+      </div>
+      <div className={sx(styles.operation)}>
+        <strong>{insight.observed_operation}</strong>
+        <code title={insight.evidence_id ?? undefined}>
+          {shortDigest(insight.evidence_id)}
+        </code>
+      </div>
+      <div className={sx(styles.result)}>
+        <div className={sx(styles.resultSummary)}>
+          <strong>{insight.result}</strong>
+          <span>{percent}%</span>
         </div>
-        <div className={sx(styles.runtimeDefinition)}>
-          <dt className={sx(styles.runtimeTerm)}>POTENTIAL</dt>
-          <dd className={sx(styles.runtimeValue)}>
-            {application.potential_capabilities.join(" · ")}
-          </dd>
-        </div>
-        <div className={sx(styles.runtimeDefinition)}>
-          <dt className={sx(styles.runtimeTerm)}>AUTHORITY</dt>
-          <dd className={sx(styles.runtimeValue)}>DISCOVERED / NOT ADMITTED</dd>
-        </div>
-      </dl>
-      <footer className={sx(styles.runtimeFooter)}>
-        <span className={sx(chrome.micro)}>
-          {application.searched_path_count} PATH ENTRIES SEARCHED
-        </span>
-        <span className={sx(chrome.micro, styles.unlocated)}>
-          EXPLORER LOCATOR / PENDING SURVEY
-        </span>
-      </footer>
+        <i className={sx(styles.resultTrack)}>
+          <b
+            className={sx(styles.resultFill)}
+            style={{ width: `${percent}%` }}
+          />
+        </i>
+        <small className={sx(styles.resultMeta)}>
+          {insight.scenarios_passed}/{insight.scenarios_required} scenarios
+        </small>
+      </div>
+      <div className={sx(styles.artifacts)}>
+        <strong>{insight.artifact_summary}</strong>
+        <span className={sx(chrome.micro)}>EXACT CURRENT REVISION</span>
+      </div>
+      <div className={sx(styles.systemRead)}>
+        <strong>{insight.journey}</strong>
+        <span>{insight.attention_rows} attention rows</span>
+      </div>
+      <TaskLink workloadId={insight.workload_id} />
     </article>
+  );
+}
+
+function TaskLink({ workloadId }: { workloadId: string }) {
+  return (
+    <Link
+      className={sx(styles.locate)}
+      params={{ workloadId }}
+      to="/workloads/$workloadId"
+    >
+      INSPECT EVIDENCE →
+    </Link>
   );
 }
 

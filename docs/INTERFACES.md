@@ -33,6 +33,8 @@ application inventory from bounded search records.
 ADR 0030 adds partially ordered cadence lanes and exact matrix-style Explorer
 coordinates. ADR 0034 replaces its agent registry with process-discovered
 runtime options and a task/operation plane derived from the current frontier.
+ADR 0035 keeps runtime inventory in Environment and raises `/agents` to ranked
+recommendations plus retained-work insight.
 ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
 explicit agent-map input, establishes locator survey as the next boundary, and
 turns the footer into a live typed-attention mailbox.
@@ -837,11 +839,12 @@ limits, parents, revisions, completeness, and omissions. It also describes the
 existing mounted-browser revalidation schedules. That schedule description is
 not runtime scheduler state, and the endpoint does not poll refs, activate a
 workload, or retain browser reads. `/agents` requires no independent endpoint:
-it derives current tasks from creation requests and non-excluded attention in
-the workload-list document, and reads process-declared agent runtime options
-from environment status. Its context and workload operation lanes are UI
-grammar, not retained journey or scheduler state. A found runtime remains
-unassigned and unadmitted to execute.
+it derives ranked recommendations from creation requests and non-excluded
+attention in the workload-list document. Its work ledger projects only exact
+current revisions, qualification/run summaries, scenario coverage, mining and
+delta counts, attention, and retained evidence identities. It does not load the
+environment inventory, schedule work, infer an assigned agent, or claim live
+process telemetry.
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, read-only authority, workspace, catalog root, application,

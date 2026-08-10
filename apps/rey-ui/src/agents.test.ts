@@ -1,42 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deriveAgentRuntimes, deriveCollaborationTasks } from "./agents";
-import type { WorkloadList } from "./domain";
-import type {
-  EnvironmentApplicationObservation,
-  EnvironmentObjectStatus,
-  EnvironmentStatus,
-} from "./environment";
+import { deriveSystemRecommendations, deriveWorkInsights } from "./agents";
+import type { WorkloadList, WorkloadSummary } from "./domain";
 
-describe("agent collaboration projection", () => {
-  it("indexes only process-discovered agent runtime applications", () => {
-    const status = environmentStatus([
-      application("tool.git.identity", "git", "tool.git.identity", "available"),
-      application(
-        "agent.runtime.codex.identity",
-        "codex",
-        "agent.runtime.codex.identity",
-        "available",
-      ),
-      application(
-        "agent.runtime.claude.identity",
-        "claude",
-        "agent.runtime.claude.identity",
-        "unavailable",
-      ),
-    ]);
-
-    expect(
-      deriveAgentRuntimes(status).map((runtime) => [
-        runtime.application.name,
-        runtime.application.availability,
-      ]),
-    ).toEqual([
-      ["claude", "unavailable"],
-      ["codex", "available"],
-    ]);
-  });
-
-  it("derives current tasks without duplicating a draft attention row", () => {
+describe("agent collaboration intelligence", () => {
+  it("ranks typed recommendations without duplicating request attention", () => {
     const portfolio = emptyPortfolio();
     portfolio.drafts.push({
       request: {
@@ -72,101 +39,77 @@ describe("agent collaboration projection", () => {
         readiness: "blocked",
         evidence_ids: [],
         dependency_ids: ["locator:required"],
-        priority: 4,
+        priority: 12,
         estimated_cost_units: 2,
       },
     );
 
-    expect(deriveCollaborationTasks(portfolio)).toMatchObject([
+    expect(deriveSystemRecommendations(portfolio)).toMatchObject([
       {
         id: "request:alpha",
         operation: "AUTHOR",
+        profile: "CODING HARNESS",
+        source: "REQUEST + ATTENTION",
         evidence_count: 1,
-        workload_id: "alpha",
+        readiness: "ready",
       },
       {
         id: "attention:surface",
         operation: "RESOLVE",
+        profile: "SURVEY / OPERATOR",
         dependency_count: 1,
-        workload_id: null,
+        readiness: "blocked",
       },
+    ]);
+  });
+
+  it("reports observed work from retained results rather than agent activity", () => {
+    const portfolio = emptyPortfolio();
+    portfolio.workloads.push(workload());
+
+    expect(deriveWorkInsights(portfolio)).toEqual([
+      expect.objectContaining({
+        workload_id: "alpha",
+        kind: "ADMITTED",
+        observed_operation: "RUN",
+        result: "PASSED",
+        journey: "RUN COMPLETE",
+        scenarios_passed: 3,
+        scenarios_required: 4,
+        artifact_summary: "2 mining · 1 deltas · 1 surfaces",
+        evidence_id: "test:alpha",
+      }),
     ]);
   });
 });
 
-function application(
-  objectId: string,
-  name: string,
-  capability: string,
-  availability: EnvironmentApplicationObservation["availability"],
-): EnvironmentObjectStatus<EnvironmentApplicationObservation> {
+function workload(): WorkloadSummary {
   return {
-    object_id: objectId,
-    head: null,
-    index: null,
-    working: {
-      name,
-      purpose: "fixture",
-      required: false,
-      availability,
-      resolved_path: availability === "available" ? `/bin/${name}` : null,
-      content_digest: null,
-      potential_capabilities: [capability],
-      searched_path_count: 3,
-      error_code: availability === "unavailable" ? "not_found" : null,
+    provenance: null,
+    workload: { id: "alpha", revision: 2, semantic_digest: "blake3:workload" },
+    title: "Alpha workload",
+    candidate_graph: {
+      id: "alpha.graph",
+      revision: 3,
+      semantic_digest: "blake3:graph",
     },
-    changes: {
-      head_to_index: "unchanged",
-      index_to_working: "inserted",
-      head_to_working: "inserted",
-    },
-  };
-}
-
-function environmentStatus(
-  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[],
-): EnvironmentStatus {
-  return {
-    schema: "rey.environment-status.v5",
-    head_commit_id: null,
-    head_sequence: null,
-    head_snapshot_id: null,
-    state: "unborn",
-    working_snapshot: {
-      semantic_digest: "blake3:environment",
-      complete: true,
-      profile: "standalone",
-    },
-    operator: {
-      schema: "rey.environment-operator-projection.v3",
-      source_label: "EMPTY",
-      target_label: "WORKING",
-      complete: true,
-      mapping: null,
-      application_inventory: { head: null, index: null, working: null },
-      summary: {
-        variables: 0,
-        changed_variables: 0,
-        applications_searched: applications.length,
-        applications_found: applications.filter(
-          (entry) => entry.working?.availability === "available",
-        ).length,
-        applications_not_found: applications.filter(
-          (entry) => entry.working?.availability === "unavailable",
-        ).length,
-        application_errors: 0,
-        changed_applications: applications.length,
-        inputs: 0,
-        changed_inputs: 0,
-        references: 0,
-      },
-      variables: [],
-      applications,
-      inputs: [],
-      references: [],
-    },
-    staged_delta: { changes: [] },
-    unstaged_delta: { changes: [] },
+    freshness: "fresh",
+    qualification: "qualified",
+    required: 4,
+    passed: 3,
+    failed: 0,
+    inconclusive: 0,
+    evaluated: 3,
+    stale: 0,
+    optional: 1,
+    mining_operations: 2,
+    mining_results: 2,
+    incomplete_mining_results: 0,
+    relation_deltas: 1,
+    reasoning_surfaces: 1,
+    attention_rows: 0,
+    last_run_status: "passed",
+    last_test_result_id: "test:alpha",
   };
 }
 

@@ -65,10 +65,10 @@ the `/explore` context-topology canvas and normally remain in the UI; agents
 use the CLI as their primary runtime interface, with humans descending to it
 for exact diagnosis. The former Instrument dashboard is Environment at
 `/environment`. `/cadence` keeps bounded Git reachability, Rey admissions, and
-mounted browser scans on explicit partial-order clocks. `/agents` indexes exact
-current tasks by bounded operation and shows the process-owned desired/found/
-missing agent-runtime inventory. Generator provenance remains workload
-evidence, not the definition of an available or assigned agent. The
+mounted browser scans on explicit partial-order clocks. `/agents` ranks
+evidence-backed system recommendations and summarizes retained work results;
+agent-runtime discovery remains on `/environment`. Generator provenance remains
+workload evidence, not the definition of an available or assigned agent. The
 UI starts from the CLI, passively revalidates the same workload-list
 derivation, defaults to loopback, and is neither a mutation plane nor a public
 Rey service. Its fixed footer is a two-axis communication plane: the mailbox

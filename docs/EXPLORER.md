@@ -134,8 +134,7 @@ request for unimplemented historical reconstruction. See [ADR
 - `/explore`: the context-topology canvas and default human entry;
 - `/explore/{kind}/{identity};...`: an exact matrix-style Explorer coordinate;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
-- `/agents`: current task/operation plane plus process-owned agent-runtime
-  desired, found, not-found, and error evidence;
+- `/agents`: evidence-ranked system recommendations and an observed-work ledger;
 - `/environment`: three stacked Kinetic Precision evidence sections over the
   exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
   bounded search, and the reference plane;
@@ -169,11 +168,12 @@ The Explorer topology is intentionally narrow. It is derived from
 counts, portfolio attention, and mapped-surface coverage counts. The separate
 `/environment` route now consumes `rey.environment-status.v5` and renders its
 exact variable, application, input, and reference operator projection.
-`/agents` consumes both documents: it derives non-retained tasks from current
-attention and requests, then filters the environment application inventory for
-process-declared agent runtime options. Generator provenance still supplies
-the current v1 agent neighborhoods in Explorer, but it is not presented as
-runtime availability or assignment. The Explorer
+`/agents` consumes the workload-list document at a higher semantic level: it
+ranks current requests and attention as recommendations, then summarizes work
+supported by retained test, run, mining, delta, and revision evidence. Agent
+runtime discovery remains on `/environment`. Generator provenance still
+supplies the current v1 agent neighborhoods in Explorer, but it is not
+presented as runtime availability, live activity, or assignment. The Explorer
 does not yet contain exact environment nodes, Git commit objects, source spans,
 scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
 Explorer must not imply that unavailable objects have been rendered.

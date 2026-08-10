@@ -80,6 +80,13 @@ Journeys are human projections over those operation states. They are not
 retained alongside workloads, attention, evidence, and cadence. See [ADR
 0034](docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md).
 
+The Environment surface owns runtime discovery. `/agents` operates one level
+up: it ranks evidence-backed recommendations over current requests and
+attention, then summarizes the work Rey can prove from retained tests, runs,
+mining outputs, and deltas. It does not repeat executable inventory or claim
+live agent activity. See [ADR
+0035](docs/decisions/0035-agent-recommendations-and-observed-work.md).
+
 ## The Runtime Loop
 
 ```text
@@ -245,9 +252,9 @@ semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations use matrix-style coordinates such as
 `/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
-bindings remain visible instead of drifting silently. `/agents` projects
-current bounded collaboration tasks and the process-owned agent-runtime search,
-including found and unresolved options without implying execution authority.
+bindings remain visible instead of drifting silently. `/agents` uses dense
+tables for ranked system recommendations and an observed-work ledger over
+retained portfolio evidence. Agent applications remain on `/environment`.
 `/cadence` presents Git reachability, Rey environment admissions, and
 mounted passive scans as separate partially ordered tick lanes rather than a
 fictional global event log. Every displayed Git commit SHA is itself an exact
@@ -544,7 +551,7 @@ Rey is not:
 
 The repository contains an eleven-crate Rust workspace. Implemented behavior
 includes bounded standalone capability discovery, process-declared `git`,
-`rg`, and major agent-runtime identity probes, a partial read-only Git
+`rg` identity probes, and major agent-runtime presence scans, a partial read-only Git
 observation, typed capability
 snapshot deltas, Arrow and Tabular Diff projections, scoped capability
 certificates, bounded local proof bundles, verified local environment commits,
@@ -594,8 +601,8 @@ attention, not the portfolio strategy itself.
 [Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
 surface. `/explore` is now the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
-matrix-style deep links, a derived task plane, the discovered agent-runtime
-inventory, and a partially ordered cadence view. Its next concrete anchor is to replace
+matrix-style deep links, ranked agent recommendations, an observed-work ledger,
+and a partially ordered cadence view. Its next concrete anchor is to replace
 the explicitly unavailable conversation boundary with exact participant,
 session, message, admission, retention, and authority contracts exposed to
 agents through the CLI. Exact locator-bound Explorer objects and scenario

@@ -87,10 +87,6 @@
     padding: 60px;
   }
 
-  .x18tqr4w {
-    padding: 6px 8px;
-  }
-
   .x1qmqqgu {
     padding: 7px 9px;
   }
@@ -99,16 +95,12 @@
     padding: clamp(18px, 3vw, 30px);
   }
 
-  .xeey41z {
-    padding: clamp(20px, 3vw, 34px);
+  .x1lgt5ka {
+    padding: clamp(20px, 3vw, 32px);
   }
 
   .x13r7s22 {
     padding: clamp(22px, 3vw, 34px);
-  }
-
-  .x1rn1i8a {
-    padding: clamp(22px, 3vw, 36px);
   }
 
   .xwg63yq {
@@ -271,10 +263,6 @@
 
   .xou54vl {
     gap: 16px;
-  }
-
-  .x1jpf44d {
-    gap: 17px;
   }
 
   .xaobbuh {
@@ -973,10 +961,6 @@
     font-size: .71rem;
   }
 
-  .x1iuv88s {
-    font-size: .72rem;
-  }
-
   .xboafo0 {
     font-size: .75rem;
   }
@@ -1053,10 +1037,6 @@
     font-size: clamp(1.65rem, 3vw, 2.8rem);
   }
 
-  .x1vdaz8 {
-    font-size: clamp(1.6rem, 2.5vw, 2.3rem);
-  }
-
   .x13kmaaf {
     font-size: clamp(1.8rem, 3vw, 3rem);
   }
@@ -1083,10 +1063,6 @@
 
   .xwz2t7 {
     font-stretch: condensed;
-  }
-
-  .x1j61x8r {
-    font-style: normal;
   }
 
   .x1it3fuk {
@@ -1141,10 +1117,6 @@
     grid-template-columns: 34px 1fr;
   }
 
-  .x1cmfm2h {
-    grid-template-columns: 42px minmax(0, 1fr) auto;
-  }
-
   .x1gn7j7t {
     grid-template-columns: 44px 28px minmax(max-content, 1fr) auto;
   }
@@ -1161,20 +1133,16 @@
     grid-template-columns: 72px minmax(0, 1fr) auto;
   }
 
-  .x1h5hgu8 {
-    grid-template-columns: 84px minmax(0, 1fr);
-  }
-
-  .x1xtq53l {
-    grid-template-columns: 92px minmax(0, 1fr);
-  }
-
   .x1qj1mfr {
     grid-template-columns: 95px 1fr;
   }
 
-  .x1rf672w {
-    grid-template-columns: auto minmax(180px, .6fr) minmax(280px, 1fr);
+  .xbc38a3 {
+    grid-template-columns: auto minmax(220px, .6fr) minmax(300px, 1fr);
+  }
+
+  .xjv120z {
+    grid-template-columns: auto minmax(260px, .75fr) minmax(300px, 1fr);
   }
 
   .xy0r652 {
@@ -1193,20 +1161,20 @@
     grid-template-columns: minmax(150px, auto) minmax(180px, 1fr) auto;
   }
 
+  .x1ms9zmk {
+    grid-template-columns: minmax(210px, 1fr) minmax(145px, .68fr) minmax(230px, 1.05fr) minmax(150px, .65fr) minmax(150px, .65fr) minmax(155px, .62fr);
+  }
+
   .xxqdoqy {
     grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   }
 
+  .x1up58os {
+    grid-template-columns: minmax(230px, 1.05fr) minmax(150px, .65fr) minmax(190px, .82fr) minmax(210px, .9fr) minmax(155px, .65fr) minmax(155px, .62fr);
+  }
+
   .x10s8shn {
     grid-template-columns: minmax(240px, .32fr) minmax(0, 1fr);
-  }
-
-  .x1j7qhnj {
-    grid-template-columns: minmax(240px, .36fr) minmax(0, 1fr);
-  }
-
-  .xz3u2bz {
-    grid-template-columns: minmax(240px, 1.2fr) minmax(145px, .65fr) minmax(170px, .75fr) minmax(160px, .7fr) minmax(160px, .65fr);
   }
 
   .x1noms9b {
@@ -1335,6 +1303,10 @@
 
   .x1xfvgam {
     line-height: 1.35;
+  }
+
+  .x37zpob {
+    line-height: 1.4;
   }
 
   .xfrs9s4 {
@@ -1708,8 +1680,8 @@
     }
   }
 
-  @media (width <= 1080px) {
-    .xg7ench.xg7ench {
+  @media (width <= 1120px) {
+    .xuythms.xuythms {
       display: none;
     }
   }
@@ -1744,8 +1716,8 @@
     }
   }
 
-  @media (width <= 620px) {
-    .xbywfz2.xbywfz2 {
+  @media (width <= 640px) {
+    .xreyasp.xreyasp {
       grid-template-columns: 1fr;
     }
   }
@@ -1756,14 +1728,8 @@
     }
   }
 
-  @media (width <= 800px) {
-    .xcqouw7.xcqouw7 {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (width <= 840px) {
-    .x1upd0l5.x1upd0l5 {
+  @media (width <= 820px) {
+    .xbxg0s0.xbxg0s0 {
       grid-template-columns: 1fr;
     }
   }
@@ -1810,8 +1776,8 @@
     }
   }
 
-  @media (width >= 620.01px) and (width <= 1080px) {
-    .x956a4g.x956a4g {
+  @media (width >= 640.01px) and (width <= 1120px) {
+    .xwxs4bs.xwxs4bs {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
@@ -2010,6 +1976,10 @@
 
   .x5kalc8 {
     height: 42px;
+  }
+
+  .x1ycjhwn {
+    height: 5px;
   }
 
   .x1hagigm {
@@ -2468,15 +2438,7 @@
     .xxazgbe.xxazgbe {
       border-right-width: 0;
     }
-  }
 
-  @media (width <= 840px) {
-    .x54d9g7.x54d9g7 {
-      border-right-width: 0;
-    }
-  }
-
-  @media (width <= 760px) {
     .xaet5pa.xaet5pa {
       border-top-color: var(--line);
     }

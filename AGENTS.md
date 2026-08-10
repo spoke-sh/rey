@@ -79,6 +79,9 @@ exists.
 - Treat tasks as bounded current coordination envelopes over intent,
   operation, artifact references, desired delta, readiness, and assignment.
   Derive workflow journeys for humans; do not retain a parallel journey store.
+- Derive system recommendations from exact requests, attention, deltas, bounds,
+  and retained results. Never present inferred agent activity or an LLM opinion
+  as observed work.
 - Treat Git commit, ref, and semantic index snapshots as first-class software
   activation inputs.
 - Support a zero-Spoke standalone profile with explicitly narrower guarantees.

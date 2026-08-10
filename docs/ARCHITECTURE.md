@@ -165,12 +165,13 @@ visual transitions. Matrix-style coordinate routes bind kind, identity,
 revision, lens, and agent role so other operator views can deep-link without
 moving topology authority into the URL. `/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
-retains the exact catalog/detail routes. `/agents` combines the process-owned
-agent-runtime application search with tasks derived from current workload
-requests and non-excluded attention. Tasks organize intent, one bounded
-operation, artifact references, desired delta, readiness, and assignment;
-workflow journeys remain projections rather than retained objects. Workload
-generator tuples remain provenance but no longer define the agent registry. `/cadence`
+retains the exact catalog/detail routes. `/agents` ranks recommendations from
+current requests and non-excluded attention, then projects an observed-work
+ledger from exact workload revisions, tests, runs, mining outputs, deltas, and
+attention. Tasks still organize intent, operation, artifact references,
+desired delta, readiness, and assignment; journeys remain derived. Agent
+application discovery stays on `/environment`, and generator tuples remain
+provenance rather than activity or assignment. `/cadence`
 keeps bounded Git reachability, environment sequence, and mounted browser scan
 schedules on separate clocks instead of fabricating a total event order.
 The fixed footer is a live communications channel over typed attention and

@@ -5,7 +5,8 @@
   [ADR 0026](../docs/decisions/0026-context-topology-explorer.md),
   [ADR 0030](../docs/decisions/0030-operator-cadence-agents-and-explorer-coordinates.md),
   [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md),
-  [ADR 0034](../docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md)
+  [ADR 0034](../docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md),
+  [ADR 0035](../docs/decisions/0035-agent-recommendations-and-observed-work.md)
 
 ## Outcome
 
@@ -24,10 +25,10 @@ The application is an embedded TanStack Router application using Hifi's
 Kinetic grammar with the Precision theme. `/explore` is the default context-
 topology canvas. It reads the same bounded workload portfolio projection as
 `rey workloads list`; it does not mutate state or create a second scheduler.
-`/cadence` keeps observable clocks partially ordered. `/agents` projects
-current tasks through named operations and the process-owned agent-runtime
-search without treating discovery as execution authority. Matrix-style
-Explorer coordinates make exact topology records shareable.
+`/cadence` keeps observable clocks partially ordered. `/agents` ranks current
+system recommendations and summarizes observed work from retained evidence;
+agent application discovery remains in Environment. Matrix-style Explorer
+coordinates make exact topology records shareable.
 
 ## Completion Checklist
 
@@ -77,6 +78,8 @@ Explorer coordinates make exact topology records shareable.
 - [x] Replace the provenance-derived `/agents` registry with current bounded
   tasks, derived workflow operations, and the process-owned major agent-runtime
   desired/found/missing inventory.
+- [x] Move runtime inventory back to Environment and restore `/agents` as dense
+  recommendation and work-ledger tables over authoritative portfolio evidence.
 - [x] Formalize canonical matrix-style Explorer coordinates with unique
   unordered dimensions, exact `at` bindings, agent roles, route tests, and
   visible stale/missing resolution.
@@ -189,11 +192,13 @@ transport, no retention, and a disabled send action.
 
 The agent-plane refinement separates available collaboration applications from
 past generator provenance. Six major agent runtimes enter the same bounded
-environment inventory/search evidence as other applications. `/agents`
-collapses matching creation-request and attention evidence into current tasks,
-shows each task's bounded operation and artifact counts, and keeps assignment
-explicitly unassigned. Context and workload journeys are derived operation
-grammar, not retained objects.
+environment inventory/search evidence as other applications. That inventory
+stays on `/environment`. `/agents` collapses matching creation-request and
+attention evidence into ranked recommendations and adds an observed-work
+ledger over retained revision, test, run, mining, delta, and attention facts.
+It explicitly labels those rows as retained results rather than live agent
+telemetry. Tasks remain bounded coordination envelopes and journeys remain
+derived rather than retained objects.
 
 ## Next Concrete Anchor
 
