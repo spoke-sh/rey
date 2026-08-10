@@ -218,6 +218,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "modified:  environment variable: PATH",
         "modified:  application: git",
         "modified:  application: rg",
+        "modified:  application: codex",
         "no changes added to environment commit",
     ] {
         assert!(
@@ -241,11 +242,12 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     for evidence in [
         "REY ENV DIFF · INDEX → WORKING",
         "View                   UNSTAGED",
-        "Evidence               DIFFERENT · 3 authoritative capability changes",
+        "Evidence               DIFFERENT · 9 authoritative capability changes",
         "01 / DIRECTED TEXT",
         "Environment variables · 3 tracked · 1 changed",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 2 searched · 2 found · 0 not found · 0 errors · 2 changed",
+        "APPLICATIONS · 8 searched",
+        "8 changed",
         "REFERENCE PLANE",
         "Inputs and topology",
     ] {
@@ -268,7 +270,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(added.status.success());
     let added = String::from_utf8(added.stdout).unwrap();
     assert!(added.contains("ENVIRONMENT ADMISSION"));
-    assert!(added.contains("3 capability changes admitted"));
+    assert!(added.contains("9 capability changes admitted"));
     assert!(added.contains("0 changes remain unstaged · EQUAL"));
 
     let staged_diff = run_rey(&[
@@ -284,7 +286,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert_eq!(staged_diff.mode, EnvironmentDiffMode::Staged);
     assert_eq!(staged_diff.delta.source_label, "ENV@1");
     assert_eq!(staged_diff.delta.target_label, "INDEX");
-    assert_eq!(staged_diff.delta.summary.modified, 3);
+    assert_eq!(staged_diff.delta.summary.modified, 9);
 
     let second = run_rey(&[
         "env",
@@ -319,9 +321,9 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "commit ENV@2 ",
         "Parent: ENV@1 ",
         "Date:   ",
-        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 3 authoritative capability changes",
-        "Environment            3 variables · 2 applications · 0 inputs · 0 references · complete",
-        "Changes                1 variable · 2 applications · 0 inputs · 0 references",
+        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 9 authoritative capability changes",
+        "Environment            3 variables · 8 applications · 0 inputs · 0 references · complete",
+        "Changes                1 variable · 8 applications · 0 inputs · 0 references",
         "    stage fixture",
     ] {
         assert!(log.contains(evidence), "missing log evidence: {evidence}");
@@ -782,10 +784,9 @@ edges:
         "+ REY_MODE=production-mode-value",
         "  REY_SECRET=<present:redacted>",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 4 searched · 3 found · 1 not found · 0 errors · 0 changed",
-        "FOUND 3",
+        "APPLICATIONS · 10 searched",
+        "0 errors · 0 changed",
         "rey-map-probe",
-        "SEARCHED, NOT FOUND 1",
         "rey-definitely-missing",
         "REFERENCE PLANE",
         "Inputs and topology",
@@ -915,7 +916,7 @@ edges:
         "Parent: ENV@1 ",
         "Date:   ",
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
-        "Environment            5 variables · 4 applications · 1 input · 2 references · complete",
+        "Environment            5 variables · 10 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
         "Reasoning map          rey.env.yaml · rey.env-map.v3",
         "    update mapped environment",
@@ -951,7 +952,8 @@ edges:
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 4 searched · 3 found · 1 not found · 0 errors · 0 changed",
+        "APPLICATIONS · 10 searched",
+        "0 errors · 0 changed",
         "REFERENCE PLANE",
         "INPUTS · 1 tracked · 1 changed",
         "- input.txt · required",

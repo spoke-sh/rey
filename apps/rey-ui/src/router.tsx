@@ -1409,7 +1409,18 @@ function CadenceRoutePage() {
 }
 
 function AgentsRoutePage() {
-  return <AgentsPage portfolio={usePortfolio()} />;
+  const initialEnvironment = agentsRoute.useLoaderData();
+  const { document: environment, error: refreshError } = usePassiveDocument(
+    initialEnvironment,
+    loadEnvironment,
+  );
+  return (
+    <AgentsPage
+      environment={environment}
+      portfolio={usePortfolio()}
+      refreshError={refreshError}
+    />
+  );
 }
 
 const rootRoute = createRootRoute({
@@ -1450,6 +1461,7 @@ const cadenceRoute = createRoute({
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
+  loader: loadEnvironment,
   component: AgentsRoutePage,
 });
 
@@ -1498,7 +1510,7 @@ declare module "@tanstack/react-router" {
 function routeCoordinate(pathname: string): string {
   if (pathname.startsWith("/explore")) return "EXPLORE / CONTEXT TOPOLOGY";
   if (pathname.startsWith("/cadence")) return "CADENCE / TICKS";
-  if (pathname.startsWith("/agents")) return "AGENTS / PROVENANCE";
+  if (pathname.startsWith("/agents")) return "AGENTS";
   if (pathname.startsWith("/environment")) return "ENVIRONMENT";
   if (pathname.startsWith("/workloads")) return "WORKLOADS";
   return "UNRESOLVED";

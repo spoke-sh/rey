@@ -58,6 +58,28 @@ Rey keeps four phases separate:
 See [Environment and Capabilities](docs/ENVIRONMENT.md),
 [Locators](docs/LOCATORS.md), and [ADR 0032](docs/decisions/0032-seed-discovery-survey-and-live-communications.md).
 
+## Agent Collaboration
+
+Rey separates the runtime that may collaborate from the work it may eventually
+perform. Process discovery searches a fixed major agent-runtime inventory:
+`agy`, `claude`, `codex`, `copilot`, `droid`, and `opencode`. Found means only
+that bounded PATH resolution found an executable; discovery does not start the
+agent CLI and does not admit assignment or execution.
+
+A **task** is the bounded current coordination envelope over intent, one named
+operation, artifact references, a desired delta, readiness, and agent
+assignment. Known workflow operations organize tasks without creating another
+artifact store:
+
+```text
+CONTEXT   DISCOVER → REASON → SURVEY → PROCESS
+WORKLOAD  ORIENT → AUTHOR → TEST → REFINE → RUN
+```
+
+Journeys are human projections over those operation states. They are not
+retained alongside workloads, attention, evidence, and cadence. See [ADR
+0034](docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md).
+
 ## The Runtime Loop
 
 ```text
@@ -223,9 +245,10 @@ semantic lens moves from a bounded landscape, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations use matrix-style coordinates such as
 `/explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness`; stale revision
-bindings remain visible instead of drifting silently. `/agents` indexes exact
-generator provenance and links each identified agent into that coordinate
-plane. `/cadence` presents Git reachability, Rey environment admissions, and
+bindings remain visible instead of drifting silently. `/agents` projects
+current bounded collaboration tasks and the process-owned agent-runtime search,
+including found and unresolved options without implying execution authority.
+`/cadence` presents Git reachability, Rey environment admissions, and
 mounted passive scans as separate partially ordered tick lanes rather than a
 fictional global event log. Every displayed Git commit SHA is itself an exact
 GitHub commit link when the source repository is bound; Rey exposes an unbound
@@ -520,8 +543,9 @@ Rey is not:
 ## Current Status And Next Bearing
 
 The repository contains an eleven-crate Rust workspace. Implemented behavior
-includes bounded standalone capability discovery, allowlisted `git` and `rg`
-identity probes, a partial read-only Git observation, typed capability
+includes bounded standalone capability discovery, process-declared `git`,
+`rg`, and major agent-runtime identity probes, a partial read-only Git
+observation, typed capability
 snapshot deltas, Arrow and Tabular Diff projections, scoped capability
 certificates, bounded local proof bundles, verified local environment commits,
 process-owned discovery seeds, explicit agent-generatable environment mapping
@@ -570,8 +594,8 @@ attention, not the portfolio strategy itself.
 [Plan 0011](plans/0011-local-operator-ui.md) carries the high-fidelity operator
 surface. `/explore` is now the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
-matrix-style deep links, provenance-derived agent neighborhoods, and a
-partially ordered cadence view. Its next concrete anchor is to replace
+matrix-style deep links, a derived task plane, the discovered agent-runtime
+inventory, and a partially ordered cadence view. Its next concrete anchor is to replace
 the explicitly unavailable conversation boundary with exact participant,
 session, message, admission, retention, and authority contracts exposed to
 agents through the CLI. Exact locator-bound Explorer objects and scenario

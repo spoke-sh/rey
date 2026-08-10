@@ -74,6 +74,11 @@ exists.
 - Preserve failing scenario results as directed typed deltas from expected to
   observed output.
 - Treat the capability snapshot as a first-class, changing runtime input.
+- Keep agent-runtime discovery, task assignment, and execution authority
+  separate. Finding an agent application grants no permission to invoke it.
+- Treat tasks as bounded current coordination envelopes over intent,
+  operation, artifact references, desired delta, readiness, and assignment.
+  Derive workflow journeys for humans; do not retain a parallel journey store.
 - Treat Git commit, ref, and semantic index snapshots as first-class software
   activation inputs.
 - Support a zero-Spoke standalone profile with explicitly narrower guarantees.

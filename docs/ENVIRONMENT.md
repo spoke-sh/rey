@@ -120,9 +120,11 @@ not load a project configuration file, enumerate arbitrary variables, source
 shell profiles, or recursively scan any seed path.
 
 The current compiled desired-application inventory contains the declared
-`git` and `rg` identity adapters and their purposes. PATH resolution and fixed
-bounded identity probes produce the separate search record. Discovery does not
-turn either application into authority for arbitrary execution.
+`git` and `rg` adapters plus `agy`, `claude`, `codex`, `copilot`, `droid`, and
+`opencode` as major agent-runtime options. PATH resolution records executable
+presence for agent runtimes without starting them; fixed bounded identity
+probes remain limited to the non-interactive `git` and `rg` adapters. Discovery
+does not turn a found application into assignment or execution authority.
 
 Environment discovery retains the `git` executable identity but does not run
 repository inspection or add `git.repository.inspect` to the environment

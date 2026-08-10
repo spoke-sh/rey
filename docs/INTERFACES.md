@@ -30,8 +30,9 @@ ADR 0027 adds bounded non-sensitive value capture and makes `rey env status`
 plus `/environment` two projections of one typed environment delta. ADR 0031
 hard-cuts the mapping graph to `rey.env-map.v3` and separates exact desired
 application inventory from bounded search records.
-ADR 0030 adds partially ordered cadence lanes, a provenance-derived agent
-registry, and exact matrix-style Explorer coordinates.
+ADR 0030 adds partially ordered cadence lanes and exact matrix-style Explorer
+coordinates. ADR 0034 replaces its agent registry with process-discovered
+runtime options and a task/operation plane derived from the current frontier.
 ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
 explicit agent-map input, establishes locator survey as the next boundary, and
 turns the footer into a live typed-attention mailbox.
@@ -836,8 +837,11 @@ limits, parents, revisions, completeness, and omissions. It also describes the
 existing mounted-browser revalidation schedules. That schedule description is
 not runtime scheduler state, and the endpoint does not poll refs, activate a
 workload, or retain browser reads. `/agents` requires no independent endpoint:
-it derives exact generator tuples and unassigned handoffs from the same
-workload-list document as `/workloads`.
+it derives current tasks from creation requests and non-excluded attention in
+the workload-list document, and reads process-declared agent runtime options
+from environment status. Its context and workload operation lanes are UI
+grammar, not retained journey or scheduler state. A found runtime remains
+unassigned and unadmitted to execute.
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, read-only authority, workspace, catalog root, application,

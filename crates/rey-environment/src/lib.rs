@@ -428,6 +428,9 @@ impl LocalDiscovery {
                 "not found in configured search paths",
             );
         };
+        let Some(identity_args) = adapter.identity_args else {
+            return available_tool(adapter, &program, None, search_path_count, false);
+        };
         let total = Duration::from_millis(self.limits.total_timeout_ms);
         let Some(remaining) = total.checked_sub(started.elapsed()) else {
             return error_tool(
@@ -441,7 +444,7 @@ impl LocalDiscovery {
         let timeout = remaining.min(Duration::from_millis(self.limits.probe_timeout_ms));
         let request = CommandRequest {
             program: program.clone(),
-            args: adapter.args.iter().map(OsString::from).collect(),
+            args: identity_args.iter().map(OsString::from).collect(),
             cwd: workspace.to_owned(),
             timeout,
             max_capture_bytes: self.limits.max_capture_bytes,
@@ -473,7 +476,9 @@ impl LocalDiscovery {
                 ),
             ),
             Ok(output) => match parse_version(&output.stdout) {
-                Ok(version) => available_tool(adapter, &program, version, search_path_count),
+                Ok(version) => {
+                    available_tool(adapter, &program, Some(version), search_path_count, true)
+                }
                 Err(detail) => error_tool(
                     adapter,
                     &program,
@@ -498,23 +503,65 @@ struct ToolAdapter {
     capability_id: &'static str,
     purpose: &'static str,
     required: bool,
-    args: &'static [&'static str],
+    identity_args: Option<&'static [&'static str]>,
 }
 
 const TOOL_ADAPTERS: &[ToolAdapter] = &[
+    ToolAdapter {
+        name: "agy",
+        capability_id: "agent.runtime.agy.identity",
+        purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "claude",
+        capability_id: "agent.runtime.claude.identity",
+        purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "codex",
+        capability_id: "agent.runtime.codex.identity",
+        purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "copilot",
+        capability_id: "agent.runtime.copilot.identity",
+        purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "droid",
+        capability_id: "agent.runtime.droid.identity",
+        purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
+    },
     ToolAdapter {
         name: "git",
         capability_id: "tool.git.identity",
         purpose: "Inspect repository identity and activation inputs",
         required: false,
-        args: &["--version"],
+        identity_args: Some(&["--version"]),
     },
     ToolAdapter {
         name: "rg",
         capability_id: "tool.ripgrep.identity",
         purpose: "Extend bounded source mining with fast text search",
         required: false,
-        args: &["--version"],
+        identity_args: Some(&["--version"]),
+    },
+    ToolAdapter {
+        name: "opencode",
+        capability_id: "agent.runtime.opencode.identity",
+        purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
     },
 ];
 
@@ -686,9 +733,32 @@ fn source_search_capability(workspace: &Path) -> CapabilityRecord {
 fn available_tool(
     adapter: &ToolAdapter,
     program: &Path,
-    version: String,
+    version: Option<String>,
     search_path_count: u64,
+    identity_probe_executed: bool,
 ) -> CapabilityRecord {
+    let (operations, enforced_limits, unsupported_limits) = if identity_probe_executed {
+        (
+            vec!["inspect_identity".to_owned()],
+            vec![
+                "capture_bytes".to_owned(),
+                "cleared_environment".to_owned(),
+                "direct_argv".to_owned(),
+                "wall_timeout".to_owned(),
+            ],
+            vec!["process_sandbox".to_owned()],
+        )
+    } else {
+        (
+            vec!["resolve_executable_presence".to_owned()],
+            vec![
+                "absolute_search_paths".to_owned(),
+                "executable_permission".to_owned(),
+                "no_process_execution".to_owned(),
+            ],
+            vec!["version_identity".to_owned(), "task_execution".to_owned()],
+        )
+    };
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
         provider_revision: LOCAL_PROVIDER_REVISION,
@@ -696,19 +766,14 @@ fn available_tool(
         capability_id: adapter.capability_id.to_owned(),
         capability_kind: "identity_probe".to_owned(),
         resolved_location: Some(program.display().to_string()),
-        version: Some(version),
+        version,
         content_digest: None,
         provenance: Some(application_provenance(adapter, search_path_count)),
         availability: Availability::Available,
         trust_class: TrustClass::DiscoveredLocal,
-        operations: vec!["inspect_identity".to_owned()],
-        enforced_limits: vec![
-            "capture_bytes".to_owned(),
-            "cleared_environment".to_owned(),
-            "direct_argv".to_owned(),
-            "wall_timeout".to_owned(),
-        ],
-        unsupported_limits: vec!["process_sandbox".to_owned()],
+        operations,
+        enforced_limits,
+        unsupported_limits,
         observed_at: None,
         error_code: None,
         error_detail: None,
@@ -756,6 +821,26 @@ fn failed_tool(
     code: &str,
     detail: &str,
 ) -> CapabilityRecord {
+    let (enforced_limits, unsupported_limits) = if adapter.identity_args.is_some() {
+        (
+            vec![
+                "capture_bytes".to_owned(),
+                "cleared_environment".to_owned(),
+                "direct_argv".to_owned(),
+                "wall_timeout".to_owned(),
+            ],
+            vec!["process_sandbox".to_owned()],
+        )
+    } else {
+        (
+            vec![
+                "absolute_search_paths".to_owned(),
+                "executable_permission".to_owned(),
+                "no_process_execution".to_owned(),
+            ],
+            vec!["version_identity".to_owned(), "task_execution".to_owned()],
+        )
+    };
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
         provider_revision: LOCAL_PROVIDER_REVISION,
@@ -769,13 +854,8 @@ fn failed_tool(
         availability,
         trust_class: TrustClass::DiscoveredLocal,
         operations: Vec::new(),
-        enforced_limits: vec![
-            "capture_bytes".to_owned(),
-            "cleared_environment".to_owned(),
-            "direct_argv".to_owned(),
-            "wall_timeout".to_owned(),
-        ],
-        unsupported_limits: vec!["process_sandbox".to_owned()],
+        enforced_limits,
+        unsupported_limits,
         observed_at: None,
         error_code: Some(code.to_owned()),
         error_detail: Some(detail.to_owned()),
@@ -1024,7 +1104,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(snapshot.profile, "standalone");
-        assert_eq!(snapshot.capabilities.len(), 8);
+        assert_eq!(snapshot.capabilities.len(), 14);
         assert_eq!(
             snapshot
                 .capabilities
@@ -1033,7 +1113,7 @@ mod tests {
                 .count(),
             3
         );
-        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 8);
+        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 14);
         let source_search = snapshot
             .capabilities
             .iter()
@@ -1108,6 +1188,85 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["env.seed.home", "env.seed.path", "env.seed.pwd"]
         );
+    }
+
+    #[test]
+    fn process_owned_discovery_declares_major_agent_runtime_options() {
+        let workspace = TempDir::new().unwrap();
+        let snapshot = LocalDiscovery {
+            workspace: workspace.path().to_owned(),
+            search_paths: Vec::new(),
+            seed_values: BTreeMap::new(),
+            limits: DiscoveryLimits::default(),
+        }
+        .inspect()
+        .unwrap();
+
+        let agent_runtimes = snapshot
+            .capabilities
+            .iter()
+            .filter(|row| row.capability_id.starts_with("agent.runtime."))
+            .map(|row| row.capability_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            agent_runtimes,
+            [
+                "agent.runtime.agy.identity",
+                "agent.runtime.claude.identity",
+                "agent.runtime.codex.identity",
+                "agent.runtime.copilot.identity",
+                "agent.runtime.droid.identity",
+                "agent.runtime.opencode.identity",
+            ]
+        );
+        assert!(
+            snapshot
+                .capabilities
+                .iter()
+                .filter(|row| {
+                    row.capability_id.starts_with("agent.runtime.")
+                        && row.availability == Availability::Unavailable
+                        && row.error_code.as_deref() == Some("not_found")
+                })
+                .count()
+                == 6
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn agent_runtime_presence_discovery_does_not_start_the_application() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let workspace = TempDir::new().unwrap();
+        let bin = TempDir::new().unwrap();
+        let marker = bin.path().join("application-started");
+        let application = bin.path().join("claude");
+        fs::write(
+            &application,
+            format!("#!/bin/sh\ntouch '{}'\n", marker.display()),
+        )
+        .unwrap();
+        fs::set_permissions(&application, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let snapshot = LocalDiscovery {
+            workspace: workspace.path().to_owned(),
+            search_paths: vec![bin.path().to_owned()],
+            seed_values: BTreeMap::new(),
+            limits: DiscoveryLimits::default(),
+        }
+        .inspect()
+        .unwrap();
+        let claude = snapshot
+            .capabilities
+            .iter()
+            .find(|row| row.capability_id == "agent.runtime.claude.identity")
+            .unwrap();
+
+        assert_eq!(claude.availability, Availability::Available);
+        assert!(claude.version.is_none());
+        assert_eq!(claude.operations, ["resolve_executable_presence"]);
+        assert!(!marker.exists());
     }
 
     #[test]

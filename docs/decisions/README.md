@@ -34,10 +34,11 @@ guide experiments but do not outrank the architecture until accepted.
 | [0027](0027-environment-operator-delta.md) | Accepted; application presentation superseded by 0031 and status projection by 0033 | Shared CLI/UI environment delta, bounded value capture, env-shaped variable diff, and found/not-found application evidence |
 | [0028](0028-environment-three-plane-diff.md) | Accepted | Three-plane human env diff for unstaged and staged directions with unchanged authoritative JSON |
 | [0029](0029-environment-history-projection.md) | Accepted; commit header and schemas superseded by 0033 | Compact environment chronology and three-plane patch expansion over retained transitions |
-| [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted | Partial-order cadence, provenance-derived agent registry, and matrix-style exact Explorer coordinates |
+| [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted; `/agents` projection superseded by 0034 | Partial-order cadence, provenance-derived agent registry, and matrix-style exact Explorer coordinates |
 | [0031](0031-desired-application-inventory-and-search-records.md) | Accepted; conventional map superseded by 0032 | Exact desired-application declaration records separated from bounded search records |
 | [0032](0032-seed-discovery-survey-and-live-communications.md) | Accepted | Process-owned seed discovery, explicit agent maps, locator survey, cadence processing, and a two-axis operator communication plane |
 | [0033](0033-git-shaped-environment-loop-fidelity.md) | Accepted | Compact status, provenance-safe patch admission, dated v2 history, and Git/environment clock separation |
+| [0034](0034-agent-runtime-inventory-and-derived-task-plane.md) | Accepted | Process-owned agent runtime discovery, derived task/operation plane, and non-retained journeys |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

@@ -468,7 +468,7 @@ impl UiServer {
                     label: "Environment scan".to_owned(),
                     source: "/api/v1/environment".to_owned(),
                     interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "environment_route_mounted".to_owned(),
+                    activation: "environment_or_agents_route_mounted".to_owned(),
                     authority: "mounted_browser_projection".to_owned(),
                     retention: "last_good_document".to_owned(),
                 },
@@ -636,7 +636,9 @@ mod tests {
         assert!(application.contains("REFERENCE PLANE"));
         assert!(application.contains("Inputs and topology"));
         assert!(application.contains("RETAINED SEQUENCE"));
-        assert!(application.contains("IDENTIFIED AGENTS"));
+        assert!(application.contains("TASK PLANE"));
+        assert!(application.contains("AGENT RUNTIMES"));
+        assert!(application.contains("FOUND ≠ ADMITTED TO ACT"));
         assert!(application.contains("DESIRED INVENTORY"));
         assert!(application.contains("SEARCH RECORD"));
         assert!(application.contains("PROCESS SEEDS"));
@@ -647,7 +649,7 @@ mod tests {
         assert!(application.contains("No Rey or agent session is connected"));
         assert!(application.contains("NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY"));
         assert!(application.contains("MAILBOX"));
-        assert!(application.contains("LOCATE IN EXPLORER"));
+        assert!(application.contains("EXPLORER LOCATOR / PENDING SURVEY"));
         assert!(application.contains("explore/$kind/$coordinate"));
         assert!(application.contains("NO CURRENT OBJECT SATISFIES THIS IDENTITY"));
         assert!(application.contains("--kinetic-control-press-x"));

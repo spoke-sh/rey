@@ -37,13 +37,55 @@ export const agentsStyles = stylex.create({
     padding: 48,
     textAlign: "center",
   },
-  agentTable: {
+  workflowGrammar: {
+    backgroundColor: "var(--surface)",
+    borderColor: "var(--line)",
+    borderStyle: "solid",
+    borderWidth: 1,
+    display: "grid",
+    gridTemplateColumns: {
+      default: "minmax(240px, 0.36fr) minmax(0, 1fr)",
+      "@media (max-width: 840px)": "1fr",
+    },
+    marginTop: 28,
+  },
+  workflowGrammarLabel: {
+    borderRightColor: "var(--line)",
+    borderRightStyle: "solid",
+    borderRightWidth: { default: 1, "@media (max-width: 840px)": 0 },
+    display: "grid",
+    gap: 10,
+    padding: "clamp(22px, 3vw, 36px)",
+  },
+  workflowLanes: { display: "grid" },
+  workflowLane: {
+    alignItems: "center",
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "grid",
+    gap: 20,
+    gridTemplateColumns: {
+      default: "84px minmax(0, 1fr)",
+      "@media (max-width: 620px)": "1fr",
+    },
+    padding: "clamp(20px, 3vw, 34px)",
+  },
+  workflowOperations: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  workflowStep: { alignItems: "center", display: "inline-flex", gap: 12 },
+  workflowArrow: { color: "var(--muted)", fontStyle: "normal" },
+  taskTable: {
     borderColor: "var(--line)",
     borderStyle: "solid",
     borderWidth: 1,
     marginTop: 28,
   },
-  tableHeader: {
+  taskTableHeader: {
     backgroundColor: "var(--rey-foreground)",
     color: "var(--rey-background)",
     display: {
@@ -52,10 +94,10 @@ export const agentsStyles = stylex.create({
     },
     gap: 18,
     gridTemplateColumns:
-      "minmax(210px, 1.15fr) minmax(160px, 0.8fr) minmax(210px, 1fr) minmax(190px, 0.85fr) minmax(160px, 0.7fr)",
+      "minmax(240px, 1.2fr) minmax(145px, 0.65fr) minmax(170px, 0.75fr) minmax(160px, 0.7fr) minmax(160px, 0.65fr)",
     padding: "12px 20px",
   },
-  agentRow: {
+  taskRow: {
     alignItems: "center",
     backgroundColor: {
       default: "var(--surface)",
@@ -68,20 +110,21 @@ export const agentsStyles = stylex.create({
     gap: 18,
     gridTemplateColumns: {
       default:
-        "minmax(210px, 1.15fr) minmax(160px, 0.8fr) minmax(210px, 1fr) minmax(190px, 0.85fr) minmax(160px, 0.7fr)",
+        "minmax(240px, 1.2fr) minmax(145px, 0.65fr) minmax(170px, 0.75fr) minmax(160px, 0.7fr) minmax(160px, 0.65fr)",
       "@media (max-width: 1080px)": "repeat(2, minmax(0, 1fr))",
       "@media (max-width: 620px)": "1fr",
     },
     minWidth: 0,
     padding: "clamp(20px, 3vw, 34px)",
   },
-  agentIdentity: {
-    alignItems: "center",
+  taskIdentity: {
+    alignItems: "start",
     display: "flex",
     gap: 17,
     minWidth: 0,
   },
-  agentOrdinal: {
+  taskObjective: { color: "var(--muted)", lineHeight: 1.45, marginBottom: 0 },
+  ordinal: {
     alignItems: "center",
     backgroundColor: "var(--rey-foreground)",
     color: "var(--rey-background)",
@@ -93,9 +136,9 @@ export const agentsStyles = stylex.create({
     justifyContent: "center",
     width: 42,
   },
-  roleBinding: { display: "grid", gap: 8 },
-  outputBinding: { display: "grid", gap: 7, minWidth: 0 },
-  conformance: { display: "grid", gap: 7 },
+  operationBinding: { display: "grid", gap: 8 },
+  artifactBinding: { display: "grid", gap: 7, minWidth: 0 },
+  assignment: { display: "grid", gap: 8 },
   locate: {
     borderBottomColor: "currentColor",
     borderBottomStyle: "solid",
@@ -108,28 +151,93 @@ export const agentsStyles = stylex.create({
     paddingBottom: 6,
     textDecoration: "none",
   },
-  handoffGrid: {
+  unlocated: { color: "var(--muted)" },
+  runtimeBoundary: {
+    alignItems: "center",
+    backgroundColor: "var(--rey-foreground)",
+    color: "var(--rey-background)",
     display: "grid",
-    gap: 24,
+    gap: 16,
+    gridTemplateColumns: {
+      default: "auto minmax(180px, 0.6fr) minmax(280px, 1fr)",
+      "@media (max-width: 800px)": "1fr",
+    },
+    marginTop: 28,
+    padding: "clamp(22px, 3vw, 34px)",
+  },
+  runtimeGrid: {
+    display: "grid",
+    gap: 20,
     gridTemplateColumns: {
       default: "repeat(2, minmax(0, 1fr))",
       "@media (max-width: 800px)": "1fr",
     },
-    marginTop: 28,
+    marginTop: 20,
   },
-  handoff: {
+  runtimeCard: {
     backgroundColor: "var(--surface)",
     borderColor: "var(--line)",
     borderStyle: "solid",
     borderWidth: 1,
-    padding: "clamp(25px, 4vw, 45px)",
+    minWidth: 0,
+    padding: "clamp(22px, 3vw, 34px)",
   },
-  handoffRoute: {
+  runtimeCardHeader: {
+    alignItems: "start",
+    display: "grid",
+    gap: 16,
+    gridTemplateColumns: "42px minmax(0, 1fr) auto",
+  },
+  runtimeIdentity: { display: "grid", gap: 8 },
+  runtimeTitle: {
+    fontFamily: display,
+    fontSize: "clamp(1.6rem, 2.5vw, 2.3rem)",
+    margin: 0,
+    textTransform: "uppercase",
+  },
+  runtimePurpose: { color: "var(--muted)", lineHeight: 1.45, margin: 0 },
+  runtimeStatus: {
+    borderColor: "currentColor",
+    borderStyle: "solid",
+    borderWidth: 1,
+    padding: "6px 8px",
+  },
+  runtimeFound: { color: "#237047" },
+  runtimeMissing: { color: "#9a6411" },
+  runtimeError: { color: "#b72d25" },
+  runtimeDefinitions: {
+    borderTopColor: "var(--line)",
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    display: "grid",
+    marginBlock: 24,
+  },
+  runtimeDefinition: {
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "grid",
+    gap: 14,
+    gridTemplateColumns: "92px minmax(0, 1fr)",
+    paddingBlock: 12,
+  },
+  runtimeTerm: {
+    color: "var(--muted)",
+    fontFamily: mono,
+    fontSize: "0.64rem",
+    letterSpacing: "0.08em",
+  },
+  runtimeValue: {
+    fontFamily: mono,
+    fontSize: "0.72rem",
+    margin: 0,
+    overflowWrap: "anywhere",
+  },
+  runtimeFooter: {
     alignItems: "center",
     display: "flex",
-    fontFamily: mono,
-    fontSize: "0.6rem",
-    gap: 10,
-    marginBlock: 30,
+    flexWrap: "wrap",
+    gap: 16,
+    justifyContent: "space-between",
   },
 });

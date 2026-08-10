@@ -23,8 +23,8 @@ Rey uses this ordered context lifecycle:
 
 1. **Discovery.** The compiled Rey process observes the fixed seed set
    `HOME`, `PWD`, and `PATH` under explicit bounds. It may use those seeds only
-   through declared adapters, such as the current `git` and `rg` identity
-   adapters. It does not load a project configuration file, source a shell
+   through declared adapters, including `git`, `rg`, and the major
+   agent-runtime identity inventory defined by ADR 0034. It does not load a project configuration file, source a shell
    profile, traverse all of `HOME`, or infer Spoke configuration.
 2. **Reasoning over discovery.** A coding harness or other policy receives the
    frozen discovery record and may propose a bounded environment mapping

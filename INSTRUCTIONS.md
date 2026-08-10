@@ -66,7 +66,9 @@ use the CLI as their primary runtime interface, with humans descending to it
 for exact diagnosis. The former Instrument dashboard is Environment at
 `/environment`. `/cadence` keeps bounded Git reachability, Rey admissions, and
 mounted browser scans on explicit partial-order clocks. `/agents` indexes exact
-generator provenance and deep-links to matrix-style Explorer coordinates. The
+current tasks by bounded operation and shows the process-owned desired/found/
+missing agent-runtime inventory. Generator provenance remains workload
+evidence, not the definition of an available or assigned agent. The
 UI starts from the CLI, passively revalidates the same workload-list
 derivation, defaults to loopback, and is neither a mutation plane nor a public
 Rey service. Its fixed footer is a two-axis communication plane: the mailbox
@@ -78,7 +80,7 @@ literal search, typed match comparison, ordered line comparison, bounded
 frontier selection, and reasoning-surface projection through those commands.
 Do not generalize that fixed provider, workload-specific derivation, or local
 operator server into
-regex or parser breadth, external tool execution, recurring scheduling,
+regex or parser breadth, external tool execution beyond declared identity probes, recurring scheduling,
 activation, browser mutation, authentication, remote service topology, Spoke
 durability, or Spoke process-lineage behavior.
 

@@ -4,7 +4,8 @@
 - Decisions: [ADR 0025](../docs/decisions/0025-local-operator-ui.md),
   [ADR 0026](../docs/decisions/0026-context-topology-explorer.md),
   [ADR 0030](../docs/decisions/0030-operator-cadence-agents-and-explorer-coordinates.md),
-  [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md)
+  [ADR 0032](../docs/decisions/0032-seed-discovery-survey-and-live-communications.md),
+  [ADR 0034](../docs/decisions/0034-agent-runtime-inventory-and-derived-task-plane.md)
 
 ## Outcome
 
@@ -23,9 +24,10 @@ The application is an embedded TanStack Router application using Hifi's
 Kinetic grammar with the Precision theme. `/explore` is the default context-
 topology canvas. It reads the same bounded workload portfolio projection as
 `rey workloads list`; it does not mutate state or create a second scheduler.
-`/cadence` keeps observable clocks partially ordered, `/agents` indexes exact
-generator provenance, and matrix-style Explorer coordinates make those
-records shareable without becoming runtime authority.
+`/cadence` keeps observable clocks partially ordered. `/agents` projects
+current tasks through named operations and the process-owned agent-runtime
+search without treating discovery as execution authority. Matrix-style
+Explorer coordinates make exact topology records shareable.
 
 ## Completion Checklist
 
@@ -72,8 +74,9 @@ records shareable without becoming runtime authority.
 - [x] Add `/cadence` with bounded reachable Git commits, verified Rey
   environment admissions, explicit scan contracts, partial ordering, and
   visible omissions.
-- [x] Add `/agents` as a traditional provenance-derived registry with
-  unassigned handoffs and exact agent neighborhoods in Explorer.
+- [x] Replace the provenance-derived `/agents` registry with current bounded
+  tasks, derived workflow operations, and the process-owned major agent-runtime
+  desired/found/missing inventory.
 - [x] Formalize canonical matrix-style Explorer coordinates with unique
   unordered dimensions, exact `at` bindings, agent roles, route tests, and
   visible stale/missing resolution.
@@ -174,7 +177,7 @@ Git cadence revision through one `GitCommitLink` boundary. Component proof
 requires the visible compact SHA itself to carry the complete GitHub commit
 URL, and cadence rendering proves the same contract end to end. An unbound
 repository renders an explicit boundary without exposing an inert SHA. `just
-check`, `just test`, and `just build` pass with 29/29 UI tests, 142/142 Rust
+check`, `just test`, and `just build` pass with 31/31 UI tests, 144/144 Rust
 tests, and every documentation test.
 
 The communication-plane refinement gives mailbox history and conversation
@@ -184,6 +187,14 @@ sheet remains interactive. The chat axis uses a conventional transcript/composer
 grammar but proves the present authority boundary with no session, no
 transport, no retention, and a disabled send action.
 
+The agent-plane refinement separates available collaboration applications from
+past generator provenance. Six major agent runtimes enter the same bounded
+environment inventory/search evidence as other applications. `/agents`
+collapses matching creation-request and attention evidence into current tasks,
+shows each task's bounded operation and artifact counts, and keeps assignment
+explicitly unassigned. Context and workload journeys are derived operation
+grammar, not retained objects.
+
 ## Next Concrete Anchor
 
 Plan 0012 delivered the shared `HEAD → INDEX → WORKING` environment operator
@@ -192,11 +203,12 @@ delta, the high-fidelity `rey env status` document, and the exact read-only
 uses aggregate environment coverage and should eventually consume these exact
 nodes and relationships.
 
-The nearer operator-UI anchor is to define the communication contract before
-making chat writable: exact operator/Rey/agent identities, session and message
-ordering, admission, bounded retention, cancellation, authority, and an
-agent-visible CLI surface. Scenario/delta routes remain the next evidence
-projection after that boundary.
+The nearer operator-UI anchor is one task-assignment handshake: define the task
+CLI/API contract, bind one discovered runtime and exact locator to one ready
+task, admit invocation separately from discovery, and return artifact/delta
+evidence to the frontier. That same boundary supplies the participant and
+session identity needed before chat becomes writable. Scenario/delta routes
+remain the next evidence projection after that contract.
 
 ## Deferred
 

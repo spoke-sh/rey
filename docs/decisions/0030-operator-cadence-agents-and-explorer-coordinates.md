@@ -3,6 +3,9 @@
 - Status: Accepted
 - Date: 2026-08-09
 - Extends: [ADR 0026](0026-context-topology-explorer.md)
+- Superseded: the `/agents` registry projection is replaced by [ADR
+  0034](0034-agent-runtime-inventory-and-derived-task-plane.md); v1 Explorer
+  coordinates remain current.
 
 ## Context
 

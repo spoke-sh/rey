@@ -134,14 +134,15 @@ request for unimplemented historical reconstruction. See [ADR
 - `/explore`: the context-topology canvas and default human entry;
 - `/explore/{kind}/{identity};...`: an exact matrix-style Explorer coordinate;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
-- `/agents`: provenance-derived agent registry with Explorer deep links;
+- `/agents`: current task/operation plane plus process-owned agent-runtime
+  desired, found, not-found, and error evidence;
 - `/environment`: three stacked Kinetic Precision evidence sections over the
   exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
   bounded search, and the reference plane;
 - `/workloads`: admitted workload and creation-request catalog; and
 - `/workloads/$workloadId`: exact workload or request detail.
 
-The Refresh control has been removed. The root workload and environment
+The Refresh control has been removed. The root workload and mounted environment
 projections passively revalidate every 5000 ms from `GET /api/v1/workloads`
 and `GET /api/v1/environment`. Revalidation changes only the browser
 projection; it does not invalidate the route, reset viewport or scroll state,
@@ -167,9 +168,12 @@ The Explorer topology is intentionally narrow. It is derived from
 `rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
 counts, portfolio attention, and mapped-surface coverage counts. The separate
 `/environment` route now consumes `rey.environment-status.v5` and renders its
-exact variable, application, input, and reference operator projection. Agent
-neighborhoods are derived from exact workload generation provenance;
-unassigned creation requests do not become fabricated agents. The Explorer
+exact variable, application, input, and reference operator projection.
+`/agents` consumes both documents: it derives non-retained tasks from current
+attention and requests, then filters the environment application inventory for
+process-declared agent runtime options. Generator provenance still supplies
+the current v1 agent neighborhoods in Explorer, but it is not presented as
+runtime availability or assignment. The Explorer
 does not yet contain exact environment nodes, Git commit objects, source spans,
 scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
 Explorer must not imply that unavailable objects have been rendered.
