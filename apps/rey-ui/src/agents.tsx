@@ -15,37 +15,9 @@ import { className as sx } from "./stylex/shared.stylex";
 
 export function AgentsPage({ portfolio }: { portfolio: WorkloadList }) {
   const agents = deriveAgentIndex(portfolio);
-  const workloadCount = agents.reduce(
-    (total, agent) => total + agent.workload_ids.length,
-    0,
-  );
-  const scenarioCount = agents.reduce(
-    (total, agent) => total + agent.scenarios_required,
-    0,
-  );
   return (
     <main className={sx(chrome.page, styles.page)}>
-      <header className={sx(styles.hero)}>
-        <div>
-          <p className={sx(chrome.micro, chrome.eyebrow)}>
-            PROVENANCE / EXPLORER INDEX
-          </p>
-          <h1 className={sx(chrome.displayTitle, styles.title)}>AGENT INDEX</h1>
-          <p className={sx(styles.introduction)}>
-            A traditional registry over exact workload generator provenance.
-            Locate an agent here, then enter its bounded neighborhood in the
-            Explorer without losing revision identity.
-          </p>
-        </div>
-        <dl className={sx(styles.summary)}>
-          <AgentMetric label="IDENTIFIED" value={agents.length} />
-          <AgentMetric label="ADMITTED OUTPUTS" value={workloadCount} />
-          <AgentMetric label="SCENARIOS" value={scenarioCount} />
-          <AgentMetric label="UNASSIGNED" value={portfolio.drafts.length} />
-        </dl>
-      </header>
-
-      <section className={sx(styles.section)}>
+      <section className={sx(styles.section, styles.firstSection)}>
         <AgentHeading
           detail={`${agents.length} exact producer + revision coordinates`}
           index="01"
@@ -165,15 +137,6 @@ function AgentRow({ agent, index }: { agent: AgentSummary; index: number }) {
         LOCATE IN EXPLORER →
       </Link>
     </article>
-  );
-}
-
-function AgentMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className={sx(styles.metric)}>
-      <dt className={sx(chrome.micro)}>{label}</dt>
-      <dd className={sx(styles.metricValue)}>{value}</dd>
-    </div>
   );
 }
 

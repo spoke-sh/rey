@@ -45,58 +45,10 @@ export interface CadenceProjection {
   omissions: string[];
 }
 
-export function CadencePage({
-  cadence,
-  refreshError,
-}: {
-  cadence: CadenceProjection;
-  refreshError: Error | null;
-}) {
-  const tickCount = cadence.lanes.reduce(
-    (total, lane) => total + lane.ticks.length,
-    0,
-  );
-  const completeLanes = cadence.lanes.filter((lane) => lane.complete).length;
+export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
   return (
     <main className={sx(chrome.page, styles.page)}>
-      <header className={sx(styles.hero)}>
-        <div>
-          <p className={sx(chrome.micro, chrome.eyebrow)}>
-            RUNTIME / PARTIAL ORDER
-          </p>
-          <h1 className={sx(chrome.displayTitle, styles.title)}>
-            RUNTIME CADENCE
-          </h1>
-          <p className={sx(styles.introduction)}>
-            Ticks remain on the clocks that can prove their order. Git
-            reachability, Rey admissions, and mounted scan schedules meet here
-            without inventing a global event log.
-          </p>
-        </div>
-        <div className={sx(styles.summary)}>
-          <CadenceMetric label="VISIBLE TICKS" value={tickCount} />
-          <CadenceMetric
-            label="COMPLETE LANES"
-            value={`${completeLanes}/${cadence.lanes.length}`}
-          />
-          <CadenceMetric
-            label="SCAN CONTRACTS"
-            value={cadence.schedules.length}
-          />
-          <span
-            className={sx(
-              chrome.micro,
-              styles.revalidation,
-              refreshError && styles.revalidationDelayed,
-            )}
-            title={refreshError?.message}
-          >
-            {refreshError ? "REVALIDATION DELAYED" : "PASSIVELY CURRENT"}
-          </span>
-        </div>
-      </header>
-
-      <section className={sx(styles.section)}>
+      <section className={sx(styles.section, styles.firstSection)}>
         <CadenceHeading
           detail={`${cadence.lanes.length} clocks · ${cadence.ordering} ordering`}
           index="01"
@@ -269,21 +221,6 @@ function TickLink({
     ) : null;
   }
   return <Link to="/environment">OPEN ENVIRONMENT →</Link>;
-}
-
-function CadenceMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <div className={sx(styles.metric)}>
-      <span className={sx(chrome.micro)}>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
 }
 
 function CadenceHeading({

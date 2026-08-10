@@ -51,19 +51,6 @@ const zeroPoint: Point = { x: 0, y: 0 };
 export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
   return (
     <main className={sx(styles.explorePage)}>
-      <header className={sx(styles.exploreHeading)}>
-        <div>
-          <p className={sx(styles.micro, styles.eyebrow)}>
-            EXPLORE / CONTEXT TOPOLOGY
-          </p>
-          <h1 className={sx(styles.exploreTitle)}>THE CONTEXT IS THE MAP.</h1>
-        </div>
-        <p className={sx(styles.exploreIntroduction)}>
-          Traverse the bounded portfolio from landscape to neighborhood to exact
-          runtime objects. Zoom changes the lens and the explanatory grammar; it
-          does not change the underlying evidence.
-        </p>
-      </header>
       {coordinate && coordinate.status !== "current" ? (
         <div className={sx(styles.coordinateBoundary)} role="status">
           <strong>{coordinate.status.toUpperCase()} COORDINATE</strong>

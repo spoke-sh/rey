@@ -23,10 +23,6 @@
     padding: 10px 14px;
   }
 
-  .xf0b7zy {
-    padding: 10px 18px;
-  }
-
   .x1ifpib {
     padding: 12px 20px;
   }
@@ -45,10 +41,6 @@
 
   .x1qhigcl {
     padding: 20px;
-  }
-
-  .x1bk4ozh {
-    padding: 22px 18px;
   }
 
   .xvrmwo1 {
@@ -301,16 +293,8 @@
     gap: clamp(24px, 4vw, 52px);
   }
 
-  .xi4qv42 {
-    gap: clamp(34px, 6vw, 96px);
-  }
-
   .xhotzo {
     gap: clamp(42px, 7vw, 112px);
-  }
-
-  .xnc4dvf {
-    gap: clamp(42px, 8vw, 128px);
   }
 
   .x1osaytk {
@@ -363,10 +347,6 @@
 
   .xap8y5u {
     margin-block: 46px;
-  }
-
-  .x1tteoeo {
-    margin-block: clamp(16px, 2vw, 28px);
   }
 
   .xvueqy4 {
@@ -609,14 +589,6 @@
     background-color: #2370471a;
   }
 
-  .x1lwu1ou {
-    background-color: #2370471c;
-  }
-
-  .xsfrvbr {
-    background-color: #b5741721;
-  }
-
   .x1t1zxt8 {
     background-color: color-mix(in srgb,#b57417 13%,var(--surface));
   }
@@ -735,10 +707,6 @@
 
   .xvnbrsj {
     color: #181b1b;
-  }
-
-  .xn2bi97 {
-    color: #1d6140;
   }
 
   .x8e5rsw {
@@ -981,10 +949,6 @@
     font-size: 9px;
   }
 
-  .xvkt76j {
-    font-size: clamp(.76rem, 1vw, .94rem);
-  }
-
   .xmod5b3 {
     font-size: clamp(1.35rem, 2.2vw, 2.3rem);
   }
@@ -999,22 +963,6 @@
 
   .xlraifm {
     font-size: clamp(1rem, 1.4vw, 1.24rem);
-  }
-
-  .x194pqr3 {
-    font-size: clamp(2.4rem, 4vw, 4.2rem);
-  }
-
-  .x1ujmjz3 {
-    font-size: clamp(2.7rem, 6vw, 6rem);
-  }
-
-  .x1exbp6r {
-    font-size: clamp(3.2rem, 8vw, 8.4rem);
-  }
-
-  .xsho45d {
-    font-size: clamp(3.5rem, 9vw, 9rem);
   }
 
   .x5xw4ka {
@@ -1113,20 +1061,8 @@
     grid-template-columns: minmax(0, .9fr) minmax(470px, 1.1fr);
   }
 
-  .x1bp9wsa {
-    grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
-  }
-
   .x1oyd7ug {
     grid-template-columns: minmax(0, 1fr) minmax(360px, .8fr);
-  }
-
-  .x11bweo9 {
-    grid-template-columns: minmax(0, 1fr) minmax(420px, .72fr);
-  }
-
-  .x1cahge8 {
-    grid-template-columns: minmax(0, 1fr) minmax(430px, .76fr);
   }
 
   .x8dh6w8 {
@@ -1143,10 +1079,6 @@
 
   .xnby9oq {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .x185a7wo {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .xl501l6 {
@@ -1197,10 +1129,6 @@
     letter-spacing: -.04em;
   }
 
-  .x1o3iqad {
-    letter-spacing: -.065em;
-  }
-
   .x17sz84w {
     letter-spacing: -.075em;
   }
@@ -1241,14 +1169,6 @@
     line-height: .8;
   }
 
-  .xmud0hj {
-    line-height: .82;
-  }
-
-  .x1xirri6 {
-    line-height: .86;
-  }
-
   .xe8mmo7 {
     line-height: .95;
   }
@@ -1279,10 +1199,6 @@
 
   .x1dbl2gt {
     line-height: 1.6;
-  }
-
-  .x4q1cud {
-    line-height: 1.75;
   }
 
   .xwxc2jc {
@@ -1580,12 +1496,6 @@
     }
   }
 
-  @media (height <= 680px) {
-    .xiltlbb.xiltlbb {
-      display: none;
-    }
-  }
-
   @media (width <= 1080px) {
     .xg7ench.xg7ench {
       display: none;
@@ -1600,15 +1510,7 @@
     .x1krwfvz.x1krwfvz {
       flex-direction: column;
     }
-  }
 
-  @media (height <= 800px) {
-    .x8se7ie.x8se7ie {
-      font-size: clamp(2.2rem, 4vw, 4.3rem);
-    }
-  }
-
-  @media (width <= 760px) {
     .xobdo5d.xobdo5d {
       font-size: clamp(4.1rem, 22vw, 7rem);
     }
@@ -1650,12 +1552,6 @@
 
   @media (width <= 850px) {
     .x1s4i0j0.x1s4i0j0 {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (width <= 900px) {
-    .xyw5f.xyw5f {
       grid-template-columns: 1fr;
     }
   }
@@ -1922,10 +1818,6 @@
     margin-bottom: 110px;
   }
 
-  .xod5an3 {
-    margin-bottom: 12px;
-  }
-
   .x1u7kmwd {
     margin-bottom: 14px;
   }
@@ -1976,6 +1868,10 @@
 
   .xey3puj {
     margin-top: .46em;
+  }
+
+  .xdj266r {
+    margin-top: 0;
   }
 
   .xhrpt6u {
@@ -2050,16 +1946,8 @@
     max-width: 1840px;
   }
 
-  .x1bio8jh {
-    max-width: 570px;
-  }
-
   .xwo748l {
     max-width: 610px;
-  }
-
-  .xwnkcuf {
-    max-width: 720px;
   }
 
   .xhkz4we {
@@ -2186,10 +2074,6 @@
     padding-bottom: 8px;
   }
 
-  .xffmh1r {
-    padding-bottom: clamp(36px, 5vw, 72px);
-  }
-
   .xxpkpgd {
     padding-left: 28px;
   }
@@ -2298,15 +2182,7 @@
     .xoce2hg.xoce2hg {
       border-top-width: 1px;
     }
-  }
 
-  @media (height <= 800px) {
-    .xwm58aq.xwm58aq {
-      margin-bottom: 14px;
-    }
-  }
-
-  @media (width <= 760px) {
     .xnjk2z4.xnjk2z4 {
       min-height: 48px;
     }

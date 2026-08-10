@@ -1029,11 +1029,8 @@ function ExploreCoordinateRoutePage() {
 
 function CadenceRoutePage() {
   const initialCadence = cadenceRoute.useLoaderData();
-  const { document: cadence, error } = usePassiveDocument(
-    initialCadence,
-    loadCadence,
-  );
-  return <CadencePage cadence={cadence} refreshError={error} />;
+  const { document: cadence } = usePassiveDocument(initialCadence, loadCadence);
+  return <CadencePage cadence={cadence} />;
 }
 
 function AgentsRoutePage() {

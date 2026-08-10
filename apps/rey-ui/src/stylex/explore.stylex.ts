@@ -21,62 +21,11 @@ export const exploreStyles = stylex.create({
     },
     width: "100%",
   },
-  exploreHeading: {
-    alignItems: "end",
-    display: "grid",
-    gap: 28,
-    gridTemplateColumns: {
-      default: "minmax(0, 1.35fr) minmax(320px, 0.65fr)",
-      "@media (max-width: 900px)": "1fr",
-    },
-    marginBottom: {
-      default: 28,
-      "@media (max-height: 800px)": 14,
-    },
-    flexShrink: 0,
-  },
   micro: {
     fontFamily: mono,
     fontSize: "0.59rem",
     letterSpacing: "0.11em",
     textTransform: "uppercase",
-  },
-  eyebrow: {
-    alignItems: "center",
-    display: "flex",
-    gap: 10,
-    marginBlock: 0,
-    marginBottom: 12,
-    "::before": {
-      backgroundColor: "var(--rey-accent)",
-      content: '""',
-      height: 3,
-      width: 38,
-    },
-  },
-  exploreTitle: {
-    fontFamily: display,
-    fontSize: {
-      default: "clamp(2.7rem, 6vw, 6rem)",
-      "@media (max-height: 800px)": "clamp(2.2rem, 4vw, 4.3rem)",
-    },
-    fontStretch: "condensed",
-    fontWeight: 900,
-    letterSpacing: "-0.065em",
-    lineHeight: 0.86,
-    margin: 0,
-    textTransform: "uppercase",
-  },
-  exploreIntroduction: {
-    color: "var(--muted)",
-    fontSize: "0.9rem",
-    lineHeight: 1.55,
-    margin: 0,
-    maxWidth: 570,
-    display: {
-      default: "block",
-      "@media (max-height: 680px)": "none",
-    },
   },
   coordinateBoundary: {
     alignItems: "center",

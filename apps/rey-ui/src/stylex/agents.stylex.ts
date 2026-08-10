@@ -6,52 +6,8 @@ const display =
 
 export const agentsStyles = stylex.create({
   page: { paddingTop: "clamp(46px, 6vw, 88px)" },
-  hero: {
-    alignItems: "end",
-    display: "grid",
-    gap: "clamp(42px, 8vw, 128px)",
-    gridTemplateColumns: {
-      default: "minmax(0, 1fr) minmax(430px, 0.76fr)",
-      "@media (max-width: 980px)": "1fr",
-    },
-  },
-  title: {
-    fontSize: "clamp(3.5rem, 9vw, 9rem)",
-    lineHeight: 0.82,
-    marginBlock: "clamp(16px, 2vw, 28px)",
-  },
-  introduction: {
-    fontFamily: mono,
-    fontSize: "clamp(0.76rem, 1vw, 0.94rem)",
-    lineHeight: 1.75,
-    margin: 0,
-    maxWidth: 720,
-  },
-  summary: {
-    borderColor: "var(--line)",
-    borderStyle: "solid",
-    borderWidth: 1,
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    margin: 0,
-  },
-  metric: {
-    borderBottomColor: "var(--line)",
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
-    borderRightColor: "var(--line)",
-    borderRightStyle: "solid",
-    borderRightWidth: 1,
-    padding: "22px 24px",
-  },
-  metricValue: {
-    fontFamily: display,
-    fontSize: "clamp(2.4rem, 4vw, 4.2rem)",
-    fontWeight: 900,
-    lineHeight: 1,
-    margin: 0,
-  },
   section: { marginTop: "clamp(74px, 9vw, 126px)" },
+  firstSection: { marginTop: 0 },
   sectionHeading: {
     alignItems: "end",
     borderBottomColor: "var(--line)",

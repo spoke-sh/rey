@@ -6,58 +6,8 @@ const display =
 
 export const cadenceStyles = stylex.create({
   page: { paddingTop: "clamp(46px, 6vw, 88px)" },
-  hero: {
-    alignItems: "end",
-    borderBottomColor: "var(--line)",
-    borderBottomStyle: "solid",
-    borderBottomWidth: 1,
-    display: "grid",
-    gap: "clamp(34px, 6vw, 96px)",
-    gridTemplateColumns: {
-      default: "minmax(0, 1fr) minmax(420px, 0.72fr)",
-      "@media (max-width: 980px)": "1fr",
-    },
-    paddingBottom: "clamp(36px, 5vw, 72px)",
-  },
-  title: {
-    fontSize: "clamp(3.2rem, 8vw, 8.4rem)",
-    lineHeight: 0.82,
-    marginBlock: "clamp(16px, 2vw, 28px)",
-  },
-  introduction: {
-    fontFamily: mono,
-    fontSize: "clamp(0.76rem, 1vw, 0.94rem)",
-    lineHeight: 1.75,
-    margin: 0,
-    maxWidth: 720,
-  },
-  summary: {
-    borderColor: "var(--line)",
-    borderStyle: "solid",
-    borderWidth: 1,
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  },
-  metric: {
-    borderRightColor: "var(--line)",
-    borderRightStyle: "solid",
-    borderRightWidth: 1,
-    display: "grid",
-    gap: 15,
-    padding: "22px 18px",
-  },
-  revalidation: {
-    backgroundColor: "color-mix(in srgb, #237047 11%, transparent)",
-    color: "#1d6140",
-    gridColumn: "1 / -1",
-    padding: "10px 18px",
-    textAlign: "right",
-  },
-  revalidationDelayed: {
-    backgroundColor: "color-mix(in srgb, #b57417 13%, transparent)",
-    color: "#89540d",
-  },
   section: { marginTop: "clamp(72px, 9vw, 124px)" },
+  firstSection: { marginTop: 0 },
   sectionHeading: {
     alignItems: "end",
     borderBottomColor: "var(--line)",
