@@ -352,9 +352,6 @@ export function FeedPage({
     sources.cadence.lanes.reduce((count, lane) => count + lane.ticks.length, 0);
   const foldedEvents = Math.max(0, sourceEventCount - events.length);
   const omissions = boundedOmissions(sources.cadence, foldedEvents);
-  const ready = portfolio.attention.rows.filter(
-    (row) => row.readiness === "ready",
-  ).length;
 
   useEffect(() => {
     if (configurationKey !== null)
@@ -427,8 +424,6 @@ export function FeedPage({
           onTune={openFirehose}
           portfolio={portfolio}
           queue={queue}
-          ready={ready}
-          sourceEventCount={sourceEventCount}
           sources={sources}
           stream={stream}
           streamCount={streams.length}
@@ -479,8 +474,6 @@ function FeedStream({
   onTune,
   portfolio,
   queue,
-  ready,
-  sourceEventCount,
   sources,
   stream,
   streamCount,
@@ -493,8 +486,6 @@ function FeedStream({
   onTune: (index: number) => void;
   portfolio: WorkloadList;
   queue: InspectionRow[];
-  ready: number;
-  sourceEventCount: number;
   sources: FeedSources;
   stream: FeedStreamSpec;
   streamCount: number;
@@ -503,13 +494,6 @@ function FeedStream({
   const filteredQueue = filterQueue(queue, stream.filter);
   const filteredWorkloads = filterWorkloads(portfolio, stream.filter);
   const id = `feed-stream-${index + 1}`;
-  const count =
-    stream.kind === "signals"
-      ? filteredEvents.length
-      : stream.kind === "admission"
-        ? filteredQueue.length
-        : filteredWorkloads.length;
-
   return (
     <section
       className={sx(styles.lane)}
@@ -518,7 +502,6 @@ function FeedStream({
       data-feed-stream={stream.kind}
     >
       <LaneHeader
-        detail={streamDetail(stream, count, sourceEventCount, ready)}
         id={id}
         index={String(index + 1).padStart(2, "0")}
         onMoveLeft={index > 0 ? () => onMove(index, -1) : null}
@@ -918,7 +901,6 @@ function QuietPost({ detail, title }: { detail: string; title: string }) {
 }
 
 function LaneHeader({
-  detail,
   id,
   index,
   onMoveLeft,
@@ -927,7 +909,6 @@ function LaneHeader({
   onTune,
   title,
 }: {
-  detail: string;
   id: string;
   index: string;
   onMoveLeft: (() => void) | null;
@@ -943,7 +924,6 @@ function LaneHeader({
         <EditableStreamTitle id={id} onCommit={onRename} title={title} />
       </div>
       <div className={sx(styles.laneMeta)}>
-        <span className={sx(chrome.micro)}>{detail}</span>
         <div className={sx(styles.laneActions)}>
           <button
             aria-label={`Move ${title} left`}
@@ -1472,17 +1452,6 @@ function streamTitle(stream: FeedStreamSpec): string {
   if (stream.filter === "all")
     return stream.kind[0]!.toUpperCase() + stream.kind.slice(1);
   return `${filterLabel(stream.filter)} ${stream.kind}`;
-}
-
-function streamDetail(
-  stream: FeedStreamSpec,
-  count: number,
-  sourceEventCount: number,
-  ready: number,
-): string {
-  if (stream.kind === "signals") return `${count}/${sourceEventCount} POSTS`;
-  if (stream.kind === "admission") return `${count} PROPOSALS · ${ready} READY`;
-  return `${count} WORKLOADS`;
 }
 
 function streamDescription(kind: FeedStreamKind): string {

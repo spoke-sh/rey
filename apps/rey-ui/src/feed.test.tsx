@@ -177,6 +177,9 @@ describe("high-cadence operator feed", () => {
     expect(markup).toContain(">Source watch</button>");
     expect(markup).toContain('aria-label="Rename Admission"');
     expect(markup).not.toContain("ALL LENS");
+    expect(markup).not.toContain("3/3 POSTS");
+    expect(markup).not.toContain("1 PROPOSALS · 1 READY");
+    expect(markup).not.toContain("1 WORKLOADS");
     expect(markup).toContain(
       `href="https://github.com/spoke-sh/rey/commit/${"a".repeat(40)}"`,
     );

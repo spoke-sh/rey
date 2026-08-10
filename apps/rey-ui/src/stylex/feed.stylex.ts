@@ -117,9 +117,8 @@ export const feedStyles = stylex.create({
     width: "100%",
   },
   laneMeta: {
-    alignItems: "end",
+    alignItems: "center",
     display: "grid",
-    gap: 6,
     justifyItems: "end",
   },
   laneActions: { display: "flex", gap: 3 },

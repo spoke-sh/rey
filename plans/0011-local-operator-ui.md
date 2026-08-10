@@ -72,7 +72,7 @@ stream lenses through a bounded, deep-linkable URL grammar.
   a Firehose rail that adds, tunes, reorders, repeats, and removes up to eight
   URL-addressed stream lenses.
 - [x] Make each stream title an inline, autosaving optional name and remove the
-  redundant lens eyebrow from the compact stream header.
+  redundant lens eyebrow and count summary from the compact stream header.
 - [x] Cover frontend derivation, HTTP routing/method safety, human startup
   output, structured output, stderr, and exit behavior with focused tests.
 - [x] Complete full UI, workspace, Nix package, and manual browser verification.

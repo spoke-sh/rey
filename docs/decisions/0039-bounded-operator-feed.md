@@ -63,8 +63,8 @@ absent or entirely invalid composition returns to the three defaults.
 High-fidelity evidence remains present but does not compete with stream-level
 scanning. Journal blocks, Git lineage, and environment transition details are
 collapsed by default and expand in place. The stream header retains only its
-editable identity, current bound, ordering controls, and entry into the
-Firehose; it does not repeat the active lens as an eyebrow.
+editable identity, ordering controls, and entry into the Firehose; it does not
+repeat the active lens as an eyebrow or surface per-stream count summaries.
 
 The intended later transition is explicit: an admitted proposal may move from
 Admission into Flow only after validated action admission and a retained
