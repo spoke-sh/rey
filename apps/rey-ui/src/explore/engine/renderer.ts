@@ -26,13 +26,27 @@ export interface RenderFrameIdentity {
 export function boundedViewport(
   viewport: RendererViewport,
   maximumDevicePixelRatio = 2,
+  maximumDimension = 2048,
+  maximumPhysicalPixels = 8_388_608,
 ): RendererViewport {
-  return {
-    width: Math.max(1, Math.floor(viewport.width)),
-    height: Math.max(1, Math.floor(viewport.height)),
-    device_pixel_ratio: Math.min(
-      maximumDevicePixelRatio,
-      Math.max(1, viewport.device_pixel_ratio),
+  const devicePixelRatio = Math.min(
+    maximumDevicePixelRatio,
+    Math.max(1, viewport.device_pixel_ratio),
+  );
+  const width = Math.max(1, Math.floor(viewport.width));
+  const height = Math.max(1, Math.floor(viewport.height));
+  const scale = Math.min(
+    1,
+    maximumDimension / width,
+    maximumDimension / height,
+    Math.sqrt(
+      maximumPhysicalPixels /
+        (width * height * devicePixelRatio * devicePixelRatio),
     ),
+  );
+  return {
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
+    device_pixel_ratio: devicePixelRatio,
   };
 }

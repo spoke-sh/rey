@@ -103,15 +103,18 @@ when applicable, distance or neighborhood semantics, distortion, validity,
 limits, and omissions. The current standalone anchor placement remains a
 synthetic orientation layout rather than a language-space embedding.
 
-The current implementation is incomplete enabling work. The admitted-survey
-adapter, camera transforms, immutable reference-scene wrapper, SVG/DOM
-reference renderer, renderer lifecycle contracts, and a pinned Three.js
-`0.185.1` WebGPU adapter have been separated. `topology.ts` still combines the
-portfolio adapter, field derivation, scene assembly, and lens data; the StyleX
-module still contains the material system. The accelerated adapter is not yet
-mounted as the live terrain renderer and has no semantic authority. Plan 0020
-owns the remaining hard cut, field/render-graph work, backend qualification,
-and visual proof.
+The current implementation remains incomplete but now crosses the live renderer
+boundary. The admitted-survey adapter, camera transforms, immutable scene
+wrapper, typed terrain-field modules, SVG/DOM reference renderer, and pinned
+Three.js `0.185.1` WebGPU adapter are separated. The field compiler produces an
+explicit validity mask plus elevation, rainfall, flow, erosion, normal,
+curvature, and presentation-only material buffers. A TSL node material consumes
+those buffers as one continuous relief mesh in `/explore`; React retains the
+controls, accessible overlays, exact evidence links, and visible active-backend
+status. `topology.ts` still combines portfolio adaptation, scene assembly,
+contour extraction, and lens data. Plan 0020 owns multiresolution LOD, the
+remaining render-graph extraction, backend/device qualification, and retained
+visual and performance proof.
 
 ### Terrain fidelity
 
@@ -150,8 +153,12 @@ by ADR 0045. WebGPU is preferred and Three.js's WebGL2 backend is the
 compatibility path. The implemented adapter awaits asynchronous initialization,
 can force WebGL2 for qualification, bounds viewport pixel work, records the
 active backend, disposes resources, and fails closed to reference status. It is
-not yet the live pixel surface. A renderer-independent reference path preserves
-scene semantics and visible degradation when GPU acceleration is unavailable.
+the live base-terrain surface when initialization and the first render succeed.
+The renderer-independent reference path remains visible until that point and
+preserves scene semantics and visible degradation when acceleration is
+unavailable. `?renderer=webgpu`, `?renderer=webgl2`, and
+`?renderer=reference` are view-envelope qualification controls; they do not
+change evidence or execute a probe.
 
 ## Semantic Lens
 
@@ -427,13 +434,16 @@ connected semantics.
 
 `ExplorePage` owns route composition. `ContextCanvas` owns zoom, pan, focus,
 keyboard, and full-screen state while using framework-independent camera math.
-`ReferenceRenderer` renders the current pure `TopologyScene`; it refuses graph
-edges on terrain even if one is supplied accidentally. `buildTopologyScene` is
-a deterministic read-model projection over `rey.workload-list.v7` and is tested
-separately from browser mechanics. It requires an exact patch/packet pair before
-compiling admitted terrain. The immutable scene wrapper and accelerated
-renderer lifecycle are separated, but the field and base-scene compiler remain
-inside `topology.ts`.
+`ReferenceRenderer` renders accessible overlays and the deterministic fallback;
+it refuses graph edges on terrain even if one is supplied accidentally.
+`AcceleratedTerrainSurface` lazily mounts the Three.js adapter and TSL relief
+mesh, reports its selected backend and bounded field/triangle counts, and
+retains the reference terrain through initialization or failure.
+`buildTopologyScene` is a deterministic read-model projection over
+`rey.workload-list.v7` and is tested separately from browser mechanics. It
+requires an exact patch/packet pair before compiling admitted terrain. Typed
+field derivations live under `src/explore/terrain`; `topology.ts` still owns
+their scene adaptation plus contours and natural-feature overlays.
 
 This is current repository truth, not the target ownership shape. Plan 0020
 extracts typed evidence adapters, projection packets, immutable scenes, fields,
@@ -445,10 +455,11 @@ invent a second graph inside a visualization component.
 
 Plan 0017's seed-to-map voyage is implemented and verified through the CLI,
 structured workload endpoint, and deterministic Explorer read-model tests.
-Plan 0020 is the next Explorer foundation: formalize the projection packet and
-engine modules, preserve the existing scene through extraction, build bounded
-multiresolution fields, qualify the Three.js WebGPU/WebGL2 renderer boundary,
-and close the continuous-terrain fidelity, CLI, browser, and performance proof.
+Plan 0020 remains the active Explorer foundation: extend the implemented
+projection packet, typed fields, and continuous TSL surface into bounded
+multiresolution LOD; extract the remaining render graph; qualify both graphics
+backends and loss paths in retained browser evidence; and close the visual,
+packaging, and performance proof.
 Exact scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder
 into the browser without adding an independent assessment.
 

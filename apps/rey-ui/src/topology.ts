@@ -1,6 +1,7 @@
 import type {
   AgentSummary,
   AttentionRow,
+  ProjectionPacket,
   WorkloadDraft,
   WorkloadList,
   WorkloadSummary,
@@ -17,6 +18,16 @@ import {
   admittedTopographies,
   type AdmittedTopography,
 } from "./explore/projection/topography-projector";
+import {
+  createFieldGrid,
+  fieldPoint,
+  type MaskField2D,
+  type ScalarField2D,
+} from "./explore/engine/fields";
+import {
+  compileTerrainFields,
+  type TerrainFieldSet,
+} from "./explore/terrain/compile";
 
 export {
   DEFAULT_LENS_ZOOM,
@@ -158,6 +169,7 @@ export interface TopologyScene {
   world: TopologyWorld;
   fit_world: TopologyWorld;
   terrain: boolean;
+  terrain_fields: TerrainFieldSet[];
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
@@ -194,6 +206,7 @@ export function buildTopologyScene(
       unresolved_boundaries: 0,
     },
     terrain: projection.terrain ?? false,
+    terrain_fields: projection.terrain_fields ?? [],
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
@@ -209,6 +222,7 @@ type TopologyProjection = Omit<
   | "natural_features"
   | "points"
   | "terrain"
+  | "terrain_fields"
   | "world"
 > & {
   bearing?: TopologyBearing;
@@ -217,6 +231,7 @@ type TopologyProjection = Omit<
   natural_features?: TopologyNaturalFeature[];
   points?: TopologyPointOfInterest[];
   terrain?: boolean;
+  terrain_fields?: TerrainFieldSet[];
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
 };
@@ -1210,6 +1225,7 @@ interface SurveyTerrainLayout {
   omissions: string[];
   points: TopologyPointOfInterest[];
   regions: TopologyRegion[];
+  terrain_fields: TerrainFieldSet[];
   world: TopologyWorld;
 }
 
@@ -1306,6 +1322,7 @@ function buildSurveyTerrain(
       height: selected.projection.extent.height,
     },
     terrain: true,
+    terrain_fields: layout.terrain_fields,
   };
 }
 
@@ -1332,6 +1349,7 @@ function layoutSurveyTerrain(
   const omissions: string[] = [];
   const points: TopologyPointOfInterest[] = [];
   const regions: TopologyRegion[] = [];
+  const terrainFields: TerrainFieldSet[] = [];
 
   const ordered = [...topographies].sort((left, right) =>
     left.workload.workload.id.localeCompare(right.workload.workload.id),
@@ -1537,6 +1555,7 @@ function layoutSurveyTerrain(
       patchPoints,
       patchFrontierPoints,
       patch,
+      projection,
       {
         x: origin.x + 100,
         y: origin.y + 80,
@@ -1545,6 +1564,7 @@ function layoutSurveyTerrain(
       },
     );
     contours.push(...terrainField.contours);
+    terrainFields.push(terrainField.fields);
     const boundedFeatures = terrainField.natural_features.slice(
       0,
       projection.limits.max_natural_features,
@@ -1573,6 +1593,7 @@ function layoutSurveyTerrain(
     omissions,
     points,
     regions,
+    terrain_fields: terrainFields,
     world,
   };
 }
@@ -1729,17 +1750,8 @@ function buildSurveyTerrainDetails(
 
 interface TerrainFieldResult {
   contours: TopologyContour[];
+  fields: TerrainFieldSet;
   natural_features: TopologyNaturalFeature[];
-}
-
-interface TerrainFlowCell {
-  accumulation: number;
-  column: number;
-  downstream?: number;
-  height: number;
-  hydraulic_height: number;
-  rainfall: number;
-  row: number;
 }
 
 function buildTerrainField(
@@ -1747,35 +1759,14 @@ function buildTerrainField(
   points: TopologyPointOfInterest[],
   frontier: TopologyPointOfInterest[],
   patch: TopographyPatch,
+  projection: ProjectionPacket,
   bounds: { x: number; y: number; width: number; height: number },
 ): TerrainFieldResult {
-  if (points.length === 0) return { contours: [], natural_features: [] };
-
-  const grid: number[][] = [];
-  let maximum = 0;
-  for (let row = 0; row <= TERRAIN_GRID.rows; row += 1) {
-    const values: number[] = [];
-    const y = bounds.y + (row / TERRAIN_GRID.rows) * bounds.height;
-    for (let column = 0; column <= TERRAIN_GRID.columns; column += 1) {
-      const x = bounds.x + (column / TERRAIN_GRID.columns) * bounds.width;
-      let height = 0;
-      points.forEach((point) => {
-        const sigma = 88 + point.prominence * 22;
-        const distanceSquared = (x - point.x) ** 2 + (y - point.y) ** 2;
-        height +=
-          point.prominence * Math.exp(-distanceSquared / (2 * sigma * sigma));
-      });
-      values.push(height);
-      maximum = Math.max(maximum, height);
-    }
-    grid.push(values);
-  }
-
-  const columns = TERRAIN_GRID.columns + 1;
-  const rows = TERRAIN_GRID.rows + 1;
-  const drainageHash = stableHash(id);
-  const xDirection = drainageHash % 2 === 0 ? 1 : -1;
-  const yDirection = (drainageHash >>> 1) % 2 === 0 ? 1 : -1;
+  const grid = createFieldGrid(
+    TERRAIN_GRID.columns + 1,
+    TERRAIN_GRID.rows + 1,
+    bounds,
+  );
   const unresolvedPressure = Math.min(
     1.8,
     patch.frontier.length * 0.08 +
@@ -1786,80 +1777,27 @@ function buildTerrainField(
       ) *
         0.03,
   );
-  const cells: TerrainFlowCell[] = [];
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const height = grid[row]![column]!;
-      const x = bounds.x + (column / TERRAIN_GRID.columns) * bounds.width;
-      const y = bounds.y + (row / TERRAIN_GRID.rows) * bounds.height;
-      const atmosphericInput = frontier.reduce((total, point) => {
-        const distanceSquared = (x - point.x) ** 2 + (y - point.y) ** 2;
-        return total + Math.exp(-distanceSquared / (2 * 210 * 210));
-      }, 0);
-      const rainfall =
-        0.18 +
-        (maximum === 0 ? 0 : height / maximum) * 0.82 +
-        atmosphericInput * 0.28 +
-        unresolvedPressure * 0.12;
-      const tilt =
-        maximum *
-        0.035 *
-        ((column / TERRAIN_GRID.columns) * xDirection +
-          (row / TERRAIN_GRID.rows) * yDirection);
-      cells.push({
-        accumulation: rainfall,
-        column,
-        height,
-        hydraulic_height: height + tilt,
-        rainfall,
-        row,
-      });
-    }
-  }
-
-  const cellIndex = (column: number, row: number) => row * columns + column;
-  cells.forEach((cell) => {
-    let downstream: TerrainFlowCell | undefined;
-    for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
-      for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
-        if (rowOffset === 0 && columnOffset === 0) continue;
-        const column = cell.column + columnOffset;
-        const row = cell.row + rowOffset;
-        if (column < 0 || column >= columns || row < 0 || row >= rows) continue;
-        const candidate = cells[cellIndex(column, row)]!;
-        if (
-          candidate.hydraulic_height < cell.hydraulic_height &&
-          (!downstream ||
-            candidate.hydraulic_height < downstream.hydraulic_height)
-        )
-          downstream = candidate;
-      }
-    }
-    if (downstream)
-      cell.downstream = cellIndex(downstream.column, downstream.row);
+  const fields = compileTerrainFields({
+    source_id: id,
+    source_revision: patch.topography_revision,
+    grid,
+    anchors: points.map((point) => ({
+      id: point.id,
+      x: point.x,
+      y: point.y,
+      prominence: point.prominence,
+    })),
+    atmosphere: frontier.map((point) => ({ x: point.x, y: point.y })),
+    unresolved_pressure: unresolvedPressure,
+    projection,
   });
-
-  [...cells]
-    .sort((left, right) => right.hydraulic_height - left.hydraulic_height)
-    .forEach((cell) => {
-      if (cell.downstream === undefined) return;
-      cells[cell.downstream]!.accumulation += cell.accumulation;
-    });
-  const maximumAccumulation = Math.max(
-    ...cells.map((cell) => cell.accumulation),
-  );
-  const erodedGrid = grid.map((values, row) =>
-    values.map((height, column) => {
-      const accumulation = cells[cellIndex(column, row)]!.accumulation;
-      const erosion =
-        maximum * 0.18 * Math.pow(accumulation / maximumAccumulation, 0.72);
-      return Math.max(0, height - erosion);
-    }),
-  );
-  const erodedMaximum = Math.max(...erodedGrid.flat());
   const contours = TERRAIN_LEVELS.flatMap((ratio, index) => {
-    const threshold = erodedMaximum * ratio;
-    const path = marchingSquaresPath(erodedGrid, threshold, bounds);
+    const threshold = fields.elevation.maximum * ratio;
+    const path = marchingSquaresPath(
+      fields.elevation,
+      fields.validity,
+      threshold,
+    );
     return path
       ? [
           {
@@ -1873,34 +1811,35 @@ function buildTerrainField(
       : [];
   });
 
+  const maximumAccumulation = fields.flow_accumulation.maximum;
   const streamThreshold = Math.max(3.2, maximumAccumulation * 0.055);
   const riverThreshold = Math.max(
     streamThreshold * 2.4,
     maximumAccumulation * 0.2,
   );
-  const segmentPath = (minimum: number, maximum?: number) =>
-    cells
-      .filter(
-        (cell) =>
-          cell.downstream !== undefined &&
-          cell.accumulation >= minimum &&
-          (maximum === undefined || cell.accumulation < maximum),
-      )
-      .map((cell) => {
-        const downstream = cells[cell.downstream!]!;
-        const from = {
-          x: bounds.x + (cell.column / TERRAIN_GRID.columns) * bounds.width,
-          y: bounds.y + (cell.row / TERRAIN_GRID.rows) * bounds.height,
-        };
-        const to = {
-          x:
-            bounds.x +
-            (downstream.column / TERRAIN_GRID.columns) * bounds.width,
-          y: bounds.y + (downstream.row / TERRAIN_GRID.rows) * bounds.height,
-        };
-        return `M${from.x.toFixed(1)},${from.y.toFixed(1)}L${to.x.toFixed(1)},${to.y.toFixed(1)}`;
-      })
-      .join("");
+  const segmentPath = (minimum: number, maximum?: number) => {
+    const segments: string[] = [];
+    for (let row = 0; row < grid.rows; row += 1) {
+      for (let column = 0; column < grid.columns; column += 1) {
+        const index = row * grid.columns + column;
+        const accumulation = fields.flow_accumulation.values[index]!;
+        const columnOffset = fields.flow_direction.values[index * 2]!;
+        const rowOffset = fields.flow_direction.values[index * 2 + 1]!;
+        if (
+          (columnOffset === 0 && rowOffset === 0) ||
+          accumulation < minimum ||
+          (maximum !== undefined && accumulation >= maximum)
+        )
+          continue;
+        const from = fieldPoint(grid, column, row);
+        const to = fieldPoint(grid, column + columnOffset, row + rowOffset);
+        segments.push(
+          `M${from.x.toFixed(1)},${from.y.toFixed(1)}L${to.x.toFixed(1)},${to.y.toFixed(1)}`,
+        );
+      }
+    }
+    return segments.join("");
+  };
   const streamPath = segmentPath(streamThreshold, riverThreshold);
   const riverPath = segmentPath(riverThreshold);
   const naturalFeatures: TopologyNaturalFeature[] = [];
@@ -1939,7 +1878,7 @@ function buildTerrainField(
       workload_id: id,
     });
   });
-  return { contours, natural_features: naturalFeatures };
+  return { contours, fields, natural_features: naturalFeatures };
 }
 
 function envelopePath(
@@ -2044,17 +1983,17 @@ function boundaryProbeAction(
 }
 
 function marchingSquaresPath(
-  grid: number[][],
+  elevation: ScalarField2D,
+  validity: MaskField2D,
   threshold: number,
-  bounds: { x: number; y: number; width: number; height: number },
 ): string {
   const segments: string[] = [];
-  const rowCount = grid.length - 1;
-  const columnCount = (grid[0]?.length ?? 1) - 1;
-  const point = (column: number, row: number) => ({
-    x: bounds.x + (column / columnCount) * bounds.width,
-    y: bounds.y + (row / rowCount) * bounds.height,
-  });
+  const { grid } = elevation;
+  const rowCount = grid.rows - 1;
+  const columnCount = grid.columns - 1;
+  const point = (column: number, row: number) => fieldPoint(grid, column, row);
+  const value = (column: number, row: number) =>
+    elevation.values[row * grid.columns + column]!;
   const crossing = (
     first: { x: number; y: number; value: number },
     second: { x: number; y: number; value: number },
@@ -2075,19 +2014,26 @@ function marchingSquaresPath(
 
   for (let row = 0; row < rowCount; row += 1) {
     for (let column = 0; column < columnCount; column += 1) {
+      const cornerIndices = [
+        row * grid.columns + column,
+        row * grid.columns + column + 1,
+        (row + 1) * grid.columns + column + 1,
+        (row + 1) * grid.columns + column,
+      ];
+      if (cornerIndices.some((index) => validity.values[index] === 0)) continue;
       const topLeftPoint = point(column, row);
       const topRightPoint = point(column + 1, row);
       const bottomRightPoint = point(column + 1, row + 1);
       const bottomLeftPoint = point(column, row + 1);
-      const topLeft = { ...topLeftPoint, value: grid[row]![column]! };
-      const topRight = { ...topRightPoint, value: grid[row]![column + 1]! };
+      const topLeft = { ...topLeftPoint, value: value(column, row) };
+      const topRight = { ...topRightPoint, value: value(column + 1, row) };
       const bottomRight = {
         ...bottomRightPoint,
-        value: grid[row + 1]![column + 1]!,
+        value: value(column + 1, row + 1),
       };
       const bottomLeft = {
         ...bottomLeftPoint,
-        value: grid[row + 1]![column]!,
+        value: value(column, row + 1),
       };
       const crossings: Array<{
         edge: "top" | "right" | "bottom" | "left";

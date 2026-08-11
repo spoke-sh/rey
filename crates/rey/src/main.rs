@@ -3064,6 +3064,17 @@ fn write_projection_packet_evidence(
             ),
         ),
         (
+            "field layout",
+            format!(
+                "{}×{} · {} cells · {} bytes/cell · {} bytes allocated",
+                packet.field_layout.columns,
+                packet.field_layout.rows,
+                packet.field_layout.cells,
+                packet.field_layout.bytes_per_cell,
+                packet.field_layout.total_bytes,
+            ),
+        ),
+        (
             "distance",
             packet.projection_basis.distance_semantics.clone(),
         ),

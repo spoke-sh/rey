@@ -1170,11 +1170,11 @@ mutation plane.
 
 ### Projection packet
 
-The target bounded typed input to Explorer's scene compiler. It binds exact
-evidence, coordinate or embedding basis, scalar/vector channel semantics,
-validity masks, world bounds, layer inventory, implementation revisions,
-limits, completeness, omissions, and lineage without becoming a second source
-store.
+The bounded typed input to Explorer's scene compiler. It binds exact evidence,
+coordinate or embedding basis, scalar/vector channel semantics, typed field
+dimensions and byte allocation, validity masks, world bounds, layer inventory,
+implementation revisions, limits, completeness, omissions, and lineage without
+becoming a second source store.
 
 ### Pure projection
 

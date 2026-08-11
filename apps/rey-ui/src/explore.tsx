@@ -34,6 +34,11 @@ import {
 } from "./explore/engine/camera";
 import { compileSceneSnapshot } from "./explore/engine/scene";
 import {
+  AcceleratedTerrainSurface,
+  REFERENCE_TERRAIN_REPORT,
+  type AcceleratedTerrainReport,
+} from "./explore/renderers/accelerated-terrain";
+import {
   ReferenceMapReading,
   ReferenceRenderer,
   type FocusableTopologyObject,
@@ -91,6 +96,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   );
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [terrainRenderer, setTerrainRenderer] =
+    useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
   const [layers, setLayers] = useState<ReferenceLayerVisibility>({
     relief: true,
     water: true,
@@ -113,6 +120,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     zoom,
     scene.regime,
   );
+  const acceleratedReady =
+    terrainRenderer.status.lifecycle === "ready" &&
+    (terrainRenderer.status.backend === "webgpu" ||
+      terrainRenderer.status.backend === "webgl2");
 
   useEffect(() => {
     if (!coordinate) return;
@@ -294,7 +305,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           className={sx(styles.scene, isDragging && styles.sceneDragging)}
           style={sceneStyle}
         >
+          {scene.terrain ? (
+            <AcceleratedTerrainSurface
+              onReport={setTerrainRenderer}
+              snapshot={snapshot}
+              visible={layers.relief}
+            />
+          ) : null}
           <ReferenceRenderer
+            accelerated={acceleratedReady}
             layers={layers}
             onFocus={focusNode}
             scene={scene}
@@ -305,6 +324,19 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           <span>
             X {Math.round(pan.x)} / Y {Math.round(pan.y)}
           </span>
+          {scene.terrain ? (
+            <span data-renderer-backend={terrainRenderer.status.backend}>
+              RENDER / {terrainRenderer.status.backend?.toUpperCase() ?? "INIT"}
+              {terrainRenderer.status.degraded ? " / DEGRADED" : ""}
+            </span>
+          ) : null}
+          {terrainRenderer.field_cells > 0 ? (
+            <span>
+              FIELD / {terrainRenderer.field_cells} CELLS /{" "}
+              {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB /{" "}
+              {terrainRenderer.triangles} TRI
+            </span>
+          ) : null}
         </div>
         <div className={sx(styles.lensLegend)}>
           <LensStep active={scene.regime === "world"} label="WORLD" />

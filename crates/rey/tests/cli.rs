@@ -2678,6 +2678,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "OMISSION candidate_limit",
         "Exact topography bindings:",
         "Exact projection bindings:",
+        "field layout 61×41 · 2501 cells · 55 bytes/cell · 137555 bytes allocated",
         "elevation · scalar",
         "projection omission",
         "operation   rey.context-anchor-survey.locate@1",
@@ -2768,6 +2769,8 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     projection.verify_for(patch).unwrap();
     assert_eq!(projection.schema, "rey.projection-packet.v1");
     assert_eq!(projection.source_patch_id, patch.patch_id);
+    assert_eq!(projection.field_layout.cells, 2_501);
+    assert_eq!(projection.field_layout.total_bytes, 137_555);
     assert_eq!(
         projection.excluded_source_relationships,
         patch.edges.len() as u64

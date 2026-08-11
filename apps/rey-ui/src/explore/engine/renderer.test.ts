@@ -13,5 +13,15 @@ describe("renderer contracts", () => {
     expect(
       boundedViewport({ width: 0, height: -10, device_pixel_ratio: 0.5 }),
     ).toEqual({ width: 1, height: 1, device_pixel_ratio: 1 });
+    const large = boundedViewport({
+      width: 4000,
+      height: 3000,
+      device_pixel_ratio: 2,
+    });
+    expect(large.width).toBeLessThanOrEqual(2048);
+    expect(large.height).toBeLessThanOrEqual(2048);
+    expect(
+      large.width * large.height * large.device_pixel_ratio ** 2,
+    ).toBeLessThanOrEqual(8_388_608);
   });
 });

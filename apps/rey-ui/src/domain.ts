@@ -131,6 +131,13 @@ export interface ProjectionPacket {
   };
   scene_compiler: ContractIdentity;
   extent: { width: number; height: number; unit: string };
+  field_layout: {
+    columns: number;
+    rows: number;
+    cells: number;
+    bytes_per_cell: number;
+    total_bytes: number;
+  };
   objects: Array<{
     object_id: string;
     source_id: string;

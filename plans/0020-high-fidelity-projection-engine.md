@@ -100,13 +100,13 @@ dynamic-entity requirement.
 
 ### 3. Build bounded multiresolution terrain
 
-- [ ] Replace nested-number grids with typed scalar/vector buffers and an
+- [x] Replace nested-number grids with typed scalar/vector buffers and an
   explicit per-cell surveyed-validity mask.
 - [ ] Build a bounded tile pyramid or equivalent multiresolution field whose
   LOD changes do not move stable coordinates or fill unknown cells.
-- [ ] Separate elevation, rainfall, flow, erosion, normal, curvature, and
+- [x] Separate elevation, rainfall, flow, erosion, normal, curvature, and
   material channels with independent implementation revisions.
-- [ ] Preserve deterministic hydrology and natural-feature semantics from ADR
+- [x] Preserve deterministic hydrology and natural-feature semantics from ADR
   0043 while testing that erosion changes relief but never source assessment.
 - [ ] Expose cell, tile, byte, compilation-time, and omission budgets in both
   structured output and the human CLI.
@@ -134,8 +134,8 @@ dynamic-entity requirement.
 
 ### 5. Reach continuous terrain fidelity
 
-- [ ] Render a continuous base terrain material before contours and overlays.
-- [ ] Add height-gradient normals, multidirectional hillshade, ambient/valley
+- [x] Render a continuous base terrain material before contours and overlays.
+- [x] Add height-gradient normals, multidirectional hillshade, ambient/valley
   occlusion, ridge/curvature enhancement, and restrained evidence-aware tint as
   separately testable passes.
 - [ ] Make contour interval, weight, labeling, and opacity scale with semantic
@@ -166,6 +166,34 @@ dynamic-entity requirement.
   budgets reported separately.
 - [ ] Verify the packaged Nix build, embedded assets, CLI/browser parity, and
   zero-Spoke fallback through `just check` and `just test`.
+
+## Implementation Checkpoint: 2026-08-11 Continuous Relief
+
+- `rey.projection-packet.v1` now binds a 61×41 typed layout: 2,501 cells,
+  55 bytes per cell, and 137,555 allocated bytes under the existing 160,064-byte
+  limit. The human `-vv` rendering exposes the same allocation before the
+  browser consumes it.
+- The browser compiler rejects dimension, cell-count, channel-count, or byte
+  divergence. Unknown cells remain zero-valued and excluded from hydrology,
+  normal sampling, contour cells, and mesh triangles.
+- `/explore` lazily mounts one continuous Three.js terrain mesh with a TSL
+  material over typed elevation, normal, curvature, tint, occlusion, and
+  roughness attributes. The SVG/DOM reference terrain remains active until the
+  first accelerated render succeeds and remains the degraded fallback.
+- The production build keeps the renderer lazy: `app.js` is 487.94 kB
+  (148.23 kB gzip), the adapter is 2.59 kB (1.09 kB gzip), the terrain graph is
+  12.52 kB (4.61 kB gzip), and the shared Three.js WebGPU chunk is 1,032.25 kB
+  (283.35 kB gzip).
+- Chrome 145 on x86_64 executed the final production chunks at 800×520 and
+  DPR 1 through both WebGPU and forced WebGL2. Each backend compiled
+  `rey.terrain.tsl-continuous-relief@1` and rendered the same 651 vertices,
+  700 valid-mask triangles, and 35,805 field bytes. The captures had normalized
+  mean absolute pixel error `2.74018e-05`.
+
+That browser run qualifies the backend/material boundary, not the complete
+plan. A retained `/explore` World → Neighborhood voyage, device/context-loss
+capture, accessibility pass, Nix packaging result, and named performance result
+are still required.
 
 ## Acceptance Boundary
 

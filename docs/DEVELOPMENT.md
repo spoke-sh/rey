@@ -234,12 +234,16 @@ is specified in `docs/JOURNAL.md`.
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
 derives bounded World, Atlas, Landscape, Neighborhood, Object, and Evidence
 scenes from admitted patches and projection packets in `rey.workload-list.v7`;
-`src/explore/engine/camera.ts` owns the extracted camera math,
-`src/explore/engine/scene.ts` freezes the current reference scene, and
-`src/explore/renderers/reference.tsx` owns the SVG/DOM passes beneath the React
-canvas shell. Anchor-only fields and remaining scene assembly still live in
-`src/topology.ts`. Seed edges remain deep inspection evidence and do not become
-relief, natural features, or paths.
+`src/explore/engine/camera.ts` owns camera math,
+`src/explore/engine/scene.ts` freezes the current scene, and
+`src/explore/engine/fields.ts` owns bounded typed scalar, vector, mask, and
+material buffers. `src/explore/terrain` derives anchor elevation, validity,
+hydrology, erosion, physical-scale normals, curvature, and material inputs.
+`src/explore/renderers/reference.tsx` owns the accessible SVG/DOM overlays and
+fallback beneath the React canvas shell. Remaining scene assembly, contours,
+and natural-feature adaptation still live in `src/topology.ts`. Seed edges
+remain deep inspection evidence and do not become relief, natural features, or
+paths.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
@@ -255,13 +259,15 @@ ADR 0045 selects a pinned Three.js `WebGPURenderer` and TSL adapter with WebGPU
 preferred and Three.js's WebGL2 backend as compatibility fallback. The current
 package pins Three.js `0.185.1`; its adapter has deterministic lifecycle tests
 for asynchronous initialization, WebGPU selection, forced WebGL2 selection,
-viewport bounds, failure, and disposal, but is not yet mounted as the live
-terrain surface. Its remaining bounded
-qualification must cover browser and device support, bundle and Nix closure
-size, asynchronous initialization, graphics-resource ownership and disposal,
-device/context loss, both backends, determinism, accessibility, security policy,
-licensing, maintenance, and named performance evidence. Rey's deterministic
-reference renderer remains independent of Three.js.
+viewport bounds, failure, and disposal. It is mounted lazily as `/explore`'s
+continuous base-terrain surface, while the reference renderer remains active
+through initialization and on failure. The TSL graph consumes typed tint,
+occlusion, roughness, curvature, and normal attributes. The remaining bounded
+qualification must cover retained captures on both real backends, WebGPU device
+loss, resize, browser/device support, Nix closure size, determinism,
+accessibility, security policy, licensing, maintenance, and named performance
+evidence. Rey's deterministic reference renderer remains independent of
+Three.js.
 
 Backend-independent tests own semantic correctness: field values, validity
 masks, scene manifests, stable ordering, LOD selection, render-pass order,

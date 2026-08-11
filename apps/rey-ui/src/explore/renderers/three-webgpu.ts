@@ -29,6 +29,7 @@ export type ThreeRendererFactory = (options: {
 const defaultFactory: ThreeRendererFactory = async ({ canvas, forceWebGL }) => {
   const THREE = await import("three/webgpu");
   return new THREE.WebGPURenderer({
+    alpha: true,
     antialias: true,
     canvas,
     forceWebGL,

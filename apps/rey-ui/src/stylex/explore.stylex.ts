@@ -183,6 +183,22 @@ export const exploreStyles = stylex.create({
   terrainProjection: {
     backgroundColor: "color-mix(in srgb, #eef0e3 25%, transparent)",
   },
+  acceleratedTerrainProjection: { backgroundColor: "transparent" },
+  acceleratedTerrainCanvas: {
+    height: "100%",
+    inset: 0,
+    opacity: 0,
+    pointerEvents: "none",
+    position: "absolute",
+    transitionDuration: {
+      default: "180ms",
+      "@media (prefers-reduced-motion: reduce)": "0.01ms",
+    },
+    transitionProperty: "opacity",
+    width: "100%",
+    zIndex: 0,
+  },
+  acceleratedTerrainCanvasReady: { opacity: 1 },
   worldTerrainProjection: {
     backgroundColor: "transparent",
   },
@@ -216,6 +232,10 @@ export const exploreStyles = stylex.create({
     opacity: 0.92,
     stroke: "color-mix(in srgb, #47604d 58%, var(--rey-foreground))",
     strokeWidth: "calc(1.2px * var(--rey-terrain-counter-scale))",
+  },
+  chartedLandAccelerated: {
+    fill: "transparent",
+    opacity: 0.72,
   },
   region: {
     alignContent: "start",

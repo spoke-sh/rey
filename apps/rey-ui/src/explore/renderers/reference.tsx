@@ -24,10 +24,12 @@ export interface ReferenceLayerVisibility {
 }
 
 export function ReferenceRenderer({
+  accelerated = false,
   layers,
   onFocus,
   scene,
 }: {
+  accelerated?: boolean;
   layers: ReferenceLayerVisibility;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
@@ -37,12 +39,13 @@ export function ReferenceRenderer({
       className={sx(
         styles.projection,
         scene.terrain && styles.terrainProjection,
+        scene.terrain && accelerated && styles.acceleratedTerrainProjection,
         scene.terrain &&
           scene.regime === "world" &&
           styles.worldTerrainProjection,
       )}
       data-lens-regime={scene.regime}
-      data-renderer="reference"
+      data-renderer={accelerated ? "reference-overlays" : "reference"}
     >
       {scene.regions.map((region) => (
         <div
@@ -68,7 +71,7 @@ export function ReferenceRenderer({
           <small>{region.detail}</small>
         </div>
       ))}
-      <WorldGeometryLayer scene={scene} />
+      <WorldGeometryLayer accelerated={accelerated} scene={scene} />
       {layers.relief ? <ReliefLayer scene={scene} /> : null}
       {layers.water || layers.weather ? (
         <NaturalFeatureLayer
@@ -109,7 +112,13 @@ export function ReferenceRenderer({
   );
 }
 
-function WorldGeometryLayer({ scene }: { scene: TopologyScene }) {
+function WorldGeometryLayer({
+  accelerated,
+  scene,
+}: {
+  accelerated: boolean;
+  scene: TopologyScene;
+}) {
   if (scene.landforms.length === 0) return null;
   const meridians = Array.from({ length: 11 }, (_, index) =>
     Math.round((scene.world.width * index) / 10),
@@ -164,7 +173,11 @@ function WorldGeometryLayer({ scene }: { scene: TopologyScene }) {
         .filter((landform) => landform.kind === "charted")
         .map((landform) => (
           <path
-            className={sx(styles.chartedLand)}
+            className={sx(
+              styles.chartedLand,
+              accelerated && styles.chartedLandAccelerated,
+            )}
+            data-accelerated-surface={accelerated || undefined}
             d={landform.path}
             data-world-geometry={landform.kind}
             key={landform.id}
