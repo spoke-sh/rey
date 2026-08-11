@@ -15,6 +15,16 @@ numeric camera scale, but that
 does not mutate topology or make Explorer a runtime, scheduler, evidence store,
 or assessment authority.
 
+Explorer is also the read-first runtime side of a level-editor architecture.
+The separate `rey editor` CLI assembles WORKING projects, stages exact native
+objects in INDEX, and emits immutable candidate scene packages. Those packages
+are not Explorer inputs. Only a later qualified workload may admit their
+terrain or features and produce evidence consumed by a projection packet. The
+implemented editor slice has no admission workload, so packaging changes
+neither the UI API nor `/explore`. See [ADR
+0046](decisions/0046-read-first-scene-editor.md) and [Plan
+0021](../plans/0021-read-first-scene-editor.md).
+
 ## Operator Model
 
 The intended division of labor is:
@@ -52,6 +62,8 @@ Camera             = center + continuous scale + viewport
 Lens               = semantic projection(topography, focus, camera)
 Regime             = one level-of-detail grammar on the lens continuum
 Render graph        = ordered material, relief, feature, label, and UI passes
+Editor project      = mutable workspace declaration of native candidate inputs
+Scene package       = immutable candidate + native objects; never admission
 World              = far projection of admitted charts, survey weather, and
                      unresolved survey horizons
 Neighborhood       = bounded objects around one meaningful coordinate
@@ -94,6 +106,22 @@ fields are transformed, culled, picked, and rendered. Renderer code decides how
 materials and passes become pixels. React owns the route, controls,
 accessibility, evidence panels, and lifecycle around that surface. None may
 take over another layer's semantic authority.
+
+The upstream editor pipeline is deliberately outside this render flow:
+
+```text
+native survey files → editor WORKING → INDEX → candidate package
+                                              │
+                                              ▼ qualified admission workload
+                                      admitted evidence → projection packet
+```
+
+The first adapter accepts only geographic RFC 7946 GeoJSON in OGC CRS84. It
+indexes explicit features and marker POIs while preserving native bytes.
+GeoJSON coordinates cannot stand in for an unbound high-dimensional semantic
+chart, and line features do not become paths or source relationships. Detailed
+raster terrain and provider-qualified semantic chart formats require separate
+adapters and admission scenarios.
 
 The engine is high-dimensional because its input basis may project many source
 dimensions into a stable navigable scene. It is not allowed to invent that

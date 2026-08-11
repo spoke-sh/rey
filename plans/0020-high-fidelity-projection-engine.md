@@ -245,7 +245,9 @@ This plan is complete only when:
 ## Explicit Deferrals
 
 - free-orbit 3D, pitch, volumetric rendering, physics, and multiplayer state;
-- a generic ECS, asset marketplace, editor, scripting runtime, or plugin API;
+- a generic ECS, asset marketplace, scripting runtime, or plugin API; scene
+  candidate editing and admission are separately owned by [Plan
+  0021](0021-read-first-scene-editor.md);
 - a universal high-dimensional embedding algorithm;
 - inferred terrain outside surveyed validity;
 - browser-triggered probes, mining, path construction, or action admission;

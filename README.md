@@ -66,6 +66,17 @@ relationship, path, assessment, read authority, or surveyed claim. See [ADR
 0044](docs/decisions/0044-explorer-projection-engine.md) and [Plan
 0020](plans/0020-high-fidelity-projection-engine.md).
 
+Explorer is the read-first projection side of a level-editor architecture. The
+agent-facing `rey editor` CLI assembles bounded native survey sources into
+WORKING, freezes exact objects in INDEX, and emits immutable scene packages.
+Those packages remain candidate-only and cannot affect `/explore` until a
+separate qualified workload admits them. The first implemented adapter accepts
+RFC 7946 GeoJSON features and marker POIs in OGC CRS84; detailed raster terrain,
+GeoPackage, GeoTIFF/COG, Arrow, and provider-qualified semantic charts remain
+planned adapters. See [ADR
+0046](docs/decisions/0046-read-first-scene-editor.md) and [Plan
+0021](plans/0021-read-first-scene-editor.md).
+
 ## Context Lifecycle
 
 Rey keeps four phases separate:
@@ -229,6 +240,14 @@ rey env diff
 rey env add [-p]
 rey env commit -m <message>
 rey env log [-p] [-n <count>]
+rey editor init --id <project>
+rey editor import <source.geojson> --id <source> --role <role>
+rey editor status
+rey editor diff [--staged]
+rey editor add
+rey editor validate
+rey editor package
+rey editor inspect <package-id>
 rey workloads create <workload-id> [--title <title>] [--intent <intent>]
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
@@ -265,6 +284,14 @@ just rey env commit -m 'accept local toolchain'
 just rey env log
 just rey env log -n 3
 just rey env log -p
+just rey editor init --id semantic-atlas --format table
+# After creating an RFC 7946 survey.geojson with stable feature ids:
+just rey editor import survey.geojson --id anchor-pois --role markers --format table
+just rey editor status --format table
+just rey editor diff --format table
+just rey editor validate --format table
+just rey editor add --format table
+just rey editor package --format table
 just rey workloads create api-drift \
   --title 'API drift mining' \
   --intent 'Mine authoritative API behavior and formalize its graph and scenarios' \
@@ -625,6 +652,8 @@ Rey is not:
 - [Architecture](docs/ARCHITECTURE.md) — ownership and end-to-end data flow.
 - [Glossary](docs/GLOSSARY.md) — canonical project vocabulary and important
   semantic distinctions.
+- [Explorer](docs/EXPLORER.md) — read-first world projection, semantic zoom,
+  projection engine, and editor admission boundary.
 - [Mining Context Into Evidence](docs/MINING.md) — relational/source mining,
   operation, result, visualization, and runtime contracts.
 - [Workloads](docs/WORKLOADS.md) — public composition, compute graphs,
@@ -677,6 +706,14 @@ layout, typed semantic deltas, and a symlink-safe atomic WORKING proposal.
 `rey channels list`, `status`, `diff`, and `apply` provide human and structured
 verification without moving observations into the topology index. Immutable
 HEAD/INDEX admission and browser persistence remain the next topology slices.
+
+The first read-first scene editor slice is executable. `rey editor init`,
+`import`, `status`, `diff`, `validate`, `add`, `package`, and `inspect` preserve
+workspace-authored GeoJSON, build a bounded feature/POI index, freeze exact
+native objects, and retain directed immutable candidate packages plus explicit
+admission requests. This is incomplete enabling work: no scene-admission
+workload exists, candidate requests report `admitted=false`, and `/explore`
+continues to consume only retained survey-workload topography.
 
 Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.

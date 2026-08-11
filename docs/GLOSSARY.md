@@ -576,6 +576,20 @@ The actual limits enforced after requested bounds are combined with provider,
 runtime, workload, and policy constraints. Effective limits participate in
 semantic identity because changing them can change completeness or results.
 
+### Editor project
+
+A workspace-authored `rey.editor-project.v1` declaration of bounded native
+scene sources, explicit feature roles, and one coordinate-system contract. It
+is mutable WORKING source, not admitted evidence; `.rey/editor` is only its
+candidate/index cache.
+
+### Editor planes
+
+`PACKAGE`, `INDEX`, and `WORKING` are the latest immutable scene candidate, the
+exact staged candidate snapshot plus frozen native objects, and fresh
+observation of an editor project. Unlike environment `HEAD`, editor PACKAGE is
+not admitted history. `package` creates an unadmitted workload request.
+
 ### Environment
 
 The explicit boundary from which Rey discovers context surfaces and available
@@ -1447,6 +1461,28 @@ An immutable, stably ordered projection-engine scene compiled from one exact
 projection packet. Its semantic identity binds source evidence, projection,
 field, validity, compiler, and limits while excluding camera motion and
 measured frame time.
+
+### Scene candidate snapshot
+
+A deterministic bounded `rey.scene-candidate-snapshot.v1` observation of one
+editor project: exact native source identities, explicit roles, coordinate
+system and bounds, feature/POI index, coverage, completeness, omissions, and
+limits. It is an editor INDEX/package input, not the projection-engine scene
+snapshot used by `/explore`.
+
+### Scene package
+
+An immutable `rey.scene-package.v1` editor candidate binding one exact scene
+candidate snapshot, native object references, parent package, and directed
+change set. Candidate-only authority is part of its identity. It cannot affect
+Explorer until a separate qualified workload admits derived evidence.
+
+### Scene admission request
+
+A content-identified `rey.scene-admission-request.v1` handoff naming one exact
+scene package and the operation required to validate it. The implemented
+request says `requires_workload` and `admitted=false`; it is not itself a
+workload result, action admission, or proof.
 
 ### Search record
 

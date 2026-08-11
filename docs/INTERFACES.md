@@ -1056,6 +1056,30 @@ Topology Explorer](EXPLORER.md), [ADR
 0043](decisions/0043-emergent-natural-features-and-separate-paths.md), and
 [ADR 0044](decisions/0044-explorer-projection-engine.md).
 
+The agent-facing scene authoring surface is separate:
+
+```text
+rey editor init --id <project>
+rey editor import <source.geojson> --id <source> \
+  --role features|markers|terrain-control|hydrology|boundary
+rey editor status
+rey editor diff [--staged]
+rey editor add
+rey editor validate
+rey editor package
+rey editor inspect <blake3-package-id>
+```
+
+All editor commands accept `--format table|json` (and terminal-sensitive
+`auto`). The project defaults to workspace-relative `rey.scene.json`; all
+project/native inputs remain bounded, regular, non-symlinked, and contained by
+the workspace. `status` and `diff` compare candidate `PACKAGE → INDEX →
+WORKING`. `add` is the only staging operation and freezes exact native bytes.
+`package` reads only INDEX, writes `rey.scene-package.v1` plus
+`rey.scene-admission-request.v1`, and reports `candidate_only`,
+`requires_workload`, and `admitted=false`. It never changes the workload store
+or UI. See [ADR 0046](decisions/0046-read-first-scene-editor.md).
+
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded
 application search, and the input/reference plane. The application plane keeps

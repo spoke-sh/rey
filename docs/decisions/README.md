@@ -50,6 +50,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0043](0043-emergent-natural-features-and-separate-paths.md) | Accepted | Anchor-field relief, unresolved weather, runoff hydrology and erosion, and separate discovered/constructed path evidence |
 | [0044](0044-explorer-projection-engine.md) | Accepted | High-fidelity spatial game engine for evidence-bound high-dimensional projection, 2.5D terrain fidelity, immutable scenes, field/LOD/render-graph boundaries, and renderer qualification |
 | [0045](0045-threejs-webgpu-renderer.md) | Accepted | Three.js WebGPURenderer and TSL production boundary with WebGPU-first, WebGL2 compatibility, and deterministic reference paths |
+| [0046](0046-read-first-scene-editor.md) | Accepted | Read-first scene editor candidates, exact native GeoJSON objects, Git-shaped staging, immutable packages, and a separate workload admission boundary |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

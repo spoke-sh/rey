@@ -141,6 +141,22 @@ revision lineage must survive every rendering backend and visual lens. The
 engine should degrade visibly when fidelity or acceleration is unavailable
 without changing the underlying assessment.
 
+### 17. Author Worlds As Candidates, Admit Them As Evidence
+
+Explorer is the read-first projection of an admitted scene, not its level
+editor. Surveys, agents, and humans may assemble native terrain, feature,
+marker, label, hydrology, and boundary artifacts through a separate editor
+candidate plane, but a candidate cannot write an admitted topography patch,
+projection packet, or browser scene directly. Exact native artifacts,
+coordinates, identities, changes, limits, and omissions must pass through an
+explicit qualified workload before they can affect `/explore`.
+
+Standard formats retain their native semantics. Geographic coordinates cannot
+be relabeled as semantic embeddings, vector lines cannot silently become
+relationships or paths, and bounded indexes cannot replace the source
+artifact. Editor staging and packaging make candidates reviewable and
+reproducible; they grant no read, probe, action, or admission authority.
+
 ## Frame And Delta Invariants
 
 - A frame has a stable logical schema, source bindings, lens revision,

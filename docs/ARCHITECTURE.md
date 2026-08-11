@@ -22,7 +22,7 @@ policy concerns rather than runtime correctness dependencies.
 
 ## Architectural Separation
 
-Rey separates nine responsibilities:
+Rey separates ten responsibilities:
 
 1. **Workload plane** — versioned workloads compose generated compute graphs,
    scenarios, claims, policy, qualification, effects, and total limits.
@@ -33,20 +33,25 @@ Rey separates nine responsibilities:
    concrete providers retain source and execution ownership.
    The implemented survey slice uses `rey-locator` bindings and emits retained
    topography patches; browser projections never become a resolver.
-4. **Projection-engine plane** — exact admitted evidence and a versioned
+4. **Scene-editor candidate plane** — agents, surveys, and eventually humans
+   assemble bounded native terrain, feature, marker, hydrology, and boundary
+   artifacts into reviewable INDEX state and immutable candidate packages;
+   packages grant no admission authority and reach Explorer only through a
+   qualified workload.
+5. **Projection-engine plane** — exact admitted evidence and a versioned
    coordinate/projection basis compile into immutable scenes, bounded fields,
    semantic LOD, render passes, picking, and high-fidelity browser pixels;
    rendering never becomes semantic authority.
-5. **Reasoning plane** — selected frontier work and mined evidence become a
+6. **Reasoning plane** — selected frontier work and mined evidence become a
    bounded reasoning surface with exact omissions and admissible operations;
    optional Spoke amplifies retrieval and retention, not surface semantics.
-6. **Observation plane** — lenses bind exact inputs and materialize bounded
+7. **Observation plane** — lenses bind exact inputs and materialize bounded
    typed frames or native artifact references.
-7. **Delta plane** — relational, text, and structural comparison preserves
+8. **Delta plane** — relational, text, and structural comparison preserves
    directed changes and derives invalidation.
-8. **Runtime plane** — transitions validate proposals, execute bounded probes or
+9. **Runtime plane** — transitions validate proposals, execute bounded probes or
    effects, update the frontier, and stop on convergence or an explicit bound.
-9. **Policy plane** — an agent, deterministic rule, or human proposes a compute
+10. **Policy plane** — an agent, deterministic rule, or human proposes a compute
    graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
@@ -145,6 +150,9 @@ poll cursors, and delta-triggered workloads.
 | Mining request      | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale                                                                                             | Rey transition or graph-node evidence                                                                           |
 | Mining result       | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions                                                                                    | Rey evidence index; artifacts remain provider-owned or explicitly retained                                      |
 | Topography patch    | Admitted survey result containing coordinate anchors, classified relationships, coverage, frontier, omissions, lineage, and a directed map delta                                                       | Rey evidence index; source artifacts and coordinates remain provider-owned                                      |
+| Editor project      | User-authored declaration of bounded native scene sources, explicit roles, and one coordinate-system contract                                                                                          | Workspace source; `.rey/editor` is only a candidate/index cache                                                  |
+| Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
+| Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Scene snapshot      | Immutable, stably ordered engine scene compiled from one projection packet; semantic identity excludes camera motion and measured frame time                                                           | Browser working state and optional bounded proof artifact; never authoritative source evidence                  |
 | Portfolio snapshot  | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation                                                                | Rey runtime evidence; derived from catalog/result/environment providers                                         |
@@ -279,6 +287,9 @@ it to a React visualization component. The target boundary has five layers:
 The flow is one-way:
 
 ```text
+editor WORKING → INDEX → immutable candidate package
+                                  │
+                                  ▼ explicit qualified admission workload
 admitted evidence
   → versioned projection packet
   → immutable scene + fields + validity
@@ -286,6 +297,14 @@ admitted evidence
   → ordered render passes
   → pixels
 ```
+
+The editor arrow cannot bypass the admission workload. `rey.scene-package.v1`
+is not a topography patch, projection packet, browser scene, or proof. The
+current first slice freezes bounded native GeoJSON and a feature/POI index but
+does not yet implement the admission workload; therefore it is enabling work
+and creating a package leaves `/explore` unchanged. [ADR
+0046](decisions/0046-read-first-scene-editor.md) and [Plan
+0021](../plans/0021-read-first-scene-editor.md) own this boundary.
 
 Picking reverses only screen position to a stable scene identity and exact
 coordinate. It does not reverse pixels into evidence. The CLI inspects the
