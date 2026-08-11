@@ -2,6 +2,7 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -25,6 +26,41 @@ use rey_runtime::{
 };
 use serde_json::Value;
 use tempfile::TempDir;
+
+#[test]
+fn checked_in_scene_is_available_through_the_default_editor_surface() {
+    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .unwrap();
+    let state = TempDir::new().unwrap();
+    let output = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace.to_str().unwrap(),
+        "--state-dir",
+        state.path().to_str().unwrap(),
+        "status",
+        "--format",
+        "json",
+    ]);
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stderr.is_empty());
+    let status: EditorStatus = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(status.state, EditorWorkingState::Working);
+    assert_eq!(status.working.project_id, "rey-county");
+    assert_eq!(status.working.coverage.sources, 5);
+    assert_eq!(status.working.coverage.features, 34);
+    assert_eq!(status.working.coverage.markers, 12);
+    assert_eq!(status.working.coverage.coordinates, 137);
+    assert!(status.package.is_none());
+    assert!(status.index.is_none());
+}
 
 #[test]
 fn editor_cli_freezes_native_scene_candidates_without_admitting_explore_state() {

@@ -45,16 +45,16 @@ survey source edges; no road, route, or traversability is claimed.
 These were the one-time authoring commands run from an empty scene path:
 
 ```text
-rey editor init --id rey-county --project scenes/rey-county/rey.scene.json
-rey editor import scenes/rey-county/boundary.geojson --id rey-county-boundary --role boundary --project scenes/rey-county/rey.scene.json
-rey editor import scenes/rey-county/terrain-controls.geojson --id rey-county-terrain --role terrain-control --project scenes/rey-county/rey.scene.json
-rey editor import scenes/rey-county/hydrology.geojson --id rey-county-hydrology --role hydrology --project scenes/rey-county/rey.scene.json
-rey editor import scenes/rey-county/features.geojson --id rey-county-features --role features --project scenes/rey-county/rey.scene.json
-rey editor import scenes/rey-county/markers.geojson --id rey-county-markers --role markers --project scenes/rey-county/rey.scene.json
-rey editor validate --project scenes/rey-county/rey.scene.json
-rey editor status --project scenes/rey-county/rey.scene.json
-rey editor add --project scenes/rey-county/rey.scene.json
-rey editor package --project scenes/rey-county/rey.scene.json
+rey editor init --id rey-county
+rey editor import scenes/rey-county/boundary.geojson --id rey-county-boundary --role boundary
+rey editor import scenes/rey-county/terrain-controls.geojson --id rey-county-terrain --role terrain-control
+rey editor import scenes/rey-county/hydrology.geojson --id rey-county-hydrology --role hydrology
+rey editor import scenes/rey-county/features.geojson --id rey-county-features --role features
+rey editor import scenes/rey-county/markers.geojson --id rey-county-markers --role markers
+rey editor validate
+rey editor status
+rey editor add
+rey editor package
 ```
 
 The checked-in project already contains the imported source declarations. A
