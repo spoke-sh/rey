@@ -42,7 +42,7 @@ Every entry binding keeps semantic address and presentation state separate:
 
 ```text
 coordinate: rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
-scale:      0.55..=2
+scale:      0.12..=5.4
 ```
 
 Coordinate dimensions are lexically ordered `revision`, `role`. The decoded
@@ -161,7 +161,7 @@ author:
   id: codex
 binding:
   coordinate: rey+local://workload/source-mining?revision=blake3%3Aabc
-  scale: 1.46
+  scale: 2.05
   source_revision: blake3:abc
 blocks:
   - kind: prose

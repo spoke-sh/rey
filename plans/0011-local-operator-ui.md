@@ -85,10 +85,10 @@ stream lenses through a bounded, deep-linkable URL grammar.
   typed identity retention and classified edges.
 - [x] Add pointer/keyboard semantic zoom, pan, selection traversal, fit, and
   native full-screen canvas behavior.
-- [ ] Replace the fixed world bounds with a continuous camera scale over
+- [x] Replace the fixed world bounds with a continuous camera scale over
   admitted topography patches, extending the current lens with Atlas and exact
   Evidence levels while retaining coordinate focus.
-- [ ] Separate the lossless semantic coordinate from camera/projection state in
+- [x] Separate the lossless semantic coordinate from camera/projection state in
   a v2 deep-link envelope without silently reinterpreting retained Journal
   bindings.
 - [x] Fit Explore within `100dvh` and remove route-level document scrolling so
@@ -152,31 +152,30 @@ stream lenses through a bounded, deep-linkable URL grammar.
 ## Current Proof
 
 The frontend derives portfolio totals, workload journey, scenario progress,
-attention, provenance, and mining evidence from `rey.workload-list.v5`. Rust
+attention, provenance, mining evidence, and admitted topography patches from
+`rey.workload-list.v6`. Rust
 integration tests start a real ephemeral listener and verify the embedded app,
 SPA fallback, health, live catalog response, browser headers, rejected writes,
 loopback startup document, structured descriptor, and non-loopback warning.
 Its authored presentation is fully StyleX-extracted: no handwritten
 application CSS remains, while Kinetic material values stay typed and dynamic.
 
-Captured on 2026-08-09:
+Captured on 2026-08-10:
 
 ```text
-nix develop path:$PWD --command just check
-# frontend formatting/typecheck, 12/12 UI tests, Vite build, Rustfmt, Clippy,
+just check
+# frontend formatting/typecheck, 50/50 UI tests, Vite build, Rustfmt, Clippy,
 # and flake evaluation passed
-nix develop path:$PWD --command just test
-# 136/136 Rust tests, 12/12 UI tests, and all documentation tests passed
-nix develop path:$PWD --command just build
+just test
+# 172/172 Rust tests, 50/50 UI tests, and all documentation tests passed
+just build
 # deterministic UI assets and the complete Rust workspace built
-nix build path:$PWD#rey --no-link
-# the filtered, locked package containing embedded UI assets built successfully
 ```
 
 A real `rey ui --host 127.0.0.1 --port 0 --format json` listener reported its
 exact ephemeral URL, Kinetic grammar, Precision theme, pinned grammar revision,
 loopback exposure, and read-only authority. Live health and workload requests
-returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v5`.
+returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v6`.
 Isolated Chromium captures verified both `/` and `/workloads` at 1600×1200;
 the initial environment rendered live qualification, scenario, run, coverage, attention,
 catalog, graph, and evidence data without console/server failure.

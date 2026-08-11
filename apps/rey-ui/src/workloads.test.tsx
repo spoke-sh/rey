@@ -110,7 +110,7 @@ describe("workload portfolio tables", () => {
 
 function portfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v5",
+    schema: "rey.workload-list.v6",
     catalog: {
       schema: "rey.workload-catalog.v2",
       kind: "workspace_packages",
@@ -189,6 +189,11 @@ function workload(): WorkloadSummary {
     relation_deltas: 2,
     reasoning_surfaces: 4,
     attention_rows: 1,
+    topography_results: 0,
+    topography_revision: null,
+    topography_coverage: null,
+    topography_frontier_rows: 0,
+    topography_patch: null,
     last_run_status: "blocked",
     last_test_result_id: "blake3:test",
   };

@@ -31,6 +31,8 @@ Rey separates eight responsibilities:
 3. **Mining plane** — provider-neutral relational and source operations
    retrieve, extract, organize, compare, and visualize bounded evidence while
    concrete providers retain source and execution ownership.
+   The implemented survey slice uses `rey-locator` bindings and emits retained
+   topography patches; browser projections never become a resolver.
 4. **Reasoning plane** — selected frontier work and mined evidence become a
    bounded reasoning surface with exact omissions and admissible operations;
    optional Spoke amplifies retrieval and retention, not surface semantics.
@@ -162,13 +164,14 @@ requirements demand it.
 `rey ui` embeds a TanStack Router single-page application and serves the live
 bounded workload-list document used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
-deeper diagnostic plane. The Explorer currently projects one bounded workload
-topology through a semantic lens: landscape aggregates become
-workload/attention neighborhoods, then exact graph/scenario/evidence/delta
-objects as zoom and focus change. Identity, relationship classification,
-bounds, and omissions survive those visual transitions. Its target topographic
-lens adds Atlas and exact Evidence levels over incrementally admitted survey
-patches. Semantic coordinates are provider-qualified Spoke-model addresses;
+deeper diagnostic plane. The Explorer projects admitted topography patches
+through one persistent semantic scene. Atlas derives terrain-style contour
+isolines from bounded anchor and exact classified-edge influence and retains
+anchors as stable map POIs. Landscape, Neighborhood, Object, and Evidence
+progressively add labels, survey zones, relationships, inspection objects, and
+exact basis without replacing the map. Identity, relationship classification,
+bounds, and omissions survive those visual transitions. Semantic coordinates
+are provider-qualified Spoke-model addresses;
 camera center, continuous scale, viewport, and lens remain separate view state.
 The current hard-cut interface uses `rey+local://...` semantic coordinates and
 the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths have no
@@ -667,6 +670,7 @@ The first design proposes these Rust ownership boundaries:
 | `rey` | Workload CLI, catalog/configuration composition, and user-facing orchestration |
 | `rey-core` | identities, revisions, limits, statuses, and shared value contracts |
 | `rey-mining` | provider-neutral mining operation/request/result, artifact, completeness, dependency, and visualization contracts; no query engine, parser bundle, or storage |
+| `rey-locator` | canonical coordinate bindings, locator syntax, resolution outcomes, and exact resolver limits; no retrieval authority or Spoke reinterpretation |
 | `rey-dataframe` | frame metadata, Polars schemas, Arrow codecs, and bounded rendering |
 | `rey-environment` | capability discovery, snapshots, provider contracts, and local context adapters |
 | `rey-git` | repository identity, bounded current reachable-commit sequence, commit/ref/index frames, polling cursors, triggers, and activations |
@@ -735,8 +739,11 @@ and the `list`, `status`, `test`, and `run` commands. The prior compiled
 fixture catalog remains behind explicit conformance selection.
 Frontier/progress/scheduling v2 and reasoning-surface v3 bind workload, graph,
 scenario-suite, and campaign identities; runtime state remains v2.
-The source-search conformance workload now supplies one narrow workload-specific
-frontier derivation and provider execution path. Generic dependency
+The source-search conformance workload supplies one narrow workload-specific
+frontier derivation and provider execution path. The admitted
+`context-anchor-survey` workspace package adds a bounded local survey provider,
+typed topography patches, directed patch deltas, and CLI/UI projections over
+the retained result. Generic dependency
 invalidation, recurring scheduling, policy proposals, Git activation, and the
 Spoke provider remain target architecture.
 

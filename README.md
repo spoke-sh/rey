@@ -269,15 +269,19 @@ coordinate such as
 numeric scale in the `/explore?coordinate=...&scale=...` browser envelope;
 stale revision bindings remain visible instead of drifting silently. The old
 matrix path is rejected with no compatibility parser.
-With that address boundary in place, the next Explorer bearing turns the
-canvas into an incremental context-topography map. Admitted survey workloads
-begin from bounded project seeds such
+With that address boundary in place, Explorer now projects an incremental
+context-topography map. The admitted `context-anchor-survey` workload begins
+from bounded project seeds such
 as `AGENTS.md` and README variants, locate URI/reference candidates, resolve
 them under explicit authority and limits, and emit typed topography patches
 with coverage, frontier, omissions, lineage, and directed deltas. A continuous
-camera will project the same admitted evidence from far-out Atlas terrain
-through Landscape, Neighborhood, Object, and exact Evidence levels. Unexplored
-space stays unknown, and moving the canvas never launches a hidden crawl. See
+camera projects the same admitted evidence as terrain-style isolines shaped by
+anchor prominence and exact classified edges, with anchors retained as stable
+points of interest. Zooming in progressively adds labels, relationships,
+objects, and exact evidence to that same scene; zooming out reveals additional
+admitted survey scenes. Current local relief means relational concentration,
+not language similarity. Unexplored space stays unknown, and moving the canvas
+never launches a hidden crawl. See
 [ADR 0041](docs/decisions/0041-continuous-coordinate-topography.md) and [Plan
 0017](plans/0017-incremental-context-topography.md). `/feed` comes first in
 primary navigation as the high-cadence inspection plane. Its default
@@ -608,7 +612,7 @@ Rey is not:
 
 ## Current Status And Next Bearing
 
-The repository contains an eleven-crate Rust workspace. Implemented behavior
+The repository contains a twelve-crate Rust workspace. Implemented behavior
 includes bounded standalone capability discovery, process-declared `git`,
 `rg` identity probes, and major agent-runtime presence scans, a partial read-only Git
 observation, typed capability
@@ -625,7 +629,13 @@ environment advertises a built-in literal source-search provider over exact
 local corpora; the source-search workload executes it through the same test and
 run graph, compares native ordered text and typed match relations, and projects
 complete, failing, and truncated evidence through `list`, `test`, `status`, and
-`run`.
+`run`. The dependency-light `rey-locator` crate supplies canonical local
+coordinates, opaque Spoke coordinate carriage, canonical workspace/HTTP
+locators, and typed resolution outcomes. The admitted
+`context-anchor-survey` package exercises those contracts over bounded
+`AGENTS.md` and README fixtures, retains `rey.topography-patch.v1` results and
+directed deltas, and exposes the same patch through workload JSON and the
+five-level Explorer.
 
 The first Channel topology slice is also executable. It defines a canonical
 built-in workspace channel, bounded subscription, stable three-stream Feed
@@ -673,17 +683,20 @@ partially ordered cadence view. Humans can author retained Explore-bound prose
 and read-only query cells at `/journal/new` without authentication; exact entry
 routes and block fragments make the retained notebook deeply hyperlinkable.
 Agents admit the same bounded format through `rey journal add`, including
-frame, diff, and action cells. The next
+frame, diff, and action cells. Explorer now derives Atlas, Landscape,
+Neighborhood, Object, and Evidence projections from retained survey patches;
+exact patch-anchor routes remain read-only and execute no locator. The next
 concrete anchor is a separate query-execution handshake that can turn one
 retained declaration into an exact frame/diff result without granting document
-admission implicit compute authority. Exact locator-bound Explorer objects and
-scenario delta routes remain subsequent evidence projections.
+admission implicit compute authority. Exact scenario delta routes remain a
+subsequent evidence projection.
 
 [Plan 0014](plans/0014-seed-discovery-and-locator-survey.md) carries the new
 context lifecycle. Process-owned seed discovery, explicit reasoning-map input,
-and the live two-axis communication plane are implemented. Its next concrete anchor is a
-dependency-light `rey-locator` crate plus high-fidelity agent CLI commands to
-generate and validate mapping resources and display exact locator anchors.
+the live two-axis communication plane, canonical locator contracts, and the
+first high-fidelity seed-to-map CLI/UI voyage are implemented. Feeding retained
+survey change into independent cadence processing without fabricating a global
+event log remains active work.
 
 [Plan 0016](plans/0016-channel-graph-and-operator-index.md) carries the Channel
 graph and agentic-networking bearing. Channels become stable collaboration

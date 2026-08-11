@@ -52,12 +52,14 @@ use rey_environment::{
     Availability, CapabilitySnapshot, DiscoveryLimits, EnvironmentMapLimits, SourceBindingLimits,
     VariableCapture,
 };
-use rey_mining::{MiningCompleteness, MiningLimits};
+use rey_locator::ResolutionLimits;
+use rey_mining::{MiningCompleteness, MiningLimits, TopographyLimits, TopographyPatch};
 use rey_runtime::{
-    BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
-    ScenarioEvaluation, ScenarioResult, SourceRunInput, TestStatus, WorkloadAttention,
-    WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue, run_workload,
-    run_workload_with_source, source_fixture_root, test_workload_with_observer_and_snapshot,
+    BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
+    CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
+    SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention, WorkloadDefinition,
+    WorkloadRunResult, WorkloadTestResult, WorkloadValue, run_workload, run_workload_with_source,
+    run_workload_with_topography, source_fixture_root, test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -999,6 +1001,11 @@ fn workload_test(
         .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
     {
         inspect_environment(&source_fixture_root(), DiscoveryLimits::default())?.semantic_digest
+    } else if definitions
+        .iter()
+        .any(|workload| workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID)
+    {
+        SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish()
     } else {
         SemanticHasher::new("rey.no-mining-capability-snapshot.v1").finish()
     };
@@ -1120,6 +1127,23 @@ fn workload_run(
             "portfolio".to_owned(),
             WorkloadValue::PortfolioSnapshot(Box::new(snapshot)),
         );
+    } else if workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID {
+        if args.input.is_some() {
+            return Err(CliError::UnexpectedTopographyInput);
+        }
+        if args.sources.is_empty() {
+            return Err(CliError::MissingTopographySeeds);
+        }
+        inputs.insert(
+            "text".to_owned(),
+            WorkloadValue::Utf8(
+                args.sources
+                    .iter()
+                    .map(|path| path.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
+        );
     } else {
         inputs.insert(
             "text".to_owned(),
@@ -1150,6 +1174,26 @@ fn workload_run(
                 capability_snapshot_id: snapshot.semantic_digest,
             };
             run_workload_with_source(&workload, qualification, inputs, &source)?
+        }
+        Some(qualification) if workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID => {
+            if args.context_before != 0 || args.context_after != 0 {
+                return Err(CliError::UnexpectedTopographyContext);
+            }
+            let snapshot = inspect_environment(workspace, DiscoveryLimits::default())?;
+            let prior = state
+                .record(&workload.workload.id)
+                .and_then(|record| record.last_run.as_ref())
+                .and_then(|run| run.topography.first())
+                .cloned();
+            let survey = TopographySurveyInput {
+                root: workspace.to_owned(),
+                relative_paths: args.sources,
+                capability_snapshot_id: snapshot.semantic_digest,
+                limits: TopographyLimits::default(),
+                resolution_limits: ResolutionLimits::default(),
+                prior,
+            };
+            run_workload_with_topography(&workload, qualification, inputs, &survey)?
         }
         Some(qualification) => {
             if !args.sources.is_empty() || args.context_before != 0 || args.context_after != 0 {
@@ -1863,6 +1907,23 @@ fn write_workload_list(
             "{mining_workloads} workloads · {mining_results} retained results · {incomplete_mining} incomplete"
         ),
     )?;
+    let topography_results = list
+        .workloads
+        .iter()
+        .map(|workload| workload.topography_results)
+        .sum::<u64>();
+    let topography_frontier = list
+        .workloads
+        .iter()
+        .map(|workload| workload.topography_frontier_rows)
+        .sum::<u64>();
+    write_portfolio_field(
+        output,
+        "Topography",
+        &format!(
+            "{topography_results} retained patches · {topography_frontier} unresolved boundary rows"
+        ),
+    )?;
     write_portfolio_field(
         output,
         "Attention",
@@ -1986,6 +2047,36 @@ fn write_workload_list(
                     workload.attention_results, workload.attention_rows,
                 ),
             )?;
+        }
+        if workload.topography_results > 0 {
+            write_portfolio_field(
+                output,
+                "Topography",
+                &format!(
+                    "{} patches · revision {} · {} frontier rows",
+                    workload.topography_results,
+                    workload
+                        .topography_revision
+                        .as_ref()
+                        .map_or("missing", SemanticDigest::as_str),
+                    workload.topography_frontier_rows,
+                ),
+            )?;
+            if let Some(coverage) = &workload.topography_coverage {
+                write_portfolio_field(
+                    output,
+                    "Survey coverage",
+                    &format!(
+                        "{}/{} seeds · {} candidates · {} resolved · {} missing · {} omitted",
+                        coverage.surveyed_seeds,
+                        coverage.requested_seeds,
+                        coverage.candidates,
+                        coverage.resolved_candidates,
+                        coverage.missing_seeds,
+                        coverage.omitted_seeds,
+                    ),
+                )?;
+            }
         }
         write_portfolio_field(
             output,
@@ -2280,6 +2371,33 @@ fn write_workload_status(
                 summary.candidate_graph.semantic_digest,
             ),
         )?;
+        if summary.topography_results > 0 {
+            write_portfolio_field(
+                output,
+                "Topography revision",
+                summary
+                    .topography_revision
+                    .as_ref()
+                    .map_or("missing", SemanticDigest::as_str),
+            )?;
+            if let Some(coverage) = &summary.topography_coverage {
+                write_portfolio_field(
+                    output,
+                    "Topography coverage",
+                    &format!(
+                        "{}/{} seeds surveyed · {} empty · {} missing · {} omitted · {}/{} unique candidates resolved · {} frontier",
+                        coverage.surveyed_seeds,
+                        coverage.requested_seeds,
+                        coverage.surveyed_empty_seeds,
+                        coverage.missing_seeds,
+                        coverage.omitted_seeds,
+                        coverage.resolved_candidates,
+                        coverage.unique_candidates,
+                        summary.topography_frontier_rows,
+                    ),
+                )?;
+            }
+        }
         if let Some(result) = &status.last_test {
             writeln!(output)?;
             writeln!(output, "{}", style.bold("RETAINED TEST EVIDENCE"))?;
@@ -2430,6 +2548,22 @@ fn write_workload_test_start(
         .graph
         .nodes
         .iter()
+        .any(|node| node.operation.id == "rey.context-anchor-survey.locate")
+    {
+        writeln!(
+            output,
+            "Topography admission: {} · explicit local seeds · bounded read-only survey",
+            style.green("VERIFIED")
+        )?;
+        writeln!(
+            output,
+            "Survey operation: rey.context-anchor-survey.locate@1 → rey.topography-patch.v1 → ordered UTF-8 evidence"
+        )?;
+    }
+    if workload
+        .graph
+        .nodes
+        .iter()
         .any(|node| node.operation.id == "rey.portfolio.attention.derive")
     {
         writeln!(
@@ -2500,8 +2634,18 @@ fn write_workload_test_scenario(
         .iter()
         .filter(|evidence| evidence.relation_delta.assessment == DeltaAssessment::Equal)
         .count();
-    let evidence_total = scenario.deltas.len() + scenario.mining.len() + scenario.attention.len();
-    let evidence_equal = equal + equal_relations + scenario.attention.len();
+    let evidence_total = scenario.deltas.len()
+        + scenario.mining.len()
+        + scenario.topography.len()
+        + scenario.attention.len();
+    let evidence_equal = equal
+        + equal_relations
+        + scenario
+            .topography
+            .iter()
+            .filter(|patch| patch.complete)
+            .count()
+        + scenario.attention.len();
     let label = match scenario.evaluation {
         ScenarioEvaluation::Passed => style.green("PASS"),
         ScenarioEvaluation::Failed => style.red("FAIL"),
@@ -2522,7 +2666,10 @@ fn write_workload_test_scenario(
         scenario_id,
         evidence_equal,
         evidence_total,
-        if scenario.mining.is_empty() && scenario.attention.is_empty() {
+        if scenario.mining.is_empty()
+            && scenario.topography.is_empty()
+            && scenario.attention.is_empty()
+        {
             "outputs"
         } else {
             "evidence branches"
@@ -2534,7 +2681,13 @@ fn write_workload_test_scenario(
         }
     )?;
     if verbosity >= 1 {
-        if scenario.mining.is_empty() && scenario.attention.is_empty() {
+        if !scenario.topography.is_empty() {
+            writeln!(
+                output,
+                "     Evidence formats: {} (ordered utf8) · rey.topography-patch.v1 · rey.topography-patch-delta.v1",
+                SCENARIO_OUTPUT_DELTA_SCHEMA
+            )?;
+        } else if scenario.mining.is_empty() && scenario.attention.is_empty() {
             writeln!(
                 output,
                 "     Evidence format: {} (utf8)",
@@ -2573,8 +2726,231 @@ fn write_workload_test_scenario(
     for mining in &scenario.mining {
         write_source_mining_evidence(output, mining, verbosity, style)?;
     }
+    for patch in &scenario.topography {
+        write_topography_evidence(output, patch, verbosity, style)?;
+    }
     for attention in &scenario.attention {
         write_portfolio_attention_evidence(output, attention, verbosity, style)?;
+    }
+    Ok(())
+}
+
+fn write_topography_evidence(
+    output: &mut impl Write,
+    patch: &TopographyPatch,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    const ROW_LIMIT: usize = 24;
+
+    writeln!(
+        output,
+        "         Topography patch: {} seeds · {} candidates · {} anchors · {} edges · {} frontier · {}",
+        patch.coverage.requested_seeds,
+        patch.coverage.candidates,
+        patch.anchors.len(),
+        patch.edges.len(),
+        patch.frontier.len(),
+        if patch.complete {
+            style.green("COMPLETE")
+        } else {
+            style.yellow("BOUNDED")
+        },
+    )?;
+    writeln!(
+        output,
+        "         Coverage: {}/{} surveyed · {} empty · {} missing · {} omitted · {}/{} unique candidates resolved",
+        patch.coverage.surveyed_seeds,
+        patch.coverage.requested_seeds,
+        patch.coverage.surveyed_empty_seeds,
+        patch.coverage.missing_seeds,
+        patch.coverage.omitted_seeds,
+        patch.coverage.resolved_candidates,
+        patch.coverage.unique_candidates,
+    )?;
+    writeln!(
+        output,
+        "         Directed patch: {} → {} · +{} -{} ~{}",
+        patch.delta.source_revision,
+        patch.delta.target_revision,
+        patch.delta.inserted,
+        patch.delta.deleted,
+        patch.delta.modified,
+    )?;
+    for seed in &patch.seeds {
+        writeln!(
+            output,
+            "         SEED {:<18} {:<15} {} candidates · {}",
+            seed.path,
+            seed.state.as_str(),
+            seed.candidate_count,
+            seed.detail,
+        )?;
+    }
+    for resolution in patch.resolutions.iter().take(ROW_LIMIT) {
+        writeln!(
+            output,
+            "         LOCATOR {:<28} {:<12} {}",
+            resolution.candidate,
+            resolution.status.as_str(),
+            resolution.coordinate.as_ref().map_or_else(
+                || resolution.detail.clone(),
+                |coordinate| coordinate.coordinate.clone(),
+            ),
+        )?;
+    }
+    write_topography_projection_fold(
+        output,
+        "locator resolutions",
+        patch.resolutions.len(),
+        ROW_LIMIT,
+        style,
+    )?;
+    for omission in &patch.omissions {
+        writeln!(
+            output,
+            "         OMISSION {} · {} · count {} · {}",
+            omission.kind, omission.subject, omission.omitted_count, omission.reason,
+        )?;
+    }
+    if verbosity >= 1 {
+        for anchor in patch.anchors.iter().take(ROW_LIMIT) {
+            writeln!(
+                output,
+                "         ANCHOR {:<18} {} · {}",
+                anchor.kind.as_str(),
+                anchor.label,
+                anchor.coordinate.coordinate,
+            )?;
+        }
+        write_topography_projection_fold(output, "anchors", patch.anchors.len(), ROW_LIMIT, style)?;
+        for edge in patch.edges.iter().take(ROW_LIMIT) {
+            writeln!(
+                output,
+                "         EDGE {:<10} {} → {} · {}",
+                edge.kind.as_str(),
+                edge.source_coordinate,
+                edge.target_coordinate,
+                edge.locator,
+            )?;
+        }
+        write_topography_projection_fold(output, "edges", patch.edges.len(), ROW_LIMIT, style)?;
+        for region in patch.regions.iter().take(ROW_LIMIT) {
+            writeln!(
+                output,
+                "         REGION {:<14} {} · {}",
+                region.state.as_str(),
+                region.coordinate,
+                region.detail,
+            )?;
+        }
+        write_topography_projection_fold(output, "regions", patch.regions.len(), ROW_LIMIT, style)?;
+        for row in patch.frontier.iter().take(ROW_LIMIT) {
+            writeln!(
+                output,
+                "         FRONTIER {:<12} {} · {}",
+                row.status.as_str(),
+                row.locator,
+                row.reason,
+            )?;
+        }
+        write_topography_projection_fold(
+            output,
+            "frontier rows",
+            patch.frontier.len(),
+            ROW_LIMIT,
+            style,
+        )?;
+    }
+    if verbosity >= 2 {
+        writeln!(
+            output,
+            "         {}",
+            style.dim("Exact topography bindings:")
+        )?;
+        for (label, value) in [
+            ("patch", patch.patch_id.as_str()),
+            ("topography", patch.topography_revision.as_str()),
+            ("prior", patch.prior_topography_revision.as_str()),
+            ("delta", patch.delta.delta_id.as_str()),
+            ("campaign", patch.campaign_id.as_str()),
+            ("execution", patch.execution_id.as_str()),
+            ("capability", patch.capability_snapshot_id.as_str()),
+        ] {
+            write_test_binding(output, label, value)?;
+        }
+        write_test_binding(
+            output,
+            "operation",
+            &format!(
+                "{}@{} · {}",
+                patch.operation.id, patch.operation.revision, patch.operation.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "implementation",
+            &format!(
+                "{}@{} · {}",
+                patch.implementation.id,
+                patch.implementation.revision,
+                patch.implementation.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "provider",
+            &format!(
+                "{}@{} · {}",
+                patch.provider.id, patch.provider.revision, patch.provider.semantic_digest
+            ),
+        )?;
+        write_test_binding(
+            output,
+            "limits",
+            &format!(
+                "seeds={} seed_bytes={} total_bytes={} candidates={} anchors={} edges={} regions={} frontier={} omissions={}",
+                patch.limits.max_seeds,
+                patch.limits.max_seed_bytes,
+                patch.limits.max_total_bytes,
+                patch.limits.max_candidates,
+                patch.limits.max_anchors,
+                patch.limits.max_edges,
+                patch.limits.max_regions,
+                patch.limits.max_frontier,
+                patch.limits.max_omissions,
+            ),
+        )?;
+        for lineage in &patch.lineage {
+            write_test_binding(
+                output,
+                "lineage",
+                &format!(
+                    "{} · {} · {}",
+                    lineage.kind, lineage.identity, lineage.revision
+                ),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_topography_projection_fold(
+    output: &mut impl Write,
+    label: &str,
+    total: usize,
+    displayed: usize,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    if total > displayed {
+        writeln!(
+            output,
+            "         {}",
+            style.dim(&format!(
+                "CLI projection folds {} additional {label}; structured output retains all rows",
+                total - displayed
+            )),
+        )?;
     }
     Ok(())
 }
@@ -3204,6 +3580,9 @@ fn write_test_detail(output: &mut impl Write, result: &WorkloadTestResult) -> Re
         for mining in &scenario.mining {
             write_source_mining_evidence(output, mining, 2, TerminalStyle { enabled: false })?;
         }
+        for patch in &scenario.topography {
+            write_topography_evidence(output, patch, 2, TerminalStyle { enabled: false })?;
+        }
     }
     if let Some(qualification) = &result.qualification {
         writeln!(
@@ -3270,7 +3649,7 @@ fn write_workload_run(output: &mut impl Write, view: &WorkloadRunView) -> Result
     write_portfolio_field(output, "Stop reason", &result.stop_reason)?;
     write_portfolio_field(output, "Run evidence", result.run_id.as_str())?;
     write_portfolio_field(output, "Node order", &result.node_order.join(" → "))?;
-    if result.mining.is_empty() && result.attention.is_empty() {
+    if result.mining.is_empty() && result.topography.is_empty() && result.attention.is_empty() {
         write_portfolio_field(output, "Outputs", &json_cell(&result.outputs)?)?;
     } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text")
         && !result.attention.is_empty()
@@ -3353,6 +3732,9 @@ fn write_workload_run(output: &mut impl Write, view: &WorkloadRunView) -> Result
                 omission.kind, omission.omitted_count, omission.reason
             )?;
         }
+    }
+    for patch in &result.topography {
+        write_topography_evidence(output, patch, 2, TerminalStyle { enabled: false })?;
     }
     for attention in &result.attention {
         write_portfolio_attention_evidence(output, attention, 2, TerminalStyle { enabled: false })?;
@@ -5152,12 +5534,18 @@ enum CliError {
     InvalidLimit,
     #[error("source-mining runs require at least one workspace-relative --source path")]
     MissingSourceFiles,
+    #[error("context-anchor-survey runs require at least one workspace-relative --source seed")]
+    MissingTopographySeeds,
     #[error("text workload runs require --input")]
     MissingWorkloadInput,
     #[error("selected workload catalog contains no admitted workload packages")]
     EmptyWorkloadCatalog,
     #[error("portfolio-attention runs use retained inputs and reject --input or source options")]
     UnexpectedPortfolioInput,
+    #[error("context-anchor-survey derives its input from --source seeds and rejects --input")]
+    UnexpectedTopographyInput,
+    #[error("source context windows are not valid for context-anchor-survey")]
+    UnexpectedTopographyContext,
     #[error("--source and source-context options are only valid for a source-mining workload")]
     UnexpectedSourceFiles,
     #[error("--patch requires human table output")]

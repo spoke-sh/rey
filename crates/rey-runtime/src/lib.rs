@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
 
 mod portfolio;
+mod topography;
 mod workload;
 mod workload_mining;
+
+pub use topography::*;
 
 pub use portfolio::{
     AttentionAction, AttentionPolicy, AttentionReadiness, AttentionReason, AttentionSubjectKind,
@@ -22,8 +25,9 @@ pub use workload::{
     WORKLOAD_RUN_RESULT_SCHEMA, WORKLOAD_SCHEMA, WORKLOAD_TEST_RESULT_SCHEMA, WorkloadDefinition,
     WorkloadDefinitionParts, WorkloadError, WorkloadLimits, WorkloadPort, WorkloadRunResult,
     WorkloadTestResult, WorkloadValue, built_in_operation_contract, built_in_workload,
-    built_in_workloads, execute_workload, execute_workload_with_source, run_workload,
-    run_workload_with_source, test_workload, test_workload_with_observer,
+    built_in_workloads, execute_workload, execute_workload_with_source,
+    execute_workload_with_topography, run_workload, run_workload_with_source,
+    run_workload_with_topography, test_workload, test_workload_with_observer,
     test_workload_with_observer_and_snapshot, utf8_exact_comparator_contract,
 };
 pub use workload_mining::{

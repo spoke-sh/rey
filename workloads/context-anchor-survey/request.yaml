@@ -1,0 +1,23 @@
+{
+  "schema": "rey.workload-creation-request.v1",
+  "request_id": "blake3:71b970b1c12425ea90d5f932fe2d20ae4467751bd943e52ceb3666ee32c9b159",
+  "workload_id": "context-anchor-survey",
+  "title": "Survey project context anchors",
+  "intent": "Mine bounded AGENTS.md and README seeds for exact URI and reference anchors",
+  "proposer": "coding_harness",
+  "catalog_root": "workloads",
+  "target_package": "workloads/context-anchor-survey/workload.yaml",
+  "requirements": [
+    "Mine exact authoritative workspace and environment sources; retain their revision references.",
+    "Define a bounded typed compute graph using only admitted operation contracts.",
+    "Generate required and optional scenarios from authoritative behavior; never derive expected values from candidate execution.",
+    "Freeze the scenario oracle and mark admission accepted only after graph and suite review.",
+    "Materialize the target workload.yaml and preserve request.yaml as creation lineage."
+  ],
+  "limits": {
+    "max_package_bytes": 1048576,
+    "max_graph_nodes": 32,
+    "max_scenarios": 64,
+    "max_string_bytes": 524288
+  }
+}

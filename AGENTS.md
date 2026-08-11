@@ -25,7 +25,7 @@ capabilities become discoverable Rey providers. Do not create a build, package,
 storage, or startup cycle between the repositories.
 
 The repository currently contains foundational documents, a pinned Rust
-development shell, and an eleven-crate Cargo workspace. Executable behavior
+development shell, and a twelve-crate Cargo workspace. Executable behavior
 remains narrow: inspect current files and tests before inferring that a
 provider, adapter, scheduler loop, action executor, or Spoke integration
 exists.

@@ -12,7 +12,7 @@ use rey_environment::{
     LocalSourceCorpus, SourceBindingLimits, builtin_source_search_operation,
     explicit_source_path_identity,
 };
-use rey_mining::{MiningCompleteness, MiningLimits};
+use rey_mining::{MiningCompleteness, MiningLimits, TopographyPatch};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -27,6 +27,11 @@ use crate::{
     PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
     PortfolioWorkloadObservation, WorkloadAttention, portfolio_attention_operation,
     render_workload_attention, render_workload_attention_operation,
+};
+use crate::{
+    TopographyExecutionContext, TopographySurveyInput, TopographySurveyScenario,
+    context_anchor_survey_operation_contract, execute_context_anchor_survey,
+    render_topography_patch, render_topography_patch_contract, topography_fixture_root,
 };
 
 pub const WORKLOAD_SCHEMA: &str = "rey.workload.v3";
@@ -49,6 +54,7 @@ const PORTFOLIO_INPUT_ID: &str = "portfolio";
 pub enum ValueType {
     Utf8,
     SourceMatches,
+    TopographyPatch,
     PortfolioSnapshot,
     WorkloadAttention,
 }
@@ -58,6 +64,7 @@ impl ValueType {
         match self {
             Self::Utf8 => "utf8",
             Self::SourceMatches => "source_matches",
+            Self::TopographyPatch => "topography_patch",
             Self::PortfolioSnapshot => "portfolio_snapshot",
             Self::WorkloadAttention => "workload_attention",
         }
@@ -69,6 +76,7 @@ impl ValueType {
 pub enum WorkloadValue {
     Utf8(String),
     SourceMatches(Box<SourceMiningExecution>),
+    TopographyPatch(Box<TopographyPatch>),
     PortfolioSnapshot(Box<PortfolioSnapshot>),
     WorkloadAttention(Box<WorkloadAttention>),
 }
@@ -79,6 +87,7 @@ impl WorkloadValue {
         match self {
             Self::Utf8(_) => ValueType::Utf8,
             Self::SourceMatches(_) => ValueType::SourceMatches,
+            Self::TopographyPatch(_) => ValueType::TopographyPatch,
             Self::PortfolioSnapshot(_) => ValueType::PortfolioSnapshot,
             Self::WorkloadAttention(_) => ValueType::WorkloadAttention,
         }
@@ -100,6 +109,9 @@ impl WorkloadValue {
                         .map(|context| context.text.len() as u64)
                         .sum::<u64>(),
                 ),
+            Self::TopographyPatch(value) => {
+                serde_json::to_vec(value).map_or(u64::MAX, |bytes| bytes.len() as u64)
+            }
             Self::PortfolioSnapshot(value) => {
                 serde_json::to_vec(value).map_or(u64::MAX, |bytes| bytes.len() as u64)
             }
@@ -112,7 +124,10 @@ impl WorkloadValue {
     fn as_utf8(&self) -> Result<&str, WorkloadError> {
         match self {
             Self::Utf8(value) => Ok(value),
-            Self::SourceMatches(_) | Self::PortfolioSnapshot(_) | Self::WorkloadAttention(_) => {
+            Self::SourceMatches(_)
+            | Self::TopographyPatch(_)
+            | Self::PortfolioSnapshot(_)
+            | Self::WorkloadAttention(_) => {
                 Err(WorkloadError::TypeMismatch("utf8 value".to_owned()))
             }
         }
@@ -125,6 +140,7 @@ impl WorkloadValue {
             Self::SourceMatches(value) => {
                 hasher.add_str(value.evidence.result.result_id.as_str());
             }
+            Self::TopographyPatch(value) => hasher.add_str(value.patch_id.as_str()),
             Self::PortfolioSnapshot(value) => hasher.add_str(value.snapshot_id.as_str()),
             Self::WorkloadAttention(value) => hasher.add_str(value.attention_id.as_str()),
         }
@@ -135,6 +151,9 @@ impl WorkloadValue {
             Self::Utf8(value) => Ok(value.len() as u64),
             Self::SourceMatches(_) => Err(WorkloadError::TypeMismatch(
                 "source matches cannot be a declared scenario value".to_owned(),
+            )),
+            Self::TopographyPatch(_) => Err(WorkloadError::TypeMismatch(
+                "topography patches cannot be a declared scenario value".to_owned(),
             )),
             Self::PortfolioSnapshot(value) => Ok(serde_json::to_vec(value)?.len() as u64),
             Self::WorkloadAttention(value) => Ok(serde_json::to_vec(value)?.len() as u64),
@@ -303,6 +322,8 @@ pub struct Scenario {
     pub inputs: BTreeMap<String, WorkloadValue>,
     pub expected_outputs: BTreeMap<String, WorkloadValue>,
     pub source_search: Option<SourceSearchScenario>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub topography_survey: Option<TopographySurveyScenario>,
 }
 
 impl Scenario {
@@ -330,6 +351,27 @@ impl Scenario {
             inputs,
             expected_outputs,
             source_search,
+            topography_survey: None,
+        };
+        scenario.scenario.semantic_digest = scenario_digest(&scenario);
+        scenario
+    }
+
+    pub fn new_versioned_topography(
+        id: &str,
+        revision: u64,
+        required: bool,
+        inputs: BTreeMap<String, WorkloadValue>,
+        expected_outputs: BTreeMap<String, WorkloadValue>,
+        topography_survey: TopographySurveyScenario,
+    ) -> Self {
+        let mut scenario = Self {
+            scenario: placeholder_contract(id, revision, "rey.scenario.placeholder"),
+            required,
+            inputs,
+            expected_outputs,
+            source_search: None,
+            topography_survey: Some(topography_survey),
         };
         scenario.scenario.semantic_digest = scenario_digest(&scenario);
         scenario
@@ -351,6 +393,14 @@ impl Scenario {
         )?;
         if let Some(source_search) = &self.source_search {
             validate_source_search_scenario(source_search, limits)?;
+        }
+        if let Some(survey) = &self.topography_survey {
+            validate_topography_scenario(survey)?;
+        }
+        if self.source_search.is_some() && self.topography_survey.is_some() {
+            return Err(WorkloadError::ResultShape(
+                "scenario cannot bind two probe input families",
+            ));
         }
         let actual = scenario_digest(self);
         if actual != self.scenario.semantic_digest {
@@ -536,6 +586,21 @@ impl WorkloadDefinition {
                 "source-search graph and scenario bindings do not agree",
             ));
         }
+        let mines_topography = self
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation == context_anchor_survey_operation_contract());
+        if self
+            .scenario_suite
+            .scenarios
+            .iter()
+            .any(|scenario| scenario.topography_survey.is_some() != mines_topography)
+        {
+            return Err(WorkloadError::ResultShape(
+                "topography-survey graph and scenario bindings do not agree",
+            ));
+        }
         if semantic_string_bytes_workload(self)? > self.limits.max_string_bytes {
             return Err(WorkloadError::StringByteLimit {
                 limit: self.limits.max_string_bytes,
@@ -569,6 +634,7 @@ pub struct GraphExecution {
     pub node_order: Vec<String>,
     pub outputs: BTreeMap<String, WorkloadValue>,
     pub mining: Vec<SourceMiningExecution>,
+    pub topography: Vec<TopographyPatch>,
     pub attention: Vec<WorkloadAttention>,
 }
 
@@ -598,6 +664,8 @@ pub struct ScenarioResult {
     pub evaluation: ScenarioEvaluation,
     pub deltas: Vec<ScenarioOutputDelta>,
     pub mining: Vec<MiningScenarioEvidence>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub topography: Vec<TopographyPatch>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attention: Vec<WorkloadAttention>,
 }
@@ -794,7 +862,20 @@ impl WorkloadTestResult {
             for attention in &scenario.attention {
                 attention.verify()?;
             }
-            let expected = scenario_evaluation(&scenario.deltas, &scenario.mining);
+            for patch in &scenario.topography {
+                patch.verify()?;
+                if patch.workload != self.workload
+                    || patch.graph != self.graph
+                    || patch.scenario.as_ref() != Some(&scenario.scenario)
+                    || patch.campaign_id != self.campaign_id
+                {
+                    return Err(WorkloadError::ResultShape(
+                        "topography patch does not bind the test result",
+                    ));
+                }
+            }
+            let expected =
+                scenario_evaluation(&scenario.deltas, &scenario.mining, &scenario.topography);
             if expected != scenario.evaluation {
                 return Err(WorkloadError::ResultShape(
                     "scenario evaluation does not match its deltas",
@@ -889,6 +970,12 @@ impl WorkloadTestResult {
                     "scenario result does not cover its mining operation",
                 ));
             }
+            let expected_topography = usize::from(scenario.topography_survey.is_some());
+            if result.topography.len() != expected_topography {
+                return Err(WorkloadError::ResultShape(
+                    "scenario result does not cover its topography survey",
+                ));
+            }
             let expects_attention = usize::from(
                 workload
                     .graph
@@ -927,6 +1014,30 @@ impl WorkloadTestResult {
                         .verify_against(&current, &result.mining[0].execution.request)
                         .is_err()
                 {
+                    return Err(WorkloadError::StaleQualification);
+                }
+            }
+            if let Some(survey) = &scenario.topography_survey {
+                let input = TopographySurveyInput {
+                    root: topography_fixture_root(&survey.fixture_project)
+                        .map_err(|_| WorkloadError::StaleQualification)?,
+                    relative_paths: survey.seed_paths.iter().map(PathBuf::from).collect(),
+                    capability_snapshot_id: result.topography[0].capability_snapshot_id.clone(),
+                    limits: survey.limits.clone(),
+                    resolution_limits: survey.resolution_limits.clone(),
+                    prior: None,
+                };
+                let current = execute_context_anchor_survey(TopographyExecutionContext {
+                    workload: &self.workload,
+                    graph: &self.graph,
+                    scenario: Some(&scenario.scenario),
+                    campaign_id: &self.campaign_id,
+                    graph_node_id: "survey",
+                    declared_seeds: scenario.inputs[INPUT_ID].as_utf8()?,
+                    input: &input,
+                })
+                .map_err(|_| WorkloadError::StaleQualification)?;
+                if current != result.topography[0] {
                     return Err(WorkloadError::StaleQualification);
                 }
             }
@@ -978,6 +1089,8 @@ pub struct WorkloadRunResult {
     pub node_order: Vec<String>,
     pub mining: Vec<SourceMiningExecution>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub topography: Vec<TopographyPatch>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attention: Vec<WorkloadAttention>,
 }
 
@@ -995,6 +1108,7 @@ impl WorkloadRunResult {
             outputs: BTreeMap::new(),
             node_order: Vec::new(),
             mining: Vec::new(),
+            topography: Vec::new(),
             attention: Vec::new(),
         };
         result.run_id = run_result_digest(&result);
@@ -1023,6 +1137,17 @@ impl WorkloadRunResult {
         }
         for attention in &self.attention {
             attention.verify()?;
+        }
+        for patch in &self.topography {
+            patch.verify()?;
+            if patch.workload != self.workload
+                || patch.graph != self.graph
+                || patch.scenario.is_some()
+            {
+                return Err(WorkloadError::ResultShape(
+                    "topography patch does not bind the run result",
+                ));
+            }
         }
         match (
             self.inputs.get(PORTFOLIO_INPUT_ID),
@@ -1059,6 +1184,7 @@ impl WorkloadRunResult {
                     && self.outputs.is_empty()
                     && self.node_order.is_empty()
                     && self.mining.is_empty()
+                    && self.topography.is_empty()
                     && self.attention.is_empty()
                     && self.stop_reason == "qualification_missing_or_stale" => {}
             _ => return Err(WorkloadError::ResultShape("invalid run result shape")),
@@ -1117,7 +1243,7 @@ pub fn execute_workload(
     workload: &WorkloadDefinition,
     inputs: BTreeMap<String, WorkloadValue>,
 ) -> Result<GraphExecution, WorkloadError> {
-    execute_workload_bound(workload, inputs, None, None, None)
+    execute_workload_bound(workload, inputs, None, None, None, None)
 }
 
 pub fn execute_workload_with_source(
@@ -1125,13 +1251,22 @@ pub fn execute_workload_with_source(
     inputs: BTreeMap<String, WorkloadValue>,
     source: &SourceRunInput,
 ) -> Result<GraphExecution, WorkloadError> {
-    execute_workload_bound(workload, inputs, Some(source), None, None)
+    execute_workload_bound(workload, inputs, Some(source), None, None, None)
+}
+
+pub fn execute_workload_with_topography(
+    workload: &WorkloadDefinition,
+    inputs: BTreeMap<String, WorkloadValue>,
+    topography: &TopographySurveyInput,
+) -> Result<GraphExecution, WorkloadError> {
+    execute_workload_bound(workload, inputs, None, Some(topography), None, None)
 }
 
 fn execute_workload_bound(
     workload: &WorkloadDefinition,
     inputs: BTreeMap<String, WorkloadValue>,
     source: Option<&SourceRunInput>,
+    topography: Option<&TopographySurveyInput>,
     scenario: Option<&ContractIdentity>,
     campaign_id: Option<&SemanticDigest>,
 ) -> Result<GraphExecution, WorkloadError> {
@@ -1166,7 +1301,21 @@ fn execute_workload_bound(
         } else {
             None
         };
-        let output = apply_operation(&node.operation, input, source_context)?;
+        let topography_context = if matches!(operation, BuiltInOperation::SurveyTopography) {
+            let topography = topography.ok_or(WorkloadError::MissingTopographyInput)?;
+            Some(TopographyExecutionContext {
+                workload: &workload.workload,
+                graph: &workload.graph.graph,
+                scenario,
+                campaign_id: campaign_id.ok_or(WorkloadError::MissingTopographyInput)?,
+                graph_node_id: &node.node_id,
+                declared_seeds: input.as_utf8()?,
+                input: topography,
+            })
+        } else {
+            None
+        };
+        let output = apply_operation(&node.operation, input, source_context, topography_context)?;
         if output.value_type() != node.value_type {
             return Err(WorkloadError::TypeMismatch(node.node_id.clone()));
         }
@@ -1185,6 +1334,17 @@ fn execute_workload_bound(
         .filter_map(|value| match value {
             WorkloadValue::SourceMatches(execution) => Some((**execution).clone()),
             WorkloadValue::Utf8(_)
+            | WorkloadValue::TopographyPatch(_)
+            | WorkloadValue::PortfolioSnapshot(_)
+            | WorkloadValue::WorkloadAttention(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let topography = node_values
+        .values()
+        .filter_map(|value| match value {
+            WorkloadValue::TopographyPatch(patch) => Some((**patch).clone()),
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::SourceMatches(_)
             | WorkloadValue::PortfolioSnapshot(_)
             | WorkloadValue::WorkloadAttention(_) => None,
         })
@@ -1195,6 +1355,7 @@ fn execute_workload_bound(
             WorkloadValue::WorkloadAttention(attention) => Some((**attention).clone()),
             WorkloadValue::Utf8(_)
             | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::TopographyPatch(_)
             | WorkloadValue::PortfolioSnapshot(_) => None,
         })
         .collect::<Vec<_>>();
@@ -1204,6 +1365,7 @@ fn execute_workload_bound(
         &node_order,
         &outputs,
         &mining,
+        &topography,
         &attention,
     );
     Ok(GraphExecution {
@@ -1212,6 +1374,7 @@ fn execute_workload_bound(
         node_order,
         outputs,
         mining,
+        topography,
         attention,
     })
 }
@@ -1248,10 +1411,27 @@ pub fn test_workload_with_observer_and_snapshot(
                 mining_limits: source.mining_limits.clone(),
                 capability_snapshot_id: capability_snapshot_id.clone(),
             });
+        let topography = scenario
+            .topography_survey
+            .as_ref()
+            .map(
+                |survey| -> Result<TopographySurveyInput, crate::TopographySurveyError> {
+                    Ok(TopographySurveyInput {
+                        root: topography_fixture_root(&survey.fixture_project)?,
+                        relative_paths: survey.seed_paths.iter().map(PathBuf::from).collect(),
+                        capability_snapshot_id: capability_snapshot_id.clone(),
+                        limits: survey.limits.clone(),
+                        resolution_limits: survey.resolution_limits.clone(),
+                        prior: None,
+                    })
+                },
+            )
+            .transpose()?;
         let execution = execute_workload_bound(
             workload,
             scenario.inputs.clone(),
             source.as_ref(),
+            topography.as_ref(),
             Some(&scenario.scenario),
             Some(&campaign_id),
         )?;
@@ -1313,9 +1493,10 @@ pub fn test_workload_with_observer_and_snapshot(
             scenario: scenario.scenario.clone(),
             required: scenario.required,
             execution_id: execution.execution_id,
-            evaluation: scenario_evaluation(&deltas, &mining),
+            evaluation: scenario_evaluation(&deltas, &mining, &execution.topography),
             deltas,
             mining,
+            topography: execution.topography,
             attention: execution.attention,
         };
         observer(&scenario_result);
@@ -1366,7 +1547,7 @@ pub fn run_workload(
     qualification: &QualificationRecord,
     inputs: BTreeMap<String, WorkloadValue>,
 ) -> Result<WorkloadRunResult, WorkloadError> {
-    run_workload_bound(workload, qualification, inputs, None)
+    run_workload_bound(workload, qualification, inputs, None, None)
 }
 
 pub fn run_workload_with_source(
@@ -1375,7 +1556,16 @@ pub fn run_workload_with_source(
     inputs: BTreeMap<String, WorkloadValue>,
     source: &SourceRunInput,
 ) -> Result<WorkloadRunResult, WorkloadError> {
-    run_workload_bound(workload, qualification, inputs, Some(source))
+    run_workload_bound(workload, qualification, inputs, Some(source), None)
+}
+
+pub fn run_workload_with_topography(
+    workload: &WorkloadDefinition,
+    qualification: &QualificationRecord,
+    inputs: BTreeMap<String, WorkloadValue>,
+    topography: &TopographySurveyInput,
+) -> Result<WorkloadRunResult, WorkloadError> {
+    run_workload_bound(workload, qualification, inputs, None, Some(topography))
 }
 
 fn run_workload_bound(
@@ -1383,16 +1573,18 @@ fn run_workload_bound(
     qualification: &QualificationRecord,
     inputs: BTreeMap<String, WorkloadValue>,
     source: Option<&SourceRunInput>,
+    topography: Option<&TopographySurveyInput>,
 ) -> Result<WorkloadRunResult, WorkloadError> {
     qualification.verify()?;
     if !qualification.is_fresh_for(workload) {
         return Err(WorkloadError::StaleQualification);
     }
-    let run_context_id = run_execution_context_digest(qualification, &inputs, source);
+    let run_context_id = run_execution_context_digest(qualification, &inputs, source, topography);
     let execution = execute_workload_bound(
         workload,
         inputs.clone(),
         source,
+        topography,
         None,
         Some(&run_context_id),
     )?;
@@ -1408,6 +1600,7 @@ fn run_workload_bound(
         outputs: execution.outputs,
         node_order: execution.node_order,
         mining: execution.mining,
+        topography: execution.topography,
         attention: execution.attention,
     };
     result.run_id = run_result_digest(&result);
@@ -1937,6 +2130,8 @@ pub fn built_in_operation_contract(
         uppercase_contract(),
         builtin_source_search_operation().operation,
         render_source_matches_contract(),
+        context_anchor_survey_operation_contract(),
+        render_topography_patch_contract(),
         portfolio_attention_operation(),
         render_workload_attention_operation(),
     ];
@@ -1952,6 +2147,8 @@ enum BuiltInOperation {
     Uppercase,
     SourceSearch,
     RenderSourceMatches,
+    SurveyTopography,
+    RenderTopography,
     DerivePortfolioAttention,
     RenderPortfolioAttention,
 }
@@ -1959,8 +2156,11 @@ enum BuiltInOperation {
 impl BuiltInOperation {
     const fn input_type(self) -> ValueType {
         match self {
-            Self::Trim | Self::Uppercase | Self::SourceSearch => ValueType::Utf8,
+            Self::Trim | Self::Uppercase | Self::SourceSearch | Self::SurveyTopography => {
+                ValueType::Utf8
+            }
             Self::RenderSourceMatches => ValueType::SourceMatches,
+            Self::RenderTopography => ValueType::TopographyPatch,
             Self::DerivePortfolioAttention => ValueType::PortfolioSnapshot,
             Self::RenderPortfolioAttention => ValueType::WorkloadAttention,
         }
@@ -1971,8 +2171,10 @@ impl BuiltInOperation {
             Self::Trim
             | Self::Uppercase
             | Self::RenderSourceMatches
+            | Self::RenderTopography
             | Self::RenderPortfolioAttention => ValueType::Utf8,
             Self::SourceSearch => ValueType::SourceMatches,
+            Self::SurveyTopography => ValueType::TopographyPatch,
             Self::DerivePortfolioAttention => ValueType::WorkloadAttention,
         }
     }
@@ -1987,6 +2189,10 @@ fn resolve_operation(contract: &ContractIdentity) -> Result<BuiltInOperation, Wo
         Ok(BuiltInOperation::SourceSearch)
     } else if contract == &render_source_matches_contract() {
         Ok(BuiltInOperation::RenderSourceMatches)
+    } else if contract == &context_anchor_survey_operation_contract() {
+        Ok(BuiltInOperation::SurveyTopography)
+    } else if contract == &render_topography_patch_contract() {
+        Ok(BuiltInOperation::RenderTopography)
     } else if contract == &portfolio_attention_operation() {
         Ok(BuiltInOperation::DerivePortfolioAttention)
     } else if contract == &render_workload_attention_operation() {
@@ -2000,6 +2206,7 @@ fn apply_operation(
     contract: &ContractIdentity,
     value: &WorkloadValue,
     source_context: Option<SourceExecutionContext<'_>>,
+    topography_context: Option<TopographyExecutionContext<'_>>,
 ) -> Result<WorkloadValue, WorkloadError> {
     Ok(match resolve_operation(contract)? {
         BuiltInOperation::Trim => WorkloadValue::Utf8(value.as_utf8()?.trim().to_owned()),
@@ -2007,15 +2214,34 @@ fn apply_operation(
         BuiltInOperation::SourceSearch => WorkloadValue::SourceMatches(Box::new(
             execute_source_search(source_context.ok_or(WorkloadError::MissingSourceInput)?)?,
         )),
+        BuiltInOperation::SurveyTopography => {
+            WorkloadValue::TopographyPatch(Box::new(execute_context_anchor_survey(
+                topography_context.ok_or(WorkloadError::MissingTopographyInput)?,
+            )?))
+        }
         BuiltInOperation::RenderSourceMatches => match value {
             WorkloadValue::SourceMatches(execution) => {
                 WorkloadValue::Utf8(render_source_matches(execution))
             }
             WorkloadValue::Utf8(_)
+            | WorkloadValue::TopographyPatch(_)
             | WorkloadValue::PortfolioSnapshot(_)
             | WorkloadValue::WorkloadAttention(_) => {
                 return Err(WorkloadError::TypeMismatch(
                     "source match renderer".to_owned(),
+                ));
+            }
+        },
+        BuiltInOperation::RenderTopography => match value {
+            WorkloadValue::TopographyPatch(patch) => {
+                WorkloadValue::Utf8(render_topography_patch(patch))
+            }
+            WorkloadValue::Utf8(_)
+            | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::PortfolioSnapshot(_)
+            | WorkloadValue::WorkloadAttention(_) => {
+                return Err(WorkloadError::TypeMismatch(
+                    "topography patch renderer".to_owned(),
                 ));
             }
         },
@@ -2025,6 +2251,7 @@ fn apply_operation(
             }
             WorkloadValue::Utf8(_)
             | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::TopographyPatch(_)
             | WorkloadValue::WorkloadAttention(_) => {
                 return Err(WorkloadError::TypeMismatch(
                     "portfolio attention derivation".to_owned(),
@@ -2037,6 +2264,7 @@ fn apply_operation(
             }
             WorkloadValue::Utf8(_)
             | WorkloadValue::SourceMatches(_)
+            | WorkloadValue::TopographyPatch(_)
             | WorkloadValue::PortfolioSnapshot(_) => {
                 return Err(WorkloadError::TypeMismatch(
                     "portfolio attention renderer".to_owned(),
@@ -2254,13 +2482,15 @@ fn enforce_value_bytes(
 fn scenario_evaluation(
     deltas: &[ScenarioOutputDelta],
     mining: &[MiningScenarioEvidence],
+    topography: &[TopographyPatch],
 ) -> ScenarioEvaluation {
     if mining.iter().any(|evidence| {
         evidence.execution.evidence.result.completeness != MiningCompleteness::Complete
             || evidence.relation_delta.assessment == DeltaAssessment::Inconclusive
-    }) || deltas
-        .iter()
-        .any(|delta| delta.assessment == DeltaAssessment::Inconclusive)
+    }) || topography.iter().any(|patch| !patch.complete)
+        || deltas
+            .iter()
+            .any(|delta| delta.assessment == DeltaAssessment::Inconclusive)
     {
         ScenarioEvaluation::Inconclusive
     } else if deltas
@@ -2399,6 +2629,42 @@ fn validate_source_search_scenario(
     Ok(())
 }
 
+fn validate_topography_scenario(survey: &TopographySurveyScenario) -> Result<(), WorkloadError> {
+    validate_text("topography fixture project", &survey.fixture_project)?;
+    if survey.seed_paths.is_empty() {
+        return Err(WorkloadError::ResultShape(
+            "topography scenario requires at least one seed",
+        ));
+    }
+    let mut paths = BTreeSet::new();
+    for path in &survey.seed_paths {
+        validate_text("topography seed path", path)?;
+        if !paths.insert(path) {
+            return Err(WorkloadError::DuplicateId(path.clone()));
+        }
+    }
+    if [
+        survey.limits.max_seeds,
+        survey.limits.max_seed_bytes,
+        survey.limits.max_total_bytes,
+        survey.limits.max_candidates,
+        survey.limits.max_anchors,
+        survey.limits.max_edges,
+        survey.limits.max_regions,
+        survey.limits.max_frontier,
+        survey.limits.max_omissions,
+        survey.resolution_limits.max_locator_bytes,
+        survey.resolution_limits.max_source_bytes,
+        survey.resolution_limits.max_candidates,
+        survey.resolution_limits.max_depth,
+    ]
+    .contains(&0)
+    {
+        return Err(WorkloadError::InvalidLimit);
+    }
+    Ok(())
+}
+
 fn enforce_count(role: &'static str, observed: usize, limit: u64) -> Result<(), WorkloadError> {
     if observed as u64 > limit {
         return Err(WorkloadError::CountLimit {
@@ -2514,6 +2780,10 @@ fn scenario_digest(scenario: &Scenario) -> SemanticDigest {
     if let Some(source) = &scenario.source_search {
         add_source_search_semantics(&mut hasher, source);
     }
+    hasher.add_bool(scenario.topography_survey.is_some());
+    if let Some(survey) = &scenario.topography_survey {
+        add_topography_survey_semantics(&mut hasher, survey);
+    }
     hasher.finish()
 }
 
@@ -2590,6 +2860,7 @@ fn execution_digest(
     node_order: &[String],
     outputs: &BTreeMap<String, WorkloadValue>,
     mining: &[SourceMiningExecution],
+    topography: &[TopographyPatch],
     attention: &[WorkloadAttention],
 ) -> SemanticDigest {
     let mut hasher = SemanticHasher::new("rey.graph-execution.v2");
@@ -2603,6 +2874,10 @@ fn execution_digest(
     hasher.add_u64(mining.len() as u64);
     for evidence in mining {
         hasher.add_str(evidence.evidence.result.result_id.as_str());
+    }
+    hasher.add_u64(topography.len() as u64);
+    for patch in topography {
+        hasher.add_str(patch.patch_id.as_str());
     }
     if !attention.is_empty() {
         hasher.add_str("portfolio_attention");
@@ -2650,6 +2925,10 @@ fn test_result_digest(result: &WorkloadTestResult) -> SemanticDigest {
                 hasher.add_str(reasoning.surface.surface_id.as_str());
             }
         }
+        hasher.add_u64(scenario.topography.len() as u64);
+        for patch in &scenario.topography {
+            hasher.add_str(patch.patch_id.as_str());
+        }
         if !scenario.attention.is_empty() {
             hasher.add_str("portfolio_attention");
             hasher.add_u64(scenario.attention.len() as u64);
@@ -2688,6 +2967,10 @@ fn run_result_digest(result: &WorkloadRunResult) -> SemanticDigest {
     for mining in &result.mining {
         hasher.add_str(mining.evidence.result.result_id.as_str());
     }
+    hasher.add_u64(result.topography.len() as u64);
+    for patch in &result.topography {
+        hasher.add_str(patch.patch_id.as_str());
+    }
     if !result.attention.is_empty() {
         hasher.add_str("portfolio_attention");
         hasher.add_u64(result.attention.len() as u64);
@@ -2702,6 +2985,7 @@ fn run_execution_context_digest(
     qualification: &QualificationRecord,
     inputs: &BTreeMap<String, WorkloadValue>,
     source: Option<&SourceRunInput>,
+    topography: Option<&TopographySurveyInput>,
 ) -> SemanticDigest {
     let mut hasher = SemanticHasher::new("rey.workload-run-context.v1");
     hasher.add_str(qualification.qualification_id.as_str());
@@ -2718,6 +3002,23 @@ fn run_execution_context_digest(
         add_source_binding_limits(&mut hasher, &source.binding_limits);
         add_mining_limits(&mut hasher, &source.mining_limits);
         hasher.add_str(source.capability_snapshot_id.as_str());
+    }
+    hasher.add_bool(topography.is_some());
+    if let Some(topography) = topography {
+        add_path_semantics(&mut hasher, &topography.root);
+        hasher.add_u64(topography.relative_paths.len() as u64);
+        for path in &topography.relative_paths {
+            add_path_semantics(&mut hasher, path);
+        }
+        add_topography_limits(&mut hasher, &topography.limits);
+        add_resolution_limits(&mut hasher, &topography.resolution_limits);
+        hasher.add_str(topography.capability_snapshot_id.as_str());
+        hasher.add_optional_str(
+            topography
+                .prior
+                .as_ref()
+                .map(|patch| patch.topography_revision.as_str()),
+        );
     }
     hasher.finish()
 }
@@ -2758,6 +3059,39 @@ fn add_mining_limits(hasher: &mut SemanticHasher, limits: &MiningLimits) {
     ] {
         hasher.add_u64(value);
     }
+}
+
+fn add_topography_survey_semantics(hasher: &mut SemanticHasher, survey: &TopographySurveyScenario) {
+    hasher.add_str(&survey.fixture_project);
+    hasher.add_u64(survey.seed_paths.len() as u64);
+    for path in &survey.seed_paths {
+        hasher.add_str(path);
+    }
+    add_topography_limits(hasher, &survey.limits);
+    add_resolution_limits(hasher, &survey.resolution_limits);
+}
+
+fn add_topography_limits(hasher: &mut SemanticHasher, limits: &rey_mining::TopographyLimits) {
+    for value in [
+        limits.max_seeds,
+        limits.max_seed_bytes,
+        limits.max_total_bytes,
+        limits.max_candidates,
+        limits.max_anchors,
+        limits.max_edges,
+        limits.max_regions,
+        limits.max_frontier,
+        limits.max_omissions,
+    ] {
+        hasher.add_u64(value);
+    }
+}
+
+fn add_resolution_limits(hasher: &mut SemanticHasher, limits: &rey_locator::ResolutionLimits) {
+    hasher.add_u64(limits.max_locator_bytes);
+    hasher.add_u64(limits.max_source_bytes);
+    hasher.add_u64(limits.max_candidates);
+    hasher.add_u64(limits.max_depth);
 }
 
 fn add_source_search_semantics(hasher: &mut SemanticHasher, source: &SourceSearchScenario) {
@@ -2842,6 +3176,12 @@ fn semantic_string_bytes_workload(workload: &WorkloadDefinition) -> Result<u64, 
                 add_string_bytes(&mut bytes, &row.context_text)?;
             }
         }
+        if let Some(survey) = &scenario.topography_survey {
+            add_string_bytes(&mut bytes, &survey.fixture_project)?;
+            for path in &survey.seed_paths {
+                add_string_bytes(&mut bytes, path)?;
+            }
+        }
     }
     add_contract_string_bytes(&mut bytes, &workload.evaluator)?;
     Ok(bytes)
@@ -2913,6 +3253,8 @@ pub enum WorkloadError {
     MissingOutput(String),
     #[error("source-search execution requires an explicit bounded source input")]
     MissingSourceInput,
+    #[error("topography survey requires an explicit bounded seed input")]
+    MissingTopographyInput,
     #[error("type mismatch at {0}")]
     TypeMismatch(String),
     #[error("graph selected outputs do not match the workload output contract")]
@@ -2967,6 +3309,10 @@ pub enum WorkloadError {
     ReasoningSurface(#[from] rey_policy::ReasoningSurfaceError),
     #[error(transparent)]
     Portfolio(#[from] crate::PortfolioError),
+    #[error(transparent)]
+    TopographySurvey(#[from] crate::TopographySurveyError),
+    #[error(transparent)]
+    Topography(#[from] rey_mining::TopographyError),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }

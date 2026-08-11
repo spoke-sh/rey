@@ -2631,6 +2631,217 @@ fn source_mining_is_verifiable_across_test_list_status_and_run() {
 }
 
 #[test]
+fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_model() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    materialize_context_topography_fixture(workspace.path());
+
+    let tested = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "test",
+        "context-anchor-survey",
+        "--format",
+        "table",
+        "-vv",
+    ]);
+    assert!(
+        tested.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&tested.stdout),
+        String::from_utf8_lossy(&tested.stderr),
+    );
+    assert!(tested.stderr.is_empty());
+    let tested = String::from_utf8(tested.stdout).unwrap();
+    for needle in [
+        "Topography admission: VERIFIED",
+        "Topography patch:",
+        "Coverage:",
+        "Directed patch:",
+        "SEED AGENTS.md",
+        "LOCATOR",
+        "ANCHOR",
+        "EDGE",
+        "REGION",
+        "FRONTIER",
+        "OMISSION candidate_limit",
+        "Exact topography bindings:",
+        "operation   rey.context-anchor-survey.locate@1",
+        "provider    rey.provider.local-worktree-topography@1",
+        "limits      seeds=32",
+    ] {
+        assert!(
+            tested.contains(needle),
+            "missing topography evidence: {needle}"
+        );
+    }
+
+    let readme_path = workspace.path().join("README.md");
+    let mut expanded_readme = fs::read_to_string(&readme_path).unwrap();
+    for index in 0..30 {
+        expanded_readme.push_str(&format!("\n[extra-{index}](docs/MISSING-{index}.md)"));
+    }
+    fs::write(readme_path, expanded_readme).unwrap();
+
+    let run = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "context-anchor-survey",
+        "--source",
+        "AGENTS.md",
+        "--source",
+        "README.md",
+        "--format",
+        "table",
+    ]);
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(run.stderr.is_empty());
+    let run = String::from_utf8(run.stdout).unwrap();
+    assert!(run.contains("Result                 PASSED"));
+    assert!(run.contains("Node order             survey → render"));
+    assert!(run.contains("Topography patch:"));
+    assert!(run.contains("CLI projection folds"));
+    assert!(run.contains("structured output retains all rows"));
+
+    let structured = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "context-anchor-survey",
+        "--source",
+        "AGENTS.md",
+        "--source",
+        "README.md",
+    ]);
+    assert!(structured.status.success());
+    assert!(structured.stderr.is_empty());
+    let structured: WorkloadRunView = serde_json::from_slice(&structured.stdout).unwrap();
+    assert_eq!(structured.result.topography.len(), 1);
+    let patch = &structured.result.topography[0];
+    assert_eq!(patch.schema, "rey.topography-patch.v1");
+    assert_eq!(patch.coverage.requested_seeds, 2);
+    assert!(patch.coverage.candidates > 24);
+    assert!(!patch.anchors.is_empty());
+    assert!(!patch.regions.is_empty());
+    assert!(!patch.frontier.is_empty());
+    assert_eq!(patch.delta.target_revision, patch.topography_revision);
+    structured.result.verify().unwrap();
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    assert!(listed.stderr.is_empty());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    let summary = listed
+        .workloads
+        .iter()
+        .find(|summary| summary.workload.id == "context-anchor-survey")
+        .unwrap();
+    assert_eq!(summary.topography_results, 4);
+    assert_eq!(
+        summary.topography_revision.as_ref(),
+        Some(&patch.topography_revision)
+    );
+    assert_eq!(summary.topography_coverage.as_ref(), Some(&patch.coverage));
+    assert_eq!(summary.topography_patch.as_ref(), Some(patch));
+
+    let status = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "context-anchor-survey",
+        "--format",
+        "table",
+    ]);
+    assert!(status.status.success());
+    let status = String::from_utf8(status.stdout).unwrap();
+    assert!(status.contains("Topography revision"));
+    assert!(status.contains("Topography coverage"));
+    assert!(status.contains("unique candidates resolved ·"));
+    assert!(status.contains("frontier"));
+    assert!(status.contains("Topography patch:"));
+
+    let mut ui = Command::new(env!("CARGO_BIN_EXE_rey"))
+        .args([
+            "ui",
+            "--workspace",
+            workspace_path,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut reader = BufReader::new(ui.stdout.take().unwrap());
+    let mut descriptor = String::new();
+    reader.read_line(&mut descriptor).unwrap();
+    let descriptor: Value = serde_json::from_str(&descriptor).unwrap();
+    let address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
+    let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
+    assert!(response.starts_with("HTTP/1.1 200"));
+    assert!(response.contains("\"topography_patch\""));
+    assert!(response.contains(patch.patch_id.as_str()));
+    assert!(response.contains("\"state\":\"unexplored\""));
+    ui.kill().unwrap();
+    ui.wait().unwrap();
+}
+
+fn materialize_context_topography_fixture(workspace: &std::path::Path) {
+    fs::create_dir_all(workspace.join("workloads/context-anchor-survey")).unwrap();
+    fs::create_dir_all(workspace.join("docs")).unwrap();
+    fs::create_dir_all(workspace.join("docs/decisions")).unwrap();
+    fs::create_dir_all(workspace.join("plans")).unwrap();
+    fs::write(
+        workspace.join("workloads/context-anchor-survey/workload.yaml"),
+        include_str!("../../../workloads/context-anchor-survey/workload.yaml"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("workloads/context-anchor-survey/request.yaml"),
+        include_str!("../../../workloads/context-anchor-survey/request.yaml"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("AGENTS.md"),
+        include_str!("../../rey-runtime/tests/fixtures/topography-projects/basic/AGENTS.md"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("README.md"),
+        include_str!("../../rey-runtime/tests/fixtures/topography-projects/basic/README.md"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("docs/GUIDE.md"),
+        include_str!("../../rey-runtime/tests/fixtures/topography-projects/basic/docs/GUIDE.md"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("plans/0017-incremental-context-topography.md"),
+        include_str!("../../../plans/0017-incremental-context-topography.md"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("docs/decisions/0041-continuous-coordinate-topography.md"),
+        include_str!("../../../docs/decisions/0041-continuous-coordinate-topography.md"),
+    )
+    .unwrap();
+}
+
+#[test]
 fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();

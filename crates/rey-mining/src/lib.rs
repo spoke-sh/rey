@@ -1,5 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod topography;
+
+pub use topography::*;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};

@@ -2475,6 +2475,7 @@ dependencies = [
  "rey-diff",
  "rey-environment",
  "rey-git",
+ "rey-locator",
  "rey-mining",
  "rey-runtime",
  "serde",
@@ -2561,10 +2562,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rey-locator"
+version = "0.1.0"
+dependencies = [
+ "rey-core",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "rey-mining"
 version = "0.1.0"
 dependencies = [
  "rey-core",
+ "rey-locator",
  "serde",
  "serde_json",
  "thiserror",
@@ -2606,6 +2618,7 @@ dependencies = [
  "rey-diff",
  "rey-environment",
  "rey-frontier",
+ "rey-locator",
  "rey-mining",
  "rey-policy",
  "serde",

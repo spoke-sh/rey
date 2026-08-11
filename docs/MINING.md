@@ -10,6 +10,14 @@ match delta, workload graph, terminal projections, and delta-directed reasoning
 fixture are also implemented. External tool providers, structural indexes, and
 general visualization specifications are not.
 
+Plan 0017 adds the first executable survey-mining slice. Canonical locator
+candidates from exact `AGENTS.md` and README seeds resolve under a frozen local
+provider and capability snapshot into typed anchors or explicit unresolved
+outcomes. `rey.topography-patch.v1` retains classified `contains`/`references`
+edges, surveyed and unknown region states, coverage, frontier, omissions,
+lineage, hard limits, and a directed delta. Explorer consumes that retained
+patch; it performs no independent source scan or assessment.
+
 ADR 0022 and Plan 0010 now extend this foundation with ongoing portfolio
 mining. The canonical portfolio snapshot and workload-attention relation, a
 scenario-qualified system workload, and all four workload CLI projections are
@@ -365,20 +373,21 @@ inputs; `test -vv` opens reviewed refine/retest/create/block/exclusion/clean
 scenarios with exact relation identities; and an input-free qualified `run`
 re-evaluates the retained catalog, workload results, and environment snapshot.
 
-Plan 0017 defines the next mining family: admitted survey workloads emit
+Plan 0017 implements the first survey-mining family: admitted survey workloads emit
 content-identified topography patches. A patch retains locator candidates,
 typed resolution outcomes, provider-qualified coordinate anchors, classified
 relationships, surveyed regions, coverage, frontier, omissions, completeness,
 lineage, and a directed delta against a prior map revision. Explorer is a
 deterministic visual projection of those artifacts. It does not mine, resolve,
-or interpolate semantic terrain on its own.
+or interpolate semantic terrain on its own. Broader locator families and
+recurring voyage scheduling remain later work.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,
 parse ASTs/CSTs, build a semantic index, or render general tree/graph
 visualizations.
 
-AST/CST adapters, semantic resolution, broad code-quality metrics, durable
+AST/CST adapters, broad semantic resolution, broad code-quality metrics, durable
 indexes, generic graph visualization, learned ranking, and recurring
 scheduling follow only after that slice proves the common invariants.
 

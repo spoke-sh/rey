@@ -4,12 +4,29 @@ import type {
   WorkloadDraft,
   WorkloadList,
   WorkloadSummary,
+  TopographyPatch,
+  TopographyRegionState,
 } from "./domain";
 import { deriveAgentIndex } from "./domain";
 
-export type LensRegime = "landscape" | "neighborhoods" | "objects";
+export type LensRegime =
+  "atlas" | "landscape" | "neighborhoods" | "objects" | "evidence";
 export type TopologyTone =
-  "neutral" | "accent" | "healthy" | "attention" | "blocked";
+  | "neutral"
+  | "accent"
+  | "healthy"
+  | "attention"
+  | "blocked"
+  | "unknown"
+  | "omitted"
+  | "stale"
+  | "unsupported"
+  | "frontier";
+
+export interface TopologyWorld {
+  width: number;
+  height: number;
+}
 
 export interface TopologyRegion {
   id: string;
@@ -20,6 +37,30 @@ export interface TopologyRegion {
   width: number;
   height: number;
   tone: TopologyTone;
+  variant?: "panel" | "map-boundary" | "map-zone";
+}
+
+export interface TopologyContour {
+  id: string;
+  path: string;
+  level: number;
+  threshold: number;
+  anchor_count: number;
+}
+
+export interface TopologyPointOfInterest {
+  id: string;
+  focus_id: string;
+  kind: "anchor" | "frontier";
+  family: string;
+  label: string;
+  detail: string;
+  x: number;
+  y: number;
+  prominence: number;
+  tone: TopologyTone;
+  workload_id: string;
+  coordinate_uri?: string;
 }
 
 export interface TopologyNode {
@@ -33,6 +74,7 @@ export interface TopologyNode {
   width: number;
   tone: TopologyTone;
   workload_id?: string;
+  coordinate_uri?: string;
 }
 
 export interface TopologyEdge {
@@ -49,24 +91,58 @@ export interface TopologyScene {
   detail: string;
   focus_id: string;
   regions: TopologyRegion[];
+  contours: TopologyContour[];
+  points: TopologyPointOfInterest[];
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   omissions: string[];
+  world: TopologyWorld;
+  fit_world: TopologyWorld;
+  terrain: boolean;
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
-export const MIN_LENS_ZOOM = 0.55;
-export const MAX_LENS_ZOOM = 2;
-export const DEFAULT_LENS_ZOOM = 0.68;
-export const NEIGHBORHOOD_LENS_ZOOM = 1;
-export const OBJECT_LENS_ZOOM = 1.46;
+export const MIN_LENS_ZOOM = 0.12;
+export const MAX_LENS_ZOOM = 5.4;
+export const DEFAULT_LENS_ZOOM = 0.26;
+export const LANDSCAPE_LENS_ZOOM = 0.58;
+export const NEIGHBORHOOD_LENS_ZOOM = 1.08;
+export const OBJECT_LENS_ZOOM = 2.05;
+export const EVIDENCE_LENS_ZOOM = 3.55;
 
 const NEIGHBORHOOD_LIMIT = 8;
+const TOPOGRAPHY_POI_LIMIT = 64;
+const LENS_HYSTERESIS = 0.05;
 
-export function lensRegimeForZoom(zoom: number): LensRegime {
-  if (zoom < 0.88) return "landscape";
-  if (zoom < 1.32) return "neighborhoods";
-  return "objects";
+const LENS_ORDER: readonly LensRegime[] = [
+  "atlas",
+  "landscape",
+  "neighborhoods",
+  "objects",
+  "evidence",
+];
+const LENS_BOUNDARIES = [0.42, 0.82, 1.52, 2.8] as const;
+
+export function lensRegimeForZoom(
+  zoom: number,
+  previous?: LensRegime,
+): LensRegime {
+  const rawIndex = LENS_BOUNDARIES.findIndex((boundary) => zoom < boundary);
+  const nextIndex = rawIndex === -1 ? LENS_ORDER.length - 1 : rawIndex;
+  if (!previous) return LENS_ORDER[nextIndex]!;
+  const previousIndex = LENS_ORDER.indexOf(previous);
+  if (previousIndex < 0 || previousIndex === nextIndex)
+    return LENS_ORDER[nextIndex]!;
+  if (nextIndex > previousIndex) {
+    const boundary = LENS_BOUNDARIES[previousIndex];
+    if (boundary !== undefined && zoom < boundary + LENS_HYSTERESIS)
+      return previous;
+  } else {
+    const boundary = LENS_BOUNDARIES[nextIndex];
+    if (boundary !== undefined && zoom > boundary - LENS_HYSTERESIS)
+      return previous;
+  }
+  return LENS_ORDER[nextIndex]!;
 }
 
 export function clampLensZoom(zoom: number): number {
@@ -75,31 +151,95 @@ export function clampLensZoom(zoom: number): number {
 
 export function stepLensZoom(zoom: number, direction: 1 | -1): number {
   const regime = lensRegimeForZoom(zoom);
+  const stops = [
+    DEFAULT_LENS_ZOOM,
+    LANDSCAPE_LENS_ZOOM,
+    NEIGHBORHOOD_LENS_ZOOM,
+    OBJECT_LENS_ZOOM,
+    EVIDENCE_LENS_ZOOM,
+  ] as const;
+  const index = LENS_ORDER.indexOf(regime);
   if (direction > 0) {
-    if (regime === "landscape") return NEIGHBORHOOD_LENS_ZOOM;
-    if (regime === "neighborhoods") return OBJECT_LENS_ZOOM;
-    return MAX_LENS_ZOOM;
+    return index >= stops.length - 1 ? MAX_LENS_ZOOM : stops[index + 1]!;
   }
-  if (regime === "objects") return NEIGHBORHOOD_LENS_ZOOM;
-  if (regime === "neighborhoods") return DEFAULT_LENS_ZOOM;
-  return MIN_LENS_ZOOM;
+  return index <= 0 ? MIN_LENS_ZOOM : stops[index - 1]!;
 }
 
 export function buildTopologyScene(
   portfolio: WorkloadList,
   zoom: number,
   focusId = "cluster:portfolio",
+  retainedRegime?: LensRegime,
 ): TopologyScene {
-  const regime = lensRegimeForZoom(zoom);
-  if (regime === "landscape") return buildLandscape(portfolio, focusId);
-  if (regime === "neighborhoods") return buildNeighborhoods(portfolio, focusId);
-  return buildObjects(portfolio, focusId);
+  const regime = retainedRegime ?? lensRegimeForZoom(zoom);
+  let projection: TopologyProjection;
+  if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
+  else if (regime === "landscape")
+    projection = buildLandscape(portfolio, focusId);
+  else if (regime === "neighborhoods")
+    projection = buildNeighborhoods(portfolio, focusId);
+  else if (regime === "objects") projection = buildObjects(portfolio, focusId);
+  else projection = buildEvidence(portfolio, focusId);
+  return {
+    ...projection,
+    contours: projection.contours ?? [],
+    points: projection.points ?? [],
+    terrain: projection.terrain ?? false,
+    world: projection.world ?? topologyWorld(projection),
+    fit_world:
+      projection.fit_world ?? projection.world ?? topologyWorld(projection),
+  };
+}
+
+type TopologyProjection = Omit<
+  TopologyScene,
+  "contours" | "fit_world" | "points" | "terrain" | "world"
+> & {
+  contours?: TopologyContour[];
+  points?: TopologyPointOfInterest[];
+  terrain?: boolean;
+  world?: TopologyWorld;
+  fit_world?: TopologyWorld;
+};
+
+function admittedTopographies(
+  portfolio: WorkloadList,
+): Array<{ workload: WorkloadSummary; patch: TopographyPatch }> {
+  return portfolio.workloads.flatMap((workload) =>
+    workload.topography_patch
+      ? [{ workload, patch: workload.topography_patch }]
+      : [],
+  );
+}
+
+function buildAtlas(
+  portfolio: WorkloadList,
+  focusId: string,
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (topographies.length === 0) {
+    const fallback = buildLandscape(portfolio, focusId);
+    return {
+      ...fallback,
+      regime: "atlas",
+      label: "CONTEXT ATLAS",
+      detail: "no admitted survey patch",
+      omissions: [
+        "topography is unexplored until a survey workload patch is admitted",
+        ...fallback.omissions,
+      ],
+    };
+  }
+  return buildSurveyTerrain(topographies, focusId, "atlas");
 }
 
 function buildLandscape(
   portfolio: WorkloadList,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (topographies.length > 0)
+    return buildSurveyTerrain(topographies, focusId, "landscape");
   const miningResults = portfolio.workloads.reduce(
     (total, workload) => total + workload.mining_results,
     0,
@@ -215,7 +355,10 @@ function buildLandscape(
 function buildNeighborhoods(
   portfolio: WorkloadList,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (topographies.length > 0 && !focusId.startsWith("agent:"))
+    return buildSurveyTerrain(topographies, focusId, "neighborhoods");
   const workloadCandidates: Array<WorkloadSummary | WorkloadDraft> = [
     ...portfolio.workloads,
     ...portfolio.drafts,
@@ -346,7 +489,16 @@ function buildNeighborhoods(
 function buildObjects(
   portfolio: WorkloadList,
   requestedFocusId: string,
-): TopologyScene {
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (
+    topographies.length > 0 &&
+    (requestedFocusId.startsWith("topography:") ||
+      requestedFocusId.startsWith("seed:") ||
+      requestedFocusId.startsWith("anchor:") ||
+      requestedFocusId.startsWith("frontier:"))
+  )
+    return buildSurveyTerrain(topographies, requestedFocusId, "objects");
   const focusId = resolveObjectFocus(portfolio, requestedFocusId);
   if (focusId.startsWith("workload:")) {
     const workloadId = focusId.slice("workload:".length);
@@ -380,7 +532,7 @@ function agentObjectScene(
   portfolio: WorkloadList,
   agent: AgentSummary,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
   const outputs = portfolio.workloads.filter((workload) =>
     agent.workload_ids.includes(workload.workload.id),
   );
@@ -525,7 +677,7 @@ function workloadObjectScene(
   portfolio: WorkloadList,
   workload: WorkloadSummary,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
   const attention = portfolio.attention.rows.filter(
     (row) => row.subject_id === workload.workload.id,
   );
@@ -670,7 +822,7 @@ function draftObjectScene(
   portfolio: WorkloadList,
   draft: WorkloadDraft,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
   return {
     regime: "objects",
     label: "REQUEST OBJECTS",
@@ -748,7 +900,7 @@ function attentionObjectScene(
   portfolio: WorkloadList,
   row: AttentionRow,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
   const subjectExists =
     portfolio.workloads.some(
       (workload) => workload.workload.id === row.subject_id,
@@ -879,7 +1031,7 @@ function attentionObjectScene(
 function portfolioObjectScene(
   portfolio: WorkloadList,
   focusId: string,
-): TopologyScene {
+): TopologyProjection {
   const admitted = portfolio.catalog.admitted_count;
   const qualified = portfolio.workloads.filter(
     (workload) => workload.qualification === "qualified",
@@ -1019,6 +1171,734 @@ function portfolioObjectScene(
   };
 }
 
+const TERRAIN_CELL = { width: 1500, height: 1000 } as const;
+const TERRAIN_GRID = { columns: 60, rows: 40 } as const;
+const TERRAIN_LEVELS = [0.12, 0.23, 0.35, 0.48, 0.61, 0.74, 0.86] as const;
+
+interface SurveyTerrainLayout {
+  contours: TopologyContour[];
+  edges: TopologyEdge[];
+  omissions: string[];
+  points: TopologyPointOfInterest[];
+  regions: TopologyRegion[];
+  world: TopologyWorld;
+}
+
+function buildSurveyTerrain(
+  topographies: Array<{ workload: WorkloadSummary; patch: TopographyPatch }>,
+  focusId: string,
+  regime: LensRegime,
+): TopologyProjection {
+  const layout = layoutSurveyTerrain(topographies);
+  const selected = selectTopography(topographies, focusId);
+  const selectedPoints = layout.points.filter(
+    (point) => point.workload_id === selected.workload.workload.id,
+  );
+  const focusPoint =
+    selectedPoints.find((point) => point.focus_id === focusId) ??
+    selectedPoints.find((point) => point.family === "WORKSPACE") ??
+    selectedPoints[0];
+  const detail = buildSurveyTerrainDetails(
+    selected,
+    focusPoint,
+    focusId,
+    regime,
+  );
+  const visibleRegions =
+    regime === "atlas" || regime === "landscape"
+      ? layout.regions
+      : regime === "neighborhoods"
+        ? layout.regions.filter((region) => region.variant === "map-boundary")
+        : [];
+  const visibleEdges =
+    regime === "atlas" || regime === "landscape"
+      ? detail.edges
+      : regime === "neighborhoods"
+        ? layout.edges
+        : [
+            ...layout.edges.filter(
+              (candidate) =>
+                candidate.from === focusPoint?.id ||
+                candidate.to === focusPoint?.id,
+            ),
+            ...detail.edges,
+          ];
+  const anchorCount = topographies.reduce(
+    (count, { patch }) => count + patch.anchors.length,
+    0,
+  );
+  const edgeCount = topographies.reduce(
+    (count, { patch }) => count + patch.edges.length,
+    0,
+  );
+  const regimeCopy = {
+    atlas: {
+      label: "ANCHOR RELIEF ATLAS",
+      detail: `${anchorCount} admitted anchors shape ${layout.contours.length} contour levels across ${topographies.length} scene${topographies.length === 1 ? "" : "s"}`,
+    },
+    landscape: {
+      label: "ANCHOR TERRAIN",
+      detail: `${anchorCount} anchor POIs · ${edgeCount} classified ridge inputs · surveyed boundaries visible`,
+    },
+    neighborhoods: {
+      label: "ANCHOR NEIGHBORHOOD",
+      detail: `${selected.workload.workload.id} · exact classified relationships over persistent relief`,
+    },
+    objects: {
+      label: "ANCHOR OBJECTS",
+      detail: focusPoint?.detail ?? selected.patch.topography_revision,
+    },
+    evidence: {
+      label: "ANCHOR EVIDENCE",
+      detail: `${selected.workload.workload.id} · patch ${selected.patch.patch_id} · exact retained basis`,
+    },
+  }[regime];
+  return {
+    regime,
+    ...regimeCopy,
+    focus_id: focusId,
+    regions: visibleRegions,
+    contours: layout.contours,
+    points: layout.points,
+    nodes: detail.nodes,
+    edges: visibleEdges,
+    omissions: layout.omissions,
+    world: layout.world,
+    fit_world: TERRAIN_CELL,
+    terrain: true,
+  };
+}
+
+function layoutSurveyTerrain(
+  topographies: Array<{ workload: WorkloadSummary; patch: TopographyPatch }>,
+): SurveyTerrainLayout {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(topographies.length)));
+  const rows = Math.max(1, Math.ceil(topographies.length / columns));
+  const world = {
+    width: columns * TERRAIN_CELL.width,
+    height: rows * TERRAIN_CELL.height,
+  };
+  const contours: TopologyContour[] = [];
+  const edges: TopologyEdge[] = [];
+  const omissions: string[] = [
+    "relief height is admitted anchor and classified-edge influence, not inferred semantic similarity",
+  ];
+  const points: TopologyPointOfInterest[] = [];
+  const regions: TopologyRegion[] = [];
+
+  const ordered = [...topographies].sort((left, right) =>
+    left.workload.workload.id.localeCompare(right.workload.workload.id),
+  );
+  ordered.forEach(({ workload, patch }, patchIndex) => {
+    const column = patchIndex % columns;
+    const row = Math.floor(patchIndex / columns);
+    const origin = {
+      x: column * TERRAIN_CELL.width,
+      y: row * TERRAIN_CELL.height,
+    };
+    const center = {
+      x: origin.x + TERRAIN_CELL.width / 2,
+      y: origin.y + TERRAIN_CELL.height / 2,
+    };
+    const states = new Set(patch.regions.map((region) => region.state));
+    if (states.has("unexplored")) {
+      regions.push({
+        id: `terrain-unexplored:${workload.workload.id}`,
+        label: "UNEXPLORED BEYOND SURVEY",
+        detail: "no admitted terrain claim",
+        x: origin.x + 30,
+        y: origin.y + 30,
+        width: TERRAIN_CELL.width - 60,
+        height: TERRAIN_CELL.height - 60,
+        tone: "unknown",
+        variant: "map-zone",
+      });
+    }
+    regions.push({
+      id: `terrain-boundary:${workload.workload.id}`,
+      label: workload.workload.id,
+      detail: `${patch.coverage.surveyed_seeds}/${patch.coverage.requested_seeds} seeds surveyed · ${shortCoordinate(patch.topography_revision)}`,
+      x: origin.x + 105,
+      y: origin.y + 85,
+      width: TERRAIN_CELL.width - 210,
+      height: TERRAIN_CELL.height - 170,
+      tone: states.has("surveyed")
+        ? "healthy"
+        : patch.complete
+          ? "neutral"
+          : "omitted",
+      variant: "map-boundary",
+    });
+    const statusStates = [...states]
+      .filter((state) => state !== "surveyed" && state !== "unexplored")
+      .sort();
+    statusStates.forEach((state, index) => {
+      const source = patch.regions.find((region) => region.state === state)!;
+      regions.push({
+        id: `terrain-zone:${workload.workload.id}:${state}`,
+        label: state.replaceAll("_", " "),
+        detail: source.detail,
+        x: origin.x + 150 + index * 245,
+        y: origin.y + TERRAIN_CELL.height - 150,
+        width: 215,
+        height: 70,
+        tone: regionTone(state),
+        variant: "map-zone",
+      });
+    });
+
+    const visibleAnchors = [...patch.anchors]
+      .sort((left, right) => {
+        if (left.kind === "workspace") return -1;
+        if (right.kind === "workspace") return 1;
+        return left.coordinate.coordinate.localeCompare(
+          right.coordinate.coordinate,
+        );
+      })
+      .slice(0, TOPOGRAPHY_POI_LIMIT);
+    const degree = new Map<string, number>();
+    patch.edges.forEach((candidate) => {
+      degree.set(
+        candidate.source_coordinate,
+        (degree.get(candidate.source_coordinate) ?? 0) + 1,
+      );
+      degree.set(
+        candidate.target_coordinate,
+        (degree.get(candidate.target_coordinate) ?? 0) + 1,
+      );
+    });
+    const nonWorkspace = visibleAnchors.filter(
+      (anchor) => anchor.kind !== "workspace",
+    );
+    visibleAnchors.forEach((anchor) => {
+      const nonWorkspaceIndex = nonWorkspace.findIndex(
+        (candidate) => candidate.anchor_id === anchor.anchor_id,
+      );
+      const hash = stableHash(anchor.coordinate.coordinate);
+      const jitter = ((hash % 1000) / 1000 - 0.5) * 0.42;
+      const ring =
+        nonWorkspaceIndex < 0 ? 0 : Math.floor(nonWorkspaceIndex / 8);
+      const slot = nonWorkspaceIndex < 0 ? 0 : nonWorkspaceIndex % 8;
+      const ringCount = Math.min(8, nonWorkspace.length - ring * 8);
+      const angle =
+        nonWorkspaceIndex < 0
+          ? 0
+          : (Math.PI * 2 * slot) / Math.max(1, ringCount) + jitter;
+      const radiusMultiplier = anchor.kind === "external_resource" ? 1.22 : 1;
+      const x =
+        nonWorkspaceIndex < 0
+          ? center.x
+          : center.x + Math.cos(angle) * (190 + ring * 60) * radiusMultiplier;
+      const y =
+        nonWorkspaceIndex < 0
+          ? center.y
+          : center.y + Math.sin(angle) * (140 + ring * 40) * radiusMultiplier;
+      const anchorDegree = degree.get(anchor.coordinate.coordinate) ?? 0;
+      points.push({
+        id: `anchor-node:${workload.workload.id}:${anchor.anchor_id}`,
+        focus_id: `anchor:${workload.workload.id}:${anchor.anchor_id}`,
+        kind: "anchor",
+        family: anchor.kind.replaceAll("_", " ").toUpperCase(),
+        label: anchor.label,
+        detail: `${anchorDegree} classified relation${anchorDegree === 1 ? "" : "s"} · ${shortCoordinate(anchor.source_revision)}`,
+        x,
+        y,
+        prominence:
+          anchor.kind === "workspace" ? 4 : Math.min(4, 1 + anchorDegree),
+        tone: "healthy",
+        workload_id: workload.workload.id,
+        coordinate_uri: anchor.coordinate.coordinate,
+      });
+    });
+
+    const visibleFrontier = patch.frontier.slice(0, 6);
+    visibleFrontier.forEach((frontier, index) => {
+      const angle =
+        (Math.PI * 2 * index) / Math.max(1, visibleFrontier.length) + 0.38;
+      points.push({
+        id: `frontier-node:${workload.workload.id}:${frontier.row_id}`,
+        focus_id: `frontier:${workload.workload.id}:${frontier.row_id}`,
+        kind: "frontier",
+        family: "FRONTIER",
+        label: frontier.locator,
+        detail: `${frontier.status} · ${frontier.reason}`,
+        x: center.x + Math.cos(angle) * 585,
+        y: center.y + Math.sin(angle) * 365,
+        prominence: 1,
+        tone: resolutionTone(frontier.status),
+        workload_id: workload.workload.id,
+      });
+    });
+
+    const patchPoints = points.filter(
+      (point) =>
+        point.workload_id === workload.workload.id && point.kind === "anchor",
+    );
+    const byCoordinate = new Map(
+      patchPoints.flatMap((point) =>
+        point.coordinate_uri ? [[point.coordinate_uri, point] as const] : [],
+      ),
+    );
+    const patchEdges = patch.edges.flatMap((candidate) => {
+      const from = byCoordinate.get(candidate.source_coordinate);
+      const to = byCoordinate.get(candidate.target_coordinate);
+      return from && to
+        ? [
+            edge(
+              candidate.edge_id,
+              from.id,
+              to.id,
+              candidate.kind === "contains" ? "contains" : "observes",
+              candidate.kind,
+            ),
+          ]
+        : [];
+    });
+    edges.push(...patchEdges);
+    contours.push(
+      ...buildReliefContours(workload.workload.id, patchPoints, patchEdges, {
+        x: origin.x + 100,
+        y: origin.y + 80,
+        width: TERRAIN_CELL.width - 200,
+        height: TERRAIN_CELL.height - 160,
+      }),
+    );
+
+    omissions.push(
+      ...patch.omissions.map(
+        (omission) =>
+          `${omission.omitted_count} ${omission.kind.replaceAll("_", " ")} omitted: ${omission.reason}`,
+      ),
+    );
+    if (patch.anchors.length > visibleAnchors.length)
+      omissions.push(
+        `${patch.anchors.length - visibleAnchors.length} anchor POIs folded from ${workload.workload.id}`,
+      );
+    if (patch.frontier.length > visibleFrontier.length)
+      omissions.push(
+        `${patch.frontier.length - visibleFrontier.length} frontier POIs folded from ${workload.workload.id}`,
+      );
+  });
+  return { contours, edges, omissions, points, regions, world };
+}
+
+function buildSurveyTerrainDetails(
+  selected: { workload: WorkloadSummary; patch: TopographyPatch },
+  focusPoint: TopologyPointOfInterest | undefined,
+  focusId: string,
+  regime: LensRegime,
+): { edges: TopologyEdge[]; nodes: TopologyNode[] } {
+  if (
+    !focusPoint ||
+    regime === "atlas" ||
+    regime === "landscape" ||
+    regime === "neighborhoods"
+  )
+    return { edges: [], nodes: [] };
+  const { workload, patch } = selected;
+  const coordinate = focusPoint.coordinate_uri;
+  const exactResolution = patch.resolutions.find(
+    (candidate) => candidate.coordinate?.coordinate === coordinate,
+  );
+  const relatedEdges = coordinate
+    ? patch.edges.filter(
+        (candidate) =>
+          candidate.source_coordinate === coordinate ||
+          candidate.target_coordinate === coordinate,
+      )
+    : [];
+  const offset = regime === "objects" ? { x: 68, y: 52 } : { x: 48, y: 42 };
+  const nodes: TopologyNode[] = [];
+  const edges: TopologyEdge[] = [];
+  const addDetail = (
+    id: string,
+    family: string,
+    label: string,
+    detail: string,
+    xDirection: -1 | 1,
+    yDirection: -1 | 1,
+    tone: TopologyTone,
+    coordinateUri?: string,
+  ) => {
+    nodes.push(
+      node(
+        id,
+        focusId,
+        family,
+        label,
+        detail,
+        focusPoint.x + offset.x * xDirection,
+        focusPoint.y + offset.y * yDirection,
+        220,
+        tone,
+        workload.workload.id,
+        coordinateUri,
+      ),
+    );
+    edges.push(
+      edge(
+        `${focusPoint.id}:${id}`,
+        focusPoint.id,
+        id,
+        family.startsWith("LINEAGE") ? "observes" : "produces",
+        family.toLowerCase(),
+      ),
+    );
+  };
+
+  if (regime === "objects") {
+    addDetail(
+      "terrain-object-patch",
+      "ADMITTED PATCH",
+      shortCoordinate(patch.patch_id),
+      `${patch.complete ? "complete" : "bounded"} · ${patch.operation.id}@${patch.operation.revision}`,
+      -1,
+      -1,
+      patch.complete ? "healthy" : "omitted",
+    );
+    addDetail(
+      "terrain-object-revision",
+      "SOURCE REVISION",
+      shortCoordinate(
+        exactResolution?.source_revision ?? patch.topography_revision,
+      ),
+      "revision-bound semantic identity",
+      1,
+      -1,
+      "healthy",
+    );
+    addDetail(
+      "terrain-object-resolution",
+      "LOCATOR OUTCOME",
+      exactResolution?.status ??
+        (focusPoint.kind === "frontier" ? "unresolved" : "resolved"),
+      exactResolution?.detail ??
+        `${relatedEdges.length} retained relationships`,
+      -1,
+      1,
+      exactResolution
+        ? resolutionTone(exactResolution.status)
+        : focusPoint.tone,
+      coordinate,
+    );
+    addDetail(
+      "terrain-object-delta",
+      "DIRECTED PATCH",
+      `+${patch.delta.inserted} −${patch.delta.deleted} ~${patch.delta.modified}`,
+      `${shortCoordinate(patch.delta.source_revision)} → ${shortCoordinate(patch.delta.target_revision)}`,
+      1,
+      1,
+      "frontier",
+    );
+    return { edges, nodes };
+  }
+
+  const evidenceRows = [
+    ...patch.resolutions
+      .filter(
+        (candidate) =>
+          candidate.coordinate?.coordinate === coordinate ||
+          candidate.candidate === focusPoint.label,
+      )
+      .slice(0, 2)
+      .map((candidate) => ({
+        family: "LOCATOR EVIDENCE",
+        label: candidate.candidate,
+        detail: `${candidate.status} · ${candidate.detail}`,
+        tone: resolutionTone(candidate.status),
+        coordinate: candidate.coordinate?.coordinate,
+      })),
+    ...patch.lineage.slice(0, 2).map((lineage) => ({
+      family: `LINEAGE / ${lineage.kind}`,
+      label: lineage.identity,
+      detail: lineage.revision,
+      tone: "neutral" as TopologyTone,
+      coordinate: undefined,
+    })),
+  ].slice(0, 4);
+  evidenceRows.forEach((candidate, index) =>
+    addDetail(
+      `terrain-evidence:${index}`,
+      candidate.family,
+      candidate.label,
+      candidate.detail,
+      index % 2 === 0 ? -1 : 1,
+      index < 2 ? -1 : 1,
+      candidate.tone,
+      candidate.coordinate,
+    ),
+  );
+  return { edges, nodes };
+}
+
+function buildReliefContours(
+  id: string,
+  points: TopologyPointOfInterest[],
+  edges: TopologyEdge[],
+  bounds: { x: number; y: number; width: number; height: number },
+): TopologyContour[] {
+  if (points.length === 0) return [];
+  const byId = new Map(points.map((point) => [point.id, point]));
+  const grid: number[][] = [];
+  let maximum = 0;
+  for (let row = 0; row <= TERRAIN_GRID.rows; row += 1) {
+    const values: number[] = [];
+    const y = bounds.y + (row / TERRAIN_GRID.rows) * bounds.height;
+    for (let column = 0; column <= TERRAIN_GRID.columns; column += 1) {
+      const x = bounds.x + (column / TERRAIN_GRID.columns) * bounds.width;
+      let height = 0;
+      points.forEach((point) => {
+        const sigma = 88 + point.prominence * 22;
+        const distanceSquared = (x - point.x) ** 2 + (y - point.y) ** 2;
+        height +=
+          point.prominence * Math.exp(-distanceSquared / (2 * sigma * sigma));
+      });
+      edges.forEach((candidate) => {
+        const from = byId.get(candidate.from);
+        const to = byId.get(candidate.to);
+        if (!from || !to) return;
+        const distance = distanceToSegment(x, y, from.x, from.y, to.x, to.y);
+        height += 0.72 * Math.exp(-(distance * distance) / (2 * 58 * 58));
+      });
+      values.push(height);
+      maximum = Math.max(maximum, height);
+    }
+    grid.push(values);
+  }
+  return TERRAIN_LEVELS.flatMap((ratio, index) => {
+    const threshold = maximum * ratio;
+    const path = marchingSquaresPath(grid, threshold, bounds);
+    return path
+      ? [
+          {
+            id: `relief:${id}:${index}`,
+            path,
+            level: index + 1,
+            threshold,
+            anchor_count: points.length,
+          },
+        ]
+      : [];
+  });
+}
+
+function marchingSquaresPath(
+  grid: number[][],
+  threshold: number,
+  bounds: { x: number; y: number; width: number; height: number },
+): string {
+  const segments: string[] = [];
+  const rowCount = grid.length - 1;
+  const columnCount = (grid[0]?.length ?? 1) - 1;
+  const point = (column: number, row: number) => ({
+    x: bounds.x + (column / columnCount) * bounds.width,
+    y: bounds.y + (row / rowCount) * bounds.height,
+  });
+  const crossing = (
+    first: { x: number; y: number; value: number },
+    second: { x: number; y: number; value: number },
+  ) => {
+    const denominator = second.value - first.value;
+    const amount =
+      denominator === 0 ? 0.5 : (threshold - first.value) / denominator;
+    return {
+      x: first.x + (second.x - first.x) * amount,
+      y: first.y + (second.y - first.y) * amount,
+    };
+  };
+  const line = (
+    first: { x: number; y: number },
+    second: { x: number; y: number },
+  ) =>
+    `M${first.x.toFixed(1)},${first.y.toFixed(1)}L${second.x.toFixed(1)},${second.y.toFixed(1)}`;
+
+  for (let row = 0; row < rowCount; row += 1) {
+    for (let column = 0; column < columnCount; column += 1) {
+      const topLeftPoint = point(column, row);
+      const topRightPoint = point(column + 1, row);
+      const bottomRightPoint = point(column + 1, row + 1);
+      const bottomLeftPoint = point(column, row + 1);
+      const topLeft = { ...topLeftPoint, value: grid[row]![column]! };
+      const topRight = { ...topRightPoint, value: grid[row]![column + 1]! };
+      const bottomRight = {
+        ...bottomRightPoint,
+        value: grid[row + 1]![column + 1]!,
+      };
+      const bottomLeft = {
+        ...bottomLeftPoint,
+        value: grid[row + 1]![column]!,
+      };
+      const crossings: Array<{
+        edge: "top" | "right" | "bottom" | "left";
+        point: { x: number; y: number };
+      }> = [];
+      const addCrossing = (
+        edgeName: "top" | "right" | "bottom" | "left",
+        first: typeof topLeft,
+        second: typeof topLeft,
+      ) => {
+        if (first.value >= threshold !== second.value >= threshold)
+          crossings.push({ edge: edgeName, point: crossing(first, second) });
+      };
+      addCrossing("top", topLeft, topRight);
+      addCrossing("right", topRight, bottomRight);
+      addCrossing("bottom", bottomRight, bottomLeft);
+      addCrossing("left", bottomLeft, topLeft);
+      if (crossings.length === 2) {
+        segments.push(line(crossings[0]!.point, crossings[1]!.point));
+      } else if (crossings.length === 4) {
+        const byEdge = new Map(
+          crossings.map((candidate) => [candidate.edge, candidate.point]),
+        );
+        const center =
+          (topLeft.value +
+            topRight.value +
+            bottomRight.value +
+            bottomLeft.value) /
+          4;
+        const pairs: Array<
+          [
+            "top" | "right" | "bottom" | "left",
+            "top" | "right" | "bottom" | "left",
+          ]
+        > =
+          center >= threshold
+            ? [
+                ["top", "left"],
+                ["right", "bottom"],
+              ]
+            : [
+                ["top", "right"],
+                ["bottom", "left"],
+              ];
+        pairs.forEach(([first, second]) => {
+          const firstPoint = byEdge.get(first!);
+          const secondPoint = byEdge.get(second!);
+          if (firstPoint && secondPoint)
+            segments.push(line(firstPoint, secondPoint));
+        });
+      }
+    }
+  }
+  return segments.join("");
+}
+
+function distanceToSegment(
+  x: number,
+  y: number,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): number {
+  const deltaX = endX - startX;
+  const deltaY = endY - startY;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  if (lengthSquared === 0) return Math.hypot(x - startX, y - startY);
+  const amount = Math.max(
+    0,
+    Math.min(
+      1,
+      ((x - startX) * deltaX + (y - startY) * deltaY) / lengthSquared,
+    ),
+  );
+  return Math.hypot(
+    x - (startX + amount * deltaX),
+    y - (startY + amount * deltaY),
+  );
+}
+
+function stableHash(value: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+function buildEvidence(
+  portfolio: WorkloadList,
+  focusId: string,
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (topographies.length === 0) {
+    const fallback = buildObjects(portfolio, focusId);
+    return {
+      ...fallback,
+      regime: "evidence",
+      label: "EVIDENCE BOUNDARY",
+      detail: "no admitted survey evidence",
+      omissions: [
+        "exact locator evidence is unavailable until a survey workload patch is admitted",
+        ...fallback.omissions,
+      ],
+    };
+  }
+  return buildSurveyTerrain(topographies, focusId, "evidence");
+}
+
+function selectTopography(
+  topographies: Array<{ workload: WorkloadSummary; patch: TopographyPatch }>,
+  focusId: string,
+): { workload: WorkloadSummary; patch: TopographyPatch } {
+  return (
+    topographies.find(({ workload }) =>
+      ["topography", "seed", "anchor", "frontier"].some((kind) =>
+        focusId.startsWith(`${kind}:${workload.workload.id}`),
+      ),
+    ) ?? topographies[0]!
+  );
+}
+
+function topologyWorld(projection: TopologyProjection): TopologyWorld {
+  const contentWidth = Math.max(
+    ...projection.regions.map((region) => region.x + region.width),
+    ...projection.nodes.map((candidate) => candidate.x + candidate.width / 2),
+    640,
+  );
+  const contentHeight = Math.max(
+    ...projection.regions.map((region) => region.y + region.height),
+    ...projection.nodes.map((candidate) => candidate.y + 90),
+    420,
+  );
+  return {
+    width: Math.ceil((contentWidth + 40) / 40) * 40,
+    height: Math.ceil((contentHeight + 40) / 40) * 40,
+  };
+}
+
+function regionTone(state: TopographyRegionState): TopologyTone {
+  if (state === "surveyed") return "healthy";
+  if (state === "surveyed_empty") return "neutral";
+  if (state === "unexplored") return "unknown";
+  if (state === "omitted") return "omitted";
+  if (state === "stale") return "stale";
+  if (state === "unsupported") return "unsupported";
+  return "frontier";
+}
+
+function seedTone(
+  state: TopographyPatch["seeds"][number]["state"],
+): TopologyTone {
+  if (state === "surveyed") return "healthy";
+  if (state === "surveyed_empty") return "neutral";
+  if (state === "omitted") return "omitted";
+  if (state === "unsupported") return "unsupported";
+  return "unknown";
+}
+
+function resolutionTone(
+  status: TopographyPatch["resolutions"][number]["status"],
+): TopologyTone {
+  if (status === "resolved") return "healthy";
+  if (status === "stale") return "stale";
+  if (status === "unsupported") return "unsupported";
+  if (status === "truncated") return "omitted";
+  if (status === "missing" || status === "unauthorized") return "blocked";
+  return "unknown";
+}
+
 function resolveObjectFocus(portfolio: WorkloadList, focusId: string): string {
   if (
     focusId.startsWith("workload:") ||
@@ -1075,6 +1955,7 @@ function node(
   width: number,
   tone: TopologyTone,
   workloadId?: string,
+  coordinateUri?: string,
 ): TopologyNode {
   return {
     id,
@@ -1087,6 +1968,7 @@ function node(
     width,
     tone,
     workload_id: workloadId,
+    coordinate_uri: coordinateUri,
   };
 }
 

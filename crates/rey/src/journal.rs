@@ -844,7 +844,7 @@ fn parse_canonical_coordinate(value: &str) -> Result<ParsedCoordinate, JournalEr
 }
 
 fn validate_explorer_scale(scale: f64) -> Result<(), JournalError> {
-    if scale.is_finite() && (0.55..=2.0).contains(&scale) {
+    if scale.is_finite() && (0.12..=5.4).contains(&scale) {
         Ok(())
     } else {
         Err(JournalError::ExplorerScale(scale))
@@ -1012,7 +1012,7 @@ pub enum JournalError {
     PercentEncoding(String),
     #[error("journal coordinate revision {coordinate} does not match binding {binding}")]
     CoordinateRevision { coordinate: String, binding: String },
-    #[error("journal Explorer scale must be finite within 0.55..=2, got {0}")]
+    #[error("journal Explorer scale must be finite within 0.12..=5.4, got {0}")]
     ExplorerScale(f64),
     #[error("journal timestamp is not RFC 3339: {0}")]
     Timestamp(String),
@@ -1243,7 +1243,7 @@ mod tests {
         );
 
         let mut invalid_scale = proposal();
-        invalid_scale.binding.scale = 0.54;
+        invalid_scale.binding.scale = 0.11;
         assert!(
             invalid_scale
                 .validate()
@@ -1251,6 +1251,11 @@ mod tests {
                 .to_string()
                 .contains("scale")
         );
+        for scale in [0.12, 5.4] {
+            let mut boundary = proposal();
+            boundary.binding.scale = scale;
+            boundary.validate().unwrap();
+        }
     }
 
     #[cfg(unix)]

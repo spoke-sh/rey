@@ -20,17 +20,20 @@ import { exploreStyles as styles } from "./stylex/explore.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 import {
   DEFAULT_LENS_ZOOM,
+  EVIDENCE_LENS_ZOOM,
+  LANDSCAPE_LENS_ZOOM,
   MAX_LENS_ZOOM,
   MIN_LENS_ZOOM,
   NEIGHBORHOOD_LENS_ZOOM,
   OBJECT_LENS_ZOOM,
-  TOPOLOGY_WORLD,
   buildTopologyScene,
   clampLensZoom,
+  lensRegimeForZoom,
   stepLensZoom,
   type LensRegime,
   type TopologyEdge,
   type TopologyNode,
+  type TopologyPointOfInterest,
   type TopologyScene,
   type TopologyTone,
 } from "./topology";
@@ -44,6 +47,11 @@ interface Point {
   x: number;
   y: number;
 }
+
+type FocusableTopologyObject = Pick<
+  TopologyNode | TopologyPointOfInterest,
+  "focus_id" | "x" | "y"
+>;
 
 const zeroPoint: Point = { x: 0, y: 0 };
 
@@ -83,11 +91,25 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   );
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const retainedRegime = useRef<LensRegime | undefined>(undefined);
+  const regime = lensRegimeForZoom(zoom, retainedRegime.current);
+  useEffect(() => {
+    retainedRegime.current = regime;
+  }, [regime]);
   const scene = useMemo(
-    () => buildTopologyScene(portfolio, zoom, focusId),
-    [focusId, portfolio, zoom],
+    () => buildTopologyScene(portfolio, zoom, focusId, regime),
+    [focusId, portfolio, regime, zoom],
   );
-  const renderedScale = fitScale * (zoom / DEFAULT_LENS_ZOOM);
+  const regimeBase = {
+    atlas: DEFAULT_LENS_ZOOM,
+    landscape: LANDSCAPE_LENS_ZOOM,
+    neighborhoods: NEIGHBORHOOD_LENS_ZOOM,
+    objects: OBJECT_LENS_ZOOM,
+    evidence: EVIDENCE_LENS_ZOOM,
+  }[scene.regime];
+  const renderedScale = scene.terrain
+    ? fitScale * (zoom / DEFAULT_LENS_ZOOM)
+    : fitScale * Math.min(1.16, Math.max(0.84, zoom / regimeBase));
 
   useEffect(() => {
     if (!coordinate) return;
@@ -102,8 +124,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     const measure = () => {
       const { width, height } = viewport.getBoundingClientRect();
       const next = Math.min(
-        Math.max(0.2, (width - 36) / TOPOLOGY_WORLD.width),
-        Math.max(0.2, (height - 36) / TOPOLOGY_WORLD.height),
+        Math.max(0.2, (width - 36) / scene.fit_world.width),
+        Math.max(0.2, (height - 36) / scene.fit_world.height),
         1,
       );
       setFitScale(next);
@@ -112,7 +134,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     const observer = new ResizeObserver(measure);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, []);
+  }, [scene.fit_world.height, scene.fit_world.width]);
 
   useEffect(() => {
     const syncFullscreen = () =>
@@ -141,12 +163,22 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     setZoom(boundedZoom);
   };
 
-  const focusNode = (node: TopologyNode) => {
+  const focusNode = (node: FocusableTopologyObject) => {
     if (dragRef.current?.distance && dragRef.current.distance > 4) return;
+    let nextZoom = zoom;
+    if (scene.regime === "atlas") nextZoom = LANDSCAPE_LENS_ZOOM;
+    else if (scene.regime === "landscape") nextZoom = NEIGHBORHOOD_LENS_ZOOM;
+    else if (scene.regime === "neighborhoods") nextZoom = OBJECT_LENS_ZOOM;
+    else if (scene.regime === "objects") nextZoom = EVIDENCE_LENS_ZOOM;
     setFocusId(node.focus_id);
-    setPan(zeroPoint);
-    if (scene.regime === "landscape") setZoom(NEIGHBORHOOD_LENS_ZOOM);
-    else if (scene.regime === "neighborhoods") setZoom(OBJECT_LENS_ZOOM);
+    if (scene.terrain) {
+      const nextScale = fitScale * (nextZoom / DEFAULT_LENS_ZOOM);
+      setPan({
+        x: -(node.x - scene.world.width / 2) * nextScale,
+        y: -(node.y - scene.world.height / 2) * nextScale,
+      });
+    } else setPan(zeroPoint);
+    setZoom(nextZoom);
   };
 
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
@@ -221,9 +253,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   };
 
   const sceneStyle = {
-    height: TOPOLOGY_WORLD.height,
+    "--rey-terrain-counter-scale": scene.terrain ? DEFAULT_LENS_ZOOM / zoom : 1,
+    height: scene.world.height,
     transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${renderedScale})`,
-    width: TOPOLOGY_WORLD.width,
+    width: scene.world.width,
   } as CSSProperties;
 
   return (
@@ -247,6 +280,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         aria-label="Interactive context topology map. Drag to pan, use the mouse wheel or plus and minus keys to move through semantic lens levels."
         className={sx(
           styles.canvasViewport,
+          scene.terrain && styles.terrainViewport,
           isDragging && styles.canvasViewportDragging,
         )}
         onKeyDown={handleKeyDown}
@@ -272,6 +306,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           </span>
         </div>
         <div className={sx(styles.lensLegend)}>
+          <LensStep active={scene.regime === "atlas"} label="ATLAS" />
+          <i className={sx(styles.legendLine)} />
           <LensStep active={scene.regime === "landscape"} label="LANDSCAPE" />
           <i className={sx(styles.legendLine)} />
           <LensStep
@@ -280,6 +316,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           />
           <i className={sx(styles.legendLine)} />
           <LensStep active={scene.regime === "objects"} label="OBJECTS" />
+          <i className={sx(styles.legendLine)} />
+          <LensStep active={scene.regime === "evidence"} label="EVIDENCE" />
         </div>
       </div>
       <footer className={sx(styles.canvasFooter)}>
@@ -372,14 +410,25 @@ function SemanticLens({
   onFocus,
   scene,
 }: {
-  onFocus: (node: TopologyNode) => void;
+  onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
 }) {
   return (
-    <div className={sx(styles.projection)} data-lens-regime={scene.regime}>
+    <div
+      className={sx(
+        styles.projection,
+        scene.terrain && styles.terrainProjection,
+      )}
+      data-lens-regime={scene.regime}
+    >
       {scene.regions.map((region) => (
         <div
-          className={sx(styles.region, toneStyle(region.tone, "region"))}
+          className={sx(
+            styles.region,
+            region.variant === "map-boundary" && styles.mapBoundary,
+            region.variant === "map-zone" && styles.mapZone,
+            toneStyle(region.tone, "region"),
+          )}
           key={region.id}
           style={{
             height: region.height,
@@ -392,11 +441,27 @@ function SemanticLens({
           <small>{region.detail}</small>
         </div>
       ))}
-      <EdgeLayer edges={scene.edges} nodes={scene.nodes} />
+      <ReliefLayer scene={scene} />
+      <EdgeLayer
+        edges={scene.edges}
+        nodes={scene.nodes}
+        points={scene.points}
+        terrain={scene.terrain}
+        world={scene.world}
+      />
+      {scene.points.map((point) => (
+        <PointOfInterest
+          key={point.id}
+          onFocus={onFocus}
+          point={point}
+          regime={scene.regime}
+        />
+      ))}
       {scene.nodes.map((node) => (
         <TopologyObject
+          counterScale={scene.terrain}
           key={node.id}
-          linkToWorkload={scene.regime === "objects"}
+          linkToWorkload={scene.regime === "objects" && !scene.terrain}
           node={node}
           onFocus={onFocus}
         />
@@ -405,19 +470,64 @@ function SemanticLens({
   );
 }
 
+function ReliefLayer({ scene }: { scene: TopologyScene }) {
+  if (scene.contours.length === 0) return null;
+  return (
+    <svg
+      aria-label={`${scene.contours.length} anchor-derived terrain contour levels`}
+      className={sx(styles.reliefLayer)}
+      role="img"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>
+        Relief height is derived from admitted anchor and classified-edge
+        influence. It does not assert semantic similarity.
+      </title>
+      {scene.contours.map((contour) => (
+        <path
+          className={sx(
+            styles.reliefContour,
+            contour.level >= 6 && styles.reliefContourPeak,
+            contour.level <= 2 && styles.reliefContourLow,
+          )}
+          d={contour.path}
+          data-anchor-count={contour.anchor_count}
+          data-relief-level={contour.level}
+          key={contour.id}
+          style={{
+            strokeDasharray:
+              contour.level <= 2
+                ? "calc(3px * var(--rey-terrain-counter-scale)) calc(3px * var(--rey-terrain-counter-scale))"
+                : undefined,
+            strokeWidth: `calc(${contour.level >= 6 ? 1.55 : 1.15}px * var(--rey-terrain-counter-scale))`,
+          }}
+        />
+      ))}
+    </svg>
+  );
+}
+
 function EdgeLayer({
   edges,
   nodes,
+  points,
+  terrain,
+  world,
 }: {
   edges: TopologyEdge[];
   nodes: TopologyNode[];
+  points: TopologyPointOfInterest[];
+  terrain: boolean;
+  world: TopologyScene["world"];
 }) {
-  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const byId = new Map(
+    [...nodes, ...points].map((candidate) => [candidate.id, candidate]),
+  );
   return (
     <svg
       aria-hidden="true"
       className={sx(styles.edgeLayer)}
-      viewBox={`0 0 ${TOPOLOGY_WORLD.width} ${TOPOLOGY_WORLD.height}`}
+      viewBox={`0 0 ${world.width} ${world.height}`}
     >
       <defs>
         <marker
@@ -447,7 +557,18 @@ function EdgeLayer({
                 edge.kind === "directs" && styles.edgeDirects,
                 edge.kind === "contains" && styles.edgeContains,
               )}
-              markerEnd="url(#topology-arrow)"
+              markerEnd={terrain ? undefined : "url(#topology-arrow)"}
+              style={
+                terrain
+                  ? {
+                      strokeDasharray:
+                        edge.kind === "contains"
+                          ? "calc(6px * var(--rey-terrain-counter-scale)) calc(5px * var(--rey-terrain-counter-scale))"
+                          : undefined,
+                      strokeWidth: `calc(${edge.kind === "directs" ? 2.4 : 1.5}px * var(--rey-terrain-counter-scale))`,
+                    }
+                  : undefined
+              }
               x1={from.x}
               x2={to.x}
               y1={from.y}
@@ -455,6 +576,15 @@ function EdgeLayer({
             />
             <text
               className={sx(styles.edgeLabel)}
+              style={
+                terrain
+                  ? {
+                      fontSize: "calc(9px * var(--rey-terrain-counter-scale))",
+                      strokeWidth:
+                        "calc(5px * var(--rey-terrain-counter-scale))",
+                    }
+                  : undefined
+              }
               textAnchor="middle"
               x={midpoint.x}
               y={midpoint.y - 7}
@@ -468,19 +598,77 @@ function EdgeLayer({
   );
 }
 
+function PointOfInterest({
+  onFocus,
+  point,
+  regime,
+}: {
+  onFocus: (point: TopologyPointOfInterest) => void;
+  point: TopologyPointOfInterest;
+  regime: LensRegime;
+}) {
+  const showLabel =
+    regime === "atlas"
+      ? point.prominence >= 3
+      : regime === "landscape"
+        ? point.prominence >= 2
+        : true;
+  const showDetail =
+    regime === "neighborhoods" || regime === "objects" || regime === "evidence";
+  return (
+    <button
+      aria-label={`${point.family} point of interest: ${point.label}`}
+      className={sx(
+        styles.pointOfInterest,
+        point.kind === "frontier" && styles.frontierPoint,
+        point.prominence >= 3 && styles.prominentPoint,
+      )}
+      data-prominence={point.prominence}
+      onClick={() => onFocus(point)}
+      style={{ left: point.x, top: point.y }}
+      type="button"
+    >
+      <i
+        className={sx(
+          styles.pointMarker,
+          point.kind === "frontier" && styles.frontierMarker,
+        )}
+        aria-hidden="true"
+      />
+      {showLabel ? (
+        <span className={sx(styles.pointLabel)}>
+          <small className={sx(styles.pointFamily)}>{point.family}</small>
+          <strong className={sx(styles.pointName)}>{point.label}</strong>
+          {showDetail ? (
+            <em className={sx(styles.pointDetail)}>{point.detail}</em>
+          ) : null}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function TopologyObject({
+  counterScale,
   linkToWorkload,
   node,
   onFocus,
 }: {
+  counterScale: boolean;
   linkToWorkload: boolean;
   node: TopologyNode;
-  onFocus: (node: TopologyNode) => void;
+  onFocus: (node: FocusableTopologyObject) => void;
 }) {
   const className = sx(styles.topologyObject, toneStyle(node.tone, "node"));
   const style = {
     left: node.x,
     top: node.y,
+    ...(counterScale
+      ? {
+          transform:
+            "translate(-50%, -50%) scale(var(--rey-terrain-counter-scale))",
+        }
+      : {}),
     width: node.width,
   } as CSSProperties;
   const content = (
@@ -489,12 +677,26 @@ function TopologyObject({
       <strong className={sx(styles.objectLabel)}>{node.label}</strong>
       <small className={sx(styles.objectDetail)}>{node.detail}</small>
       <span className={sx(styles.objectAction)}>
-        {linkToWorkload && node.workload_id
-          ? "OPEN RECORD ↗"
-          : "FOCUS / ZOOM →"}
+        {node.coordinate_uri
+          ? "OPEN COORDINATE ↗"
+          : linkToWorkload && node.workload_id
+            ? "OPEN RECORD ↗"
+            : "FOCUS / ZOOM →"}
       </span>
     </>
   );
+
+  if (node.coordinate_uri) {
+    return (
+      <a
+        className={className}
+        href={`/explore?coordinate=${encodeURIComponent(node.coordinate_uri)}&scale=${OBJECT_LENS_ZOOM}`}
+        style={style}
+      >
+        {content}
+      </a>
+    );
+  }
 
   if (linkToWorkload && node.workload_id) {
     return (
@@ -530,9 +732,11 @@ function LensStep({ active, label }: { active: boolean; label: string }) {
 }
 
 function lensLabel(regime: LensRegime): string {
+  if (regime === "atlas") return "ORBITAL";
   if (regime === "landscape") return "TELESCOPE";
   if (regime === "neighborhoods") return "MESOSCOPIC";
-  return "MICROSCOPE";
+  if (regime === "objects") return "MICROSCOPE";
+  return "EVIDENTIARY";
 }
 
 function toneStyle(tone: TopologyTone, kind: "node" | "region") {
@@ -541,11 +745,21 @@ function toneStyle(tone: TopologyTone, kind: "node" | "region") {
     if (tone === "attention" || tone === "blocked")
       return styles.regionAttention;
     if (tone === "healthy") return styles.regionHealthy;
+    if (tone === "unknown") return styles.regionUnknown;
+    if (tone === "omitted") return styles.regionOmitted;
+    if (tone === "stale") return styles.regionStale;
+    if (tone === "unsupported") return styles.regionUnsupported;
+    if (tone === "frontier") return styles.regionFrontier;
     return styles.regionNeutral;
   }
   if (tone === "accent") return styles.objectAccent;
   if (tone === "attention") return styles.objectAttention;
   if (tone === "blocked") return styles.objectBlocked;
   if (tone === "healthy") return styles.objectHealthy;
+  if (tone === "unknown") return styles.objectUnknown;
+  if (tone === "omitted") return styles.objectOmitted;
+  if (tone === "stale") return styles.objectStale;
+  if (tone === "unsupported") return styles.objectUnsupported;
+  if (tone === "frontier") return styles.objectFrontier;
   return styles.objectNeutral;
 }

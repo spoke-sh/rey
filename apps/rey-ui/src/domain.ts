@@ -57,8 +57,143 @@ export interface WorkloadSummary {
   relation_deltas: number;
   reasoning_surfaces: number;
   attention_rows: number;
+  topography_results: number;
+  topography_revision: string | null;
+  topography_coverage: TopographyCoverage | null;
+  topography_frontier_rows: number;
+  topography_patch: TopographyPatch | null;
   last_run_status: "passed" | "blocked" | null;
   last_test_result_id: string | null;
+}
+
+export type TopographyRegionState =
+  | "surveyed"
+  | "surveyed_empty"
+  | "unexplored"
+  | "omitted"
+  | "stale"
+  | "unsupported"
+  | "frontier";
+
+export type LocatorResolutionStatus =
+  | "resolved"
+  | "missing"
+  | "stale"
+  | "unsupported"
+  | "unauthorized"
+  | "malformed"
+  | "truncated";
+
+export interface CoordinateBinding {
+  schema: string;
+  binding_id: string;
+  profile: "local_standalone" | "spoke_public";
+  provider: ContractIdentity;
+  coordinate: string;
+  identity_class: "immutable" | "revision_bound" | "mutable";
+  source_revision: string;
+  retention: string;
+}
+
+export interface TopographyCoverage {
+  requested_seeds: number;
+  surveyed_seeds: number;
+  surveyed_empty_seeds: number;
+  missing_seeds: number;
+  omitted_seeds: number;
+  candidates: number;
+  unique_candidates: number;
+  resolved_candidates: number;
+  unresolved_candidates: number;
+}
+
+export interface TopographyPatch {
+  schema: "rey.topography-patch.v1";
+  patch_id: string;
+  topography_revision: string;
+  prior_topography_revision: string;
+  workload: ContractIdentity;
+  graph: ContractIdentity;
+  scenario: ContractIdentity | null;
+  campaign_id: string;
+  execution_id: string;
+  operation: ContractIdentity;
+  implementation: ContractIdentity;
+  provider: ContractIdentity;
+  capability_snapshot_id: string;
+  complete: boolean;
+  seeds: Array<{
+    path: string;
+    state:
+      "surveyed" | "surveyed_empty" | "missing" | "omitted" | "unsupported";
+    source_revision: string | null;
+    coordinate: CoordinateBinding | null;
+    candidate_count: number;
+    detail: string;
+  }>;
+  candidates: Array<{
+    candidate_id: string;
+    seed_coordinate: string;
+    seed_revision: string;
+    raw: string;
+    relationship: string;
+    duplicate: boolean;
+  }>;
+  resolutions: Array<{
+    resolution_id: string;
+    candidate: string;
+    status: LocatorResolutionStatus;
+    coordinate: CoordinateBinding | null;
+    source_revision: string;
+    complete: boolean;
+    detail: string;
+  }>;
+  anchors: Array<{
+    anchor_id: string;
+    coordinate: CoordinateBinding;
+    kind: "workspace" | "file" | "document" | "external_resource";
+    label: string;
+    source_revision: string;
+  }>;
+  edges: Array<{
+    edge_id: string;
+    source_coordinate: string;
+    target_coordinate: string;
+    kind: "contains" | "references";
+    locator: string;
+    evidence_revision: string;
+  }>;
+  regions: Array<{
+    region_id: string;
+    coordinate: string;
+    state: TopographyRegionState;
+    surveyed_seeds: number;
+    candidate_count: number;
+    detail: string;
+  }>;
+  coverage: TopographyCoverage;
+  frontier: Array<{
+    row_id: string;
+    source_coordinate: string;
+    locator: string;
+    status: LocatorResolutionStatus;
+    reason: string;
+  }>;
+  omissions: Array<{
+    kind: string;
+    subject: string;
+    omitted_count: number;
+    reason: string;
+  }>;
+  lineage: Array<{ kind: string; identity: string; revision: string }>;
+  delta: {
+    delta_id: string;
+    source_revision: string;
+    target_revision: string;
+    inserted: number;
+    deleted: number;
+    modified: number;
+  };
 }
 
 export interface WorkloadDraft {

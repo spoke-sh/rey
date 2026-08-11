@@ -159,6 +159,11 @@ function workload(): WorkloadSummary {
     relation_deltas: 1,
     reasoning_surfaces: 1,
     attention_rows: 0,
+    topography_results: 0,
+    topography_revision: null,
+    topography_coverage: null,
+    topography_frontier_rows: 0,
+    topography_patch: null,
     last_run_status: "passed",
     last_test_result_id: "test:alpha",
   };
@@ -166,7 +171,7 @@ function workload(): WorkloadSummary {
 
 function emptyPortfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v5",
+    schema: "rey.workload-list.v6",
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",

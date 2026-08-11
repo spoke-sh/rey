@@ -8,7 +8,16 @@ import {
 import { MAX_LENS_ZOOM, MIN_LENS_ZOOM, OBJECT_LENS_ZOOM } from "./topology";
 
 export type ExplorerCoordinateKind =
-  "agent" | "attention" | "cluster" | "portfolio" | "workload";
+  | "agent"
+  | "attention"
+  | "cluster"
+  | "document"
+  | "external_resource"
+  | "file"
+  | "portfolio"
+  | "topography"
+  | "workload"
+  | "workspace";
 
 export interface ExplorerCoordinate {
   scheme: "rey+local";
@@ -34,8 +43,13 @@ const kinds = new Set<ExplorerCoordinateKind>([
   "agent",
   "attention",
   "cluster",
+  "document",
+  "external_resource",
+  "file",
   "portfolio",
+  "topography",
   "workload",
+  "workspace",
 ]);
 const roles = new Set<GeneratorProvenance["kind"]>([
   "coding_harness",
@@ -179,6 +193,35 @@ export function resolveExplorerView(
         )}`;
     actualRevision = agent?.producer_revision ?? null;
     present = Boolean(agent);
+  } else if (
+    coordinate.kind === "file" ||
+    coordinate.kind === "document" ||
+    coordinate.kind === "external_resource" ||
+    coordinate.kind === "workspace"
+  ) {
+    const located = portfolio.workloads.flatMap((workload) =>
+      (workload.topography_patch?.anchors ?? []).flatMap((anchor) =>
+        (() => {
+          const bound = parseExplorerCoordinate(anchor.coordinate.coordinate);
+          return bound?.kind === coordinate.kind &&
+            bound.identity === coordinate.identity
+            ? [{ workload, anchor }]
+            : [];
+        })(),
+      ),
+    )[0];
+    focusId = located
+      ? `anchor:${located.workload.workload.id}:${located.anchor.anchor_id}`
+      : `${coordinate.kind}:${coordinate.identity}`;
+    actualRevision = located?.anchor.source_revision ?? null;
+    present = Boolean(located);
+  } else if (coordinate.kind === "topography") {
+    const workload = portfolio.workloads.find(
+      (candidate) => candidate.workload.id === coordinate.identity,
+    );
+    focusId = `topography:${coordinate.identity}`;
+    actualRevision = workload?.topography_revision ?? null;
+    present = Boolean(workload?.topography_patch);
   } else if (coordinate.kind === "cluster") {
     present = [
       "agents",

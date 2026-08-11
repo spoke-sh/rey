@@ -7,12 +7,14 @@ use std::{
 
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_environment::{CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
+use rey_mining::{TopographyCoverage, TopographyPatch};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
-    ComputeGraph, GraphLimits, GraphNode, GraphOutput, PortfolioError, PortfolioLimits,
-    PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
-    PortfolioWorkloadObservation, QualificationRecord, RunStatus, Scenario, ScenarioSuite,
-    TestStatus, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
+    CONTEXT_ANCHOR_SURVEY_OPERATION_ID, ComputeGraph, GraphLimits, GraphNode, GraphOutput,
+    PortfolioError, PortfolioLimits, PortfolioQualificationState, PortfolioSnapshot,
+    PortfolioSurfaceObservation, PortfolioWorkloadObservation, QualificationRecord,
+    RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite, TestStatus,
+    TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
     WorkloadDefinitionParts, WorkloadLimits, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
     WorkloadValue, built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
 };
@@ -20,15 +22,15 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v2";
-pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v5";
-pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v5";
-pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v5";
-pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v4";
+pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v6";
+pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v6";
+pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v6";
+pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v5";
 pub const WORKLOAD_PACKAGE_SCHEMA: &str = "rey.workload-package.v1";
 pub const WORKLOAD_CREATION_REQUEST_SCHEMA: &str = "rey.workload-creation-request.v1";
 pub const WORKLOAD_CREATE_RESULT_SCHEMA: &str = "rey.workload-create-result.v1";
 pub const WORKLOAD_CATALOG_SCHEMA: &str = "rey.workload-catalog.v2";
-pub const WORKLOAD_RUN_VIEW_SCHEMA: &str = "rey.workload-run-view.v2";
+pub const WORKLOAD_RUN_VIEW_SCHEMA: &str = "rey.workload-run-view.v3";
 
 const STATE_FILE_NAME: &str = "state.json";
 const MAX_STATE_BYTES: u64 = 4 * 1_024 * 1_024;
@@ -887,6 +889,8 @@ struct SuppliedScenario {
     required: bool,
     inputs: BTreeMap<String, String>,
     expected: BTreeMap<String, String>,
+    #[serde(default)]
+    survey: Option<TopographySurveyScenario>,
 }
 
 impl SuppliedWorkloadPackage {
@@ -926,12 +930,17 @@ impl SuppliedWorkloadPackage {
             .nodes
             .into_iter()
             .map(|node| {
-                if node.value_type != ValueType::Utf8
-                    || !matches!(
-                        node.operation.id.as_str(),
-                        "rey.builtin.utf8.trim" | "rey.builtin.utf8.uppercase"
-                    )
-                {
+                let supported = matches!(
+                    (node.operation.id.as_str(), node.value_type),
+                    (
+                        "rey.builtin.utf8.trim" | "rey.builtin.utf8.uppercase",
+                        ValueType::Utf8
+                    ) | (
+                        CONTEXT_ANCHOR_SURVEY_OPERATION_ID,
+                        ValueType::TopographyPatch
+                    ) | (RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, ValueType::Utf8)
+                );
+                if !supported {
                     return Err(WorkloadCatalogError::UnsupportedPackageOperation(
                         node.operation.id,
                     ));
@@ -970,22 +979,35 @@ impl SuppliedWorkloadPackage {
             .cases
             .into_iter()
             .map(|scenario| {
-                Scenario::new_versioned(
-                    &format!("{}.scenario.{}", self.workload.id, scenario.id),
-                    scenario.revision,
-                    scenario.required,
-                    scenario
-                        .inputs
-                        .into_iter()
-                        .map(|(id, value)| (id, WorkloadValue::Utf8(value)))
-                        .collect(),
-                    scenario
-                        .expected
-                        .into_iter()
-                        .map(|(id, value)| (id, WorkloadValue::Utf8(value)))
-                        .collect(),
-                    None,
-                )
+                let id = format!("{}.scenario.{}", self.workload.id, scenario.id);
+                let inputs = scenario
+                    .inputs
+                    .into_iter()
+                    .map(|(id, value)| (id, WorkloadValue::Utf8(value)))
+                    .collect();
+                let expected = scenario
+                    .expected
+                    .into_iter()
+                    .map(|(id, value)| (id, WorkloadValue::Utf8(value)))
+                    .collect();
+                match scenario.survey {
+                    Some(survey) => Scenario::new_versioned_topography(
+                        &id,
+                        scenario.revision,
+                        scenario.required,
+                        inputs,
+                        expected,
+                        survey,
+                    ),
+                    None => Scenario::new_versioned(
+                        &id,
+                        scenario.revision,
+                        scenario.required,
+                        inputs,
+                        expected,
+                        None,
+                    ),
+                }
             })
             .collect();
         let scenario_suite =
@@ -1441,6 +1463,11 @@ pub struct WorkloadSummary {
     pub reasoning_surfaces: u64,
     pub attention_results: u64,
     pub attention_rows: u64,
+    pub topography_results: u64,
+    pub topography_revision: Option<SemanticDigest>,
+    pub topography_coverage: Option<TopographyCoverage>,
+    pub topography_frontier_rows: u64,
+    pub topography_patch: Option<TopographyPatch>,
 }
 
 impl WorkloadSummary {
@@ -1497,6 +1524,7 @@ impl WorkloadSummary {
             .iter()
             .filter(|operation| {
                 operation.id.starts_with("rey.source-")
+                    || operation.id == CONTEXT_ANCHOR_SURVEY_OPERATION_ID
                     || operation.id == "rey.portfolio.attention.derive"
             })
             .count() as u64;
@@ -1514,8 +1542,6 @@ impl WorkloadSummary {
                     == rey_mining::MiningCompleteness::Complete
             })
             .count() as u64;
-        let incomplete_mining_results =
-            source_mining_results.saturating_sub(complete_source_mining_results);
         let reasoning_surfaces = mining
             .iter()
             .filter(|evidence| evidence.reasoning.is_some())
@@ -1531,9 +1557,34 @@ impl WorkloadSummary {
             .iter()
             .map(|attention| attention.rows.len() as u64)
             .sum();
-        let mining_results = source_mining_results.saturating_add(attention_results);
-        let complete_mining_results =
-            complete_source_mining_results.saturating_add(attention_results);
+        let test_topography = retained_test
+            .filter(|result| result.verify_for(workload).is_ok())
+            .into_iter()
+            .flat_map(|result| &result.scenarios)
+            .flat_map(|scenario| &scenario.topography)
+            .collect::<Vec<_>>();
+        let run_topography = record
+            .and_then(|record| record.last_run.as_ref())
+            .filter(|run| run.workload == workload.workload && run.graph == workload.graph.graph)
+            .into_iter()
+            .flat_map(|run| &run.topography)
+            .collect::<Vec<_>>();
+        let topography_results = test_topography.len().saturating_add(run_topography.len()) as u64;
+        let complete_topography = test_topography
+            .iter()
+            .chain(&run_topography)
+            .filter(|patch| patch.complete)
+            .count() as u64;
+        let last_patch = run_topography
+            .last()
+            .copied()
+            .or_else(|| test_topography.last().copied());
+        let mining_results = source_mining_results
+            .saturating_add(attention_results)
+            .saturating_add(topography_results);
+        let complete_mining_results = complete_source_mining_results
+            .saturating_add(attention_results)
+            .saturating_add(complete_topography);
         Self {
             provenance: None,
             workload: workload.workload.clone(),
@@ -1558,11 +1609,18 @@ impl WorkloadSummary {
             mining_operations,
             mining_results,
             complete_mining_results,
-            incomplete_mining_results,
-            relation_deltas: source_mining_results.saturating_add(attention_results),
+            incomplete_mining_results: mining_results.saturating_sub(complete_mining_results),
+            relation_deltas: source_mining_results
+                .saturating_add(attention_results)
+                .saturating_add(topography_results),
             reasoning_surfaces,
             attention_results,
             attention_rows,
+            topography_results,
+            topography_revision: last_patch.map(|patch| patch.topography_revision.clone()),
+            topography_coverage: last_patch.map(|patch| patch.coverage.clone()),
+            topography_frontier_rows: last_patch.map_or(0, |patch| patch.frontier.len() as u64),
+            topography_patch: last_patch.cloned(),
         }
     }
 

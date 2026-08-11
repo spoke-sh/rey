@@ -15,7 +15,7 @@ describe("collaboration Journal", () => {
   it("binds new entries to the exact current portfolio coordinate", () => {
     expect(defaultJournalBinding(portfolio())).toEqual({
       coordinate: "rey+local://portfolio/current?revision=blake3%3Asource",
-      scale: 0.68,
+      scale: 0.26,
       source_revision: "blake3:source",
     });
   });
@@ -138,7 +138,7 @@ function entry(): RetainedJournalEntry {
 
 function portfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v5",
+    schema: "rey.workload-list.v6",
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",

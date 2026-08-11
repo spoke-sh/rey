@@ -115,9 +115,26 @@ These are level-of-detail projections, not five different graphs. A source
 identity and its selected coordinate survive every transition. A projection
 may aggregate, cluster, label, or omit under declared bounds; it may not invent
 terrain, change assessment, or imply a relationship from spatial proximity.
-The hard-cut implementation retains the current `0.55..=2` camera bound and
-three middle projection grammars while using a continuous numeric `scale` in
-every exact link. Plan 0017 widens that bound and adds Atlas and Evidence.
+The hard-cut implementation accepts a `0.12..=5.4` camera scale, projects all
+five levels, and carries the continuous numeric `scale` in every exact view
+link.
+
+The Atlas and Landscape visual primitive is a terrain-style relief layer, not
+a dashboard of region summaries. Rey derives a bounded scalar height field
+from admitted anchor prominence and exact classified edges, then extracts
+nested contour isolines. Anchors remain stable points of interest over that
+relief. Zoom adds labels, boundaries, classified relationships, objects, and
+evidence to the same scene rather than replacing it with an unrelated layout.
+As additional admitted patches enlarge the bounded world, zooming out reveals
+additional survey scenes.
+
+The current zero-Spoke layout is relational, not semantic: deterministic
+positions come from admitted anchor and edge topology. Relief therefore means
+anchor concentration and classified connectivity only. It does not claim that
+screen distance is language similarity. A high-dimensional language or
+embedding provider must bind its coordinate system, model and implementation
+revision, projection, limits, and omissions before semantic distance may
+become an observed relief input.
 
 ### Incremental topography
 

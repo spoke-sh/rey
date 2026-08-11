@@ -10,7 +10,7 @@ import {
 } from "./explorer-coordinate";
 
 const portfolio: WorkloadList = {
-  schema: "rey.workload-list.v5",
+  schema: "rey.workload-list.v6",
   catalog: {
     schema: "rey.workload-catalog.v2",
     kind: "workspace_packages",
@@ -58,6 +58,11 @@ const portfolio: WorkloadList = {
       relation_deltas: 0,
       reasoning_surfaces: 0,
       attention_rows: 0,
+      topography_results: 0,
+      topography_revision: null,
+      topography_coverage: null,
+      topography_frontier_rows: 0,
+      topography_patch: null,
       last_run_status: "passed",
       last_test_result_id: "test:1",
     },
@@ -99,10 +104,10 @@ describe("Explorer coordinate views", () => {
       "rey+local://agent/codex?revision=gpt-5&role=coding_harness",
     );
     expect(explorerViewPath(view)).toBe(
-      "/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=1.46",
+      "/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=2.05",
     );
     expect(
-      parseExplorerView(explorerCoordinateUri(view.coordinate), "1.46"),
+      parseExplorerView(explorerCoordinateUri(view.coordinate), "2.05"),
     ).toEqual(view);
   });
 
@@ -155,6 +160,51 @@ describe("Explorer coordinate views", () => {
       focus_id: "workload:rey.example",
       status: "stale",
       actual_revision: "workload:1",
+    });
+  });
+
+  it("deep-links patch anchors without executing a locator and reports stale revisions", () => {
+    const coordinate =
+      "rey+local://file/README.md?revision=blake3%3Acurrent-source";
+    const withPatch: WorkloadList = {
+      ...portfolio,
+      workloads: [
+        {
+          ...portfolio.workloads[0]!,
+          topography_results: 1,
+          topography_revision: "blake3:topography",
+          topography_patch: {
+            topography_revision: "blake3:topography",
+            anchors: [
+              {
+                anchor_id: "blake3:anchor",
+                coordinate: {
+                  coordinate,
+                  source_revision: "blake3:current-source",
+                },
+                source_revision: "blake3:current-source",
+              },
+            ],
+          } as unknown as NonNullable<
+            WorkloadList["workloads"][number]["topography_patch"]
+          >,
+        },
+      ],
+    };
+    const current = parseExplorerView(coordinate, "1.62");
+    const stale = parseExplorerView(
+      "rey+local://file/README.md?revision=blake3%3Aold-source",
+      "1.62",
+    );
+
+    expect(current && resolveExplorerView(withPatch, current)).toMatchObject({
+      focus_id: "anchor:rey.example:blake3:anchor",
+      status: "current",
+    });
+    expect(stale && resolveExplorerView(withPatch, stale)).toMatchObject({
+      focus_id: "anchor:rey.example:blake3:anchor",
+      status: "stale",
+      actual_revision: "blake3:current-source",
     });
   });
 });

@@ -34,6 +34,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] create <workload-id> [--ti
 rey workloads [--workspace PATH] [--catalog-dir PATH] list
 rey workloads [--workspace PATH] [--catalog-dir PATH] test [<workload-id>] [-v|-vv]
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
+rey workloads [--workspace PATH] [--catalog-dir PATH] run context-anchor-survey --source <path> [--source <path>...]
 rey workloads [--workspace PATH] [--catalog-dir PATH] status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
 rey ui [--workspace PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
@@ -74,6 +75,15 @@ workloads:
 
 These fixtures are runner/system conformance, not the user's product
 portfolio. They are available only with `--catalog conformance`.
+
+The default workspace catalog also contains the coding-harness-generated
+`context-anchor-survey` package. Its graph accepts declared seed names, runs
+the deterministic bounded survey operation, passes a typed topography patch to
+its renderer, and compares frozen human-readable evidence. `test -v|-vv`
+exposes progressively richer seed, resolution, anchor, edge, region, frontier,
+omission, limit, and lineage evidence. A qualified `run` requires explicit
+repeatable `--source` paths and retains one exact patch; `list`, `status`, and
+`GET /api/v1/workloads` project that retained state without surveying again.
 
 ## Workload Creation Request
 
@@ -123,8 +133,10 @@ admission:
 
 The complete executable example is
 [`workloads/portfolio-label-normalization/workload.yaml`](../workloads/portfolio-label-normalization/workload.yaml).
-V1 accepts only UTF-8 ports and exact built-in `trim` and `uppercase`
-operations. This is an admission surface, not arbitrary code loading.
+V1 public workload ports remain UTF-8. Its admitted internal node value types
+include UTF-8 and `topography_patch`, and its closed operation set includes the
+text conformance operations plus the exact survey and patch-render operations.
+This is an admission surface, not arbitrary code loading.
 Discovery is workspace-confined and count/byte bounded; unknown fields,
 unknown operations, duplicate workload ids, unsafe paths, and incomplete
 generation provenance fail closed.
@@ -363,7 +375,7 @@ FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · requi
 The final portfolio summary reports workload qualification, scenario
 conformance, scenario evaluation, delta assessments, and issued
 qualifications as separate dimensions. Verbosity is a human projection only:
-JSON always emits the same verified `rey.workload-test-batch.v4` envelope,
+JSON always emits the same verified `rey.workload-test-batch.v5` envelope,
 including catalog and proposal provenance.
 
 ## Running A Workload
@@ -392,6 +404,14 @@ zero or missing required bounds fail before execution. Other current workloads
 reject source-specific options. The human run view reports graph order, output
 size, completeness, consumption, exact corpus/request/capability bindings,
 each match and context deep link, and every omission.
+
+For `context-anchor-survey`, `--source` instead supplies the complete declared
+seed set. Run confines every regular-file read to the canonical workspace,
+rejects symlinks and escapes, binds the current environment capability
+snapshot, compares against the last retained patch when present, and retains
+one new directed patch. Candidate/resolution rows remain complete in JSON;
+the human table folds long row sets at a declared projection limit while
+reporting how many rows remain in the authoritative structured result.
 
 ## Scenario Progress
 

@@ -1,0 +1,146 @@
+schema: rey.workload-package.v1
+
+workload:
+  id: context-anchor-survey
+  revision: 1
+  title: Survey project context anchors
+  inputs:
+    - port_id: text
+      value_type: utf8
+  outputs:
+    - port_id: text
+      value_type: utf8
+
+generation:
+  kind: coding_harness
+  producer: codex
+  producer_revision: gpt-5
+  generated:
+    - compute_graph
+    - scenario_suite
+  inputs:
+    - source: workloads/context-anchor-survey/request.yaml
+      revision: blake3:71b970b1c12425ea90d5f932fe2d20ae4467751bd943e52ceb3666ee32c9b159
+    - source: plans/0017-incremental-context-topography.md
+      revision: git:f9e0a8c4daf2bc537f9e91d10bc8afd584878c6e
+    - source: docs/decisions/0041-continuous-coordinate-topography.md
+      revision: git:f9e0a8c4daf2bc537f9e91d10bc8afd584878c6e
+
+admission:
+  state: accepted
+  scenario_oracle: frozen
+
+graph:
+  id: context-anchor-survey.graph
+  revision: 1
+  nodes:
+    - id: survey
+      operation:
+        id: rey.context-anchor-survey.locate
+        revision: 1
+      input:
+        kind: external_input
+        input_id: text
+      value_type: topography_patch
+    - id: render
+      operation:
+        id: rey.topography-patch.render-lines
+        revision: 1
+      input:
+        kind: node_output
+        node_id: survey
+        output_id: value
+      value_type: utf8
+  outputs:
+    - id: text
+      source:
+        kind: node_output
+        node_id: render
+        output_id: value
+      value_type: utf8
+
+scenarios:
+  id: context-anchor-survey.scenarios
+  revision: 1
+  cases:
+    - id: bounded
+      revision: 1
+      required: false
+      inputs:
+        text: AGENTS.md
+      expected:
+        text: |-
+          TOPOGRAPHY PATCH
+          SEEDS 1/1 · EMPTY 0 · MISSING 0 · OMITTED 0
+          CANDIDATES 1 · UNIQUE 1 · RESOLVED 1 · FRONTIER 0
+          MAP 3 anchors · 2 edges · 3 regions · 1 omissions · bounded
+          DELTA SOURCE → TARGET · +8 -0 ~0
+          SEED AGENTS.md · surveyed · 1 candidates
+          LOCATOR README.md · resolved · rey+local://file/README.md?revision=blake3%3A3c11b21a41bb3e3399ac68a477b4f168d692c38c765d6c13c60b8662884e42a1
+          OMISSION candidate_limit · AGENTS.md · candidate limit 1 reached; remaining seed content was not interpreted
+      survey:
+        fixture_project: basic
+        seed_paths:
+          - AGENTS.md
+        limits:
+          max_seeds: 2
+          max_seed_bytes: 1048576
+          max_total_bytes: 8388608
+          max_candidates: 1
+          max_anchors: 4096
+          max_edges: 8192
+          max_regions: 256
+          max_frontier: 4096
+          max_omissions: 1024
+    - id: exact
+      revision: 1
+      required: true
+      inputs:
+        text: |-
+          AGENTS.md
+          README.md
+      expected:
+        text: |-
+          TOPOGRAPHY PATCH
+          SEEDS 2/2 · EMPTY 0 · MISSING 0 · OMITTED 0
+          CANDIDATES 9 · UNIQUE 7 · RESOLVED 3 · FRONTIER 5
+          MAP 4 anchors · 5 edges · 4 regions · 0 omissions · complete
+          DELTA SOURCE → TARGET · +18 -0 ~0
+          SEED AGENTS.md · surveyed · 7 candidates
+          SEED README.md · surveyed · 2 candidates
+          LOCATOR https://example.com/reference · unsupported · no network URI resolver is admitted for this survey
+          LOCATOR ../../outside.md · unauthorized · reference escapes the admitted workspace root
+          LOCATOR docs/GUIDE.md · resolved · rey+local://file/docs%2FGUIDE.md?revision=blake3%3Aaea4ca5b01e503c84ce2593e3813e082a2f5015762277ddeb972a78d24d8d248
+          LOCATOR https://example.com/%zz · malformed · candidate is not a canonical supported locator
+          LOCATOR docs/MISSING.md · missing · reference target is missing
+          LOCATOR README.md · resolved · rey+local://file/README.md?revision=blake3%3A3c11b21a41bb3e3399ac68a477b4f168d692c38c765d6c13c60b8662884e42a1
+          LOCATOR docs/GUIDE.md · resolved · rey+local://file/docs%2FGUIDE.md?revision=blake3%3Aaea4ca5b01e503c84ce2593e3813e082a2f5015762277ddeb972a78d24d8d248
+          LOCATOR https://example.org/spec · unsupported · no network URI resolver is admitted for this survey
+      survey:
+        fixture_project: basic
+        seed_paths:
+          - AGENTS.md
+          - README.md
+    - id: missing-seed
+      revision: 1
+      required: true
+      inputs:
+        text: |-
+          README.md
+          README.rst
+      expected:
+        text: |-
+          TOPOGRAPHY PATCH
+          SEEDS 1/2 · EMPTY 0 · MISSING 1 · OMITTED 0
+          CANDIDATES 2 · UNIQUE 2 · RESOLVED 1 · FRONTIER 1
+          MAP 3 anchors · 2 edges · 4 regions · 0 omissions · complete
+          DELTA SOURCE → TARGET · +10 -0 ~0
+          SEED README.md · surveyed · 2 candidates
+          SEED README.rst · missing · 0 candidates
+          LOCATOR docs/GUIDE.md · resolved · rey+local://file/docs%2FGUIDE.md?revision=blake3%3Aaea4ca5b01e503c84ce2593e3813e082a2f5015762277ddeb972a78d24d8d248
+          LOCATOR https://example.org/spec · unsupported · no network URI resolver is admitted for this survey
+      survey:
+        fixture_project: basic
+        seed_paths:
+          - README.md
+          - README.rst

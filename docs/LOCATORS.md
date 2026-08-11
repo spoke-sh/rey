@@ -35,9 +35,11 @@ rey+local://agent/codex?revision=gpt-5&role=coding_harness
 spoke+local://<provider-owned-identity>
 ```
 
-These examples establish families, not an implemented universal parser. Rey
-must not reinterpret a provider-owned Spoke locator or claim global uniqueness
-without that provider's public contract.
+These examples establish families, not an implemented universal parser. The
+implemented `rey-locator` slice parses canonical workspace references and
+HTTP/HTTPS candidates and emits `rey+local://...` bindings. Rey must not
+reinterpret a provider-owned Spoke locator or claim global uniqueness without
+that provider's public contract.
 
 ## Resolution
 
@@ -51,24 +53,28 @@ Relative filesystem strings are not portable locators until they are bound to
 an exact workspace or Git identity. Display shortcuts may shorten revisions,
 but semantic identity always retains the complete revision.
 
-## Library Bearing
+## Implemented Library Slice
 
-The next implementation slice should add a dependency-light `rey-locator`
-crate with:
+The dependency-light `rey-locator` crate now implements:
 
-- closed locator and canonical query-dimension types;
-- canonical parse/format round trips;
-- scheme registration without provider execution;
-- fragment types for lines, JSON pointers, table keys, graph nodes, and source
-  spans;
-- stale/missing/unsupported resolution outcomes; and
-- fixtures for encoding, duplicate dimensions, path escape, revision drift,
-  opaque provider payloads, and deterministic ordering.
+- canonical local coordinate parse/format with view-state dimensions rejected;
+- lossless provider-qualified local and opaque Spoke coordinate carriers;
+- canonical workspace-reference and HTTP/HTTPS locator parse/format;
+- resolved, missing, stale, unsupported, unauthorized, malformed, and
+  truncated outcomes with exact capability snapshots and hard limits; and
+- fixtures for encoding, duplicate dimensions, opaque provider payloads,
+  distinct outcomes, path escape, and deterministic replay.
+
+Generic scheme registration and typed line/JSON/table/graph/source-span
+fragments remain later breadth. No public Spoke coordinate contract is present
+in this workspace, so the Spoke carrier is deliberately opaque and tested only
+for lossless round trip. This is an explicit conformance gap: Rey claims no
+connected Spoke resolution, durability, or federation semantics.
 
 The first CLI proof is the admitted `context-anchor-survey` workload in [Plan
 0017](../plans/0017-incremental-context-topography.md). It begins with a bounded
 process-owned seed-name inventory containing `AGENTS.md` and README variants,
 locates URI and reference candidates, records typed resolution outcomes, and
-emits a topography patch. Those seed names are workload inputs rather than
+emits `rey.topography-patch.v1` plus a directed patch delta. Those seed names are workload inputs rather than
 implicit configuration, and neither locator parsing nor Explorer navigation
 initiates recursive retrieval.

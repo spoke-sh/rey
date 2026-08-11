@@ -58,9 +58,10 @@ the `/explore` query envelope combines them only for navigation. Old matrix
 paths are unresolved and have no compatibility parser. This distinction is
 defined by [ADR 0041](decisions/0041-continuous-coordinate-topography.md).
 
-Relationships are always labeled. The first slice uses `contains`, `directs`,
-`produces`, `observes`, and `depends`; line placement or proximity alone does
-not assert causality, ownership, or authority.
+Relationships are always labeled. Portfolio projections use `contains`,
+`directs`, `produces`, `observes`, and `depends`; admitted survey patches add
+exact `contains` and `references` edges. Line placement or proximity alone
+does not assert causality, ownership, or authority.
 
 ## Semantic Lens
 
@@ -69,24 +70,44 @@ continuous camera scale and projects five deterministic levels of detail:
 
 | Level | Operator posture | Target object grammar |
 | --- | --- | --- |
-| Atlas / topographic | See the incrementally discovered extent and choose a region | Spaces, providers, repositories, coverage contours, survey boundaries, frontier, and unexplored regions |
-| Landscape / telescope | Survey a bounded region and find concentration or unresolved direction | Corpora, workloads, evidence, requests, portfolio, and attention aggregates |
-| Neighborhood / mesoscopic | Compare local structures around one coordinate | Exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships |
+| Atlas / topographic | Read anchor-shaped relief and see more admitted scenes | Anchor-derived contour isolines, major points of interest, survey boundaries, frontier, and unexplored regions |
+| Landscape / telescope | Survey a bounded region and find concentrations or unresolved direction | Persistent relief, anchor POIs, corpora, workloads, evidence, requests, portfolio, and attention aggregates |
+| Neighborhood / mesoscopic | Compare local structures around one coordinate | Persistent relief and POIs plus exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships |
 | Object / microscope | Inspect the machinery within a selected coordinate | Files, documents, symbols, package/context bindings, graphs, scenarios, artifacts, dependencies, and directed deltas |
 | Evidence / specimen | Inspect the exact basis of an object or relation | Source spans, rows, graph nodes, diff hunks, omissions, bounds, and lineage |
 
-The current implementation is the middle three-level subset—Landscape,
-Neighborhoods, and Objects—over a fixed workload portfolio. Atlas, Evidence,
-unbounded-feeling continuous scale, and patch-backed terrain are Plan 0017
-work, not current claims.
+The implementation now covers all five levels over one persistent spatial
+scene. Atlas extracts nested contour isolines from a scalar field whose only
+inputs are admitted anchors and exact classified edges. Overlapping anchor
+influence produces peaks, ridges, and saddles; anchors remain visible as map
+points of interest. Landscape adds more POI labels and survey-state zones,
+Neighborhood adds exact classified relationship lines, Objects add inspection
+cards around the selected POI, and Evidence adds bounded locator and lineage
+detail. Coordinates and POI positions do not jump when the level changes.
+When no survey patch is admitted, Atlas labels the topography unexplored and
+falls back to the narrower portfolio projection.
+
+Relief is an evidence projection, not an embedding claim. Current local
+topography places anchors deterministically from admitted containment and
+reference topology, then treats anchor prominence and classified edges as the
+height-field inputs. Contour geometry communicates admitted concentration and
+connected structure only. It does not assert that visual distance is language
+similarity, interpolate an unexplored semantic region, or manufacture an
+untyped relationship. A future provider may bind high-dimensional semantic
+coordinates, but must expose that coordinate revision and projection contract
+before Rey may render semantic distance as observed terrain.
 
 The canvas supports pointer-centered wheel zoom, discrete semantic zoom
 controls, drag-to-pan, keyboard `+`, `-`, and `0`, selection-driven traversal,
 and a native full-screen mode. A control step cannot skip a semantic regime.
-Selecting a landscape coordinate advances to neighborhoods; selecting a
-neighborhood advances to its object view.
+Selecting an Atlas POI advances to Landscape, then through Neighborhood,
+Object, and Evidence while centering that same POI. Level boundaries retain
+hysteresis so small wheel reversals do not flicker between grammars. The
+terrain camera spans `0.12..=5.4`; zooming out can reveal additional admitted
+survey scenes as the bounded world grows, and zooming in progressively admits
+denser visual layers without replacing the map.
 
-In the target camera, wheel zoom keeps the semantic coordinate beneath the
+In the implemented camera, wheel zoom keeps the semantic coordinate beneath the
 pointer stationary and control zoom keeps the selected focus stationary.
 Level-of-detail boundaries use hysteresis so small changes do not flicker. The
 coordinate and source identity survive every visual grammar change.
@@ -109,13 +130,15 @@ scrollable documents.
   of resource identity.
 - The map is composed only from admitted topography patches. Empty space must
   distinguish surveyed-empty from unexplored, omitted, stale, unsupported, and
-  truncated regions; visual interpolation is not evidence.
+  frontier regions; visual interpolation is not evidence.
 - Panning, zooming, selecting, or opening a deep link may retrieve and project
   retained evidence. None of those gestures may run a locator, execute a
   survey workload, admit a patch, or silently broaden authority.
-- Every projection is bounded. The current neighborhood view renders at most
-  eight workload/request and eight attention objects and reports known folded
-  objects in the canvas footer.
+- Every projection is bounded. Patch-backed terrain renders at most 64 anchor
+  POIs and six frontier POIs per admitted patch, four detail cards around an
+  inspected POI, and reports folded rows and admitted patch omissions in the
+  canvas footer. Legacy portfolio neighborhoods remain bounded to eight
+  workload/request and eight attention objects.
 - Object views disclose folded evidence and dependency references rather than
   pretending one displayed reference is complete.
 - The selected focus remains a typed coordinate. It cannot grant access,
@@ -148,7 +171,8 @@ The implemented standalone semantic coordinate is:
 rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
 ```
 
-Current kinds are `portfolio`, `cluster`, `workload`, `attention`, and `agent`.
+Current kinds are `portfolio`, `cluster`, `workload`, `attention`, `agent`,
+`workspace`, `file`, `document`, `external_resource`, and `topography`.
 Every coordinate is revision-bound. Agent coordinates alone require
 `role=coding_harness|rule|human`. Query dimensions serialize in the exact order
 `revision`, `role`; duplicates, unknown dimensions, missing values, invalid
@@ -163,14 +187,15 @@ The browser view envelope is:
 For example:
 
 ```text
-/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=1.46
+/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=2.05
 ```
 
 `scale` is presentation state and never enters the coordinate identity. The
-current accepted range is `0.55..=2`; Plan 0017 will extend that continuous
-range for Atlas and Evidence levels. The selected coordinate anchors the
-camera; free pan and viewport remain ephemeral until topography provides a
-stable spatial-coordinate contract. The old matrix route is rejected, not
+accepted range is `0.12..=5.4`, with deterministic Atlas, Landscape,
+Neighborhood, Object, and Evidence stops inside that continuum. The selected
+coordinate anchors the camera; free pan and viewport remain ephemeral. The
+scene extent is derived from the bounded projection instead of a fixed world
+rectangle. The old matrix route is rejected, not
 redirected or migrated. Journal v2 stores coordinate and numeric scale as
 separate fields and derives the browser envelope. See [ADR
 0041](decisions/0041-continuous-coordinate-topography.md).
@@ -248,21 +273,23 @@ projection. The conversation transcript is empty and its composer disabled
 because no transport, agent session, message admission, or retention contract
 exists yet.
 
-The implemented Explorer topology is intentionally narrow. It is derived from
-`rey.workload-list.v5`: exact workload packages, drafts, graph/scenario/mining
-counts, portfolio attention, and mapped-surface coverage counts. The separate
+The implemented Explorer topology is derived from `rey.workload-list.v6`:
+exact workload packages, drafts, graph/scenario/mining counts, portfolio
+attention, and retained `rey.topography-patch.v1` artifacts. The separate
 `/environment` route now consumes `rey.environment-status.v5` and renders its
 exact variable, application, input, and reference operator projection.
 `/agents` consumes the workload-list document at a higher semantic level: it
 ranks current requests and attention as recommendations, then summarizes work
 supported by retained test, run, mining, delta, and revision evidence. Agent
 runtime discovery remains on `/environment`. Generator provenance still
-supplies the current v1 agent neighborhoods in Explorer, but it is not
+supplies agent neighborhoods in Explorer, but it is not
 presented as runtime availability, live activity, or assignment. The Explorer
 does not yet contain exact environment nodes, Git commit objects, source spans,
 scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
-Explorer must not imply that unavailable objects have been rendered. No
-current endpoint returns admitted topography patches or Spoke coordinates.
+Explorer must not imply that unavailable objects have been rendered. The
+workload endpoint returns local admitted topography patches; Spoke coordinates
+remain an explicit opaque-carrier conformance gap and are not presented as
+connected semantics.
 
 ## React Boundaries
 
@@ -270,20 +297,17 @@ current endpoint returns admitted topography patches or Spoke coordinates.
 fit, keyboard, and full-screen state. `SemanticLens` renders a pure
 `TopologyScene`; regions, objects, and the SVG edge layer are independent
 components. `buildTopologyScene` is a deterministic read-model projection over
-`rey.workload-list.v5` and is tested separately from browser mechanics.
+`rey.workload-list.v6` and is tested separately from browser mechanics.
 
 Future windows and lenses should add typed topology inputs rather than fetch or
 invent a second graph inside a visualization component.
 
 ## Next Boundaries
 
-The next concrete expansion is Plan 0017's seed-to-map voyage: create and admit
-an agent-generated `context-anchor-survey` workload, locate URI and reference
-anchors from bounded `AGENTS.md` and README seeds, retain one typed topography
-patch with its directed delta and frontier, expose it through
-`rey workloads list|test|run|status`, and project the same evidence from Atlas
-through Evidence levels in Explorer. Scenario/delta object routes must retain
-the CLI `-v`/`-vv` evidence ladder.
+Plan 0017's seed-to-map voyage is implemented and verified through the CLI,
+structured workload endpoint, and deterministic Explorer read-model tests.
+Exact scenario/delta routes should next carry the CLI `-v`/`-vv` evidence
+ladder into the browser without adding an independent assessment.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and Spoke-backed streams remain separate decisions.

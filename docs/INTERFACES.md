@@ -198,7 +198,7 @@ frontier, scheduling, and reasoning-surface identities. A final portfolio
 section keeps workload qualification, scenario conformance, evaluation
 coverage, delta assessment, and qualification counts separate. These
 verbosity flags affect only the human projection; redirected `auto` and
-explicit JSON retain the same `rey.workload-test-batch.v4` document.
+explicit JSON retain the same `rey.workload-test-batch.v5` document.
 
 Portfolio-attention scenarios retain `rey.workload-attention.v1` beside the
 ordered UTF-8 output delta. `-v` exposes action/reason/readiness rows; `-vv`
@@ -207,13 +207,17 @@ identities. A qualified `run rey.portfolio.attention` emits the same typed
 relation over current retained inputs. `list` and `status` derive their view
 without fresh ambient discovery.
 
-The structured schemas are `rey.workload-list.v5`,
-`rey.workload-status-batch.v5`, `rey.workload-test-batch.v4`, and
-`rey.workload-run-view.v2`. Their `rey.workload-catalog.v2` descriptor
+The structured schemas are `rey.workload-list.v6`,
+`rey.workload-status-batch.v6`, `rey.workload-test-batch.v5`, and
+`rey.workload-run-view.v3`. Their `rey.workload-catalog.v2` descriptor
 separates total, admitted, and draft counts. The run view contains the unchanged verified
 `rey.workload-run-result.v2` plus exact catalog and proposal provenance. Test results contain verified
 `rey.scenario-output-delta.v2` documents embedding `rey.text-delta.v1`, and
-mining scenarios contain `rey.source-match-delta.v1`. Passing tests alone
+mining scenarios contain `rey.source-match-delta.v1`. Topography scenarios
+also retain `rey.topography-patch.v1` and its directed patch delta; `-v`
+projects anchors, classified edges, regions, and frontier, while `-vv` adds
+exact operation, provider, implementation, capability, limit, and lineage
+bindings. Passing tests alone
 contain a `rey.workload-qualification.v2` binding the exact workload, graph,
 scenario suite, evaluator, and test result.
 

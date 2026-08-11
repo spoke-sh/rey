@@ -20,14 +20,14 @@ the agent CLI and live operator UI.
 - [x] Replace the decorative UI pipeline footer with a live attention mailbox,
   quiet state, revalidation error message, and source revision link.
 - [x] Add the live-UI invariant to `AGENTS.md` and formalize the four phases.
-- [ ] Implement canonical locator types and parse/format fixtures in a
+- [x] Implement canonical locator types and parse/format fixtures in a
   dependency-light `rey-locator` crate.
-- [ ] Generate the first survey graph and frozen scenarios through
+- [x] Generate the first survey graph and frozen scenarios through
   `rey workloads create context-anchor-survey`; do not hard-code product
   scenarios into the runtime.
-- [ ] Expose seed, locator, resolution, patch, delta, frontier, omission, and
+- [x] Expose seed, locator, resolution, patch, delta, frontier, omission, and
   lineage evidence through `rey workloads list|test|run|status`.
-- [ ] Bind survey artifacts to exact discovery, map, provider, and source
+- [x] Bind survey artifacts to exact discovery, map, provider, and source
   revisions with bounded resolver outcomes.
 - [ ] Feed admitted survey artifacts and independent cadence ticks into the
   processing frontier without fabricating a global event log.

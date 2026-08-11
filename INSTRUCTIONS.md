@@ -52,7 +52,7 @@ Procedural guidance for humans and agents working on Rey.
 
 ## Current Development Interface
 
-Rey has a pinned Nix Rust/TypeScript toolchain, an eleven-crate Cargo workspace, a
+Rey has a pinned Nix Rust/TypeScript toolchain, a twelve-crate Cargo workspace, a
 Git-shaped `env` CLI with process-owned `HOME`/`PWD`/`PATH` discovery seeds,
 explicit agent-generated mapping resources, verified local
 capability status, a `HEAD → INDEX → WORKING` admission plane, partial/full

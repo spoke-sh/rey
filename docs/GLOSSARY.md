@@ -430,8 +430,10 @@ than a visualization-owned graph or durable source store.
 
 Context topology plus scale, density, surveyed coverage, boundaries, frontier,
 and explicit unexplored space. It is incrementally composed from admitted
-topography patches and never treats interpolated or visually empty terrain as
-observed evidence.
+topography patches. Explorer may derive contour isolines from admitted anchor
+and classified-edge influence as an explicitly visual relief projection, but
+never treats that interpolation, visual distance, or visually empty terrain as
+observed semantic evidence.
 
 ### Context lifecycle
 
@@ -636,9 +638,11 @@ evidence status, and proof status.
 ### Explorer
 
 The human operator's primary read-only context-topography map at `/explore`.
-Its current workload projection changes semantic lenses from landscape through
-neighborhoods to exact objects; the target continuous lens ranges from Atlas
-to exact Evidence while preserving identity, scope, omissions, and authority.
+Its continuous patch-backed lens ranges from Atlas through Landscape,
+Neighborhood, and Object to exact Evidence over one persistent relief scene.
+Anchors remain stable map POIs while labels, relationships, objects, and
+evidence enter progressively, preserving identity, scope, omissions, and
+authority.
 
 ### Explorer view
 
@@ -977,8 +981,9 @@ environment setup is distinct from Rey's observed environment model.
 ### Neighborhood
 
 A bounded set of topology objects around one meaningful Explorer coordinate.
-The neighborhood regime compares admitted workloads, creation requests,
-attention rows, and their classified relationships.
+The patch-backed neighborhood regime compares exact anchors and classified
+relationships; the fallback portfolio regime compares admitted workloads,
+creation requests, and attention rows.
 
 ### No news is good news
 
@@ -1232,9 +1237,10 @@ must never be presented as append-only commit events.
 
 ### Regime
 
-One object grammar on the Explorer's semantic lens continuum: landscape,
-neighborhoods, or objects. Zoom can change regime without changing underlying
-identity or evidence.
+One object grammar on the Explorer's semantic lens continuum: Atlas,
+Landscape, Neighborhoods, Objects, or Evidence. Zoom can change regime without
+changing underlying identity or evidence, and hysteresis prevents boundary
+flicker.
 
 ### Relation
 

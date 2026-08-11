@@ -12,6 +12,7 @@ rey-dataframe = { path = "../rey-dataframe" }
 rey-diff = { path = "../rey-diff" }
 rey-environment = { path = "../rey-environment" }
 rey-frontier = { path = "../rey-frontier" }
+rey-locator = { path = "../rey-locator" }
 rey-mining = { path = "../rey-mining" }
 rey-policy = { path = "../rey-policy" }
 serde.workspace = true
