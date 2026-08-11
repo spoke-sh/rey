@@ -19,7 +19,7 @@ export function admittedTopographies(
     const projection = workload.topography_projection;
     return patch &&
       projection &&
-      projection.schema === "rey.projection-packet.v1" &&
+      projection.schema === "rey.projection-packet.v2" &&
       projection.source_patch_id === patch.patch_id &&
       projection.source_topography_revision === patch.topography_revision
       ? [{ workload, patch, projection }]

@@ -5,7 +5,7 @@ import {
   type TopologyScene,
 } from "../../topology";
 import { admittedTopographies } from "../projection/topography-projector";
-import type { TerrainFieldSet } from "../terrain/compile";
+import type { TerrainFieldPyramid, TerrainFieldSet } from "../terrain/compile";
 
 export interface SceneSnapshot {
   readonly schema: "rey.reference-scene-snapshot.v1";
@@ -76,6 +76,9 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
     terrain_fields: Object.freeze([
       ...scene.terrain_fields,
     ]) as TerrainFieldSet[],
+    terrain_pyramids: Object.freeze([
+      ...scene.terrain_pyramids,
+    ]) as TerrainFieldPyramid[],
     bearing: Object.freeze({ ...scene.bearing }),
     world: Object.freeze({ ...scene.world }),
     fit_world: Object.freeze({ ...scene.fit_world }),

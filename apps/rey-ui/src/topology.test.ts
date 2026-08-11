@@ -169,6 +169,7 @@ describe("context topology lens", () => {
         },
       ],
     };
+    const world = buildTopologyScene(patchPortfolio, WORLD_LENS_ZOOM);
     const atlas = buildTopologyScene(patchPortfolio, DEFAULT_LENS_ZOOM);
     const landscape = buildTopologyScene(patchPortfolio, LANDSCAPE_LENS_ZOOM);
     const neighborhoods = buildTopologyScene(
@@ -225,7 +226,28 @@ describe("context topology lens", () => {
     expect(neighborhoods.world).toEqual(atlas.world);
     expect(objects.world).toEqual(atlas.world);
     expect(evidence.world).toEqual(atlas.world);
-    expect(neighborhoods.contours).toEqual(atlas.contours);
+    expect(world.terrain_fields[0]).toMatchObject({
+      level_id: "overview",
+      field_cells: 651,
+    });
+    expect(atlas.terrain_fields[0]).toMatchObject({
+      level_id: "regional",
+      field_cells: 2501,
+    });
+    expect(landscape.terrain_fields[0]?.level_id).toBe("regional");
+    expect(neighborhoods.terrain_fields[0]).toMatchObject({
+      level_id: "local",
+      field_cells: 9801,
+    });
+    expect(objects.terrain_fields[0]?.level_id).toBe("local");
+    expect(evidence.terrain_fields[0]?.level_id).toBe("local");
+    expect(atlas.terrain_pyramids[0]).toMatchObject({
+      total_cells: 12953,
+      total_bytes: 712415,
+    });
+    expect(world.terrain_fields[0]?.grid.bounds).toEqual(
+      neighborhoods.terrain_fields[0]?.grid.bounds,
+    );
     expect(objects.label).toBe("ANCHOR OBJECTS");
     expect(objects.nodes.map((node) => node.family)).toEqual(
       expect.arrayContaining([
@@ -694,7 +716,7 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
   ];
   const contract = (id: string) => identity(id);
   return {
-    schema: "rey.projection-packet.v1",
+    schema: "rey.projection-packet.v2",
     packet_id: `projection:${patch.patch_id}`,
     source_patch_id: patch.patch_id,
     source_topography_revision: patch.topography_revision,
@@ -705,8 +727,8 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
       parameters: {
         terrain_width: "1500",
         terrain_height: "1000",
-        grid_columns: "60",
-        grid_rows: "40",
+        grid_columns: "120",
+        grid_rows: "80",
         elevation_scale_ratio: "0.085",
       },
       normalization: "per-chart relative anchor prominence",
@@ -719,12 +741,46 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
     },
     scene_compiler: contract("rey.projection.topography-scene"),
     extent: { width: 1500, height: 1000, unit: "synthetic_scene_unit" },
-    field_layout: {
-      columns: 61,
-      rows: 41,
-      cells: 2501,
-      bytes_per_cell: 55,
-      total_bytes: 137555,
+    field_pyramid: {
+      schema: "rey.terrain-field-pyramid.v1",
+      levels: [
+        {
+          level_id: "overview",
+          columns: 31,
+          rows: 21,
+          cells: 651,
+          bytes_per_cell: 55,
+          total_bytes: 35805,
+          sample_stride: 4,
+          regimes: ["world"],
+          detail_authority: "coarse anchor resampling",
+        },
+        {
+          level_id: "regional",
+          columns: 61,
+          rows: 41,
+          cells: 2501,
+          bytes_per_cell: 55,
+          total_bytes: 137555,
+          sample_stride: 2,
+          regimes: ["atlas", "landscape"],
+          detail_authority: "regional anchor resampling",
+        },
+        {
+          level_id: "local",
+          columns: 121,
+          rows: 81,
+          cells: 9801,
+          bytes_per_cell: 55,
+          total_bytes: 539055,
+          sample_stride: 1,
+          regimes: ["neighborhoods", "objects", "evidence"],
+          detail_authority: "local anchor resampling",
+        },
+      ],
+      total_cells: 12953,
+      total_bytes: 712415,
+      stable_coordinate_rule: "nested fixture coordinates",
     },
     objects: [
       ...orderedAnchors.slice(0, 64).map((anchor) => ({
@@ -796,10 +852,13 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
       max_frontier_objects: 6,
       max_validity_regions: 256,
       max_field_channels: 12,
+      max_field_levels: 3,
       max_layers: 8,
       max_omissions: 1032,
-      max_field_cells: 2501,
-      max_field_bytes: 160064,
+      max_field_cells: 9801,
+      max_field_bytes: 627264,
+      max_total_field_cells: 12953,
+      max_total_field_bytes: 828992,
       max_contours: 7,
       max_natural_features: 96,
       max_labels: 70,

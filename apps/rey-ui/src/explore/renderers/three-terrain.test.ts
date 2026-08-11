@@ -24,12 +24,20 @@ const projection = {
   projection_basis: {
     parameters: { elevation_scale_ratio: "0.085" },
   },
-  field_layout: {
-    columns: 13,
-    rows: 9,
-    cells: 117,
-    bytes_per_cell: 55,
-    total_bytes: 6435,
+  field_pyramid: {
+    levels: [
+      {
+        level_id: "local",
+        columns: 13,
+        rows: 9,
+        cells: 117,
+        bytes_per_cell: 55,
+        total_bytes: 6435,
+        sample_stride: 1,
+        regimes: ["neighborhoods", "objects", "evidence"],
+        detail_authority: "fixture local detail",
+      },
+    ],
   },
   field_channels: channelIds.map((id) => ({
     id,
@@ -57,9 +65,11 @@ const projection = {
 } as unknown as ProjectionPacket;
 
 function fields() {
+  const level = projection.field_pyramid.levels[0]!;
   return compileTerrainFields({
     source_id: "survey:one",
     source_revision: "topography:one",
+    level,
     grid: createFieldGrid(13, 9, {
       x: 100,
       y: 80,

@@ -7,12 +7,13 @@ use thiserror::Error;
 
 use crate::{TopographyAnchorKind, TopographyPatch, TopographyRegionState};
 
-pub const PROJECTION_PACKET_SCHEMA: &str = "rey.projection-packet.v1";
+pub const PROJECTION_PACKET_SCHEMA: &str = "rey.projection-packet.v2";
+pub const TERRAIN_FIELD_PYRAMID_SCHEMA: &str = "rey.terrain-field-pyramid.v1";
 
 const TERRAIN_WIDTH: u64 = 1_500;
 const TERRAIN_HEIGHT: u64 = 1_000;
-const TERRAIN_GRID_COLUMNS: u64 = 60;
-const TERRAIN_GRID_ROWS: u64 = 40;
+const TERRAIN_GRID_COLUMNS: u64 = 120;
+const TERRAIN_GRID_ROWS: u64 = 80;
 const TERRAIN_FIELD_BYTES_PER_CELL: u64 = 55;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -22,10 +23,13 @@ pub struct ProjectionLimits {
     pub max_frontier_objects: u64,
     pub max_validity_regions: u64,
     pub max_field_channels: u64,
+    pub max_field_levels: u64,
     pub max_layers: u64,
     pub max_omissions: u64,
     pub max_field_cells: u64,
     pub max_field_bytes: u64,
+    pub max_total_field_cells: u64,
+    pub max_total_field_bytes: u64,
     pub max_contours: u64,
     pub max_natural_features: u64,
     pub max_labels: u64,
@@ -34,15 +38,19 @@ pub struct ProjectionLimits {
 impl Default for ProjectionLimits {
     fn default() -> Self {
         let max_field_cells = (TERRAIN_GRID_COLUMNS + 1) * (TERRAIN_GRID_ROWS + 1);
+        let max_total_field_cells = field_level_cells(4) + field_level_cells(2) + max_field_cells;
         Self {
             max_anchor_objects: 64,
             max_frontier_objects: 6,
             max_validity_regions: 256,
             max_field_channels: 12,
+            max_field_levels: 3,
             max_layers: 8,
             max_omissions: 1_032,
             max_field_cells,
             max_field_bytes: max_field_cells * 8 * 8,
+            max_total_field_cells,
+            max_total_field_bytes: max_total_field_cells * 8 * 8,
             max_contours: 7,
             max_natural_features: 96,
             max_labels: 70,
@@ -60,12 +68,26 @@ pub struct ProjectionExtent {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ProjectionFieldLayout {
+pub struct ProjectionFieldLevel {
+    pub level_id: String,
     pub columns: u64,
     pub rows: u64,
     pub cells: u64,
     pub bytes_per_cell: u64,
     pub total_bytes: u64,
+    pub sample_stride: u64,
+    pub regimes: Vec<String>,
+    pub detail_authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionFieldPyramid {
+    pub schema: String,
+    pub levels: Vec<ProjectionFieldLevel>,
+    pub total_cells: u64,
+    pub total_bytes: u64,
+    pub stable_coordinate_rule: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -215,7 +237,7 @@ pub struct ProjectionPacket {
     pub projection_basis: ProjectionBasis,
     pub scene_compiler: ContractIdentity,
     pub extent: ProjectionExtent,
-    pub field_layout: ProjectionFieldLayout,
+    pub field_pyramid: ProjectionFieldPyramid,
     pub objects: Vec<ProjectionObject>,
     pub validity: Vec<ProjectionValidityRegion>,
     pub field_channels: Vec<ProjectionFieldChannel>,
@@ -412,15 +434,7 @@ impl ProjectionPacket {
                 height: TERRAIN_HEIGHT,
                 unit: "synthetic_scene_unit".to_owned(),
             },
-            field_layout: ProjectionFieldLayout {
-                columns: TERRAIN_GRID_COLUMNS + 1,
-                rows: TERRAIN_GRID_ROWS + 1,
-                cells: (TERRAIN_GRID_COLUMNS + 1) * (TERRAIN_GRID_ROWS + 1),
-                bytes_per_cell: TERRAIN_FIELD_BYTES_PER_CELL,
-                total_bytes: (TERRAIN_GRID_COLUMNS + 1)
-                    * (TERRAIN_GRID_ROWS + 1)
-                    * TERRAIN_FIELD_BYTES_PER_CELL,
-            },
+            field_pyramid: topography_field_pyramid(),
             objects,
             validity,
             field_channels,
@@ -447,23 +461,7 @@ impl ProjectionPacket {
         if self.extent.width == 0 || self.extent.height == 0 || self.extent.unit.is_empty() {
             return Err(ProjectionError::Shape("extent"));
         }
-        if self.field_layout.columns < 2
-            || self.field_layout.rows < 2
-            || self
-                .field_layout
-                .columns
-                .checked_mul(self.field_layout.rows)
-                != Some(self.field_layout.cells)
-            || self
-                .field_layout
-                .cells
-                .checked_mul(self.field_layout.bytes_per_cell)
-                != Some(self.field_layout.total_bytes)
-            || self.field_layout.cells > self.limits.max_field_cells
-            || self.field_layout.total_bytes > self.limits.max_field_bytes
-        {
-            return Err(ProjectionError::Shape("field layout"));
-        }
+        validate_field_pyramid(&self.field_pyramid, &self.limits)?;
         if self.projection_basis.input_dimensions.is_empty()
             || self.projection_basis.output_dimensions.is_empty()
             || self.projection_basis.normalization.is_empty()
@@ -629,6 +627,66 @@ fn anchor_orientation_basis() -> ProjectionBasis {
         neighborhood_semantics: "ordered anchor rings; no source relationship implied".to_owned(),
         distortion: "ring placement and bounded folding distort source-space distance".to_owned(),
         stable_coordinate_rule: "semantic coordinates remain stable; scene placement changes only with admitted anchor order or basis revision".to_owned(),
+    }
+}
+
+const fn field_level_cells(sample_stride: u64) -> u64 {
+    (TERRAIN_GRID_COLUMNS / sample_stride + 1) * (TERRAIN_GRID_ROWS / sample_stride + 1)
+}
+
+fn topography_field_pyramid() -> ProjectionFieldPyramid {
+    let levels = [
+        (
+            "overview",
+            4,
+            vec!["world".to_owned()],
+            "coarse resampling of admitted anchor influence; no additional semantic evidence",
+        ),
+        (
+            "regional",
+            2,
+            vec!["atlas".to_owned(), "landscape".to_owned()],
+            "regional resampling of admitted anchor influence and survey conditions; no additional semantic evidence",
+        ),
+        (
+            "local",
+            1,
+            vec![
+                "neighborhoods".to_owned(),
+                "objects".to_owned(),
+                "evidence".to_owned(),
+            ],
+            "finest retained sampling of the same admitted survey; detail remains bounded by sparse source evidence",
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(level_id, sample_stride, regimes, detail_authority)| {
+            let columns = TERRAIN_GRID_COLUMNS / sample_stride + 1;
+            let rows = TERRAIN_GRID_ROWS / sample_stride + 1;
+            let cells = columns * rows;
+            ProjectionFieldLevel {
+                level_id: level_id.to_owned(),
+                columns,
+                rows,
+                cells,
+                bytes_per_cell: TERRAIN_FIELD_BYTES_PER_CELL,
+                total_bytes: cells * TERRAIN_FIELD_BYTES_PER_CELL,
+                sample_stride,
+                regimes,
+                detail_authority: detail_authority.to_owned(),
+            }
+        },
+    )
+    .collect::<Vec<_>>();
+    ProjectionFieldPyramid {
+        schema: TERRAIN_FIELD_PYRAMID_SCHEMA.to_owned(),
+        total_cells: levels.iter().map(|level| level.cells).sum(),
+        total_bytes: levels.iter().map(|level| level.total_bytes).sum(),
+        levels,
+        stable_coordinate_rule:
+            "all levels share exact world bounds and every coarser sample is a coordinate-identical local-level sample"
+                .to_owned(),
     }
 }
 
@@ -826,10 +884,13 @@ fn validate_limits(limits: &ProjectionLimits) -> Result<(), ProjectionError> {
         limits.max_frontier_objects,
         limits.max_validity_regions,
         limits.max_field_channels,
+        limits.max_field_levels,
         limits.max_layers,
         limits.max_omissions,
         limits.max_field_cells,
         limits.max_field_bytes,
+        limits.max_total_field_cells,
+        limits.max_total_field_bytes,
         limits.max_contours,
         limits.max_natural_features,
         limits.max_labels,
@@ -837,6 +898,82 @@ fn validate_limits(limits: &ProjectionLimits) -> Result<(), ProjectionError> {
     .contains(&0)
     {
         return Err(ProjectionError::Limit);
+    }
+    Ok(())
+}
+
+fn validate_field_pyramid(
+    pyramid: &ProjectionFieldPyramid,
+    limits: &ProjectionLimits,
+) -> Result<(), ProjectionError> {
+    if pyramid.schema != TERRAIN_FIELD_PYRAMID_SCHEMA
+        || pyramid.levels.is_empty()
+        || pyramid.stable_coordinate_rule.is_empty()
+        || pyramid.levels.len() as u64 > limits.max_field_levels
+    {
+        return Err(ProjectionError::Shape("field pyramid"));
+    }
+    let mut level_ids = BTreeSet::new();
+    let mut regimes = BTreeSet::new();
+    let mut sample_strides = BTreeSet::new();
+    let mut total_cells = 0_u64;
+    let mut total_bytes = 0_u64;
+    let finest = pyramid
+        .levels
+        .iter()
+        .find(|level| level.sample_stride == 1)
+        .ok_or(ProjectionError::Shape("field pyramid finest level"))?;
+    for level in &pyramid.levels {
+        if level.level_id.is_empty()
+            || !level_ids.insert(level.level_id.as_str())
+            || level.columns < 2
+            || level.rows < 2
+            || level.sample_stride == 0
+            || !sample_strides.insert(level.sample_stride)
+            || level.bytes_per_cell == 0
+            || level.regimes.is_empty()
+            || level.detail_authority.is_empty()
+            || level.columns.checked_mul(level.rows) != Some(level.cells)
+            || level.cells.checked_mul(level.bytes_per_cell) != Some(level.total_bytes)
+            || level.cells > limits.max_field_cells
+            || level.total_bytes > limits.max_field_bytes
+            || (finest.columns - 1) / level.sample_stride + 1 != level.columns
+            || (finest.rows - 1) / level.sample_stride + 1 != level.rows
+            || (finest.columns - 1) % level.sample_stride != 0
+            || (finest.rows - 1) % level.sample_stride != 0
+        {
+            return Err(ProjectionError::Shape("field pyramid level"));
+        }
+        for regime in &level.regimes {
+            if regime.is_empty() || !regimes.insert(regime.as_str()) {
+                return Err(ProjectionError::Shape("field pyramid regime"));
+            }
+        }
+        total_cells = total_cells
+            .checked_add(level.cells)
+            .ok_or(ProjectionError::Shape("field pyramid total cells"))?;
+        total_bytes = total_bytes
+            .checked_add(level.total_bytes)
+            .ok_or(ProjectionError::Shape("field pyramid total bytes"))?;
+    }
+    if total_cells != pyramid.total_cells
+        || total_bytes != pyramid.total_bytes
+        || total_cells > limits.max_total_field_cells
+        || total_bytes > limits.max_total_field_bytes
+    {
+        return Err(ProjectionError::Shape("field pyramid totals"));
+    }
+    if regimes
+        != BTreeSet::from([
+            "world",
+            "atlas",
+            "landscape",
+            "neighborhoods",
+            "objects",
+            "evidence",
+        ])
+    {
+        return Err(ProjectionError::Shape("field pyramid regimes"));
     }
     Ok(())
 }
@@ -1011,10 +1148,13 @@ mod tests {
         assert_eq!(packet.source_patch_id, patch.patch_id);
         assert_eq!(packet.objects.len(), 3);
         assert_eq!(packet.validity[0].state, TopographyRegionState::Unexplored);
-        assert_eq!(packet.field_layout.columns, 61);
-        assert_eq!(packet.field_layout.rows, 41);
-        assert_eq!(packet.field_layout.cells, 2_501);
-        assert_eq!(packet.field_layout.total_bytes, 137_555);
+        assert_eq!(packet.field_pyramid.schema, TERRAIN_FIELD_PYRAMID_SCHEMA);
+        assert_eq!(packet.field_pyramid.levels.len(), 3);
+        assert_eq!(packet.field_pyramid.levels[0].columns, 31);
+        assert_eq!(packet.field_pyramid.levels[1].columns, 61);
+        assert_eq!(packet.field_pyramid.levels[2].columns, 121);
+        assert_eq!(packet.field_pyramid.total_cells, 12_953);
+        assert_eq!(packet.field_pyramid.total_bytes, 712_415);
         assert_eq!(packet.excluded_source_relationships, 0);
         assert!(
             packet
@@ -1066,6 +1206,14 @@ mod tests {
         assert!(matches!(
             relabeled.verify_for(&patch),
             Err(ProjectionError::SourceBinding)
+        ));
+
+        let mut invalid_pyramid = ProjectionPacket::from_topography_patch(&patch).unwrap();
+        invalid_pyramid.field_pyramid.levels[2].regimes.pop();
+        invalid_pyramid.packet_id = packet_digest(&invalid_pyramid).unwrap();
+        assert!(matches!(
+            invalid_pyramid.verify(),
+            Err(ProjectionError::Shape("field pyramid regimes"))
         ));
     }
 }

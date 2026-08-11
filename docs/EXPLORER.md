@@ -19,11 +19,11 @@ or assessment authority.
 
 The intended division of labor is:
 
-| Persona | Primary surface | Normal use |
-| --- | --- | --- |
-| Human operator | `rey ui`, `/feed`, and `/explore` | Triage bounded change, orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
-| Agent or coding harness | `rey` CLI and structured output | Create, test, run, diagnose, and revise workloads through admitted contracts |
-| Human diagnosing a problem | `rey` CLI | Drop beneath the visual projection to inspect exact command evidence, verbosity layers, stderr, and exit semantics |
+| Persona                    | Primary surface                   | Normal use                                                                                                                    |
+| -------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Human operator             | `rey ui`, `/feed`, and `/explore` | Triage bounded change, orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
+| Agent or coding harness    | `rey` CLI and structured output   | Create, test, run, diagnose, and revise workloads through admitted contracts                                                  |
+| Human diagnosing a problem | `rey` CLI                         | Drop beneath the visual projection to inspect exact command evidence, verbosity layers, stderr, and exit semantics            |
 
 The UI and CLI are different projections over the same typed facts. The UI is
 not required to mimic a terminal document, but it must retain enough identity,
@@ -104,17 +104,21 @@ limits, and omissions. The current standalone anchor placement remains a
 synthetic orientation layout rather than a language-space embedding.
 
 The current implementation remains incomplete but now crosses the live renderer
-boundary. The admitted-survey adapter, camera transforms, immutable scene
-wrapper, typed terrain-field modules, SVG/DOM reference renderer, and pinned
-Three.js `0.185.1` WebGPU adapter are separated. The field compiler produces an
-explicit validity mask plus elevation, rainfall, flow, erosion, normal,
-curvature, and presentation-only material buffers. A TSL node material consumes
-those buffers as one continuous relief mesh in `/explore`; React retains the
-controls, accessible overlays, exact evidence links, and visible active-backend
-status. `topology.ts` still combines portfolio adaptation, scene assembly,
-contour extraction, and lens data. Plan 0020 owns multiresolution LOD, the
-remaining render-graph extraction, backend/device qualification, and retained
-visual and performance proof.
+and semantic-LOD boundaries. The admitted-survey adapter, camera transforms,
+immutable scene wrapper, typed terrain-field modules, SVG/DOM reference
+renderer, and pinned Three.js `0.185.1` WebGPU adapter are separated. The field
+compiler produces three nested, exact-bounds levels with explicit validity,
+elevation, rainfall, flow, erosion, normal, curvature, and presentation-only
+material buffers. World selects the overview level, Atlas and Landscape select
+regional, and Neighborhood through Evidence select local. Coarser samples share
+coordinate-identical local sample positions; resampling adds no semantic
+evidence and never fills invalid support. A TSL node material consumes the
+active buffers as one continuous relief mesh in `/explore`; React retains the
+controls, accessible overlays, exact evidence links, active LOD/backend status,
+and full pyramid allocation. `topology.ts` still combines portfolio adaptation,
+scene assembly, contour extraction, and lens data. Plan 0020 owns smooth
+geometric LOD transitions, the remaining render-graph extraction, device-loss
+qualification, and retained visual and performance proof.
 
 ### Terrain fidelity
 
@@ -165,14 +169,14 @@ change evidence or execute a probe.
 Zoom is a semantic operation, not only a CSS transform. The target lens owns a
 continuous camera scale and projects six deterministic levels of detail:
 
-| Level | Operator posture | Target object grammar |
-| --- | --- | --- |
-| World / projection | Understand the admitted field and where its known boundary ends | Charted-land envelopes, probe horizons, unresolved weather fronts, projected river systems, major POIs, and prerequisite-marked frontier stations |
-| Atlas / topographic | Read anchor-shaped relief and see more admitted scenes | Anchor-derived contour isolines, major points of interest, survey boundaries, frontier, and unexplored regions |
-| Landscape / telescope | Survey a bounded region and find concentrations or unresolved direction | Persistent relief, anchor POIs, corpora, workloads, evidence, requests, portfolio, and attention aggregates |
-| Neighborhood / mesoscopic | Compare local structures around one coordinate | Persistent relief and POIs plus exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships |
-| Object / microscope | Inspect the machinery within a selected coordinate | Files, documents, symbols, package/context bindings, graphs, scenarios, artifacts, dependencies, and directed deltas |
-| Evidence / specimen | Inspect the exact basis of an object or relation | Source spans, rows, graph nodes, diff hunks, omissions, bounds, and lineage |
+| Level                     | Operator posture                                                        | Target object grammar                                                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| World / projection        | Understand the admitted field and where its known boundary ends         | Charted-land envelopes, probe horizons, unresolved weather fronts, projected river systems, major POIs, and prerequisite-marked frontier stations |
+| Atlas / topographic       | Read anchor-shaped relief and see more admitted scenes                  | Anchor-derived contour isolines, major points of interest, survey boundaries, frontier, and unexplored regions                                    |
+| Landscape / telescope     | Survey a bounded region and find concentrations or unresolved direction | Persistent relief, anchor POIs, corpora, workloads, evidence, requests, portfolio, and attention aggregates                                       |
+| Neighborhood / mesoscopic | Compare local structures around one coordinate                          | Persistent relief and POIs plus exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships        |
+| Object / microscope       | Inspect the machinery within a selected coordinate                      | Files, documents, symbols, package/context bindings, graphs, scenarios, artifacts, dependencies, and directed deltas                              |
+| Evidence / specimen       | Inspect the exact basis of an object or relation                        | Source spans, rows, graph nodes, diff hunks, omissions, bounds, and lineage                                                                       |
 
 The implementation covers all six levels over one persistent spatial scene.
 World derives a charted-land envelope from displayed admitted anchors and a
@@ -412,7 +416,7 @@ exists yet.
 The implemented Explorer topology is derived from `rey.workload-list.v7`:
 exact workload packages, drafts, graph/scenario/mining counts, portfolio
 attention, retained `rey.topography-patch.v1` artifacts, and their exact
-`rey.projection-packet.v1` envelopes. Survey terrain fails closed unless the
+`rey.projection-packet.v2` envelopes. Survey terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
 separate `/environment` route consumes `rey.environment-status.v5` and renders
@@ -437,8 +441,9 @@ keyboard, and full-screen state while using framework-independent camera math.
 `ReferenceRenderer` renders accessible overlays and the deterministic fallback;
 it refuses graph edges on terrain even if one is supplied accidentally.
 `AcceleratedTerrainSurface` lazily mounts the Three.js adapter and TSL relief
-mesh, reports its selected backend and bounded field/triangle counts, and
-retains the reference terrain through initialization or failure.
+mesh, reports its selected backend, active terrain level, bounded
+field/triangle counts, and total retained pyramid allocation, and retains the
+reference terrain through initialization or failure.
 `buildTopologyScene` is a deterministic read-model projection over
 `rey.workload-list.v7` and is tested separately from browser mechanics. It
 requires an exact patch/packet pair before compiling admitted terrain. Typed
@@ -456,10 +461,10 @@ invent a second graph inside a visualization component.
 Plan 0017's seed-to-map voyage is implemented and verified through the CLI,
 structured workload endpoint, and deterministic Explorer read-model tests.
 Plan 0020 remains the active Explorer foundation: extend the implemented
-projection packet, typed fields, and continuous TSL surface into bounded
-multiresolution LOD; extract the remaining render graph; qualify both graphics
-backends and loss paths in retained browser evidence; and close the visual,
-packaging, and performance proof.
+projection packet, typed multiresolution fields, and continuous TSL surface
+with transition blending and contour/overlay LOD; extract the remaining render
+graph; qualify device-loss and fallback paths in retained browser evidence; and
+close the visual, packaging, and performance proof.
 Exact scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder
 into the browser without adding an independent assessment.
 

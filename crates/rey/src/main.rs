@@ -3064,14 +3064,13 @@ fn write_projection_packet_evidence(
             ),
         ),
         (
-            "field layout",
+            "field pyramid",
             format!(
-                "{}×{} · {} cells · {} bytes/cell · {} bytes allocated",
-                packet.field_layout.columns,
-                packet.field_layout.rows,
-                packet.field_layout.cells,
-                packet.field_layout.bytes_per_cell,
-                packet.field_layout.total_bytes,
+                "{} levels · {} cells · {} bytes allocated · {}",
+                packet.field_pyramid.levels.len(),
+                packet.field_pyramid.total_cells,
+                packet.field_pyramid.total_bytes,
+                packet.field_pyramid.stable_coordinate_rule,
             ),
         ),
         (
@@ -3082,12 +3081,15 @@ fn write_projection_packet_evidence(
         (
             "limits",
             format!(
-                "anchors={} frontier={} validity={} cells={} field_bytes={} contours={} features={} labels={}",
+                "anchors={} frontier={} validity={} levels={} cells/level={} bytes/level={} total_cells={} total_field_bytes={} contours={} features={} labels={}",
                 packet.limits.max_anchor_objects,
                 packet.limits.max_frontier_objects,
                 packet.limits.max_validity_regions,
+                packet.limits.max_field_levels,
                 packet.limits.max_field_cells,
                 packet.limits.max_field_bytes,
+                packet.limits.max_total_field_cells,
+                packet.limits.max_total_field_bytes,
                 packet.limits.max_contours,
                 packet.limits.max_natural_features,
                 packet.limits.max_labels,
@@ -3095,6 +3097,23 @@ fn write_projection_packet_evidence(
         ),
     ] {
         write_test_binding(output, label, &value)?;
+    }
+    for level in &packet.field_pyramid.levels {
+        write_test_binding(
+            output,
+            "field level",
+            &format!(
+                "{} · {}×{} · stride {} · {} cells · {} bytes · {} · {}",
+                level.level_id,
+                level.columns,
+                level.rows,
+                level.sample_stride,
+                level.cells,
+                level.total_bytes,
+                level.regimes.join("/"),
+                level.detail_authority,
+            ),
+        )?;
     }
     for channel in &packet.field_channels {
         write_test_binding(

@@ -75,101 +75,103 @@ dynamic-entity requirement.
 ### 1. Freeze contracts and current behavior
 
 - [x] Accept ADR 0044 and establish the projection-engine identity, evidence
-  boundary, 2.5D scope, and terrain-fidelity target.
-- [x] Define `rey.projection-packet.v1` as a browser/CLI typed
-  contract binding evidence, projection basis, fields, validity, layers,
-  revisions, limits, completeness, omissions, and lineage.
+      boundary, 2.5D scope, and terrain-fidelity target.
+- [x] Define `rey.projection-packet.v2` as a browser/CLI typed
+      contract binding evidence, projection basis, fields, validity, layers,
+      revisions, limits, completeness, omissions, and lineage.
 - [x] Add a synthetic admitted terrain fixture with named World, Atlas,
-  Landscape, and Neighborhood view envelopes; do not use external map imagery
-  or unbound high-dimensional coordinates.
+      Landscape, and Neighborhood view envelopes; do not use external map imagery
+      or unbound high-dimensional coordinates.
 - [ ] Record current semantic scene manifests and bounded visual baselines
-  before moving code, including unknown-mask and no-source-edge invariants.
+      before moving code, including unknown-mask and no-source-edge invariants.
 
 ### 2. Extract the engine without visual drift
 
 - [ ] Split portfolio and admitted-topography adapters from the generic engine
-  contracts.
+      contracts.
 - [ ] Extract camera transforms, semantic-regime hysteresis, focus retention,
-  fit bounds, and picking into framework-independent modules.
+      fit bounds, and picking into framework-independent modules.
 - [ ] Compile one immutable, stably ordered scene snapshot whose identity
-  excludes camera state and whose objects retain exact evidence links.
+      excludes camera state and whose objects retain exact evidence links.
 - [ ] Replace ad hoc rerender coupling with explicit evidence, scene, camera,
-  material, label, and viewport invalidation sets.
+      material, label, and viewport invalidation sets.
 - [x] Keep the existing SVG/DOM result as the first reference renderer until
-  scene and camera parity tests pass.
+      scene and camera parity tests pass.
 
 ### 3. Build bounded multiresolution terrain
 
 - [x] Replace nested-number grids with typed scalar/vector buffers and an
-  explicit per-cell surveyed-validity mask.
-- [ ] Build a bounded tile pyramid or equivalent multiresolution field whose
-  LOD changes do not move stable coordinates or fill unknown cells.
+      explicit per-cell surveyed-validity mask.
+- [x] Build a bounded tile pyramid or equivalent multiresolution field whose
+      LOD changes do not move stable coordinates or fill unknown cells.
 - [x] Separate elevation, rainfall, flow, erosion, normal, curvature, and
-  material channels with independent implementation revisions.
+      material channels with independent implementation revisions.
 - [x] Preserve deterministic hydrology and natural-feature semantics from ADR
-  0043 while testing that erosion changes relief but never source assessment.
-- [ ] Expose cell, tile, byte, compilation-time, and omission budgets in both
-  structured output and the human CLI.
+      0043 while testing that erosion changes relief but never source assessment.
+- [x] Expose level, cell, byte, and omission budgets in both structured output
+      and the human CLI.
+- [ ] Add compilation-time and, if later introduced, tile/cache residency
+      budgets to retained qualification results.
 
 ### 4. Qualify the renderer boundary
 
 - [ ] Implement a renderer interface over immutable scene snapshots and an
-  explicit render graph.
+      explicit render graph.
 - [x] Pin Three.js `0.185.1` and add a narrow lifecycle adapter that proves
-  asynchronous initialization, preferred WebGPU selection, forced WebGL2
-  selection, viewport bounds, failure, and disposal without replacing the live
-  reference surface.
+      asynchronous initialization, preferred WebGPU selection, forced WebGL2
+      selection, viewport bounds, failure, and disposal without replacing the live
+      reference surface.
 - [ ] Qualify a pinned Three.js `WebGPURenderer` and TSL dependency across its
-  preferred WebGPU and forced-WebGL2 paths for bundle size, browser support,
-  asynchronous initialization, resource ownership, accessibility, determinism,
-  performance, and Nix packaging.
+      preferred WebGPU and forced-WebGL2 paths for bundle size, browser support,
+      asynchronous initialization, resource ownership, accessibility, determinism,
+      performance, and Nix packaging.
 - [x] Record the selected production boundary in ADR 0045: Three.js owns GPU
-  mechanics behind a narrow adapter while Rey retains its semantic scene and
-  deterministic reference path.
+      mechanics behind a narrow adapter while Rey retains its semantic scene and
+      deterministic reference path.
 - [ ] Move high-cardinality terrain and natural-feature drawing out of React
-  elements while keeping accessible labels, controls, status, and exact links
-  in the React shell.
+      elements while keeping accessible labels, controls, status, and exact links
+      in the React shell.
 - [ ] Handle device-pixel ratio, resize, context loss, resource disposal, and
-  fallback without losing the last good scene or evidence boundary.
+      fallback without losing the last good scene or evidence boundary.
 
 ### 5. Reach continuous terrain fidelity
 
 - [x] Render a continuous base terrain material before contours and overlays.
 - [x] Add height-gradient normals, multidirectional hillshade, ambient/valley
-  occlusion, ridge/curvature enhancement, and restrained evidence-aware tint as
-  separately testable passes.
+      occlusion, ridge/curvature enhancement, and restrained evidence-aware tint as
+      separately testable passes.
 - [ ] Make contour interval, weight, labeling, and opacity scale with semantic
-  and geometric LOD instead of scaling one SVG path uniformly.
+      and geometric LOD instead of scaling one SVG path uniformly.
 - [ ] Composite water, weather, validity boundaries, POIs, selection, labels,
-  and evidence overlays in an explicit order with redundant non-color meaning.
+      and evidence overlays in an explicit order with redundant non-color meaning.
 - [ ] Add bounded label collision, decluttering, culling, and stable picking so
-  terrain remains legible as object density grows.
+      terrain remains legible as object density grows.
 - [ ] Blend unexplored and unsupported validity edges into the background
-  visually while retaining their exact masks and disclosures.
+      visually while retaining their exact masks and disclosures.
 
 ### 6. Prove semantic, visual, and performance behavior
 
-- [ ] Extend `rey workloads ... -vv` with a human-readable projection-engine
-  block covering basis, scene, field, material, LOD, validity, limits,
-  omissions, and lineage before relying on browser diagnostics.
+- [x] Extend `rey workloads ... -vv` with a human-readable projection-engine
+      block covering basis, scene, field, material, LOD, validity, limits,
+      omissions, and lineage before relying on browser diagnostics.
 - [ ] Add golden tests for scalar fields, masks, normals, hydrology, erosion,
-  render-pass ordering, picking, LOD transitions, and deterministic scene
-  manifests.
+      render-pass ordering, picking, LOD transitions, and deterministic scene
+      manifests.
 - [ ] Add browser tests for stable focus, no LOD popping, unknown masking,
-  context loss/fallback, layer composition, accessible controls, and exact
-  evidence links.
+      context loss/fallback, layer composition, accessible controls, and exact
+      evidence links.
 - [ ] Capture and inspect named 1920×1080 and 3840×2160 World → Neighborhood
-  voyages over the synthetic and retained-project fixtures.
+      voyages over the synthetic and retained-project fixtures.
 - [ ] Define and preserve a named performance result before making a frame-rate
-  claim: warm camera interaction should target 60 Hz on the declared reference
-  machine, with field compilation, tile memory, draw-call, label, and frame
-  budgets reported separately.
+      claim: warm camera interaction should target 60 Hz on the declared reference
+      machine, with field compilation, tile memory, draw-call, label, and frame
+      budgets reported separately.
 - [ ] Verify the packaged Nix build, embedded assets, CLI/browser parity, and
-  zero-Spoke fallback through `just check` and `just test`.
+      zero-Spoke fallback through `just check` and `just test`.
 
 ## Implementation Checkpoint: 2026-08-11 Continuous Relief
 
-- `rey.projection-packet.v1` now binds a 61×41 typed layout: 2,501 cells,
+- The superseded `rey.projection-packet.v1` bound a 61×41 typed layout: 2,501 cells,
   55 bytes per cell, and 137,555 allocated bytes under the existing 160,064-byte
   limit. The human `-vv` rendering exposes the same allocation before the
   browser consumes it.
@@ -194,6 +196,36 @@ That browser run qualifies the backend/material boundary, not the complete
 plan. A retained `/explore` World → Neighborhood voyage, device/context-loss
 capture, accessibility pass, Nix packaging result, and named performance result
 are still required.
+
+## Implementation Checkpoint: 2026-08-11 Multiresolution Fields
+
+- `rey.projection-packet.v2` hard-cuts the singular layout to one bounded
+  `rey.terrain-field-pyramid.v1`: overview 31×21 at stride 4 for World,
+  regional 61×41 at stride 2 for Atlas/Landscape, and local 121×81 at stride 1
+  for Neighborhood/Object/Evidence.
+- One admitted chart retains 12,953 cells and 712,415 bytes across all three
+  levels. The finest active level is 9,801 cells and 539,055 bytes. Packet
+  limits bind per-level and total allocation separately.
+- Every level has the same exact world bounds, and each coarse sample position
+  is an exact local-level position. Level-specific resampling may expose more
+  visual detail but cannot add evidence, fill invalid support, move an anchor,
+  or change a coordinate identity.
+- The human `-vv` projection block and structured workload output expose all
+  level identities, dimensions, strides, semantic regimes, detail authority,
+  allocations, limits, omissions, and lineage. `/explore` reports the active
+  LOD plus the full retained pyramid allocation.
+- Scene compilation is no longer coupled to every continuous wheel delta. It
+  recompiles fields only when the evidence, focus, or retained semantic regime
+  changes; optical zoom within a regime remains camera state.
+- The production build keeps Three.js lazy. The application chunk is 492.04 kB
+  (149.32 kB gzip); the adapter, terrain graph, and shared WebGPU chunks remain
+  2.59/12.52/1,032.25 kB respectively.
+
+This checkpoint proves bounded semantic LOD selection, not transition
+geomorphing or Google-class terrain fidelity. Retained World → Neighborhood
+captures must still prove that a regime transition does not visibly pop, and
+the local level remains a deterministic projection of sparse admitted survey
+evidence rather than newly mined terrain.
 
 ## Acceptance Boundary
 

@@ -161,20 +161,20 @@ but no read, parse, index, metric, diff, or visualization grants that effect.
 
 A versioned mining operation contract needs at least:
 
-| Field | Meaning |
-| --- | --- |
-| identity | Stable operation id, revision, implementation digest, and semantic version |
-| family | Relational or source mining |
-| kind | Retrieve, search, transform, parse, index, traverse, measure, compare, or visualize |
-| input contract | Accepted native artifact, relation, tree, graph, or prior mining-result types |
-| output contract | Produced artifact kinds, schemas, media types, and identity rules |
-| source requirements | Provider operations, snapshot guarantees, encodings, languages, and trust |
-| determinism | Pure/frozen semantics or explicitly variable/tool-observed semantics |
-| effects | Read-only retrieval, pure projection, or probe; never an implicit mutation |
-| parameters | Typed, canonical, bounded arguments and defaults |
-| limits | Rows, bytes, matches, files, depth, nodes, edges, time, memory, and output bounds |
-| completeness | Conditions for complete, partial, truncated, unsupported, unavailable, or failed results |
-| invalidation | Source, provider, parser, operation, parameter, and limit changes that make evidence stale |
+| Field               | Meaning                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| identity            | Stable operation id, revision, implementation digest, and semantic version                 |
+| family              | Relational or source mining                                                                |
+| kind                | Retrieve, search, transform, parse, index, traverse, measure, compare, or visualize        |
+| input contract      | Accepted native artifact, relation, tree, graph, or prior mining-result types              |
+| output contract     | Produced artifact kinds, schemas, media types, and identity rules                          |
+| source requirements | Provider operations, snapshot guarantees, encodings, languages, and trust                  |
+| determinism         | Pure/frozen semantics or explicitly variable/tool-observed semantics                       |
+| effects             | Read-only retrieval, pure projection, or probe; never an implicit mutation                 |
+| parameters          | Typed, canonical, bounded arguments and defaults                                           |
+| limits              | Rows, bytes, matches, files, depth, nodes, edges, time, memory, and output bounds          |
+| completeness        | Conditions for complete, partial, truncated, unsupported, unavailable, or failed results   |
+| invalidation        | Source, provider, parser, operation, parameter, and limit changes that make evidence stale |
 
 Operation discovery and operation admission are distinct. The capability
 snapshot freezes provider identity, path or endpoint, version,
@@ -421,12 +421,14 @@ deterministic visual projection of those artifacts. It does not mine, resolve,
 or interpolate semantic terrain on its own. Broader locator families and
 recurring voyage scheduling remain later work. ADR 0043 removes source-edge
 and camera-path geometry from relief; only a subsequent admitted patch can
-change topography. `rey.projection-packet.v1` now binds each displayed patch to
-its synthetic basis, bounded objects, validity, field/layer descriptors,
-limits, degradation, omissions, and lineage through the CLI and
-`rey.workload-list.v7`. The current SVG/DOM scene is not yet the immutable
-scene, multiresolution terrain field, render graph, or Three.js high-fidelity
-engine accepted by ADRs 0044 and 0045; Plan 0020 owns that incomplete work.
+change topography. `rey.projection-packet.v2` now binds each displayed patch to
+its synthetic basis, bounded objects, validity, field/layer descriptors, three
+nested terrain levels, per-level and total allocations, limits, degradation,
+omissions, and lineage through the CLI and `rey.workload-list.v7`. The browser
+compiles the same bounded pyramid and selects overview, regional, or local
+fields by semantic lens without moving shared coordinates or creating evidence.
+The remaining render-graph extraction, smooth LOD transitions, retained visual
+proof, and named performance qualification remain Plan 0020 work.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,

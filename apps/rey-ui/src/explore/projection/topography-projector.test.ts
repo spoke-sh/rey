@@ -12,7 +12,7 @@ const portfolio = {
         topography_revision: "topography:1",
       },
       topography_projection: {
-        schema: "rey.projection-packet.v1",
+        schema: "rey.projection-packet.v2",
         source_patch_id: "patch:1",
         source_topography_revision: "topography:1",
       },

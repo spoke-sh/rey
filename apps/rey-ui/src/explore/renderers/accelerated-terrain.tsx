@@ -9,9 +9,13 @@ export type RendererPreference = "auto" | "webgpu" | "webgl2" | "reference";
 export interface AcceleratedTerrainReport {
   status: RendererStatus;
   preference: RendererPreference;
+  active_level_ids: readonly string[];
   field_sets: number;
   field_cells: number;
   field_bytes: number;
+  pyramid_levels: number;
+  pyramid_cells: number;
+  pyramid_bytes: number;
   triangles: number;
 }
 
@@ -25,9 +29,13 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
       detail: "the deterministic reference terrain is active",
     },
     preference: "auto",
+    active_level_ids: Object.freeze([]),
     field_sets: 0,
     field_cells: 0,
     field_bytes: 0,
+    pyramid_levels: 0,
+    pyramid_cells: 0,
+    pyramid_bytes: 0,
     triangles: 0,
   } satisfies AcceleratedTerrainReport,
 );
@@ -62,6 +70,28 @@ export function AcceleratedTerrainSurface({
       onReport(REFERENCE_TERRAIN_REPORT);
       return;
     }
+    const activeLevelIds = Object.freeze(
+      [
+        ...new Set(
+          snapshot.scene.terrain_fields.map((fields) => fields.level_id),
+        ),
+      ].sort((left, right) => left.localeCompare(right)),
+    );
+    const totals = snapshot.scene.terrain_fields.reduce(
+      (result, fields) => ({
+        field_cells: result.field_cells + fields.field_cells,
+        field_bytes: result.field_bytes + fields.field_bytes,
+      }),
+      { field_cells: 0, field_bytes: 0 },
+    );
+    const pyramidTotals = snapshot.scene.terrain_pyramids.reduce(
+      (result, pyramid) => ({
+        levels: result.levels + pyramid.levels.length,
+        cells: result.cells + pyramid.total_cells,
+        bytes: result.bytes + pyramid.total_bytes,
+      }),
+      { levels: 0, cells: 0, bytes: 0 },
+    );
     const preference = rendererPreference(window.location.search);
     if (preference === "reference") {
       setReady(false);
@@ -73,6 +103,13 @@ export function AcceleratedTerrainSurface({
           lifecycle: "ready",
           detail: "the reference renderer was selected by the view envelope",
         },
+        active_level_ids: activeLevelIds,
+        field_sets: snapshot.scene.terrain_fields.length,
+        field_cells: totals.field_cells,
+        field_bytes: totals.field_bytes,
+        pyramid_levels: pyramidTotals.levels,
+        pyramid_cells: pyramidTotals.cells,
+        pyramid_bytes: pyramidTotals.bytes,
       });
       return;
     }
@@ -81,13 +118,6 @@ export function AcceleratedTerrainSurface({
     let adapter:
       import("./three-webgpu").ThreeWebGpuRendererAdapter | undefined;
     let bundle: import("./three-terrain").ThreeTerrainBundle | undefined;
-    const totals = snapshot.scene.terrain_fields.reduce(
-      (result, fields) => ({
-        field_cells: result.field_cells + fields.field_cells,
-        field_bytes: result.field_bytes + fields.field_bytes,
-      }),
-      { field_cells: 0, field_bytes: 0 },
-    );
     const report = (
       status: RendererStatus,
       statistics?: { field_sets: number; triangles: number },
@@ -96,10 +126,14 @@ export function AcceleratedTerrainSurface({
       onReport({
         status,
         preference,
+        active_level_ids: activeLevelIds,
         field_sets:
           statistics?.field_sets ?? snapshot.scene.terrain_fields.length,
         field_cells: totals.field_cells,
         field_bytes: totals.field_bytes,
+        pyramid_levels: pyramidTotals.levels,
+        pyramid_cells: pyramidTotals.cells,
+        pyramid_bytes: pyramidTotals.bytes,
         triangles: statistics?.triangles ?? 0,
       });
     };

@@ -19,13 +19,14 @@ import {
   type AdmittedTopography,
 } from "./explore/projection/topography-projector";
 import {
-  createFieldGrid,
   fieldPoint,
   type MaskField2D,
   type ScalarField2D,
 } from "./explore/engine/fields";
 import {
-  compileTerrainFields,
+  compileTerrainFieldPyramid,
+  terrainFieldForRegime,
+  type TerrainFieldPyramid,
   type TerrainFieldSet,
 } from "./explore/terrain/compile";
 
@@ -170,6 +171,7 @@ export interface TopologyScene {
   fit_world: TopologyWorld;
   terrain: boolean;
   terrain_fields: TerrainFieldSet[];
+  terrain_pyramids: TerrainFieldPyramid[];
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
@@ -207,6 +209,7 @@ export function buildTopologyScene(
     },
     terrain: projection.terrain ?? false,
     terrain_fields: projection.terrain_fields ?? [],
+    terrain_pyramids: projection.terrain_pyramids ?? [],
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
@@ -223,6 +226,7 @@ type TopologyProjection = Omit<
   | "points"
   | "terrain"
   | "terrain_fields"
+  | "terrain_pyramids"
   | "world"
 > & {
   bearing?: TopologyBearing;
@@ -232,6 +236,7 @@ type TopologyProjection = Omit<
   points?: TopologyPointOfInterest[];
   terrain?: boolean;
   terrain_fields?: TerrainFieldSet[];
+  terrain_pyramids?: TerrainFieldPyramid[];
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
 };
@@ -1215,7 +1220,6 @@ function portfolioObjectScene(
   };
 }
 
-const TERRAIN_GRID = { columns: 60, rows: 40 } as const;
 const TERRAIN_LEVELS = [0.12, 0.23, 0.35, 0.48, 0.61, 0.74, 0.86] as const;
 
 interface SurveyTerrainLayout {
@@ -1226,6 +1230,7 @@ interface SurveyTerrainLayout {
   points: TopologyPointOfInterest[];
   regions: TopologyRegion[];
   terrain_fields: TerrainFieldSet[];
+  terrain_pyramids: TerrainFieldPyramid[];
   world: TopologyWorld;
 }
 
@@ -1234,7 +1239,7 @@ function buildSurveyTerrain(
   focusId: string,
   regime: LensRegime,
 ): TopologyProjection {
-  const layout = layoutSurveyTerrain(topographies);
+  const layout = layoutSurveyTerrain(topographies, regime);
   const selected = selectTopography(topographies, focusId);
   const selectedPoints = layout.points.filter(
     (point) => point.workload_id === selected.workload.workload.id,
@@ -1280,19 +1285,19 @@ function buildSurveyTerrain(
   const regimeCopy = {
     world: {
       label: "CONTEXT WORLD",
-      detail: `${topographies.length} admitted chart${topographies.length === 1 ? "" : "s"} · ${streamCount} emergent water systems · ${weatherFrontCount} boundary weather fronts`,
+      detail: `${topographies.length} admitted chart${topographies.length === 1 ? "" : "s"} · overview terrain LOD · ${streamCount} emergent water systems · ${weatherFrontCount} boundary weather fronts`,
     },
     atlas: {
       label: "ANCHOR RELIEF ATLAS",
-      detail: `${anchorCount} admitted anchors shape ${layout.contours.length} contour levels across ${topographies.length} scene${topographies.length === 1 ? "" : "s"}`,
+      detail: `${anchorCount} admitted anchors shape ${layout.contours.length} contour levels across ${topographies.length} regional terrain scene${topographies.length === 1 ? "" : "s"}`,
     },
     landscape: {
       label: "ANCHOR TERRAIN",
-      detail: `${anchorCount} anchor stations · anchor-only relief with projected runoff and erosion · surveyed boundaries visible`,
+      detail: `${anchorCount} anchor stations · regional terrain LOD · anchor-only relief with projected runoff and erosion · surveyed boundaries visible`,
     },
     neighborhoods: {
       label: "ANCHOR NEIGHBORHOOD",
-      detail: `${selected.workload.workload.id} · local survey conditions over persistent relief`,
+      detail: `${selected.workload.workload.id} · local terrain LOD · survey conditions over persistent relief`,
     },
     objects: {
       label: "ANCHOR OBJECTS",
@@ -1323,11 +1328,13 @@ function buildSurveyTerrain(
     },
     terrain: true,
     terrain_fields: layout.terrain_fields,
+    terrain_pyramids: layout.terrain_pyramids,
   };
 }
 
 function layoutSurveyTerrain(
   topographies: AdmittedTopography[],
+  regime: LensRegime,
 ): SurveyTerrainLayout {
   const columns = Math.max(1, Math.ceil(Math.sqrt(topographies.length)));
   const rows = Math.max(1, Math.ceil(topographies.length / columns));
@@ -1350,6 +1357,7 @@ function layoutSurveyTerrain(
   const points: TopologyPointOfInterest[] = [];
   const regions: TopologyRegion[] = [];
   const terrainFields: TerrainFieldSet[] = [];
+  const terrainPyramids: TerrainFieldPyramid[] = [];
 
   const ordered = [...topographies].sort((left, right) =>
     left.workload.workload.id.localeCompare(right.workload.workload.id),
@@ -1556,6 +1564,7 @@ function layoutSurveyTerrain(
       patchFrontierPoints,
       patch,
       projection,
+      regime,
       {
         x: origin.x + 100,
         y: origin.y + 80,
@@ -1565,6 +1574,7 @@ function layoutSurveyTerrain(
     );
     contours.push(...terrainField.contours);
     terrainFields.push(terrainField.fields);
+    terrainPyramids.push(terrainField.pyramid);
     const boundedFeatures = terrainField.natural_features.slice(
       0,
       projection.limits.max_natural_features,
@@ -1594,6 +1604,7 @@ function layoutSurveyTerrain(
     points,
     regions,
     terrain_fields: terrainFields,
+    terrain_pyramids: terrainPyramids,
     world,
   };
 }
@@ -1751,6 +1762,7 @@ function buildSurveyTerrainDetails(
 interface TerrainFieldResult {
   contours: TopologyContour[];
   fields: TerrainFieldSet;
+  pyramid: TerrainFieldPyramid;
   natural_features: TopologyNaturalFeature[];
 }
 
@@ -1760,13 +1772,9 @@ function buildTerrainField(
   frontier: TopologyPointOfInterest[],
   patch: TopographyPatch,
   projection: ProjectionPacket,
+  regime: LensRegime,
   bounds: { x: number; y: number; width: number; height: number },
 ): TerrainFieldResult {
-  const grid = createFieldGrid(
-    TERRAIN_GRID.columns + 1,
-    TERRAIN_GRID.rows + 1,
-    bounds,
-  );
   const unresolvedPressure = Math.min(
     1.8,
     patch.frontier.length * 0.08 +
@@ -1777,10 +1785,10 @@ function buildTerrainField(
       ) *
         0.03,
   );
-  const fields = compileTerrainFields({
+  const pyramid = compileTerrainFieldPyramid({
     source_id: id,
     source_revision: patch.topography_revision,
-    grid,
+    bounds,
     anchors: points.map((point) => ({
       id: point.id,
       x: point.x,
@@ -1791,6 +1799,8 @@ function buildTerrainField(
     unresolved_pressure: unresolvedPressure,
     projection,
   });
+  const fields = terrainFieldForRegime(pyramid, regime);
+  const grid = fields.grid;
   const contours = TERRAIN_LEVELS.flatMap((ratio, index) => {
     const threshold = fields.elevation.maximum * ratio;
     const path = marchingSquaresPath(
@@ -1878,7 +1888,7 @@ function buildTerrainField(
       workload_id: id,
     });
   });
-  return { contours, fields, natural_features: naturalFeatures };
+  return { contours, fields, pyramid, natural_features: naturalFeatures };
 }
 
 function envelopePath(

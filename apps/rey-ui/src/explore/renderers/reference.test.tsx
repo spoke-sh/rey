@@ -74,6 +74,7 @@ const terrainScene = {
   fit_world: { width: 1500, height: 1000 },
   terrain: true,
   terrain_fields: [],
+  terrain_pyramids: [],
 } satisfies TopologyScene;
 
 describe("reference renderer", () => {

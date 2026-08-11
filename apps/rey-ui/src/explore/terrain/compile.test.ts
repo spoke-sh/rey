@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectionPacket } from "../../domain";
-import { createFieldGrid } from "../engine/fields";
-import { compileTerrainFields } from "./compile";
+import { fieldPoint } from "../engine/fields";
+import { compileTerrainFieldPyramid, terrainFieldForRegime } from "./compile";
 import { PROJECTED_SUPPORT } from "./elevation";
 
 const channels = [
@@ -34,7 +34,7 @@ const channels = [
 }));
 
 const projection = {
-  schema: "rey.projection-packet.v1",
+  schema: "rey.projection-packet.v2",
   packet_id: "packet:one",
   source_patch_id: "patch:one",
   source_topography_revision: "topography:one",
@@ -52,12 +52,46 @@ const projection = {
   },
   scene_compiler: { id: "scene", revision: 1, semantic_digest: "scene:one" },
   extent: { width: 1500, height: 1000, unit: "synthetic_scene_unit" },
-  field_layout: {
-    columns: 21,
-    rows: 15,
-    cells: 315,
-    bytes_per_cell: 55,
-    total_bytes: 17325,
+  field_pyramid: {
+    schema: "rey.terrain-field-pyramid.v1",
+    levels: [
+      {
+        level_id: "overview",
+        columns: 6,
+        rows: 5,
+        cells: 30,
+        bytes_per_cell: 55,
+        total_bytes: 1650,
+        sample_stride: 4,
+        regimes: ["world"],
+        detail_authority: "coarse fixture resampling",
+      },
+      {
+        level_id: "regional",
+        columns: 11,
+        rows: 9,
+        cells: 99,
+        bytes_per_cell: 55,
+        total_bytes: 5445,
+        sample_stride: 2,
+        regimes: ["atlas", "landscape"],
+        detail_authority: "regional fixture resampling",
+      },
+      {
+        level_id: "local",
+        columns: 21,
+        rows: 17,
+        cells: 357,
+        bytes_per_cell: 55,
+        total_bytes: 19635,
+        sample_stride: 1,
+        regimes: ["neighborhoods", "objects", "evidence"],
+        detail_authority: "local fixture resampling",
+      },
+    ],
+    total_cells: 486,
+    total_bytes: 26730,
+    stable_coordinate_rule: "nested fixture coordinates",
   },
   objects: [],
   validity: [],
@@ -69,10 +103,13 @@ const projection = {
     max_frontier_objects: 6,
     max_validity_regions: 256,
     max_field_channels: 12,
+    max_field_levels: 3,
     max_layers: 8,
     max_omissions: 1032,
-    max_field_cells: 2501,
-    max_field_bytes: 160064,
+    max_field_cells: 357,
+    max_field_bytes: 19635,
+    max_total_field_cells: 486,
+    max_total_field_bytes: 26730,
     max_contours: 7,
     max_natural_features: 96,
     max_labels: 70,
@@ -88,12 +125,12 @@ describe("terrain field compiler", () => {
     const input = {
       source_id: "survey:one",
       source_revision: "topography:one",
-      grid: createFieldGrid(21, 15, {
+      bounds: {
         x: 100,
         y: 80,
         width: 1300,
         height: 840,
-      }),
+      },
       anchors: [
         { id: "workspace", x: 750, y: 500, prominence: 4 },
         { id: "document", x: 1010, y: 420, prominence: 2 },
@@ -102,29 +139,41 @@ describe("terrain field compiler", () => {
       unresolved_pressure: 0.4,
       projection,
     } as const;
-    const first = compileTerrainFields(input);
-    const second = compileTerrainFields(input);
+    const first = compileTerrainFieldPyramid(input);
+    const second = compileTerrainFieldPyramid(input);
+    const local = terrainFieldForRegime(first, "neighborhoods");
+    const regional = terrainFieldForRegime(first, "atlas");
+    const overview = terrainFieldForRegime(first, "world");
 
-    expect(first.field_cells).toBe(315);
-    expect(first.field_bytes).toBe(projection.field_layout.total_bytes);
-    expect(first.field_bytes).toBeLessThanOrEqual(
-      projection.limits.max_field_bytes,
+    expect(first.levels.map((level) => level.level_id)).toEqual([
+      "overview",
+      "regional",
+      "local",
+    ]);
+    expect(first.total_cells).toBe(projection.field_pyramid.total_cells);
+    expect(first.total_bytes).toBe(projection.field_pyramid.total_bytes);
+    expect(Array.from(local.elevation.values)).toEqual(
+      Array.from(second.levels[2]!.elevation.values),
     );
-    expect(Array.from(first.elevation.values)).toEqual(
-      Array.from(second.elevation.values),
+    expect(Array.from(local.validity.values)).toContain(PROJECTED_SUPPORT);
+    expect(Array.from(local.validity.values)).toContain(0);
+    expect(local.erosion.maximum).toBeGreaterThan(0);
+    expect(local.flow_accumulation.maximum).toBeGreaterThan(
+      local.rainfall.maximum,
     );
-    expect(Array.from(first.validity.values)).toContain(PROJECTED_SUPPORT);
-    expect(Array.from(first.validity.values)).toContain(0);
-    expect(first.erosion.maximum).toBeGreaterThan(0);
-    expect(first.flow_accumulation.maximum).toBeGreaterThan(
-      first.rainfall.maximum,
-    );
-    expect(first.material.tint.some((value) => value > 0)).toBe(true);
+    expect(local.material.tint.some((value) => value > 0)).toBe(true);
 
-    const supported = first.validity.values.findIndex(
+    expect(fieldPoint(overview.grid, 1, 1)).toEqual(
+      fieldPoint(local.grid, 4, 4),
+    );
+    expect(fieldPoint(regional.grid, 3, 2)).toEqual(
+      fieldPoint(local.grid, 6, 4),
+    );
+
+    const supported = local.validity.values.findIndex(
       (value) => value === PROJECTED_SUPPORT,
     );
-    const normal = first.normal.values.slice(supported * 3, supported * 3 + 3);
+    const normal = local.normal.values.slice(supported * 3, supported * 3 + 3);
     expect(Math.hypot(...normal)).toBeCloseTo(1, 5);
   });
 });

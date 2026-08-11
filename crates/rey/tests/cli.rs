@@ -2678,7 +2678,9 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "OMISSION candidate_limit",
         "Exact topography bindings:",
         "Exact projection bindings:",
-        "field layout 61×41 · 2501 cells · 55 bytes/cell · 137555 bytes allocated",
+        "field pyramid 3 levels · 12953 cells · 712415 bytes allocated",
+        "field level overview · 31×21 · stride 4 · 651 cells · 35805 bytes · world",
+        "field level local · 121×81 · stride 1 · 9801 cells · 539055 bytes · neighborhoods/objects/evidence",
         "elevation · scalar",
         "projection omission",
         "operation   rey.context-anchor-survey.locate@1",
@@ -2767,10 +2769,11 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert_eq!(summary.topography_patch.as_ref(), Some(patch));
     let projection = summary.topography_projection.as_ref().unwrap();
     projection.verify_for(patch).unwrap();
-    assert_eq!(projection.schema, "rey.projection-packet.v1");
+    assert_eq!(projection.schema, "rey.projection-packet.v2");
     assert_eq!(projection.source_patch_id, patch.patch_id);
-    assert_eq!(projection.field_layout.cells, 2_501);
-    assert_eq!(projection.field_layout.total_bytes, 137_555);
+    assert_eq!(projection.field_pyramid.levels.len(), 3);
+    assert_eq!(projection.field_pyramid.total_cells, 12_953);
+    assert_eq!(projection.field_pyramid.total_bytes, 712_415);
     assert_eq!(
         projection.excluded_source_relationships,
         patch.edges.len() as u64
@@ -2824,7 +2827,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"topography_patch\""));
     assert!(response.contains("\"topography_projection\""));
-    assert!(response.contains("\"schema\":\"rey.projection-packet.v1\""));
+    assert!(response.contains("\"schema\":\"rey.projection-packet.v2\""));
     assert!(response.contains(patch.patch_id.as_str()));
     assert!(response.contains("\"state\":\"unexplored\""));
     ui.kill().unwrap();

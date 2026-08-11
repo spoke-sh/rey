@@ -403,15 +403,16 @@ aggregation, context, elision, sampling, limits, and omissions.
 ### Explorer projection packet
 
 ADR 0044 introduces a projection-engine boundary rather than a second top-level
-resource. The implemented `rey.projection-packet.v1` carries:
+resource. The implemented `rey.projection-packet.v2` carries:
 
 ```text
 packet identity + source evidence identities
 coordinate/embedding basis + implementation revision + parameters
 bounded source scene objects + scalar/vector/mask channel descriptors
-exact typed field layout + surveyed-validity masks + world bounds
-scene/field/simulation/material revisions; multiresolution LOD remains incomplete
-effective object/cell/tile/byte/time/resource limits
+exact typed field pyramid + surveyed-validity masks + world bounds
+per-level regimes/strides/allocations + total pyramid allocation
+scene/field/simulation/material revisions
+effective object/level/cell/byte/resource limits
 completeness + degradation + omissions + lineage
 ```
 
@@ -423,12 +424,16 @@ receiving authority to reinterpret source evidence.
 
 `rey workloads test context-anchor-survey -vv` exposes the implemented packet
 identity, exact patch binding, synthetic anchor-orientation basis, scene
-compiler, extent, exact 61×41 field layout and allocation, field descriptors,
-validity regions, layers, effective limits, degradation, omissions, and lineage.
+compiler, extent, exact overview 31×21, regional 61×41, and local 121×81
+levels, their 12,953-cell/712,415-byte total allocation, regime bindings,
+field descriptors, validity regions, layers, effective limits, degradation,
+omissions, and lineage.
 `rey.workload-list.v7` carries the same packet beside its exact patch, and
 Explorer fails closed to the portfolio fallback unless both identities match.
-The browser rejects a compiled field whose dimensions, cells, or byte
-allocation diverges from that packet. Multiresolution LOD, retained
+The browser rejects a compiled level or pyramid whose dimensions, nesting,
+cells, or byte allocation diverges from that packet. It selects overview for
+World, regional for Atlas/Landscape, and local for Neighborhood/Object/Evidence
+while retaining one exact world extent. Smooth LOD blending, retained
 renderer/fallback captures, viewport evidence, and performance evidence remain
 incomplete Plan 0020 work. Structured output preserves typed values rather than
 serializing GPU state.

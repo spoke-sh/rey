@@ -110,8 +110,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     retainedRegime.current = regime;
   }, [regime]);
   const snapshot = useMemo(
-    () => compileSceneSnapshot(portfolio, zoom, focusId, regime),
-    [focusId, portfolio, regime, zoom],
+    () => compileSceneSnapshot(portfolio, DEFAULT_LENS_ZOOM, focusId, regime),
+    [focusId, portfolio, regime],
   );
   const scene = snapshot.scene;
   const renderedScale = renderedSceneScale(
@@ -331,11 +331,24 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             </span>
           ) : null}
           {terrainRenderer.field_cells > 0 ? (
-            <span>
-              FIELD / {terrainRenderer.field_cells} CELLS /{" "}
-              {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB /{" "}
-              {terrainRenderer.triangles} TRI
-            </span>
+            <>
+              <span
+                data-terrain-lod={terrainRenderer.active_level_ids.join(",")}
+              >
+                LOD /{" "}
+                {terrainRenderer.active_level_ids.join(" + ").toUpperCase()}
+              </span>
+              <span>
+                FIELD / {terrainRenderer.field_cells} CELLS /{" "}
+                {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB /{" "}
+                {terrainRenderer.triangles} TRI
+              </span>
+              <span>
+                PYRAMID / {terrainRenderer.pyramid_levels} LEVELS /{" "}
+                {terrainRenderer.pyramid_cells} CELLS /{" "}
+                {Math.ceil(terrainRenderer.pyramid_bytes / 1024)} KIB
+              </span>
+            </>
           ) : null}
         </div>
         <div className={sx(styles.lensLegend)}>
