@@ -10,7 +10,7 @@ import type {
 import { deriveAgentIndex } from "./domain";
 
 export type LensRegime =
-  "atlas" | "landscape" | "neighborhoods" | "objects" | "evidence";
+  "world" | "atlas" | "landscape" | "neighborhoods" | "objects" | "evidence";
 export type TopologyTone =
   | "neutral"
   | "accent"
@@ -26,6 +26,11 @@ export type TopologyTone =
 export interface TopologyWorld {
   width: number;
   height: number;
+}
+
+interface TopologyPosition {
+  x: number;
+  y: number;
 }
 
 export interface TopologyRegion {
@@ -48,6 +53,35 @@ export interface TopologyContour {
   anchor_count: number;
 }
 
+export interface TopologyLandform {
+  id: string;
+  path: string;
+  kind: "charted" | "horizon";
+  label: string;
+  detail: string;
+  tone: TopologyTone;
+}
+
+export interface TopologyRoute {
+  id: string;
+  from: string;
+  to: string;
+  path: string;
+  kind: "containment" | "reference" | "passage" | "probe";
+  label: string;
+  evidence: string;
+  prominence: number;
+  selected: boolean;
+}
+
+export interface TopologyBearing {
+  status: "world" | "charted" | "probe_required" | "isolated";
+  label: string;
+  detail: string;
+  exact_steps: number;
+  probe_steps: number;
+}
+
 export interface TopologyPointOfInterest {
   id: string;
   focus_id: string;
@@ -58,6 +92,8 @@ export interface TopologyPointOfInterest {
   x: number;
   y: number;
   prominence: number;
+  signal: string;
+  action: string;
   tone: TopologyTone;
   workload_id: string;
   coordinate_uri?: string;
@@ -91,19 +127,23 @@ export interface TopologyScene {
   detail: string;
   focus_id: string;
   regions: TopologyRegion[];
+  landforms: TopologyLandform[];
   contours: TopologyContour[];
+  routes: TopologyRoute[];
   points: TopologyPointOfInterest[];
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   omissions: string[];
+  bearing: TopologyBearing;
   world: TopologyWorld;
   fit_world: TopologyWorld;
   terrain: boolean;
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
-export const MIN_LENS_ZOOM = 0.12;
+export const MIN_LENS_ZOOM = 0.05;
 export const MAX_LENS_ZOOM = 5.4;
+export const WORLD_LENS_ZOOM = 0.1;
 export const DEFAULT_LENS_ZOOM = 0.26;
 export const LANDSCAPE_LENS_ZOOM = 0.58;
 export const NEIGHBORHOOD_LENS_ZOOM = 1.08;
@@ -112,16 +152,18 @@ export const EVIDENCE_LENS_ZOOM = 3.55;
 
 const NEIGHBORHOOD_LIMIT = 8;
 const TOPOGRAPHY_POI_LIMIT = 64;
+const TOPOGRAPHY_ROUTE_LIMIT = 192;
 const LENS_HYSTERESIS = 0.05;
 
 const LENS_ORDER: readonly LensRegime[] = [
+  "world",
   "atlas",
   "landscape",
   "neighborhoods",
   "objects",
   "evidence",
 ];
-const LENS_BOUNDARIES = [0.42, 0.82, 1.52, 2.8] as const;
+const LENS_BOUNDARIES = [0.19, 0.42, 0.82, 1.52, 2.8] as const;
 
 export function lensRegimeForZoom(
   zoom: number,
@@ -152,6 +194,7 @@ export function clampLensZoom(zoom: number): number {
 export function stepLensZoom(zoom: number, direction: 1 | -1): number {
   const regime = lensRegimeForZoom(zoom);
   const stops = [
+    WORLD_LENS_ZOOM,
     DEFAULT_LENS_ZOOM,
     LANDSCAPE_LENS_ZOOM,
     NEIGHBORHOOD_LENS_ZOOM,
@@ -173,7 +216,8 @@ export function buildTopologyScene(
 ): TopologyScene {
   const regime = retainedRegime ?? lensRegimeForZoom(zoom);
   let projection: TopologyProjection;
-  if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
+  if (regime === "world") projection = buildWorld(portfolio, focusId);
+  else if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
   else if (regime === "landscape")
     projection = buildLandscape(portfolio, focusId);
   else if (regime === "neighborhoods")
@@ -182,8 +226,17 @@ export function buildTopologyScene(
   else projection = buildEvidence(portfolio, focusId);
   return {
     ...projection,
+    landforms: projection.landforms ?? [],
     contours: projection.contours ?? [],
+    routes: projection.routes ?? [],
     points: projection.points ?? [],
+    bearing: projection.bearing ?? {
+      status: "isolated",
+      label: "NO CHARTED BEARING",
+      detail: "no admitted survey geometry",
+      exact_steps: 0,
+      probe_steps: 0,
+    },
     terrain: projection.terrain ?? false,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
@@ -193,10 +246,20 @@ export function buildTopologyScene(
 
 type TopologyProjection = Omit<
   TopologyScene,
-  "contours" | "fit_world" | "points" | "terrain" | "world"
+  | "bearing"
+  | "contours"
+  | "fit_world"
+  | "landforms"
+  | "points"
+  | "routes"
+  | "terrain"
+  | "world"
 > & {
+  bearing?: TopologyBearing;
   contours?: TopologyContour[];
+  landforms?: TopologyLandform[];
   points?: TopologyPointOfInterest[];
+  routes?: TopologyRoute[];
   terrain?: boolean;
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
@@ -210,6 +273,26 @@ function admittedTopographies(
       ? [{ workload, patch: workload.topography_patch }]
       : [],
   );
+}
+
+function buildWorld(
+  portfolio: WorkloadList,
+  focusId: string,
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (topographies.length > 0)
+    return buildSurveyTerrain(topographies, focusId, "world");
+  const fallback = buildAtlas(portfolio, focusId);
+  return {
+    ...fallback,
+    regime: "world",
+    label: "UNCHARTED CONTEXT WORLD",
+    detail: "no admitted survey boundary or world geometry",
+    omissions: [
+      "world geometry is unavailable until a survey workload patch is admitted",
+      ...fallback.omissions,
+    ],
+  };
 }
 
 function buildAtlas(
@@ -1178,9 +1261,11 @@ const TERRAIN_LEVELS = [0.12, 0.23, 0.35, 0.48, 0.61, 0.74, 0.86] as const;
 interface SurveyTerrainLayout {
   contours: TopologyContour[];
   edges: TopologyEdge[];
+  landforms: TopologyLandform[];
   omissions: string[];
   points: TopologyPointOfInterest[];
   regions: TopologyRegion[];
+  routes: TopologyRoute[];
   world: TopologyWorld;
 }
 
@@ -1194,10 +1279,24 @@ function buildSurveyTerrain(
   const selectedPoints = layout.points.filter(
     (point) => point.workload_id === selected.workload.workload.id,
   );
+  const requestedFocusPoint = selectedPoints.find(
+    (point) => point.focus_id === focusId,
+  );
   const focusPoint =
-    selectedPoints.find((point) => point.focus_id === focusId) ??
+    requestedFocusPoint ??
     selectedPoints.find((point) => point.family === "WORKSPACE") ??
     selectedPoints[0];
+  const routeBearing = buildRouteBearing(
+    layout.routes,
+    selectedPoints,
+    requestedFocusPoint,
+    selected.patch.frontier.length,
+  );
+  const selectedRouteIds = new Set(routeBearing.route_ids);
+  const routes = layout.routes.map((route) => ({
+    ...route,
+    selected: selectedRouteIds.has(route.id),
+  }));
   const detail = buildSurveyTerrainDetails(
     selected,
     focusPoint,
@@ -1210,19 +1309,7 @@ function buildSurveyTerrain(
       : regime === "neighborhoods"
         ? layout.regions.filter((region) => region.variant === "map-boundary")
         : [];
-  const visibleEdges =
-    regime === "atlas" || regime === "landscape"
-      ? detail.edges
-      : regime === "neighborhoods"
-        ? layout.edges
-        : [
-            ...layout.edges.filter(
-              (candidate) =>
-                candidate.from === focusPoint?.id ||
-                candidate.to === focusPoint?.id,
-            ),
-            ...detail.edges,
-          ];
+  const visibleEdges = detail.edges;
   const anchorCount = topographies.reduce(
     (count, { patch }) => count + patch.anchors.length,
     0,
@@ -1232,6 +1319,10 @@ function buildSurveyTerrain(
     0,
   );
   const regimeCopy = {
+    world: {
+      label: "CONTEXT WORLD",
+      detail: `${topographies.length} admitted chart${topographies.length === 1 ? "" : "s"} · ${layout.routes.length} topology corridors · ${layout.points.filter((point) => point.kind === "frontier").length} boundary probes`,
+    },
     atlas: {
       label: "ANCHOR RELIEF ATLAS",
       detail: `${anchorCount} admitted anchors shape ${layout.contours.length} contour levels across ${topographies.length} scene${topographies.length === 1 ? "" : "s"}`,
@@ -1258,11 +1349,14 @@ function buildSurveyTerrain(
     ...regimeCopy,
     focus_id: focusId,
     regions: visibleRegions,
+    landforms: layout.landforms,
     contours: layout.contours,
+    routes,
     points: layout.points,
     nodes: detail.nodes,
     edges: visibleEdges,
     omissions: layout.omissions,
+    bearing: routeBearing.bearing,
     world: layout.world,
     fit_world: TERRAIN_CELL,
     terrain: true,
@@ -1280,11 +1374,13 @@ function layoutSurveyTerrain(
   };
   const contours: TopologyContour[] = [];
   const edges: TopologyEdge[] = [];
+  const landforms: TopologyLandform[] = [];
   const omissions: string[] = [
     "relief height is admitted anchor and classified-edge influence, not inferred semantic similarity",
   ];
   const points: TopologyPointOfInterest[] = [];
   const regions: TopologyRegion[] = [];
+  const routes: TopologyRoute[] = [];
 
   const ordered = [...topographies].sort((left, right) =>
     left.workload.workload.id.localeCompare(right.workload.workload.id),
@@ -1405,6 +1501,13 @@ function layoutSurveyTerrain(
         y,
         prominence:
           anchor.kind === "workspace" ? 4 : Math.min(4, 1 + anchorDegree),
+        signal:
+          anchorDegree >= 3
+            ? `CONNECTED JUNCTION / ${anchorDegree} EXACT ROUTES`
+            : anchorDegree > 0
+              ? `CHARTED / ${anchorDegree} EXACT ROUTE${anchorDegree === 1 ? "" : "S"}`
+              : "CHARTED TERMINUS / NO CLASSIFIED ROUTE",
+        action: "EXACT COORDINATE / MINING STILL REQUIRES AN ADMITTED WORKLOAD",
         tone: "healthy",
         workload_id: workload.workload.id,
         coordinate_uri: anchor.coordinate.coordinate,
@@ -1425,6 +1528,8 @@ function layoutSurveyTerrain(
         x: center.x + Math.cos(angle) * 585,
         y: center.y + Math.sin(angle) * 365,
         prominence: 1,
+        signal: boundaryProbeAction(frontier.status),
+        action: "PROBE FIRST / THE CANVAS WILL NOT EXECUTE IT",
         tone: resolutionTone(frontier.status),
         workload_id: workload.workload.id,
       });
@@ -1455,6 +1560,92 @@ function layoutSurveyTerrain(
         : [];
     });
     edges.push(...patchEdges);
+    const routeCandidates = patch.edges.flatMap((candidate) => {
+      const from = byCoordinate.get(candidate.source_coordinate);
+      const to = byCoordinate.get(candidate.target_coordinate);
+      if (!from || !to) return [];
+      const routeKind =
+        candidate.kind === "contains" ? "containment" : "reference";
+      return [
+        topologyRoute(
+          `route:${workload.workload.id}:${candidate.edge_id}`,
+          from,
+          to,
+          routeKind,
+          candidate.kind,
+          candidate.evidence_revision,
+          Math.max(1, Math.min(4, Math.min(from.prominence, to.prominence))),
+        ),
+      ];
+    });
+    const frontierById = new Map(
+      points
+        .filter(
+          (point) =>
+            point.workload_id === workload.workload.id &&
+            point.kind === "frontier",
+        )
+        .map((point) => [point.id, point]),
+    );
+    const probeRoutes = patch.frontier.flatMap((frontier) => {
+      const from = byCoordinate.get(frontier.source_coordinate);
+      const to = frontierById.get(
+        `frontier-node:${workload.workload.id}:${frontier.row_id}`,
+      );
+      return from && to
+        ? [
+            topologyRoute(
+              `probe-route:${workload.workload.id}:${frontier.row_id}`,
+              from,
+              to,
+              "probe",
+              boundaryProbeAction(frontier.status),
+              frontier.reason,
+              1,
+            ),
+          ]
+        : [];
+    });
+    const boundedRoutes = [...routeCandidates, ...probeRoutes].slice(
+      0,
+      TOPOGRAPHY_ROUTE_LIMIT,
+    );
+    routes.push(...boundedRoutes);
+    if (routeCandidates.length + probeRoutes.length > boundedRoutes.length)
+      omissions.push(
+        `${routeCandidates.length + probeRoutes.length - boundedRoutes.length} map corridors folded from ${workload.workload.id}`,
+      );
+
+    const patchFrontierPoints = points.filter(
+      (point) =>
+        point.workload_id === workload.workload.id && point.kind === "frontier",
+    );
+    landforms.push(
+      {
+        id: `charted-land:${workload.workload.id}`,
+        path: envelopePath(patchPoints, center, 115, 510),
+        kind: "charted",
+        label: workload.workload.id,
+        detail: `${patch.coverage.surveyed_seeds}/${patch.coverage.requested_seeds} admitted seed boundaries`,
+        tone: patch.complete ? "healthy" : "omitted",
+      },
+      {
+        id: `probe-horizon:${workload.workload.id}`,
+        path: envelopePath(
+          [...patchPoints, ...patchFrontierPoints],
+          center,
+          205,
+          660,
+        ),
+        kind: "horizon",
+        label: "SURVEY HORIZON",
+        detail:
+          patchFrontierPoints.length > 0
+            ? `${patchFrontierPoints.length} unresolved probes bound this chart`
+            : "no unresolved boundary probe retained",
+        tone: patchFrontierPoints.length > 0 ? "frontier" : "unknown",
+      },
+    );
     contours.push(
       ...buildReliefContours(workload.workload.id, patchPoints, patchEdges, {
         x: origin.x + 100,
@@ -1479,7 +1670,17 @@ function layoutSurveyTerrain(
         `${patch.frontier.length - visibleFrontier.length} frontier POIs folded from ${workload.workload.id}`,
       );
   });
-  return { contours, edges, omissions, points, regions, world };
+  addSharedCoordinatePassages(points, routes, omissions);
+  return {
+    contours,
+    edges,
+    landforms,
+    omissions,
+    points,
+    regions,
+    routes,
+    world,
+  };
 }
 
 function buildSurveyTerrainDetails(
@@ -1490,6 +1691,7 @@ function buildSurveyTerrainDetails(
 ): { edges: TopologyEdge[]; nodes: TopologyNode[] } {
   if (
     !focusPoint ||
+    regime === "world" ||
     regime === "atlas" ||
     regime === "landscape" ||
     regime === "neighborhoods"
@@ -1680,6 +1882,217 @@ function buildReliefContours(
         ]
       : [];
   });
+}
+
+function topologyRoute(
+  id: string,
+  from: TopologyPointOfInterest,
+  to: TopologyPointOfInterest,
+  kind: TopologyRoute["kind"],
+  label: string,
+  evidence: string,
+  prominence: number,
+): TopologyRoute {
+  const deltaX = to.x - from.x;
+  const deltaY = to.y - from.y;
+  const length = Math.max(1, Math.hypot(deltaX, deltaY));
+  const bendDirection = stableHash(id) % 2 === 0 ? 1 : -1;
+  const bend = Math.min(48, length * 0.12) * bendDirection;
+  const controlX = (from.x + to.x) / 2 - (deltaY / length) * bend;
+  const controlY = (from.y + to.y) / 2 + (deltaX / length) * bend;
+  return {
+    id,
+    from: from.id,
+    to: to.id,
+    path: `M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${controlX.toFixed(1)},${controlY.toFixed(1)} ${to.x.toFixed(1)},${to.y.toFixed(1)}`,
+    kind,
+    label,
+    evidence,
+    prominence,
+    selected: false,
+  };
+}
+
+function envelopePath(
+  points: TopologyPointOfInterest[],
+  center: TopologyPosition,
+  padding: number,
+  maximumRadius: number,
+): string {
+  const samples = Array.from({ length: 24 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 24;
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    const extent = points.reduce(
+      (maximum, point) =>
+        Math.max(
+          maximum,
+          (point.x - center.x) * direction.x +
+            (point.y - center.y) * direction.y,
+        ),
+      0,
+    );
+    const radius = Math.min(maximumRadius, Math.max(padding, extent + padding));
+    return {
+      x: center.x + direction.x * radius,
+      y: center.y + direction.y * radius,
+    };
+  });
+  const midpoint = (first: TopologyPosition, second: TopologyPosition) => ({
+    x: (first.x + second.x) / 2,
+    y: (first.y + second.y) / 2,
+  });
+  const first = midpoint(samples.at(-1)!, samples[0]!);
+  const segments = samples.map((point, index) => {
+    const next = samples[(index + 1) % samples.length]!;
+    const end = midpoint(point, next);
+    return `Q${point.x.toFixed(1)},${point.y.toFixed(1)} ${end.x.toFixed(1)},${end.y.toFixed(1)}`;
+  });
+  return `M${first.x.toFixed(1)},${first.y.toFixed(1)} ${segments.join(" ")} Z`;
+}
+
+function addSharedCoordinatePassages(
+  points: TopologyPointOfInterest[],
+  routes: TopologyRoute[],
+  omissions: string[],
+) {
+  const byCoordinate = new Map<string, TopologyPointOfInterest[]>();
+  points.forEach((point) => {
+    if (!point.coordinate_uri || point.kind !== "anchor") return;
+    const matches = byCoordinate.get(point.coordinate_uri) ?? [];
+    matches.push(point);
+    byCoordinate.set(point.coordinate_uri, matches);
+  });
+  const passages = [...byCoordinate.entries()].flatMap(
+    ([coordinate, matches]) =>
+      matches
+        .slice(1)
+        .map((point, index) =>
+          topologyRoute(
+            `passage:${stableHash(coordinate)}:${index}`,
+            matches[0]!,
+            point,
+            "passage",
+            "shared coordinate",
+            coordinate,
+            4,
+          ),
+        ),
+  );
+  const remaining = Math.max(0, TOPOGRAPHY_ROUTE_LIMIT - routes.length);
+  routes.push(...passages.slice(0, remaining));
+  if (passages.length > remaining)
+    omissions.push(`${passages.length - remaining} world passages folded`);
+}
+
+function buildRouteBearing(
+  routes: TopologyRoute[],
+  points: TopologyPointOfInterest[],
+  focusPoint: TopologyPointOfInterest | undefined,
+  frontierCount: number,
+): { bearing: TopologyBearing; route_ids: string[] } {
+  if (!focusPoint) {
+    return {
+      bearing: {
+        status: "world",
+        label: "WORLD GEOMETRY",
+        detail: `${routes.filter((route) => route.kind !== "probe").length} exact corridors · ${frontierCount} probe-first horizons`,
+        exact_steps: 0,
+        probe_steps: frontierCount,
+      },
+      route_ids: [],
+    };
+  }
+  const origin =
+    points.find(
+      (point) =>
+        point.workload_id === focusPoint.workload_id &&
+        point.family === "WORKSPACE",
+    ) ?? points[0];
+  if (!origin || origin.id === focusPoint.id) {
+    return {
+      bearing: {
+        status: "world",
+        label: "SURVEY ORIGIN",
+        detail: `${frontierCount} retained boundary probe${frontierCount === 1 ? "" : "s"}; selection does not reshape terrain`,
+        exact_steps: 0,
+        probe_steps: 0,
+      },
+      route_ids: [],
+    };
+  }
+
+  const adjacency = new Map<string, TopologyRoute[]>();
+  routes.forEach((route) => {
+    const outgoing = adjacency.get(route.from) ?? [];
+    outgoing.push(route);
+    adjacency.set(route.from, outgoing);
+  });
+  const queue: Array<{ point: string; path: TopologyRoute[] }> = [
+    { point: origin.id, path: [] },
+  ];
+  const visited = new Set([origin.id]);
+  let resolved: TopologyRoute[] | undefined;
+  while (queue.length > 0 && !resolved) {
+    const current = queue.shift()!;
+    for (const route of adjacency.get(current.point) ?? []) {
+      if (visited.has(route.to)) continue;
+      const path = [...current.path, route];
+      if (route.to === focusPoint.id) {
+        resolved = path;
+        break;
+      }
+      visited.add(route.to);
+      queue.push({ point: route.to, path });
+    }
+  }
+  if (!resolved) {
+    return {
+      bearing: {
+        status: focusPoint.kind === "frontier" ? "probe_required" : "isolated",
+        label:
+          focusPoint.kind === "frontier"
+            ? "PROBE REQUIRED BEFORE MINING"
+            : "NO DIRECTED PATH FROM SURVEY ORIGIN",
+        detail:
+          focusPoint.kind === "frontier"
+            ? focusPoint.signal
+            : "the admitted topology does not connect this coordinate from the workspace origin",
+        exact_steps: 0,
+        probe_steps: focusPoint.kind === "frontier" ? 1 : 0,
+      },
+      route_ids: [],
+    };
+  }
+  const probeSteps = resolved.filter((route) => route.kind === "probe").length;
+  const exactSteps = resolved.length - probeSteps;
+  return {
+    bearing: {
+      status: probeSteps > 0 ? "probe_required" : "charted",
+      label:
+        probeSteps > 0
+          ? "PROBE REQUIRED BEFORE MINING"
+          : "CHARTED CURATION PATH",
+      detail:
+        probeSteps > 0
+          ? `${exactSteps} exact steps reach the known boundary; ${probeSteps} unresolved crossing remains`
+          : `${exactSteps} directed exact step${exactSteps === 1 ? "" : "s"}; this camera path does not alter relief`,
+      exact_steps: exactSteps,
+      probe_steps: probeSteps,
+    },
+    route_ids: resolved.map((route) => route.id),
+  };
+}
+
+function boundaryProbeAction(
+  status: TopographyPatch["frontier"][number]["status"],
+): string {
+  if (status === "truncated") return "EXPAND DECLARED SURVEY BOUND";
+  if (status === "stale") return "REVALIDATE SOURCE REVISION";
+  if (status === "unsupported") return "ADMIT A RESOLVER CAPABILITY";
+  if (status === "unauthorized") return "OBTAIN EXPLICIT READ AUTHORITY";
+  if (status === "malformed") return "CURATE THE LOCATOR";
+  if (status === "missing") return "VERIFY ABSENCE OR REPAIR REFERENCE";
+  return "RESOLVED COORDINATE / ADMIT MINING SEPARATELY";
 }
 
 function marchingSquaresPath(

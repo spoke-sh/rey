@@ -109,6 +109,12 @@ describe("Explorer coordinate views", () => {
     expect(
       parseExplorerView(explorerCoordinateUri(view.coordinate), "2.05"),
     ).toEqual(view);
+    expect(
+      parseExplorerView(explorerCoordinateUri(view.coordinate), "0.05"),
+    ).toMatchObject({ scale: 0.05 });
+    expect(
+      parseExplorerView(explorerCoordinateUri(view.coordinate), "0.04"),
+    ).toBeNull();
   });
 
   it("rejects matrix routes and non-canonical or ambiguous coordinates", () => {

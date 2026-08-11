@@ -2777,6 +2777,41 @@ fn write_topography_evidence(
         patch.delta.deleted,
         patch.delta.modified,
     )?;
+    let containment_routes = patch
+        .edges
+        .iter()
+        .filter(|edge| edge.kind.as_str() == "contains")
+        .count();
+    let reference_flows = patch.edges.len().saturating_sub(containment_routes);
+    let surveyed_regions = patch
+        .regions
+        .iter()
+        .filter(|region| matches!(region.state.as_str(), "surveyed" | "surveyed_empty"))
+        .count();
+    let mut route_degree = BTreeMap::<&str, usize>::new();
+    for edge in &patch.edges {
+        *route_degree
+            .entry(edge.source_coordinate.as_str())
+            .or_default() += 1;
+        *route_degree
+            .entry(edge.target_coordinate.as_str())
+            .or_default() += 1;
+    }
+    let junctions = route_degree.values().filter(|degree| **degree >= 3).count();
+    writeln!(
+        output,
+        "         World geometry: 1 admitted chart · {surveyed_regions} surveyed regions · {} unresolved probe horizons · unexplored extent has no inferred boundary",
+        patch.frontier.len(),
+    )?;
+    writeln!(
+        output,
+        "         Transport geometry: {containment_routes} containment roads · {reference_flows} directed reference flows · exact classified edges only",
+    )?;
+    writeln!(
+        output,
+        "         Mining bearing: {} exact anchor coordinates · {junctions} connected junctions · connectivity is not a mining recommendation or read authority",
+        patch.anchors.len(),
+    )?;
     for seed in &patch.seeds {
         writeln!(
             output,
@@ -2848,9 +2883,10 @@ fn write_topography_evidence(
         for row in patch.frontier.iter().take(ROW_LIMIT) {
             writeln!(
                 output,
-                "         FRONTIER {:<12} {} · {}",
+                "         PROBE {:<12} {} · {} · {}",
                 row.status.as_str(),
                 row.locator,
+                topography_probe_action(row.status.as_str()),
                 row.reason,
             )?;
         }
@@ -2933,6 +2969,18 @@ fn write_topography_evidence(
         }
     }
     Ok(())
+}
+
+fn topography_probe_action(status: &str) -> &'static str {
+    match status {
+        "truncated" => "expand declared survey bound",
+        "stale" => "revalidate source revision",
+        "unsupported" => "admit a resolver capability",
+        "unauthorized" => "obtain explicit read authority",
+        "malformed" => "curate the locator",
+        "missing" => "verify absence or repair reference",
+        _ => "admit mining separately",
+    }
 }
 
 fn write_topography_projection_fold(

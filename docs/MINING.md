@@ -18,6 +18,13 @@ edges, surveyed and unknown region states, coverage, frontier, omissions,
 lineage, hard limits, and a directed delta. Explorer consumes that retained
 patch; it performs no independent source scan or assessment.
 
+Plan 0018 adds a prospecting projection over that same patch. Exact
+`contains`/`references` edges become labeled transport corridors, shared
+coordinate equality can bridge admitted charts, and unresolved frontier rows
+become dashed probe trails with status-specific prerequisites. Anchor degree is
+shown only as connectivity. None of these projections recommends mining,
+grants authority, or executes a probe.
+
 ADR 0022 and Plan 0010 now extend this foundation with ongoing portfolio
 mining. The canonical portfolio snapshot and workload-attention relation, a
 scenario-qualified system workload, and all four workload CLI projections are
@@ -380,7 +387,9 @@ relationships, surveyed regions, coverage, frontier, omissions, completeness,
 lineage, and a directed delta against a prior map revision. Explorer is a
 deterministic visual projection of those artifacts. It does not mine, resolve,
 or interpolate semantic terrain on its own. Broader locator families and
-recurring voyage scheduling remain later work.
+recurring voyage scheduling remain later work. Explorer may derive a directed
+camera path from the workspace anchor to a selected coordinate, but only a
+subsequent admitted patch can change topography.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,

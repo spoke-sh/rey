@@ -26,6 +26,7 @@ import {
   MIN_LENS_ZOOM,
   NEIGHBORHOOD_LENS_ZOOM,
   OBJECT_LENS_ZOOM,
+  WORLD_LENS_ZOOM,
   buildTopologyScene,
   clampLensZoom,
   lensRegimeForZoom,
@@ -52,6 +53,12 @@ type FocusableTopologyObject = Pick<
   TopologyNode | TopologyPointOfInterest,
   "focus_id" | "x" | "y"
 >;
+
+interface MapLayers {
+  relief: boolean;
+  routes: boolean;
+  probes: boolean;
+}
 
 const zeroPoint: Point = { x: 0, y: 0 };
 
@@ -91,6 +98,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   );
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [layers, setLayers] = useState<MapLayers>({
+    relief: true,
+    routes: true,
+    probes: true,
+  });
   const retainedRegime = useRef<LensRegime | undefined>(undefined);
   const regime = lensRegimeForZoom(zoom, retainedRegime.current);
   useEffect(() => {
@@ -101,6 +113,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     [focusId, portfolio, regime, zoom],
   );
   const regimeBase = {
+    world: WORLD_LENS_ZOOM,
     atlas: DEFAULT_LENS_ZOOM,
     landscape: LANDSCAPE_LENS_ZOOM,
     neighborhoods: NEIGHBORHOOD_LENS_ZOOM,
@@ -166,7 +179,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const focusNode = (node: FocusableTopologyObject) => {
     if (dragRef.current?.distance && dragRef.current.distance > 4) return;
     let nextZoom = zoom;
-    if (scene.regime === "atlas") nextZoom = LANDSCAPE_LENS_ZOOM;
+    if (scene.regime === "world") nextZoom = DEFAULT_LENS_ZOOM;
+    else if (scene.regime === "atlas") nextZoom = LANDSCAPE_LENS_ZOOM;
     else if (scene.regime === "landscape") nextZoom = NEIGHBORHOOD_LENS_ZOOM;
     else if (scene.regime === "neighborhoods") nextZoom = OBJECT_LENS_ZOOM;
     else if (scene.regime === "objects") nextZoom = EVIDENCE_LENS_ZOOM;
@@ -269,10 +283,14 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     >
       <CanvasToolbar
         isFullscreen={isFullscreen}
+        layers={layers}
         onFit={resetView}
         onFullscreen={() => void toggleFullscreen()}
         onZoomIn={() => setZoomAt(stepLensZoom(zoom, 1))}
         onZoomOut={() => setZoomAt(stepLensZoom(zoom, -1))}
+        onToggleLayer={(layer) =>
+          setLayers((current) => ({ ...current, [layer]: !current[layer] }))
+        }
         scene={scene}
         zoom={zoom}
       />
@@ -297,7 +315,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           className={sx(styles.scene, isDragging && styles.sceneDragging)}
           style={sceneStyle}
         >
-          <SemanticLens onFocus={focusNode} scene={scene} />
+          <SemanticLens layers={layers} onFocus={focusNode} scene={scene} />
         </div>
         <div className={sx(styles.canvasCoordinates)} aria-hidden="true">
           <span>ZOOM {Math.round(zoom * 100)}%</span>
@@ -306,6 +324,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           </span>
         </div>
         <div className={sx(styles.lensLegend)}>
+          <LensStep active={scene.regime === "world"} label="WORLD" />
+          <i className={sx(styles.legendLine)} />
           <LensStep active={scene.regime === "atlas"} label="ATLAS" />
           <i className={sx(styles.legendLine)} />
           <LensStep active={scene.regime === "landscape"} label="LANDSCAPE" />
@@ -319,6 +339,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           <i className={sx(styles.legendLine)} />
           <LensStep active={scene.regime === "evidence"} label="EVIDENCE" />
         </div>
+        <MapReading scene={scene} />
       </div>
       <footer className={sx(styles.canvasFooter)}>
         <span>
@@ -341,18 +362,22 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
 
 function CanvasToolbar({
   isFullscreen,
+  layers,
   onFit,
   onFullscreen,
   onZoomIn,
   onZoomOut,
+  onToggleLayer,
   scene,
   zoom,
 }: {
   isFullscreen: boolean;
+  layers: MapLayers;
   onFit: () => void;
   onFullscreen: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onToggleLayer: (layer: keyof MapLayers) => void;
   scene: TopologyScene;
   zoom: number;
 }) {
@@ -366,6 +391,20 @@ function CanvasToolbar({
         <small>{scene.detail}</small>
       </div>
       <div className={sx(styles.canvasControls)}>
+        {(["relief", "routes", "probes"] as const).map((layer) => (
+          <KineticButton
+            aria-pressed={layers[layer]}
+            className={sx(
+              styles.layerButton,
+              layers[layer] && styles.layerButtonActive,
+            )}
+            key={layer}
+            onClick={() => onToggleLayer(layer)}
+            theme="precision"
+          >
+            {layer.toUpperCase()}
+          </KineticButton>
+        ))}
         <span className={sx(styles.micro, styles.zoomReadout)}>
           {Math.round(zoom * 100)}%
         </span>
@@ -407,9 +446,11 @@ function CanvasToolbar({
 }
 
 function SemanticLens({
+  layers,
   onFocus,
   scene,
 }: {
+  layers: MapLayers;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
 }) {
@@ -441,7 +482,9 @@ function SemanticLens({
           <small>{region.detail}</small>
         </div>
       ))}
-      <ReliefLayer scene={scene} />
+      <WorldGeometryLayer scene={scene} />
+      {layers.relief ? <ReliefLayer scene={scene} /> : null}
+      {layers.routes ? <RouteLayer scene={scene} /> : null}
       <EdgeLayer
         edges={scene.edges}
         nodes={scene.nodes}
@@ -449,14 +492,16 @@ function SemanticLens({
         terrain={scene.terrain}
         world={scene.world}
       />
-      {scene.points.map((point) => (
-        <PointOfInterest
-          key={point.id}
-          onFocus={onFocus}
-          point={point}
-          regime={scene.regime}
-        />
-      ))}
+      {scene.points
+        .filter((point) => layers.probes || point.kind !== "frontier")
+        .map((point) => (
+          <PointOfInterest
+            key={point.id}
+            onFocus={onFocus}
+            point={point}
+            regime={scene.regime}
+          />
+        ))}
       {scene.nodes.map((node) => (
         <TopologyObject
           counterScale={scene.terrain}
@@ -467,6 +512,138 @@ function SemanticLens({
         />
       ))}
     </div>
+  );
+}
+
+function WorldGeometryLayer({ scene }: { scene: TopologyScene }) {
+  if (scene.landforms.length === 0) return null;
+  const meridians = Array.from({ length: 11 }, (_, index) =>
+    Math.round((scene.world.width * index) / 10),
+  );
+  const parallels = Array.from({ length: 7 }, (_, index) =>
+    Math.round((scene.world.height * index) / 6),
+  );
+  return (
+    <svg
+      aria-label={`${scene.landforms.length} admitted world boundary geometries`}
+      className={sx(styles.worldGeometryLayer)}
+      role="img"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>
+        Charted land is derived from admitted anchor extents. Dashed horizons
+        include unresolved frontier probes and do not claim observed terrain.
+      </title>
+      <g className={sx(styles.worldGraticule)} aria-hidden="true">
+        {meridians.map((x) => (
+          <line
+            key={`meridian:${x}`}
+            x1={x}
+            x2={x}
+            y1={0}
+            y2={scene.world.height}
+          />
+        ))}
+        {parallels.map((y) => (
+          <line
+            key={`parallel:${y}`}
+            x1={0}
+            x2={scene.world.width}
+            y1={y}
+            y2={y}
+          />
+        ))}
+      </g>
+      {scene.landforms
+        .filter((landform) => landform.kind === "horizon")
+        .map((landform) => (
+          <path
+            className={sx(styles.worldHorizon)}
+            d={landform.path}
+            data-world-geometry={landform.kind}
+            key={landform.id}
+          >
+            <title>{`${landform.label} / ${landform.detail}`}</title>
+          </path>
+        ))}
+      {scene.landforms
+        .filter((landform) => landform.kind === "charted")
+        .map((landform) => (
+          <path
+            className={sx(styles.chartedLand)}
+            d={landform.path}
+            data-world-geometry={landform.kind}
+            key={landform.id}
+          >
+            <title>{`${landform.label} / ${landform.detail}`}</title>
+          </path>
+        ))}
+    </svg>
+  );
+}
+
+function RouteLayer({ scene }: { scene: TopologyScene }) {
+  if (scene.routes.length === 0) return null;
+  const showLabels =
+    scene.regime === "world" ||
+    scene.regime === "atlas" ||
+    scene.regime === "landscape" ||
+    scene.regime === "neighborhoods";
+  return (
+    <svg
+      aria-label={`${scene.routes.length} admitted topology and probe corridors`}
+      className={sx(styles.routeLayer)}
+      role="img"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>
+        Containment roads, directed reference flows, shared-coordinate passages,
+        and dashed unresolved probe trails retain distinct evidence classes.
+      </title>
+      {scene.routes.map((route) => {
+        const pathId = `map-route-${route.id.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}`;
+        return (
+          <g className={sx(styles.routeGroup)} key={route.id}>
+            {route.kind === "containment" ? (
+              <path className={sx(styles.routeCasing)} d={route.path} />
+            ) : null}
+            <path
+              className={sx(
+                styles.mapRoute,
+                route.kind === "containment" && styles.containmentRoute,
+                route.kind === "reference" && styles.referenceRoute,
+                route.kind === "passage" && styles.passageRoute,
+                route.kind === "probe" && styles.probeRoute,
+                route.selected && styles.selectedRoute,
+              )}
+              d={route.path}
+              data-route-kind={route.kind}
+              data-route-selected={route.selected}
+              id={pathId}
+              style={{
+                strokeWidth: `calc(${0.8 + route.prominence * 0.42}px * var(--rey-terrain-counter-scale))`,
+              }}
+            >
+              <title>{`${route.label} / ${route.evidence}`}</title>
+            </path>
+            {showLabels &&
+            (route.selected ||
+              route.kind === "probe" ||
+              route.prominence >= 3) ? (
+              <text className={sx(styles.routeLabel)}>
+                <textPath
+                  href={`#${pathId}`}
+                  startOffset="50%"
+                  textAnchor="middle"
+                >
+                  {route.label.toUpperCase()}
+                </textPath>
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -608,11 +785,13 @@ function PointOfInterest({
   regime: LensRegime;
 }) {
   const showLabel =
-    regime === "atlas"
-      ? point.prominence >= 3
-      : regime === "landscape"
-        ? point.prominence >= 2
-        : true;
+    regime === "world"
+      ? point.kind === "frontier" || point.prominence >= 4
+      : regime === "atlas"
+        ? point.prominence >= 3
+        : regime === "landscape"
+          ? point.prominence >= 2
+          : true;
   const showDetail =
     regime === "neighborhoods" || regime === "objects" || regime === "evidence";
   return (
@@ -640,7 +819,11 @@ function PointOfInterest({
           <small className={sx(styles.pointFamily)}>{point.family}</small>
           <strong className={sx(styles.pointName)}>{point.label}</strong>
           {showDetail ? (
-            <em className={sx(styles.pointDetail)}>{point.detail}</em>
+            <>
+              <em className={sx(styles.pointSignal)}>{point.signal}</em>
+              <em className={sx(styles.pointDetail)}>{point.detail}</em>
+              <em className={sx(styles.pointAction)}>{point.action}</em>
+            </>
           ) : null}
         </span>
       ) : null}
@@ -723,6 +906,45 @@ function TopologyObject({
   );
 }
 
+function MapReading({ scene }: { scene: TopologyScene }) {
+  if (!scene.terrain) return null;
+  const exactRoutes = scene.routes.filter((route) => route.kind !== "probe");
+  const probes = scene.points.filter((point) => point.kind === "frontier");
+  return (
+    <aside className={sx(styles.mapReading)} aria-label="Map evidence legend">
+      <div className={sx(styles.bearingCard)}>
+        <span className={sx(styles.bearingEyebrow)}>
+          BEARING / {scene.bearing.status.replaceAll("_", " ")}
+        </span>
+        <strong className={sx(styles.bearingTitle)}>
+          {scene.bearing.label}
+        </strong>
+        <small className={sx(styles.bearingDetail)}>
+          {scene.bearing.detail}
+        </small>
+      </div>
+      <div className={sx(styles.mapKey)} aria-hidden="true">
+        <span>
+          <i className={sx(styles.keyRoad)} /> CONTAINS / ROAD
+        </span>
+        <span>
+          <i className={sx(styles.keyRiver)} /> REFERENCES / FLOW
+        </span>
+        <span>
+          <i className={sx(styles.keyProbe)} /> UNRESOLVED / PROBE
+        </span>
+      </div>
+      <div className={sx(styles.mapScale)} aria-hidden="true">
+        <i className={sx(styles.mapScaleBar)} />
+        <span>
+          {exactRoutes.length} EXACT CORRIDORS · {probes.length} PROBES · LOD{" "}
+          {scene.regime.toUpperCase()}
+        </span>
+      </div>
+    </aside>
+  );
+}
+
 function LensStep({ active, label }: { active: boolean; label: string }) {
   return (
     <span className={sx(styles.lensStep, active && styles.lensStepActive)}>
@@ -732,6 +954,7 @@ function LensStep({ active, label }: { active: boolean; label: string }) {
 }
 
 function lensLabel(regime: LensRegime): string {
+  if (regime === "world") return "WORLD PROJECTION";
   if (regime === "atlas") return "ORBITAL";
   if (regime === "landscape") return "TELESCOPE";
   if (regime === "neighborhoods") return "MESOSCOPIC";

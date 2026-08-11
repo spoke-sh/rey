@@ -5,6 +5,8 @@
 - Extends: [ADR 0017](0017-mining-capability-model.md), [ADR 0026](0026-context-topology-explorer.md), and [ADR 0032](0032-seed-discovery-survey-and-live-communications.md)
 - Supersedes: the complete matrix-style Explorer coordinate grammar in [ADR
   0030](0030-operator-cadence-agents-and-explorer-coordinates.md)
+- Extended by: [ADR 0042](0042-world-geometry-and-probe-navigation.md), which
+  adds the World level, transport geometry, and probe-first navigation
 
 ## Context
 
@@ -115,9 +117,10 @@ These are level-of-detail projections, not five different graphs. A source
 identity and its selected coordinate survive every transition. A projection
 may aggregate, cluster, label, or omit under declared bounds; it may not invent
 terrain, change assessment, or imply a relationship from spatial proximity.
-The hard-cut implementation accepts a `0.12..=5.4` camera scale, projects all
-five levels, and carries the continuous numeric `scale` in every exact view
-link.
+This decision's first hard-cut implementation accepted a `0.12..=5.4` camera
+scale and projected those five levels. ADR 0042 extends the current bound to
+`0.05..=5.4` and adds World before Atlas; the continuous numeric `scale` remains
+present in every exact view link.
 
 The Atlas and Landscape visual primitive is a terrain-style relief layer, not
 a dashboard of region summaries. Rey derives a bounded scalar height field

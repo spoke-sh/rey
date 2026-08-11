@@ -42,7 +42,7 @@ Every entry binding keeps semantic address and presentation state separate:
 
 ```text
 coordinate: rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
-scale:      0.12..=5.4
+scale:      0.05..=5.4
 ```
 
 Coordinate dimensions are lexically ordered `revision`, `role`. The decoded

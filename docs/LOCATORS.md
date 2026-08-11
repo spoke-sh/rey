@@ -78,3 +78,8 @@ locates URI and reference candidates, records typed resolution outcomes, and
 emits `rey.topography-patch.v1` plus a directed patch delta. Those seed names are workload inputs rather than
 implicit configuration, and neither locator parsing nor Explorer navigation
 initiates recursive retrieval.
+
+[Plan 0018](../plans/0018-world-context-navigation.md) projects an unresolved
+locator outcome as a probe trail from its exact source anchor and labels the
+required prerequisite. That trail remains a candidate boundary, never a
+resolved relationship or permission to invoke a resolver.

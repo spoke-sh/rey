@@ -3,6 +3,7 @@
 - Status: Complete
 - Decision: [ADR 0041](../docs/decisions/0041-continuous-coordinate-topography.md)
 - Extends: [Plan 0011](0011-local-operator-ui.md) and [Plan 0014](0014-seed-discovery-and-locator-survey.md)
+- Extended by: [Plan 0018](0018-world-context-navigation.md)
 
 ## Outcome
 

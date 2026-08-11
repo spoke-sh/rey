@@ -103,8 +103,12 @@ execution, and broader provider behavior.
   `AGENTS.md` and README seeds through the existing coding-harness handoff.
 - Expose the seed-to-patch voyage through `rey workloads
   list|test|run|status` before projecting it in the browser.
-- Extend Explorer's continuous lens from Atlas terrain through Landscape,
-  Neighborhood, Object, and exact Evidence while retaining coordinate focus.
+- Extend Explorer's continuous lens from World geometry and Atlas terrain
+  through Landscape, Neighborhood, Object, and exact Evidence while retaining
+  coordinate focus.
+- Expose exact containment/reference transport, shared-coordinate passages,
+  unresolved probe trails, and bounded read-only curation bearings without
+  presenting connectivity as a mining recommendation.
 - Keep surveyed-empty, unexplored, omitted, stale, unsupported, and truncated
   regions distinct; never let navigation start a hidden crawl.
 - Exercise the coordinate carrier through a public Spoke conformance contract

@@ -88,6 +88,8 @@ stream lenses through a bounded, deep-linkable URL grammar.
 - [x] Replace the fixed world bounds with a continuous camera scale over
   admitted topography patches, extending the current lens with Atlas and exact
   Evidence levels while retaining coordinate focus.
+- [x] Extend that lens with a far World projection, exact transport corridors,
+  probe horizons, map-layer controls, and read-only curation bearings.
 - [x] Separate the lossless semantic coordinate from camera/projection state in
   a v2 deep-link envelope without silently reinterpreting retained Journal
   bindings.

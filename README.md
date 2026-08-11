@@ -261,7 +261,7 @@ just rey ui --host 0.0.0.0 --port 5714
 
 `rey ui` opens the human operator's primary collaboration surface. `/`
 redirects to `/explore`, a full-screen-capable context-topology canvas whose
-semantic lens moves from a bounded landscape, through workload and attention
+semantic lens moves from bounded world geometry and anchor relief, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations separate a provider-qualified semantic
 coordinate such as
@@ -277,13 +277,16 @@ them under explicit authority and limits, and emit typed topography patches
 with coverage, frontier, omissions, lineage, and directed deltas. A continuous
 camera projects the same admitted evidence as terrain-style isolines shaped by
 anchor prominence and exact classified edges, with anchors retained as stable
-points of interest. Zooming in progressively adds labels, relationships,
-objects, and exact evidence to that same scene; zooming out reveals additional
-admitted survey scenes. Current local relief means relational concentration,
+points of interest. World scale adds charted-land and probe-horizon geometry;
+exact containment roads, directed reference flows, shared-coordinate passages,
+and unresolved probe trails explain how the topology connects. Zooming in
+progressively adds labels, curation paths, relationships, objects, and exact
+evidence to that same scene. Current local relief means relational concentration,
 not language similarity. Unexplored space stays unknown, and moving the canvas
 never launches a hidden crawl. See
-[ADR 0041](docs/decisions/0041-continuous-coordinate-topography.md) and [Plan
-0017](plans/0017-incremental-context-topography.md). `/feed` comes first in
+[ADR 0041](docs/decisions/0041-continuous-coordinate-topography.md), [ADR
+0042](docs/decisions/0042-world-geometry-and-probe-navigation.md), and [Plan
+0018](plans/0018-world-context-navigation.md). `/feed` comes first in
 primary navigation as the high-cadence inspection plane. Its default
 composition is three TweetDeck-like vertical streams: rich Signals,
 inspect-only Admission, and observed workload Flow. A quiet Firehose rail adds
@@ -635,7 +638,7 @@ locators, and typed resolution outcomes. The admitted
 `context-anchor-survey` package exercises those contracts over bounded
 `AGENTS.md` and README fixtures, retains `rey.topography-patch.v1` results and
 directed deltas, and exposes the same patch through workload JSON and the
-five-level Explorer.
+six-level Explorer.
 
 The first Channel topology slice is also executable. It defines a canonical
 built-in workspace channel, bounded subscription, stable three-stream Feed
@@ -683,7 +686,7 @@ partially ordered cadence view. Humans can author retained Explore-bound prose
 and read-only query cells at `/journal/new` without authentication; exact entry
 routes and block fragments make the retained notebook deeply hyperlinkable.
 Agents admit the same bounded format through `rey journal add`, including
-frame, diff, and action cells. Explorer now derives Atlas, Landscape,
+frame, diff, and action cells. Explorer now derives World, Atlas, Landscape,
 Neighborhood, Object, and Evidence projections from retained survey patches;
 exact patch-anchor routes remain read-only and execute no locator. The next
 concrete anchor is a separate query-execution handshake that can turn one

@@ -232,9 +232,10 @@ make the retained document interface deeply hyperlinkable. The Journal format
 is specified in `docs/JOURNAL.md`.
 
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
-derives bounded Atlas, Landscape, Neighborhood, Object, and Evidence scenes
+derives bounded World, Atlas, Landscape, Neighborhood, Object, and Evidence scenes
 from admitted patches in `rey.workload-list.v6`; `src/explore.tsx` owns the
-React canvas mechanics and dynamic world extents.
+React canvas mechanics, dynamic world extents, transport/probe layers, and
+read-only curation bearings.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and

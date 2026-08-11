@@ -6,6 +6,8 @@
 - Extended by: [ADR 0041](0041-continuous-coordinate-topography.md), which
   separates semantic Spoke coordinates from view state and adds incremental
   topography plus Atlas and Evidence levels to the continuous lens
+- Extended by: [ADR 0042](0042-world-geometry-and-probe-navigation.md), which
+  adds World geometry, transport corridors, probe horizons, and curation bearings
 
 ## Context
 

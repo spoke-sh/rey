@@ -431,9 +431,10 @@ than a visualization-owned graph or durable source store.
 Context topology plus scale, density, surveyed coverage, boundaries, frontier,
 and explicit unexplored space. It is incrementally composed from admitted
 topography patches. Explorer may derive contour isolines from admitted anchor
-and classified-edge influence as an explicitly visual relief projection, but
-never treats that interpolation, visual distance, or visually empty terrain as
-observed semantic evidence.
+and classified-edge influence plus charted-land and probe-horizon envelopes as
+explicitly visual projections, but never treats that interpolation, visual
+distance, envelope area, or visually empty terrain as observed semantic
+evidence.
 
 ### Context lifecycle
 
@@ -638,9 +639,9 @@ evidence status, and proof status.
 ### Explorer
 
 The human operator's primary read-only context-topography map at `/explore`.
-Its continuous patch-backed lens ranges from Atlas through Landscape,
+Its continuous patch-backed lens ranges from World through Atlas, Landscape,
 Neighborhood, and Object to exact Evidence over one persistent relief scene.
-Anchors remain stable map POIs while labels, relationships, objects, and
+Anchors remain stable map POIs while transport corridors, probes, labels, relationships, objects, and
 evidence enter progressively, preserving identity, scope, omissions, and
 authority.
 
@@ -1107,6 +1108,13 @@ new lens result and therefore crosses ordinary proposal, admission, execution,
 observation, and budget boundaries. Exact immutable retrieval and pure
 projection need not become probes.
 
+### Probe trail
+
+An Explorer corridor from an exact admitted source anchor to a retained
+unresolved frontier point. It visualizes where a future probe could cross the
+current survey horizon and names its prerequisite, but it is not a resolved
+relationship and selecting it executes nothing.
+
 ### Process
 
 The fourth context-lifecycle phase, in which Rey incrementally consumes survey
@@ -1237,7 +1245,7 @@ must never be presented as append-only commit events.
 
 ### Regime
 
-One object grammar on the Explorer's semantic lens continuum: Atlas,
+One object grammar on the Explorer's semantic lens continuum: World, Atlas,
 Landscape, Neighborhoods, Objects, or Evidence. Zoom can change regime without
 changing underlying identity or evidence, and hysteresis prevents boundary
 flicker.
@@ -1624,6 +1632,14 @@ grouping, ordering, aggregation, elision, limits, omissions, and deep links;
 layout and color cannot change semantic assessment.
 
 ## W
+
+### World geometry
+
+Explorer's farthest read-only envelope over displayed admitted anchors and
+retained frontier. Charted land bounds displayed evidence; a wider survey
+horizon may include unresolved probes. It is a semantic orientation projection,
+not geographic coordinates, semantic distance, or a claim about the unknown
+context universe.
 
 ### Workload
 

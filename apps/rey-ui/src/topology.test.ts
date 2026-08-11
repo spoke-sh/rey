@@ -8,6 +8,7 @@ import {
   MIN_LENS_ZOOM,
   NEIGHBORHOOD_LENS_ZOOM,
   OBJECT_LENS_ZOOM,
+  WORLD_LENS_ZOOM,
   buildTopologyScene,
   clampLensZoom,
   lensRegimeForZoom,
@@ -93,12 +94,15 @@ const portfolio: WorkloadList = {
 
 describe("context topology lens", () => {
   it("moves through every semantic regime without a control step skipping one", () => {
+    expect(lensRegimeForZoom(WORLD_LENS_ZOOM)).toBe("world");
     expect(lensRegimeForZoom(DEFAULT_LENS_ZOOM)).toBe("atlas");
     expect(lensRegimeForZoom(LANDSCAPE_LENS_ZOOM)).toBe("landscape");
     expect(lensRegimeForZoom(NEIGHBORHOOD_LENS_ZOOM)).toBe("neighborhoods");
     expect(lensRegimeForZoom(OBJECT_LENS_ZOOM)).toBe("objects");
     expect(lensRegimeForZoom(EVIDENCE_LENS_ZOOM)).toBe("evidence");
     expect(stepLensZoom(DEFAULT_LENS_ZOOM, 1)).toBe(LANDSCAPE_LENS_ZOOM);
+    expect(stepLensZoom(DEFAULT_LENS_ZOOM, -1)).toBe(WORLD_LENS_ZOOM);
+    expect(stepLensZoom(WORLD_LENS_ZOOM, 1)).toBe(DEFAULT_LENS_ZOOM);
     expect(stepLensZoom(LANDSCAPE_LENS_ZOOM, 1)).toBe(NEIGHBORHOOD_LENS_ZOOM);
     expect(stepLensZoom(NEIGHBORHOOD_LENS_ZOOM, 1)).toBe(OBJECT_LENS_ZOOM);
     expect(stepLensZoom(OBJECT_LENS_ZOOM, 1)).toBe(EVIDENCE_LENS_ZOOM);
@@ -144,7 +148,7 @@ describe("context topology lens", () => {
     );
   });
 
-  it("derives all five levels from admitted patches and preserves unknown region states", () => {
+  it("derives all six levels from admitted patches and preserves unknown region states", () => {
     const patchPortfolio: WorkloadList = {
       ...portfolio,
       workloads: [
@@ -232,6 +236,49 @@ describe("context topology lens", () => {
     expect(atlas.omissions).toContain(
       "relief height is admitted anchor and classified-edge influence, not inferred semantic similarity",
     );
+  });
+
+  it("reveals admitted world geometry, transport classes, and probe-first boundaries", () => {
+    const patchPortfolio: WorkloadList = {
+      ...portfolio,
+      workloads: [
+        {
+          ...portfolio.workloads[0]!,
+          topography_results: 1,
+          topography_revision: surveyPatch.topography_revision,
+          topography_coverage: surveyPatch.coverage,
+          topography_frontier_rows: surveyPatch.frontier.length,
+          topography_patch: surveyPatch,
+        },
+      ],
+    };
+    const world = buildTopologyScene(patchPortfolio, WORLD_LENS_ZOOM);
+    const probe = buildTopologyScene(
+      patchPortfolio,
+      WORLD_LENS_ZOOM,
+      "frontier:rey.example:frontier:1",
+    );
+
+    expect(world.regime).toBe("world");
+    expect(world.landforms.map((landform) => landform.kind)).toEqual([
+      "charted",
+      "horizon",
+    ]);
+    expect(world.routes.map((route) => route.kind)).toEqual(
+      expect.arrayContaining(["containment", "probe"]),
+    );
+    expect(world.points).toContainEqual(
+      expect.objectContaining({
+        kind: "frontier",
+        signal: "VERIFY ABSENCE OR REPAIR REFERENCE",
+      }),
+    );
+    expect(probe.bearing).toMatchObject({
+      status: "probe_required",
+      exact_steps: 1,
+      probe_steps: 1,
+    });
+    expect(probe.routes.filter((route) => route.selected)).toHaveLength(2);
   });
 
   it("discloses folded evidence instead of implying a complete object view", () => {
@@ -373,6 +420,12 @@ const coordinate = {
   source_revision: "source:1",
   retention: "fixture",
 };
+const workspaceCoordinate = {
+  ...coordinate,
+  binding_id: "binding:workspace",
+  coordinate: "rey+local://workspace/current?revision=workspace%3A1",
+  source_revision: "workspace:1",
+};
 const surveyPatch: TopographyPatch = {
   schema: "rey.topography-patch.v1",
   patch_id: "patch:1",
@@ -421,6 +474,13 @@ const surveyPatch: TopographyPatch = {
   ],
   anchors: [
     {
+      anchor_id: "anchor:workspace",
+      coordinate: workspaceCoordinate,
+      kind: "workspace",
+      label: "workspace survey boundary",
+      source_revision: "workspace:1",
+    },
+    {
       anchor_id: "anchor:readme",
       coordinate,
       kind: "file",
@@ -428,7 +488,16 @@ const surveyPatch: TopographyPatch = {
       source_revision: "source:1",
     },
   ],
-  edges: [],
+  edges: [
+    {
+      edge_id: "edge:workspace-readme",
+      source_coordinate: workspaceCoordinate.coordinate,
+      target_coordinate: coordinate.coordinate,
+      kind: "contains",
+      locator: "README.md",
+      evidence_revision: "source:1",
+    },
+  ],
   regions: [
     "surveyed",
     "unexplored",
