@@ -63,6 +63,10 @@ exists.
   DataFrames.
 - Treat visualization as an evidence projection that retains direction, scope,
   omissions, and exact source links; it cannot change semantic assessment.
+- Treat `/explore` as a high-fidelity spatial game engine specialized for
+  evidence-bound projections of high-dimensional context. Its scene, field,
+  camera, level-of-detail, simulation, material, and rendering mechanisms may
+  improve perception but cannot mint evidence, authority, or coverage.
 - Treat the workload as the public unit of computation: one versioned graph,
   scenario suite, policy boundary, qualification contract, and total budget.
 - Treat mining as ongoing across nested loops: workloads mine their declared
@@ -153,6 +157,11 @@ exists.
   honestly; never interpolate unknown terrain into a semantic claim. Panning,
   zooming, selecting, or opening a deep link must not execute a locator,
   schedule a workload, or silently expand read authority.
+- Require Explorer terrain to retain an explicit validity mask through field
+  generation, simulation, level-of-detail selection, and rendering. Shading,
+  interpolation, erosion, and visual feathering may improve surface continuity
+  only inside admitted validity; they cannot turn the unexplored boundary into
+  inferred world geometry.
 - Keep the operator UI live. Passive revalidation or a future retained event
   stream must carry changed typed runtime state into the interface without a
   manual refresh ritual. No news is good news: use the persistent footer

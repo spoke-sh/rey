@@ -38,6 +38,34 @@ projection of authoritative evidence. It preserves direction, scope,
 completeness, and deep links to exact sources; color never carries unique
 meaning.
 
+## Explorer As A High-Dimensional Game Engine
+
+`/explore` is Rey's high-fidelity spatial game engine for evidence-bound
+projections of high-dimensional context. Its immutable scene, coordinate
+transforms, camera, semantic level of detail, bounded field simulation,
+materials, ordered render passes, labels, picking, and incremental invalidation
+turn admitted context into a world a human can navigate.
+
+The engine is dimension-agnostic but cannot invent a dimensional meaning. A
+high-dimensional provider must bind its exact input, projection or embedding
+basis, implementation revision, parameters, normalization, distortion,
+validity, limits, and omissions before Rey may present distance or terrain as
+semantic evidence. The current standalone anchor layout remains a synthetic
+orientation projection with explicitly narrower claims.
+
+The fidelity target is a continuous Google-class 2.5D terrain surface: sampled
+height and validity fields, multiscale detail, normals, multidirectional
+hillshade, ridge and valley shading, restrained terrain tint, contours,
+hydrology, weather, POIs, labels, and evidence overlays composed coherently
+across zoom. “Google-class” describes perceptual terrain legibility, not use of
+Google data, styling, or proprietary algorithms.
+
+Rendering remains subordinate to evidence. Shading, erosion, weather, water,
+visual proximity, and animation are projections; they cannot create a source
+relationship, path, assessment, read authority, or surveyed claim. See [ADR
+0044](docs/decisions/0044-explorer-projection-engine.md) and [Plan
+0020](plans/0020-high-fidelity-projection-engine.md).
+
 ## Context Lifecycle
 
 Rey keeps four phases separate:

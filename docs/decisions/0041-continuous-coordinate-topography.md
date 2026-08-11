@@ -2,14 +2,17 @@
 
 - Status: Accepted
 - Date: 2026-08-10
-- Extends: [ADR 0017](0017-mining-capability-model.md), [ADR 0026](0026-context-topology-explorer.md), and [ADR 0032](0032-seed-discovery-survey-and-live-communications.md)
+- Extends: [ADR 0017](0017-mining-capability-model.md), [ADR
+  0026](0026-context-topology-explorer.md), and [ADR
+  0032](0032-seed-discovery-survey-and-live-communications.md)
 - Supersedes: the complete matrix-style Explorer coordinate grammar in [ADR
   0030](0030-operator-cadence-agents-and-explorer-coordinates.md)
 - Extended by: [ADR 0042](0042-world-geometry-and-probe-navigation.md), which
   adds the World level and probe-first navigation; [ADR
   0043](0043-emergent-natural-features-and-separate-paths.md) replaces its
   literal transport projection with emergent natural features and separate
-  path evidence
+  path evidence; [ADR 0044](0044-explorer-projection-engine.md) formalizes the
+  high-dimensional projection-engine and terrain-fidelity boundary
 
 ## Context
 

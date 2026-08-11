@@ -272,6 +272,36 @@ Machine projections expose stable typed documents or relations. Terminal
 renderings may add ANSI styling only when interactive, and meaning remains
 legible without it.
 
+### Spatial projection engines
+
+A high-fidelity Explorer scene is a visualization result with more mechanism,
+not more semantic authority. Its projection contract additionally binds:
+
+- coordinate or embedding basis, implementation revision, parameters,
+  normalization, distortion, and stable-coordinate rules;
+- immutable scene compiler and semantic/geometric LOD revisions;
+- named scalar/vector field channels, units or normalization, derivations, and
+  surveyed-validity masks;
+- natural-feature simulation, material, render-graph, label, picking, and
+  renderer revisions;
+- scene-object, field-cell, tile, byte, graphics-resource, draw-call, label,
+  compile-time, and frame-time limits; and
+- backend, viewport, device-pixel-ratio, fallback, degradation, omissions, and
+  exact evidence links used by human visual proof.
+
+Renderer output is not the only copy of the scene or field. Height, normals,
+hydrology, erosion, validity, object identity, and pass ordering need
+backend-independent fixtures before GPU screenshot evidence is considered.
+Pixel identity may vary across qualified graphics implementations while the
+semantic scene manifest remains deterministic. A performance claim cites a
+named workload, hardware/browser profile, viewport, scene and renderer
+revisions, warm/cold posture, and retained result.
+
+Smoothing, interpolation, antialiasing, hillshade, ambient occlusion,
+hypsometric tint, curvature enhancement, and simulated natural features remain
+visual or derived channels. None may infer semantic values across unknown
+validity or change assessment, coverage, confidence, progress, or proof.
+
 ## Workload And Runtime Placement
 
 Workloads declare which mining operations a graph may compose, the context
@@ -389,9 +419,11 @@ relationships, surveyed regions, coverage, frontier, omissions, completeness,
 lineage, and a directed delta against a prior map revision. Explorer is a
 deterministic visual projection of those artifacts. It does not mine, resolve,
 or interpolate semantic terrain on its own. Broader locator families and
-recurring voyage scheduling remain later work. Explorer may derive a directed
-camera path from the workspace anchor to a selected coordinate, but only a
-subsequent admitted patch can change topography.
+recurring voyage scheduling remain later work. ADR 0043 removes source-edge
+and camera-path geometry from relief; only a subsequent admitted patch can
+change topography. The current SVG/DOM scene is not yet the projection packet,
+multiresolution terrain field, render graph, or accelerated high-fidelity
+engine accepted by ADR 0044; Plan 0020 owns that incomplete work.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,

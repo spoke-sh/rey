@@ -22,7 +22,7 @@ policy concerns rather than runtime correctness dependencies.
 
 ## Architectural Separation
 
-Rey separates eight responsibilities:
+Rey separates nine responsibilities:
 
 1. **Workload plane** — versioned workloads compose generated compute graphs,
    scenarios, claims, policy, qualification, effects, and total limits.
@@ -33,16 +33,20 @@ Rey separates eight responsibilities:
    concrete providers retain source and execution ownership.
    The implemented survey slice uses `rey-locator` bindings and emits retained
    topography patches; browser projections never become a resolver.
-4. **Reasoning plane** — selected frontier work and mined evidence become a
+4. **Projection-engine plane** — exact admitted evidence and a versioned
+   coordinate/projection basis compile into immutable scenes, bounded fields,
+   semantic LOD, render passes, picking, and high-fidelity browser pixels;
+   rendering never becomes semantic authority.
+5. **Reasoning plane** — selected frontier work and mined evidence become a
    bounded reasoning surface with exact omissions and admissible operations;
    optional Spoke amplifies retrieval and retention, not surface semantics.
-5. **Observation plane** — lenses bind exact inputs and materialize bounded
+6. **Observation plane** — lenses bind exact inputs and materialize bounded
    typed frames or native artifact references.
-6. **Delta plane** — relational, text, and structural comparison preserves
+7. **Delta plane** — relational, text, and structural comparison preserves
    directed changes and derives invalidation.
-7. **Runtime plane** — transitions validate proposals, execute bounded probes or
+8. **Runtime plane** — transitions validate proposals, execute bounded probes or
    effects, update the frontier, and stop on convergence or an explicit bound.
-8. **Policy plane** — an agent, deterministic rule, or human proposes a compute
+9. **Policy plane** — an agent, deterministic rule, or human proposes a compute
    graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
@@ -141,6 +145,8 @@ poll cursors, and delta-triggered workloads.
 | Mining request | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale | Rey transition or graph-node evidence |
 | Mining result | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions | Rey evidence index; artifacts remain provider-owned or explicitly retained |
 | Topography patch | Admitted survey result containing coordinate anchors, classified relationships, coverage, frontier, omissions, lineage, and a directed map delta | Rey evidence index; source artifacts and coordinates remain provider-owned |
+| Projection packet | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
+| Scene snapshot | Immutable, stably ordered engine scene compiled from one projection packet; semantic identity excludes camera motion and measured frame time | Browser working state and optional bounded proof artifact; never authoritative source evidence |
 | Portfolio snapshot | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation | Rey runtime evidence; derived from catalog/result/environment providers |
 | Workload attention | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost | Rey runtime working evidence; local or Spoke-backed when retained |
 | Journal entry | Ordered typed collaboration document bound to an exact semantic coordinate, numeric camera scale, and source revision; admission grants no execution authority | Local Rey journal; Spoke retention remains separate |
@@ -249,6 +255,55 @@ The shared collaboration Journal is specified by [ADR
 0037](decisions/0037-explore-bound-collaboration-journal.md), [ADR
 0038](decisions/0038-unauthenticated-hyperlinkable-journal.md), and
 [Collaboration Journal](JOURNAL.md).
+
+### Explorer projection-engine boundary
+
+Explorer is a high-fidelity spatial game engine specialized for evidence-bound
+projections of high-dimensional context. Its browser placement does not reduce
+it to a React visualization component. The target boundary has five layers:
+
+1. **Evidence adapters** translate exact workload, topography, portfolio, and
+   future high-dimensional provider artifacts into one versioned bounded
+   projection packet. They own semantic interpretation and validity.
+2. **Scene and field compilation** creates stable scene identities,
+   data-oriented scalar/vector grids, multiresolution tiles, validity masks,
+   natural-feature derivations, omissions, and invalidation dependencies.
+3. **Engine mechanism** owns camera transforms, semantic and geometric LOD,
+   culling, picking, label budgets, scene retention, and dirty-set scheduling.
+4. **Render graph and backends** own ordered materials, hillshade, occlusion,
+   contours, water, weather, boundaries, POIs, labels, selection, antialiasing,
+   accelerated resources, and visible fallback.
+5. **React shell** owns routes, browser controls, accessibility, evidence
+   panels, exact links, and lifecycle integration around the engine surface.
+
+The flow is one-way:
+
+```text
+admitted evidence
+  → versioned projection packet
+  → immutable scene + fields + validity
+  → camera/LOD/culling
+  → ordered render passes
+  → pixels
+```
+
+Picking reverses only screen position to a stable scene identity and exact
+coordinate. It does not reverse pixels into evidence. The CLI inspects the
+packet, compiler revisions, field semantics, validity, limits, omissions, and
+lineage through the existing workload surface; the browser is responsible for
+high-fidelity spatial verification.
+
+Terrain fidelity begins with a continuous multiresolution field. Height,
+normal, slope, aspect, curvature, runoff, erosion, material, and shading are
+separate channels or passes with explicit derivation and revision. Unknown and
+unsupported validity never become sampled height merely because a material
+feathers their visual boundary. Semantic scene identity is backend-independent;
+GPU pixels and measured frame time are not authoritative evidence.
+
+The target uses an immutable scene graph plus data-oriented field buffers and
+an explicit render graph. A generic ECS, physics runtime, free-orbit 3D, or
+renderer dependency requires a later qualified need. ADR 0044 defines this
+boundary and Plan 0020 owns its code extraction and terrain-fidelity proof.
 
 ## Workloads, Graphs, And Scenarios
 
@@ -688,6 +743,15 @@ This table is an ownership proposal, not a requirement for one process per
 crate. Plan 0006 has created the narrow `rey-mining` contract crate; provider
 execution remains in the adapters that own its source and tool semantics.
 
+The browser application has a parallel internal ownership boundary. Evidence
+adapters own projection-packet semantics; the Explorer engine owns immutable
+scenes, fields, camera, LOD, invalidation, render graph, and picking; terrain
+modules own versioned field derivations; renderer backends own graphics
+resources and pixels; and React owns routing, controls, accessibility, and
+evidence panels. Plan 0020 must establish those modules before selecting a
+graphics dependency. No new Rust crate is implied until a shared CLI/browser
+contract or server-side compiler requires one.
+
 ## Failure And Limits
 
 Rey treats capability drift, Git ref rewrites, incomplete history, index
@@ -750,9 +814,13 @@ the retained result. The browser additionally derives bounded World geometry,
 anchor-only relief, unresolved atmospheric fronts, projected hydrology and
 erosion, and probe prerequisites; the CLI exposes their admitted inputs,
 excluded edge provenance, projection limits, and boundary actions. Discovered
-or constructed paths require a separate future evidence contract. Generic dependency
-invalidation, recurring scheduling, policy proposals, Git activation, and the
-Spoke provider remain target architecture.
+or constructed paths require a separate future evidence contract. The current
+browser implementation still compiles and draws those concerns through large
+React/TypeScript modules and SVG/DOM layers. It has no typed projection packet,
+multiresolution field tiles, normal/occlusion/material render graph, accelerated
+backend, or qualified terrain-fidelity result; Plan 0020 owns that incomplete
+enabling work. Generic dependency invalidation, recurring scheduling, policy
+proposals, Git activation, and the Spoke provider remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts

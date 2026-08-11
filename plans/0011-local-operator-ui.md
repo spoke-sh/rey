@@ -11,7 +11,9 @@
   [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md),
   [ADR 0038](../docs/decisions/0038-unauthenticated-hyperlinkable-journal.md),
   [ADR 0039](../docs/decisions/0039-bounded-operator-feed.md),
-  [ADR 0041](../docs/decisions/0041-continuous-coordinate-topography.md)
+  [ADR 0041](../docs/decisions/0041-continuous-coordinate-topography.md),
+  [ADR 0044](../docs/decisions/0044-explorer-projection-engine.md)
+- Extended by: [Plan 0020](0020-high-fidelity-projection-engine.md)
 
 ## Outcome
 
@@ -30,6 +32,9 @@ The application is an embedded TanStack Router application using Hifi's
 Kinetic grammar with the Precision theme. `/explore` is the default context-
 topology canvas. It reads the same bounded workload portfolio projection as
 `rey workloads list`; it does not mutate state or create a second scheduler.
+Its target architecture is a high-fidelity spatial game engine specialized for
+evidence-bound projections of high-dimensional context; the current SVG scene
+is an incomplete reference renderer while Plan 0020 builds that boundary.
 `/cadence` keeps observable clocks partially ordered. `/agents` presents an
 Explore-bound collaboration Journal and summarizes observed work from retained
 evidence. Current Journal rows include derived system entries plus retained

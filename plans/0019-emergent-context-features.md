@@ -3,6 +3,7 @@
 - Status: In progress
 - Decision: [ADR 0043](../docs/decisions/0043-emergent-natural-features-and-separate-paths.md)
 - Corrects: [Plan 0018](0018-world-context-navigation.md)
+- Extended by: [Plan 0020](0020-high-fidelity-projection-engine.md)
 
 ## Outcome
 

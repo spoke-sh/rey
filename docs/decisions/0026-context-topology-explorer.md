@@ -10,7 +10,8 @@
   adds World geometry and probe horizons; [ADR
   0043](0043-emergent-natural-features-and-separate-paths.md) replaces literal
   edge corridors and curation bearings with emergent natural features and
-  separate path evidence
+  separate path evidence; [ADR 0044](0044-explorer-projection-engine.md)
+  formalizes the high-fidelity projection-engine boundary
 
 ## Context
 

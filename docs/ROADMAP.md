@@ -106,6 +106,15 @@ execution, and broader provider behavior.
 - Extend Explorer's continuous lens from World geometry and Atlas terrain
   through Landscape, Neighborhood, Object, and exact Evidence while retaining
   coordinate focus.
+- Formalize Explorer as a high-fidelity spatial game engine for evidence-bound
+  projections of high-dimensional context:
+  typed projection packets, immutable scenes, data-oriented fields, camera,
+  semantic/geometric LOD, invalidation, render graph, picking, reference and
+  accelerated backends, and a thin accessible React shell.
+- Replace contour-line relief on a flat plane with bounded multiresolution
+  terrain, normals, multidirectional hillshade, ambient ridge/valley shading,
+  evidence-aware tint, LOD-aware contours, and coherent overlays under named
+  visual and performance proof.
 - Keep exact containment/reference and shared-coordinate evidence in deep
   inspection rather than drawing it as terrain transport. Derive bounded
   anchor-only relief, unresolved weather, projected runoff and erosion, and

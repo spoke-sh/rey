@@ -400,6 +400,36 @@ a human view may render a table, patch, tree, graph, timeline, or metric panel.
 Both record source artifact identities, selection, grouping, ordering,
 aggregation, context, elision, sampling, limits, and omissions.
 
+### Explorer projection packet
+
+ADR 0044 introduces a target projection-engine boundary rather than a second
+top-level resource. `rey.projection-packet.v1` (or the equivalent contract
+accepted during Plan 0020) carries:
+
+```text
+packet identity + source evidence identities
+coordinate/embedding basis + implementation revision + parameters
+stable scene coordinates + scalar/vector channel descriptors
+surveyed-validity masks + world bounds + layer inventory
+scene/field/simulation/material/LOD revisions
+effective object/cell/tile/byte/time/resource limits
+completeness + degradation + omissions + lineage
+```
+
+The packet is deterministic pure projection input. It does not contain camera
+center, transient selection, measured frame time, browser graphics handles, or
+pixels. An immutable scene snapshot compiled from it retains stable object and
+evidence identities; camera and renderer backends consume that snapshot without
+receiving authority to reinterpret source evidence.
+
+The established workload CLI remains the agent-facing interface. Verbose
+topography evidence must eventually expose the packet basis, scene, field,
+validity, material, LOD, renderer/fallback boundary, effective limits,
+omissions, and exact lineage before high-fidelity rendering is complete.
+Structured output must preserve typed values rather than serializing GPU state.
+The browser adds named viewport, device-pixel-ratio, screenshot, interaction,
+fallback, and performance verification over the same semantic scene.
+
 The implemented schemas are `rey.source-corpus.v1`,
 `rey.source-search.literal-utf8@1`, `rey.source-matches` version `1`,
 `rey.source-match-delta.v1`, and `rey.text-delta.v1`. They have no peer
@@ -997,22 +1027,26 @@ Canonical coordinates order `revision`, `role`; stale bindings remain visible.
 The former matrix path and parser are removed. Journal v2 retains semantic
 coordinate and numeric scale separately, and old Journal state is rejected.
 
-Plans 0017 through 0019's Explorer consumes admitted `rey.topography-patch.v1`
-evidence produced through the workloads interface. One continuous camera
-projects World, Atlas, Landscape, Neighborhood, Object, and Evidence levels while
-retaining the selected provider-qualified coordinate. Camera state never
-becomes resource identity. Surveyed-empty, unexplored, omitted, stale,
-unsupported, truncated, and frontier regions remain distinct, and navigation
-does not execute locators or workloads. The CLI must expose each patch's seed
+Explorer work in Plans 0017 through 0020 consumes admitted
+`rey.topography-patch.v1` evidence produced through the workloads interface.
+One continuous camera projects World, Atlas, Landscape, Neighborhood, Object,
+and Evidence levels while retaining the selected provider-qualified coordinate.
+Camera state never becomes resource identity. Surveyed-empty, unexplored,
+omitted, stale, unsupported, truncated, and frontier regions remain distinct,
+and navigation does not execute locators or workloads. The CLI must expose each patch's seed
 coverage, resolution outcomes, anchors, relationships, world and atmospheric
 conditions, natural-feature projection limits, excluded edge provenance,
-probe prerequisites, directed delta, bounds, and lineage before the browser projection is considered complete. See [Context
+probe prerequisites, directed delta, bounds, and lineage. Plan 0020 additionally
+requires projection basis, immutable scene, field channels, validity masks,
+material/LOD revisions, degradation, render limits, and omissions before the
+high-fidelity browser projection is considered complete. See [Context
 Topology Explorer](EXPLORER.md), [ADR
 0026](decisions/0026-context-topology-explorer.md), and [ADR
 0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md), and
 [ADR 0041](decisions/0041-continuous-coordinate-topography.md), [ADR
 0042](decisions/0042-world-geometry-and-probe-navigation.md), and [ADR
-0043](decisions/0043-emergent-natural-features-and-separate-paths.md).
+0043](decisions/0043-emergent-natural-features-and-separate-paths.md), and
+[ADR 0044](decisions/0044-explorer-projection-engine.md).
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded

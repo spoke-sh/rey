@@ -125,6 +125,22 @@ first-class frames. Polling compares frozen snapshots; it does not assume refs
 are append-only or the index is immutable. Git deltas may activate workload
 graph entry points, but they never bypass normal action admission.
 
+### 16. Project High-Dimensional Context As An Evidence-Bound World
+
+Explorer is a high-fidelity spatial game engine specialized for evidence-bound
+projections of high-dimensional context. Its scene compilation, cameras, level
+of detail, field simulation, materials, render passes, picking, and accelerated
+graphics remain semantically subordinate to admitted evidence. A rendered
+surface, simulated feature, visual distance, animation, or user gesture cannot
+mint source truth, authority, coverage, or progress.
+
+Projection fidelity is a correctness concern for the human interface, not
+license to interpolate unknown evidence. Stable coordinates, exact source
+links, validity masks, semantic levels of detail, omissions, limits, and
+revision lineage must survive every rendering backend and visual lens. The
+engine should degrade visibly when fidelity or acceleration is unavailable
+without changing the underlying assessment.
+
 ## Frame And Delta Invariants
 
 - A frame has a stable logical schema, source bindings, lens revision,
@@ -173,6 +189,10 @@ graph entry points, but they never bypass normal action admission.
 - Visualization preserves evidence direction, scope, aggregation, elision,
   completeness, and deep links. It cannot change delta assessment, coverage,
   progress, confidence, or proof status.
+- Spatial projections bind their coordinate or embedding basis, field and
+  material revisions, validity masks, level-of-detail rules, render limits,
+  and omissions. Visual smoothing, shading, or simulation never fills an
+  unknown region with evidence.
 
 ## Transition Invariants
 

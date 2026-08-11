@@ -639,9 +639,11 @@ evidence status, and proof status.
 
 ### Explorer
 
-The human operator's primary read-only context-topography map at `/explore`.
-Its continuous patch-backed lens ranges from World through Atlas, Landscape,
-Neighborhood, and Object to exact Evidence over one persistent relief scene.
+The human operator's primary read-only high-fidelity spatial game engine at
+`/explore`, specialized for evidence-bound projections of high-dimensional
+context. Its continuous patch-backed lens ranges from World through Atlas,
+Landscape, Neighborhood, and Object to exact Evidence over one persistent
+relief scene.
 Anchors remain stable map POIs while projected weather, streams, rivers,
 probes, labels, relationships, objects, and evidence enter progressively,
 preserving identity, scope, omissions, and authority. Source edges do not
@@ -893,6 +895,14 @@ Hifi's interaction and material grammar used by Rey UI components. It governs
 presentation behavior, not runtime transitions or evidence semantics.
 
 ## L
+
+### Level of detail
+
+A deterministic rule selecting field resolution, scene density, render passes,
+contour intervals, labels, and object grammar for a camera scale under explicit
+budgets. Explorer has both semantic LOD regimes and geometric/render LOD; a
+transition may change representation but not coordinate identity or source
+truth.
 
 ### Lens
 
@@ -1150,6 +1160,22 @@ A deterministic bounded representation of authoritative evidence for a
 specific use, such as a table, patch, frame, summary, or scene. A projection
 declares selection, grouping, ordering, elision, limits, and omissions.
 
+### Projection engine
+
+Explorer's evidence-bound mechanism for compiling admitted high-dimensional
+context into immutable scenes, bounded scalar/vector fields, semantic LOD,
+render passes, picking, and browser pixels. It borrows real-time game and map
+engine architecture but is not an evidence store, resolver, scheduler, or
+mutation plane.
+
+### Projection packet
+
+The target bounded typed input to Explorer's scene compiler. It binds exact
+evidence, coordinate or embedding basis, scalar/vector channel semantics,
+validity masks, world bounds, layer inventory, implementation revisions,
+limits, completeness, omissions, and lineage without becoming a second source
+store.
+
 ### Pure projection
 
 A deterministic transformation over already frozen evidence that performs no
@@ -1266,6 +1292,13 @@ One object grammar on the Explorer's semantic lens continuum: World, Atlas,
 Landscape, Neighborhoods, Objects, or Evidence. Zoom can change regime without
 changing underlying identity or evidence, and hysteresis prevents boundary
 flicker.
+
+### Render graph
+
+An explicit directed order of rendering passes and intermediate resources for
+one immutable scene, such as base material, hillshade, occlusion, contours,
+water, weather, boundaries, POIs, labels, and selection. Render-graph output is
+presentation and cannot change semantic assessment.
 
 ### Relation
 
@@ -1407,6 +1440,13 @@ The content-identified result of deterministic frontier selection. It binds
 the verified frontier, committed record, capability snapshot, scheduler
 contract, effective limits, selected rows, deferred rows, and cost-skipped
 rows.
+
+### Scene snapshot
+
+An immutable, stably ordered projection-engine scene compiled from one exact
+projection packet. Its semantic identity binds source evidence, projection,
+field, validity, compiler, and limits while excluding camera motion and
+measured frame time.
 
 ### Search record
 
@@ -1567,6 +1607,13 @@ revisions against a scenario suite, retains `EXPECTED → OBSERVED` deltas,
 derives unresolved work, and either qualifies the graph or stops with an
 explicit non-qualification reason.
 
+### Terrain field
+
+A bounded multiresolution scalar/vector field with explicit channel semantics,
+normalization, surveyed-validity mask, revision, limits, and omissions. Height,
+rainfall, flow, erosion, normals, curvature, and material channels remain
+distinct; smoothing and shading do not turn unknown cells into evidence.
+
 ### Topography patch
 
 A content-identified survey-workload result containing exact coordinate
@@ -1640,6 +1687,13 @@ including ahead/behind reachability and per-commit `pushed`, `local`, or
 about current remote-host state.
 
 ## V
+
+### Validity mask
+
+The per-region or per-field-cell distinction between sampled, surveyed-empty,
+unexplored, omitted, stale, unsupported, truncated, and frontier state. A
+renderer may feather a mask boundary visually but cannot infer values across
+it or hide the underlying completeness class.
 
 ### Visualization
 

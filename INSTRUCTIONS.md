@@ -65,9 +65,14 @@ scenario evaluator, qualification record, local result provider, five
 workload commands, and a read-only `rey ui` operator surface. Humans land on
 the `/explore` context-topology canvas and normally remain in the UI; agents
 use the CLI as their primary runtime interface, with humans descending to it
-for exact diagnosis. The former Instrument dashboard is Environment at
-`/environment`. `/cadence` keeps bounded Git reachability, Rey admissions, and
-mounted browser scans on explicit partial-order clocks. `/agents` ranks
+for exact diagnosis. `/explore` is now architecturally defined as a
+high-fidelity spatial game engine specialized for evidence-bound projections
+of high-dimensional context. Its current React/SVG relief is incomplete
+enabling work: [Plan 0020](plans/0020-high-fidelity-projection-engine.md) owns
+the typed projection packet, engine extraction, continuous terrain renderer,
+and CLI/browser/performance proof. The former Instrument dashboard is
+Environment at `/environment`. `/cadence` keeps bounded Git reachability, Rey
+admissions, and mounted browser scans on explicit partial-order clocks. `/agents` ranks
 evidence-backed system recommendations and summarizes retained work results;
 agent-runtime discovery remains on `/environment`. Generator provenance remains
 workload evidence, not the definition of an available or assigned agent. The

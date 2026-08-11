@@ -14,6 +14,7 @@ completion criteria.
 - [0016 — Channel graph and operator index](0016-channel-graph-and-operator-index.md) — active collaboration persistence and agentic-networking bearing
 - [0017 — Incremental context topography](0017-incremental-context-topography.md) — active seed-to-map survey voyage and continuous Explorer bearing
 - [0019 — Emergent context features](0019-emergent-context-features.md) — active anchor-field, weather, hydrology, erosion, and separate-path bearing
+- [0020 — High-fidelity projection engine](0020-high-fidelity-projection-engine.md) — active Explorer engine extraction and continuous terrain-fidelity bearing
 
 ## Completed
 

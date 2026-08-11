@@ -2,10 +2,11 @@
 
 The Rey UI is the human operator's primary collaboration surface. `/feed`
 projects high-cadence change through rich Signals, Admission, and Flow streams,
-while the Rey
-Explorer maps the bounded context Rey can currently explain and lets the operator move
-between semantic scales, and preserves exact runtime identities while the
-visual grammar changes. Agents continue to use the `rey` CLI as their primary
+while Explorer is a high-fidelity spatial game engine for evidence-bound
+projections of high-dimensional context. It maps the bounded context Rey can
+currently explain, lets the operator move between semantic scales, and
+preserves exact runtime identities while the visual grammar and rendering
+fidelity change. Agents continue to use the `rey` CLI as their primary
 execution and diagnostic interface.
 
 The Explorer itself is a read-only projection. The adjacent `/agents` Journal
@@ -42,10 +43,15 @@ Locator            = candidate address; resolution is a separate bounded act
 Context topology   = bounded typed anchors + classified relationships
 Context topography = topology + scale + surveyed coverage + frontier +
                      explicit unexplored space
+Projection packet  = exact evidence + projection basis + fields + validity +
+                     revisions + limits + omissions
+Scene snapshot     = immutable stably ordered engine scene
+Terrain field      = bounded multiresolution scalar/vector channels + validity
 Canvas             = spatial view over one bounded topography projection
 Camera             = center + continuous scale + viewport
 Lens               = semantic projection(topography, focus, camera)
 Regime             = one level-of-detail grammar on the lens continuum
+Render graph        = ordered material, relief, feature, label, and UI passes
 World              = far projection of admitted charts, survey weather, and
                      unresolved survey horizons
 Neighborhood       = bounded objects around one meaningful coordinate
@@ -64,6 +70,80 @@ Relationships are always labeled. Portfolio projections use `contains`,
 `directs`, `produces`, `observes`, and `depends`; admitted survey patches add
 exact `contains` and `references` edges. Line placement or proximity alone
 does not assert causality, ownership, or authority.
+
+## Projection Engine
+
+Explorer is specialized like a high-fidelity map engine and structured as a
+small real-time game engine. The engine boundary is:
+
+```text
+admitted evidence
+  → evidence adapter / projector
+  → versioned projection packet
+  → immutable scene + field compiler
+  → camera + semantic/geometric LOD + culling
+  → explicit render graph
+  → reference or accelerated browser backend
+  → accessible React overlays and exact evidence links
+```
+
+Evidence adapters decide what a coordinate, field channel, validity class, and
+layer mean. Engine code decides how bounded scene objects and data-oriented
+fields are transformed, culled, picked, and rendered. Renderer code decides how
+materials and passes become pixels. React owns the route, controls,
+accessibility, evidence panels, and lifecycle around that surface. None may
+take over another layer's semantic authority.
+
+The engine is high-dimensional because its input basis may project many source
+dimensions into a stable navigable scene. It is not allowed to invent that
+basis. An admitted provider or operation must bind dimensions, exact inputs,
+algorithm and implementation revision, parameters, normalization, random seed
+when applicable, distance or neighborhood semantics, distortion, validity,
+limits, and omissions. The current standalone anchor placement remains a
+synthetic orientation layout rather than a language-space embedding.
+
+The current implementation is incomplete enabling work: `topology.ts`
+combines adapters, field derivation, scene assembly, and lens data;
+`explore.tsx` combines camera mechanics with DOM/SVG render passes; and the
+StyleX module contains the material system. Plan 0020 hard-cuts those concerns
+into engine contracts and qualifies an accelerated backend without making a
+graphics dependency part of the semantic model.
+
+### Terrain fidelity
+
+The 2026-08-11 visual comparison establishes the target. Current Rey terrain
+is primarily isolines and feature strokes over a uniform plane. Mature map
+terrain reads as one continuous surface because elevation, multiscale detail,
+slope, aspect, hillshade, ridge/valley occlusion, tint, contours, water, labels,
+and overlays are composed together.
+
+Google Maps-level fidelity means comparable perceptual terrain legibility, not
+Google data or style replication. Rey's target render graph is:
+
+```text
+validity/background
+  → base terrain material
+  → height normals + multidirectional hillshade
+  → ambient/valley occlusion + ridge/curvature enhancement
+  → LOD-aware contours
+  → water + weather + boundary state
+  → POIs + labels + selection
+  → evidence and accessibility overlays
+```
+
+The base surface must read before contours or POIs are added. A field uses
+bounded multiresolution tiles or an equivalent data structure, explicit
+channel revisions, and a per-cell validity mask. Unknown, surveyed-empty,
+omitted, stale, unsupported, truncated, and frontier cells do not acquire
+height through blur, interpolation, erosion, or shading. Visual feathering may
+blend a known boundary into the application background while the exact mask
+and disclosure remain available.
+
+The first target remains a top-down 2.5D semantic map with continuous zoom.
+Free-orbit 3D, pitch, volumetric space, physics, and a general ECS are deferred.
+The production path is expected to use acceleration, but a reference renderer
+must preserve scene semantics and visible degradation when acceleration is
+unavailable.
 
 ## Semantic Lens
 
@@ -150,6 +230,9 @@ scrollable documents.
 
 - Source identities and assessments survive a lens transition. Representation
   and information density may change; source truth may not.
+- Projection basis, scene compiler, field derivation, material, render-graph,
+  LOD, and renderer revisions remain distinguishable. Camera motion and
+  measured frame time do not enter semantic scene identity.
 - Coordinates remain semantic addresses. Camera center, scale, viewport,
   selection, and lens regime may be shareable view state but never become part
   of resource identity.
@@ -175,6 +258,12 @@ scrollable documents.
 - World envelopes bound displayed evidence and retained frontier, not the
   unknown context universe. No global area or coverage percentage is inferred.
 - Color is redundant with family, label, state, and relationship text.
+- Shading, antialiasing, occlusion, tint, smoothing, and simulated erosion may
+  improve spatial legibility but cannot change height-channel semantics,
+  validity, source assessment, or proof status.
+- Renderer loss, context loss, or unavailable acceleration must preserve the
+  last valid scene and expose fallback or degradation instead of returning a
+  semantically different map.
 - Full screen changes only viewport ownership. It does not change scope,
   authority, limits, or the underlying topology.
 - Do not introduce a second scroll plane around the canvas. If application
@@ -323,7 +412,7 @@ workload endpoint returns local admitted topography patches; Spoke coordinates
 remain an explicit opaque-carrier conformance gap and are not presented as
 connected semantics.
 
-## React Boundaries
+## Current React Boundaries And Engine Cut
 
 `ExplorePage` owns route composition. `ContextCanvas` owns zoom, pan, focus,
 fit, keyboard, and full-screen state. `SemanticLens` renders a pure
@@ -331,15 +420,22 @@ fit, keyboard, and full-screen state. `SemanticLens` renders a pure
 components. `buildTopologyScene` is a deterministic read-model projection over
 `rey.workload-list.v6` and is tested separately from browser mechanics.
 
-Future windows and lenses should add typed topology inputs rather than fetch or
+This is current repository truth, not the target ownership shape. Plan 0020
+extracts typed evidence adapters, projection packets, immutable scenes, fields,
+camera/LOD/invalidation, a render graph, renderer backends, picking, and React
+overlays. Future windows and lenses add typed engine inputs rather than fetch or
 invent a second graph inside a visualization component.
 
 ## Next Boundaries
 
 Plan 0017's seed-to-map voyage is implemented and verified through the CLI,
 structured workload endpoint, and deterministic Explorer read-model tests.
-Exact scenario/delta routes should next carry the CLI `-v`/`-vv` evidence
-ladder into the browser without adding an independent assessment.
+Plan 0020 is the next Explorer foundation: formalize the projection packet and
+engine modules, preserve the existing scene through extraction, build bounded
+multiresolution fields, qualify an accelerated renderer, and close the
+continuous-terrain fidelity, CLI, browser, and performance proof. Exact
+scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder into
+the browser without adding an independent assessment.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and Spoke-backed streams remain separate decisions.

@@ -2,7 +2,10 @@
 
 - Status: Accepted
 - Date: 2026-08-10
-- Amends: the transport and curation-path projection in [ADR 0042](0042-world-geometry-and-probe-navigation.md)
+- Amends: the transport and curation-path projection in [ADR
+  0042](0042-world-geometry-and-probe-navigation.md)
+- Extended by: [ADR 0044](0044-explorer-projection-engine.md), which makes the
+  field and natural-feature projection part of a high-fidelity engine boundary
 
 ## Context
 

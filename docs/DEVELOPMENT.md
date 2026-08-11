@@ -242,6 +242,25 @@ retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
+ADR 0044 formalizes Explorer as a high-fidelity spatial game engine for
+evidence-bound projection and adds no graphics dependency by itself. Plan 0020
+first extracts typed evidence adapters, projection packets, immutable scenes,
+data-oriented fields,
+camera/LOD/invalidation, render-graph, picking, backend, and React-shell
+boundaries while retaining the existing SVG/DOM output as a reference path.
+Only a bounded qualification spike may select an accelerated backend or
+third-party renderer. That review must cover browser and device support, bundle
+and Nix closure size, graphics-resource ownership and disposal, context loss,
+fallback, determinism, accessibility, security policy, licensing, maintenance,
+and named performance evidence.
+
+Backend-independent tests own semantic correctness: field values, validity
+masks, scene manifests, stable ordering, LOD selection, render-pass order,
+picking, limits, omissions, and exact evidence links. Browser capture owns
+perceptual fidelity. GPU pixels and frame timing are not semantic identities;
+performance results must name the fixture, browser/backend, viewport, DPR,
+hardware, warm/cold posture, revisions, and budgets.
+
 ADRs 0027, 0031, and 0032 add no dependency. The mapping parser hard-cuts to
 `rey.env-map.v3`; the process-owned discovery seed set is `HOME`, `PWD`, and
 `PATH`; a map is loaded only through explicit `--map`; desired executables
@@ -273,6 +292,8 @@ Polars/Arrow, Serde, BLAKE3, and bounded-process infrastructure. A parser
 framework, regex engine, tree/graph library, visualization library, async
 runtime, database, or broader Polars feature set requires a concrete named
 workload, fixture need, CLI verification surface, and dependency review.
+The same rule applies to a browser rendering engine, shader toolchain, WebGL or
+WebGPU abstraction, label-placement package, or GPU test harness.
 Discovering or adapting the existing `rg` executable does not make it a
 packaged runtime dependency unless that deployment contract is explicitly
 accepted and tested.
