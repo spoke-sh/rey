@@ -207,7 +207,7 @@ identities. A qualified `run rey.portfolio.attention` emits the same typed
 relation over current retained inputs. `list` and `status` derive their view
 without fresh ambient discovery.
 
-The structured schemas are `rey.workload-list.v7`,
+The structured schemas are `rey.workload-list.v8`,
 `rey.workload-status-batch.v7`, `rey.workload-test-batch.v5`, and
 `rey.workload-run-view.v3`. Their `rey.workload-catalog.v2` descriptor
 separates total, admitted, and draft counts. The run view contains the unchanged verified
@@ -220,6 +220,15 @@ exact operation, provider, implementation, capability, limit, and lineage
 bindings. Passing tests alone
 contain a `rey.workload-qualification.v2` binding the exact workload, graph,
 scenario suite, evaluator, and test result.
+
+`rey.workload-list.v8` additionally carries an optional
+`rey.semantic-atlas.v1` whenever verified regional topography is retained. The
+atlas binds stable region identities to exact patch/revision sources and
+integer synthetic semantic longitude/latitude. It declares no Earth CRS.
+`workloads list` exposes its exact revision, compiler, region/cluster counts,
+boundedness, admission-revision recluster rule, and the fact that zoom cannot
+recluster it. The current document derives the atlas from retained admission
+state; prior-revision movement deltas remain Plan 0022 work.
 
 ## Implemented Environment CLI
 
@@ -428,8 +437,12 @@ compiler, extent, exact overview 31×21, regional 61×41, and local 121×81
 levels, their 12,953-cell/712,415-byte total allocation, regime bindings,
 field descriptors, validity regions, layers, effective limits, degradation,
 omissions, and lineage.
-`rey.workload-list.v7` carries the same packet beside its exact patch, and
+`rey.workload-list.v8` carries the same packet beside its exact patch, and
 Explorer fails closed to the portfolio fallback unless both identities match.
+When a semantic atlas is present, Explorer also binds the atlas and layout
+compiler revisions into its immutable World scene. This adds a spherical
+layout authority; it does not change the native coordinate or evidence
+authority inside any regional packet.
 The browser rejects a compiled level or pyramid whose dimensions, nesting,
 cells, or byte allocation diverges from that packet. It selects overview for
 World, regional for Atlas/Landscape, and local for Neighborhood/Object/Evidence

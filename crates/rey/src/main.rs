@@ -2213,6 +2213,36 @@ fn write_workload_list(
             "{topography_results} retained patches · {topography_frontier} unresolved boundary rows"
         ),
     )?;
+    if let Some(atlas) = &list.semantic_atlas {
+        write_portfolio_field(
+            output,
+            "Semantic atlas",
+            &format!(
+                "{} · {} regions in {} world clusters · {}",
+                atlas.atlas_revision,
+                atlas.regions.len(),
+                atlas.clusters.len(),
+                if atlas.complete {
+                    "COMPLETE"
+                } else {
+                    "BOUNDED"
+                },
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "World coordinates",
+            "synthetic semantic longitude/latitude · not Earth CRS84 · reclustered only when admitted source revisions change",
+        )?;
+        write_portfolio_field(
+            output,
+            "Atlas compiler",
+            &format!(
+                "{}@{} · zoom selects retained LOD and never reclusters",
+                atlas.compiler.id, atlas.compiler.revision,
+            ),
+        )?;
+    }
     write_portfolio_field(
         output,
         "Attention",

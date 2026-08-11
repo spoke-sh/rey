@@ -39,9 +39,15 @@ export function compileSceneSnapshot(
             ({ workload }) => workload.semantic_digest,
           ),
         ].sort((left, right) => left.localeCompare(right));
+  if (portfolio.semantic_atlas)
+    sourceRevisions.push(portfolio.semantic_atlas.atlas_revision);
+  sourceRevisions.sort((left, right) => left.localeCompare(right));
   const compilerRevisions = topographies
     .map(({ projection }) => projection.scene_compiler.semantic_digest)
     .sort((left, right) => left.localeCompare(right));
+  if (portfolio.semantic_atlas)
+    compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
+  compilerRevisions.sort((left, right) => left.localeCompare(right));
   const snapshotId = [
     "rey.reference-scene-snapshot.v1",
     ...sourceRevisions,
@@ -79,6 +85,13 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
     terrain_pyramids: Object.freeze([
       ...scene.terrain_pyramids,
     ]) as TerrainFieldPyramid[],
+    globe: scene.globe
+      ? Object.freeze({
+          ...scene.globe,
+          clusters: freezeRows(scene.globe.clusters),
+          regions: freezeRows(scene.globe.regions),
+        })
+      : null,
     bearing: Object.freeze({ ...scene.bearing }),
     world: Object.freeze({ ...scene.world }),
     fit_world: Object.freeze({ ...scene.fit_world }),

@@ -34,6 +34,7 @@ export function ReferenceRenderer({
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
 }) {
+  const globeWorld = scene.regime === "world" && scene.globe !== null;
   return (
     <div
       className={sx(
@@ -47,33 +48,38 @@ export function ReferenceRenderer({
       data-lens-regime={scene.regime}
       data-renderer={accelerated ? "reference-overlays" : "reference"}
     >
-      {scene.regions.map((region) => (
-        <div
-          className={sx(
-            styles.region,
-            region.variant === "map-boundary" && styles.mapBoundary,
-            region.variant === "map-zone" && styles.mapZone,
-            toneStyle(region.tone, "region"),
-            scene.regime === "world" &&
-              region.variant === "map-zone" &&
-              region.tone === "unknown" &&
-              styles.worldUnexploredZone,
-          )}
-          key={region.id}
-          style={{
-            height: region.height,
-            left: region.x,
-            top: region.y,
-            width: region.width,
-          }}
-        >
-          <span>{region.label}</span>
-          <small>{region.detail}</small>
-        </div>
-      ))}
-      <WorldGeometryLayer accelerated={accelerated} scene={scene} />
-      {layers.relief ? <ReliefLayer scene={scene} /> : null}
-      {layers.water || layers.weather ? (
+      {!globeWorld &&
+        scene.regions.map((region) => (
+          <div
+            className={sx(
+              styles.region,
+              region.variant === "map-boundary" && styles.mapBoundary,
+              region.variant === "map-zone" && styles.mapZone,
+              toneStyle(region.tone, "region"),
+              scene.regime === "world" &&
+                region.variant === "map-zone" &&
+                region.tone === "unknown" &&
+                styles.worldUnexploredZone,
+            )}
+            key={region.id}
+            style={{
+              height: region.height,
+              left: region.x,
+              top: region.y,
+              width: region.width,
+            }}
+          >
+            <span>{region.label}</span>
+            <small>{region.detail}</small>
+          </div>
+        ))}
+      <WorldGeometryLayer
+        accelerated={accelerated}
+        onFocus={onFocus}
+        scene={scene}
+      />
+      {!globeWorld && layers.relief ? <ReliefLayer scene={scene} /> : null}
+      {!globeWorld && (layers.water || layers.weather) ? (
         <NaturalFeatureLayer
           scene={scene}
           showWater={layers.water}
@@ -89,36 +95,48 @@ export function ReferenceRenderer({
           world={scene.world}
         />
       ) : null}
-      {scene.points
-        .filter((point) => layers.probes || point.kind !== "frontier")
-        .map((point) => (
-          <PointOfInterest
-            key={point.id}
+      {!globeWorld &&
+        scene.points
+          .filter((point) => layers.probes || point.kind !== "frontier")
+          .map((point) => (
+            <PointOfInterest
+              key={point.id}
+              onFocus={onFocus}
+              point={point}
+              regime={scene.regime}
+            />
+          ))}
+      {!globeWorld &&
+        scene.nodes.map((node) => (
+          <TopologyObject
+            counterScale={scene.terrain}
+            key={node.id}
+            linkToWorkload={scene.regime === "objects" && !scene.terrain}
+            node={node}
             onFocus={onFocus}
-            point={point}
-            regime={scene.regime}
           />
         ))}
-      {scene.nodes.map((node) => (
-        <TopologyObject
-          counterScale={scene.terrain}
-          key={node.id}
-          linkToWorkload={scene.regime === "objects" && !scene.terrain}
-          node={node}
-          onFocus={onFocus}
-        />
-      ))}
     </div>
   );
 }
 
 function WorldGeometryLayer({
   accelerated,
+  onFocus,
   scene,
 }: {
   accelerated: boolean;
+  onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
 }) {
+  if (scene.regime === "world" && scene.globe)
+    return (
+      <SemanticGlobeLayer
+        accelerated={accelerated}
+        onFocus={onFocus}
+        scene={scene}
+      />
+    );
   if (scene.landforms.length === 0) return null;
   const meridians = Array.from({ length: 11 }, (_, index) =>
     Math.round((scene.world.width * index) / 10),
@@ -187,6 +205,172 @@ function WorldGeometryLayer({
         ))}
     </svg>
   );
+}
+
+function SemanticGlobeLayer({
+  accelerated,
+  onFocus,
+  scene,
+}: {
+  accelerated: boolean;
+  onFocus: (node: FocusableTopologyObject) => void;
+  scene: TopologyScene;
+}) {
+  const globe = scene.globe!;
+  const center = { x: scene.world.width / 2, y: scene.world.height / 2 };
+  const radius = Math.min(scene.world.width, scene.world.height) * 0.41;
+  const projectedRegions = globe.regions
+    .map((region) => ({ region, ...projectGlobe(region, center, radius) }))
+    .filter(({ visible }) => visible)
+    .sort((left, right) => left.depth - right.depth);
+  const projectedClusters = globe.clusters
+    .map((cluster) => ({ cluster, ...projectGlobe(cluster, center, radius) }))
+    .filter(({ visible }) => visible);
+  const focus = (focus_id: string, x: number, y: number) =>
+    onFocus({ focus_id, x, y });
+  return (
+    <svg
+      aria-label={`${globe.regions.length} admitted semantic world regions on a synthetic globe`}
+      className={sx(styles.worldGeometryLayer, styles.semanticGlobeLayer)}
+      data-atlas-revision={globe.atlas_revision}
+      role="group"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>
+        Synthetic semantic longitude and latitude place admitted survey regions
+        on a spherical world. They are not Earth coordinates, and zoom never
+        reclusters this atlas revision.
+      </title>
+      <defs>
+        <radialGradient id="rey-semantic-globe-fill" cx="34%" cy="26%" r="76%">
+          <stop offset="0%" stopColor="#eef1dc" />
+          <stop offset="48%" stopColor="#aebd9a" />
+          <stop offset="82%" stopColor="#708779" />
+          <stop offset="100%" stopColor="#41585a" />
+        </radialGradient>
+        <clipPath id="rey-semantic-globe-clip">
+          <circle cx={center.x} cy={center.y} r={radius} />
+        </clipPath>
+      </defs>
+      <circle
+        className={sx(styles.semanticGlobeSphere)}
+        cx={center.x}
+        cy={center.y}
+        data-accelerated-surface={accelerated || undefined}
+        fill={accelerated ? "transparent" : "url(#rey-semantic-globe-fill)"}
+        r={radius}
+      />
+      <g
+        aria-hidden="true"
+        className={sx(styles.semanticGlobeGraticule)}
+        clipPath="url(#rey-semantic-globe-clip)"
+      >
+        {[-60, -30, 0, 30, 60].map((latitude) => {
+          const latitudeRadians = (latitude * Math.PI) / 180;
+          return (
+            <ellipse
+              cx={center.x}
+              cy={center.y - radius * Math.sin(latitudeRadians)}
+              key={`latitude:${latitude}`}
+              rx={radius * Math.cos(latitudeRadians)}
+              ry={radius * 0.075 * Math.cos(latitudeRadians)}
+            />
+          );
+        })}
+        {[-60, -30, 0, 30, 60].map((longitude) => (
+          <ellipse
+            cx={center.x}
+            cy={center.y}
+            key={`longitude:${longitude}`}
+            rx={Math.max(
+              4,
+              radius * Math.abs(Math.sin((longitude * Math.PI) / 180)),
+            )}
+            ry={radius}
+          />
+        ))}
+      </g>
+      <g aria-label={`${globe.clusters.length} world clusters`}>
+        {projectedClusters.map(({ cluster, x, y, depth }) => (
+          <circle
+            className={sx(styles.semanticGlobeCluster)}
+            cx={x}
+            cy={y}
+            key={cluster.id}
+            r={Math.max(
+              18,
+              (cluster.angular_radius_degrees / 90) *
+                radius *
+                (0.72 + depth * 0.28),
+            )}
+          >
+            <title>{`${cluster.member_count} admitted regions / ${cluster.dominant_feature.replaceAll("_", " ")} structure`}</title>
+          </circle>
+        ))}
+      </g>
+      <g aria-label={`${projectedRegions.length} visible semantic regions`}>
+        {projectedRegions.map(({ region, x, y, depth }) => (
+          <g
+            aria-label={`${region.label}: ${region.detail}`}
+            className={sx(
+              styles.semanticGlobeRegion,
+              toneStyle(region.tone, "node"),
+            )}
+            data-semantic-region={region.id}
+            key={region.id}
+            onClick={() => focus(region.focus_id, x, y)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                focus(region.focus_id, x, y);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <circle
+              className={sx(styles.semanticGlobeRegionPoint)}
+              cx={x}
+              cy={y}
+              r={7 + depth * 7}
+            />
+            <text
+              className={sx(styles.semanticGlobeRegionLabel)}
+              x={x + 14}
+              y={y - 10}
+            >
+              {region.label}
+            </text>
+            <title>{region.detail}</title>
+          </g>
+        ))}
+      </g>
+      <text
+        className={sx(styles.semanticGlobeCaption)}
+        x={center.x - radius}
+        y={center.y + radius + 34}
+      >
+        SEMANTIC SPHERE / {globe.regions.length} ADMITTED REGIONS / REV{" "}
+        {globe.atlas_revision.slice(0, 12)}
+      </text>
+    </svg>
+  );
+}
+
+function projectGlobe(
+  coordinate: { longitude_degrees: number; latitude_degrees: number },
+  center: { x: number; y: number },
+  radius: number,
+) {
+  const longitude = (coordinate.longitude_degrees * Math.PI) / 180;
+  const latitude = (coordinate.latitude_degrees * Math.PI) / 180;
+  const depth = Math.cos(latitude) * Math.cos(longitude);
+  return {
+    x: center.x + radius * Math.cos(latitude) * Math.sin(longitude),
+    y: center.y - radius * Math.sin(latitude),
+    depth,
+    visible: depth >= -0.02,
+  };
 }
 
 function NaturalFeatureLayer({

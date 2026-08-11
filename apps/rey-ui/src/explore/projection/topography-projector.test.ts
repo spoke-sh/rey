@@ -3,7 +3,8 @@ import type { WorkloadList } from "../../domain";
 import { admittedTopographies } from "./topography-projector";
 
 const portfolio = {
-  schema: "rey.workload-list.v7",
+  schema: "rey.workload-list.v8",
+  semantic_atlas: null,
   workloads: [
     {
       workload: { id: "survey" },

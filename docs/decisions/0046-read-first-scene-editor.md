@@ -27,7 +27,10 @@ GeoJSON, OpenStreetMap-derived exports, GeoPackage, GeoTIFF/Cloud Optimized
 GeoTIFF, and typed Arrow artifacts offer useful conventions, but they do not
 all carry the same meaning. In particular, RFC 7946 GeoJSON is geographic OGC
 CRS84 longitude/latitude. It must not be relabeled as an arbitrary semantic
-embedding. OSM ways are not automatically Rey paths, and a line in a survey
+embedding. ADR 0047 separately defines explicitly synthetic
+`semantic_longitude`/`semantic_latitude` axes with no Earth CRS; those layout
+coordinates cannot replace a native GeoJSON CRS. OSM ways are not
+automatically Rey paths, and a line in a survey
 export is not proof that a road, river, dependency, or traversable passage was
 discovered.
 

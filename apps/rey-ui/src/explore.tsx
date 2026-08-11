@@ -313,7 +313,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             />
           ) : null}
           <ReferenceRenderer
-            accelerated={acceleratedReady}
+            accelerated={acceleratedReady && layers.relief}
             layers={layers}
             onFocus={focusNode}
             scene={scene}

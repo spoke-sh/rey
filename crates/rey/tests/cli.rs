@@ -3025,6 +3025,39 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
             .iter()
             .all(|object| matches!(object.kind.as_str(), "anchor" | "frontier"))
     );
+    let atlas = listed.semantic_atlas.as_ref().unwrap();
+    atlas.verify().unwrap();
+    assert_eq!(atlas.schema, "rey.semantic-atlas.v1");
+    assert_eq!(atlas.regions.len(), 1);
+    assert_eq!(atlas.clusters.len(), 1);
+    assert_eq!(atlas.regions[0].source_patch_id, patch.patch_id);
+    assert_eq!(
+        atlas.regions[0].source_topography_revision,
+        patch.topography_revision
+    );
+    assert_eq!(atlas.coordinate_system.kind, "synthetic_semantic_sphere");
+    assert!(atlas.coordinate_system.earth_crs.is_none());
+    assert_eq!(
+        atlas.layout_policy.zoom_rule,
+        "zoom selects retained level of detail and never reclusters"
+    );
+
+    let listed_table = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(listed_table.status.success());
+    assert!(listed_table.stderr.is_empty());
+    let listed_table = String::from_utf8(listed_table.stdout).unwrap();
+    assert!(listed_table.contains("Semantic atlas"));
+    assert!(listed_table.contains("1 regions in 1 world clusters"));
+    assert!(listed_table.contains("synthetic semantic longitude/latitude"));
+    assert!(listed_table.contains("not Earth CRS84"));
+    assert!(listed_table.contains("zoom selects retained LOD and never reclusters"));
 
     let status = run_rey_workspace(&[
         "workloads",
@@ -3069,6 +3102,8 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(response.contains("\"topography_patch\""));
     assert!(response.contains("\"topography_projection\""));
     assert!(response.contains("\"schema\":\"rey.projection-packet.v2\""));
+    assert!(response.contains("\"schema\":\"rey.semantic-atlas.v1\""));
+    assert!(response.contains("\"kind\":\"synthetic_semantic_sphere\""));
     assert!(response.contains(patch.patch_id.as_str()));
     assert!(response.contains("\"state\":\"unexplored\""));
     ui.kill().unwrap();

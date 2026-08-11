@@ -153,6 +153,7 @@ poll cursors, and delta-triggered workloads.
 | Editor project      | User-authored declaration of bounded native scene sources, explicit roles, and one coordinate-system contract                                                                                          | Workspace source; `.rey/editor` is only a candidate/index cache                                                  |
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
 | Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
+| Semantic atlas      | Content-identified bounded layout over admitted regional evidence with stable region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, and lineage                           | Deterministic workload-list projection today; target retained admission revision and directed movement delta    |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Scene snapshot      | Immutable, stably ordered engine scene compiled from one projection packet; semantic identity excludes camera motion and measured frame time                                                           | Browser working state and optional bounded proof artifact; never authoritative source evidence                  |
 | Portfolio snapshot  | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation                                                                | Rey runtime evidence; derived from catalog/result/environment providers                                         |
@@ -179,8 +180,12 @@ requirements demand it.
 bounded workload-list document used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. The Explorer projects admitted topography patches
-through one persistent semantic scene. World derives charted envelopes,
-unresolved probe horizons, and boundary weather from admitted patch evidence.
+through one persistent semantic scene. World places admitted regional patches
+on the synthetic, revision-bound sphere from `rey.semantic-atlas.v1`; its
+longitude/latitude axes have no Earth CRS or physical-distance claim. The
+World globe shows regional POIs and clusters while local charted envelopes,
+unresolved probe horizons, and boundary weather remain available in closer
+lenses.
 Atlas derives terrain-style contour isolines from bounded anchor-sample
 influence, projects accumulated runoff, and lets projected erosion reshape the
 displayed field while retaining anchors as stable map POIs. Exact survey edges
@@ -839,8 +844,10 @@ excluded edge provenance, projection limits, and boundary actions. Discovered
 or constructed paths require a separate future evidence contract. The current
 browser implementation still assembles some of those concerns through large
 React/TypeScript topology and overlay modules. `rey-mining` now defines and
-validates `rey.projection-packet.v2`; `rey.workload-list.v7` carries it beside
-the exact patch, the CLI exposes its three nested field levels and total
+validates `rey.projection-packet.v2`; `rey.workload-list.v8` carries it beside
+the exact patch and also carries the deterministic `rey.semantic-atlas.v1`
+portfolio projection. The CLI exposes the atlas revision, region/cluster
+counts, synthetic coordinate authority, reclustering rule, and the packet's three nested field levels and total
 allocation, and Explorer requires their identities to match. The browser
 compiles typed validity/elevation/hydrology/normal/curvature/material pyramids,
 selects semantic LOD into an immutable scene snapshot, and renders continuous

@@ -2,6 +2,7 @@ import type {
   AgentSummary,
   AttentionRow,
   ProjectionPacket,
+  SemanticAtlas,
   WorkloadDraft,
   WorkloadList,
   WorkloadSummary,
@@ -60,6 +61,38 @@ export type TopologyTone =
 export interface TopologyWorld {
   width: number;
   height: number;
+}
+
+export interface TopologyGlobeRegion {
+  id: string;
+  cluster_id: string;
+  focus_id: string;
+  workload_id: string;
+  label: string;
+  detail: string;
+  longitude_degrees: number;
+  latitude_degrees: number;
+  angular_radius_degrees: number;
+  tone: TopologyTone;
+}
+
+export interface TopologyGlobeCluster {
+  id: string;
+  longitude_degrees: number;
+  latitude_degrees: number;
+  angular_radius_degrees: number;
+  member_count: number;
+  dominant_feature: string;
+}
+
+export interface TopologyGlobe {
+  schema: "rey.semantic-globe-scene.v1";
+  atlas_id: string;
+  atlas_revision: string;
+  compiler_revision: string;
+  coordinate_authority: string;
+  regions: TopologyGlobeRegion[];
+  clusters: TopologyGlobeCluster[];
 }
 
 interface TopologyPosition {
@@ -172,6 +205,7 @@ export interface TopologyScene {
   terrain: boolean;
   terrain_fields: TerrainFieldSet[];
   terrain_pyramids: TerrainFieldPyramid[];
+  globe: TopologyGlobe | null;
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
@@ -210,6 +244,7 @@ export function buildTopologyScene(
     terrain: projection.terrain ?? false,
     terrain_fields: projection.terrain_fields ?? [],
     terrain_pyramids: projection.terrain_pyramids ?? [],
+    globe: projection.globe ?? null,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
@@ -221,6 +256,7 @@ type TopologyProjection = Omit<
   | "bearing"
   | "contours"
   | "fit_world"
+  | "globe"
   | "landforms"
   | "natural_features"
   | "points"
@@ -239,6 +275,7 @@ type TopologyProjection = Omit<
   terrain_pyramids?: TerrainFieldPyramid[];
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
+  globe?: TopologyGlobe | null;
 };
 
 function buildWorld(
@@ -247,7 +284,12 @@ function buildWorld(
 ): TopologyProjection {
   const topographies = admittedTopographies(portfolio);
   if (topographies.length > 0)
-    return buildSurveyTerrain(topographies, focusId, "world");
+    return buildSurveyTerrain(
+      topographies,
+      focusId,
+      "world",
+      portfolio.semantic_atlas ?? null,
+    );
   const fallback = buildAtlas(portfolio, focusId);
   return {
     ...fallback,
@@ -1238,6 +1280,7 @@ function buildSurveyTerrain(
   topographies: AdmittedTopography[],
   focusId: string,
   regime: LensRegime,
+  semanticAtlas: SemanticAtlas | null = null,
 ): TopologyProjection {
   const layout = layoutSurveyTerrain(topographies, regime);
   const selected = selectTopography(topographies, focusId);
@@ -1308,6 +1351,20 @@ function buildSurveyTerrain(
       detail: `${selected.workload.workload.id} · patch ${selected.patch.patch_id} · exact retained basis`,
     },
   }[regime];
+  const globe =
+    regime === "world" && semanticAtlas
+      ? buildSemanticGlobe(semanticAtlas, layout.points)
+      : null;
+  const sceneWorld = globe
+    ? {
+        width: Math.max(
+          ...topographies.map(({ projection }) => projection.extent.width),
+        ),
+        height: Math.max(
+          ...topographies.map(({ projection }) => projection.extent.height),
+        ),
+      }
+    : layout.world;
   return {
     regime,
     ...regimeCopy,
@@ -1321,14 +1378,64 @@ function buildSurveyTerrain(
     edges: visibleEdges,
     omissions: layout.omissions,
     bearing,
-    world: layout.world,
-    fit_world: {
-      width: selected.projection.extent.width,
-      height: selected.projection.extent.height,
-    },
+    world: sceneWorld,
+    fit_world: globe
+      ? sceneWorld
+      : {
+          width: selected.projection.extent.width,
+          height: selected.projection.extent.height,
+        },
     terrain: true,
     terrain_fields: layout.terrain_fields,
     terrain_pyramids: layout.terrain_pyramids,
+    globe,
+  };
+}
+
+function buildSemanticGlobe(
+  atlas: SemanticAtlas,
+  points: TopologyPointOfInterest[],
+): TopologyGlobe {
+  const workspaceFocus = new Map(
+    points
+      .filter(
+        (point) => point.kind === "anchor" && point.family === "WORKSPACE",
+      )
+      .map((point) => [point.workload_id, point.focus_id]),
+  );
+  return {
+    schema: "rey.semantic-globe-scene.v1",
+    atlas_id: atlas.atlas_id,
+    atlas_revision: atlas.atlas_revision,
+    compiler_revision: atlas.compiler.semantic_digest,
+    coordinate_authority: atlas.coordinate_system.authority,
+    clusters: atlas.clusters.map((cluster) => ({
+      id: cluster.cluster_id,
+      longitude_degrees: cluster.semantic_longitude_microdegrees / 1_000_000,
+      latitude_degrees: cluster.semantic_latitude_microdegrees / 1_000_000,
+      angular_radius_degrees: cluster.angular_radius_microdegrees / 1_000_000,
+      member_count: cluster.member_region_ids.length,
+      dominant_feature: cluster.dominant_feature,
+    })),
+    regions: atlas.regions.map((region) => ({
+      id: region.region_id,
+      cluster_id: region.cluster_id,
+      focus_id:
+        workspaceFocus.get(region.workload_id) ??
+        `topography:${region.workload_id}`,
+      workload_id: region.workload_id,
+      label: region.workload_id,
+      detail: `${region.anchor_count} anchors · ${region.frontier_rows} frontier rows · ${region.dominant_feature.replaceAll("_", " ")} terrain · ${shortCoordinate(region.source_topography_revision)}`,
+      longitude_degrees: region.semantic_longitude_microdegrees / 1_000_000,
+      latitude_degrees: region.semantic_latitude_microdegrees / 1_000_000,
+      angular_radius_degrees: region.angular_radius_microdegrees / 1_000_000,
+      tone:
+        region.frontier_rows > 0
+          ? "frontier"
+          : region.complete
+            ? "healthy"
+            : "omitted",
+    })),
   };
 }
 

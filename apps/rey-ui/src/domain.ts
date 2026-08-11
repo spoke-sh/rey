@@ -217,6 +217,79 @@ export interface ProjectionPacket {
   lineage: Array<{ kind: string; identity: string; revision: string }>;
 }
 
+export interface SemanticAtlasSource {
+  region_id: string;
+  workload_id: string;
+  source_patch_id: string;
+  source_topography_revision: string;
+  complete: boolean;
+  workspace_anchors: number;
+  file_anchors: number;
+  document_anchors: number;
+  external_resource_anchors: number;
+  requested_seeds: number;
+  surveyed_seeds: number;
+  candidates: number;
+  frontier_rows: number;
+}
+
+export interface SemanticAtlas {
+  schema: "rey.semantic-atlas.v1";
+  atlas_id: string;
+  atlas_revision: string;
+  compiler: ContractIdentity;
+  coordinate_system: {
+    kind: "synthetic_semantic_sphere";
+    axes: string[];
+    unit: "microdegree";
+    longitude_range_microdegrees: [number, number];
+    latitude_range_microdegrees: [number, number];
+    wraps_longitude: boolean;
+    authority: string;
+    earth_crs: null;
+  };
+  layout_policy: {
+    clustering: string;
+    placement: string;
+    recluster_trigger: string;
+    zoom_rule: string;
+    distance_claim: string;
+  };
+  submitted_sources: number;
+  sources: SemanticAtlasSource[];
+  clusters: Array<{
+    cluster_id: string;
+    semantic_longitude_microdegrees: number;
+    semantic_latitude_microdegrees: number;
+    angular_radius_microdegrees: number;
+    member_region_ids: string[];
+    dominant_feature: string;
+  }>;
+  regions: Array<{
+    region_id: string;
+    cluster_id: string;
+    workload_id: string;
+    source_patch_id: string;
+    source_topography_revision: string;
+    semantic_longitude_microdegrees: number;
+    semantic_latitude_microdegrees: number;
+    angular_radius_microdegrees: number;
+    anchor_count: number;
+    frontier_rows: number;
+    complete: boolean;
+    dominant_feature: string;
+  }>;
+  limits: {
+    max_regions: number;
+    max_world_clusters: number;
+    max_members_per_cluster: number;
+    max_omissions: number;
+  };
+  complete: boolean;
+  omissions: Array<{ kind: string; omitted_count: number; reason: string }>;
+  lineage: Array<{ kind: string; identity: string; revision: string }>;
+}
+
 export interface TopographyPatch {
   schema: "rey.topography-patch.v1";
   patch_id: string;
@@ -345,10 +418,11 @@ export interface AttentionSummary {
 }
 
 export interface WorkloadList {
-  schema: "rey.workload-list.v7";
+  schema: "rey.workload-list.v8";
   catalog: CatalogDescriptor;
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];
+  semantic_atlas: SemanticAtlas | null;
   attention: {
     schema: string;
     attention_id: string;

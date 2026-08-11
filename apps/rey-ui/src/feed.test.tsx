@@ -188,7 +188,8 @@ describe("high-cadence operator feed", () => {
 
 function emptyPortfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v7",
+    schema: "rey.workload-list.v8",
+    semantic_atlas: null,
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",

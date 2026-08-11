@@ -7,7 +7,7 @@ use std::{
 
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_environment::{CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
-use rey_mining::{ProjectionPacket, TopographyCoverage, TopographyPatch};
+use rey_mining::{ProjectionPacket, SemanticAtlas, TopographyCoverage, TopographyPatch};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
     CONTEXT_ANCHOR_SURVEY_OPERATION_ID, ComputeGraph, GraphLimits, GraphNode, GraphOutput,
@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v2";
-pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v7";
+pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v8";
 pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v7";
 pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v7";
 pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v5";
@@ -1648,6 +1648,7 @@ pub struct WorkloadList {
     pub workloads: Vec<WorkloadSummary>,
     pub drafts: Vec<WorkloadDraft>,
     pub attention: WorkloadAttention,
+    pub semantic_atlas: Option<SemanticAtlas>,
 }
 
 impl WorkloadList {
@@ -1658,12 +1659,21 @@ impl WorkloadList {
         drafts: Vec<WorkloadDraft>,
         attention: WorkloadAttention,
     ) -> Self {
+        let semantic_atlas =
+            SemanticAtlas::from_topographies(workloads.iter().filter_map(|workload| {
+                workload
+                    .topography_patch
+                    .as_ref()
+                    .map(|patch| (workload.workload.id.as_str(), patch))
+            }))
+            .expect("retained verified topographies must produce a semantic atlas");
         Self {
             schema: WORKLOAD_LIST_SCHEMA.to_owned(),
             catalog,
             workloads,
             drafts,
             attention,
+            semantic_atlas,
         }
     }
 }

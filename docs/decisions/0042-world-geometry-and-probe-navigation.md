@@ -5,6 +5,8 @@
 - Extends: [ADR 0041](0041-continuous-coordinate-topography.md)
 - Amended: the transport and curation-path projection is superseded by [ADR
   0043](0043-emergent-natural-features-and-separate-paths.md)
+- Amended: the flat standalone World placement is superseded by the synthetic
+  semantic sphere in [ADR 0047](0047-semantic-spherical-atlas.md)
 
 ## Context
 
@@ -34,9 +36,10 @@ World → Atlas → Landscape → Neighborhood → Object → Evidence
 
 The continuous camera range becomes `0.05..=5.4`; World has a canonical stop
 at `0.1`. The selected coordinate remains stable across every transition.
-World is a semantic world projection, not Web Mercator and not latitude or
-longitude. Its graticule is an orientation device over provider-qualified Rey
-coordinates.
+World is a semantic world projection, not Web Mercator or an Earth map. ADR
+0047 now gives admitted regions explicit synthetic semantic longitude and
+latitude on a revision-bound sphere; those axes have no Earth CRS and make no
+physical-distance claim.
 
 For each admitted patch, the projection derives two geometries:
 

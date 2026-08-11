@@ -75,6 +75,7 @@ const terrainScene = {
   terrain: true,
   terrain_fields: [],
   terrain_pyramids: [],
+  globe: null,
 } satisfies TopologyScene;
 
 describe("reference renderer", () => {
@@ -93,5 +94,55 @@ describe("reference renderer", () => {
     expect(markup).toContain('data-natural-feature="stream"');
     expect(markup).not.toContain("topology-arrow");
     expect(markup).toContain("not a source relationship");
+  });
+
+  it("renders the admitted semantic atlas as a spherical World lens", () => {
+    const globeScene: TopologyScene = {
+      ...terrainScene,
+      globe: {
+        schema: "rey.semantic-globe-scene.v1",
+        atlas_id: "atlas:1",
+        atlas_revision: "atlas:1",
+        compiler_revision: "compiler:1",
+        coordinate_authority: "synthetic semantic sphere; not Earth CRS84",
+        clusters: [
+          {
+            id: "cluster:1",
+            longitude_degrees: 0,
+            latitude_degrees: 0,
+            angular_radius_degrees: 8,
+            member_count: 1,
+            dominant_feature: "file",
+          },
+        ],
+        regions: [
+          {
+            id: "region:1",
+            cluster_id: "cluster:1",
+            focus_id: "anchor:survey:workspace",
+            workload_id: "survey",
+            label: "survey",
+            detail: "two admitted anchors",
+            longitude_degrees: 0,
+            latitude_degrees: 0,
+            angular_radius_degrees: 5.5,
+            tone: "healthy",
+          },
+        ],
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        scene={globeScene}
+      />,
+    );
+
+    expect(markup).toContain('data-atlas-revision="atlas:1"');
+    expect(markup).toContain('data-semantic-region="region:1"');
+    expect(markup).toContain("Synthetic semantic longitude and latitude");
+    expect(markup).not.toContain('data-world-geometry="charted"');
+    expect(markup).not.toContain('data-natural-feature="stream"');
   });
 });

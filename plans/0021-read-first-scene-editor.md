@@ -73,9 +73,9 @@ topography and projection contracts consumed by Explorer.
       units, overview, tile, and byte semantics.
 - [ ] Qualify typed Arrow feature/property artifacts where tabular semantics are
       genuine, while keeping raster and native geometry bytes outside frames.
-- [ ] Define provider-qualified semantic chart coordinates separately from
-      geographic CRS84; never encode arbitrary language-space coordinates as
-      longitude/latitude.
+- [x] Define provider-qualified semantic chart coordinates separately from
+      geographic CRS84: ADR 0047 uses namespaced synthetic semantic
+      longitude/latitude with no Earth CRS and retains the native source CRS.
 - [ ] Preserve source-native spatial indexes or build reproducible bounded
       indexes with exact implementation revisions and omissions.
 

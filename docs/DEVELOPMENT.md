@@ -233,7 +233,9 @@ is specified in `docs/JOURNAL.md`.
 
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
 derives bounded World, Atlas, Landscape, Neighborhood, Object, and Evidence
-scenes from admitted patches and projection packets in `rey.workload-list.v7`;
+scenes from admitted patches and projection packets in `rey.workload-list.v8`;
+World additionally compiles the optional `rey.semantic-atlas.v1` into a
+synthetic globe whose Three.js and reference paths share one scene revision.
 `src/explore/engine/camera.ts` owns camera math,
 `src/explore/engine/scene.ts` freezes the current scene, and
 `src/explore/engine/fields.ts` owns bounded typed scalar, vector, mask, and

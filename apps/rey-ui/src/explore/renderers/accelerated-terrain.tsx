@@ -65,13 +65,19 @@ export function AcceleratedTerrainSurface({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || snapshot.scene.terrain_fields.length === 0) {
+    const semanticGlobe =
+      snapshot.scene.regime === "world" ? snapshot.scene.globe : null;
+    if (
+      !canvas ||
+      (snapshot.scene.terrain_fields.length === 0 && semanticGlobe === null)
+    ) {
       setReady(false);
       onReport(REFERENCE_TERRAIN_REPORT);
       return;
     }
     const activeLevelIds = Object.freeze(
       [
+        ...(semanticGlobe ? ["semantic_globe"] : []),
         ...new Set(
           snapshot.scene.terrain_fields.map((fields) => fields.level_id),
         ),
@@ -160,10 +166,7 @@ export function AcceleratedTerrainSurface({
 
     void (async () => {
       try {
-        const [rendererModule, terrainModule] = await Promise.all([
-          import("./three-webgpu"),
-          import("./three-terrain"),
-        ]);
+        const rendererModule = await import("./three-webgpu");
         if (cancelled) return;
         adapter = new rendererModule.ThreeWebGpuRendererAdapter();
         adapter.resize({
@@ -181,13 +184,20 @@ export function AcceleratedTerrainSurface({
           report(status);
           return;
         }
-        bundle = terrainModule.createContinuousReliefBundle(
-          snapshot.scene.terrain_fields,
-          snapshot.scene.world,
-        );
+        bundle = semanticGlobe
+          ? (await import("./three-globe")).createSemanticGlobeBundle(
+              semanticGlobe,
+              snapshot.scene.world,
+            )
+          : (await import("./three-terrain")).createContinuousReliefBundle(
+              snapshot.scene.terrain_fields,
+              snapshot.scene.world,
+            );
         adapter.render(bundle.scene, bundle.camera, {
           snapshot_id: snapshot.snapshot_id,
-          camera_revision: `orthographic:${snapshot.scene.world.width}x${snapshot.scene.world.height}`,
+          camera_revision: semanticGlobe
+            ? `perspective-globe:${snapshot.scene.world.width}x${snapshot.scene.world.height}`
+            : `orthographic:${snapshot.scene.world.width}x${snapshot.scene.world.height}`,
           material_revision: bundle.material_revision,
         });
         setReady(true);

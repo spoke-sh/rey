@@ -199,7 +199,7 @@ continuous camera scale and projects six deterministic levels of detail:
 
 | Level                     | Operator posture                                                        | Target object grammar                                                                                                                             |
 | ------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| World / projection        | Understand the admitted field and where its known boundary ends         | Charted-land envelopes, probe horizons, unresolved weather fronts, projected river systems, major POIs, and prerequisite-marked frontier stations |
+| World / projection        | Understand admitted regions and global topology                         | Semantic sphere, regional clusters, major admitted POIs, atlas revision, and boundedness                                                         |
 | Atlas / topographic       | Read anchor-shaped relief and see more admitted scenes                  | Anchor-derived contour isolines, major points of interest, survey boundaries, frontier, and unexplored regions                                    |
 | Landscape / telescope     | Survey a bounded region and find concentrations or unresolved direction | Persistent relief, anchor POIs, corpora, workloads, evidence, requests, portfolio, and attention aggregates                                       |
 | Neighborhood / mesoscopic | Compare local structures around one coordinate                          | Persistent relief and POIs plus exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships        |
@@ -207,14 +207,19 @@ continuous camera scale and projects six deterministic levels of detail:
 | Evidence / specimen       | Inspect the exact basis of an object or relation                        | Source spans, rows, graph nodes, diff hunks, omissions, bounds, and lineage                                                                       |
 
 The implementation covers all six levels over one persistent spatial scene.
-World derives a charted-land envelope from displayed admitted anchors and a
-separate survey horizon from anchors plus retained frontier points. Retained
-frontier conditions become local weather fronts without a line back to their
-source coordinate. Exact `contains` and `references` edges and shared
+World aggregates admitted regional topographies on the semantic sphere. Atlas
+and closer lenses derive charted-land envelopes from displayed admitted
+anchors and separate survey horizons from anchors plus retained frontier
+points. Retained frontier conditions become local weather fronts without a
+line back to their source coordinate. Exact `contains` and `references` edges and shared
 coordinate identity remain available at deep inspection levels, but do not
 appear as roads, rivers, passages, probe trails, or curation paths.
-The graticule is a semantic orientation aid, not latitude, longitude, or a Web
-Mercator claim. Atlas extracts nested contour isolines from a scalar field whose
+World now consumes `rey.semantic-atlas.v1`: admitted regional identity remains
+separate from synthetic semantic longitude/latitude on a revision-bound sphere.
+Those axes have no Earth CRS, physical-distance meaning, or Web Mercator
+claim. Zoom selects retained LOD and never reclusters; only a changed admitted
+source set or source topography revision changes the atlas layout. Atlas
+extracts nested contour isolines from a scalar field whose
 only height inputs are admitted anchor samples. A deterministic rainfall and
 eight-neighbor descent pass accumulates runoff, classifies projected streams
 and rivers, and erodes the displayed field before contour extraction.
@@ -441,10 +446,15 @@ projection. The conversation transcript is empty and its composer disabled
 because no transport, agent session, message admission, or retention contract
 exists yet.
 
-The implemented Explorer topology is derived from `rey.workload-list.v7`:
+The implemented Explorer topology is derived from `rey.workload-list.v8`:
 exact workload packages, drafts, graph/scenario/mining counts, portfolio
 attention, retained `rey.topography-patch.v1` artifacts, and their exact
-`rey.projection-packet.v2` envelopes. Survey terrain fails closed unless the
+`rey.projection-packet.v2` envelopes. It also consumes the deterministic
+`rey.semantic-atlas.v1` projection of admitted regional patches. At World the
+reference backend renders an accessible orthographic sphere and the Three.js
+backend renders a lit WebGPU-first globe; both bind the same atlas revision and
+admitted regional POIs. Atlas and closer lenses retain local relief. Survey
+terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
 separate `/environment` route consumes `rey.environment-status.v5` and renders
@@ -471,9 +481,11 @@ it refuses graph edges on terrain even if one is supplied accidentally.
 `AcceleratedTerrainSurface` lazily mounts the Three.js adapter and TSL relief
 mesh, reports its selected backend, active terrain level, bounded
 field/triangle counts, and total retained pyramid allocation, and retains the
-reference terrain through initialization or failure.
+reference terrain through initialization or failure. At World it materializes
+the semantic globe rather than the local terrain mesh, while the reference
+overlay preserves region labels and accessibility.
 `buildTopologyScene` is a deterministic read-model projection over
-`rey.workload-list.v7` and is tested separately from browser mechanics. It
+`rey.workload-list.v8` and is tested separately from browser mechanics. It
 requires an exact patch/packet pair before compiling admitted terrain. Typed
 field derivations live under `src/explore/terrain`; `topology.ts` still owns
 their scene adaptation plus contours and natural-feature overlays.
@@ -495,6 +507,12 @@ graph; qualify device-loss and fallback paths in retained browser evidence; and
 close the visual, packaging, and performance proof.
 Exact scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder
 into the browser without adding an independent assessment.
+
+Plan 0022 owns the next global projection slice: retain prior atlas revisions
+and movement deltas at admission, rotate rather than pan the World globe,
+flatten it through an antimeridian-safe wraparound Atlas, and connect admitted
+editor regions. Travel, trade, and economic layers require their own typed
+qualified evidence and are not inferred from survey edges or visual proximity.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and Spoke-backed streams remain separate decisions.

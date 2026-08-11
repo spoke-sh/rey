@@ -441,9 +441,17 @@ and camera-path geometry from relief; only a subsequent admitted patch can
 change topography. `rey.projection-packet.v2` now binds each displayed patch to
 its synthetic basis, bounded objects, validity, field/layer descriptors, three
 nested terrain levels, per-level and total allocations, limits, degradation,
-omissions, and lineage through the CLI and `rey.workload-list.v7`. The browser
+omissions, and lineage through the CLI and `rey.workload-list.v8`. The browser
 compiles the same bounded pyramid and selects overview, regional, or local
 fields by semantic lens without moving shared coordinates or creating evidence.
+The workload list also derives `rey.semantic-atlas.v1` over the latest admitted
+regional patches. Its bounded survey-structure clustering and synthetic
+spherical placement are pure visualization mining with an exact compiler and
+revision; visual proximity is not a mined relationship or similarity claim.
+Zoom never enters that derivation. Plan 0022 must retain prior atlas revisions
+and a directed movement delta before admission-time topology changes can be
+inspected historically.
+
 The remaining render-graph extraction, smooth LOD transitions, retained visual
 proof, and named performance qualification remain Plan 0020 work.
 

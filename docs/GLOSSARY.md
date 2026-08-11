@@ -1490,6 +1490,23 @@ The exact target capability snapshot produced by bounded application search.
 It records found, missing, or errored observations separately from the desired
 inventory that requested the search.
 
+### Semantic atlas
+
+A bounded content-identified `rey.semantic-atlas.v1` projection over admitted
+regional evidence. It preserves stable region identity and exact source
+revisions while deriving world clusters and synthetic spherical placement from
+an explicit compiler, policy, limits, completeness, omissions, and lineage.
+The current workload-list atlas is reproducible from retained admission state;
+retained prior revisions and movement deltas remain planned.
+
+### Semantic spherical coordinate
+
+The namespaced `semantic_longitude` and `semantic_latitude` placement of an
+admitted region on Rey's synthetic sphere, stored in integer microdegrees. It
+wraps like a globe but has no Earth CRS, physical-distance meaning, geographic
+area, or general semantic-similarity authority. Native semantic coordinate
+identity and camera state remain separate.
+
 ### Semantic convergence
 
 The evaluated state in which the applicable frontier is conclusively empty,
@@ -1742,11 +1759,11 @@ layout and color cannot change semantic assessment.
 
 ### World geometry
 
-Explorer's farthest read-only envelope over displayed admitted anchors and
-retained frontier. Charted land bounds displayed evidence; a wider survey
-horizon may include unresolved probes. It is a semantic orientation projection,
-not geographic coordinates, semantic distance, or a claim about the unknown
-context universe.
+Explorer's farthest read-only projection. The current World places admitted
+regional topographies and their major POIs on the revision-bound synthetic
+semantic sphere. Regional charted land and survey horizons remain available in
+closer lenses. World is not an Earth map, physical-distance metric, global
+survey-completeness claim, or statement about the unknown context universe.
 
 ### Workload
 

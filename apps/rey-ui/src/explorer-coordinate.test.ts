@@ -10,7 +10,8 @@ import {
 } from "./explorer-coordinate";
 
 const portfolio: WorkloadList = {
-  schema: "rey.workload-list.v7",
+  schema: "rey.workload-list.v8",
+  semantic_atlas: null,
   catalog: {
     schema: "rey.workload-catalog.v2",
     kind: "workspace_packages",

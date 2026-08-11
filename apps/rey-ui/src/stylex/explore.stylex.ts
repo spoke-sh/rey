@@ -219,6 +219,61 @@ export const exploreStyles = stylex.create({
       "calc(2px * var(--rey-terrain-counter-scale)) calc(8px * var(--rey-terrain-counter-scale))",
     strokeWidth: "calc(0.7px * var(--rey-terrain-counter-scale))",
   },
+  semanticGlobeLayer: {
+    pointerEvents: "auto",
+    zIndex: 2,
+  },
+  semanticGlobeSphere: {
+    filter:
+      "drop-shadow(0 28px 34px color-mix(in srgb, #20383d 30%, transparent))",
+    stroke: "color-mix(in srgb, #41585a 68%, var(--rey-foreground))",
+    strokeWidth: "calc(1.4px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeGraticule: {
+    fill: "none",
+    opacity: 0.3,
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #dce4d3 62%, #536d6c)",
+    strokeWidth: "calc(0.72px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeCluster: {
+    fill: "color-mix(in srgb, #e8d18f 10%, transparent)",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #e1c36a 58%, transparent)",
+    strokeDasharray:
+      "calc(4px * var(--rey-terrain-counter-scale)) calc(6px * var(--rey-terrain-counter-scale))",
+    strokeWidth: "calc(1px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeRegion: {
+    cursor: "pointer",
+    outline: {
+      default: "none",
+      ":focus-visible": "2px solid var(--rey-accent)",
+    },
+  },
+  semanticGlobeRegionPoint: {
+    fill: "color-mix(in srgb, #eef3db 76%, var(--rey-accent))",
+    stroke: "color-mix(in srgb, #283f42 82%, var(--rey-foreground))",
+    strokeWidth: "calc(1.8px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeRegionLabel: {
+    fill: "color-mix(in srgb, #f5f6e9 90%, var(--rey-foreground))",
+    fontFamily: mono,
+    fontSize: "calc(16px * var(--rey-terrain-counter-scale))",
+    fontWeight: 850,
+    letterSpacing: "0.06em",
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #263c40 88%, transparent)",
+    strokeWidth: "calc(4px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeCaption: {
+    fill: "var(--muted)",
+    fontFamily: mono,
+    fontSize: "calc(13px * var(--rey-terrain-counter-scale))",
+    letterSpacing: "0.08em",
+    pointerEvents: "none",
+  },
   worldHorizon: {
     fill: "color-mix(in srgb, #78959b 5%, transparent)",
     opacity: 0.8,

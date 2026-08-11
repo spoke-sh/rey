@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   ProjectionPacket,
+  SemanticAtlas,
   TopographyPatch,
   WorkloadList,
   WorkloadSummary,
@@ -55,7 +56,8 @@ const workload = (id: string): WorkloadSummary => ({
 });
 
 const portfolio: WorkloadList = {
-  schema: "rey.workload-list.v7",
+  schema: "rey.workload-list.v8",
+  semantic_atlas: null,
   catalog: {
     schema: "rey.workload-catalog.v2",
     kind: "workspace_packages",
@@ -157,6 +159,7 @@ describe("context topology lens", () => {
   it("derives all six levels from admitted patches and preserves unknown region states", () => {
     const patchPortfolio: WorkloadList = {
       ...portfolio,
+      semantic_atlas: atlasFor(surveyPatch),
       workloads: [
         {
           ...portfolio.workloads[0]!,
@@ -230,6 +233,16 @@ describe("context topology lens", () => {
       level_id: "overview",
       field_cells: 651,
     });
+    expect(world.globe).toMatchObject({
+      schema: "rey.semantic-globe-scene.v1",
+      atlas_revision: "atlas:1",
+    });
+    expect(world.globe?.regions[0]).toMatchObject({
+      workload_id: "rey.example",
+      longitude_degrees: 12.5,
+      latitude_degrees: 24.25,
+    });
+    expect(atlas.globe).toBeNull();
     expect(atlas.terrain_fields[0]).toMatchObject({
       level_id: "regional",
       field_cells: 2501,
@@ -541,6 +554,85 @@ const identity = (id: string) => ({
   revision: 1,
   semantic_digest: `${id}:digest`,
 });
+
+function atlasFor(patch: TopographyPatch): SemanticAtlas {
+  return {
+    schema: "rey.semantic-atlas.v1",
+    atlas_id: "atlas:1",
+    atlas_revision: "atlas:1",
+    compiler: identity("rey.semantic-atlas.polar-cluster"),
+    coordinate_system: {
+      kind: "synthetic_semantic_sphere",
+      axes: ["semantic_longitude", "semantic_latitude"],
+      unit: "microdegree",
+      longitude_range_microdegrees: [-180_000_000, 180_000_000],
+      latitude_range_microdegrees: [-90_000_000, 90_000_000],
+      wraps_longitude: true,
+      authority: "synthetic admitted survey layout; not Earth coordinates",
+      earth_crs: null,
+    },
+    layout_policy: {
+      clustering: "fixture clustering",
+      placement: "fixture polar placement",
+      recluster_trigger: "admitted source revision change",
+      zoom_rule: "zoom selects retained level of detail and never reclusters",
+      distance_claim: "no semantic distance claim",
+    },
+    submitted_sources: 1,
+    sources: [
+      {
+        region_id: "region:1",
+        workload_id: "rey.example",
+        source_patch_id: patch.patch_id,
+        source_topography_revision: patch.topography_revision,
+        complete: patch.complete,
+        workspace_anchors: 1,
+        file_anchors: 1,
+        document_anchors: 0,
+        external_resource_anchors: 0,
+        requested_seeds: patch.coverage.requested_seeds,
+        surveyed_seeds: patch.coverage.surveyed_seeds,
+        candidates: patch.coverage.unique_candidates,
+        frontier_rows: patch.frontier.length,
+      },
+    ],
+    clusters: [
+      {
+        cluster_id: "cluster:1",
+        semantic_longitude_microdegrees: 12_500_000,
+        semantic_latitude_microdegrees: 24_250_000,
+        angular_radius_microdegrees: 8_000_000,
+        member_region_ids: ["region:1"],
+        dominant_feature: "file",
+      },
+    ],
+    regions: [
+      {
+        region_id: "region:1",
+        cluster_id: "cluster:1",
+        workload_id: "rey.example",
+        source_patch_id: patch.patch_id,
+        source_topography_revision: patch.topography_revision,
+        semantic_longitude_microdegrees: 12_500_000,
+        semantic_latitude_microdegrees: 24_250_000,
+        angular_radius_microdegrees: 5_500_000,
+        anchor_count: patch.anchors.length,
+        frontier_rows: patch.frontier.length,
+        complete: patch.complete,
+        dominant_feature: "file",
+      },
+    ],
+    limits: {
+      max_regions: 128,
+      max_world_clusters: 16,
+      max_members_per_cluster: 128,
+      max_omissions: 32,
+    },
+    complete: true,
+    omissions: [],
+    lineage: [],
+  };
+}
 const coordinate = {
   schema: "rey.coordinate-binding.v1",
   binding_id: "binding:readme",

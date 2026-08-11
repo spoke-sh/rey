@@ -1,8 +1,10 @@
 #![forbid(unsafe_code)]
 
+mod atlas;
 mod projection;
 mod topography;
 
+pub use atlas::*;
 pub use projection::*;
 pub use topography::*;
 
