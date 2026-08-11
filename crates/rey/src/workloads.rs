@@ -21,16 +21,16 @@ use rey_runtime::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v2";
-pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v8";
-pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v7";
-pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v7";
-pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v5";
+pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v1";
+pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v1";
+pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v1";
+pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v1";
+pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v1";
 pub const WORKLOAD_PACKAGE_SCHEMA: &str = "rey.workload-package.v1";
 pub const WORKLOAD_CREATION_REQUEST_SCHEMA: &str = "rey.workload-creation-request.v1";
 pub const WORKLOAD_CREATE_RESULT_SCHEMA: &str = "rey.workload-create-result.v1";
-pub const WORKLOAD_CATALOG_SCHEMA: &str = "rey.workload-catalog.v2";
-pub const WORKLOAD_RUN_VIEW_SCHEMA: &str = "rey.workload-run-view.v3";
+pub const WORKLOAD_CATALOG_SCHEMA: &str = "rey.workload-catalog.v1";
+pub const WORKLOAD_RUN_VIEW_SCHEMA: &str = "rey.workload-run-view.v1";
 
 const STATE_FILE_NAME: &str = "state.json";
 const MAX_STATE_BYTES: u64 = 4 * 1_024 * 1_024;

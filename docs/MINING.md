@@ -374,7 +374,7 @@ probes and major agent runtimes through non-executing PATH presence scans,
 observes part of one Git repository, operates on typed
 capability frames, implements ordered UTF-8 line deltas, and exposes
 canonical `rey.mining-operation.v1`, `rey.mining-request.v1`, and
-`rey.mining-result.v2` manifests. Result v2 makes observed wall time optional
+`rey.mining-result.v1` manifests. The v1 result makes observed wall time optional
 so a deterministic pure projection does not acquire a timing-dependent
 identity while a tool-backed probe may retain measured time. Constructors and
 replay verification bind exact workload/frontier rationale, provider and
@@ -406,11 +406,11 @@ byte span, preserving insertions, deletions, modifications, typed before/after
 rows, native source/match/context identities, completeness, and replay.
 `rey.text-delta.v1` preserves expected-to-observed direction, ordered UTF-8
 lines, final-newline state, bounded LCS alignment, change counts, and replay;
-`rey.scenario-output-delta.v2` embeds it for workload output evaluation.
+`rey.scenario-output-delta.v1` embeds it for workload output evaluation.
 
 The failing complete relation deterministically derives one
-`rey.frontier.v2` row, selects it with one `rey.scheduling-decision.v2`, and
-projects one `rey.reasoning-surface.v3` citing the source result, match/context
+`rey.frontier.v1` row, selects it with one `rey.scheduling-decision.v1`, and
+projects one `rey.reasoning-surface.v1` citing the source result, match/context
 artifacts, relational and text deltas, and the admissible graph-revision
 action. This is a workload-specific conformance fixture, not a recurring
 scheduler or policy loop.
@@ -438,10 +438,10 @@ deterministic visual projection of those artifacts. It does not mine, resolve,
 or interpolate semantic terrain on its own. Broader locator families and
 recurring voyage scheduling remain later work. ADR 0043 removes source-edge
 and camera-path geometry from relief; only a subsequent admitted patch can
-change topography. `rey.projection-packet.v2` now binds each displayed patch to
+change topography. `rey.projection-packet.v1` now binds each displayed patch to
 its synthetic basis, bounded objects, validity, field/layer descriptors, three
 nested terrain levels, per-level and total allocations, limits, degradation,
-omissions, and lineage through the CLI and `rey.workload-list.v8`. The browser
+omissions, and lineage through the CLI and `rey.workload-list.v1`. The browser
 compiles the same bounded pyramid and selects overview, regional, or local
 fields by semantic lens without moving shared coordinates or creating evidence.
 The workload list also derives `rey.semantic-atlas.v1` over the latest admitted

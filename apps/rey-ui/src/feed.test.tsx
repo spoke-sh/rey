@@ -188,7 +188,7 @@ describe("high-cadence operator feed", () => {
 
 function emptyPortfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v8",
+    schema: "rey.workload-list.v1",
     semantic_atlas: null,
     catalog: {
       schema: "rey.workload-catalog.v1",
@@ -258,7 +258,7 @@ function workload(): WorkloadList["workloads"][number] {
 
 function cadenceProjection(): CadenceProjection {
   return {
-    schema: "rey.ui-cadence.v2",
+    schema: "rey.ui-cadence.v1",
     ordering: "partial",
     source_repository: "https://github.com/spoke-sh/rey",
     repository_state: {
@@ -333,15 +333,15 @@ function cadenceProjection(): CadenceProjection {
 
 function journalProjection(): JournalProjection {
   return {
-    schema: "rey.ui-journal.v3",
+    schema: "rey.ui-journal.v1",
     write_enabled: true,
     authority: "unauthenticated_journal_admission",
     log: {
-      schema: "rey.journal-log.v2",
+      schema: "rey.journal-log.v1",
       log_id: "blake3:journal",
       entries: [
         {
-          schema: "rey.journal-entry.v2",
+          schema: "rey.journal-entry.v1",
           entry_id: "blake3:entry",
           sequence: 1,
           admitted_at: "1970-01-01T00:03:20.000Z",

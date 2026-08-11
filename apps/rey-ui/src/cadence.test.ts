@@ -17,7 +17,7 @@ describe("cadence projection", () => {
 
   it("renders every visible Git cadence SHA as its exact GitHub link", () => {
     const cadence: CadenceProjection = {
-      schema: "rey.ui-cadence.v2",
+      schema: "rey.ui-cadence.v1",
       ordering: "partial",
       source_repository: "https://github.com/spoke-sh/rey",
       repository_state: {

@@ -28,7 +28,7 @@ Environment at `/environment`, adds the bounded semantic-lens canvas, and
 replaces manual refresh with passive five-second revalidation.
 ADR 0027 adds bounded non-sensitive value capture and makes `rey env status`
 plus `/environment` two projections of one typed environment delta. ADR 0031
-hard-cuts the mapping graph to `rey.env-map.v3` and separates exact desired
+hard-cuts the mapping graph to `rey.env-map.v1` and separates exact desired
 application inventory from bounded search records.
 ADR 0030 added partially ordered cadence lanes and the now-superseded matrix
 Explorer coordinates. ADR 0041 hard-cuts those paths to semantic coordinates
@@ -44,7 +44,7 @@ ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
 explicit agent-map input, establishes locator survey as the next boundary, and
 turns the footer into a live typed-attention mailbox.
 ADR 0033 restores a compact Git-shaped environment working-tree view, projects
-interactive admission as environment hunks, and adds bounded dated v2 history.
+interactive admission as environment hunks, and adds bounded dated history.
 
 ## Interface Principles
 
@@ -198,7 +198,7 @@ frontier, scheduling, and reasoning-surface identities. A final portfolio
 section keeps workload qualification, scenario conformance, evaluation
 coverage, delta assessment, and qualification counts separate. These
 verbosity flags affect only the human projection; redirected `auto` and
-explicit JSON retain the same `rey.workload-test-batch.v5` document.
+explicit JSON retain the same `rey.workload-test-batch.v1` document.
 
 Portfolio-attention scenarios retain `rey.workload-attention.v1` beside the
 ordered UTF-8 output delta. `-v` exposes action/reason/readiness rows; `-vv`
@@ -207,21 +207,21 @@ identities. A qualified `run rey.portfolio.attention` emits the same typed
 relation over current retained inputs. `list` and `status` derive their view
 without fresh ambient discovery.
 
-The structured schemas are `rey.workload-list.v8`,
-`rey.workload-status-batch.v7`, `rey.workload-test-batch.v5`, and
-`rey.workload-run-view.v3`. Their `rey.workload-catalog.v2` descriptor
+The structured schemas are `rey.workload-list.v1`,
+`rey.workload-status-batch.v1`, `rey.workload-test-batch.v1`, and
+`rey.workload-run-view.v1`. Their `rey.workload-catalog.v1` descriptor
 separates total, admitted, and draft counts. The run view contains the unchanged verified
-`rey.workload-run-result.v2` plus exact catalog and proposal provenance. Test results contain verified
-`rey.scenario-output-delta.v2` documents embedding `rey.text-delta.v1`, and
+`rey.workload-run-result.v1` plus exact catalog and proposal provenance. Test results contain verified
+`rey.scenario-output-delta.v1` documents embedding `rey.text-delta.v1`, and
 mining scenarios contain `rey.source-match-delta.v1`. Topography scenarios
 also retain `rey.topography-patch.v1` and its directed patch delta; `-v`
 projects anchors, classified edges, regions, and frontier, while `-vv` adds
 exact operation, provider, implementation, capability, limit, and lineage
 bindings. Passing tests alone
-contain a `rey.workload-qualification.v2` binding the exact workload, graph,
+contain a `rey.workload-qualification.v1` binding the exact workload, graph,
 scenario suite, evaluator, and test result.
 
-`rey.workload-list.v8` additionally carries an optional
+`rey.workload-list.v1` additionally carries an optional
 `rey.semantic-atlas.v1` whenever verified regional topography is retained. The
 atlas binds stable region identities to exact patch/revision sources and
 integer synthetic semantic longitude/latitude. It declares no Earth CRS.
@@ -260,7 +260,7 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 
 `status` is the single environment inventory and revision view. It performs a
 fresh observation, retains the complete working snapshot in
-`rey.environment-status.v5`, and derives one typed variable, application,
+`rey.environment-status.v1`, and derives one typed variable, application,
 input, and reference projection over `HEAD → INDEX → WORKING`. Human output is
 a compact working-tree view: current `ENV@n`, then environment-native staged
 and unstaged groups when present. Clean status contains only the coordinate and
@@ -281,29 +281,29 @@ three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
 the exact application-declaration identity as `DESIRED INVENTORY`, then the
 exact target capability snapshot as `SEARCH RECORD`. The authoritative
 capability assessment remains in the coordinate header; JSON is
-`rey.environment-diff.v4` and does not replace the typed capability delta with
+`rey.environment-diff.v1` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the
 verified retained index to the linear history at
 `${workspace}/.rey/env/state.json` by default. Successful table-mode commits
 are silent on stdout and stderr; explicit JSON returns the structured receipt,
 `log -n 1` supplies human readback, and failures remain nonzero stderr
-diagnostics. New v2 commits bind an integer
+diagnostics. Every v1 commit binds an integer
 Unix commit time as explicit retention metadata. `log` is newest-first; `-n`
 bounds selection, every entry shows `ENV@n`, semantic parent, date, and
 message, and `-p` expands each exact parent-to-commit transition through the
-three environment-native planes. Legacy v1 commits remain readable with an
-explicitly unknown date.
+three environment-native planes. Documents without the complete v1 fields are
+rejected.
 The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 `${workspace}/.rey/env/index.json` by default. Plain human history is a compact
 revision/evidence/environment/change/mapping/message chronology; patch mode
 adds directed variables, application search, inputs, and topology. Explicit
-JSON uses `rey.environment-status.v5`,
-`rey.environment-commit-result.v2`, and `rey.environment-log.v2`.
+JSON uses `rey.environment-status.v1`,
+`rey.environment-commit-result.v1`, and `rey.environment-log.v1`.
 
 Discovery always records the process-owned `HOME`, `PWD`, and `PATH` seeds and
 the compiled desired-adapter inventory. It loads no project configuration by
 convention. `--map` explicitly selects an agent-generated workspace-relative
-regular YAML resource. `rey.env-map.v3` is a closed, bounded
+regular YAML resource. `rey.env-map.v1` is a closed, bounded
 graph of variable, file, and desired executable nodes plus declared reference
 edges. Every desired executable records why it belongs in the inventory.
 Mapped file bytes are not retained. Sensitive variables are presence-only.
@@ -412,7 +412,7 @@ aggregation, context, elision, sampling, limits, and omissions.
 ### Explorer projection packet
 
 ADR 0044 introduces a projection-engine boundary rather than a second top-level
-resource. The implemented `rey.projection-packet.v2` carries:
+resource. The implemented `rey.projection-packet.v1` carries:
 
 ```text
 packet identity + source evidence identities
@@ -437,7 +437,7 @@ compiler, extent, exact overview 31×21, regional 61×41, and local 121×81
 levels, their 12,953-cell/712,415-byte total allocation, regime bindings,
 field descriptors, validity regions, layers, effective limits, degradation,
 omissions, and lineage.
-`rey.workload-list.v8` carries the same packet beside its exact patch, and
+`rey.workload-list.v1` carries the same packet beside its exact patch, and
 Explorer fails closed to the portfolio fallback unless both identities match.
 When a semantic atlas is present, Explorer also binds the atlas and layout
 compiler revisions into its immutable World scene. This adds a spherical
@@ -645,20 +645,20 @@ and Activation](GIT.md).
 The generic contracts have no peer top-level CLI resource. The source-search
 workload now projects one failure-derived frontier, scheduling decision, and
 reasoning surface through `test -vv` and `status`.
-`rey.frontier.v2` binds exact workload, graph, scenario-suite, campaign,
+`rey.frontier.v1` binds exact workload, graph, scenario-suite, campaign,
 space, trace, committed-record, capability, derivation, prioritization,
 coverage, and limit inputs. Its canonical `rey.frontier-rows` version `2`
 relation is keyed by stable `work_id` and
 retains a derived row identity, delta/claim/lens/action citations, readiness,
 blockers, priority, and estimated cost.
 
-`rey.frontier-progress.v2` compares compatible source and target frontiers in
+`rey.frontier-progress.v1` compares compatible source and target frontiers in
 that direction while preserving source and target graph identities. Its
 `rey.frontier-progress-changes` version `2` relation
 reports resolved, introduced, or updated work with source/target row ids;
 unchanged work remains a summary count.
 
-`rey.scheduling-decision.v2` rejects stale expected record, frontier, and
+`rey.scheduling-decision.v1` rejects stale expected record, frontier, and
 capability identities and selects ready work by declared priority descending,
 cost ascending, then stable work id. The `rey.scheduled-work` version `2`
 relation retains selection rank and exact frontier row identity. These are
@@ -672,7 +672,7 @@ cutover in [ADR 0016](decisions/0016-first-workload-slice.md).
 
 Before requesting a policy proposal, the runtime constructs a bounded
 delta-directed reasoning surface. The implemented
-`rey.reasoning-surface.v3` envelope contains:
+`rey.reasoning-surface.v1` envelope contains:
 
 - surface schema, identity, and projection-contract revision;
 - workload, graph, scenario-suite, campaign, space, and trace identities;
@@ -708,12 +708,11 @@ normal proposal and admission. Surface construction does not turn a local path
 into a Spoke source, give a cited capability execution authority, or make the
 surface the sole copy of native source content.
 
-The reasoning-surface schema is a verified library contract fixed by
-[ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md) and
-cut over to decision-bound v2 by
-[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), then to the
-workload-bound v3 envelope by
-[ADR 0016](decisions/0016-first-workload-slice.md). It is not an
+The reasoning-surface schema is a verified v1 library contract whose design
+lineage is fixed by [ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md),
+[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), and
+[ADR 0016](decisions/0016-first-workload-slice.md), with the fresh public
+baseline fixed by [ADR 0048](decisions/0048-fresh-v1-contract-baseline.md). It is not an
 implemented CLI format. The policy-proposal schema remains a target contract.
 
 ## Policy Contract
@@ -833,7 +832,7 @@ deltas, qualification records, runs, and indexes read by `workloads list` and
 The first standalone implementation uses a bounded workspace package catalog
 at `${workspace}/workloads`, with the compiled catalog available only by
 explicit conformance selection. It uses a bounded
-`rey.local-workload-state.v2` result index at
+`rey.local-workload-state.v1` result index at
 `${workspace}/.rey/workloads/state.json`, overridable by explicit
 `--state-dir`. Reads reject symlinked state files and verify every retained
 semantic result. Writes use a same-directory temporary file and rename. This
@@ -919,7 +918,7 @@ outcomes, exact workload/graph/package/test bindings, and mining output as
 three relations; creation requests expose request posture and exact
 coding-harness bindings as two relations.
 
-The cadence endpoint returns `rey.ui-cadence.v2`. It retains newest-first Git
+The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact
 limits, parents, revisions, completeness, and omissions. Its nullable
 `repository_state` separately reports working-tree counts and the exact
@@ -932,7 +931,7 @@ endpoint does not poll refs, activate a workload, or retain browser reads.
 `/agents` combines two sources without conflating them. Its current
 system-authored rows derive from creation requests and non-excluded attention
 in the workload-list document. Its authored entries come from the ordered
-`rey.journal-log.v2` returned by the Journal endpoint. The human block composer
+`rey.journal-log.v1` returned by the Journal endpoint. The human block composer
 at `/journal/new` admits prose, an exact Explorer map binding, and an optional
 read-only query declaration, then enters the exact retained `/journal/{slug}`
 document. Journal blocks expose stable `#block-{block-id}` permalinks. Agent
@@ -1004,7 +1003,7 @@ unretained catch-up proposal; only normal Journal admission creates an entry.
 Relay declarations do not enable transport until a provider contract is
 separately admitted.
 
-The startup table and `rey.ui-server.v3` JSON expose exact address, URL,
+The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, unauthenticated Journal-write authority,
 workspace, catalog root, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
@@ -1045,8 +1044,9 @@ or action authority. Implemented local semantic coordinates have the shape
 `role` query dimension for agents. Exact browser views use
 `/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}`.
 Canonical coordinates order `revision`, `role`; stale bindings remain visible.
-The former matrix path and parser are removed. Journal v2 retains semantic
-coordinate and numeric scale separately, and old Journal state is rejected.
+The matrix path and parser are absent from the v1 implementation. Journal v1
+retains semantic coordinate and numeric scale separately; documents outside
+the complete v1 contract are rejected.
 
 Explorer work in Plans 0017 through 0020 consumes admitted
 `rey.topography-patch.v1` evidence produced through the workloads interface.

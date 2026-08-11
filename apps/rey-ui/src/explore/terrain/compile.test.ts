@@ -34,7 +34,7 @@ const channels = [
 }));
 
 const projection = {
-  schema: "rey.projection-packet.v2",
+  schema: "rey.projection-packet.v1",
   packet_id: "packet:one",
   source_patch_id: "patch:one",
   source_topography_revision: "topography:one",

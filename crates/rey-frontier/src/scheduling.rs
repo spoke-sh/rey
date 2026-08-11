@@ -10,12 +10,12 @@ use crate::{
     validate_digest,
 };
 
-pub const SCHEDULING_DECISION_SCHEMA: &str = "rey.scheduling-decision.v2";
+pub const SCHEDULING_DECISION_SCHEMA: &str = "rey.scheduling-decision.v1";
 pub const SCHEDULING_DECISION_RELATION: &str = "rey.scheduled-work";
-pub const SCHEDULING_DECISION_SCHEMA_VERSION: &str = "2";
+pub const SCHEDULING_DECISION_SCHEMA_VERSION: &str = "1";
 const SCHEDULER_ID: &str = "rey.priority-cost-work-id";
 const SCHEDULER_REVISION: u64 = 1;
-const SCHEDULER_DEFINITION: &str = "select ready rey.frontier.v2 workload campaign work by priority descending, estimated cost ascending, work_id ascending; greedy bounded units and total cost; no fairness claim";
+const SCHEDULER_DEFINITION: &str = "select ready rey.frontier.v1 workload campaign work by priority descending, estimated cost ascending, work_id ascending; greedy bounded units and total cost; no fairness claim";
 
 #[must_use]
 pub fn deterministic_scheduler() -> ContractIdentity {

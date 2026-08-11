@@ -23,13 +23,13 @@ preserving authoritative typed deltas.
 - [x] Prevent generic patch fallback from printing raw structured provenance.
 - [x] Make `env log -n <count>` prove its selection bound in the CLI fixtures.
 - [x] Put `ENV@n`, parent, date, and message into a Git-shaped log header.
-- [x] Bind dates into new v2 commit identities while retaining verifiable v1
-  history with an explicit unknown date.
+- [x] Bind dates into complete v1 commit identities; ADR 0048 later removed the
+  earlier undated reader during the fresh-state reset.
 - [x] Make successful human commits silent while preserving explicit JSON
   receipts and stderr failure diagnostics.
 - [x] Advance affected structured schemas and update foundational contracts.
-- [x] Cover stdout, stderr, JSON, exit behavior, partial staging, timestamp
-  tampering, and legacy history in focused tests.
+- [x] Cover stdout, stderr, JSON, exit behavior, partial staging, and timestamp
+  tampering in focused tests.
 
 ## Concrete Anchor
 

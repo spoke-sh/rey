@@ -28,7 +28,7 @@ topography and projection contracts consumed by Explorer.
 - [x] Keep `/explore` unchanged when a package is created and require a later
       explicit workload result before the browser can consume it.
 - [ ] Define the admitted scene-layer result and its exact relationship to
-      `rey.topography-patch.v1` and `rey.projection-packet.v2` without creating
+      `rey.topography-patch.v1` and `rey.projection-packet.v1` without creating
       a second projection authority.
 
 ### 2. Establish the agent-first editor CLI
@@ -90,7 +90,7 @@ topography and projection contracts consumed by Explorer.
       and omissions through `rey workloads test|run|status ... -vv`.
 - [ ] Emit one admitted scene-layer/topography result whose exact identity is
       retained by the workload store and projected into a verified
-      `rey.projection-packet.v2`.
+      `rey.projection-packet.v1`.
 - [ ] Make `/explore` consume that retained result through its evidence adapter;
       panning, zooming, selection, and opening a link remain read-only.
 - [ ] Show editor-origin provenance at Evidence scale without exposing the

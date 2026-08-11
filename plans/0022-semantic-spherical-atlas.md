@@ -32,7 +32,7 @@ separate authorities.
 
 ### 2. Expose human and structured evidence
 
-- [x] Carry the atlas in `rey.workload-list.v8` beside its admitted regional
+- [x] Carry the atlas in `rey.workload-list.v1` beside its admitted regional
       topography sources.
 - [x] Show atlas revision, region/cluster counts, bounds, compiler, coordinate
       authority, and the no-zoom-reclustering rule in `rey workloads list`.

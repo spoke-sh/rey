@@ -12,23 +12,23 @@ use rey_diff::{
     compare_capabilities,
 };
 use rey_environment::{
-    Availability, CapabilityRecord, CapabilitySnapshot, DISCOVERY_SEED_PROVIDER_ID,
-    DiscoveryApplicationProvenance, DiscoveryError, DiscoverySeedProvenance, EnvironmentMapEdge,
-    EnvironmentMapNode, EnvironmentMapNodeProvenance, VariableCapture,
+    Availability, CapabilityRecord, CapabilitySnapshot, DISCOVERY_APPLICATION_SCHEMA,
+    DISCOVERY_SEED_PROVIDER_ID, DiscoveryApplicationProvenance, DiscoveryError,
+    DiscoverySeedProvenance, EnvironmentMapEdge, EnvironmentMapNode, EnvironmentMapNodeProvenance,
+    VariableCapture,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const LEGACY_ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
-pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v2";
-pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v2";
+pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
+pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
-pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v5";
-pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v4";
-pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v3";
+pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v1";
+pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v1";
+pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v1";
 pub const ENVIRONMENT_ADMISSION_INDEX_SCHEMA: &str = "rey.environment-admission-index.v1";
 pub const ENVIRONMENT_ADD_RESULT_SCHEMA: &str = "rey.environment-add-result.v1";
-pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v2";
+pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v1";
 pub const MAX_ENVIRONMENT_COMMITS: usize = 256;
 pub const MAX_ENVIRONMENT_STATE_BYTES: u64 = 16 * 1_024 * 1_024;
 pub const MAX_ENVIRONMENT_MESSAGE_BYTES: usize = 4_096;
@@ -42,8 +42,7 @@ pub struct EnvironmentCommit {
     pub commit_id: SemanticDigest,
     pub sequence: u64,
     pub parent_commit_id: Option<SemanticDigest>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub committed_at_unix: Option<i64>,
+    pub committed_at_unix: i64,
     pub message: String,
     pub snapshot: CapabilitySnapshot,
 }
@@ -84,7 +83,7 @@ impl EnvironmentCommit {
             ENVIRONMENT_COMMIT_SCHEMA,
             sequence,
             parent_commit_id.as_ref(),
-            Some(committed_at_unix),
+            committed_at_unix,
             &message,
             &snapshot.semantic_digest,
         );
@@ -93,33 +92,19 @@ impl EnvironmentCommit {
             commit_id,
             sequence,
             parent_commit_id,
-            committed_at_unix: Some(committed_at_unix),
+            committed_at_unix,
             message,
             snapshot,
         })
     }
 
     pub fn verify(&self) -> Result<(), LocalEnvironmentHistoryError> {
-        let committed_at_unix = match self.schema.as_str() {
-            LEGACY_ENVIRONMENT_COMMIT_SCHEMA => {
-                if self.committed_at_unix.is_some() {
-                    return Err(LocalEnvironmentHistoryError::UnexpectedCommitTimestamp);
-                }
-                None
-            }
-            ENVIRONMENT_COMMIT_SCHEMA => {
-                let committed_at_unix = self
-                    .committed_at_unix
-                    .ok_or(LocalEnvironmentHistoryError::MissingCommitTimestamp)?;
-                validate_commit_timestamp(committed_at_unix)?;
-                Some(committed_at_unix)
-            }
-            _ => {
-                return Err(LocalEnvironmentHistoryError::UnsupportedCommitSchema {
-                    actual: self.schema.clone(),
-                });
-            }
-        };
+        if self.schema != ENVIRONMENT_COMMIT_SCHEMA {
+            return Err(LocalEnvironmentHistoryError::UnsupportedCommitSchema {
+                actual: self.schema.clone(),
+            });
+        }
+        validate_commit_timestamp(self.committed_at_unix)?;
         if self.sequence == 0 {
             return Err(LocalEnvironmentHistoryError::InvalidSequence {
                 expected: 1,
@@ -135,7 +120,7 @@ impl EnvironmentCommit {
             &self.schema,
             self.sequence,
             self.parent_commit_id.as_ref(),
-            committed_at_unix,
+            self.committed_at_unix,
             &self.message,
             &self.snapshot.semantic_digest,
         );
@@ -763,31 +748,28 @@ impl MappedEnvironmentPlane {
 fn discovery_application_provenance(
     record: &CapabilityRecord,
 ) -> Result<DiscoveryApplicationProvenance, LocalEnvironmentHistoryError> {
-    if let Some(provenance) = record.provenance.as_deref()
-        && let Ok(provenance) = serde_json::from_str(provenance)
-    {
-        return Ok(provenance);
+    let provenance: DiscoveryApplicationProvenance =
+        serde_json::from_str(record.provenance.as_deref().ok_or_else(|| {
+            LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+                "{} is missing application provenance",
+                record.capability_id
+            ))
+        })?)
+        .map_err(|error| {
+            LocalEnvironmentHistoryError::EnvironmentProjection(format!(
+                "{} application provenance is invalid: {error}",
+                record.capability_id
+            ))
+        })?;
+    if provenance.schema != DISCOVERY_APPLICATION_SCHEMA {
+        return Err(LocalEnvironmentHistoryError::EnvironmentProjection(
+            format!(
+                "{} application provenance has unsupported schema {}",
+                record.capability_id, provenance.schema
+            ),
+        ));
     }
-    let (name, purpose) = match record.capability_id.as_str() {
-        "tool.git.identity" => ("git", "Inspect repository identity and activation inputs"),
-        "tool.ripgrep.identity" => ("rg", "Extend bounded source mining with fast text search"),
-        _ => {
-            return Err(LocalEnvironmentHistoryError::EnvironmentProjection(
-                format!(
-                    "{} application provenance is missing or invalid",
-                    record.capability_id
-                ),
-            ));
-        }
-    };
-    Ok(DiscoveryApplicationProvenance {
-        schema: "rey.discovery-application.v1".to_owned(),
-        name: name.to_owned(),
-        purpose: purpose.to_owned(),
-        required: false,
-        potential_capabilities: vec![record.capability_id.clone()],
-        search_path_count: 0,
-    })
+    Ok(provenance)
 }
 
 fn application_inventory_coordinate(
@@ -1565,20 +1547,14 @@ fn commit_digest(
     schema: &str,
     sequence: u64,
     parent_commit_id: Option<&SemanticDigest>,
-    committed_at_unix: Option<i64>,
+    committed_at_unix: i64,
     message: &str,
     snapshot_id: &SemanticDigest,
 ) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(schema);
     hasher.add_u64(sequence);
     hasher.add_optional_str(parent_commit_id.map(SemanticDigest::as_str));
-    if schema == ENVIRONMENT_COMMIT_SCHEMA {
-        hasher.add_str(
-            &committed_at_unix
-                .expect("v2 commits require a timestamp")
-                .to_string(),
-        );
-    }
+    hasher.add_str(&committed_at_unix.to_string());
     hasher.add_str(message);
     hasher.add_str(snapshot_id.as_str());
     hasher.finish()
@@ -1641,10 +1617,6 @@ pub enum LocalEnvironmentHistoryError {
     MessageNul,
     #[error("environment commit message is not canonical")]
     NonCanonicalMessage,
-    #[error("environment commit v2 is missing its commit timestamp")]
-    MissingCommitTimestamp,
-    #[error("legacy environment commit unexpectedly contains a commit timestamp")]
-    UnexpectedCommitTimestamp,
     #[error("environment commit timestamp {committed_at_unix} is outside the supported range")]
     InvalidCommitTimestamp { committed_at_unix: i64 },
     #[error("nothing to commit; working environment matches snapshot {0}")]
@@ -1704,9 +1676,9 @@ mod tests {
 
     use super::{
         EnvironmentAdmissionIndex, EnvironmentApplicationObservation, EnvironmentCommit,
-        EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
-        LEGACY_ENVIRONMENT_COMMIT_SCHEMA, LocalEnvironmentHistory, LocalEnvironmentHistoryError,
-        LocalEnvironmentStore, application_inventory_coordinate, commit_digest,
+        EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState, LocalEnvironmentHistory,
+        LocalEnvironmentHistoryError, LocalEnvironmentStore, application_inventory_coordinate,
+        discovery_application_provenance,
     };
 
     fn snapshot(version: &str) -> rey_environment::CapabilitySnapshot {
@@ -1765,6 +1737,61 @@ mod tests {
     }
 
     #[test]
+    fn application_provenance_requires_the_complete_v1_document() {
+        let record = CapabilityRecord {
+            provider_id: "rey.tool.rg".to_owned(),
+            provider_revision: 1,
+            provider_kind: "known_tool".to_owned(),
+            capability_id: "tool.ripgrep.identity".to_owned(),
+            capability_kind: "identity_probe".to_owned(),
+            resolved_location: Some("/bin/rg".to_owned()),
+            version: Some("ripgrep fixture".to_owned()),
+            content_digest: None,
+            provenance: None,
+            availability: Availability::Available,
+            trust_class: TrustClass::DiscoveredLocal,
+            operations: vec!["inspect_identity".to_owned()],
+            enforced_limits: Vec::new(),
+            unsupported_limits: Vec::new(),
+            observed_at: None,
+            error_code: None,
+            error_detail: None,
+        };
+
+        assert!(matches!(
+            discovery_application_provenance(&record),
+            Err(LocalEnvironmentHistoryError::EnvironmentProjection(_))
+        ));
+
+        let mut wrong_schema = record;
+        wrong_schema.provenance = Some(
+            serde_json::json!({
+                "schema": "rey.discovery-application.unsupported",
+                "name": "rg",
+                "purpose": "fixture",
+                "required": false,
+                "potential_capabilities": ["tool.ripgrep.identity"],
+                "search_path_count": 1
+            })
+            .to_string(),
+        );
+        assert!(matches!(
+            discovery_application_provenance(&wrong_schema),
+            Err(LocalEnvironmentHistoryError::EnvironmentProjection(_))
+        ));
+    }
+
+    #[test]
+    fn environment_commit_requires_the_complete_v1_document() {
+        let commit =
+            EnvironmentCommit::new_at(1, None, 1_786_406_400, "baseline", snapshot("1")).unwrap();
+        let mut value = serde_json::to_value(commit).unwrap();
+        value.as_object_mut().unwrap().remove("committed_at_unix");
+
+        assert!(serde_json::from_value::<EnvironmentCommit>(value).is_err());
+    }
+
+    #[test]
     fn linear_history_status_and_log_recompute_exact_deltas() {
         let mut history = LocalEnvironmentHistory::default();
         assert!(matches!(
@@ -1772,12 +1799,13 @@ mod tests {
             Err(LocalEnvironmentHistoryError::EmptyMessage)
         ));
         let first = history.commit("baseline", snapshot("1")).unwrap();
-        assert!(first.committed_at_unix.is_some());
+        assert!(first.committed_at_unix > 0);
         assert!(matches!(
             history.commit("empty", snapshot("1")),
             Err(LocalEnvironmentHistoryError::NothingToCommit(_))
         ));
         let second = history.commit("upgrade", snapshot("2")).unwrap();
+        assert!(second.committed_at_unix >= first.committed_at_unix);
         assert_eq!(second.parent_commit_id.as_ref(), Some(&first.commit_id));
         history.verify().unwrap();
 
@@ -1824,31 +1852,11 @@ mod tests {
         timestamp_tampered
             .commit("baseline", snapshot("1"))
             .unwrap();
-        timestamp_tampered.commits[0].committed_at_unix = timestamp_tampered.commits[0]
-            .committed_at_unix
-            .map(|timestamp| timestamp + 1);
+        timestamp_tampered.commits[0].committed_at_unix += 1;
         assert!(matches!(
             timestamp_tampered.verify(),
             Err(LocalEnvironmentHistoryError::CommitDigest { .. })
         ));
-    }
-
-    #[test]
-    fn legacy_undated_commits_remain_verifiable() {
-        let snapshot = snapshot("1");
-        let mut commit =
-            EnvironmentCommit::new_at(1, None, 1_786_406_400, "baseline", snapshot).unwrap();
-        commit.schema = LEGACY_ENVIRONMENT_COMMIT_SCHEMA.to_owned();
-        commit.committed_at_unix = None;
-        commit.commit_id = commit_digest(
-            LEGACY_ENVIRONMENT_COMMIT_SCHEMA,
-            commit.sequence,
-            None,
-            None,
-            &commit.message,
-            &commit.snapshot.semantic_digest,
-        );
-        commit.verify().unwrap();
     }
 
     #[test]

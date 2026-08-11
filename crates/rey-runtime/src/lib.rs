@@ -40,7 +40,7 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const RUNTIME_STATE_SCHEMA: &str = "rey.runtime-state.v2";
+pub const RUNTIME_STATE_SCHEMA: &str = "rey.runtime-state.v1";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RuntimeLimits {
@@ -1152,7 +1152,7 @@ mod tests {
     use super::*;
 
     fn digest(value: &str) -> SemanticDigest {
-        let mut hasher = SemanticHasher::new("rey.runtime-test.v2");
+        let mut hasher = SemanticHasher::new("rey.runtime-test.v1");
         hasher.add_str(value);
         hasher.finish()
     }

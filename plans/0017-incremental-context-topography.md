@@ -47,9 +47,8 @@ interest through a continuous far-out Explorer lens.
 - [x] Render surveyed-empty, unexplored, omitted, stale, unsupported, and
   frontier regions distinctly without presenting interpolated terrain as
   evidence.
-- [x] Hard-cut matrix routes to `/explore?coordinate=...&scale=...`, remove the
-  legacy parser/route, and advance Journal v2 bindings to store semantic
-  coordinate and numeric scale separately with no dual reader or migration.
+- [x] Hard-cut matrix routes to `/explore?coordinate=...&scale=...`; the fresh
+  Journal v1 binding stores semantic coordinate and numeric scale separately.
 - [x] Add focused CLI, structured-output, read-model, camera, route, and live UI
   tests plus one captured high-fidelity human verification path.
 - [x] Exercise the coordinate carrier against a public Spoke contract, or

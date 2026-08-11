@@ -17,7 +17,7 @@ commit exactly what was staged.
 - [x] Add a bounded, verified, HEAD-bound admission index with safe local
   publication and stale-index rejection.
 - [x] Derive `HEAD → INDEX` and `INDEX → WORKING` deltas in
-  `rey.environment-status.v2`.
+  `rey.environment-status.v1`.
 - [x] Implement `rey env add` and capability-selective `rey env add -p`.
 - [x] Make `env commit` consume only the retained index and clear it after a
   successful history publication.

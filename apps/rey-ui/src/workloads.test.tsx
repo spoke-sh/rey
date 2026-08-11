@@ -110,10 +110,10 @@ describe("workload portfolio tables", () => {
 
 function portfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v8",
+    schema: "rey.workload-list.v1",
     semantic_atlas: null,
     catalog: {
-      schema: "rey.workload-catalog.v2",
+      schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",
       root: "workloads",
       workload_count: 2,

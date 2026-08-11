@@ -40,6 +40,7 @@ pub const CAPABILITY_SCHEMA_VERSION: &str = "1";
 pub const LOCAL_PROVIDER_REVISION: u64 = 1;
 pub const DISCOVERY_SEED_PROVIDER_ID: &str = "rey.discovery-seed";
 pub const DISCOVERY_SEED_SCHEMA: &str = "rey.discovery-seeds.v1";
+pub const DISCOVERY_APPLICATION_SCHEMA: &str = "rey.discovery-application.v1";
 pub const DISCOVERY_SEED_NAMES: [&str; 3] = ["HOME", "PWD", "PATH"];
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -630,7 +631,7 @@ fn discovery_seed_capability(
 
 fn application_provenance(adapter: &ToolAdapter, search_path_count: u64) -> String {
     serde_json::json!(DiscoveryApplicationProvenance {
-        schema: "rey.discovery-application.v1".to_owned(),
+        schema: DISCOVERY_APPLICATION_SCHEMA.to_owned(),
         name: adapter.name.to_owned(),
         purpose: adapter.purpose.to_owned(),
         required: adapter.required,

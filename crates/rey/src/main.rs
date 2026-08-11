@@ -297,7 +297,7 @@ enum JournalCommand {
 
 #[derive(Debug, Args)]
 struct JournalAddArgs {
-    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v2.
+    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v1.
     proposal: PathBuf,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
@@ -3034,7 +3034,7 @@ fn write_workload_test_scenario(
         } else if !scenario.mining.is_empty() {
             writeln!(
                 output,
-                "     Evidence formats: {} (ordered utf8) · rey.source-match-delta.v1 (typed relation) · rey.mining-result.v2",
+                "     Evidence formats: {} (ordered utf8) · rey.source-match-delta.v1 (typed relation) · rey.mining-result.v1",
                 SCENARIO_OUTPUT_DELTA_SCHEMA
             )?;
         } else {
@@ -5186,7 +5186,7 @@ fn environment_variable_line(observation: &EnvironmentVariableObservation) -> St
                 .value
                 .as_deref()
                 .map(escape_environment_value)
-                .unwrap_or_else(|| legacy_variable_value(observation)),
+                .unwrap_or_else(|| "<invalid:missing-value>".to_owned()),
             VariableCapture::Digest => observation
                 .value_digest
                 .as_deref()
@@ -5203,15 +5203,6 @@ fn environment_variable_line(observation: &EnvironmentVariableObservation) -> St
         },
     };
     format!("{}={value}", observation.name)
-}
-
-fn legacy_variable_value(observation: &EnvironmentVariableObservation) -> String {
-    observation
-        .value_digest
-        .as_deref()
-        .map(compact_digest)
-        .map(|digest| format!("<legacy-digest:{digest}>"))
-        .unwrap_or_else(|| "<present>".to_owned())
 }
 
 fn escape_environment_value(value: &str) -> String {
@@ -5328,10 +5319,7 @@ fn write_environment_application_planes(
             writeln!(
                 output,
                 "    Purpose              {}",
-                observation
-                    .purpose
-                    .as_deref()
-                    .unwrap_or("not recorded by legacy inventory")
+                observation.purpose.as_deref().unwrap_or("not declared")
             )?;
         }
     }
@@ -5660,14 +5648,9 @@ fn write_env_log(
 }
 
 fn format_environment_commit_date(commit: &EnvironmentCommit) -> String {
-    commit.committed_at_unix.map_or_else(
-        || "unknown (legacy environment commit)".to_owned(),
-        |timestamp| {
-            DateTime::<Utc>::from_timestamp(timestamp, 0).map_or_else(
-                || "invalid timestamp".to_owned(),
-                |date| date.format("%a %b %e %H:%M:%S %Y %z").to_string(),
-            )
-        },
+    DateTime::<Utc>::from_timestamp(commit.committed_at_unix, 0).map_or_else(
+        || "invalid timestamp".to_owned(),
+        |date| date.format("%a %b %e %H:%M:%S %Y %z").to_string(),
     )
 }
 

@@ -11,8 +11,8 @@ execute effects, or add a recurring scheduler.
 
 ## Completion Checklist
 
-- [x] ADR 0014 fixes the frontier, progress, scheduler, runtime v2, and surface
-  v2 contracts.
+- [x] ADR 0014 fixes the frontier, progress, scheduler, runtime, and surface
+  contracts; ADR 0048 resets their current public schemas to v1.
 - [x] `docs/FRONTIER.md` defines identity, coverage, convergence, direction,
   bounds, ordering, and non-goals.
 - [x] `rey-frontier` implements canonical frontier, progress, and scheduling
@@ -73,7 +73,7 @@ persistence, and recurring scheduling remain later slices.
 
 ## Verification Evidence
 
-Frontier, progress, scheduling, runtime-v2, and surface-v2 proof captured on
+Frontier, progress, scheduling, runtime, and surface proof captured on
 2026-08-07:
 
 ```text

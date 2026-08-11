@@ -6,7 +6,7 @@ use crate::{
     DeltaAssessment, TextDelta, TextDeltaInputs, TextDeltaLimits, compare_text, text_artifact_id,
 };
 
-pub const SCENARIO_OUTPUT_DELTA_SCHEMA: &str = "rey.scenario-output-delta.v2";
+pub const SCENARIO_OUTPUT_DELTA_SCHEMA: &str = "rey.scenario-output-delta.v1";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]

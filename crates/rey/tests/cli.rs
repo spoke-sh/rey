@@ -685,10 +685,10 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(first.status.success());
     assert!(first.stderr.is_empty());
     let first: EnvironmentCommitResult = serde_json::from_slice(&first.stdout).unwrap();
-    assert_eq!(first.schema, "rey.environment-commit-result.v2");
-    assert_eq!(first.commit.schema, "rey.environment-commit.v2");
+    assert_eq!(first.schema, "rey.environment-commit-result.v1");
+    assert_eq!(first.commit.schema, "rey.environment-commit.v1");
     assert_eq!(first.commit.sequence, 1);
-    assert!(first.commit.committed_at_unix.is_some());
+    assert!(first.commit.committed_at_unix > 0);
     assert_eq!(first.commit.message, "baseline");
     assert!(first.commit.parent_commit_id.is_none());
     assert_eq!(first.delta.source_label, "EMPTY");
@@ -1076,7 +1076,7 @@ fn env_mapping_graph_is_visible_secret_safe_and_diff_directed() {
     fs::set_permissions(&probe, permissions).unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v3
+        r#"schema: rey.env-map.v1
 nodes:
   - id: mode
     kind: variable
@@ -1233,7 +1233,7 @@ edges:
     );
     assert_eq!(
         status_document["operator"]["schema"],
-        "rey.environment-operator-projection.v3"
+        "rey.environment-operator-projection.v1"
     );
     assert_eq!(
         status_document["operator"]["application_inventory"]["working"]["schema"],
@@ -1373,7 +1373,7 @@ edges:
     assert!(diff.status.success());
     assert!(diff.stderr.is_empty());
     let diff: EnvironmentDiff = serde_json::from_slice(&diff.stdout).unwrap();
-    assert_eq!(diff.schema, "rey.environment-diff.v4");
+    assert_eq!(diff.schema, "rey.environment-diff.v1");
     assert!(diff.delta.changes.iter().any(|change| {
         change.key.capability_id == "env.mapping.node.mode"
             && change.changed_fields.contains(&"content_digest".to_owned())
@@ -1469,7 +1469,7 @@ edges:
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
         "Environment            5 variables · 10 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
-        "Reasoning map          rey.env.yaml · rey.env-map.v3",
+        "Reasoning map          rey.env.yaml · rey.env-map.v1",
         "    update mapped environment",
     ] {
         assert!(
@@ -1534,8 +1534,8 @@ edges:
     assert!(json_log.status.success());
     assert!(json_log.stderr.is_empty());
     let json_log: EnvironmentLog = serde_json::from_slice(&json_log.stdout).unwrap();
-    assert_eq!(json_log.schema, "rey.environment-log.v2");
-    assert!(json_log.entries[0].commit.committed_at_unix.is_some());
+    assert_eq!(json_log.schema, "rey.environment-log.v1");
+    assert!(json_log.entries[0].commit.committed_at_unix > 0);
     assert!(json_log.patch);
     assert_eq!(json_log.entries.len(), 1);
     assert_eq!(json_log.entries[0].delta.source_label, "ENV@1");
@@ -1543,7 +1543,7 @@ edges:
 
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v3\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
+        "schema: rey.env-map.v1\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
     )
     .unwrap();
     let invalid = run_rey_with_env(
@@ -1590,7 +1590,7 @@ fn env_add_patch_stages_selected_capabilities_and_commit_ignores_later_drift() {
     fs::write(workspace.path().join("beta.txt"), "beta one\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v3
+        r#"schema: rey.env-map.v1
 nodes:
   - id: alpha
     kind: file
@@ -1735,7 +1735,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
     fs::write(workspace.path().join("beta.txt"), "beta\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v3\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n",
+        "schema: rey.env-map.v1\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n",
     )
     .unwrap();
     assert!(
@@ -1764,7 +1764,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
     );
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v3\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n  - id: beta\n    kind: file\n    path: beta.txt\n    required: true\n",
+        "schema: rey.env-map.v1\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n  - id: beta\n    kind: file\n    path: beta.txt\n    required: true\n",
     )
     .unwrap();
 
@@ -2076,7 +2076,7 @@ fn journal_cli_admits_agent_entries_without_executing_typed_blocks() {
     let proposal = workspace.path().join("entry.yaml");
     fs::write(
         &proposal,
-        r#"schema: rey.journal-entry-proposal.v2
+        r#"schema: rey.journal-entry-proposal.v1
 title: Inspect source coverage
 author:
   kind: agent
@@ -2114,7 +2114,7 @@ blocks:
     assert!(admitted.status.success());
     assert!(admitted.stderr.is_empty());
     let admitted: Value = serde_json::from_slice(&admitted.stdout).unwrap();
-    assert_eq!(admitted["schema"], "rey.journal-admission.v2");
+    assert_eq!(admitted["schema"], "rey.journal-admission.v1");
     assert_eq!(admitted["admitted"], true);
     assert_eq!(admitted["entry"]["sequence"], 1);
     assert_eq!(admitted["entry"]["author"]["kind"], "agent");
@@ -2147,7 +2147,7 @@ blocks:
     ]);
     assert!(listed.status.success());
     let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
-    assert_eq!(listed["schema"], "rey.journal-log.v2");
+    assert_eq!(listed["schema"], "rey.journal-log.v1");
     assert_eq!(listed["entries"].as_array().unwrap().len(), 1);
     assert!(workspace.path().join(".rey/journal/journal.json").is_file());
 
@@ -2227,10 +2227,10 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(response.contains("\"theme\":\"precision\""));
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
-    assert!(environment.contains("\"schema\":\"rey.environment-status.v5\""));
+    assert!(environment.contains("\"schema\":\"rey.environment-status.v1\""));
     let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
     assert!(cadence.starts_with("HTTP/1.1 200"));
-    assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v2\""));
+    assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
     assert!(cadence.contains("\"ordering\":\"partial\""));
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();
@@ -2256,7 +2256,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut descriptor_line = String::new();
     network_stdout.read_line(&mut descriptor_line).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor_line).unwrap();
-    assert_eq!(descriptor["schema"], "rey.ui-server.v3");
+    assert_eq!(descriptor["schema"], "rey.ui-server.v1");
     assert_eq!(descriptor["host"], "0.0.0.0");
     assert_eq!(descriptor["loopback_only"], false);
     assert_eq!(descriptor["read_only"], false);
@@ -2282,7 +2282,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
 
     let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
     let proposal = serde_json::json!({
-        "schema": "rey.journal-entry-proposal.v2",
+        "schema": "rey.journal-entry-proposal.v1",
         "title": "Write through the network listener",
         "author": { "kind": "human", "id": "operator" },
         "binding": {
@@ -3010,7 +3010,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert_eq!(summary.topography_patch.as_ref(), Some(patch));
     let projection = summary.topography_projection.as_ref().unwrap();
     projection.verify_for(patch).unwrap();
-    assert_eq!(projection.schema, "rey.projection-packet.v2");
+    assert_eq!(projection.schema, "rey.projection-packet.v1");
     assert_eq!(projection.source_patch_id, patch.patch_id);
     assert_eq!(projection.field_pyramid.levels.len(), 3);
     assert_eq!(projection.field_pyramid.total_cells, 12_953);
@@ -3101,7 +3101,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"topography_patch\""));
     assert!(response.contains("\"topography_projection\""));
-    assert!(response.contains("\"schema\":\"rey.projection-packet.v2\""));
+    assert!(response.contains("\"schema\":\"rey.projection-packet.v1\""));
     assert!(response.contains("\"schema\":\"rey.semantic-atlas.v1\""));
     assert!(response.contains("\"kind\":\"synthetic_semantic_sphere\""));
     assert!(response.contains(patch.patch_id.as_str()));
@@ -3235,7 +3235,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     fs::write(workspace.path().join("input.txt"), "portfolio surface\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v3
+        r#"schema: rey.env-map.v1
 nodes:
   - id: input
     kind: file

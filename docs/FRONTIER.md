@@ -1,15 +1,14 @@
 # Frontier, Progress, And Scheduling
 
-This document defines the first executable frontier, progress, and scheduling
-contracts. ADR 0014 fixed their first schemas; ADR 0016 made a pre-alpha
-identity cutover to frontier/progress/scheduling v2 and reasoning-surface v3.
-The implementation is a deterministic library slice; it
+This document defines the v1 executable frontier, progress, scheduling, and
+reasoning-surface contracts. Their current workload-centered identities are a
+fresh pre-alpha baseline under ADR 0048. The implementation is a deterministic library slice; it
 also has one workload-specific source-mining fixture that derives and selects a
 single graph-revision work row. It does not execute an effect or run a
 recurring loop.
 
 ADR 0015 places this contract inside workload test campaigns. The implemented
-v2 envelope now binds workload, graph, scenario suite, and campaign identities
+v1 envelope binds workload, graph, scenario suite, and campaign identities
 directly. The first CLI slice executes scenarios but does not yet derive a
 frontier from ordinary text-fixture deltas. The source-search workload now
 derives one frontier from its complete failing typed relation and ordered text
@@ -22,12 +21,12 @@ the generic scheduler remains ignorant of domain-specific mining semantics.
 ADR 0022 introduces a distinct upstream `rey.workload-attention.v1` relation.
 Portfolio mining derives why a workload or uncovered surface needs attention;
 the frontier/scheduler remains responsible for admitted bounded selection. The
-first attention relation is executable, but its adapter into `rey.frontier.v2`
+first attention relation is executable, but its adapter into `rey.frontier.v1`
 is intentionally the next stage rather than an implicit conversion.
 
 ## Frontier Envelope
 
-`rey.frontier.v2` is a bounded, content-identified relation derived from exact
+`rey.frontier.v1` is a bounded, content-identified relation derived from exact
 deltas and claims. Its inputs bind:
 
 ```text
@@ -97,7 +96,7 @@ identities, assessment, coverage, and row count.
 
 ## Directional Progress
 
-`rey.frontier-progress.v2` compares compatible source and target frontiers in
+`rey.frontier-progress.v1` compares compatible source and target frontiers in
 that direction under an exact comparator contract. Workload, scenario suite,
 campaign, space, trace, derivation, and prioritization contracts must agree.
 Source and target graph identities may differ because progress often compares
@@ -135,13 +134,13 @@ verification recomputes the relation from both cited frontiers.
 
 ## Deterministic Scheduling
 
-The v2 scheduler selects ready work units from one verified open frontier. It
+The v1 scheduler selects ready work units from one verified open frontier. It
 does not select an admissible action. Before selection it checks exact expected
 committed-record, frontier, and capability-snapshot identities. Any mismatch is
 a stale-precondition error and produces no decision.
 
 The scheduler contract identity and effective limits participate in
-`rey.scheduling-decision.v2`. The fixed selection order is:
+`rey.scheduling-decision.v1`. The fixed selection order is:
 
 1. priority descending;
 2. estimated cost ascending; and
@@ -171,7 +170,7 @@ the actual selection.
 
 ## Runtime Placement
 
-`rey.runtime-state.v2` inserts scheduling before orientation:
+`rey.runtime-state.v1` inserts scheduling before orientation:
 
 ```text
 ready
@@ -189,7 +188,7 @@ through `scheduling_stopped` with explicit unresolved or inconclusive semantics
 and a non-converged stop reason. The ordinary commit guards still require the
 stop reason and retained evidence state to agree.
 
-`rey.reasoning-surface.v3` binds the scheduling decision identity and the same
+`rey.reasoning-surface.v1` binds the scheduling decision identity and the same
 workload, graph, scenario-suite, and campaign scope, so the projected rows
 retain the cited deterministic selection lineage. The pure runtime and policy
 reducers intentionally keep those identities opaque. A future composition

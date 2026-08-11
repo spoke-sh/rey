@@ -375,7 +375,7 @@ FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · requi
 The final portfolio summary reports workload qualification, scenario
 conformance, scenario evaluation, delta assessments, and issued
 qualifications as separate dimensions. Verbosity is a human projection only:
-JSON always emits the same verified `rey.workload-test-batch.v5` envelope,
+JSON always emits the same verified `rey.workload-test-batch.v1` envelope,
 including catalog and proposal provenance.
 
 ## Running A Workload
@@ -489,7 +489,7 @@ The workload surface needs two provider contracts:
    `status`.
 
 The first standalone result provider stores a bounded
-`rey.local-workload-state.v2` JSON index at
+`rey.local-workload-state.v1` JSON index at
 `${workspace}/.rey/workloads/state.json`, or below explicit `--state-dir`.
 It verifies retained test and run artifacts on every read and publishes a
 same-directory temporary document with rename. It claims no `fsync` crash
@@ -559,12 +559,11 @@ mapped surfaces into a bounded attention relation. Its ready rows can later
 become generic frontier rows; blocked and policy-excluded rows remain visible
 but ineligible. This derivation directs scheduling and does not replace it.
 
-The workload slice made the required pre-alpha hard cut. `rey.frontier.v2`,
-`rey.frontier-progress.v2`, `rey.scheduling-decision.v2`, and
-`rey.reasoning-surface.v3` bind exact workload, graph, scenario-suite, and
-campaign identities. The runtime reducer remains `rey.runtime-state.v2`
-because its state never contained the legacy application/component envelope.
-No compatibility alias or decoder silently relabels the superseded schemas.
+The fresh pre-alpha baseline uses `rey.frontier.v1`,
+`rey.frontier-progress.v1`, `rey.scheduling-decision.v1`, and
+`rey.reasoning-surface.v1` bind exact workload, graph, scenario-suite, and
+campaign identities. The runtime reducer is `rey.runtime-state.v1`. Documents
+outside those complete v1 contracts are rejected.
 
 ## Initial Implementation Boundary
 

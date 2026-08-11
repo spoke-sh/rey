@@ -11,9 +11,8 @@ revision action or run an agent loop.
 
 ADR 0015 places these mechanisms inside a workload test campaign. ADR 0016
 implements the first deterministic workload/graph/scenario/qualification
-slice and makes the public identity cutover. Runtime state remains v2 because
-it had no application/component envelope; the reasoning surface is now v3 and
-binds exact workload, graph, scenario-suite, and campaign identities.
+slice. The fresh v1 runtime state and reasoning surface bind exact workload,
+graph, scenario-suite, and campaign identities.
 ADR 0017 names the orientation capability layer as mining. ADR 0018 implements
 the first provider-neutral request/result execution path and its
 workload-specific orientation fixture without turning the reducer into a
@@ -154,7 +153,7 @@ A transition can cite two independent delta sets:
 - residual deltas compare declared expected/baseline observations to current
   observations and state what remains.
 
-The runtime state preserves both sets. `rey.frontier-progress.v2` compares
+The runtime state preserves both sets. `rey.frontier-progress.v1` compares
 successive compatible frontier states by stable work identity and reports
 resolved, introduced, updated, and unchanged facts. The runtime evaluator still
 owns its semantic outcome; the generic relation does not implement a scalar
@@ -169,7 +168,7 @@ artifact identity and role.
 
 ## Reasoning Surface Envelope
 
-`rey.reasoning-surface.v3` is the content-identified policy input constructed
+`rey.reasoning-surface.v1` is the content-identified policy input constructed
 from scheduled work in a committed frontier. It contains:
 
 ```text
@@ -200,10 +199,9 @@ evidence_ids
 admissible_action_ids
 ```
 
-The row columns remain the same as earlier versions; v2 added scheduling
-decision lineage and v3 replaces the legacy application/component scope with
-exact workload/graph/scenario-suite/campaign identities in the envelope and
-Arrow metadata. Array fields use canonical compact JSON strings. The semantic document keeps
+The v1 row contract carries scheduling-decision lineage and exact
+workload/graph/scenario-suite/campaign identities in the envelope and Arrow
+metadata. Array fields use canonical compact JSON strings. The semantic document keeps
 the arrays typed. A later Arrow list/struct representation requires a schema
 revision and parity evidence.
 
@@ -219,8 +217,8 @@ binds exact source, operation, provider, completeness, derivation, omission,
 and effective-limit lineage. It does not copy an ambient repository or promote
 a visualization to authoritative evidence.
 
-The pre-alpha cutover has no compatibility alias or decoder for the superseded
-application/component envelope.
+The fresh pre-alpha v1 baseline has no alias, decoder, or partial reader for
+an earlier envelope.
 
 ## Placement In A Workload Campaign
 

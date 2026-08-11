@@ -123,11 +123,11 @@ describe("agent collaboration intelligence", () => {
 
 function emptyJournal(): JournalProjection {
   return {
-    schema: "rey.ui-journal.v3",
+    schema: "rey.ui-journal.v1",
     write_enabled: true,
     authority: "unauthenticated_journal_admission",
     log: {
-      schema: "rey.journal-log.v2",
+      schema: "rey.journal-log.v1",
       log_id: "blake3:empty",
       entries: [],
     },
@@ -172,7 +172,7 @@ function workload(): WorkloadSummary {
 
 function emptyPortfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v8",
+    schema: "rey.workload-list.v1",
     semantic_atlas: null,
     catalog: {
       schema: "rey.workload-catalog.v1",

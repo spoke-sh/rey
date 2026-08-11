@@ -196,8 +196,8 @@ bounds, and omissions survive those visual transitions. Semantic coordinates
 are provider-qualified Spoke-model addresses;
 camera center, continuous scale, viewport, and lens remain separate view state.
 The current hard-cut interface uses `rey+local://...` semantic coordinates and
-the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths have no
-compatibility parser. Journal v2 stores coordinate and scale separately.
+the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths are not
+part of the v1 contract. Journal v1 stores coordinate and scale separately.
 `/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
 retains the exact catalog/detail routes and aligns admitted revisions plus
@@ -831,8 +831,8 @@ The workload slice implements a bounded workspace package catalog, typed DAG
 execution, scenario deltas, exact qualification, verified local result state,
 and the `list`, `status`, `test`, and `run` commands. The prior compiled
 fixture catalog remains behind explicit conformance selection.
-Frontier/progress/scheduling v2 and reasoning-surface v3 bind workload, graph,
-scenario-suite, and campaign identities; runtime state remains v2.
+The v1 frontier, progress, scheduling, reasoning-surface, and runtime-state
+contracts bind workload, graph, scenario-suite, and campaign identities.
 The source-search conformance workload supplies one narrow workload-specific
 frontier derivation and provider execution path. The admitted
 `context-anchor-survey` workspace package adds a bounded local survey provider,
@@ -844,7 +844,7 @@ excluded edge provenance, projection limits, and boundary actions. Discovered
 or constructed paths require a separate future evidence contract. The current
 browser implementation still assembles some of those concerns through large
 React/TypeScript topology and overlay modules. `rey-mining` now defines and
-validates `rey.projection-packet.v2`; `rey.workload-list.v8` carries it beside
+validates `rey.projection-packet.v1`; `rey.workload-list.v1` carries it beside
 the exact patch and also carries the deterministic `rey.semantic-atlas.v1`
 portfolio projection. The CLI exposes the atlas revision, region/cluster
 counts, synthetic coordinate authority, reclustering rule, and the packet's three nested field levels and total

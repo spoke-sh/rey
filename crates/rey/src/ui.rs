@@ -21,11 +21,11 @@ use serde_json::json;
 use thiserror::Error;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
-const UI_SERVER_SCHEMA: &str = "rey.ui-server.v3";
+const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
 const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
-const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v2";
-const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v3";
+const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
+const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
@@ -785,7 +785,7 @@ mod tests {
         })
         .unwrap();
         let descriptor = server.descriptor();
-        assert_eq!(descriptor.schema, "rey.ui-server.v3");
+        assert_eq!(descriptor.schema, "rey.ui-server.v1");
         assert!(descriptor.loopback_only);
         assert!(!descriptor.read_only);
         assert!(descriptor.journal_write_enabled);
@@ -811,19 +811,19 @@ mod tests {
 
         let workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(workloads.starts_with("HTTP/1.1 200"));
-        assert!(workloads.contains("\"schema\":\"rey.workload-list.v8\""));
+        assert!(workloads.contains("\"schema\":\"rey.workload-list.v1\""));
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
-        assert!(environment.contains("\"schema\":\"rey.environment-status.v5\""));
+        assert!(environment.contains("\"schema\":\"rey.environment-status.v1\""));
         assert!(
             environment
-                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v3\"")
+                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v1\"")
         );
 
         let cadence = request(&address, "GET /api/v1/cadence HTTP/1.1");
         assert!(cadence.starts_with("HTTP/1.1 200"));
-        assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v2\""));
+        assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
         assert!(cadence.contains("\"ordering\":\"partial\""));
         assert!(cadence.contains("\"source_repository\":null"));
         assert!(cadence.contains("\"repository_state\":null"));
@@ -832,13 +832,13 @@ mod tests {
 
         let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
         assert!(journal.starts_with("HTTP/1.1 200"));
-        assert!(journal.contains("\"schema\":\"rey.ui-journal.v3\""));
+        assert!(journal.contains("\"schema\":\"rey.ui-journal.v1\""));
         assert!(journal.contains("\"write_enabled\":true"));
         assert!(journal.contains("\"authority\":\"unauthenticated_journal_admission\""));
         assert!(journal.contains("\"entries\":[]"));
 
         let proposal = serde_json::json!({
-            "schema": "rey.journal-entry-proposal.v2",
+            "schema": "rey.journal-entry-proposal.v1",
             "title": "Bind the Journal",
             "author": { "kind": "human", "id": "operator" },
             "binding": {
@@ -888,7 +888,7 @@ mod tests {
             &proposal,
         );
         assert!(admitted.starts_with("HTTP/1.1 200"));
-        assert!(admitted.contains("\"schema\":\"rey.journal-admission.v2\""));
+        assert!(admitted.contains("\"schema\":\"rey.journal-admission.v1\""));
         assert!(admitted.contains("\"admitted\":false"));
         assert!(admitted.contains("\"kind\":\"human\""));
 

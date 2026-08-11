@@ -78,7 +78,8 @@ action admission/execution, transition persistence, and multi-step scheduling
 remain later slices.
 
 Plan 0003 subsequently implements the frontier/progress/selection contract and
-cuts the runtime and reasoning-surface schemas to decision-bound v2. This plan
+defines the decision-bound runtime and reasoning-surface schemas, now reset to
+the fresh v1 public baseline by ADR 0048. This plan
 continues to record the completed v1 foundation rather than rewriting its
 historical acceptance evidence.
 

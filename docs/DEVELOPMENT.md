@@ -146,11 +146,10 @@ required runtime/frontier/surface schema cutover to a later implementation
 slice.
 
 ADR 0016 implements that first slice with no new third-party dependency. The
-existing Rey crates now provide built-in typed UTF-8 graph operations,
+existing Rey crates provide built-in typed UTF-8 graph operations,
 scenario-output deltas, workload qualification/run results, and bounded local
-JSON result state. The workload identity cutover advances frontier, progress,
-and scheduling to v2 and reasoning surfaces to v3; it does not add a general
-manifest parser, persistence engine, async runtime, or agent transport.
+JSON result state; it does not add a general persistence engine, async runtime,
+or agent transport.
 
 ADR 0017 accepts the relational/source mining capability model. Plan 0006 now
 implements the narrow `rey-mining` ownership boundary for provider-neutral
@@ -164,45 +163,38 @@ for reversible Unix-byte and Windows-UTF-16LE path identities and the existing
 Polars/Arrow closure for the typed match relation. It adds no regex, parser,
 process, traversal, storage, or rendering dependency. Deterministic pure
 projections leave optional observed wall time absent from semantic consumption;
-tool-backed probes may record it explicitly. That semantic correction is the
-pre-alpha `rey.mining-result.v2` hard cut; operation and request remain v1 and
-no compatibility alias silently relabels the earlier result document.
+tool-backed probes may record it explicitly.
 
 ADR 0018 completes the first mining workload without a new third-party
-dependency. It adds ordered text and source-match relation deltas, extends the
-runtime graph with a typed source-match value and built-in source operations,
-and advances workload, graph, scenario, result, qualification, run, local
-state, list/status/batch, and scenario-output schemas to v2. The hard cut has no
-v1 decoder because pre-alpha retained workload state is local, bounded, and
-must never be silently reinterpreted under new evidence semantics.
+dependency. It adds ordered text and source-match relation deltas and extends
+the runtime graph with a typed source-match value and built-in source
+operations.
 
 ADR 0022 and Plan 0010 add portfolio mining without expanding the workspace's
-third-party dependency closure. `rey-runtime` now directly uses the existing
+third-party dependency closure. `rey-runtime` directly uses the existing
 Polars and `rey-dataframe` workspace dependencies for the canonical
 `rey.workload-attention.v1` relation. It adds typed portfolio snapshot and
 attention values, two deterministic built-in graph operations, one compiled
-system workload, and additive retained attention evidence in scenario/run
-results. Existing v2 workload documents remain replay-compatible when the
-additive attention collection is empty.
-ADR 0022 advanced the public list, status, and status-batch envelopes to v3 because they
-now require a portfolio-attention document and add per-workload attention
-counts; the local state and test/run schemas remain v2.
+system workload, and retained attention evidence in scenario/run results.
 
 ADR 0023 reuses the workspace's existing bounded `serde-saphyr` dependency in
 the `rey` composition crate to load `rey.workload-package.v1`. The default
-catalog is now workspace-authored; compiled graphs remain explicit
-conformance. Exact package bytes/path and proposal provenance advance the
-workload definition to v3. Catalog/provenance fields advance list and status
-envelopes to v4 and the test batch to v3; `rey.workload-run-view.v1` wraps the
-unchanged verified v2 run result. Local workload state remains v2 because it
-stores runtime results, not mutable catalog projections.
+catalog is workspace-authored; compiled graphs remain explicit conformance.
+The v1 workload and view contracts bind exact package bytes/path and proposal
+provenance while local workload state stores runtime results rather than
+mutable catalog projections.
 
 ADR 0024 adds no dependency. `workloads create` serializes its strict request
 as JSON-compatible YAML with existing Serde support and loads it through the
-same bounded YAML parser as packages. The request and create-result documents
-are v1. Draft-aware catalog descriptors advance to v2; list/status advance to
-v5, test batch to v4, and run view to v2. Runtime results and local retained
-state remain unchanged because a draft is catalog state, not execution state.
+same bounded YAML parser as packages. Drafts are catalog state, not execution
+state.
+
+ADR 0048 resets every current Rey-owned public document and relation to a
+single fresh v1 baseline. The reset is intentionally destructive: `.rey`
+state from earlier pre-alpha builds must be discarded, and there are no schema
+aliases, migration readers, or partially populated v1 decoders. External
+protocol versions such as Git porcelain v2 and renderer backend capability
+names are not Rey document versions.
 
 ADR 0025 adds `tiny_http` 0.12 to the composition binary for a narrow
 synchronous local operator listener. ADR 0037 adds one bounded Journal POST;
@@ -233,7 +225,7 @@ is specified in `docs/JOURNAL.md`.
 
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
 derives bounded World, Atlas, Landscape, Neighborhood, Object, and Evidence
-scenes from admitted patches and projection packets in `rey.workload-list.v8`;
+scenes from admitted patches and projection packets in `rey.workload-list.v1`;
 World additionally compiles the optional `rey.semantic-atlas.v1` into a
 synthetic globe whose Three.js and reference paths share one scene revision.
 `src/explore/engine/camera.ts` owns camera math,
@@ -279,12 +271,12 @@ performance results must name the fixture, browser/backend, viewport, DPR,
 hardware, warm/cold posture, revisions, and budgets.
 
 ADRs 0027, 0031, and 0032 add no dependency. The mapping parser hard-cuts to
-`rey.env-map.v3`; the process-owned discovery seed set is `HOME`, `PWD`, and
+`rey.env-map.v1`; the process-owned discovery seed set is `HOME`, `PWD`, and
 `PATH`; a map is loaded only through explicit `--map`; desired executables
 require a bounded purpose; and bounded
 UTF-8 values are retained only for explicit
 non-sensitive `capture: value` nodes. `crates/rey/src/env.rs` derives the
-shared `rey.environment-operator-projection.v3` from the same frozen HEAD,
+shared `rey.environment-operator-projection.v1` from the same frozen HEAD,
 index, and working capability snapshots used by the authoritative deltas.
 `GET|HEAD /api/v1/environment`, `rey env status`, and the React environment
 workbench consume that common derivation. TypeScript projection tests and the

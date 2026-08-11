@@ -127,7 +127,7 @@ export interface ProjectionFieldLevel {
 }
 
 export interface ProjectionPacket {
-  schema: "rey.projection-packet.v2";
+  schema: "rey.projection-packet.v1";
   packet_id: string;
   source_patch_id: string;
   source_topography_revision: string;
@@ -418,7 +418,7 @@ export interface AttentionSummary {
 }
 
 export interface WorkloadList {
-  schema: "rey.workload-list.v8";
+  schema: "rey.workload-list.v1";
   catalog: CatalogDescriptor;
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];

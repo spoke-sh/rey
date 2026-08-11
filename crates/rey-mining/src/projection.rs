@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::{TopographyAnchorKind, TopographyPatch, TopographyRegionState};
 
-pub const PROJECTION_PACKET_SCHEMA: &str = "rey.projection-packet.v2";
+pub const PROJECTION_PACKET_SCHEMA: &str = "rey.projection-packet.v1";
 pub const TERRAIN_FIELD_PYRAMID_SCHEMA: &str = "rey.terrain-field-pyramid.v1";
 
 const TERRAIN_WIDTH: u64 = 1_500;

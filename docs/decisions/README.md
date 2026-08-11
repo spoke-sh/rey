@@ -52,6 +52,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0045](0045-threejs-webgpu-renderer.md) | Accepted | Three.js WebGPURenderer and TSL production boundary with WebGPU-first, WebGL2 compatibility, and deterministic reference paths |
 | [0046](0046-read-first-scene-editor.md) | Accepted | Read-first scene editor candidates, exact native GeoJSON objects, Git-shaped staging, immutable packages, and a separate workload admission boundary |
 | [0047](0047-semantic-spherical-atlas.md) | Accepted | Admission-revisioned synthetic semantic sphere, deterministic regional clustering, and World globe projection without an Earth-coordinate claim |
+| [0048](0048-fresh-v1-contract-baseline.md) | Accepted | Destructive fresh v1 public-contract baseline, no compatibility readers, and a Rey-evidence-authored county candidate |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

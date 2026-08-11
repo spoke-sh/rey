@@ -3,7 +3,7 @@ import type { WorkloadList } from "../../domain";
 import { admittedTopographies } from "./topography-projector";
 
 const portfolio = {
-  schema: "rey.workload-list.v8",
+  schema: "rey.workload-list.v1",
   semantic_atlas: null,
   workloads: [
     {
@@ -13,7 +13,7 @@ const portfolio = {
         topography_revision: "topography:1",
       },
       topography_projection: {
-        schema: "rey.projection-packet.v2",
+        schema: "rey.projection-packet.v1",
         source_patch_id: "patch:1",
         source_topography_revision: "topography:1",
       },

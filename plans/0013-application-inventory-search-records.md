@@ -11,7 +11,7 @@ across the mapping DSL, `rey env` human interface, structured documents, and
 
 ## Completion Checklist
 
-- [x] Advance the mapping DSL to `rey.env-map.v3` and require a purpose for
+- [x] Advance the mapping DSL to `rey.env-map.v1` and require a purpose for
   every desired executable.
 - [x] Derive an exact identity over desired executable declarations and treat
   the target capability snapshot as the separate search record.
@@ -61,5 +61,5 @@ The focused inventory-identity fixture proves that found-to-missing search
 drift changes observation evidence without changing the desired application
 inventory id. CLI fixtures preserve stdout/stderr/JSON/exit behavior and expose
 purpose, inventory identity, search snapshot identity, found/missing groups,
-and the v3/v4/v2 schema cutovers. The embedded application test proves the same
+and the current v1 schema baseline. The embedded application test proves the same
 records are present in the packaged browser surface.

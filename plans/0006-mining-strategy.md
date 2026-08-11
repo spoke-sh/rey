@@ -76,7 +76,7 @@ case-folded search, parse syntax, build a semantic index, render general tree/
 graph visualizations, execute a graph-revision proposal, or run recurring
 scheduling.
 
-`rey-mining` now implements canonical v1 operation/request and v2 result
+`rey-mining` now implements canonical v1 operation/request/result
 manifests. They bind typed parameters, exact artifact/provider/capability
 identity, effective limits, completeness and omissions, consumption, realized
 implementation lineage, invalidation dependencies, and workload/frontier

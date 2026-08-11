@@ -1,0 +1,78 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey County semantic points of interest",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "poi-rey-county-seat",
+      "properties": {"title": "REY COUNTY", "category": "county_seat", "symbol": "star", "min_zoom": 3, "max_zoom": 22, "collision_priority": 100, "run_id": "blake3:70e6615ebcd02f121f506c5e0bb34389255a72d51019f5de846f28dc55922d7a"},
+      "geometry": {"type": "Point", "coordinates": [-159.55, -19.65]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-context-survey-observatory",
+      "properties": {"title": "Context Survey Observatory", "category": "workload", "symbol": "observatory", "min_zoom": 5, "max_zoom": 22, "collision_priority": 95, "run_id": "blake3:73d579860d01e1d334204db433d875e8d730c1af2c259628786fec47f04c8369", "anchor_count": 56},
+      "geometry": {"type": "Point", "coordinates": [-159.78, -19.4]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-label-normalization-office",
+      "properties": {"title": "Label Normalization Office", "category": "workload", "symbol": "office", "min_zoom": 7, "max_zoom": 22, "collision_priority": 80, "graph_id": "blake3:88c196d992f65fe8d56be7f4d6a704afe4484a928c2dd578754dc9437014f7b5"},
+      "geometry": {"type": "Point", "coordinates": [-159.57, -19.66]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-git-survey-office",
+      "properties": {"title": "Git Survey Office", "category": "tool", "symbol": "repository", "min_zoom": 7, "max_zoom": 22, "collision_priority": 76, "observed_version": "git version 2.55.0"},
+      "geometry": {"type": "Point", "coordinates": [-159.47, -19.46]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-ripgrep-mine",
+      "properties": {"title": "Ripgrep Mine", "category": "tool", "symbol": "mine", "min_zoom": 7, "max_zoom": 22, "collision_priority": 78, "observed_version": "ripgrep 15.2.0"},
+      "geometry": {"type": "Point", "coordinates": [-159.86, -19.74]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-source-mining-works",
+      "properties": {"title": "Literal Source Mining Works", "category": "capability", "symbol": "works", "min_zoom": 6, "max_zoom": 22, "collision_priority": 83, "capability_id": "source.search.literal-utf8"},
+      "geometry": {"type": "Point", "coordinates": [-159.82, -19.68]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-arrow-frame-foundry",
+      "properties": {"title": "Arrow Frame Foundry", "category": "capability", "symbol": "foundry", "min_zoom": 7, "max_zoom": 22, "collision_priority": 72, "capability_id": "frame.arrow-stream"},
+      "geometry": {"type": "Point", "coordinates": [-159.61, -19.73]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-codex-station",
+      "properties": {"title": "Codex Station", "category": "agent_runtime", "symbol": "station", "min_zoom": 8, "max_zoom": 22, "collision_priority": 66, "capability_id": "agent.runtime.codex.identity"},
+      "geometry": {"type": "Point", "coordinates": [-159.5, -19.59]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-environment-head",
+      "properties": {"title": "ENV@1 Benchmark", "category": "environment", "symbol": "benchmark", "min_zoom": 6, "max_zoom": 22, "collision_priority": 88, "commit_id": "blake3:6070a3c40b82ce885f912b522dfd9977d219412267a75dcf4de6b428bedce831", "capabilities": 14},
+      "geometry": {"type": "Point", "coordinates": [-159.35, -19.82]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-projection-nine-channel-gauge",
+      "properties": {"title": "Nine Channel Gauge", "category": "terrain", "symbol": "gauge", "min_zoom": 8, "max_zoom": 22, "collision_priority": 70, "projection_packet": "blake3:b767c2dd78fde8caa548436bb7372cdefd99da8f5d7c2df62dad0a94517aaa94"},
+      "geometry": {"type": "Point", "coordinates": [-159.51, -19.7]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-frontier-lookout",
+      "properties": {"title": "Unsupported Probe Lookout", "category": "frontier", "symbol": "lookout", "min_zoom": 5, "max_zoom": 22, "collision_priority": 91, "unresolved_probe_count": 1, "action": "admit a resolver capability"},
+      "geometry": {"type": "Point", "coordinates": [-159.2, -19.56]}
+    },
+    {
+      "type": "Feature",
+      "id": "poi-copilot-unresolved",
+      "properties": {"title": "Copilot Not Found", "category": "missing_capability", "symbol": "question", "min_zoom": 9, "max_zoom": 22, "collision_priority": 45, "availability": "unavailable", "error_code": "not_found"},
+      "geometry": {"type": "Point", "coordinates": [-159.25, -19.62]}
+    }
+  ]
+}

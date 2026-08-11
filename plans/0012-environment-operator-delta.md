@@ -14,14 +14,14 @@ bounded set of applications found and searched but not found.
 
 - [x] Accept ADR 0027 and define the value-capture, shared-projection, and
   read-only UI boundaries.
-- [x] Hard-cut the mapping DSL to `rey.env-map.v2` with bounded non-sensitive
+- [x] Hard-cut the mapping DSL to `rey.env-map.v1` with bounded non-sensitive
   value capture and secret-safe rejection fixtures.
 - [x] Derive typed variable, application, input, and reference status across
   committed, admitted, and working planes.
 - [x] Rewrite `rey env status` as a bounded environment diff rather than a
   generic capability inventory.
 - [x] Apply the same three-plane operator grammar to default and staged
-  `rey env diff` output while retaining the authoritative v2 JSON delta.
+  `rey env diff` output while retaining the authoritative v1 JSON delta.
 - [x] Reduce `rey env log` to an environment-native chronology and make `-p`
   expand exact retained transitions through the same three planes.
 - [x] Add `GET|HEAD /api/v1/environment` from the same derivation used by the
@@ -75,7 +75,7 @@ The packaged `rey env status` rendered four tracked variables as a bounded
 `ENV@1 → WORKING` text diff, three declared applications as found with exact
 paths and search counts, three input identities, seven reference edges, and no
 generic capability wall. Its live `/api/v1/environment` response returned
-`rey.environment-status.v3` and
+`rey.environment-status.v1` and
 `rey.environment-operator-projection.v1` from the same workspace. The
 `SPOKE_TOKEN` observation remained `capture: presence` with a null value.
 
@@ -84,7 +84,7 @@ The human `rey env diff` now renders its selected `INDEX → WORKING` or
 and input/reference topology. Focused fixtures prove both directions, literal
 before/after values, found/not-found context, input identity changes, exact
 edges, secret redaction, stdout/stderr/exit behavior, and unchanged
-`rey.environment-diff.v2` JSON.
+`rey.environment-diff.v1` JSON.
 
 Plain `rey env log` now keeps each selected revision, authoritative evidence
 coordinate, environment scope, mapped change counts, mapping, and message

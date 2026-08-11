@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{FrontierError, add_string_bytes, validate_contract, validate_digest, validate_text};
 
-pub const FRONTIER_SCHEMA: &str = "rey.frontier.v2";
+pub const FRONTIER_SCHEMA: &str = "rey.frontier.v1";
 pub const FRONTIER_RELATION: &str = "rey.frontier-rows";
-pub const FRONTIER_SCHEMA_VERSION: &str = "2";
-const FRONTIER_ROW_SCHEMA: &str = "rey.frontier-row.v2";
+pub const FRONTIER_SCHEMA_VERSION: &str = "1";
+const FRONTIER_ROW_SCHEMA: &str = "rey.frontier-row.v1";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct FrontierInputs {

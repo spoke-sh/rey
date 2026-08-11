@@ -55,7 +55,7 @@ export interface EnvironmentReferenceObservation {
 }
 
 export interface EnvironmentOperatorProjection {
-  schema: "rey.environment-operator-projection.v3";
+  schema: "rey.environment-operator-projection.v1";
   source_label: string;
   target_label: "WORKING";
   complete: boolean;
@@ -94,7 +94,7 @@ export interface EnvironmentApplicationInventoryCoordinate {
 }
 
 export interface EnvironmentStatus {
-  schema: "rey.environment-status.v5";
+  schema: "rey.environment-status.v1";
   head_commit_id: string | null;
   head_sequence: number | null;
   head_snapshot_id: string | null;
@@ -200,7 +200,7 @@ function formatVariable(observation: EnvironmentVariableObservation): string {
   if (observation.capture === "value") {
     return `${observation.name}=${
       observation.value === null
-        ? legacyValue(observation)
+        ? "<invalid:missing-value>"
         : escapeValue(observation.value)
     }`;
   }
@@ -210,12 +210,6 @@ function formatVariable(observation: EnvironmentVariableObservation): string {
   return `${observation.name}=<${
     observation.sensitive ? "present:redacted" : "present"
   }>`;
-}
-
-function legacyValue(observation: EnvironmentVariableObservation): string {
-  return observation.value_digest
-    ? `<legacy-digest:${shortValue(observation.value_digest)}>`
-    : "<present>";
 }
 
 function escapeValue(value: string): string {

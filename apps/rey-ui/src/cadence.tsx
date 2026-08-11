@@ -67,7 +67,7 @@ export interface CadenceSchedule {
 }
 
 export interface CadenceProjection {
-  schema: "rey.ui-cadence.v2";
+  schema: "rey.ui-cadence.v1";
   ordering: "partial";
   source_repository: string | null;
   repository_state: CadenceRepositoryState | null;

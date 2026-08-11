@@ -1,0 +1,77 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey County authored hydrology candidates",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "hydrology-evidence-river",
+      "properties": {
+        "name": "Evidence River",
+        "water_class": "river_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "basis": "rainfall, flow direction, flow accumulation, and erosion channels retained by the survey projection",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-159.73, -19.35], [-159.67, -19.48], [-159.61, -19.6], [-159.51, -19.68], [-159.4, -19.67], [-159.3, -19.61], [-159.18, -19.6]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-anchor-creek",
+      "properties": {
+        "name": "Anchor Creek",
+        "water_class": "stream_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-159.88, -19.42], [-159.81, -19.49], [-159.74, -19.57], [-159.61, -19.6]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-architecture-fork",
+      "properties": {
+        "name": "Architecture Fork",
+        "water_class": "stream_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-159.49, -19.34], [-159.5, -19.45], [-159.54, -19.54], [-159.51, -19.68]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-proof-run",
+      "properties": {
+        "name": "Proof Run",
+        "water_class": "seasonal_runoff_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[-159.43, -19.9], [-159.42, -19.79], [-159.4, -19.67]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-frontier-wetland",
+      "properties": {
+        "name": "Frontier Wetland",
+        "water_class": "wetland_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "basis": "unresolved boundary condition, not inferred survey coverage"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-159.28, -19.55], [-159.2, -19.52], [-159.16, -19.59], [-159.2, -19.66], [-159.3, -19.64], [-159.28, -19.55]]]
+      }
+    }
+  ]
+}

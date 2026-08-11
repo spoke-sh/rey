@@ -97,8 +97,7 @@ stream lenses through a bounded, deep-linkable URL grammar.
   unresolved weather, projected hydrology and erosion, probe horizons,
   map-layer controls, and read-only survey bearings.
 - [x] Separate the lossless semantic coordinate from camera/projection state in
-  a v2 deep-link envelope without silently reinterpreting retained Journal
-  bindings.
+  the fresh v1 deep-link envelope and Journal binding.
 - [x] Fit Explore within `100dvh` and remove route-level document scrolling so
   wheel input has only the semantic-lens meaning.
 - [x] Remove manual Refresh and passively revalidate the read-only portfolio at
@@ -131,7 +130,7 @@ stream lenses through a bounded, deep-linkable URL grammar.
   when the Journal is quiet.
 - [x] Retire the initial matrix-style Explorer coordinate grammar through ADR
   0041; use revision-bound `rey+local://...` coordinates and a separate numeric
-  scale in `/explore?coordinate=...&scale=...`, Journal v2, and route tests.
+  scale in `/explore?coordinate=...&scale=...`, Journal v1, and route tests.
 - [x] Keep the coordinate rail fixed beneath the header and advance its exact
   numbered section coordinate as the operator scrolls through a route.
 - [x] Make the global footer a fixed live communications channel with a typed
@@ -161,7 +160,7 @@ stream lenses through a bounded, deep-linkable URL grammar.
 
 The frontend derives portfolio totals, workload journey, scenario progress,
 attention, provenance, mining evidence, and admitted topography patches from
-`rey.workload-list.v8`. Rust
+`rey.workload-list.v1`. Rust
 integration tests start a real ephemeral listener and verify the embedded app,
 SPA fallback, health, live catalog response, browser headers, rejected writes,
 loopback startup document, structured descriptor, and non-loopback warning.
@@ -183,7 +182,7 @@ just build
 A real `rey ui --host 127.0.0.1 --port 0 --format json` listener reported its
 exact ephemeral URL, Kinetic grammar, Precision theme, pinned grammar revision,
 loopback exposure, and read-only authority. Live health and workload requests
-returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v8`.
+returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v1`.
 Isolated Chromium captures verified both `/` and `/workloads` at 1600×1200;
 the initial environment rendered live qualification, scenario, run, coverage, attention,
 catalog, graph, and evidence data without console/server failure.
@@ -241,7 +240,7 @@ package resolved to `/nix/store/m9dvhkwfkh2ykdvsad357gxdn29prscf-rey`.
 
 The cadence repository-state extension on 2026-08-10 adds
 `rey.git-repository-status.v1` and hard-cuts the endpoint to
-`rey.ui-cadence.v2`. Working-tree counts and local-upstream publication remain
+`rey.ui-cadence.v1`. Working-tree counts and local-upstream publication remain
 independent, exact OIDs bind divergence and per-commit reachability, and the UI
 states `NO NETWORK FETCH` rather than implying remote freshness. Provider
 fixtures cover clean, dirty, no-upstream, pushed, unpushed, per-commit, and
@@ -295,7 +294,7 @@ Rust tests, every documentation test, Clippy with warnings denied, and flake
 evaluation.
 
 The hyperlinkable Journal extension on 2026-08-10 advances the UI envelopes to
-`rey.ui-server.v3` and `rey.ui-journal.v3`. The retained index now enters exact
+`rey.ui-server.v1` and `rey.ui-journal.v1`. The retained index now enters exact
 identity-bearing document routes, `/journal/new` redirects after admission,
 and every typed block exposes a fragment permalink. A real `0.0.0.0`
 listener admitted a human proposal with no credentials or `Origin`; startup

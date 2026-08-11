@@ -20,9 +20,9 @@ observation, or let an author qualify its own claim.
 
 ## Entry Contract
 
-`rey.journal-entry-proposal.v2` is the authored contract. Admission derives a
-content identity and produces `rey.journal-entry.v2`; the ordered retained
-collection is `rey.journal-log.v2`.
+`rey.journal-entry-proposal.v1` is the authored contract. Admission derives a
+content identity and produces `rey.journal-entry.v1`; the ordered retained
+collection is `rey.journal-log.v1`.
 
 | Field | Meaning |
 | --- | --- |
@@ -154,7 +154,7 @@ the currently implemented Journal commands or HTTP endpoint.
 ## Example Agent Proposal
 
 ```yaml
-schema: rey.journal-entry-proposal.v2
+schema: rey.journal-entry-proposal.v1
 title: Source coverage moved after survey
 author:
   kind: agent

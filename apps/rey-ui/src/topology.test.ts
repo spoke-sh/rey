@@ -56,10 +56,10 @@ const workload = (id: string): WorkloadSummary => ({
 });
 
 const portfolio: WorkloadList = {
-  schema: "rey.workload-list.v8",
+  schema: "rey.workload-list.v1",
   semantic_atlas: null,
   catalog: {
-    schema: "rey.workload-catalog.v2",
+    schema: "rey.workload-catalog.v1",
     kind: "workspace_packages",
     root: "workloads",
     workload_count: 1,
@@ -808,7 +808,7 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
   ];
   const contract = (id: string) => identity(id);
   return {
-    schema: "rey.projection-packet.v2",
+    schema: "rey.projection-packet.v1",
     packet_id: `projection:${patch.patch_id}`,
     source_patch_id: patch.patch_id,
     source_topography_revision: patch.topography_revision,

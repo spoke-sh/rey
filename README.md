@@ -85,7 +85,7 @@ Rey keeps four phases separate:
    and `PATH`. Declared built-in adapters may perform bounded identity
    discovery; no project configuration file or Spoke variable is assumed.
 2. **Reasoning over discovery** gives that frozen record to an agent, rule, or
-   human. A coding harness may emit an explicit `rey.env-map.v3` reasoning
+   human. A coding harness may emit an explicit `rey.env-map.v1` reasoning
    resource describing useful variables, input files, desired applications,
    and relationships.
 3. **Survey** uses canonical locators to anchor exact environment, worktree,
@@ -451,19 +451,19 @@ named typed entries with their exact capability ids. `env diff` selects the thre
 Its human output is directed variable text, bounded application search, then
 input/reference topology—not a generic capability patch. The header still
 reports the authoritative capability-delta assessment and change count;
-`--format json` retains the complete `rey.environment-diff.v4` evidence.
+`--format json` retains the complete `rey.environment-diff.v1` evidence.
 `env add` stages the complete working snapshot, while `env add -p` presents
 each canonical capability change as a confirmable environment-variable,
 application, input, or reference hunk. Generic capability hunks never print raw
 structured provenance; exact machine evidence remains in `env diff --format
 json`.
 `env commit` appends exactly the retained admission index beneath `.rey/env`
-without re-observing ambient state. New commits bind their commit time into a
-v2 identity. A successful default commit is silent: use `--format json` when a
+without re-observing ambient state. Every v1 commit binds its commit time into
+its identity. A successful default commit is silent: use `--format json` when a
 machine receipt is required, or `env log -n 1` for human readback. Errors remain
 diagnostic and nonzero. `env log -n <count>` bounds a newest-first chronology whose header
-shows `ENV@n`, semantic commit and parent ids, date, and message; legacy v1
-commits explicitly have an unknown date. Evidence, environment scope, changed
+shows `ENV@n`, semantic commit and parent ids, date, and message. Evidence,
+environment scope, changed
 dimensions, and mapping follow. `env log -p` expands each selected parent-to-commit
 transition through the same directed text, bounded search, and reference
 planes. This is bounded single-process local state, not a Git object store or
@@ -480,7 +480,7 @@ A coding harness may later generate a bounded reasoning map, and the caller
 supplies that resource explicitly:
 
 ```yaml
-schema: rey.env-map.v3
+schema: rey.env-map.v1
 nodes:
   - id: workspace-manifest
     kind: file
@@ -714,6 +714,13 @@ native objects, and retain directed immutable candidate packages plus explicit
 admission requests. This is incomplete enabling work: no scene-admission
 workload exists, candidate requests report `admitted=false`, and `/explore`
 continues to consume only retained survey-workload topography.
+
+[Rey County](scenes/rey-county/README.md) is the first complete editor fixture
+authored from a fresh Rey environment commit and freshly executed workspace
+workloads. Its five OGC CRS84 native sources exercise boundary, terrain
+control, hydrology, feature, and marker roles. The retained source files are
+reviewable, while its immutable local package remains candidate-only and does
+not change `/explore`.
 
 Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.

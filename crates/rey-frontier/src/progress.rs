@@ -10,12 +10,12 @@ use crate::{
     validate_digest,
 };
 
-pub const FRONTIER_PROGRESS_SCHEMA: &str = "rey.frontier-progress.v2";
+pub const FRONTIER_PROGRESS_SCHEMA: &str = "rey.frontier-progress.v1";
 pub const FRONTIER_PROGRESS_RELATION: &str = "rey.frontier-progress-changes";
-pub const FRONTIER_PROGRESS_SCHEMA_VERSION: &str = "2";
+pub const FRONTIER_PROGRESS_SCHEMA_VERSION: &str = "1";
 const FRONTIER_COMPARATOR_ID: &str = "rey.frontier-work-exact";
 const FRONTIER_COMPARATOR_REVISION: u64 = 1;
-const FRONTIER_COMPARATOR_DEFINITION: &str = "align compatible rey.frontier.v2 rows by stable work_id across exact source/target graph revisions in one workload campaign; source-only resolved, target-only introduced, changed row_id updated, equal row_id unchanged; no scalar score";
+const FRONTIER_COMPARATOR_DEFINITION: &str = "align compatible rey.frontier.v1 rows by stable work_id across exact source/target graph revisions in one workload campaign; source-only resolved, target-only introduced, changed row_id updated, equal row_id unchanged; no scalar score";
 
 #[must_use]
 pub fn frontier_comparator() -> ContractIdentity {

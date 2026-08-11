@@ -34,12 +34,12 @@ use crate::{
     render_topography_patch, render_topography_patch_contract, topography_fixture_root,
 };
 
-pub const WORKLOAD_SCHEMA: &str = "rey.workload.v3";
-pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v2";
-pub const SCENARIO_SUITE_SCHEMA: &str = "rey.scenario-suite.v2";
-pub const WORKLOAD_TEST_RESULT_SCHEMA: &str = "rey.workload-test-result.v2";
-pub const WORKLOAD_QUALIFICATION_SCHEMA: &str = "rey.workload-qualification.v2";
-pub const WORKLOAD_RUN_RESULT_SCHEMA: &str = "rey.workload-run-result.v2";
+pub const WORKLOAD_SCHEMA: &str = "rey.workload.v1";
+pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v1";
+pub const SCENARIO_SUITE_SCHEMA: &str = "rey.scenario-suite.v1";
+pub const WORKLOAD_TEST_RESULT_SCHEMA: &str = "rey.workload-test-result.v1";
+pub const WORKLOAD_QUALIFICATION_SCHEMA: &str = "rey.workload-qualification.v1";
+pub const WORKLOAD_RUN_RESULT_SCHEMA: &str = "rey.workload-run-result.v1";
 
 pub const BUILT_IN_NORMALIZE_WORKLOAD_ID: &str = "rey.fixture.text-normalize";
 pub const BUILT_IN_MISMATCH_WORKLOAD_ID: &str = "rey.fixture.text-mismatch";
@@ -2770,7 +2770,7 @@ fn graph_digest(graph: &ComputeGraph) -> SemanticDigest {
 }
 
 fn scenario_digest(scenario: &Scenario) -> SemanticDigest {
-    let mut hasher = SemanticHasher::new("rey.scenario.v2");
+    let mut hasher = SemanticHasher::new("rey.scenario.v1");
     hasher.add_str(&scenario.scenario.id);
     hasher.add_u64(scenario.scenario.revision);
     hasher.add_bool(scenario.required);
@@ -2863,7 +2863,7 @@ fn execution_digest(
     topography: &[TopographyPatch],
     attention: &[WorkloadAttention],
 ) -> SemanticDigest {
-    let mut hasher = SemanticHasher::new("rey.graph-execution.v2");
+    let mut hasher = SemanticHasher::new("rey.graph-execution.v1");
     add_contract(&mut hasher, graph);
     add_value_map(&mut hasher, inputs);
     hasher.add_u64(node_order.len() as u64);

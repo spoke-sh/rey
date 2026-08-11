@@ -366,9 +366,8 @@ accepted range is `0.05..=5.4`, with deterministic World, Atlas, Landscape,
 Neighborhood, Object, and Evidence stops inside that continuum. The selected
 coordinate anchors the camera; free pan and viewport remain ephemeral. The
 scene extent is derived from the bounded projection instead of a fixed world
-rectangle. The old matrix route is rejected, not
-redirected or migrated. Journal v2 stores coordinate and numeric scale as
-separate fields and derives the browser envelope. See [ADR
+rectangle. The matrix route is outside the current contract. Journal v1 stores
+coordinate and numeric scale as separate fields and derives the browser envelope. See [ADR
 0041](decisions/0041-continuous-coordinate-topography.md). World geometry and
 probe navigation are fixed by [ADR
 0042](decisions/0042-world-geometry-and-probe-navigation.md).
@@ -428,7 +427,7 @@ The first slice renders at most 64 recent Signals and reports older folded
 records. See
 [ADR 0039](decisions/0039-bounded-operator-feed.md).
 
-`GET /api/v1/cadence` returns `rey.ui-cadence.v2`. Its leading repository-state
+`GET /api/v1/cadence` returns `rey.ui-cadence.v1`. Its leading repository-state
 plane separates working-tree attention from the exact local-upstream push
 relation. The remaining lanes keep newest-first Git reachability and
 environment sequence separate, report truncation and shallow boundaries, and
@@ -446,10 +445,10 @@ projection. The conversation transcript is empty and its composer disabled
 because no transport, agent session, message admission, or retention contract
 exists yet.
 
-The implemented Explorer topology is derived from `rey.workload-list.v8`:
+The implemented Explorer topology is derived from `rey.workload-list.v1`:
 exact workload packages, drafts, graph/scenario/mining counts, portfolio
 attention, retained `rey.topography-patch.v1` artifacts, and their exact
-`rey.projection-packet.v2` envelopes. It also consumes the deterministic
+`rey.projection-packet.v1` envelopes. It also consumes the deterministic
 `rey.semantic-atlas.v1` projection of admitted regional patches. At World the
 reference backend renders an accessible orthographic sphere and the Three.js
 backend renders a lit WebGPU-first globe; both bind the same atlas revision and
@@ -457,7 +456,7 @@ admitted regional POIs. Atlas and closer lenses retain local relief. Survey
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
-separate `/environment` route consumes `rey.environment-status.v5` and renders
+separate `/environment` route consumes `rey.environment-status.v1` and renders
 its exact variable, application, input, and reference operator projection.
 `/agents` consumes the workload-list document at a higher semantic level: it
 ranks current requests and attention as recommendations, then summarizes work
@@ -485,7 +484,7 @@ reference terrain through initialization or failure. At World it materializes
 the semantic globe rather than the local terrain mesh, while the reference
 overlay preserves region labels and accessibility.
 `buildTopologyScene` is a deterministic read-model projection over
-`rey.workload-list.v8` and is tested separately from browser mechanics. It
+`rey.workload-list.v1` and is tested separately from browser mechanics. It
 requires an exact patch/packet pair before compiling admitted terrain. Typed
 field derivations live under `src/explore/terrain`; `topology.ts` still owns
 their scene adaptation plus contours and natural-feature overlays.

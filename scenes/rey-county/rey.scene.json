@@ -1,0 +1,42 @@
+{
+  "schema": "rey.editor-project.v1",
+  "project_id": "rey-county",
+  "coordinate_system": {
+    "kind": "geographic",
+    "authority": "OGC",
+    "code": "CRS84",
+    "axis_order": "longitude_latitude"
+  },
+  "sources": [
+    {
+      "source_id": "rey-county-boundary",
+      "path": "scenes/rey-county/boundary.geojson",
+      "format": "geo_json",
+      "role": "boundary"
+    },
+    {
+      "source_id": "rey-county-features",
+      "path": "scenes/rey-county/features.geojson",
+      "format": "geo_json",
+      "role": "features"
+    },
+    {
+      "source_id": "rey-county-hydrology",
+      "path": "scenes/rey-county/hydrology.geojson",
+      "format": "geo_json",
+      "role": "hydrology"
+    },
+    {
+      "source_id": "rey-county-markers",
+      "path": "scenes/rey-county/markers.geojson",
+      "format": "geo_json",
+      "role": "markers"
+    },
+    {
+      "source_id": "rey-county-terrain",
+      "path": "scenes/rey-county/terrain-controls.geojson",
+      "format": "geo_json",
+      "role": "terrain_control"
+    }
+  ]
+}

@@ -203,7 +203,7 @@ ADR 0018 adds two bounded authoritative forms:
   comparator, line segmentation, final-newline state, input/line/alignment/
   change/string limits, and deterministic LCS-aligned context/delete/insert
   rows grouped in an ordered hunk. Replay requires the exact source and target
-  text. `rey.scenario-output-delta.v2` embeds this result while retaining its
+  text. `rey.scenario-output-delta.v1` embeds this result while retaining its
   expected/observed strings for workload evaluation.
 - `rey.source-match-delta.v1` aligns expected and observed rows by reversible
   path encoding/identity plus start/end byte span. It preserves typed

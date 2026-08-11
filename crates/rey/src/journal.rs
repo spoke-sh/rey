@@ -12,10 +12,10 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const JOURNAL_PROPOSAL_SCHEMA: &str = "rey.journal-entry-proposal.v2";
-pub const JOURNAL_ENTRY_SCHEMA: &str = "rey.journal-entry.v2";
-pub const JOURNAL_LOG_SCHEMA: &str = "rey.journal-log.v2";
-pub const JOURNAL_ADMISSION_SCHEMA: &str = "rey.journal-admission.v2";
+pub const JOURNAL_PROPOSAL_SCHEMA: &str = "rey.journal-entry-proposal.v1";
+pub const JOURNAL_ENTRY_SCHEMA: &str = "rey.journal-entry.v1";
+pub const JOURNAL_LOG_SCHEMA: &str = "rey.journal-log.v1";
+pub const JOURNAL_ADMISSION_SCHEMA: &str = "rey.journal-admission.v1";
 pub const MAX_JOURNAL_ENTRIES: usize = 256;
 pub const MAX_JOURNAL_BLOCKS: usize = 32;
 pub const MAX_JOURNAL_STATE_BYTES: u64 = 8 * 1_024 * 1_024;
@@ -1222,20 +1222,20 @@ mod tests {
                 .contains("canonical")
         );
 
-        let mut legacy = proposal();
-        legacy.schema = "rey.journal-entry-proposal.v1".to_owned();
+        let mut unsupported = proposal();
+        unsupported.schema = "rey.journal-entry-proposal.unsupported".to_owned();
         assert!(
-            legacy
+            unsupported
                 .validate()
                 .unwrap_err()
                 .to_string()
                 .contains("schema")
         );
-        legacy.schema = JOURNAL_PROPOSAL_SCHEMA.to_owned();
-        legacy.binding.coordinate =
+        unsupported.schema = JOURNAL_PROPOSAL_SCHEMA.to_owned();
+        unsupported.binding.coordinate =
             "/explore/workload/source-mining;at=blake3%3Aabc;lens=objects".to_owned();
         assert!(
-            legacy
+            unsupported
                 .validate()
                 .unwrap_err()
                 .to_string()

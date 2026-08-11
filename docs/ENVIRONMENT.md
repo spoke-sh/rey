@@ -16,7 +16,7 @@ the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
 later slices. ADR 0020 added the first explicit environment graph, ADR 0027
 added bounded non-sensitive value capture and one operator delta for the CLI
 and UI, and ADR 0031 hard-cuts the current mapping contract to
-`rey.env-map.v3` with separate desired-application and search records. ADR
+`rey.env-map.v1` with separate desired-application and search records. ADR
 0032 removes the conventional map bootstrap: the process now owns the fixed
 `HOME`, `PWD`, and `PATH` discovery seeds, while mappings are explicit
 agent-generatable reasoning resources. The Git-shaped environment history
@@ -145,7 +145,7 @@ prefer its public discovery contract over ambient variable convention.
 An explicit workspace-relative `--map` resource declares environment surfaces
 an agent, programmer, or deterministic rule has judged relevant after
 discovery. A file named `rey.env.yaml` has no conventional meaning and is not
-loaded unless the caller names it. The closed `rey.env-map.v3` schema contains:
+loaded unless the caller names it. The closed `rey.env-map.v1` schema contains:
 
 - variable nodes with exact names, sensitivity, and `presence`, `digest`, or
   bounded UTF-8 `value` capture;
@@ -191,7 +191,7 @@ configuration, execution authority, or proof of a dependency.
    explicit workspace, built-in capabilities, and declared adapter search
    results under total time, row, and byte limits.
 2. **Reasoning over discovery:** present the frozen record to policy. An agent
-   may generate a bounded `rey.env-map.v3` resource; Rey parses it only when
+   may generate a bounded `rey.env-map.v1` resource; Rey parses it only when
    explicitly supplied and never accepts it as action authority.
 3. **Survey:** resolve admitted locators to exact source anchors with explicit
    provider, revision, limit, completeness, and error evidence. See
@@ -378,9 +378,9 @@ and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty
 capability relations. Without a retained index, the effective index equals
 HEAD. The command reads but never creates or repairs local state. Explicit JSON
-emits `rey.environment-status.v5` with the complete working snapshot, both
+emits `rey.environment-status.v1` with the complete working snapshot, both
 authoritative capability deltas, and
-`rey.environment-operator-projection.v3`. Every process seed and explicitly
+`rey.environment-operator-projection.v1`. Every process seed and explicitly
 mapped object carries exact
 HEAD/index/working observations plus staged, unstaged, and overall change
 classification. Its default human projection is a compact working-tree view:
@@ -416,7 +416,7 @@ while insertions, deletions, and modifications use the selected source and
 target observations. The header preserves the authoritative
 capability-delta assessment and retained change count, including changes that
 do not project into a mapped human object. The command accepts no loose
-snapshot-file operands. Explicit JSON is `rey.environment-diff.v4` with
+snapshot-file operands. Explicit JSON is `rey.environment-diff.v1` with
 the complete typed capability delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact
@@ -425,7 +425,7 @@ publication. Successful default/table execution writes nothing to stdout or
 stderr: no news is good news. `--format json` emits the structured commit
 receipt when automation needs one, while `rey env log -n 1` is the human
 readback surface. Failures remain nonzero diagnostics on stderr. A new
-`rey.environment-commit.v2` id binds a monotonic local
+`rey.environment-commit.v1` id binds a monotonic local
 sequence, exact parent commit, integer Unix commit time, canonical message, and
 snapshot id. The time records when Rey retained the observation; it is not a
 trusted causal clock, discovery timestamp, or author identity. Existing v1
@@ -443,9 +443,9 @@ is unknown rather than fabricating one.
 `-p` expands each selected transition, including `EMPTY → ENV@1`, through
 directed variable text, bounded application search, and input/reference
 topology derived only from the retained parent and commit snapshots. It
-performs no fresh observation. Explicit JSON is `rey.environment-log.v2` with
+performs no fresh observation. Explicit JSON is `rey.environment-log.v1` with
 the complete commits, snapshots, typed capability deltas, and commit-time
-metadata; commit commands emit `rey.environment-commit-result.v2`.
+metadata; commit commands emit `rey.environment-commit-result.v1`.
 
 The default `rey.local-environment-history.v1` state lives at
 `${workspace}/.rey/env/state.json`; the separate admission index lives at
@@ -458,11 +458,10 @@ is not a Git object database and claims no pathspec, reset/restore, branches,
 merges, rewrite, `fsync`, locking, authenticated writer, remote durability, or
 Spoke revision semantics.
 
-History created before ADR 0033 may contain a retained
-`git.repository.inspect` row. Its chain remains exact and verifiable. The first
-new observation treats that legacy row as a deletion from environment scope;
-the compact patch explains that Git state moved to cadence and workload
-activation. Subsequent environment revisions contain no repository snapshot.
+The fresh v1 history does not admit repository snapshot rows. Git repository
+state belongs to cadence and workload activation; a document from an earlier
+pre-alpha layout is rejected rather than interpreted as an environment
+revision.
 
 Retained environment revisions are also portfolio-mining inputs. Read-only
 `workloads list` and `status` consume the exact admission-index snapshot when

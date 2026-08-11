@@ -54,7 +54,7 @@ describe("collaboration Journal", () => {
     expect(
       resolveJournalEntry(
         {
-          schema: "rey.journal-log.v2",
+          schema: "rey.journal-log.v1",
           log_id: "blake3:log",
           entries: [retained],
         },
@@ -74,7 +74,7 @@ describe("collaboration Journal", () => {
 function entry(): RetainedJournalEntry {
   const coordinate = "rey+local://portfolio/current?revision=blake3%3Asource";
   return {
-    schema: "rey.journal-entry.v2",
+    schema: "rey.journal-entry.v1",
     entry_id: "blake3:entry",
     sequence: 1,
     admitted_at: "2026-08-10T21:00:00Z",
@@ -138,7 +138,7 @@ function entry(): RetainedJournalEntry {
 
 function portfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v8",
+    schema: "rey.workload-list.v1",
     semantic_atlas: null,
     catalog: {
       schema: "rey.workload-catalog.v1",

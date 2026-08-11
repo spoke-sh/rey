@@ -81,7 +81,7 @@ export type JournalBlock =
     };
 
 export interface JournalEntryProposal {
-  schema: "rey.journal-entry-proposal.v2";
+  schema: "rey.journal-entry-proposal.v1";
   title: string;
   author: JournalAuthor;
   binding: JournalBinding;
@@ -90,7 +90,7 @@ export interface JournalEntryProposal {
 }
 
 export interface RetainedJournalEntry {
-  schema: "rey.journal-entry.v2";
+  schema: "rey.journal-entry.v1";
   entry_id: string;
   sequence: number;
   admitted_at: string;
@@ -102,20 +102,20 @@ export interface RetainedJournalEntry {
 }
 
 export interface JournalLog {
-  schema: "rey.journal-log.v2";
+  schema: "rey.journal-log.v1";
   log_id: string;
   entries: RetainedJournalEntry[];
 }
 
 export interface JournalProjection {
-  schema: "rey.ui-journal.v3";
+  schema: "rey.ui-journal.v1";
   write_enabled: boolean;
   authority: "unauthenticated_journal_admission";
   log: JournalLog;
 }
 
 export interface JournalAdmission {
-  schema: "rey.journal-admission.v2";
+  schema: "rey.journal-admission.v1";
   admitted: boolean;
   entry: RetainedJournalEntry;
   log: JournalLog;
@@ -451,7 +451,7 @@ export function JournalComposer({
     }
     try {
       await onAdmit({
-        schema: "rey.journal-entry-proposal.v2",
+        schema: "rey.journal-entry-proposal.v1",
         title: title.trim(),
         author: { kind: "human", id: author.trim() },
         binding,

@@ -8,9 +8,9 @@ use rey_dataframe::{Frame, FrameError, FrameMetadata};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const REASONING_SURFACE_SCHEMA: &str = "rey.reasoning-surface.v3";
+pub const REASONING_SURFACE_SCHEMA: &str = "rey.reasoning-surface.v1";
 pub const REASONING_SURFACE_RELATION: &str = "rey.reasoning-surface-rows";
-pub const REASONING_SURFACE_SCHEMA_VERSION: &str = "3";
+pub const REASONING_SURFACE_SCHEMA_VERSION: &str = "1";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ReasoningSurfaceInputs {

@@ -31,6 +31,7 @@ completion criteria.
 - [0012 — Environment operator delta](0012-environment-operator-delta.md)
 - [0013 — Application inventory and search records](0013-application-inventory-search-records.md)
 - [0015 — Git-shaped environment loop fidelity](0015-git-shaped-environment-loop-fidelity.md)
+- [0023 — Fresh v1 Rey County](0023-fresh-v1-rey-county.md)
 
 ## Superseded
 

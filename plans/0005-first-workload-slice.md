@@ -15,9 +15,9 @@ schemas before exposing the commands.
 - [x] `rey-diff` implements verified typed UTF-8 scenario output deltas.
 - [x] `rey-runtime` implements bounded workload/graph/scenario documents,
   validation, stable DAG execution, tests, qualification, and run results.
-- [x] Frontier/progress/scheduling v2 bind workload, graph, scenario suite, and
-  campaign identities.
-- [x] Reasoning-surface v3 binds the same workload-centered identities.
+- [x] The fresh v1 frontier/progress/scheduling contracts bind workload, graph,
+  scenario suite, and campaign identities.
+- [x] The fresh v1 reasoning surface binds the same workload-centered identities.
 - [x] The local result provider bounds and verifies reads, publishes with a
   same-directory rename, derives staleness, and states its non-guarantees.
 - [x] `workloads list` shows exact graph identities and passing/evaluated

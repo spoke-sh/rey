@@ -12,8 +12,8 @@ use thiserror::Error;
 
 use crate::{Availability, CapabilityRecord, TrustClass};
 
-pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v3";
-pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v3";
+pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v1";
+pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v1";
 pub const ENVIRONMENT_MAP_PROVIDER_ID: &str = "rey.env-map";
 pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 3;
 
@@ -1070,7 +1070,7 @@ mod tests {
     };
 
     const VALID: &str = r#"
-schema: rey.env-map.v3
+schema: rey.env-map.v1
 nodes:
   - id: config
     kind: variable
@@ -1247,7 +1247,7 @@ edges:
         let workspace = TempDir::new().unwrap();
         fs::write(
             workspace.path().join("rey.env.yaml"),
-            "schema: rey.env-map.v3\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
+            "schema: rey.env-map.v1\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
         )
         .unwrap();
         let inputs = EnvironmentMapInputs {

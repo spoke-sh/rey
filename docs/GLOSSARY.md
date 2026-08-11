@@ -598,7 +598,7 @@ ambient shell startup or assuming conventional project variables.
 
 ### Environment map
 
-An explicitly supplied `rey.env-map.v3` reasoning resource that declares
+An explicitly supplied `rey.env-map.v1` reasoning resource that declares
 relevant variables, input files, desired applications, and directed
 relationships. It is agent-generatable context, not bootstrap configuration,
 provider implementation, proof, or execution authority.

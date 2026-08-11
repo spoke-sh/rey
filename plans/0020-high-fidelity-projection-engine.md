@@ -76,7 +76,7 @@ dynamic-entity requirement.
 
 - [x] Accept ADR 0044 and establish the projection-engine identity, evidence
       boundary, 2.5D scope, and terrain-fidelity target.
-- [x] Define `rey.projection-packet.v2` as a browser/CLI typed
+- [x] Define `rey.projection-packet.v1` as a browser/CLI typed
       contract binding evidence, projection basis, fields, validity, layers,
       revisions, limits, completeness, omissions, and lineage.
 - [x] Add a synthetic admitted terrain fixture with named World, Atlas,
@@ -199,7 +199,7 @@ are still required.
 
 ## Implementation Checkpoint: 2026-08-11 Multiresolution Fields
 
-- `rey.projection-packet.v2` hard-cuts the singular layout to one bounded
+- `rey.projection-packet.v1` hard-cuts the singular layout to one bounded
   `rey.terrain-field-pyramid.v1`: overview 31×21 at stride 4 for World,
   regional 61×41 at stride 2 for Atlas/Landscape, and local 121×81 at stride 1
   for Neighborhood/Object/Evidence.

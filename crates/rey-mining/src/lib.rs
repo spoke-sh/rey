@@ -16,7 +16,7 @@ use thiserror::Error;
 
 pub const MINING_OPERATION_SCHEMA: &str = "rey.mining-operation.v1";
 pub const MINING_REQUEST_SCHEMA: &str = "rey.mining-request.v1";
-pub const MINING_RESULT_SCHEMA: &str = "rey.mining-result.v2";
+pub const MINING_RESULT_SCHEMA: &str = "rey.mining-result.v1";
 
 trait SemanticName {
     fn semantic_name(&self) -> &'static str;
