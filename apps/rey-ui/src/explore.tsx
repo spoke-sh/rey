@@ -56,7 +56,8 @@ type FocusableTopologyObject = Pick<
 
 interface MapLayers {
   relief: boolean;
-  routes: boolean;
+  water: boolean;
+  weather: boolean;
   probes: boolean;
 }
 
@@ -100,7 +101,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [layers, setLayers] = useState<MapLayers>({
     relief: true,
-    routes: true,
+    water: true,
+    weather: true,
     probes: true,
   });
   const retainedRegime = useRef<LensRegime | undefined>(undefined);
@@ -391,7 +393,7 @@ function CanvasToolbar({
         <small>{scene.detail}</small>
       </div>
       <div className={sx(styles.canvasControls)}>
-        {(["relief", "routes", "probes"] as const).map((layer) => (
+        {(["relief", "water", "weather", "probes"] as const).map((layer) => (
           <KineticButton
             aria-pressed={layers[layer]}
             className={sx(
@@ -484,7 +486,13 @@ function SemanticLens({
       ))}
       <WorldGeometryLayer scene={scene} />
       {layers.relief ? <ReliefLayer scene={scene} /> : null}
-      {layers.routes ? <RouteLayer scene={scene} /> : null}
+      {layers.water || layers.weather ? (
+        <NaturalFeatureLayer
+          scene={scene}
+          showWater={layers.water}
+          showWeather={layers.weather}
+        />
+      ) : null}
       <EdgeLayer
         edges={scene.edges}
         nodes={scene.nodes}
@@ -582,61 +590,65 @@ function WorldGeometryLayer({ scene }: { scene: TopologyScene }) {
   );
 }
 
-function RouteLayer({ scene }: { scene: TopologyScene }) {
-  if (scene.routes.length === 0) return null;
+function NaturalFeatureLayer({
+  scene,
+  showWater,
+  showWeather,
+}: {
+  scene: TopologyScene;
+  showWater: boolean;
+  showWeather: boolean;
+}) {
+  const features = scene.natural_features.filter((feature) =>
+    feature.kind === "weather_front" ? showWeather : showWater,
+  );
+  if (features.length === 0) return null;
   const showLabels =
     scene.regime === "world" ||
     scene.regime === "atlas" ||
-    scene.regime === "landscape" ||
-    scene.regime === "neighborhoods";
+    scene.regime === "landscape";
   return (
     <svg
-      aria-label={`${scene.routes.length} admitted topology and probe corridors`}
-      className={sx(styles.routeLayer)}
+      aria-label={`${features.length} emergent natural features`}
+      className={sx(styles.naturalFeatureLayer)}
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <title>
-        Containment roads, directed reference flows, shared-coordinate passages,
-        and dashed unresolved probe trails retain distinct evidence classes.
+        Weather fronts derive from unresolved admitted survey conditions.
+        Streams and rivers derive from rainfall accumulation over anchor-only
+        relief and visibly erode that projected field. None are source edges,
+        discovered paths, or retained natural facts.
       </title>
-      {scene.routes.map((route) => {
-        const pathId = `map-route-${route.id.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}`;
+      {features.map((feature) => {
+        const pathId = `natural-feature-${feature.id.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}`;
         return (
-          <g className={sx(styles.routeGroup)} key={route.id}>
-            {route.kind === "containment" ? (
-              <path className={sx(styles.routeCasing)} d={route.path} />
-            ) : null}
+          <g className={sx(styles.naturalFeatureGroup)} key={feature.id}>
             <path
               className={sx(
-                styles.mapRoute,
-                route.kind === "containment" && styles.containmentRoute,
-                route.kind === "reference" && styles.referenceRoute,
-                route.kind === "passage" && styles.passageRoute,
-                route.kind === "probe" && styles.probeRoute,
-                route.selected && styles.selectedRoute,
+                styles.naturalFeature,
+                feature.kind === "stream" && styles.streamFeature,
+                feature.kind === "river" && styles.riverFeature,
+                feature.kind === "weather_front" && styles.weatherFront,
               )}
-              d={route.path}
-              data-route-kind={route.kind}
-              data-route-selected={route.selected}
+              d={feature.path}
+              data-natural-feature={feature.kind}
               id={pathId}
               style={{
-                strokeWidth: `calc(${0.8 + route.prominence * 0.42}px * var(--rey-terrain-counter-scale))`,
+                strokeWidth: `calc(${0.7 + feature.intensity * (feature.kind === "river" ? 0.48 : 0.22)}px * var(--rey-terrain-counter-scale))`,
               }}
             >
-              <title>{`${route.label} / ${route.evidence}`}</title>
+              <title>{`${feature.label} / ${feature.detail}`}</title>
             </path>
             {showLabels &&
-            (route.selected ||
-              route.kind === "probe" ||
-              route.prominence >= 3) ? (
-              <text className={sx(styles.routeLabel)}>
+            (feature.kind === "river" || feature.kind === "weather_front") ? (
+              <text className={sx(styles.naturalFeatureLabel)}>
                 <textPath
                   href={`#${pathId}`}
                   startOffset="50%"
                   textAnchor="middle"
                 >
-                  {route.label.toUpperCase()}
+                  {feature.label}
                 </textPath>
               </text>
             ) : null}
@@ -657,8 +669,9 @@ function ReliefLayer({ scene }: { scene: TopologyScene }) {
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <title>
-        Relief height is derived from admitted anchor and classified-edge
-        influence. It does not assert semantic similarity.
+        Relief height is derived only from admitted anchor samples, then eroded
+        by the deterministic runoff projection. It does not assert semantic
+        similarity or a discovered path.
       </title>
       {scene.contours.map((contour) => (
         <path
@@ -908,7 +921,12 @@ function TopologyObject({
 
 function MapReading({ scene }: { scene: TopologyScene }) {
   if (!scene.terrain) return null;
-  const exactRoutes = scene.routes.filter((route) => route.kind !== "probe");
+  const waterSystems = scene.natural_features.filter(
+    (feature) => feature.kind === "stream" || feature.kind === "river",
+  );
+  const weatherFronts = scene.natural_features.filter(
+    (feature) => feature.kind === "weather_front",
+  );
   const probes = scene.points.filter((point) => point.kind === "frontier");
   return (
     <aside className={sx(styles.mapReading)} aria-label="Map evidence legend">
@@ -925,19 +943,23 @@ function MapReading({ scene }: { scene: TopologyScene }) {
       </div>
       <div className={sx(styles.mapKey)} aria-hidden="true">
         <span>
-          <i className={sx(styles.keyRoad)} /> CONTAINS / ROAD
+          <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
         </span>
         <span>
-          <i className={sx(styles.keyRiver)} /> REFERENCES / FLOW
+          <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
         </span>
         <span>
-          <i className={sx(styles.keyProbe)} /> UNRESOLVED / PROBE
+          <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
+        </span>
+        <span>
+          <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
         </span>
       </div>
       <div className={sx(styles.mapScale)} aria-hidden="true">
         <i className={sx(styles.mapScaleBar)} />
         <span>
-          {exactRoutes.length} EXACT CORRIDORS · {probes.length} PROBES · LOD{" "}
+          {waterSystems.length} PROJECTED WATER SYSTEMS · {weatherFronts.length}{" "}
+          WEATHER FRONTS · {probes.length} PROBES · NO PATH CLAIM · LOD{" "}
           {scene.regime.toUpperCase()}
         </span>
       </div>

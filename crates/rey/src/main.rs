@@ -2777,27 +2777,26 @@ fn write_topography_evidence(
         patch.delta.deleted,
         patch.delta.modified,
     )?;
-    let containment_routes = patch
-        .edges
-        .iter()
-        .filter(|edge| edge.kind.as_str() == "contains")
-        .count();
-    let reference_flows = patch.edges.len().saturating_sub(containment_routes);
     let surveyed_regions = patch
         .regions
         .iter()
         .filter(|region| matches!(region.state.as_str(), "surveyed" | "surveyed_empty"))
         .count();
-    let mut route_degree = BTreeMap::<&str, usize>::new();
-    for edge in &patch.edges {
-        *route_degree
-            .entry(edge.source_coordinate.as_str())
-            .or_default() += 1;
-        *route_degree
-            .entry(edge.target_coordinate.as_str())
-            .or_default() += 1;
-    }
-    let junctions = route_degree.values().filter(|degree| **degree >= 3).count();
+    let sampled_conditions = patch
+        .seeds
+        .iter()
+        .map(|seed| seed.candidate_count)
+        .sum::<u64>();
+    let precipitation_stations = patch
+        .seeds
+        .iter()
+        .filter(|seed| seed.candidate_count > 0)
+        .count();
+    let omitted_conditions = patch
+        .omissions
+        .iter()
+        .map(|omission| omission.omitted_count)
+        .sum::<u64>();
     writeln!(
         output,
         "         World geometry: 1 admitted chart · {surveyed_regions} surveyed regions · {} unresolved probe horizons · unexplored extent has no inferred boundary",
@@ -2805,12 +2804,18 @@ fn write_topography_evidence(
     )?;
     writeln!(
         output,
-        "         Transport geometry: {containment_routes} containment roads · {reference_flows} directed reference flows · exact classified edges only",
+        "         Survey atmosphere: {sampled_conditions} admitted candidate conditions at {precipitation_stations} sampled stations · {} unresolved boundary fronts · {omitted_conditions} omitted conditions",
+        patch.frontier.len(),
     )?;
     writeln!(
         output,
-        "         Mining bearing: {} exact anchor coordinates · {junctions} connected junctions · connectivity is not a mining recommendation or read authority",
+        "         Natural-feature basis: {} anchor stations shape relief · {} retained seed edges remain inspector provenance and are not rendered as relief or paths",
         patch.anchors.len(),
+        patch.edges.len(),
+    )?;
+    writeln!(
+        output,
+        "         Hydrology projection: rainfall and downslope accumulation may carve displayed streams, rivers, and erosion · no discovered or built path claim",
     )?;
     for seed in &patch.seeds {
         writeln!(

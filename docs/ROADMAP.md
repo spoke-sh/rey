@@ -106,9 +106,13 @@ execution, and broader provider behavior.
 - Extend Explorer's continuous lens from World geometry and Atlas terrain
   through Landscape, Neighborhood, Object, and exact Evidence while retaining
   coordinate focus.
-- Expose exact containment/reference transport, shared-coordinate passages,
-  unresolved probe trails, and bounded read-only curation bearings without
-  presenting connectivity as a mining recommendation.
+- Keep exact containment/reference and shared-coordinate evidence in deep
+  inspection rather than drawing it as terrain transport. Derive bounded
+  anchor-only relief, unresolved weather, projected runoff and erosion, and
+  prerequisite-bearing frontier stations without presenting a natural feature
+  as a mining recommendation or path.
+- Admit discovered and constructed context paths only through a separate typed
+  evidence contract with revision, authority, effects, limits, and lineage.
 - Keep surveyed-empty, unexplored, omitted, stale, unsupported, and truncated
   regions distinct; never let navigation start a hidden crawl.
 - Exercise the coordinate carrier through a public Spoke conformance contract

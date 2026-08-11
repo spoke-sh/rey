@@ -306,7 +306,7 @@ export const exploreStyles = stylex.create({
     stroke: "color-mix(in srgb, #2f4f36 84%, var(--rey-foreground))",
     strokeWidth: 1.55,
   },
-  routeLayer: {
+  naturalFeatureLayer: {
     height: "100%",
     inset: 0,
     overflow: "visible",
@@ -315,47 +315,31 @@ export const exploreStyles = stylex.create({
     width: "100%",
     zIndex: 2,
   },
-  routeGroup: {
+  naturalFeatureGroup: {
     fill: "none",
     fontFamily: mono,
   },
-  routeCasing: {
+  naturalFeature: {
     fill: "none",
-    opacity: 0.72,
-    stroke: "color-mix(in srgb, var(--rey-background) 90%, #4f493a)",
-    strokeLinecap: "round",
-    strokeWidth: "calc(5.5px * var(--rey-terrain-counter-scale))",
-  },
-  mapRoute: {
-    fill: "none",
-    opacity: 0.74,
-    stroke: "color-mix(in srgb, #504c3e 72%, var(--rey-foreground))",
+    opacity: 0.7,
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
-  containmentRoute: {
-    stroke: "color-mix(in srgb, #615b45 78%, var(--rey-foreground))",
+  streamFeature: {
+    opacity: 0.56,
+    stroke: "color-mix(in srgb, #56a5b6 72%, var(--rey-foreground))",
   },
-  referenceRoute: {
-    stroke: "color-mix(in srgb, #2d7488 82%, var(--rey-foreground))",
+  riverFeature: {
+    opacity: 0.9,
+    stroke: "color-mix(in srgb, #24758d 88%, var(--rey-foreground))",
   },
-  passageRoute: {
-    opacity: 0.92,
-    stroke: "var(--rey-accent)",
+  weatherFront: {
+    opacity: 0.76,
+    stroke: "color-mix(in srgb, #8796a1 76%, #a36b16)",
     strokeDasharray:
-      "calc(11px * var(--rey-terrain-counter-scale)) calc(4px * var(--rey-terrain-counter-scale))",
+      "calc(5px * var(--rey-terrain-counter-scale)) calc(6px * var(--rey-terrain-counter-scale))",
   },
-  probeRoute: {
-    opacity: 0.82,
-    stroke: "#a36b16",
-    strokeDasharray:
-      "calc(4px * var(--rey-terrain-counter-scale)) calc(7px * var(--rey-terrain-counter-scale))",
-  },
-  selectedRoute: {
-    opacity: 1,
-    stroke: "#d5512c",
-  },
-  routeLabel: {
+  naturalFeatureLabel: {
     fill: "var(--rey-foreground)",
     fontFamily: mono,
     fontSize: "calc(8px * var(--rey-terrain-counter-scale))",
@@ -747,24 +731,34 @@ export const exploreStyles = stylex.create({
     paddingBlock: 7,
     paddingInline: 9,
   },
-  keyRoad: {
-    backgroundColor: "#615b45",
+  keyContour: {
+    borderTopColor: "#566c49",
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    display: "inline-block",
+    marginRight: 3,
+    verticalAlign: "middle",
+    width: 20,
+  },
+  keyStream: {
+    borderTopColor: "#56a5b6",
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    display: "inline-block",
+    marginRight: 3,
+    verticalAlign: "middle",
+    width: 20,
+  },
+  keyRiver: {
+    backgroundColor: "#24758d",
     display: "inline-block",
     height: 3,
     marginRight: 3,
     verticalAlign: "middle",
     width: 20,
   },
-  keyRiver: {
-    backgroundColor: "#2d7488",
-    display: "inline-block",
-    height: 2,
-    marginRight: 3,
-    verticalAlign: "middle",
-    width: 20,
-  },
-  keyProbe: {
-    borderTopColor: "#a36b16",
+  keyWeather: {
+    borderTopColor: "#8796a1",
     borderTopStyle: "dashed",
     borderTopWidth: 2,
     display: "inline-block",

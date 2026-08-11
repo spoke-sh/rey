@@ -13,7 +13,7 @@ completion criteria.
 - [0014 — Seed discovery and locator survey](0014-seed-discovery-and-locator-survey.md) — active context-lifecycle and locator bearing
 - [0016 — Channel graph and operator index](0016-channel-graph-and-operator-index.md) — active collaboration persistence and agentic-networking bearing
 - [0017 — Incremental context topography](0017-incremental-context-topography.md) — active seed-to-map survey voyage and continuous Explorer bearing
-- [0018 — World context navigation](0018-world-context-navigation.md) — active world geometry, transport, probe, and curation-path bearing
+- [0019 — Emergent context features](0019-emergent-context-features.md) — active anchor-field, weather, hydrology, erosion, and separate-path bearing
 
 ## Completed
 
@@ -28,6 +28,10 @@ completion criteria.
 - [0012 — Environment operator delta](0012-environment-operator-delta.md)
 - [0013 — Application inventory and search records](0013-application-inventory-search-records.md)
 - [0015 — Git-shaped environment loop fidelity](0015-git-shaped-environment-loop-fidelity.md)
+
+## Superseded
+
+- [0018 — World context navigation](0018-world-context-navigation.md) — literal transport/path projection corrected by Plan 0019
 
 ## Plan Rules
 

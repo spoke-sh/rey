@@ -46,7 +46,7 @@ Canvas             = spatial view over one bounded topography projection
 Camera             = center + continuous scale + viewport
 Lens               = semantic projection(topography, focus, camera)
 Regime             = one level-of-detail grammar on the lens continuum
-World              = far projection of admitted charts, exact corridors, and
+World              = far projection of admitted charts, survey weather, and
                      unresolved survey horizons
 Neighborhood       = bounded objects around one meaningful coordinate
 Focus              = selected coordinate retained while changing scale
@@ -72,7 +72,7 @@ continuous camera scale and projects six deterministic levels of detail:
 
 | Level | Operator posture | Target object grammar |
 | --- | --- | --- |
-| World / projection | Understand how admitted charts connect and where their known boundary ends | Charted-land envelopes, probe horizons, exact transport corridors, shared-coordinate passages, major POIs, and prerequisite-marked probe trails |
+| World / projection | Understand the admitted field and where its known boundary ends | Charted-land envelopes, probe horizons, unresolved weather fronts, projected river systems, major POIs, and prerequisite-marked frontier stations |
 | Atlas / topographic | Read anchor-shaped relief and see more admitted scenes | Anchor-derived contour isolines, major points of interest, survey boundaries, frontier, and unexplored regions |
 | Landscape / telescope | Survey a bounded region and find concentrations or unresolved direction | Persistent relief, anchor POIs, corpora, workloads, evidence, requests, portfolio, and attention aggregates |
 | Neighborhood / mesoscopic | Compare local structures around one coordinate | Persistent relief and POIs plus exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships |
@@ -81,34 +81,39 @@ continuous camera scale and projects six deterministic levels of detail:
 
 The implementation covers all six levels over one persistent spatial scene.
 World derives a charted-land envelope from displayed admitted anchors and a
-separate survey horizon from anchors plus retained frontier points. It exposes
-exact `contains` edges as containment roads, exact `references` edges as
-directed reference flows, duplicate exact coordinates across admitted charts
-as passages, and frontier rows as visually distinct unresolved probe trails.
+separate survey horizon from anchors plus retained frontier points. Retained
+frontier conditions become local weather fronts without a line back to their
+source coordinate. Exact `contains` and `references` edges and shared
+coordinate identity remain available at deep inspection levels, but do not
+appear as roads, rivers, passages, probe trails, or curation paths.
 The graticule is a semantic orientation aid, not latitude, longitude, or a Web
-Mercator claim. Atlas extracts nested contour isolines from a scalar field whose only
-inputs are admitted anchors and exact classified edges. Overlapping anchor
-influence produces peaks, ridges, and saddles; anchors remain visible as map
-points of interest. Landscape adds more POI labels and survey-state zones,
-Neighborhood adds exact classified relationship lines, Objects add inspection
-cards around the selected POI, and Evidence adds bounded locator and lineage
+Mercator claim. Atlas extracts nested contour isolines from a scalar field whose
+only height inputs are admitted anchor samples. A deterministic rainfall and
+eight-neighbor descent pass accumulates runoff, classifies projected streams
+and rivers, and erodes the displayed field before contour extraction.
+Overlapping anchor influence produces peaks, ridges, saddles, watersheds, and
+drainage basins; anchors remain visible as map points of interest. Landscape
+adds more POI labels and survey-state zones, Neighborhood expands the local
+station reading, Objects add inspection cards around the selected POI, and
+Evidence adds bounded locator, relationship, and lineage
 detail. Coordinates and POI positions do not jump when the level changes.
 When no survey patch is admitted, Atlas labels the topography unexplored and
 falls back to the narrower portfolio projection.
 
 Relief is an evidence projection, not an embedding claim. Current local
-topography places anchors deterministically from admitted containment and
-reference topology, then treats anchor prominence and classified edges as the
-height-field inputs. Contour geometry communicates admitted concentration and
-connected structure only. It does not assert that visual distance is language
-similarity, interpolate an unexplored semantic region, or manufacture an
-untyped relationship. A future provider may bind high-dimensional semantic
+topography places anchors deterministically and derives their prominence from
+admitted seed and resolution sampling rather than graph degree. Contour
+geometry communicates projected sample concentration and runoff erosion only.
+Weather, rainfall, watercourses, and erosion are deterministic presentation
+parameters rather than observed natural facts. They do not assert that visual
+distance is language similarity, interpolate an unexplored semantic region,
+manufacture an untyped relationship, or claim a discovered path. A future provider may bind high-dimensional semantic
 coordinates, but must expose that coordinate revision and projection contract
 before Rey may render semantic distance as observed terrain.
 
 The canvas supports pointer-centered wheel zoom, discrete semantic zoom
 controls, drag-to-pan, keyboard `+`, `-`, and `0`, selection-driven traversal,
-Relief/Routes/Probes visibility controls, and a native full-screen mode. A
+Relief/Water/Weather/Probes visibility controls, and a native full-screen mode. A
 control step cannot skip a semantic regime. Selecting a World POI advances to
 Atlas, then through Landscape, Neighborhood, Object, and Evidence while
 centering that same POI. Level boundaries retain
@@ -118,14 +123,14 @@ survey scenes as the bounded world grows, and zooming in progressively admits
 denser visual layers without replacing the map.
 
 The map reading separates navigation from epistemic change. A selected anchor
-derives one bounded directed curation path from the workspace survey origin. A
-selected frontier may extend that exact path by one dashed unresolved probe
-crossing and names the required prerequisite: widen a bound, revalidate, admit
-a resolver, obtain authority, curate a locator, or verify absence. Anchor
-degree can label a terminus or connected junction, but connectivity is neither
-a mining recommendation nor read authority. Selection and layer toggles never
-reshape relief; only a later admitted patch with changed anchors,
-relationships, coverage, or frontier can change terrain.
+reports its admitted local sample conditions without deriving a route from
+source edges. A selected frontier names the required prerequisite: widen a
+bound, revalidate, admit a resolver, obtain authority, curate a locator, or
+verify absence. Its weather front indicates unresolved boundary pressure but
+does not supply a crossing. Discovered and constructed paths require a
+separate future typed artifact. Selection and layer toggles never reshape
+relief; only a later admitted patch with changed anchors, sampling, coverage,
+omissions, or frontier can change terrain.
 
 In the implemented camera, wheel zoom keeps the semantic coordinate beneath the
 pointer stationary and control zoom keeps the selected focus stationary.
@@ -155,7 +160,7 @@ scrollable documents.
   retained evidence. None of those gestures may run a locator, execute a
   survey workload, admit a patch, or silently broaden authority.
 - Every projection is bounded. Patch-backed terrain renders at most 64 anchor
-  POIs, six frontier POIs, and 192 transport/probe corridors per admitted
+  POIs, six frontier POIs, and 96 natural features per admitted
   patch, plus four detail cards around an inspected POI, and reports folded
   rows and admitted patch omissions in the canvas footer. Legacy portfolio neighborhoods remain bounded to eight
   workload/request and eight attention objects.
@@ -164,9 +169,9 @@ scrollable documents.
 - The selected focus remains a typed coordinate. It cannot grant access,
   execute a workload, admit an action, or resolve its own attention row.
 - Relationship labels carry meaning; geometry is a navigation aid.
-- Containment roads and reference flows are exact-edge projections;
-  shared-coordinate passages require exact coordinate equality; dashed probe
-  trails remain unresolved candidates and never appear as exact routes.
+- Source relationships and shared-coordinate identity remain inspection
+  evidence and never appear as terrain transport. Weather fronts do not imply
+  crossings; streams and rivers do not imply discovered or constructed paths.
 - World envelopes bound displayed evidence and retained frontier, not the
   unknown context universe. No global area or coverage percentage is inferred.
 - Color is redundant with family, label, state, and relationship text.

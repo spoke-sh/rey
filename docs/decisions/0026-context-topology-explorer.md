@@ -7,7 +7,10 @@
   separates semantic Spoke coordinates from view state and adds incremental
   topography plus Atlas and Evidence levels to the continuous lens
 - Extended by: [ADR 0042](0042-world-geometry-and-probe-navigation.md), which
-  adds World geometry, transport corridors, probe horizons, and curation bearings
+  adds World geometry and probe horizons; [ADR
+  0043](0043-emergent-natural-features-and-separate-paths.md) replaces literal
+  edge corridors and curation bearings with emergent natural features and
+  separate path evidence
 
 ## Context
 

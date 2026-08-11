@@ -431,10 +431,11 @@ than a visualization-owned graph or durable source store.
 Context topology plus scale, density, surveyed coverage, boundaries, frontier,
 and explicit unexplored space. It is incrementally composed from admitted
 topography patches. Explorer may derive contour isolines from admitted anchor
-and classified-edge influence plus charted-land and probe-horizon envelopes as
-explicitly visual projections, but never treats that interpolation, visual
-distance, envelope area, or visually empty terrain as observed semantic
-evidence.
+samples, projected atmospheric fronts from unresolved conditions, and
+projected runoff and erosion over that scalar field. Exact survey edges remain
+inspection evidence rather than terrain or paths. None of the interpolation,
+weather, hydrology, visual distance, envelope area, or visually empty terrain
+becomes observed semantic evidence.
 
 ### Context lifecycle
 
@@ -641,9 +642,10 @@ evidence status, and proof status.
 The human operator's primary read-only context-topography map at `/explore`.
 Its continuous patch-backed lens ranges from World through Atlas, Landscape,
 Neighborhood, and Object to exact Evidence over one persistent relief scene.
-Anchors remain stable map POIs while transport corridors, probes, labels, relationships, objects, and
-evidence enter progressively, preserving identity, scope, omissions, and
-authority.
+Anchors remain stable map POIs while projected weather, streams, rivers,
+probes, labels, relationships, objects, and evidence enter progressively,
+preserving identity, scope, omissions, and authority. Source edges do not
+appear as far-map transport, and no displayed natural feature is a path.
 
 ### Explorer view
 
@@ -973,6 +975,13 @@ ordered text, a patch, tree, graph, document, or binary capture. Native
 artifacts may expose typed index relations for navigation without being
 flattened into DataFrames.
 
+### Natural feature
+
+A deterministic Explorer projection produced by admitted survey-field
+conditions rather than a literal source relationship. Current natural features
+are unresolved weather fronts and runoff-derived streams or rivers. They are
+neither observed climate nor discovered or constructed context paths.
+
 ### Nix
 
 The pinned development and package environment defining Rey's toolchains,
@@ -1055,6 +1064,13 @@ clocks remain unordered. Rey's cadence preserves Git reachability,
 environment-admission sequence, and scan schedules without manufacturing one
 global chronology.
 
+### Path
+
+A future separately admitted context-space artifact that is explicitly
+discovered or constructed and binds its coordinates, method or author,
+revision, authority, cost, effects, omissions, and evidence. A survey edge,
+natural feature, camera selection, or visually convenient line is not a path.
+
 ### Plan
 
 A checkable implementation slice in `plans/` containing outcome, completion
@@ -1110,10 +1126,11 @@ projection need not become probes.
 
 ### Probe trail
 
-An Explorer corridor from an exact admitted source anchor to a retained
-unresolved frontier point. It visualizes where a future probe could cross the
-current survey horizon and names its prerequisite, but it is not a resolved
-relationship and selecting it executes nothing.
+The former Explorer corridor from a source anchor to an unresolved frontier
+point. ADR 0043 removes this projection because it made survey extraction
+scaffolding look like world geometry. The current Explorer retains the
+frontier POI and its prerequisite and may show a local weather front, but draws
+no crossing or source connection.
 
 ### Process
 

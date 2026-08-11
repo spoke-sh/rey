@@ -6,7 +6,10 @@
 - Supersedes: the complete matrix-style Explorer coordinate grammar in [ADR
   0030](0030-operator-cadence-agents-and-explorer-coordinates.md)
 - Extended by: [ADR 0042](0042-world-geometry-and-probe-navigation.md), which
-  adds the World level, transport geometry, and probe-first navigation
+  adds the World level and probe-first navigation; [ADR
+  0043](0043-emergent-natural-features-and-separate-paths.md) replaces its
+  literal transport projection with emergent natural features and separate
+  path evidence
 
 ## Context
 

@@ -18,12 +18,14 @@ edges, surveyed and unknown region states, coverage, frontier, omissions,
 lineage, hard limits, and a directed delta. Explorer consumes that retained
 patch; it performs no independent source scan or assessment.
 
-Plan 0018 adds a prospecting projection over that same patch. Exact
-`contains`/`references` edges become labeled transport corridors, shared
-coordinate equality can bridge admitted charts, and unresolved frontier rows
-become dashed probe trails with status-specific prerequisites. Anchor degree is
-shown only as connectivity. None of these projections recommends mining,
-grants authority, or executes a probe.
+Plan 0018 added the World projection over that same patch. ADR 0043 and Plan
+0019 correct its visual ontology: exact `contains`/`references` edges and
+shared-coordinate equality remain inspector evidence rather than transport.
+Anchor samples shape relief, unresolved frontier conditions become projected
+weather, and deterministic runoff may carve displayed streams, rivers, and
+erosion. These natural features neither recommend mining nor claim a
+discovered or constructed path, and no projection grants authority or executes
+a probe.
 
 ADR 0022 and Plan 0010 now extend this foundation with ongoing portfolio
 mining. The canonical portfolio snapshot and workload-attention relation, a

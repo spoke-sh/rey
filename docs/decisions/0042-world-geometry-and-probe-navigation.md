@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-08-10
 - Extends: [ADR 0041](0041-continuous-coordinate-topography.md)
+- Amended: the transport and curation-path projection is superseded by [ADR
+  0043](0043-emergent-natural-features-and-separate-paths.md)
 
 ## Context
 
@@ -48,7 +50,12 @@ where the current survey stops. Space outside remains unexplored with no
 inferred global boundary, area, coverage percentage, terrain, or similarity.
 Neither envelope becomes retained source truth.
 
-### Transport geometry
+### Transport geometry (superseded)
+
+ADR 0043 removes every corridor below from the current relief projection.
+These entries preserve the historical decision; exact edges now remain deep
+inspection evidence while natural features emerge from admitted survey-field
+conditions.
 
 The far map exposes connectivity through redundant labeled corridor classes:
 

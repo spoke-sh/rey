@@ -79,7 +79,8 @@ emits `rey.topography-patch.v1` plus a directed patch delta. Those seed names ar
 implicit configuration, and neither locator parsing nor Explorer navigation
 initiates recursive retrieval.
 
-[Plan 0018](../plans/0018-world-context-navigation.md) projects an unresolved
-locator outcome as a probe trail from its exact source anchor and labels the
-required prerequisite. That trail remains a candidate boundary, never a
-resolved relationship or permission to invoke a resolver.
+[Plan 0019](../plans/0019-emergent-context-features.md) projects an unresolved
+locator outcome as a frontier station and local weather condition and labels
+the required prerequisite. It draws no line back to the source anchor: the
+front is neither a crossing, a resolved relationship, a path, nor permission
+to invoke a resolver.

@@ -46,7 +46,8 @@ guide experiments but do not outrank the architecture until accepted.
 | [0039](0039-bounded-operator-feed.md) | Accepted | Bounded high-cadence inspection queue and signal feed without inventing a global event log |
 | [0040](0040-workspace-channels-and-operator-index.md) | Accepted | Standalone frontier observations, Journal seeds, workspace-local channel graph, Git-shaped operator index, Feed persistence, and relay boundary |
 | [0041](0041-continuous-coordinate-topography.md) | Accepted | Hard-cut semantic coordinate/scale links, continuous lens, admitted survey voyages, and incremental evidence-backed context topography |
-| [0042](0042-world-geometry-and-probe-navigation.md) | Accepted | Six-level World projection, evidence-backed transport geometry, probe horizons, and read-only curation bearings |
+| [0042](0042-world-geometry-and-probe-navigation.md) | Accepted; transport/path projection superseded by 0043 | Six-level World projection and probe horizons |
+| [0043](0043-emergent-natural-features-and-separate-paths.md) | Accepted | Anchor-field relief, unresolved weather, runoff hydrology and erosion, and separate discovered/constructed path evidence |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

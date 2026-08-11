@@ -166,9 +166,11 @@ bounded workload-list document used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. The Explorer projects admitted topography patches
 through one persistent semantic scene. World derives charted envelopes,
-unresolved probe horizons, and labeled transport corridors from admitted patch
-evidence. Atlas derives terrain-style contour isolines from bounded anchor and
-exact classified-edge influence and retains anchors as stable map POIs.
+unresolved probe horizons, and boundary weather from admitted patch evidence.
+Atlas derives terrain-style contour isolines from bounded anchor-sample
+influence, projects accumulated runoff, and lets projected erosion reshape the
+displayed field while retaining anchors as stable map POIs. Exact survey edges
+remain deep inspection evidence rather than relief or path geometry.
 Landscape, Neighborhood, Object, and Evidence progressively add labels, survey zones, relationships, inspection objects, and
 exact basis without replacing the map. Identity, relationship classification,
 bounds, and omissions survive those visual transitions. Semantic coordinates
@@ -745,8 +747,10 @@ frontier derivation and provider execution path. The admitted
 `context-anchor-survey` workspace package adds a bounded local survey provider,
 typed topography patches, directed patch deltas, and CLI/UI projections over
 the retained result. The browser additionally derives bounded World geometry,
-exact transport classes, probe prerequisites, and selected curation bearings;
-the CLI exposes their source counts and boundary actions. Generic dependency
+anchor-only relief, unresolved atmospheric fronts, projected hydrology and
+erosion, and probe prerequisites; the CLI exposes their admitted inputs,
+excluded edge provenance, projection limits, and boundary actions. Discovered
+or constructed paths require a separate future evidence contract. Generic dependency
 invalidation, recurring scheduling, policy proposals, Git activation, and the
 Spoke provider remain target architecture.
 

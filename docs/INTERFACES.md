@@ -997,20 +997,22 @@ Canonical coordinates order `revision`, `role`; stale bindings remain visible.
 The former matrix path and parser are removed. Journal v2 retains semantic
 coordinate and numeric scale separately, and old Journal state is rejected.
 
-Plans 0017 and 0018's Explorer consumes admitted `rey.topography-patch.v1`
+Plans 0017 through 0019's Explorer consumes admitted `rey.topography-patch.v1`
 evidence produced through the workloads interface. One continuous camera
 projects World, Atlas, Landscape, Neighborhood, Object, and Evidence levels while
 retaining the selected provider-qualified coordinate. Camera state never
 becomes resource identity. Surveyed-empty, unexplored, omitted, stale,
 unsupported, truncated, and frontier regions remain distinct, and navigation
 does not execute locators or workloads. The CLI must expose each patch's seed
-coverage, resolution outcomes, anchors, relationships, world/transport counts,
+coverage, resolution outcomes, anchors, relationships, world and atmospheric
+conditions, natural-feature projection limits, excluded edge provenance,
 probe prerequisites, directed delta, bounds, and lineage before the browser projection is considered complete. See [Context
 Topology Explorer](EXPLORER.md), [ADR
 0026](decisions/0026-context-topology-explorer.md), and [ADR
 0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md), and
-[ADR 0041](decisions/0041-continuous-coordinate-topography.md), and [ADR
-0042](decisions/0042-world-geometry-and-probe-navigation.md).
+[ADR 0041](decisions/0041-continuous-coordinate-topography.md), [ADR
+0042](decisions/0042-world-geometry-and-probe-navigation.md), and [ADR
+0043](decisions/0043-emergent-natural-features-and-separate-paths.md).
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded

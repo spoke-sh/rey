@@ -276,17 +276,20 @@ as `AGENTS.md` and README variants, locate URI/reference candidates, resolve
 them under explicit authority and limits, and emit typed topography patches
 with coverage, frontier, omissions, lineage, and directed deltas. A continuous
 camera projects the same admitted evidence as terrain-style isolines shaped by
-anchor prominence and exact classified edges, with anchors retained as stable
-points of interest. World scale adds charted-land and probe-horizon geometry;
-exact containment roads, directed reference flows, shared-coordinate passages,
-and unresolved probe trails explain how the topology connects. Zooming in
-progressively adds labels, curation paths, relationships, objects, and exact
-evidence to that same scene. Current local relief means relational concentration,
-not language similarity. Unexplored space stays unknown, and moving the canvas
-never launches a hidden crawl. See
+admitted anchor samples, with anchors retained as stable points of interest.
+World scale adds charted-land and probe-horizon geometry. Unresolved conditions
+form projected weather fronts; deterministic rainfall and downslope
+accumulation over the anchor-only field may carve streams, rivers, and visible
+erosion. These natural features are projections rather than source edges,
+observed climate, or discovered paths. Zooming in progressively adds labels,
+relationships, objects, and exact evidence to that same scene. Current local
+relief is not language similarity. Unexplored space stays unknown, and moving
+the canvas never launches a hidden crawl or builds a path. See
 [ADR 0041](docs/decisions/0041-continuous-coordinate-topography.md), [ADR
 0042](docs/decisions/0042-world-geometry-and-probe-navigation.md), and [Plan
-0018](plans/0018-world-context-navigation.md). `/feed` comes first in
+0018](plans/0018-world-context-navigation.md), as corrected by [ADR
+0043](docs/decisions/0043-emergent-natural-features-and-separate-paths.md) and
+[Plan 0019](plans/0019-emergent-context-features.md). `/feed` comes first in
 primary navigation as the high-cadence inspection plane. Its default
 composition is three TweetDeck-like vertical streams: rich Signals,
 inspect-only Admission, and observed workload Flow. A quiet Firehose rail adds

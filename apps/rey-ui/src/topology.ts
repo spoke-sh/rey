@@ -62,24 +62,22 @@ export interface TopologyLandform {
   tone: TopologyTone;
 }
 
-export interface TopologyRoute {
+export interface TopologyNaturalFeature {
   id: string;
-  from: string;
-  to: string;
   path: string;
-  kind: "containment" | "reference" | "passage" | "probe";
+  kind: "stream" | "river" | "weather_front";
   label: string;
-  evidence: string;
-  prominence: number;
-  selected: boolean;
+  detail: string;
+  intensity: number;
+  workload_id: string;
 }
 
 export interface TopologyBearing {
   status: "world" | "charted" | "probe_required" | "isolated";
   label: string;
   detail: string;
-  exact_steps: number;
-  probe_steps: number;
+  sampled_conditions: number;
+  unresolved_boundaries: number;
 }
 
 export interface TopologyPointOfInterest {
@@ -129,7 +127,7 @@ export interface TopologyScene {
   regions: TopologyRegion[];
   landforms: TopologyLandform[];
   contours: TopologyContour[];
-  routes: TopologyRoute[];
+  natural_features: TopologyNaturalFeature[];
   points: TopologyPointOfInterest[];
   nodes: TopologyNode[];
   edges: TopologyEdge[];
@@ -152,7 +150,7 @@ export const EVIDENCE_LENS_ZOOM = 3.55;
 
 const NEIGHBORHOOD_LIMIT = 8;
 const TOPOGRAPHY_POI_LIMIT = 64;
-const TOPOGRAPHY_ROUTE_LIMIT = 192;
+const TOPOGRAPHY_NATURAL_FEATURE_LIMIT = 96;
 const LENS_HYSTERESIS = 0.05;
 
 const LENS_ORDER: readonly LensRegime[] = [
@@ -228,14 +226,14 @@ export function buildTopologyScene(
     ...projection,
     landforms: projection.landforms ?? [],
     contours: projection.contours ?? [],
-    routes: projection.routes ?? [],
+    natural_features: projection.natural_features ?? [],
     points: projection.points ?? [],
     bearing: projection.bearing ?? {
       status: "isolated",
       label: "NO CHARTED BEARING",
       detail: "no admitted survey geometry",
-      exact_steps: 0,
-      probe_steps: 0,
+      sampled_conditions: 0,
+      unresolved_boundaries: 0,
     },
     terrain: projection.terrain ?? false,
     world: projection.world ?? topologyWorld(projection),
@@ -250,16 +248,16 @@ type TopologyProjection = Omit<
   | "contours"
   | "fit_world"
   | "landforms"
+  | "natural_features"
   | "points"
-  | "routes"
   | "terrain"
   | "world"
 > & {
   bearing?: TopologyBearing;
   contours?: TopologyContour[];
   landforms?: TopologyLandform[];
+  natural_features?: TopologyNaturalFeature[];
   points?: TopologyPointOfInterest[];
-  routes?: TopologyRoute[];
   terrain?: boolean;
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
@@ -1260,12 +1258,11 @@ const TERRAIN_LEVELS = [0.12, 0.23, 0.35, 0.48, 0.61, 0.74, 0.86] as const;
 
 interface SurveyTerrainLayout {
   contours: TopologyContour[];
-  edges: TopologyEdge[];
   landforms: TopologyLandform[];
+  natural_features: TopologyNaturalFeature[];
   omissions: string[];
   points: TopologyPointOfInterest[];
   regions: TopologyRegion[];
-  routes: TopologyRoute[];
   world: TopologyWorld;
 }
 
@@ -1286,17 +1283,11 @@ function buildSurveyTerrain(
     requestedFocusPoint ??
     selectedPoints.find((point) => point.family === "WORKSPACE") ??
     selectedPoints[0];
-  const routeBearing = buildRouteBearing(
-    layout.routes,
+  const bearing = buildSurveyBearing(
     selectedPoints,
     requestedFocusPoint,
-    selected.patch.frontier.length,
+    selected.patch,
   );
-  const selectedRouteIds = new Set(routeBearing.route_ids);
-  const routes = layout.routes.map((route) => ({
-    ...route,
-    selected: selectedRouteIds.has(route.id),
-  }));
   const detail = buildSurveyTerrainDetails(
     selected,
     focusPoint,
@@ -1314,14 +1305,16 @@ function buildSurveyTerrain(
     (count, { patch }) => count + patch.anchors.length,
     0,
   );
-  const edgeCount = topographies.reduce(
-    (count, { patch }) => count + patch.edges.length,
-    0,
-  );
+  const streamCount = layout.natural_features.filter(
+    (feature) => feature.kind === "stream" || feature.kind === "river",
+  ).length;
+  const weatherFrontCount = layout.natural_features.filter(
+    (feature) => feature.kind === "weather_front",
+  ).length;
   const regimeCopy = {
     world: {
       label: "CONTEXT WORLD",
-      detail: `${topographies.length} admitted chart${topographies.length === 1 ? "" : "s"} · ${layout.routes.length} topology corridors · ${layout.points.filter((point) => point.kind === "frontier").length} boundary probes`,
+      detail: `${topographies.length} admitted chart${topographies.length === 1 ? "" : "s"} · ${streamCount} emergent water systems · ${weatherFrontCount} boundary weather fronts`,
     },
     atlas: {
       label: "ANCHOR RELIEF ATLAS",
@@ -1329,11 +1322,11 @@ function buildSurveyTerrain(
     },
     landscape: {
       label: "ANCHOR TERRAIN",
-      detail: `${anchorCount} anchor POIs · ${edgeCount} classified ridge inputs · surveyed boundaries visible`,
+      detail: `${anchorCount} anchor stations · anchor-only relief with projected runoff and erosion · surveyed boundaries visible`,
     },
     neighborhoods: {
       label: "ANCHOR NEIGHBORHOOD",
-      detail: `${selected.workload.workload.id} · exact classified relationships over persistent relief`,
+      detail: `${selected.workload.workload.id} · local survey conditions over persistent relief`,
     },
     objects: {
       label: "ANCHOR OBJECTS",
@@ -1351,12 +1344,12 @@ function buildSurveyTerrain(
     regions: visibleRegions,
     landforms: layout.landforms,
     contours: layout.contours,
-    routes,
+    natural_features: layout.natural_features,
     points: layout.points,
     nodes: detail.nodes,
     edges: visibleEdges,
     omissions: layout.omissions,
-    bearing: routeBearing.bearing,
+    bearing,
     world: layout.world,
     fit_world: TERRAIN_CELL,
     terrain: true,
@@ -1373,14 +1366,14 @@ function layoutSurveyTerrain(
     height: rows * TERRAIN_CELL.height,
   };
   const contours: TopologyContour[] = [];
-  const edges: TopologyEdge[] = [];
   const landforms: TopologyLandform[] = [];
+  const naturalFeatures: TopologyNaturalFeature[] = [];
   const omissions: string[] = [
-    "relief height is admitted anchor and classified-edge influence, not inferred semantic similarity",
+    "relief height is admitted anchor-sample influence, not inferred semantic similarity",
+    "streams, rivers, weather fronts, and erosion are deterministic survey-field projections, not retained paths or source relationships",
   ];
   const points: TopologyPointOfInterest[] = [];
   const regions: TopologyRegion[] = [];
-  const routes: TopologyRoute[] = [];
 
   const ordered = [...topographies].sort((left, right) =>
     left.workload.workload.id.localeCompare(right.workload.workload.id),
@@ -1452,15 +1445,17 @@ function layoutSurveyTerrain(
         );
       })
       .slice(0, TOPOGRAPHY_POI_LIMIT);
-    const degree = new Map<string, number>();
-    patch.edges.forEach((candidate) => {
-      degree.set(
-        candidate.source_coordinate,
-        (degree.get(candidate.source_coordinate) ?? 0) + 1,
-      );
-      degree.set(
-        candidate.target_coordinate,
-        (degree.get(candidate.target_coordinate) ?? 0) + 1,
+    const samplesByCoordinate = new Map<string, number>();
+    patch.seeds.forEach((seed) => {
+      if (!seed.coordinate) return;
+      samplesByCoordinate.set(seed.coordinate.coordinate, seed.candidate_count);
+    });
+    patch.resolutions.forEach((resolution) => {
+      const coordinate = resolution.coordinate?.coordinate;
+      if (!coordinate) return;
+      samplesByCoordinate.set(
+        coordinate,
+        (samplesByCoordinate.get(coordinate) ?? 0) + 1,
       );
     });
     const nonWorkspace = visibleAnchors.filter(
@@ -1489,24 +1484,32 @@ function layoutSurveyTerrain(
         nonWorkspaceIndex < 0
           ? center.y
           : center.y + Math.sin(angle) * (140 + ring * 40) * radiusMultiplier;
-      const anchorDegree = degree.get(anchor.coordinate.coordinate) ?? 0;
+      const sampledConditions =
+        anchor.kind === "workspace"
+          ? patch.coverage.surveyed_seeds
+          : (samplesByCoordinate.get(anchor.coordinate.coordinate) ?? 0);
+      const prominence =
+        anchor.kind === "workspace"
+          ? 4
+          : Math.min(4, 1 + Math.ceil(Math.log2(sampledConditions + 1)));
       points.push({
         id: `anchor-node:${workload.workload.id}:${anchor.anchor_id}`,
         focus_id: `anchor:${workload.workload.id}:${anchor.anchor_id}`,
         kind: "anchor",
         family: anchor.kind.replaceAll("_", " ").toUpperCase(),
         label: anchor.label,
-        detail: `${anchorDegree} classified relation${anchorDegree === 1 ? "" : "s"} · ${shortCoordinate(anchor.source_revision)}`,
+        detail: `${sampledConditions} admitted survey sample${sampledConditions === 1 ? "" : "s"} · ${shortCoordinate(anchor.source_revision)}`,
         x,
         y,
-        prominence:
-          anchor.kind === "workspace" ? 4 : Math.min(4, 1 + anchorDegree),
+        prominence,
         signal:
-          anchorDegree >= 3
-            ? `CONNECTED JUNCTION / ${anchorDegree} EXACT ROUTES`
-            : anchorDegree > 0
-              ? `CHARTED / ${anchorDegree} EXACT ROUTE${anchorDegree === 1 ? "" : "S"}`
-              : "CHARTED TERMINUS / NO CLASSIFIED ROUTE",
+          anchor.kind === "workspace"
+            ? `SURVEY ORIGIN / ${sampledConditions} ADMITTED SEED CONDITION${sampledConditions === 1 ? "" : "S"}`
+            : sampledConditions >= 3
+              ? `DENSE SAMPLE / ${sampledConditions} ADMITTED OBSERVATIONS`
+              : sampledConditions > 0
+                ? `SAMPLED / ${sampledConditions} ADMITTED OBSERVATION${sampledConditions === 1 ? "" : "S"}`
+                : "SURVEYED STATION / NO LOCAL CANDIDATE OBSERVATION",
         action: "EXACT COORDINATE / MINING STILL REQUIRES AN ADMITTED WORKLOAD",
         tone: "healthy",
         workload_id: workload.workload.id,
@@ -1539,83 +1542,6 @@ function layoutSurveyTerrain(
       (point) =>
         point.workload_id === workload.workload.id && point.kind === "anchor",
     );
-    const byCoordinate = new Map(
-      patchPoints.flatMap((point) =>
-        point.coordinate_uri ? [[point.coordinate_uri, point] as const] : [],
-      ),
-    );
-    const patchEdges = patch.edges.flatMap((candidate) => {
-      const from = byCoordinate.get(candidate.source_coordinate);
-      const to = byCoordinate.get(candidate.target_coordinate);
-      return from && to
-        ? [
-            edge(
-              candidate.edge_id,
-              from.id,
-              to.id,
-              candidate.kind === "contains" ? "contains" : "observes",
-              candidate.kind,
-            ),
-          ]
-        : [];
-    });
-    edges.push(...patchEdges);
-    const routeCandidates = patch.edges.flatMap((candidate) => {
-      const from = byCoordinate.get(candidate.source_coordinate);
-      const to = byCoordinate.get(candidate.target_coordinate);
-      if (!from || !to) return [];
-      const routeKind =
-        candidate.kind === "contains" ? "containment" : "reference";
-      return [
-        topologyRoute(
-          `route:${workload.workload.id}:${candidate.edge_id}`,
-          from,
-          to,
-          routeKind,
-          candidate.kind,
-          candidate.evidence_revision,
-          Math.max(1, Math.min(4, Math.min(from.prominence, to.prominence))),
-        ),
-      ];
-    });
-    const frontierById = new Map(
-      points
-        .filter(
-          (point) =>
-            point.workload_id === workload.workload.id &&
-            point.kind === "frontier",
-        )
-        .map((point) => [point.id, point]),
-    );
-    const probeRoutes = patch.frontier.flatMap((frontier) => {
-      const from = byCoordinate.get(frontier.source_coordinate);
-      const to = frontierById.get(
-        `frontier-node:${workload.workload.id}:${frontier.row_id}`,
-      );
-      return from && to
-        ? [
-            topologyRoute(
-              `probe-route:${workload.workload.id}:${frontier.row_id}`,
-              from,
-              to,
-              "probe",
-              boundaryProbeAction(frontier.status),
-              frontier.reason,
-              1,
-            ),
-          ]
-        : [];
-    });
-    const boundedRoutes = [...routeCandidates, ...probeRoutes].slice(
-      0,
-      TOPOGRAPHY_ROUTE_LIMIT,
-    );
-    routes.push(...boundedRoutes);
-    if (routeCandidates.length + probeRoutes.length > boundedRoutes.length)
-      omissions.push(
-        `${routeCandidates.length + probeRoutes.length - boundedRoutes.length} map corridors folded from ${workload.workload.id}`,
-      );
-
     const patchFrontierPoints = points.filter(
       (point) =>
         point.workload_id === workload.workload.id && point.kind === "frontier",
@@ -1646,14 +1572,28 @@ function layoutSurveyTerrain(
         tone: patchFrontierPoints.length > 0 ? "frontier" : "unknown",
       },
     );
-    contours.push(
-      ...buildReliefContours(workload.workload.id, patchPoints, patchEdges, {
+    const terrainField = buildTerrainField(
+      workload.workload.id,
+      patchPoints,
+      patchFrontierPoints,
+      patch,
+      {
         x: origin.x + 100,
         y: origin.y + 80,
         width: TERRAIN_CELL.width - 200,
         height: TERRAIN_CELL.height - 160,
-      }),
+      },
     );
+    contours.push(...terrainField.contours);
+    const boundedFeatures = terrainField.natural_features.slice(
+      0,
+      TOPOGRAPHY_NATURAL_FEATURE_LIMIT,
+    );
+    naturalFeatures.push(...boundedFeatures);
+    if (terrainField.natural_features.length > boundedFeatures.length)
+      omissions.push(
+        `${terrainField.natural_features.length - boundedFeatures.length} natural features folded from ${workload.workload.id}`,
+      );
 
     omissions.push(
       ...patch.omissions.map(
@@ -1670,15 +1610,13 @@ function layoutSurveyTerrain(
         `${patch.frontier.length - visibleFrontier.length} frontier POIs folded from ${workload.workload.id}`,
       );
   });
-  addSharedCoordinatePassages(points, routes, omissions);
   return {
     contours,
-    edges,
     landforms,
+    natural_features: naturalFeatures,
     omissions,
     points,
     regions,
-    routes,
     world,
   };
 }
@@ -1833,14 +1771,30 @@ function buildSurveyTerrainDetails(
   return { edges, nodes };
 }
 
-function buildReliefContours(
+interface TerrainFieldResult {
+  contours: TopologyContour[];
+  natural_features: TopologyNaturalFeature[];
+}
+
+interface TerrainFlowCell {
+  accumulation: number;
+  column: number;
+  downstream?: number;
+  height: number;
+  hydraulic_height: number;
+  rainfall: number;
+  row: number;
+}
+
+function buildTerrainField(
   id: string,
   points: TopologyPointOfInterest[],
-  edges: TopologyEdge[],
+  frontier: TopologyPointOfInterest[],
+  patch: TopographyPatch,
   bounds: { x: number; y: number; width: number; height: number },
-): TopologyContour[] {
-  if (points.length === 0) return [];
-  const byId = new Map(points.map((point) => [point.id, point]));
+): TerrainFieldResult {
+  if (points.length === 0) return { contours: [], natural_features: [] };
+
   const grid: number[][] = [];
   let maximum = 0;
   for (let row = 0; row <= TERRAIN_GRID.rows; row += 1) {
@@ -1855,21 +1809,101 @@ function buildReliefContours(
         height +=
           point.prominence * Math.exp(-distanceSquared / (2 * sigma * sigma));
       });
-      edges.forEach((candidate) => {
-        const from = byId.get(candidate.from);
-        const to = byId.get(candidate.to);
-        if (!from || !to) return;
-        const distance = distanceToSegment(x, y, from.x, from.y, to.x, to.y);
-        height += 0.72 * Math.exp(-(distance * distance) / (2 * 58 * 58));
-      });
       values.push(height);
       maximum = Math.max(maximum, height);
     }
     grid.push(values);
   }
-  return TERRAIN_LEVELS.flatMap((ratio, index) => {
-    const threshold = maximum * ratio;
-    const path = marchingSquaresPath(grid, threshold, bounds);
+
+  const columns = TERRAIN_GRID.columns + 1;
+  const rows = TERRAIN_GRID.rows + 1;
+  const drainageHash = stableHash(id);
+  const xDirection = drainageHash % 2 === 0 ? 1 : -1;
+  const yDirection = (drainageHash >>> 1) % 2 === 0 ? 1 : -1;
+  const unresolvedPressure = Math.min(
+    1.8,
+    patch.frontier.length * 0.08 +
+      patch.coverage.unresolved_candidates * 0.04 +
+      patch.omissions.reduce(
+        (total, omission) => total + omission.omitted_count,
+        0,
+      ) *
+        0.03,
+  );
+  const cells: TerrainFlowCell[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const height = grid[row]![column]!;
+      const x = bounds.x + (column / TERRAIN_GRID.columns) * bounds.width;
+      const y = bounds.y + (row / TERRAIN_GRID.rows) * bounds.height;
+      const atmosphericInput = frontier.reduce((total, point) => {
+        const distanceSquared = (x - point.x) ** 2 + (y - point.y) ** 2;
+        return total + Math.exp(-distanceSquared / (2 * 210 * 210));
+      }, 0);
+      const rainfall =
+        0.18 +
+        (maximum === 0 ? 0 : height / maximum) * 0.82 +
+        atmosphericInput * 0.28 +
+        unresolvedPressure * 0.12;
+      const tilt =
+        maximum *
+        0.035 *
+        ((column / TERRAIN_GRID.columns) * xDirection +
+          (row / TERRAIN_GRID.rows) * yDirection);
+      cells.push({
+        accumulation: rainfall,
+        column,
+        height,
+        hydraulic_height: height + tilt,
+        rainfall,
+        row,
+      });
+    }
+  }
+
+  const cellIndex = (column: number, row: number) => row * columns + column;
+  cells.forEach((cell) => {
+    let downstream: TerrainFlowCell | undefined;
+    for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+      for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+        if (rowOffset === 0 && columnOffset === 0) continue;
+        const column = cell.column + columnOffset;
+        const row = cell.row + rowOffset;
+        if (column < 0 || column >= columns || row < 0 || row >= rows) continue;
+        const candidate = cells[cellIndex(column, row)]!;
+        if (
+          candidate.hydraulic_height < cell.hydraulic_height &&
+          (!downstream ||
+            candidate.hydraulic_height < downstream.hydraulic_height)
+        )
+          downstream = candidate;
+      }
+    }
+    if (downstream)
+      cell.downstream = cellIndex(downstream.column, downstream.row);
+  });
+
+  [...cells]
+    .sort((left, right) => right.hydraulic_height - left.hydraulic_height)
+    .forEach((cell) => {
+      if (cell.downstream === undefined) return;
+      cells[cell.downstream]!.accumulation += cell.accumulation;
+    });
+  const maximumAccumulation = Math.max(
+    ...cells.map((cell) => cell.accumulation),
+  );
+  const erodedGrid = grid.map((values, row) =>
+    values.map((height, column) => {
+      const accumulation = cells[cellIndex(column, row)]!.accumulation;
+      const erosion =
+        maximum * 0.18 * Math.pow(accumulation / maximumAccumulation, 0.72);
+      return Math.max(0, height - erosion);
+    }),
+  );
+  const erodedMaximum = Math.max(...erodedGrid.flat());
+  const contours = TERRAIN_LEVELS.flatMap((ratio, index) => {
+    const threshold = erodedMaximum * ratio;
+    const path = marchingSquaresPath(erodedGrid, threshold, bounds);
     return path
       ? [
           {
@@ -1882,35 +1916,74 @@ function buildReliefContours(
         ]
       : [];
   });
-}
 
-function topologyRoute(
-  id: string,
-  from: TopologyPointOfInterest,
-  to: TopologyPointOfInterest,
-  kind: TopologyRoute["kind"],
-  label: string,
-  evidence: string,
-  prominence: number,
-): TopologyRoute {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  const length = Math.max(1, Math.hypot(deltaX, deltaY));
-  const bendDirection = stableHash(id) % 2 === 0 ? 1 : -1;
-  const bend = Math.min(48, length * 0.12) * bendDirection;
-  const controlX = (from.x + to.x) / 2 - (deltaY / length) * bend;
-  const controlY = (from.y + to.y) / 2 + (deltaX / length) * bend;
-  return {
-    id,
-    from: from.id,
-    to: to.id,
-    path: `M${from.x.toFixed(1)},${from.y.toFixed(1)} Q${controlX.toFixed(1)},${controlY.toFixed(1)} ${to.x.toFixed(1)},${to.y.toFixed(1)}`,
-    kind,
-    label,
-    evidence,
-    prominence,
-    selected: false,
-  };
+  const streamThreshold = Math.max(3.2, maximumAccumulation * 0.055);
+  const riverThreshold = Math.max(
+    streamThreshold * 2.4,
+    maximumAccumulation * 0.2,
+  );
+  const segmentPath = (minimum: number, maximum?: number) =>
+    cells
+      .filter(
+        (cell) =>
+          cell.downstream !== undefined &&
+          cell.accumulation >= minimum &&
+          (maximum === undefined || cell.accumulation < maximum),
+      )
+      .map((cell) => {
+        const downstream = cells[cell.downstream!]!;
+        const from = {
+          x: bounds.x + (cell.column / TERRAIN_GRID.columns) * bounds.width,
+          y: bounds.y + (cell.row / TERRAIN_GRID.rows) * bounds.height,
+        };
+        const to = {
+          x:
+            bounds.x +
+            (downstream.column / TERRAIN_GRID.columns) * bounds.width,
+          y: bounds.y + (downstream.row / TERRAIN_GRID.rows) * bounds.height,
+        };
+        return `M${from.x.toFixed(1)},${from.y.toFixed(1)}L${to.x.toFixed(1)},${to.y.toFixed(1)}`;
+      })
+      .join("");
+  const streamPath = segmentPath(streamThreshold, riverThreshold);
+  const riverPath = segmentPath(riverThreshold);
+  const naturalFeatures: TopologyNaturalFeature[] = [];
+  if (streamPath)
+    naturalFeatures.push({
+      id: `stream-system:${id}`,
+      path: streamPath,
+      kind: "stream",
+      label: "PROJECTED HEADWATERS",
+      detail:
+        "downslope accumulation over anchor-only relief under admitted survey conditions; not a source relationship or discovered path",
+      intensity: Math.min(4, Math.max(1, maximumAccumulation / 18)),
+      workload_id: id,
+    });
+  if (riverPath)
+    naturalFeatures.push({
+      id: `river-system:${id}`,
+      path: riverPath,
+      kind: "river",
+      label: "ACCUMULATED FLOW",
+      detail:
+        "high-accumulation runoff projected from the same field that erodes the displayed relief; not retained hydrology",
+      intensity: Math.min(4, Math.max(2, maximumAccumulation / 28)),
+      workload_id: id,
+    });
+  frontier.forEach((point, index) => {
+    const radius = 58 + point.prominence * 14;
+    const skew = index % 2 === 0 ? 1 : -1;
+    naturalFeatures.push({
+      id: `weather-front:${id}:${point.id}`,
+      path: `M${(point.x - radius).toFixed(1)},${point.y.toFixed(1)} C${(point.x - radius * 0.45).toFixed(1)},${(point.y - radius * 0.7 * skew).toFixed(1)} ${(point.x + radius * 0.35).toFixed(1)},${(point.y + radius * 0.72 * skew).toFixed(1)} ${(point.x + radius).toFixed(1)},${point.y.toFixed(1)}`,
+      kind: "weather_front",
+      label: "UNRESOLVED SURVEY FRONT",
+      detail: `${point.detail} · ${point.signal}`,
+      intensity: Math.min(4, 1 + unresolvedPressure),
+      workload_id: id,
+    });
+  });
+  return { contours, natural_features: naturalFeatures };
 }
 
 function envelopePath(
@@ -1950,56 +2023,23 @@ function envelopePath(
   return `M${first.x.toFixed(1)},${first.y.toFixed(1)} ${segments.join(" ")} Z`;
 }
 
-function addSharedCoordinatePassages(
-  points: TopologyPointOfInterest[],
-  routes: TopologyRoute[],
-  omissions: string[],
-) {
-  const byCoordinate = new Map<string, TopologyPointOfInterest[]>();
-  points.forEach((point) => {
-    if (!point.coordinate_uri || point.kind !== "anchor") return;
-    const matches = byCoordinate.get(point.coordinate_uri) ?? [];
-    matches.push(point);
-    byCoordinate.set(point.coordinate_uri, matches);
-  });
-  const passages = [...byCoordinate.entries()].flatMap(
-    ([coordinate, matches]) =>
-      matches
-        .slice(1)
-        .map((point, index) =>
-          topologyRoute(
-            `passage:${stableHash(coordinate)}:${index}`,
-            matches[0]!,
-            point,
-            "passage",
-            "shared coordinate",
-            coordinate,
-            4,
-          ),
-        ),
-  );
-  const remaining = Math.max(0, TOPOGRAPHY_ROUTE_LIMIT - routes.length);
-  routes.push(...passages.slice(0, remaining));
-  if (passages.length > remaining)
-    omissions.push(`${passages.length - remaining} world passages folded`);
-}
-
-function buildRouteBearing(
-  routes: TopologyRoute[],
+function buildSurveyBearing(
   points: TopologyPointOfInterest[],
   focusPoint: TopologyPointOfInterest | undefined,
-  frontierCount: number,
-): { bearing: TopologyBearing; route_ids: string[] } {
+  patch: TopographyPatch,
+): TopologyBearing {
+  const sampledConditions = patch.seeds.reduce(
+    (total, seed) => total + seed.candidate_count,
+    0,
+  );
+  const frontierCount = patch.frontier.length;
   if (!focusPoint) {
     return {
-      bearing: {
-        status: "world",
-        label: "WORLD GEOMETRY",
-        detail: `${routes.filter((route) => route.kind !== "probe").length} exact corridors · ${frontierCount} probe-first horizons`,
-        exact_steps: 0,
-        probe_steps: frontierCount,
-      },
-      route_ids: [],
+      status: "world",
+      label: "SURVEY WEATHER",
+      detail: `${sampledConditions} admitted local conditions · ${frontierCount} unresolved boundary front${frontierCount === 1 ? "" : "s"} · no path has been discovered or built`,
+      sampled_conditions: sampledConditions,
+      unresolved_boundaries: frontierCount,
     };
   }
   const origin =
@@ -2010,76 +2050,28 @@ function buildRouteBearing(
     ) ?? points[0];
   if (!origin || origin.id === focusPoint.id) {
     return {
-      bearing: {
-        status: "world",
-        label: "SURVEY ORIGIN",
-        detail: `${frontierCount} retained boundary probe${frontierCount === 1 ? "" : "s"}; selection does not reshape terrain`,
-        exact_steps: 0,
-        probe_steps: 0,
-      },
-      route_ids: [],
+      status: "world",
+      label: "SURVEY ORIGIN",
+      detail: `${frontierCount} retained boundary condition${frontierCount === 1 ? "" : "s"}; selection does not reshape terrain`,
+      sampled_conditions: sampledConditions,
+      unresolved_boundaries: frontierCount,
     };
   }
-
-  const adjacency = new Map<string, TopologyRoute[]>();
-  routes.forEach((route) => {
-    const outgoing = adjacency.get(route.from) ?? [];
-    outgoing.push(route);
-    adjacency.set(route.from, outgoing);
-  });
-  const queue: Array<{ point: string; path: TopologyRoute[] }> = [
-    { point: origin.id, path: [] },
-  ];
-  const visited = new Set([origin.id]);
-  let resolved: TopologyRoute[] | undefined;
-  while (queue.length > 0 && !resolved) {
-    const current = queue.shift()!;
-    for (const route of adjacency.get(current.point) ?? []) {
-      if (visited.has(route.to)) continue;
-      const path = [...current.path, route];
-      if (route.to === focusPoint.id) {
-        resolved = path;
-        break;
-      }
-      visited.add(route.to);
-      queue.push({ point: route.to, path });
-    }
-  }
-  if (!resolved) {
+  if (focusPoint.kind === "frontier") {
     return {
-      bearing: {
-        status: focusPoint.kind === "frontier" ? "probe_required" : "isolated",
-        label:
-          focusPoint.kind === "frontier"
-            ? "PROBE REQUIRED BEFORE MINING"
-            : "NO DIRECTED PATH FROM SURVEY ORIGIN",
-        detail:
-          focusPoint.kind === "frontier"
-            ? focusPoint.signal
-            : "the admitted topology does not connect this coordinate from the workspace origin",
-        exact_steps: 0,
-        probe_steps: focusPoint.kind === "frontier" ? 1 : 0,
-      },
-      route_ids: [],
+      status: "probe_required",
+      label: "BOUNDARY PROBE REQUIRED",
+      detail: `${focusPoint.signal}; its weather front marks conditions only and supplies no route`,
+      sampled_conditions: sampledConditions,
+      unresolved_boundaries: 1,
     };
   }
-  const probeSteps = resolved.filter((route) => route.kind === "probe").length;
-  const exactSteps = resolved.length - probeSteps;
   return {
-    bearing: {
-      status: probeSteps > 0 ? "probe_required" : "charted",
-      label:
-        probeSteps > 0
-          ? "PROBE REQUIRED BEFORE MINING"
-          : "CHARTED CURATION PATH",
-      detail:
-        probeSteps > 0
-          ? `${exactSteps} exact steps reach the known boundary; ${probeSteps} unresolved crossing remains`
-          : `${exactSteps} directed exact step${exactSteps === 1 ? "" : "s"}; this camera path does not alter relief`,
-      exact_steps: exactSteps,
-      probe_steps: probeSteps,
-    },
-    route_ids: resolved.map((route) => route.id),
+    status: "charted",
+    label: "SAMPLED STATION",
+    detail: `${focusPoint.signal}; no curation path is implied by source relationships`,
+    sampled_conditions: sampledConditions,
+    unresolved_boundaries: frontierCount,
   };
 }
 
@@ -2194,31 +2186,6 @@ function marchingSquaresPath(
     }
   }
   return segments.join("");
-}
-
-function distanceToSegment(
-  x: number,
-  y: number,
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-): number {
-  const deltaX = endX - startX;
-  const deltaY = endY - startY;
-  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
-  if (lengthSquared === 0) return Math.hypot(x - startX, y - startY);
-  const amount = Math.max(
-    0,
-    Math.min(
-      1,
-      ((x - startX) * deltaX + (y - startY) * deltaY) / lengthSquared,
-    ),
-  );
-  return Math.hypot(
-    x - (startX + amount * deltaX),
-    y - (startY + amount * deltaY),
-  );
 }
 
 function stableHash(value: string): number {

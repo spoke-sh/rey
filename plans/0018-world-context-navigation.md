@@ -1,8 +1,12 @@
 # Plan 0018: World Context Navigation
 
-- Status: In progress
+- Status: Superseded by [Plan 0019](0019-emergent-context-features.md)
 - Decision: [ADR 0042](../docs/decisions/0042-world-geometry-and-probe-navigation.md)
 - Extends: [Plan 0017](0017-incremental-context-topography.md)
+
+Plan 0019 removes this slice's literal edge corridors and curation-path
+projection. The checklist below records the historical implementation that led
+to that correction; it is not the current map contract.
 
 ## Outcome
 

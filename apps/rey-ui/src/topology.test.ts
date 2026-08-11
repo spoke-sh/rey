@@ -234,11 +234,11 @@ describe("context topology lens", () => {
       "2 candidate limit omitted: bounded fixture",
     );
     expect(atlas.omissions).toContain(
-      "relief height is admitted anchor and classified-edge influence, not inferred semantic similarity",
+      "relief height is admitted anchor-sample influence, not inferred semantic similarity",
     );
   });
 
-  it("reveals admitted world geometry, transport classes, and probe-first boundaries", () => {
+  it("derives weather and hydrology without projecting seed edges as paths", () => {
     const patchPortfolio: WorkloadList = {
       ...portfolio,
       workloads: [
@@ -264,8 +264,12 @@ describe("context topology lens", () => {
       "charted",
       "horizon",
     ]);
-    expect(world.routes.map((route) => route.kind)).toEqual(
-      expect.arrayContaining(["containment", "probe"]),
+    expect(world.natural_features.map((feature) => feature.kind)).toEqual(
+      expect.arrayContaining(["stream", "river", "weather_front"]),
+    );
+    expect(world.edges).toEqual([]);
+    expect(world.natural_features).not.toContainEqual(
+      expect.objectContaining({ id: expect.stringContaining("edge:") }),
     );
     expect(world.points).toContainEqual(
       expect.objectContaining({
@@ -275,10 +279,10 @@ describe("context topology lens", () => {
     );
     expect(probe.bearing).toMatchObject({
       status: "probe_required",
-      exact_steps: 1,
-      probe_steps: 1,
+      sampled_conditions: 2,
+      unresolved_boundaries: 1,
     });
-    expect(probe.routes.filter((route) => route.selected)).toHaveLength(2);
+    expect(probe.bearing.detail).toContain("supplies no route");
   });
 
   it("discloses folded evidence instead of implying a complete object view", () => {
