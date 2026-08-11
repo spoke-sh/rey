@@ -183,6 +183,9 @@ export const exploreStyles = stylex.create({
   terrainProjection: {
     backgroundColor: "color-mix(in srgb, #eef0e3 25%, transparent)",
   },
+  worldTerrainProjection: {
+    backgroundColor: "transparent",
+  },
   worldGeometryLayer: {
     height: "100%",
     inset: 0,
@@ -244,6 +247,10 @@ export const exploreStyles = stylex.create({
     fontSize: "0.5rem",
     opacity: 0.72,
     pointerEvents: "none",
+  },
+  worldUnexploredZone: {
+    backgroundColor: "transparent",
+    borderColor: "color-mix(in srgb, var(--muted) 38%, transparent)",
   },
   regionNeutral: { borderColor: "var(--line)" },
   regionAccent: {

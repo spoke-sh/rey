@@ -461,6 +461,9 @@ function SemanticLens({
       className={sx(
         styles.projection,
         scene.terrain && styles.terrainProjection,
+        scene.terrain &&
+          scene.regime === "world" &&
+          styles.worldTerrainProjection,
       )}
       data-lens-regime={scene.regime}
     >
@@ -471,6 +474,10 @@ function SemanticLens({
             region.variant === "map-boundary" && styles.mapBoundary,
             region.variant === "map-zone" && styles.mapZone,
             toneStyle(region.tone, "region"),
+            scene.regime === "world" &&
+              region.variant === "map-zone" &&
+              region.tone === "unknown" &&
+              styles.worldUnexploredZone,
           )}
           key={region.id}
           style={{
