@@ -83,7 +83,8 @@ admitted evidence
   → immutable scene + field compiler
   → camera + semantic/geometric LOD + culling
   → explicit render graph
-  → reference or accelerated browser backend
+  → deterministic reference or Three.js WebGPURenderer/TSL adapter
+  → WebGPU preferred or WebGL2 compatibility backend
   → accessible React overlays and exact evidence links
 ```
 
@@ -102,12 +103,15 @@ when applicable, distance or neighborhood semantics, distortion, validity,
 limits, and omissions. The current standalone anchor placement remains a
 synthetic orientation layout rather than a language-space embedding.
 
-The current implementation is incomplete enabling work: `topology.ts`
-combines adapters, field derivation, scene assembly, and lens data;
-`explore.tsx` combines camera mechanics with DOM/SVG render passes; and the
-StyleX module contains the material system. Plan 0020 hard-cuts those concerns
-into engine contracts and qualifies an accelerated backend without making a
-graphics dependency part of the semantic model.
+The current implementation is incomplete enabling work. The admitted-survey
+adapter, camera transforms, immutable reference-scene wrapper, SVG/DOM
+reference renderer, renderer lifecycle contracts, and a pinned Three.js
+`0.185.1` WebGPU adapter have been separated. `topology.ts` still combines the
+portfolio adapter, field derivation, scene assembly, and lens data; the StyleX
+module still contains the material system. The accelerated adapter is not yet
+mounted as the live terrain renderer and has no semantic authority. Plan 0020
+owns the remaining hard cut, field/render-graph work, backend qualification,
+and visual proof.
 
 ### Terrain fidelity
 
@@ -141,9 +145,13 @@ and disclosure remain available.
 
 The first target remains a top-down 2.5D semantic map with continuous zoom.
 Free-orbit 3D, pitch, volumetric space, physics, and a general ECS are deferred.
-The production path is expected to use acceleration, but a reference renderer
-must preserve scene semantics and visible degradation when acceleration is
-unavailable.
+The production path uses the Three.js `WebGPURenderer` and TSL boundary selected
+by ADR 0045. WebGPU is preferred and Three.js's WebGL2 backend is the
+compatibility path. The implemented adapter awaits asynchronous initialization,
+can force WebGL2 for qualification, bounds viewport pixel work, records the
+active backend, disposes resources, and fails closed to reference status. It is
+not yet the live pixel surface. A renderer-independent reference path preserves
+scene semantics and visible degradation when GPU acceleration is unavailable.
 
 ## Semantic Lens
 
@@ -394,11 +402,14 @@ projection. The conversation transcript is empty and its composer disabled
 because no transport, agent session, message admission, or retention contract
 exists yet.
 
-The implemented Explorer topology is derived from `rey.workload-list.v6`:
+The implemented Explorer topology is derived from `rey.workload-list.v7`:
 exact workload packages, drafts, graph/scenario/mining counts, portfolio
-attention, and retained `rey.topography-patch.v1` artifacts. The separate
-`/environment` route now consumes `rey.environment-status.v5` and renders its
-exact variable, application, input, and reference operator projection.
+attention, retained `rey.topography-patch.v1` artifacts, and their exact
+`rey.projection-packet.v1` envelopes. Survey terrain fails closed unless the
+packet source patch and topography revision match. Packet objects, validity,
+extent, limits, and omissions now direct the existing SVG reference scene; the
+separate `/environment` route consumes `rey.environment-status.v5` and renders
+its exact variable, application, input, and reference operator projection.
 `/agents` consumes the workload-list document at a higher semantic level: it
 ranks current requests and attention as recommendations, then summarizes work
 supported by retained test, run, mining, delta, and revision evidence. Agent
@@ -415,10 +426,14 @@ connected semantics.
 ## Current React Boundaries And Engine Cut
 
 `ExplorePage` owns route composition. `ContextCanvas` owns zoom, pan, focus,
-fit, keyboard, and full-screen state. `SemanticLens` renders a pure
-`TopologyScene`; regions, objects, and the SVG edge layer are independent
-components. `buildTopologyScene` is a deterministic read-model projection over
-`rey.workload-list.v6` and is tested separately from browser mechanics.
+keyboard, and full-screen state while using framework-independent camera math.
+`ReferenceRenderer` renders the current pure `TopologyScene`; it refuses graph
+edges on terrain even if one is supplied accidentally. `buildTopologyScene` is
+a deterministic read-model projection over `rey.workload-list.v7` and is tested
+separately from browser mechanics. It requires an exact patch/packet pair before
+compiling admitted terrain. The immutable scene wrapper and accelerated
+renderer lifecycle are separated, but the field and base-scene compiler remain
+inside `topology.ts`.
 
 This is current repository truth, not the target ownership shape. Plan 0020
 extracts typed evidence adapters, projection packets, immutable scenes, fields,
@@ -432,10 +447,10 @@ Plan 0017's seed-to-map voyage is implemented and verified through the CLI,
 structured workload endpoint, and deterministic Explorer read-model tests.
 Plan 0020 is the next Explorer foundation: formalize the projection packet and
 engine modules, preserve the existing scene through extraction, build bounded
-multiresolution fields, qualify an accelerated renderer, and close the
-continuous-terrain fidelity, CLI, browser, and performance proof. Exact
-scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder into
-the browser without adding an independent assessment.
+multiresolution fields, qualify the Three.js WebGPU/WebGL2 renderer boundary,
+and close the continuous-terrain fidelity, CLI, browser, and performance proof.
+Exact scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder
+into the browser without adding an independent assessment.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and Spoke-backed streams remain separate decisions.

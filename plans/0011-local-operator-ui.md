@@ -161,7 +161,7 @@ stream lenses through a bounded, deep-linkable URL grammar.
 
 The frontend derives portfolio totals, workload journey, scenario progress,
 attention, provenance, mining evidence, and admitted topography patches from
-`rey.workload-list.v6`. Rust
+`rey.workload-list.v7`. Rust
 integration tests start a real ephemeral listener and verify the embedded app,
 SPA fallback, health, live catalog response, browser headers, rejected writes,
 loopback startup document, structured descriptor, and non-loopback warning.
@@ -183,7 +183,7 @@ just build
 A real `rey ui --host 127.0.0.1 --port 0 --format json` listener reported its
 exact ephemeral URL, Kinetic grammar, Precision theme, pinned grammar revision,
 loopback exposure, and read-only authority. Live health and workload requests
-returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v6`.
+returned `rey.ui-health.v1` and this workspace's `rey.workload-list.v7`.
 Isolated Chromium captures verified both `/` and `/workloads` at 1600×1200;
 the initial environment rendered live qualification, scenario, run, coverage, attention,
 catalog, graph, and evidence data without console/server failure.

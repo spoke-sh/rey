@@ -811,7 +811,7 @@ mod tests {
 
         let workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(workloads.starts_with("HTTP/1.1 200"));
-        assert!(workloads.contains("\"schema\":\"rey.workload-list.v6\""));
+        assert!(workloads.contains("\"schema\":\"rey.workload-list.v7\""));
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));

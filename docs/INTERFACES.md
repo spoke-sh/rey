@@ -207,8 +207,8 @@ identities. A qualified `run rey.portfolio.attention` emits the same typed
 relation over current retained inputs. `list` and `status` derive their view
 without fresh ambient discovery.
 
-The structured schemas are `rey.workload-list.v6`,
-`rey.workload-status-batch.v6`, `rey.workload-test-batch.v5`, and
+The structured schemas are `rey.workload-list.v7`,
+`rey.workload-status-batch.v7`, `rey.workload-test-batch.v5`, and
 `rey.workload-run-view.v3`. Their `rey.workload-catalog.v2` descriptor
 separates total, admitted, and draft counts. The run view contains the unchanged verified
 `rey.workload-run-result.v2` plus exact catalog and proposal provenance. Test results contain verified
@@ -402,16 +402,15 @@ aggregation, context, elision, sampling, limits, and omissions.
 
 ### Explorer projection packet
 
-ADR 0044 introduces a target projection-engine boundary rather than a second
-top-level resource. `rey.projection-packet.v1` (or the equivalent contract
-accepted during Plan 0020) carries:
+ADR 0044 introduces a projection-engine boundary rather than a second top-level
+resource. The implemented `rey.projection-packet.v1` carries:
 
 ```text
 packet identity + source evidence identities
 coordinate/embedding basis + implementation revision + parameters
-stable scene coordinates + scalar/vector channel descriptors
+bounded source scene objects + scalar/vector/mask channel descriptors
 surveyed-validity masks + world bounds + layer inventory
-scene/field/simulation/material/LOD revisions
+scene/field/simulation revisions; material/LOD revisions remain incomplete
 effective object/cell/tile/byte/time/resource limits
 completeness + degradation + omissions + lineage
 ```
@@ -422,13 +421,15 @@ pixels. An immutable scene snapshot compiled from it retains stable object and
 evidence identities; camera and renderer backends consume that snapshot without
 receiving authority to reinterpret source evidence.
 
-The established workload CLI remains the agent-facing interface. Verbose
-topography evidence must eventually expose the packet basis, scene, field,
-validity, material, LOD, renderer/fallback boundary, effective limits,
-omissions, and exact lineage before high-fidelity rendering is complete.
-Structured output must preserve typed values rather than serializing GPU state.
-The browser adds named viewport, device-pixel-ratio, screenshot, interaction,
-fallback, and performance verification over the same semantic scene.
+`rey workloads test context-anchor-survey -vv` exposes the implemented packet
+identity, exact patch binding, synthetic anchor-orientation basis, scene
+compiler, extent, field descriptors, validity regions, layers, effective
+limits, degradation, omissions, and lineage. `rey.workload-list.v7` carries the
+same packet beside its exact patch, and Explorer fails closed to the portfolio
+fallback unless both identities match. Material, LOD, renderer/fallback,
+viewport, screenshot, and performance evidence remain incomplete Plan 0020
+work. Structured output preserves typed values rather than serializing GPU
+state.
 
 The implemented schemas are `rey.source-corpus.v1`,
 `rey.source-search.literal-utf8@1`, `rey.source-matches` version `1`,

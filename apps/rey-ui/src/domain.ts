@@ -62,6 +62,7 @@ export interface WorkloadSummary {
   topography_coverage: TopographyCoverage | null;
   topography_frontier_rows: number;
   topography_patch: TopographyPatch | null;
+  topography_projection: ProjectionPacket | null;
   last_run_status: "passed" | "blocked" | null;
   last_test_result_id: string | null;
 }
@@ -105,6 +106,91 @@ export interface TopographyCoverage {
   unique_candidates: number;
   resolved_candidates: number;
   unresolved_candidates: number;
+}
+
+export type ProjectionObjectKind = "anchor" | "frontier";
+export type ProjectionFieldKind = "scalar" | "vector" | "mask";
+export type ProjectionLayerAuthority = "evidence" | "derived" | "presentation";
+
+export interface ProjectionPacket {
+  schema: "rey.projection-packet.v1";
+  packet_id: string;
+  source_patch_id: string;
+  source_topography_revision: string;
+  projection_basis: {
+    contract: ContractIdentity;
+    input_dimensions: string[];
+    output_dimensions: string[];
+    parameters: Record<string, string>;
+    normalization: string;
+    random_seed: number | null;
+    distance_semantics: string;
+    neighborhood_semantics: string;
+    distortion: string;
+    stable_coordinate_rule: string;
+  };
+  scene_compiler: ContractIdentity;
+  extent: { width: number; height: number; unit: string };
+  objects: Array<{
+    object_id: string;
+    source_id: string;
+    kind: ProjectionObjectKind;
+    anchor_kind: "workspace" | "file" | "document" | "external_resource" | null;
+    frontier_status: LocatorResolutionStatus | null;
+    coordinate: string | null;
+    label: string;
+    detail: string;
+    source_revision: string;
+  }>;
+  validity: Array<{
+    region_id: string;
+    coordinate: string;
+    state: TopographyRegionState;
+    detail: string;
+    source_revision: string;
+  }>;
+  field_channels: Array<{
+    id: string;
+    kind: ProjectionFieldKind;
+    semantics: string;
+    units: string;
+    normalization: string;
+    source_revision: string;
+    implementation: ContractIdentity;
+  }>;
+  layers: Array<{
+    id: string;
+    authority: ProjectionLayerAuthority;
+    semantics: string;
+    source_revision: string;
+  }>;
+  excluded_source_relationships: number;
+  limits: {
+    max_anchor_objects: number;
+    max_frontier_objects: number;
+    max_validity_regions: number;
+    max_field_channels: number;
+    max_layers: number;
+    max_omissions: number;
+    max_field_cells: number;
+    max_field_bytes: number;
+    max_contours: number;
+    max_natural_features: number;
+    max_labels: number;
+  };
+  complete: boolean;
+  degradation: Array<{
+    kind: string;
+    omitted_count: number;
+    reason: string;
+  }>;
+  omissions: Array<{
+    kind: string;
+    subject: string;
+    omitted_count: number;
+    reason: string;
+  }>;
+  lineage: Array<{ kind: string; identity: string; revision: string }>;
 }
 
 export interface TopographyPatch {
@@ -235,7 +321,7 @@ export interface AttentionSummary {
 }
 
 export interface WorkloadList {
-  schema: string;
+  schema: "rey.workload-list.v7";
   catalog: CatalogDescriptor;
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];

@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod projection;
 mod topography;
 
+pub use projection::*;
 pub use topography::*;
 
 use std::collections::{BTreeMap, BTreeSet};

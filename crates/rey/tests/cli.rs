@@ -2665,6 +2665,9 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "retained seed edges remain inspector provenance",
         "Hydrology projection:",
         "no discovered or built path claim",
+        "Projection packet:",
+        "Projection boundary:",
+        "synthetic distance is not language or semantic distance",
         "SEED AGENTS.md",
         "LOCATOR",
         "ANCHOR",
@@ -2674,6 +2677,9 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "verify absence or repair reference",
         "OMISSION candidate_limit",
         "Exact topography bindings:",
+        "Exact projection bindings:",
+        "elevation · scalar",
+        "projection omission",
         "operation   rey.context-anchor-survey.locate@1",
         "provider    rey.provider.local-worktree-topography@1",
         "limits      seeds=32",
@@ -2758,6 +2764,20 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     );
     assert_eq!(summary.topography_coverage.as_ref(), Some(&patch.coverage));
     assert_eq!(summary.topography_patch.as_ref(), Some(patch));
+    let projection = summary.topography_projection.as_ref().unwrap();
+    projection.verify_for(patch).unwrap();
+    assert_eq!(projection.schema, "rey.projection-packet.v1");
+    assert_eq!(projection.source_patch_id, patch.patch_id);
+    assert_eq!(
+        projection.excluded_source_relationships,
+        patch.edges.len() as u64
+    );
+    assert!(
+        projection
+            .objects
+            .iter()
+            .all(|object| matches!(object.kind.as_str(), "anchor" | "frontier"))
+    );
 
     let status = run_rey_workspace(&[
         "workloads",
@@ -2800,6 +2820,8 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"topography_patch\""));
+    assert!(response.contains("\"topography_projection\""));
+    assert!(response.contains("\"schema\":\"rey.projection-packet.v1\""));
     assert!(response.contains(patch.patch_id.as_str()));
     assert!(response.contains("\"state\":\"unexplored\""));
     ui.kill().unwrap();

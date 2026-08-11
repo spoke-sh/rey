@@ -46,12 +46,13 @@ const summary = (
   topography_coverage: null,
   topography_frontier_rows: 0,
   topography_patch: null,
+  topography_projection: null,
   last_run_status: qualification === "qualified" ? "passed" : null,
   last_test_result_id: null,
 });
 
 const portfolio = (workloads: WorkloadSummary[]): WorkloadList => ({
-  schema: "rey.workload-list.v6",
+  schema: "rey.workload-list.v7",
   catalog: {
     schema: "rey.workload-catalog.v2",
     kind: "workspace_packages",

@@ -4,6 +4,9 @@
 - Date: 2026-08-11
 - Extends: [ADR 0041](0041-continuous-coordinate-topography.md) and [ADR
   0043](0043-emergent-natural-features-and-separate-paths.md)
+- Extended by: [ADR 0045](0045-threejs-webgpu-renderer.md), which selects
+  Three.js `WebGPURenderer` and TSL with WebGPU-first and WebGL2 compatibility
+  backends
 
 ## Context
 
@@ -152,9 +155,10 @@ or presentation setting changes. It does not fabricate animation to appear
 alive. Passive revalidation may compile a new scene snapshot; camera state and
 selection survive only when their coordinate identities remain valid.
 
-An accelerated browser backend is expected for production fidelity. Backend
-and third-party-library selection require a bounded qualification spike rather
-than a drive-by dependency. A deterministic reference backend must remain able
+ADR 0045 selects Three.js `WebGPURenderer` and TSL as the production rendering
+boundary. WebGPU is preferred; the renderer's WebGL2 backend is the compatibility
+path rather than a separate Rey engine. Exact dependency adoption still
+requires bounded qualification. A deterministic reference backend remains able
 to verify field, scene, ordering, omission, and fallback behavior without
 making GPU pixels authoritative evidence.
 

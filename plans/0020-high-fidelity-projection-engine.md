@@ -1,7 +1,8 @@
 # Plan 0020: High-Fidelity Projection Engine
 
 - Status: In progress
-- Decision: [ADR 0044](../docs/decisions/0044-explorer-projection-engine.md)
+- Decisions: [ADR 0044](../docs/decisions/0044-explorer-projection-engine.md),
+  [ADR 0045](../docs/decisions/0045-threejs-webgpu-renderer.md)
 - Extends: [Plan 0017](0017-incremental-context-topography.md) and [Plan
   0019](0019-emergent-context-features.md)
 
@@ -57,7 +58,7 @@ apps/rey-ui/src/explore/
     materials.ts               tint and shading parameters
   renderers/
     reference.ts               deterministic semantic fallback
-    accelerated.ts             qualified production backend
+    three-webgpu.ts            Three.js WebGPURenderer + TSL adapter
   react/
     explore-page.tsx           route and evidence-bound shell
     controls.tsx               camera/layer/fullscreen controls
@@ -75,10 +76,10 @@ dynamic-entity requirement.
 
 - [x] Accept ADR 0044 and establish the projection-engine identity, evidence
   boundary, 2.5D scope, and terrain-fidelity target.
-- [ ] Define `rey.projection-packet.v1` or an equivalent browser/CLI typed
+- [x] Define `rey.projection-packet.v1` as a browser/CLI typed
   contract binding evidence, projection basis, fields, validity, layers,
   revisions, limits, completeness, omissions, and lineage.
-- [ ] Add a synthetic admitted terrain fixture with named World, Atlas,
+- [x] Add a synthetic admitted terrain fixture with named World, Atlas,
   Landscape, and Neighborhood view envelopes; do not use external map imagery
   or unbound high-dimensional coordinates.
 - [ ] Record current semantic scene manifests and bounded visual baselines
@@ -94,7 +95,7 @@ dynamic-entity requirement.
   excludes camera state and whose objects retain exact evidence links.
 - [ ] Replace ad hoc rerender coupling with explicit evidence, scene, camera,
   material, label, and viewport invalidation sets.
-- [ ] Keep the existing SVG/DOM result as the first reference renderer until
+- [x] Keep the existing SVG/DOM result as the first reference renderer until
   scene and camera parity tests pass.
 
 ### 3. Build bounded multiresolution terrain
@@ -114,12 +115,17 @@ dynamic-entity requirement.
 
 - [ ] Implement a renderer interface over immutable scene snapshots and an
   explicit render graph.
-- [ ] Run a bounded dependency/backend spike comparing a direct WebGL2 path,
-  a narrowly selected rendering library, and the reference renderer for
-  bundle size, browser support, resource ownership, accessibility, determinism,
+- [x] Pin Three.js `0.185.1` and add a narrow lifecycle adapter that proves
+  asynchronous initialization, preferred WebGPU selection, forced WebGL2
+  selection, viewport bounds, failure, and disposal without replacing the live
+  reference surface.
+- [ ] Qualify a pinned Three.js `WebGPURenderer` and TSL dependency across its
+  preferred WebGPU and forced-WebGL2 paths for bundle size, browser support,
+  asynchronous initialization, resource ownership, accessibility, determinism,
   performance, and Nix packaging.
-- [ ] Record the selected accelerated backend in a follow-up ADR before adding
-  the dependency; preserve a semantic reference/fallback path.
+- [x] Record the selected production boundary in ADR 0045: Three.js owns GPU
+  mechanics behind a narrow adapter while Rey retains its semantic scene and
+  deterministic reference path.
 - [ ] Move high-cardinality terrain and natural-feature drawing out of React
   elements while keeping accessible labels, controls, status, and exact links
   in the React shell.
@@ -184,4 +190,5 @@ This plan is complete only when:
 - inferred terrain outside surveyed validity;
 - browser-triggered probes, mining, path construction, or action admission;
 - proprietary map data, styles, or algorithms; and
-- WebGPU-only behavior without a qualified fallback and deployment contract.
+- WebGPU-only behavior without the Three.js WebGL2 compatibility path, Rey's
+  deterministic reference path, and a qualified deployment contract.

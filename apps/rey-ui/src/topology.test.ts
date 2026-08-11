@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { TopographyPatch, WorkloadList, WorkloadSummary } from "./domain";
+import type {
+  ProjectionPacket,
+  TopographyPatch,
+  WorkloadList,
+  WorkloadSummary,
+} from "./domain";
 import {
   DEFAULT_LENS_ZOOM,
   EVIDENCE_LENS_ZOOM,
@@ -44,12 +49,13 @@ const workload = (id: string): WorkloadSummary => ({
   topography_coverage: null,
   topography_frontier_rows: 0,
   topography_patch: null,
+  topography_projection: null,
   last_run_status: "blocked",
   last_test_result_id: `test:${id}`,
 });
 
 const portfolio: WorkloadList = {
-  schema: "rey.workload-list.v6",
+  schema: "rey.workload-list.v7",
   catalog: {
     schema: "rey.workload-catalog.v2",
     kind: "workspace_packages",
@@ -159,6 +165,7 @@ describe("context topology lens", () => {
           topography_coverage: surveyPatch.coverage,
           topography_frontier_rows: 1,
           topography_patch: surveyPatch,
+          topography_projection: projectionFor(surveyPatch),
         },
       ],
     };
@@ -238,6 +245,86 @@ describe("context topology lens", () => {
     );
   });
 
+  it("fails closed on an absent or mismatched projection packet", () => {
+    const withoutPacket: WorkloadList = {
+      ...portfolio,
+      workloads: [
+        {
+          ...portfolio.workloads[0]!,
+          topography_results: 1,
+          topography_revision: surveyPatch.topography_revision,
+          topography_patch: surveyPatch,
+          topography_projection: null,
+        },
+      ],
+    };
+    const mismatchedPacket: WorkloadList = {
+      ...withoutPacket,
+      workloads: [
+        {
+          ...withoutPacket.workloads[0]!,
+          topography_projection: {
+            ...projectionFor(surveyPatch),
+            source_patch_id: "patch:other",
+          },
+        },
+      ],
+    };
+
+    expect(buildTopologyScene(withoutPacket, DEFAULT_LENS_ZOOM).terrain).toBe(
+      false,
+    );
+    expect(
+      buildTopologyScene(mismatchedPacket, DEFAULT_LENS_ZOOM).terrain,
+    ).toBe(false);
+  });
+
+  it("uses packet extent, objects, validity, and omissions for the reference scene", () => {
+    const projection = projectionFor(surveyPatch);
+    const packetDirected: WorkloadList = {
+      ...portfolio,
+      workloads: [
+        {
+          ...portfolio.workloads[0]!,
+          topography_results: 1,
+          topography_revision: surveyPatch.topography_revision,
+          topography_patch: surveyPatch,
+          topography_projection: {
+            ...projection,
+            extent: { ...projection.extent, width: 1800 },
+            objects: projection.objects.filter(
+              (object) => object.source_id !== "anchor:readme",
+            ),
+            validity: projection.validity.filter(
+              (region) => region.state !== "unsupported",
+            ),
+            omissions: [
+              ...projection.omissions,
+              {
+                kind: "fixture_limit",
+                subject: "packet",
+                omitted_count: 1,
+                reason: "packet-directed fixture",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const atlas = buildTopologyScene(packetDirected, DEFAULT_LENS_ZOOM);
+
+    expect(atlas.world.width).toBe(1800);
+    expect(
+      atlas.points.filter((point) => point.kind === "anchor"),
+    ).toHaveLength(1);
+    expect(atlas.regions.map((region) => region.tone)).not.toContain(
+      "unsupported",
+    );
+    expect(atlas.omissions).toContain(
+      "1 fixture limit omitted: packet-directed fixture",
+    );
+  });
+
   it("derives weather and hydrology without projecting seed edges as paths", () => {
     const patchPortfolio: WorkloadList = {
       ...portfolio,
@@ -249,6 +336,7 @@ describe("context topology lens", () => {
           topography_coverage: surveyPatch.coverage,
           topography_frontier_rows: surveyPatch.frontier.length,
           topography_patch: surveyPatch,
+          topography_projection: projectionFor(surveyPatch),
         },
       ],
     };
@@ -257,6 +345,19 @@ describe("context topology lens", () => {
       patchPortfolio,
       WORLD_LENS_ZOOM,
       "frontier:rey.example:frontier:1",
+    );
+    const anchorFocus = world.points.find(
+      (point) => point.kind === "anchor",
+    )!.focus_id;
+    const objects = buildTopologyScene(
+      patchPortfolio,
+      OBJECT_LENS_ZOOM,
+      anchorFocus,
+    );
+    const evidence = buildTopologyScene(
+      patchPortfolio,
+      EVIDENCE_LENS_ZOOM,
+      anchorFocus,
     );
 
     expect(world.regime).toBe("world");
@@ -268,6 +369,8 @@ describe("context topology lens", () => {
       expect.arrayContaining(["stream", "river", "weather_front"]),
     );
     expect(world.edges).toEqual([]);
+    expect(objects.edges).toEqual([]);
+    expect(evidence.edges).toEqual([]);
     expect(world.natural_features).not.toContainEqual(
       expect.objectContaining({ id: expect.stringContaining("edge:") }),
     );
@@ -372,6 +475,7 @@ describe("context topology lens", () => {
       topography_revision: densePatch.topography_revision,
       topography_coverage: densePatch.coverage,
       topography_patch: densePatch,
+      topography_projection: projectionFor(densePatch),
     };
     const secondPatch: TopographyPatch = {
       ...densePatch,
@@ -385,6 +489,7 @@ describe("context topology lens", () => {
       topography_revision: secondPatch.topography_revision,
       topography_coverage: secondPatch.coverage,
       topography_patch: secondPatch,
+      topography_projection: projectionFor(secondPatch),
     };
 
     const atlas = buildTopologyScene(
@@ -555,3 +660,169 @@ const surveyPatch: TopographyPatch = {
     modified: 0,
   },
 };
+
+function projectionFor(patch: TopographyPatch): ProjectionPacket {
+  const orderedAnchors = [...patch.anchors].sort((left, right) => {
+    if (left.kind === "workspace") return -1;
+    if (right.kind === "workspace") return 1;
+    return left.coordinate.coordinate.localeCompare(
+      right.coordinate.coordinate,
+    );
+  });
+  const foldedAnchors = Math.max(0, orderedAnchors.length - 64);
+  const foldedFrontier = Math.max(0, patch.frontier.length - 6);
+  const degradation = [
+    ...(foldedAnchors > 0
+      ? [
+          {
+            kind: "anchor_limit",
+            omitted_count: foldedAnchors,
+            reason: "anchor scene objects exceed the declared projection limit",
+          },
+        ]
+      : []),
+    ...(foldedFrontier > 0
+      ? [
+          {
+            kind: "frontier_limit",
+            omitted_count: foldedFrontier,
+            reason:
+              "frontier scene objects exceed the declared projection limit",
+          },
+        ]
+      : []),
+  ];
+  const contract = (id: string) => identity(id);
+  return {
+    schema: "rey.projection-packet.v1",
+    packet_id: `projection:${patch.patch_id}`,
+    source_patch_id: patch.patch_id,
+    source_topography_revision: patch.topography_revision,
+    projection_basis: {
+      contract: contract("rey.projection.anchor-orientation"),
+      input_dimensions: ["anchor.coordinate", "region.validity"],
+      output_dimensions: ["scene_x", "scene_y", "relative_elevation"],
+      parameters: {
+        terrain_width: "1500",
+        terrain_height: "1000",
+        grid_columns: "60",
+        grid_rows: "40",
+      },
+      normalization: "per-chart relative anchor prominence",
+      random_seed: null,
+      distance_semantics:
+        "synthetic orientation distance; not language or semantic distance",
+      neighborhood_semantics: "ordered anchor rings",
+      distortion: "ring placement distorts source-space distance",
+      stable_coordinate_rule: "semantic coordinates remain stable",
+    },
+    scene_compiler: contract("rey.projection.topography-scene"),
+    extent: { width: 1500, height: 1000, unit: "synthetic_scene_unit" },
+    objects: [
+      ...orderedAnchors.slice(0, 64).map((anchor) => ({
+        object_id: `anchor:${anchor.anchor_id}`,
+        source_id: anchor.anchor_id,
+        kind: "anchor" as const,
+        anchor_kind: anchor.kind,
+        frontier_status: null,
+        coordinate: anchor.coordinate.coordinate,
+        label: anchor.label,
+        detail: "admitted topography anchor",
+        source_revision: anchor.source_revision,
+      })),
+      ...patch.frontier.slice(0, 6).map((row) => ({
+        object_id: `frontier:${row.row_id}`,
+        source_id: row.row_id,
+        kind: "frontier" as const,
+        anchor_kind: null,
+        frontier_status: row.status,
+        coordinate: null,
+        label: row.locator,
+        detail: row.reason,
+        source_revision: patch.topography_revision,
+      })),
+    ],
+    validity: patch.regions.map((region) => ({
+      region_id: region.region_id,
+      coordinate: region.coordinate,
+      state: region.state,
+      detail: region.detail,
+      source_revision: patch.topography_revision,
+    })),
+    field_channels: [
+      {
+        id: "validity",
+        kind: "mask",
+        semantics: "admitted survey validity",
+        units: "topography_region_state",
+        normalization: "categorical",
+        source_revision: patch.topography_revision,
+        implementation: contract("rey.projection.survey-validity"),
+      },
+      {
+        id: "elevation",
+        kind: "scalar",
+        semantics: "anchor-only relative prominence",
+        units: "relative_anchor_prominence",
+        normalization: "per-chart maximum",
+        source_revision: patch.topography_revision,
+        implementation: contract("rey.projection.anchor-relief-field"),
+      },
+    ],
+    layers: [
+      {
+        id: "validity",
+        authority: "evidence",
+        semantics: "survey validity",
+        source_revision: patch.topography_revision,
+      },
+      {
+        id: "relief",
+        authority: "derived",
+        semantics: "anchor-only relative terrain",
+        source_revision: patch.topography_revision,
+      },
+    ],
+    excluded_source_relationships: patch.edges.length,
+    limits: {
+      max_anchor_objects: 64,
+      max_frontier_objects: 6,
+      max_validity_regions: 256,
+      max_field_channels: 8,
+      max_layers: 8,
+      max_omissions: 1032,
+      max_field_cells: 2501,
+      max_field_bytes: 160064,
+      max_contours: 7,
+      max_natural_features: 96,
+      max_labels: 70,
+    },
+    complete: patch.complete && degradation.length === 0,
+    degradation,
+    omissions: [
+      ...patch.omissions,
+      {
+        kind: "semantic_boundary",
+        subject: "relief",
+        omitted_count: 0,
+        reason:
+          "relief height is admitted anchor-sample influence, not inferred semantic similarity",
+      },
+      {
+        kind: "semantic_boundary",
+        subject: "natural_features",
+        omitted_count: 0,
+        reason:
+          "streams, rivers, weather fronts, and erosion are deterministic survey-field projections, not retained paths or source relationships",
+      },
+      ...degradation.map((item) => ({ ...item, subject: "projection" })),
+    ],
+    lineage: [
+      {
+        kind: "source_patch",
+        identity: patch.patch_id,
+        revision: patch.topography_revision,
+      },
+    ],
+  };
+}

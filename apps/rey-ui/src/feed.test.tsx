@@ -188,7 +188,7 @@ describe("high-cadence operator feed", () => {
 
 function emptyPortfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v6",
+    schema: "rey.workload-list.v7",
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",
@@ -249,6 +249,7 @@ function workload(): WorkloadList["workloads"][number] {
     topography_coverage: null,
     topography_frontier_rows: 0,
     topography_patch: null,
+    topography_projection: null,
     last_run_status: null,
     last_test_result_id: "blake3:test-alpha",
   };

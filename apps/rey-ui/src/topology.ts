@@ -8,9 +8,31 @@ import type {
   TopographyRegionState,
 } from "./domain";
 import { deriveAgentIndex } from "./domain";
+import {
+  DEFAULT_LENS_ZOOM,
+  lensRegimeForZoom,
+  type LensRegime,
+} from "./explore/engine/camera";
+import {
+  admittedTopographies,
+  type AdmittedTopography,
+} from "./explore/projection/topography-projector";
 
-export type LensRegime =
-  "world" | "atlas" | "landscape" | "neighborhoods" | "objects" | "evidence";
+export {
+  DEFAULT_LENS_ZOOM,
+  EVIDENCE_LENS_ZOOM,
+  LANDSCAPE_LENS_ZOOM,
+  MAX_LENS_ZOOM,
+  MIN_LENS_ZOOM,
+  NEIGHBORHOOD_LENS_ZOOM,
+  OBJECT_LENS_ZOOM,
+  WORLD_LENS_ZOOM,
+  clampLensZoom,
+  lensRegimeForZoom,
+  stepLensZoom,
+} from "./explore/engine/camera";
+export type { LensRegime } from "./explore/engine/camera";
+
 export type TopologyTone =
   | "neutral"
   | "accent"
@@ -139,72 +161,8 @@ export interface TopologyScene {
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
-export const MIN_LENS_ZOOM = 0.05;
-export const MAX_LENS_ZOOM = 5.4;
-export const WORLD_LENS_ZOOM = 0.1;
-export const DEFAULT_LENS_ZOOM = 0.26;
-export const LANDSCAPE_LENS_ZOOM = 0.58;
-export const NEIGHBORHOOD_LENS_ZOOM = 1.08;
-export const OBJECT_LENS_ZOOM = 2.05;
-export const EVIDENCE_LENS_ZOOM = 3.55;
 
 const NEIGHBORHOOD_LIMIT = 8;
-const TOPOGRAPHY_POI_LIMIT = 64;
-const TOPOGRAPHY_NATURAL_FEATURE_LIMIT = 96;
-const LENS_HYSTERESIS = 0.05;
-
-const LENS_ORDER: readonly LensRegime[] = [
-  "world",
-  "atlas",
-  "landscape",
-  "neighborhoods",
-  "objects",
-  "evidence",
-];
-const LENS_BOUNDARIES = [0.19, 0.42, 0.82, 1.52, 2.8] as const;
-
-export function lensRegimeForZoom(
-  zoom: number,
-  previous?: LensRegime,
-): LensRegime {
-  const rawIndex = LENS_BOUNDARIES.findIndex((boundary) => zoom < boundary);
-  const nextIndex = rawIndex === -1 ? LENS_ORDER.length - 1 : rawIndex;
-  if (!previous) return LENS_ORDER[nextIndex]!;
-  const previousIndex = LENS_ORDER.indexOf(previous);
-  if (previousIndex < 0 || previousIndex === nextIndex)
-    return LENS_ORDER[nextIndex]!;
-  if (nextIndex > previousIndex) {
-    const boundary = LENS_BOUNDARIES[previousIndex];
-    if (boundary !== undefined && zoom < boundary + LENS_HYSTERESIS)
-      return previous;
-  } else {
-    const boundary = LENS_BOUNDARIES[nextIndex];
-    if (boundary !== undefined && zoom > boundary - LENS_HYSTERESIS)
-      return previous;
-  }
-  return LENS_ORDER[nextIndex]!;
-}
-
-export function clampLensZoom(zoom: number): number {
-  return Math.min(MAX_LENS_ZOOM, Math.max(MIN_LENS_ZOOM, zoom));
-}
-
-export function stepLensZoom(zoom: number, direction: 1 | -1): number {
-  const regime = lensRegimeForZoom(zoom);
-  const stops = [
-    WORLD_LENS_ZOOM,
-    DEFAULT_LENS_ZOOM,
-    LANDSCAPE_LENS_ZOOM,
-    NEIGHBORHOOD_LENS_ZOOM,
-    OBJECT_LENS_ZOOM,
-    EVIDENCE_LENS_ZOOM,
-  ] as const;
-  const index = LENS_ORDER.indexOf(regime);
-  if (direction > 0) {
-    return index >= stops.length - 1 ? MAX_LENS_ZOOM : stops[index + 1]!;
-  }
-  return index <= 0 ? MIN_LENS_ZOOM : stops[index - 1]!;
-}
 
 export function buildTopologyScene(
   portfolio: WorkloadList,
@@ -262,16 +220,6 @@ type TopologyProjection = Omit<
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
 };
-
-function admittedTopographies(
-  portfolio: WorkloadList,
-): Array<{ workload: WorkloadSummary; patch: TopographyPatch }> {
-  return portfolio.workloads.flatMap((workload) =>
-    workload.topography_patch
-      ? [{ workload, patch: workload.topography_patch }]
-      : [],
-  );
-}
 
 function buildWorld(
   portfolio: WorkloadList,
@@ -1252,7 +1200,6 @@ function portfolioObjectScene(
   };
 }
 
-const TERRAIN_CELL = { width: 1500, height: 1000 } as const;
 const TERRAIN_GRID = { columns: 60, rows: 40 } as const;
 const TERRAIN_LEVELS = [0.12, 0.23, 0.35, 0.48, 0.61, 0.74, 0.86] as const;
 
@@ -1267,7 +1214,7 @@ interface SurveyTerrainLayout {
 }
 
 function buildSurveyTerrain(
-  topographies: Array<{ workload: WorkloadSummary; patch: TopographyPatch }>,
+  topographies: AdmittedTopography[],
   focusId: string,
   regime: LensRegime,
 ): TopologyProjection {
@@ -1300,7 +1247,10 @@ function buildSurveyTerrain(
       : regime === "neighborhoods"
         ? layout.regions.filter((region) => region.variant === "map-boundary")
         : [];
-  const visibleEdges = detail.edges;
+  // Terrain never turns evidence relationships or detail-card associations
+  // into geographic lines. Discoverable/built paths require a separate
+  // admitted contract.
+  const visibleEdges: TopologyEdge[] = [];
   const anchorCount = topographies.reduce(
     (count, { patch }) => count + patch.anchors.length,
     0,
@@ -1351,45 +1301,53 @@ function buildSurveyTerrain(
     omissions: layout.omissions,
     bearing,
     world: layout.world,
-    fit_world: TERRAIN_CELL,
+    fit_world: {
+      width: selected.projection.extent.width,
+      height: selected.projection.extent.height,
+    },
     terrain: true,
   };
 }
 
 function layoutSurveyTerrain(
-  topographies: Array<{ workload: WorkloadSummary; patch: TopographyPatch }>,
+  topographies: AdmittedTopography[],
 ): SurveyTerrainLayout {
   const columns = Math.max(1, Math.ceil(Math.sqrt(topographies.length)));
   const rows = Math.max(1, Math.ceil(topographies.length / columns));
+  const cellWidth = Math.max(
+    1,
+    ...topographies.map(({ projection }) => projection.extent.width),
+  );
+  const cellHeight = Math.max(
+    1,
+    ...topographies.map(({ projection }) => projection.extent.height),
+  );
   const world = {
-    width: columns * TERRAIN_CELL.width,
-    height: rows * TERRAIN_CELL.height,
+    width: columns * cellWidth,
+    height: rows * cellHeight,
   };
   const contours: TopologyContour[] = [];
   const landforms: TopologyLandform[] = [];
   const naturalFeatures: TopologyNaturalFeature[] = [];
-  const omissions: string[] = [
-    "relief height is admitted anchor-sample influence, not inferred semantic similarity",
-    "streams, rivers, weather fronts, and erosion are deterministic survey-field projections, not retained paths or source relationships",
-  ];
+  const omissions: string[] = [];
   const points: TopologyPointOfInterest[] = [];
   const regions: TopologyRegion[] = [];
 
   const ordered = [...topographies].sort((left, right) =>
     left.workload.workload.id.localeCompare(right.workload.workload.id),
   );
-  ordered.forEach(({ workload, patch }, patchIndex) => {
+  ordered.forEach(({ workload, patch, projection }, patchIndex) => {
     const column = patchIndex % columns;
     const row = Math.floor(patchIndex / columns);
     const origin = {
-      x: column * TERRAIN_CELL.width,
-      y: row * TERRAIN_CELL.height,
+      x: column * cellWidth,
+      y: row * cellHeight,
     };
     const center = {
-      x: origin.x + TERRAIN_CELL.width / 2,
-      y: origin.y + TERRAIN_CELL.height / 2,
+      x: origin.x + projection.extent.width / 2,
+      y: origin.y + projection.extent.height / 2,
     };
-    const states = new Set(patch.regions.map((region) => region.state));
+    const states = new Set(projection.validity.map((region) => region.state));
     if (states.has("unexplored")) {
       regions.push({
         id: `terrain-unexplored:${workload.workload.id}`,
@@ -1397,8 +1355,8 @@ function layoutSurveyTerrain(
         detail: "no admitted terrain claim",
         x: origin.x + 30,
         y: origin.y + 30,
-        width: TERRAIN_CELL.width - 60,
-        height: TERRAIN_CELL.height - 60,
+        width: projection.extent.width - 60,
+        height: projection.extent.height - 60,
         tone: "unknown",
         variant: "map-zone",
       });
@@ -1409,8 +1367,8 @@ function layoutSurveyTerrain(
       detail: `${patch.coverage.surveyed_seeds}/${patch.coverage.requested_seeds} seeds surveyed · ${shortCoordinate(patch.topography_revision)}`,
       x: origin.x + 105,
       y: origin.y + 85,
-      width: TERRAIN_CELL.width - 210,
-      height: TERRAIN_CELL.height - 170,
+      width: projection.extent.width - 210,
+      height: projection.extent.height - 170,
       tone: states.has("surveyed")
         ? "healthy"
         : patch.complete
@@ -1422,13 +1380,15 @@ function layoutSurveyTerrain(
       .filter((state) => state !== "surveyed" && state !== "unexplored")
       .sort();
     statusStates.forEach((state, index) => {
-      const source = patch.regions.find((region) => region.state === state)!;
+      const source = projection.validity.find(
+        (region) => region.state === state,
+      )!;
       regions.push({
         id: `terrain-zone:${workload.workload.id}:${state}`,
         label: state.replaceAll("_", " "),
         detail: source.detail,
         x: origin.x + 150 + index * 245,
-        y: origin.y + TERRAIN_CELL.height - 150,
+        y: origin.y + projection.extent.height - 150,
         width: 215,
         height: 70,
         tone: regionTone(state),
@@ -1436,15 +1396,12 @@ function layoutSurveyTerrain(
       });
     });
 
-    const visibleAnchors = [...patch.anchors]
-      .sort((left, right) => {
-        if (left.kind === "workspace") return -1;
-        if (right.kind === "workspace") return 1;
-        return left.coordinate.coordinate.localeCompare(
-          right.coordinate.coordinate,
-        );
-      })
-      .slice(0, TOPOGRAPHY_POI_LIMIT);
+    const visibleAnchors = projection.objects.filter(
+      (object) =>
+        object.kind === "anchor" &&
+        object.anchor_kind !== null &&
+        object.coordinate !== null,
+    );
     const samplesByCoordinate = new Map<string, number>();
     patch.seeds.forEach((seed) => {
       if (!seed.coordinate) return;
@@ -1459,13 +1416,13 @@ function layoutSurveyTerrain(
       );
     });
     const nonWorkspace = visibleAnchors.filter(
-      (anchor) => anchor.kind !== "workspace",
+      (anchor) => anchor.anchor_kind !== "workspace",
     );
     visibleAnchors.forEach((anchor) => {
       const nonWorkspaceIndex = nonWorkspace.findIndex(
-        (candidate) => candidate.anchor_id === anchor.anchor_id,
+        (candidate) => candidate.source_id === anchor.source_id,
       );
-      const hash = stableHash(anchor.coordinate.coordinate);
+      const hash = stableHash(anchor.coordinate!);
       const jitter = ((hash % 1000) / 1000 - 0.5) * 0.42;
       const ring =
         nonWorkspaceIndex < 0 ? 0 : Math.floor(nonWorkspaceIndex / 8);
@@ -1475,7 +1432,8 @@ function layoutSurveyTerrain(
         nonWorkspaceIndex < 0
           ? 0
           : (Math.PI * 2 * slot) / Math.max(1, ringCount) + jitter;
-      const radiusMultiplier = anchor.kind === "external_resource" ? 1.22 : 1;
+      const radiusMultiplier =
+        anchor.anchor_kind === "external_resource" ? 1.22 : 1;
       const x =
         nonWorkspaceIndex < 0
           ? center.x
@@ -1485,25 +1443,25 @@ function layoutSurveyTerrain(
           ? center.y
           : center.y + Math.sin(angle) * (140 + ring * 40) * radiusMultiplier;
       const sampledConditions =
-        anchor.kind === "workspace"
+        anchor.anchor_kind === "workspace"
           ? patch.coverage.surveyed_seeds
-          : (samplesByCoordinate.get(anchor.coordinate.coordinate) ?? 0);
+          : (samplesByCoordinate.get(anchor.coordinate!) ?? 0);
       const prominence =
-        anchor.kind === "workspace"
+        anchor.anchor_kind === "workspace"
           ? 4
           : Math.min(4, 1 + Math.ceil(Math.log2(sampledConditions + 1)));
       points.push({
-        id: `anchor-node:${workload.workload.id}:${anchor.anchor_id}`,
-        focus_id: `anchor:${workload.workload.id}:${anchor.anchor_id}`,
+        id: `anchor-node:${workload.workload.id}:${anchor.source_id}`,
+        focus_id: `anchor:${workload.workload.id}:${anchor.source_id}`,
         kind: "anchor",
-        family: anchor.kind.replaceAll("_", " ").toUpperCase(),
+        family: anchor.anchor_kind!.replaceAll("_", " ").toUpperCase(),
         label: anchor.label,
         detail: `${sampledConditions} admitted survey sample${sampledConditions === 1 ? "" : "s"} · ${shortCoordinate(anchor.source_revision)}`,
         x,
         y,
         prominence,
         signal:
-          anchor.kind === "workspace"
+          anchor.anchor_kind === "workspace"
             ? `SURVEY ORIGIN / ${sampledConditions} ADMITTED SEED CONDITION${sampledConditions === 1 ? "" : "S"}`
             : sampledConditions >= 3
               ? `DENSE SAMPLE / ${sampledConditions} ADMITTED OBSERVATIONS`
@@ -1513,27 +1471,29 @@ function layoutSurveyTerrain(
         action: "EXACT COORDINATE / MINING STILL REQUIRES AN ADMITTED WORKLOAD",
         tone: "healthy",
         workload_id: workload.workload.id,
-        coordinate_uri: anchor.coordinate.coordinate,
+        coordinate_uri: anchor.coordinate!,
       });
     });
 
-    const visibleFrontier = patch.frontier.slice(0, 6);
+    const visibleFrontier = projection.objects.filter(
+      (object) => object.kind === "frontier" && object.frontier_status !== null,
+    );
     visibleFrontier.forEach((frontier, index) => {
       const angle =
         (Math.PI * 2 * index) / Math.max(1, visibleFrontier.length) + 0.38;
       points.push({
-        id: `frontier-node:${workload.workload.id}:${frontier.row_id}`,
-        focus_id: `frontier:${workload.workload.id}:${frontier.row_id}`,
+        id: `frontier-node:${workload.workload.id}:${frontier.source_id}`,
+        focus_id: `frontier:${workload.workload.id}:${frontier.source_id}`,
         kind: "frontier",
         family: "FRONTIER",
-        label: frontier.locator,
-        detail: `${frontier.status} · ${frontier.reason}`,
+        label: frontier.label,
+        detail: `${frontier.frontier_status} · ${frontier.detail}`,
         x: center.x + Math.cos(angle) * 585,
         y: center.y + Math.sin(angle) * 365,
         prominence: 1,
-        signal: boundaryProbeAction(frontier.status),
+        signal: boundaryProbeAction(frontier.frontier_status!),
         action: "PROBE FIRST / THE CANVAS WILL NOT EXECUTE IT",
-        tone: resolutionTone(frontier.status),
+        tone: resolutionTone(frontier.frontier_status!),
         workload_id: workload.workload.id,
       });
     });
@@ -1580,14 +1540,14 @@ function layoutSurveyTerrain(
       {
         x: origin.x + 100,
         y: origin.y + 80,
-        width: TERRAIN_CELL.width - 200,
-        height: TERRAIN_CELL.height - 160,
+        width: projection.extent.width - 200,
+        height: projection.extent.height - 160,
       },
     );
     contours.push(...terrainField.contours);
     const boundedFeatures = terrainField.natural_features.slice(
       0,
-      TOPOGRAPHY_NATURAL_FEATURE_LIMIT,
+      projection.limits.max_natural_features,
     );
     naturalFeatures.push(...boundedFeatures);
     if (terrainField.natural_features.length > boundedFeatures.length)
@@ -1596,19 +1556,15 @@ function layoutSurveyTerrain(
       );
 
     omissions.push(
-      ...patch.omissions.map(
-        (omission) =>
-          `${omission.omitted_count} ${omission.kind.replaceAll("_", " ")} omitted: ${omission.reason}`,
-      ),
+      ...projection.omissions.map((omission) => {
+        if (omission.kind === "semantic_boundary") return omission.reason;
+        if (omission.kind === "anchor_limit")
+          return `${omission.omitted_count} anchor POIs folded from ${workload.workload.id}`;
+        if (omission.kind === "frontier_limit")
+          return `${omission.omitted_count} frontier POIs folded from ${workload.workload.id}`;
+        return `${omission.omitted_count} ${omission.kind.replaceAll("_", " ")} omitted: ${omission.reason}`;
+      }),
     );
-    if (patch.anchors.length > visibleAnchors.length)
-      omissions.push(
-        `${patch.anchors.length - visibleAnchors.length} anchor POIs folded from ${workload.workload.id}`,
-      );
-    if (patch.frontier.length > visibleFrontier.length)
-      omissions.push(
-        `${patch.frontier.length - visibleFrontier.length} frontier POIs folded from ${workload.workload.id}`,
-      );
   });
   return {
     contours,
@@ -1622,7 +1578,7 @@ function layoutSurveyTerrain(
 }
 
 function buildSurveyTerrainDetails(
-  selected: { workload: WorkloadSummary; patch: TopographyPatch },
+  selected: AdmittedTopography,
   focusPoint: TopologyPointOfInterest | undefined,
   focusId: string,
   regime: LensRegime,
@@ -2219,9 +2175,9 @@ function buildEvidence(
 }
 
 function selectTopography(
-  topographies: Array<{ workload: WorkloadSummary; patch: TopographyPatch }>,
+  topographies: AdmittedTopography[],
   focusId: string,
-): { workload: WorkloadSummary; patch: TopographyPatch } {
+): AdmittedTopography {
   return (
     topographies.find(({ workload }) =>
       ["topography", "seed", "anchor", "frontier"].some((kind) =>

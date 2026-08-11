@@ -421,9 +421,12 @@ deterministic visual projection of those artifacts. It does not mine, resolve,
 or interpolate semantic terrain on its own. Broader locator families and
 recurring voyage scheduling remain later work. ADR 0043 removes source-edge
 and camera-path geometry from relief; only a subsequent admitted patch can
-change topography. The current SVG/DOM scene is not yet the projection packet,
-multiresolution terrain field, render graph, or accelerated high-fidelity
-engine accepted by ADR 0044; Plan 0020 owns that incomplete work.
+change topography. `rey.projection-packet.v1` now binds each displayed patch to
+its synthetic basis, bounded objects, validity, field/layer descriptors,
+limits, degradation, omissions, and lineage through the CLI and
+`rey.workload-list.v7`. The current SVG/DOM scene is not yet the immutable
+scene, multiresolution terrain field, render graph, or Three.js high-fidelity
+engine accepted by ADRs 0044 and 0045; Plan 0020 owns that incomplete work.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,

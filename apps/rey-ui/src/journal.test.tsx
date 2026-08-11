@@ -138,7 +138,7 @@ function entry(): RetainedJournalEntry {
 
 function portfolio(): WorkloadList {
   return {
-    schema: "rey.workload-list.v6",
+    schema: "rey.workload-list.v7",
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",

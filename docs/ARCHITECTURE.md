@@ -301,9 +301,12 @@ feathers their visual boundary. Semantic scene identity is backend-independent;
 GPU pixels and measured frame time are not authoritative evidence.
 
 The target uses an immutable scene graph plus data-oriented field buffers and
-an explicit render graph. A generic ECS, physics runtime, free-orbit 3D, or
-renderer dependency requires a later qualified need. ADR 0044 defines this
-boundary and Plan 0020 owns its code extraction and terrain-fidelity proof.
+an explicit render graph. ADR 0045 selects a narrow Three.js `WebGPURenderer`
+and TSL adapter: WebGPU is the preferred backend, Three.js's WebGL2 backend is
+the compatibility path, and Rey's reference renderer owns deterministic
+semantic proof. A generic ECS, physics runtime, or free-orbit 3D requires a
+later qualified need. ADR 0044 defines the engine boundary and Plan 0020 owns
+its code extraction and terrain-fidelity proof.
 
 ## Workloads, Graphs, And Scenarios
 
@@ -748,8 +751,8 @@ adapters own projection-packet semantics; the Explorer engine owns immutable
 scenes, fields, camera, LOD, invalidation, render graph, and picking; terrain
 modules own versioned field derivations; renderer backends own graphics
 resources and pixels; and React owns routing, controls, accessibility, and
-evidence panels. Plan 0020 must establish those modules before selecting a
-graphics dependency. No new Rust crate is implied until a shared CLI/browser
+evidence panels. The Three.js adapter selected by ADR 0045 cannot absorb Rey's
+scene or evidence ownership. No new Rust crate is implied until a shared CLI/browser
 contract or server-side compiler requires one.
 
 ## Failure And Limits
@@ -816,11 +819,14 @@ erosion, and probe prerequisites; the CLI exposes their admitted inputs,
 excluded edge provenance, projection limits, and boundary actions. Discovered
 or constructed paths require a separate future evidence contract. The current
 browser implementation still compiles and draws those concerns through large
-React/TypeScript modules and SVG/DOM layers. It has no typed projection packet,
-multiresolution field tiles, normal/occlusion/material render graph, accelerated
-backend, or qualified terrain-fidelity result; Plan 0020 owns that incomplete
-enabling work. Generic dependency invalidation, recurring scheduling, policy
-proposals, Git activation, and the Spoke provider remain target architecture.
+React/TypeScript modules and SVG/DOM layers. `rey-mining` now defines and
+validates `rey.projection-packet.v1`; `rey.workload-list.v7` carries it beside
+the exact patch, the CLI exposes its current bindings, and Explorer requires
+their identities to match. Multiresolution field tiles, immutable scene
+extraction, normal/occlusion/material render graph, the Three.js adapter, and a
+qualified terrain-fidelity result remain incomplete Plan 0020 work. Generic
+dependency invalidation, recurring scheduling, policy proposals, Git
+activation, and the Spoke provider remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts

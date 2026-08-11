@@ -10,7 +10,7 @@ import {
 } from "./explorer-coordinate";
 
 const portfolio: WorkloadList = {
-  schema: "rey.workload-list.v6",
+  schema: "rey.workload-list.v7",
   catalog: {
     schema: "rey.workload-catalog.v2",
     kind: "workspace_packages",
@@ -63,6 +63,7 @@ const portfolio: WorkloadList = {
       topography_coverage: null,
       topography_frontier_rows: 0,
       topography_patch: null,
+      topography_projection: null,
       last_run_status: "passed",
       last_test_result_id: "test:1",
     },
@@ -194,6 +195,7 @@ describe("Explorer coordinate views", () => {
           } as unknown as NonNullable<
             WorkloadList["workloads"][number]["topography_patch"]
           >,
+          topography_projection: null,
         },
       ],
     };

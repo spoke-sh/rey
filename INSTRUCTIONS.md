@@ -67,10 +67,13 @@ the `/explore` context-topology canvas and normally remain in the UI; agents
 use the CLI as their primary runtime interface, with humans descending to it
 for exact diagnosis. `/explore` is now architecturally defined as a
 high-fidelity spatial game engine specialized for evidence-bound projections
-of high-dimensional context. Its current React/SVG relief is incomplete
-enabling work: [Plan 0020](plans/0020-high-fidelity-projection-engine.md) owns
-the typed projection packet, engine extraction, continuous terrain renderer,
-and CLI/browser/performance proof. The former Instrument dashboard is
+of high-dimensional context. Its current React/SVG relief remains incomplete
+enabling work, now isolated as a deterministic reference renderer beside an
+unmounted, pinned Three.js WebGPU adapter. The implemented
+`rey.projection-packet.v1` binds the current CLI/browser scene input; [Plan
+0020](plans/0020-high-fidelity-projection-engine.md) owns engine extraction,
+continuous terrain rendering, and the remaining CLI/browser/performance proof.
+The former Instrument dashboard is
 Environment at `/environment`. `/cadence` keeps bounded Git reachability, Rey
 admissions, and mounted browser scans on explicit partial-order clocks. `/agents` ranks
 evidence-backed system recommendations and summarizes retained work results;

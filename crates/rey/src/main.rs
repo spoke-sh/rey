@@ -53,7 +53,9 @@ use rey_environment::{
     VariableCapture,
 };
 use rey_locator::ResolutionLimits;
-use rey_mining::{MiningCompleteness, MiningLimits, TopographyLimits, TopographyPatch};
+use rey_mining::{
+    MiningCompleteness, MiningLimits, ProjectionPacket, TopographyLimits, TopographyPatch,
+};
 use rey_runtime::{
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
     CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
@@ -2077,6 +2079,25 @@ fn write_workload_list(
                     ),
                 )?;
             }
+            if let Some(packet) = &workload.topography_projection {
+                write_portfolio_field(
+                    output,
+                    "Projection engine",
+                    &format!(
+                        "{} · {}@{} · {} objects · {} validity regions · {}",
+                        packet.packet_id,
+                        packet.projection_basis.contract.id,
+                        packet.projection_basis.contract.revision,
+                        packet.objects.len(),
+                        packet.validity.len(),
+                        if packet.complete {
+                            "COMPLETE"
+                        } else {
+                            "BOUNDED"
+                        },
+                    ),
+                )?;
+            }
         }
         write_portfolio_field(
             output,
@@ -2742,6 +2763,7 @@ fn write_topography_evidence(
     style: TerminalStyle,
 ) -> io::Result<()> {
     const ROW_LIMIT: usize = 24;
+    let projection = ProjectionPacket::from_topography_patch(patch).map_err(io::Error::other)?;
 
     writeln!(
         output,
@@ -2816,6 +2838,27 @@ fn write_topography_evidence(
     writeln!(
         output,
         "         Hydrology projection: rainfall and downslope accumulation may carve displayed streams, rivers, and erosion · no discovered or built path claim",
+    )?;
+    writeln!(
+        output,
+        "         Projection packet: {} · {}@{} · {} objects · {} validity regions · {} field channels · {} layers · {}",
+        projection.packet_id,
+        projection.projection_basis.contract.id,
+        projection.projection_basis.contract.revision,
+        projection.objects.len(),
+        projection.validity.len(),
+        projection.field_channels.len(),
+        projection.layers.len(),
+        if projection.complete {
+            style.green("COMPLETE")
+        } else {
+            style.yellow("BOUNDED")
+        },
+    )?;
+    writeln!(
+        output,
+        "         Projection boundary: {} retained source relationships excluded from terrain geometry · synthetic distance is not language or semantic distance",
+        projection.excluded_source_relationships,
     )?;
     for seed in &patch.seeds {
         writeln!(
@@ -2972,7 +3015,166 @@ fn write_topography_evidence(
                 ),
             )?;
         }
+        write_projection_packet_evidence(output, &projection, style)?;
     }
+    Ok(())
+}
+
+fn write_projection_packet_evidence(
+    output: &mut impl Write,
+    packet: &ProjectionPacket,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    const ROW_LIMIT: usize = 24;
+    writeln!(
+        output,
+        "         {}",
+        style.dim("Exact projection bindings:")
+    )?;
+    for (label, value) in [
+        ("packet", packet.packet_id.to_string()),
+        ("source patch", packet.source_patch_id.to_string()),
+        (
+            "source topography",
+            packet.source_topography_revision.to_string(),
+        ),
+        (
+            "basis",
+            format!(
+                "{}@{} · {}",
+                packet.projection_basis.contract.id,
+                packet.projection_basis.contract.revision,
+                packet.projection_basis.contract.semantic_digest,
+            ),
+        ),
+        (
+            "scene compiler",
+            format!(
+                "{}@{} · {}",
+                packet.scene_compiler.id,
+                packet.scene_compiler.revision,
+                packet.scene_compiler.semantic_digest,
+            ),
+        ),
+        (
+            "extent",
+            format!(
+                "{}×{} {}",
+                packet.extent.width, packet.extent.height, packet.extent.unit,
+            ),
+        ),
+        (
+            "distance",
+            packet.projection_basis.distance_semantics.clone(),
+        ),
+        ("distortion", packet.projection_basis.distortion.clone()),
+        (
+            "limits",
+            format!(
+                "anchors={} frontier={} validity={} cells={} field_bytes={} contours={} features={} labels={}",
+                packet.limits.max_anchor_objects,
+                packet.limits.max_frontier_objects,
+                packet.limits.max_validity_regions,
+                packet.limits.max_field_cells,
+                packet.limits.max_field_bytes,
+                packet.limits.max_contours,
+                packet.limits.max_natural_features,
+                packet.limits.max_labels,
+            ),
+        ),
+    ] {
+        write_test_binding(output, label, &value)?;
+    }
+    for channel in &packet.field_channels {
+        write_test_binding(
+            output,
+            "field",
+            &format!(
+                "{} · {} · {} · {}@{} · source {}",
+                channel.id,
+                channel.kind.as_str(),
+                channel.units,
+                channel.implementation.id,
+                channel.implementation.revision,
+                channel.source_revision,
+            ),
+        )?;
+    }
+    for region in packet.validity.iter().take(ROW_LIMIT) {
+        write_test_binding(
+            output,
+            "validity",
+            &format!(
+                "{} · {} · {}",
+                region.state.as_str(),
+                region.coordinate,
+                region.source_revision,
+            ),
+        )?;
+    }
+    write_topography_projection_fold(
+        output,
+        "validity regions",
+        packet.validity.len(),
+        ROW_LIMIT,
+        style,
+    )?;
+    for layer in &packet.layers {
+        write_test_binding(
+            output,
+            "layer",
+            &format!(
+                "{} · {} · {}",
+                layer.id,
+                layer.authority.as_str(),
+                layer.source_revision,
+            ),
+        )?;
+    }
+    for item in &packet.degradation {
+        write_test_binding(
+            output,
+            "degradation",
+            &format!(
+                "{} · count {} · {}",
+                item.kind, item.omitted_count, item.reason
+            ),
+        )?;
+    }
+    for omission in packet.omissions.iter().take(ROW_LIMIT) {
+        write_test_binding(
+            output,
+            "projection omission",
+            &format!(
+                "{} · {} · count {} · {}",
+                omission.kind, omission.subject, omission.omitted_count, omission.reason,
+            ),
+        )?;
+    }
+    write_topography_projection_fold(
+        output,
+        "projection omissions",
+        packet.omissions.len(),
+        ROW_LIMIT,
+        style,
+    )?;
+    for lineage in packet.lineage.iter().take(ROW_LIMIT) {
+        write_test_binding(
+            output,
+            "projection lineage",
+            &format!(
+                "{} · {} · {}",
+                lineage.kind, lineage.identity, lineage.revision,
+            ),
+        )?;
+    }
+    write_topography_projection_fold(
+        output,
+        "projection lineage rows",
+        packet.lineage.len(),
+        ROW_LIMIT,
+        style,
+    )?;
     Ok(())
 }
 

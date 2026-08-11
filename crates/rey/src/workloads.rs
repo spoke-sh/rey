@@ -7,7 +7,7 @@ use std::{
 
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_environment::{CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
-use rey_mining::{TopographyCoverage, TopographyPatch};
+use rey_mining::{ProjectionPacket, TopographyCoverage, TopographyPatch};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
     CONTEXT_ANCHOR_SURVEY_OPERATION_ID, ComputeGraph, GraphLimits, GraphNode, GraphOutput,
@@ -22,9 +22,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v2";
-pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v6";
-pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v6";
-pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v6";
+pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v7";
+pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v7";
+pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v7";
 pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v5";
 pub const WORKLOAD_PACKAGE_SCHEMA: &str = "rey.workload-package.v1";
 pub const WORKLOAD_CREATION_REQUEST_SCHEMA: &str = "rey.workload-creation-request.v1";
@@ -1468,6 +1468,7 @@ pub struct WorkloadSummary {
     pub topography_coverage: Option<TopographyCoverage>,
     pub topography_frontier_rows: u64,
     pub topography_patch: Option<TopographyPatch>,
+    pub topography_projection: Option<ProjectionPacket>,
 }
 
 impl WorkloadSummary {
@@ -1585,6 +1586,10 @@ impl WorkloadSummary {
         let complete_mining_results = complete_source_mining_results
             .saturating_add(attention_results)
             .saturating_add(complete_topography);
+        let topography_projection = last_patch.map(|patch| {
+            ProjectionPacket::from_topography_patch(patch)
+                .expect("retained verified topography must produce a projection packet")
+        });
         Self {
             provenance: None,
             workload: workload.workload.clone(),
@@ -1621,6 +1626,7 @@ impl WorkloadSummary {
             topography_coverage: last_patch.map(|patch| patch.coverage.clone()),
             topography_frontier_rows: last_patch.map_or(0, |patch| patch.frontier.len() as u64),
             topography_patch: last_patch.cloned(),
+            topography_projection,
         }
     }
 

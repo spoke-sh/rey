@@ -233,10 +233,13 @@ is specified in `docs/JOURNAL.md`.
 
 ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
 derives bounded World, Atlas, Landscape, Neighborhood, Object, and Evidence
-scenes from admitted patches in `rey.workload-list.v6`; `src/explore.tsx` owns
-the React canvas mechanics, dynamic world extents, anchor-only relief,
-weather/water/probe layers, and read-only survey bearings. Seed edges remain
-deep inspection evidence and do not become relief, natural features, or paths.
+scenes from admitted patches and projection packets in `rey.workload-list.v7`;
+`src/explore/engine/camera.ts` owns the extracted camera math,
+`src/explore/engine/scene.ts` freezes the current reference scene, and
+`src/explore/renderers/reference.tsx` owns the SVG/DOM passes beneath the React
+canvas shell. Anchor-only fields and remaining scene assembly still live in
+`src/topology.ts`. Seed edges remain deep inspection evidence and do not become
+relief, natural features, or paths.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
@@ -245,14 +248,20 @@ the root redirect.
 ADR 0044 formalizes Explorer as a high-fidelity spatial game engine for
 evidence-bound projection and adds no graphics dependency by itself. Plan 0020
 first extracts typed evidence adapters, projection packets, immutable scenes,
-data-oriented fields,
-camera/LOD/invalidation, render-graph, picking, backend, and React-shell
+data-oriented fields, camera/LOD/invalidation, render-graph, picking, backend,
+and React-shell
 boundaries while retaining the existing SVG/DOM output as a reference path.
-Only a bounded qualification spike may select an accelerated backend or
-third-party renderer. That review must cover browser and device support, bundle
-and Nix closure size, graphics-resource ownership and disposal, context loss,
-fallback, determinism, accessibility, security policy, licensing, maintenance,
-and named performance evidence.
+ADR 0045 selects a pinned Three.js `WebGPURenderer` and TSL adapter with WebGPU
+preferred and Three.js's WebGL2 backend as compatibility fallback. The current
+package pins Three.js `0.185.1`; its adapter has deterministic lifecycle tests
+for asynchronous initialization, WebGPU selection, forced WebGL2 selection,
+viewport bounds, failure, and disposal, but is not yet mounted as the live
+terrain surface. Its remaining bounded
+qualification must cover browser and device support, bundle and Nix closure
+size, asynchronous initialization, graphics-resource ownership and disposal,
+device/context loss, both backends, determinism, accessibility, security policy,
+licensing, maintenance, and named performance evidence. Rey's deterministic
+reference renderer remains independent of Three.js.
 
 Backend-independent tests own semantic correctness: field values, validity
 masks, scene manifests, stable ordering, LOD selection, render-pass order,
