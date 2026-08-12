@@ -6,30 +6,34 @@ Procedural guidance for humans and agents working on Rey.
 
 1. `README.md` for scope, model, and current status.
 2. `CONSTITUTION.md` for durable values and invariants.
-3. `docs/ARCHITECTURE.md` for ownership and data flow.
-4. `docs/GLOSSARY.md` for canonical project terminology and semantic
+3. `docs/README.md` for the documentation map.
+4. `docs/ARCHITECTURE.md` for ownership and data flow.
+5. `docs/GLOSSARY.md` for canonical project terminology and semantic
    distinctions.
-5. `docs/MINING.md` before changing retrieval, search, parsing, indexing,
+6. `docs/CLI.md` before changing command behavior, revision loops, human
+   rendering, structured output, streams, or exit semantics.
+7. `docs/MINING.md` before changing retrieval, search, parsing, indexing,
    grouping, traversal, metrics, text/structural diffs, or visualization.
-6. `docs/WORKLOADS.md` before changing workloads, compute graphs, scenarios,
+8. `docs/WORKLOADS.md` before changing workloads, compute graphs, scenarios,
    qualification, progress, or the workload CLI.
-7. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
+9. `docs/RUNTIME.md` before changing transitions, reasoning surfaces,
    convergence, or scheduling.
-8. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
+10. `docs/FRONTIER.md` before changing frontier, progress, prioritization, or
    scheduling contracts.
-9. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
+11. `docs/ENVIRONMENT.md` before changing providers, discovery, tools, profiles,
    or capability admission.
-10. `docs/LOCATORS.md` before changing locator syntax, resolution, anchors, or
+12. `docs/LOCATORS.md` before changing locator syntax, resolution, anchors, or
    survey behavior.
-11. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
+13. `docs/GIT.md` before changing repository identity, commit/ref/index polling,
    cursors, triggers, or workload activation.
-12. `docs/DIFFS.md` before changing frames, comparison, normalization, or
+14. `docs/DIFFS.md` before changing frames, comparison, normalization, or
    renderings.
-13. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
-14. `docs/INTERFACES.md` before changing the CLI or Spoke integration.
-15. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
-16. `plans/README.md` and the active plans before implementation work.
-17. `docs/decisions/README.md` for accepted choices that constrain the work.
+15. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
+16. `docs/INTERFACES.md` before changing provider, HTTP, policy, persistence, or
+    Spoke integration contracts.
+17. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
+18. `plans/README.md` and the active plans before implementation work.
+19. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 

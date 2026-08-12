@@ -1883,4 +1883,5 @@ lineage semantics.
 - [Explorer](EXPLORER.md) — semantic lenses, coordinates, and UI projection.
 - [Journal](JOURNAL.md) — retained collaboration documents and authority.
 - [Locators](LOCATORS.md) — survey anchors and resolution.
-- [Interfaces](INTERFACES.md) — CLI, policy, provider, and operator surfaces.
+- [CLI](CLI.md) — command philosophy, revision loops, output, and exit behavior.
+- [Interfaces](INTERFACES.md) — policy, provider, persistence, HTTP, and operator surfaces.

@@ -129,6 +129,8 @@ artifact, result, visualization, and provider boundaries.
 See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) for the public
 composition, test-campaign, qualification, progress, catalog, and command
 contracts.
+See [Rey Command-Line Interface](CLI.md) for the agent-facing command model,
+explicit mutation posture, and `HEAD → INDEX → WORKING` admission loops.
 See [Git Context and Activation](GIT.md) for software-repository snapshots,
 poll cursors, and delta-triggered workloads.
 

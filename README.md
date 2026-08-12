@@ -686,6 +686,8 @@ Rey is not:
 
 ## Repository Guide
 
+- [Documentation Index](docs/README.md) — reference map for foundational,
+  runtime, context, interface, decision, and delivery documents.
 - [Constitution](CONSTITUTION.md) — durable values and invariants.
 - [Contributor Instructions](INSTRUCTIONS.md) — working loop and verification.
 - [Architecture](docs/ARCHITECTURE.md) — ownership and end-to-end data flow.
@@ -706,7 +708,10 @@ Rey is not:
 - [Git](docs/GIT.md) — source identity, polling, and activation.
 - [Diffs](docs/DIFFS.md) — typed, textual, and structural comparison.
 - [Proofs](docs/PROOFS.md) — claims, evidence, certificates, and staleness.
-- [Interfaces](docs/INTERFACES.md) — CLI, policy, provider, and Spoke contracts.
+- [CLI](docs/CLI.md) — command philosophy, revision loops, command groups,
+  output, and exit behavior.
+- [Interfaces](docs/INTERFACES.md) — typed policy, provider, HTTP, persistence,
+  and Spoke contracts.
 - [Development](docs/DEVELOPMENT.md) — toolchain and repository truth.
 - [Roadmap](docs/ROADMAP.md) — delivery sequence.
 - [Plans](plans/README.md) — active implementation bearings.

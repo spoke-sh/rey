@@ -1,6 +1,9 @@
 # Rey Interfaces
 
-This document sketches Rey's user, environment, policy, and Spoke interfaces.
+This document defines Rey's typed provider, policy, persistence, HTTP/UI, and
+Spoke boundaries. [Rey Command-Line Interface](CLI.md) is the canonical
+command philosophy and command-level reference; CLI details retained here
+explain the typed contracts projected by those commands.
 The implemented CLI includes a Git-shaped, mapping-aware standalone
 environment revision loop and the workload runner fixed by ADR 0016. ADR 0023
 hard-cuts the default catalog to bounded workspace packages and keeps compiled
@@ -68,7 +71,14 @@ interactive admission as environment hunks, and adds bounded dated history.
 - Connected Spoke integration uses explicit endpoint and identity configuration
   and never resolves a Spoke name through host paths or private storage.
 
-## Accepted CLI Shape
+## CLI Contract Projection
+
+This document no longer owns command UX. See [Rey Command-Line
+Interface](CLI.md) for the canonical implemented command map, read/mutation
+posture, `HEAD → INDEX → WORKING` model, formats, streams, colors, and exit
+behavior. The command and schema detail below is retained where it explains
+the typed workload, environment, and provider contracts consumed by other
+interfaces.
 
 Rey's product surface is intentionally small:
 
@@ -497,10 +507,11 @@ retains its own argument-parsing exit behavior.
 Implemented `workloads create`, `status`, `diff`, `add`, `commit`, `log`, and
 `list` return `0` whenever the requested mutation or inspection succeeds.
 Semantic differences and an unready INDEX are status, not command failure.
-`workloads test` and
-`run` use `0` for qualified/passed, `2` for conclusive semantic failure, `3`
-for inconclusive or blocked, `4` for stale, and `1` for invalid input or runtime
-failure.
+`workloads test` uses `0` for qualified, `2` for conclusive semantic failure,
+`3` for inconclusive, and `1` for invalid input or runtime failure. `run` uses
+`0` for passed, `3` for blocked, and `1` for invalid input or runtime failure.
+Staleness remains typed state; the current executable does not assign it a
+separate exit code.
 
 ## Identities
 

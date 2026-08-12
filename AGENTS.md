@@ -35,23 +35,25 @@ exists.
 1. `README.md`
 2. `CONSTITUTION.md`
 3. `INSTRUCTIONS.md`
-4. `docs/ARCHITECTURE.md`
-5. `docs/GLOSSARY.md`
-6. `docs/EXPLORER.md`
-7. `docs/JOURNAL.md`
-8. `docs/MINING.md`
-9. `docs/WORKLOADS.md`
-10. `docs/RUNTIME.md`
-11. `docs/FRONTIER.md`
-12. `docs/ENVIRONMENT.md`
-13. `docs/LOCATORS.md`
-14. `docs/GIT.md`
-15. `docs/DIFFS.md`
-16. `docs/PROOFS.md`
-17. `docs/INTERFACES.md`
-18. `docs/DEVELOPMENT.md`
-19. `plans/README.md` and the active plans
-20. `docs/decisions/README.md`
+4. `docs/README.md`
+5. `docs/ARCHITECTURE.md`
+6. `docs/GLOSSARY.md`
+7. `docs/CLI.md`
+8. `docs/EXPLORER.md`
+9. `docs/JOURNAL.md`
+10. `docs/MINING.md`
+11. `docs/WORKLOADS.md`
+12. `docs/RUNTIME.md`
+13. `docs/FRONTIER.md`
+14. `docs/ENVIRONMENT.md`
+15. `docs/LOCATORS.md`
+16. `docs/GIT.md`
+17. `docs/DIFFS.md`
+18. `docs/PROOFS.md`
+19. `docs/INTERFACES.md`
+20. `docs/DEVELOPMENT.md`
+21. `plans/README.md` and the active plans
+22. `docs/decisions/README.md`
 
 ## Core Principles
 
