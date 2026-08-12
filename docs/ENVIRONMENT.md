@@ -3,23 +3,18 @@
 This document defines Rey's target environment-discovery and capability
 contracts. Environment awareness lets Rey use the best context surfaces
 available without making any host tool an invisible boot dependency.
-ADR 0008 implements the version-1 capability
-relation for built-in frames, one explicit workspace, allowlisted `git` and
-`rg` identity probes, and a contained Git repository observation. Action
-admission and other tool adapters remain later work. ADRs 0010 and 0011 add capability deltas, required-capability
-certificates, and bounded local-only bundle retention over this relation. ADR
-0017 classifies relational and source mining operations as first-class
-capabilities. Plan 0006 now implements the first deterministic built-in local
-source binding and literal-search capability and ADR 0018 composes it through
-the workload CLI; external `rg`, parser, and index adapters remain later
-slices. ADR 0020 added the first explicit environment graph, ADR 0027
-added bounded non-sensitive value capture and one operator delta for the CLI
-and UI, and ADR 0031 hard-cuts the current mapping contract to
-`rey.env-map.v1` with separate desired-application and search records. ADR
-0032 removes the conventional map bootstrap: the process now owns the fixed
-`HOME`, `PWD`, and `PATH` discovery seeds, while mappings are explicit
-agent-generatable reasoning resources. The Git-shaped environment history
-revisions those observations.
+The implemented version-1 capability relation covers built-in frames, one
+explicit workspace, allowlisted `git` and `rg` identity probes, and a contained
+Git repository observation. Capability deltas, required-capability
+certificates, bounded local-only proof bundles, a deterministic built-in local
+source binding, and literal search compose through the workload CLI. External
+`rg`, parser, index, and other action adapters remain later work.
+
+The current `rey.env-map.v1` keeps desired-application declarations separate
+from bounded search records and permits bounded non-sensitive value capture.
+Bootstrap never loads a conventional map: the process owns only `HOME`, `PWD`,
+and `PATH`, while maps are explicit agent-generatable reasoning resources. The
+Git-shaped environment history revisions those observations.
 
 ## Terms
 
@@ -93,7 +88,7 @@ error_code
 error_detail
 ```
 
-ADR 0008 fixes `rey.capabilities` version `1`. Scalar fields are Polars string,
+`rey.capabilities` version `1` uses Polars string,
 unsigned integer, or nullable string columns. Array-valued logical fields use
 canonical compact JSON arrays in string columns for this schema version. A
 future Arrow list/struct representation requires a schema revision. The schema
@@ -351,8 +346,8 @@ evidence unless the workload contract selected it as a required input.
 
 ## Local Environment Revisions
 
-ADRs 0019 through 0021, ADR 0027, and ADR 0033 implement the Git-shaped
-interaction over capability snapshots. `rey env status` observes the explicit
+The Git-shaped interaction operates over capability snapshots. `rey env
+status` observes the explicit
 workspace and derives three planes: committed `HEAD`, the admission `INDEX`,
 and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty

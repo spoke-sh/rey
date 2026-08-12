@@ -54,9 +54,10 @@ Rey separates ten responsibilities:
 
 These are responsibility boundaries, not requirements for separate processes.
 The first topology is a local Rey process. `rey ui` attaches an operator
-projection to that process; its only browser write is bounded unauthenticated
-Journal admission on any explicitly configured listener. It is not a separate
-runtime or scheduler, and Journal admission grants no compute authority.
+projection to that process. Its explicit browser writes are bounded
+unauthenticated Journal admission and exact workload file qualification/
+admission on any explicitly configured listener. It is not a separate runtime
+or scheduler; neither write grants general compute or proof authority.
 
 ## System Graph
 
@@ -148,7 +149,7 @@ poll cursors, and delta-triggered workloads.
 | Mining request      | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale                                                                                             | Rey transition or graph-node evidence                                                                           |
 | Mining result       | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions                                                                                    | Rey evidence index; artifacts remain provider-owned or explicitly retained                                      |
 | Topography patch    | Admitted survey result containing coordinate anchors, classified relationships, coverage, frontier, omissions, lineage, and a directed map delta                                                       | Rey evidence index; source artifacts and coordinates remain provider-owned                                      |
-| Editor project      | User-authored declaration of bounded native scene sources, explicit roles, and one coordinate-system contract                                                                                          | Workspace source; `.rey/editor` is only a candidate/index cache                                                  |
+| Editor project      | Rey-owned mutable declaration of bounded workspace-native scene sources, explicit roles, and one coordinate-system contract                                                                            | Selected local editor state (`.rey/editor/project.json` by default); native authored sources remain workspace files |
 | Scene commit        | Linear immutable editor revision binding sequence, parent, timestamp, message, and one exact candidate package                                                                                          | Local editor history; authoring HEAD but explicitly not admitted evidence                                       |
 | Scene generation recipe | Generator revision, source identity, seed, bounds, and complete effective geometry/effect hyperparameters embedded in its native output                                                            | Workspace source lineage; deterministic authoring, never evidence authority                                     |
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
@@ -252,8 +253,7 @@ operator/Rey/agent conversation axis with a conventional transcript and
 composer. The current read-only server has no admitted chat transport, so the
 composer is disabled and no UI-owned transcript is invented.
 
-[ADR 0040](decisions/0040-workspace-channels-and-operator-index.md) defines the
-collaboration substrate without changing those boundaries. A workspace-local
+The collaboration substrate preserves those boundaries. A workspace-local
 Channel graph addresses channels, subscriptions, Feed
 streams, ordered layouts, and explicit relay declarations through a separate
 Git-shaped operator index. Standalone immutable Channel observations and their
@@ -280,19 +280,10 @@ The listener defaults to loopback and carries no authentication, multi-user,
 or remote-service guarantee. Its explicit writes are bounded Journal admission
 and qualified exact workload-INDEX approval. An explicit non-loopback bind
 exposes both writes to every client that can reach the listener and therefore
-emits a warning; no bind grants workload execution or proof authority. See [Context Topology
-Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
-[ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
-0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md). The
-continuous coordinate/topography boundary is specified by [ADR
-0041](decisions/0041-continuous-coordinate-topography.md).
-Cadence repository state is specified by [ADR
-0036](decisions/0036-cadence-repository-state-and-publication.md).
-The shared collaboration Journal is specified by [ADR
-0037](decisions/0037-explore-bound-collaboration-journal.md), [ADR
-0038](decisions/0038-unauthenticated-hyperlinkable-journal.md), [ADR
-0054](decisions/0054-diff-directed-journal-broadsheet.md), and
-[Collaboration Journal](JOURNAL.md).
+emits a warning; no bind grants workload execution or proof authority. See
+[Context Topology Explorer](EXPLORER.md), [Collaboration Journal](JOURNAL.md),
+[Git Context and Activation](GIT.md), and
+[Plan 0002](../plans/0002-collaboration-loop.md).
 
 ### Explorer projection-engine boundary
 
@@ -335,9 +326,9 @@ The editor arrow cannot bypass the admission workload. `rey.scene-package.v1`
 is not a topography patch, projection packet, browser scene, or proof. The
 current first slice freezes bounded native GeoJSON and a feature/POI index but
 does not yet implement the admission workload; therefore it is enabling work
-and creating a package leaves `/explore` unchanged. [ADR
-0046](decisions/0046-read-first-scene-editor.md) and [Plan
-0021](../plans/0021-read-first-scene-editor.md) own this boundary.
+and creating a package leaves `/explore` unchanged. [Explorer](EXPLORER.md),
+[Mining](MINING.md), and [Plan 0003](../plans/0003-scene-to-explorer.md) own
+this boundary.
 
 Picking reverses only screen position to a stable scene identity and exact
 coordinate. It does not reverse pixels into evidence. The CLI inspects the
@@ -345,20 +336,21 @@ packet, compiler revisions, field semantics, validity, limits, omissions, and
 lineage through the existing workload surface; the browser is responsible for
 high-fidelity spatial verification.
 
-Terrain fidelity begins with a continuous multiresolution field. Height,
-normal, slope, aspect, curvature, runoff, erosion, material, and shading are
-separate channels or passes with explicit derivation and revision. Unknown and
-unsupported validity never become sampled height merely because a material
-feathers their visual boundary. Semantic scene identity is backend-independent;
-GPU pixels and measured frame time are not authoritative evidence.
+Terrain fidelity begins with a bounded deterministic terrain program and a
+camera-relative transient working set. Height, normal, slope, aspect,
+curvature, runoff, erosion, material, and shading are separate channels or
+passes with explicit derivation and revision. Unknown and unsupported validity
+never become sampled height merely because a material feathers their visual
+boundary. Semantic scene identity is backend-independent; generated buffers,
+GPU pixels, and measured frame time are not authoritative evidence.
 
 The target uses an immutable scene graph plus data-oriented field buffers and
-an explicit render graph. ADR 0045 selects a narrow Three.js `WebGPURenderer`
-and TSL adapter: WebGPU is the preferred backend, Three.js's WebGL2 backend is
-the compatibility path, and Rey's reference renderer owns deterministic
-semantic proof. A generic ECS, physics runtime, or free-orbit 3D requires a
-later qualified need. ADR 0044 defines the engine boundary and Plan 0020 owns
-its code extraction and terrain-fidelity proof.
+an explicit render graph. The narrow Three.js `WebGPURenderer` and TSL adapter
+uses WebGPU as the preferred backend and Three.js's WebGL2 backend as the
+compatibility path; Rey's reference renderer owns deterministic semantic
+proof. A generic ECS, physics runtime, or free-orbit 3D requires a later
+qualified need. [Plan 0003](../plans/0003-scene-to-explorer.md) owns the
+remaining code extraction and terrain-fidelity proof.
 
 ## Workloads, Graphs, And Scenarios
 
@@ -387,12 +379,8 @@ external coding harness, not an LLM embedded in the runtime. Request-only
 entries remain visible drafts and cannot be tested or run. Rey imports the
 materialized package into WORKING only after its graph, suite, provenance,
 frozen oracle, limits, and request/package identity match validate. Automatic harness
-invocation remains a later campaign boundary. See [ADR
-0023](decisions/0023-workspace-workload-packages.md) and [ADR
-0024](decisions/0024-workload-creation-requests.md). ADR
-[0049](decisions/0049-workload-admission-history.md) owns the subsequent
-HEAD/INDEX/WORKING admission loop; [0050](decisions/0050-file-backed-workload-admission.md)
-makes exact WORKING files the browser admission input.
+invocation remains a later campaign boundary. See [Workloads](WORKLOADS.md),
+[CLI](CLI.md), and [Plan 0001](../plans/0001-runtime-loop.md).
 
 A scenario executes that exact graph against fixture bindings and compares
 `EXPECTED` to `OBSERVED`. Conclusive mismatches retain typed deltas; missing or
@@ -541,10 +529,10 @@ both mining instruments and mineable runtime context.
 `rey.workload-attention.v1` is evidence between derivation and scheduling. Its
 ready rows may feed the generic frontier; blocked and policy-excluded rows stay
 visible but ineligible. The scheduler does not invent attention reasons, and a
-policy cannot resolve its own row. See [ADR 0022](decisions/0022-portfolio-mining-and-workload-attention.md).
+policy cannot resolve its own row. See [Frontier, Progress, and
+Scheduling](FRONTIER.md) and [Plan 0001](../plans/0001-runtime-loop.md).
 
-See [Mining Context Into Evidence](MINING.md) and
-[ADR 0017](decisions/0017-mining-capability-model.md).
+See [Mining Context Into Evidence](MINING.md).
 
 ## Git Provider And Activation
 
@@ -644,8 +632,8 @@ Provider execution, semantic transition, and proof/evidence state remain
 orthogonal. A process can terminate successfully while semantic work is
 unchanged or regresses, and retained evidence can later become stale. Budget
 exhaustion, missing evidence, or incompatible residuals stop explicitly rather
-than producing convergence. See
-[ADR 0012](decisions/0012-delta-directed-orientation.md).
+than producing convergence. See [Runtime Transitions and Reasoning
+Surfaces](RUNTIME.md).
 
 Within a workload test campaign, one pass freezes a graph revision, executes
 selected scenarios, compares expected to observed outputs, and derives a
@@ -759,7 +747,7 @@ The first design proposes these Rust ownership boundaries:
 | `rey-policy`      | bounded reasoning surfaces plus provider-neutral proposal and admissible-action contracts                                                                     |
 
 This table is an ownership proposal, not a requirement for one process per
-crate. Plan 0006 has created the narrow `rey-mining` contract crate; provider
+crate. The narrow `rey-mining` contract crate is implemented; provider
 execution remains in the adapters that own its source and tool semantics.
 
 The browser application has a parallel internal ownership boundary. Evidence
@@ -767,9 +755,9 @@ adapters own projection-packet semantics; the Explorer engine owns immutable
 scenes, fields, camera, LOD, invalidation, render graph, and picking; terrain
 modules own versioned field derivations; renderer backends own graphics
 resources and pixels; and React owns routing, controls, accessibility, and
-evidence panels. The Three.js adapter selected by ADR 0045 cannot absorb Rey's
-scene or evidence ownership. No new Rust crate is implied until a shared CLI/browser
-contract or server-side compiler requires one.
+evidence panels. The Three.js adapter cannot absorb Rey's scene or evidence
+ownership. No new Rust crate is implied until a shared CLI/browser contract or
+server-side compiler requires one.
 
 ## Failure And Limits
 
@@ -839,20 +827,21 @@ React/TypeScript topology and overlay modules. `rey-mining` now defines and
 validates `rey.projection-packet.v1`; `rey.workload-list.v1` carries it beside
 the exact patch and also carries the deterministic `rey.semantic-atlas.v1`
 portfolio projection. The CLI exposes the atlas revision, region/cluster
-counts, synthetic coordinate authority, reclustering rule, and the packet's three nested field levels and total
-allocation, and Explorer requires their identities to match. The browser
-compiles typed validity/elevation/hydrology/normal/curvature/material pyramids,
-selects semantic LOD into an immutable scene snapshot, and renders continuous
-relief through the Three.js WebGPU/TSL adapter with WebGL2 and deterministic
-reference paths. Render-graph extraction, smooth LOD transition proof, retained
-voyages, and a qualified terrain-fidelity result remain incomplete Plan 0020
-work. Generic
+counts, synthetic coordinate authority, reclustering rule, and the packet's
+terrain evaluator, macro/meso/micro bands, absolute-coordinate validity rules,
+and maximum transient working-set allocation. Explorer requires those
+identities to match. The browser compiles camera-relative typed
+validity/elevation/hydrology/normal/curvature/material buffers and renders
+continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
+deterministic reference paths. Render-graph extraction, transient-patch reuse,
+retained voyages, and a qualified terrain-fidelity result remain incomplete
+[Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic
 dependency invalidation, recurring scheduling, policy proposals, and Git
 activation remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
-result, artifact, completeness, lineage, dependency, and bound contracts
-accepted by ADR 0017. Canonical semantic identities include evidence-changing
+result, artifact, completeness, lineage, dependency, and bound contracts.
+Canonical semantic identities include evidence-changing
 parameters and effective limits; replay verification rejects tampering and
 request, provider, capability, or implementation drift. `rey-environment` now
 implements an exact explicit local corpus binding, deterministic case-sensitive

@@ -1,50 +1,69 @@
-# Plans
+# Current Plans
 
-Plans turn the architecture and roadmap into checkable implementation slices.
-They describe current repository state, open decisions, tasks, proof, and
-completion criteria.
+Plans contain only current executable work and logically ordered follow-on
+work. Completed and superseded delivery history lives in Git; implemented
+truth lives in the foundational docs and tests. The
+[current decision plane](../docs/decisions/README.md) explains the accepted
+structure these plans must preserve.
 
-## Active
+## Execution Order
 
-- [0010 — Portfolio mining and workload attention](0010-portfolio-mining-and-workload-attention.md) — active workload-centered implementation bearing
-- [0011 — Local operator UI](0011-local-operator-ui.md) — active UI-first context-topology and high-fidelity collaboration surface
-- [0014 — Seed discovery and locator survey](0014-seed-discovery-and-locator-survey.md) — active context-lifecycle and locator bearing
-- [0016 — Channel graph and operator index](0016-channel-graph-and-operator-index.md) — active collaboration persistence and agentic-networking bearing
-- [0017 — Incremental context topography](0017-incremental-context-topography.md) — active seed-to-map survey voyage and continuous Explorer bearing
-- [0019 — Emergent context features](0019-emergent-context-features.md) — active anchor-field, weather, hydrology, erosion, and separate-path bearing
-- [0020 — High-fidelity projection engine](0020-high-fidelity-projection-engine.md) — active Explorer engine extraction and continuous terrain-fidelity bearing
-- [0021 — Read-first scene editor](0021-read-first-scene-editor.md) — active native survey artifact, scene candidate, marker, and workload admission bearing
-- [0022 — Semantic spherical atlas and World globe](0022-semantic-spherical-atlas.md) — active admission-revisioned regional clustering, spherical World, and wraparound Atlas bearing
-- [0024 — Workload admission history](0024-workload-admission-history.md) — active exact HEAD/INDEX/WORKING workload loop and admission-first operator bearing
-- [0025 — File-backed workload admission](0025-file-backed-workload-admission.md) — active visible `sys/<workload>/` packages and direct exact-file browser admission bearing
-- [0026 — Typed workspace ignore file](0026-typed-workspace-ignore-file.md) — active omission-visible `.reyignore` scope for workload and environment WORKING observations
-- [0027 — Provider-independent foundation](0027-provider-independent-foundation.md) — active hard cut from privileged external-platform assumptions to Rey-owned local contracts
-- [0028 — Diff-directed Journal broadsheet](0028-journal-broadsheet.md) — active immutable live-document and authored-opportunity bearing
-- [0029 — Continuous Explorer projection grammar](0029-continuous-explorer-grammar.md) — active World-globe, semantic-Mercator, admitted-county, and Google-class terrain bearing
+| Plan | State | Next verifiable closure | Depends on |
+| --- | --- | --- | --- |
+| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Bind declared workload ownership and retained dependency/capability changes into attention, frontier, and one bounded harness response loop. | Implemented workload, mining, frontier, runtime, environment, and Git contracts. |
+| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, and runtime evidence. Plan 0001 only where an authored opportunity becomes runtime work. |
+| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
-## Completed
+The plans may advance in parallel when they do not share a contract, but their
+authority dependencies remain ordered:
 
-- [0002 — Runtime transition and reasoning surface contracts](0002-runtime-contracts.md)
-- [0003 — Frontier progress and scheduling contracts](0003-frontier-scheduling.md)
-- [0004 — Workload product and CLI contracts](0004-workload-contracts.md)
-- [0005 — First executable workload slice](0005-first-workload-slice.md)
-- [0006 — Mining strategy and first executable slice](0006-mining-strategy.md)
-- [0007 — Git-shaped env CLI](0007-git-shaped-env-cli.md)
-- [0008 — Environment mapping graph](0008-environment-mapping-graph.md)
-- [0009 — Environment admission index](0009-environment-admission-index.md)
-- [0012 — Environment operator delta](0012-environment-operator-delta.md)
-- [0013 — Application inventory and search records](0013-application-inventory-search-records.md)
-- [0015 — Git-shaped environment loop fidelity](0015-git-shaped-environment-loop-fidelity.md)
-- [0023 — Fresh v1 Rey County](0023-fresh-v1-rey-county.md)
+```text
+runtime ownership/invalidation ───────────────┐
+                                              ▼
+Channel or Journal proposal ────────→ admitted runtime work
 
-## Superseded
+editor candidate → scene admission → retained atlas delta
+                 → World/Atlas/County projection → fidelity proof
+```
 
-- [0018 — World context navigation](0018-world-context-navigation.md) — literal transport/path projection corrected by Plan 0019
+## Delivered Baseline
+
+The current repository already provides:
+
+- a twelve-crate Rust workspace, pinned Nix/Just development surface, GitHub
+  CI, and cargo-dist release plan;
+- explicit local environment, workload, editor, and Channel
+  `HEAD → INDEX → WORKING` loops;
+- deterministic workload DAG/scenario qualification, literal source mining,
+  typed deltas, topography survey, portfolio attention, frontier/scheduling,
+  reasoning surfaces, and local proof mechanisms;
+- an embedded operator UI with Feed, Explorer, Cadence, Environment,
+  Workloads, Journal, passive revalidation, and exact Git links;
+- immutable Channel messages, explicit relay and one-shot beacon commands;
+- candidate-only native scene authoring and procedural terrain generation; and
+- a read-first Explorer with consent-first orientation, semantic World globe,
+  synthetic atlas, continuous terrain, WebGPU/WebGL2 acceleration, and a
+  deterministic accessible fallback.
+
+Those facts are not repeated as completed checklists in this directory.
+
+## Later Roadmap
+
+[Roadmap](../docs/ROADMAP.md) retains future bearings that are not yet bounded
+enough for an executable plan: general admitted mutation, codebase spaces,
+provider-neutral agent policies, and scaled deployment. Promote one of those
+bearings into a numbered plan only when it has an exact current gap, a smallest
+end-to-end CLI slice, explicit bounds, and qualification criteria.
 
 ## Plan Rules
 
-- Keep a top-level completion checklist.
-- Use checkboxes for milestones and acceptance criteria.
-- Mark only repository-proven facts complete.
-- Link consequential decisions and captured command evidence.
-- Move a plan to completed only when every required acceptance item is checked.
+- State the current implementation boundary before proposed work.
+- Keep a top-level completion checklist ordered by dependency.
+- Mark only repository-proven facts complete; do not preserve old command
+  transcripts as a substitute for current proof.
+- Close the high-fidelity human CLI path before treating browser projection or
+  provider advertisement as feature completion.
+- Put open choices in the plan. Put accepted durable structure in the owning
+  foundational document and current decision plane.
+- Remove a plan when its required acceptance boundary is complete; Git retains
+  the delivery history.

@@ -6,10 +6,10 @@ coverage, and limits. Rey is not a theorem prover, and a proof certificate is
 not a universal correctness claim.
 
 Proof is encountered through workload scenarios, qualification, runs, and
-retained evidence on the primary human CLI. ADR 0020 removes the former manual
-`env prove`, `env verify`, and `env verify-bundle` commands; the certificate,
-verification, and local-bundle contracts remain lower-level runtime/library
-mechanisms and focused test surfaces.
+retained evidence on the primary human CLI. There are no manual `env prove`,
+`env verify`, or `env verify-bundle` commands; certificate, verification, and
+local-bundle contracts remain lower-level runtime/library mechanisms and
+focused test surfaces.
 
 ## Claim Contract
 
@@ -183,7 +183,7 @@ the retained result and qualification stale.
 
 ### Implemented Required-Capability Certificate
 
-ADR 0010 implements one deliberately narrow claim:
+The implemented proof slice evaluates one deliberately narrow claim:
 `rey.environment.required-capabilities.v1`. Each named capability passes when
 at least one target row reports it available, fails when complete evidence
 shows it absent or unavailable, and is inconclusive when an error or incomplete
@@ -201,8 +201,8 @@ generic proof manifest.
 
 ### Implemented Local Bundle
 
-[ADR 0011](decisions/0011-local-proof-bundle.md) fixes
-`rey.local-proof-bundle.v1` for this claim. The caller-selected bundle retains
+`rey.local-proof-bundle.v1` is the implemented retention contract for this
+claim. The caller-selected bundle retains
 content-addressed source/target snapshot JSON, authoritative delta JSON, typed
 delta Arrow, Tabular Diff CSV, and certificate JSON beneath `objects/blake3/`.
 A canonical `manifest.json` binds those exact bytes, media types, semantic
@@ -261,7 +261,7 @@ available at its exact revision.
 
 Rey has one implemented evidence-retention profile:
 
-- **local** writes the ADR 0011 content-addressed, bounded proof bundle to an
+- **local** writes the content-addressed, bounded proof bundle to an
   explicit caller-selected artifact directory. Same-parent staged rename keeps
   the final name hidden until all files exist, but the profile does not claim
   `fsync` crash durability, multi-process transactionality, remote durability,

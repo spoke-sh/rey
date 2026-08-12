@@ -6,10 +6,10 @@ may have a narrower meaning here than it does elsewhere.
 
 The glossary is a navigation aid, not a new source of authority or an
 implementation-status claim. The [Constitution](../CONSTITUTION.md), owning
-architecture documents, accepted ADRs, active plans, and repository evidence
-remain authoritative in that order. A term may describe implemented behavior,
-target architecture, or both; follow its linked owning document for the exact
-current boundary.
+architecture documents, [current decision plane](decisions/README.md), active
+plans, and repository evidence remain authoritative in that order. A term may
+describe implemented behavior, target architecture, or both; follow its linked
+owning document for the exact current boundary.
 
 [A](#a) · [B](#b) · [C](#c) · [D](#d) · [E](#e) · [F](#f) ·
 [G](#g) · [H](#h) · [I](#i) · [J](#j) · [K](#k) · [L](#l) ·
@@ -37,12 +37,12 @@ current boundary.
 
 ## A
 
-### ADR
+### Accepted decision
 
-An Architecture Decision Record in `docs/decisions/` that preserves the
-context, decision, consequences, and status of a consequential architectural
-choice. Accepted ADRs constrain active plans and code; later changes supersede
-rather than silently rewrite their history.
+A durable structural choice recorded in its owning foundational document and
+summarized by `docs/decisions/README.md`. Accepted decisions constrain active
+plans and code. Git retains superseded rationale instead of keeping historical
+records in the current documentation plane.
 
 ### Action
 
@@ -1133,9 +1133,10 @@ natural feature, camera selection, or visually convenient line is not a path.
 
 ### Plan
 
-A checkable implementation slice in `plans/` containing outcome, completion
-criteria, current proof, next concrete anchor, and deferred work. Plans sequence
-delivery but do not outrank architecture or accepted ADRs.
+A current checkable implementation slice in `plans/` containing outcome,
+current boundary, ordered completion criteria, qualification, and deferred
+work. Plans sequence delivery but do not outrank architecture or accepted
+decisions; completed plans are removed and retained by Git history.
 
 ### Policy
 
@@ -1187,8 +1188,8 @@ projection need not become probes.
 ### Probe trail
 
 The former Explorer corridor from a source anchor to an unresolved frontier
-point. ADR 0043 removes this projection because it made survey extraction
-scaffolding look like world geometry. The current Explorer retains the
+point. It is excluded because it made survey extraction scaffolding look like
+world geometry. The current Explorer retains the
 frontier POI and its prerequisite and may show a local weather front, but draws
 no crossing or source connection.
 

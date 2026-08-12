@@ -3740,13 +3740,13 @@ fn materialize_context_topography_fixture(workspace: &std::path::Path) {
     )
     .unwrap();
     fs::write(
-        workspace.join("plans/0017-incremental-context-topography.md"),
-        include_str!("../../../plans/0017-incremental-context-topography.md"),
+        workspace.join("plans/0003-scene-to-explorer.md"),
+        include_str!("../../../plans/0003-scene-to-explorer.md"),
     )
     .unwrap();
     fs::write(
-        workspace.join("docs/decisions/0041-continuous-coordinate-topography.md"),
-        include_str!("../../../docs/decisions/0041-continuous-coordinate-topography.md"),
+        workspace.join("docs/decisions/README.md"),
+        include_str!("../../../docs/decisions/README.md"),
     )
     .unwrap();
 }

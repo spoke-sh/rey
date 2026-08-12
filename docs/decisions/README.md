@@ -1,67 +1,69 @@
-# Architecture Decisions
+# Current Decision Plane
 
-Accepted decisions constrain current implementation. Proposed decisions may
-guide experiments but do not outrank the architecture until accepted.
+This directory is a projection of Rey's accepted decisions as they constrain
+the repository now. It is not a chronological ADR archive and does not repeat
+the complete subject contracts. Superseded rationale remains available in Git
+history; current structure belongs in the foundational document that owns it.
 
-| Decision | Status | Summary |
-| --- | --- | --- |
-| [0001](0001-diff-directed-runtime.md) | Accepted | Deltas direct compute; deterministic runtime and policy remain separate |
-| [0002](0002-dataframes-typed-deltas-and-tabular-diff.md) | Accepted | Polars frames, Arrow interchange, authoritative typed deltas, and Tabular Diff projection |
-| [0004](0004-rust-and-nix-development-foundation.md) | Accepted | Rust-first implementation and pinned Nix/Just/Crane development foundation |
-| [0007](0007-git-polling-and-delta-activation.md) | Accepted; public activation target narrowed by 0015 and env placement by 0033 | Git commit/ref/index snapshots as pollable frames and idempotent activation sources |
-| [0008](0008-first-slice-contracts.md) | Accepted | First executable schemas, Polars/Arrow baseline, semantic hashing, and bounded local/Git observation |
-| [0009](0009-just-rey-task.md) | Accepted | Rename the Just CLI task to `rey` while retaining the Nix `dev` wrapper |
-| [0010](0010-capability-delta-and-certificate.md) | Accepted | Typed capability deltas, deterministic Tabular Diff projection, and required-capability certificates |
-| [0011](0011-local-proof-bundle.md) | Accepted | Bounded content-addressed local proof bundles with explicit publication and retention guarantees |
-| [0012](0012-delta-directed-orientation.md) | Accepted | Formal bootstrap/transition lifecycle and bounded delta-directed reasoning surfaces |
-| [0013](0013-runtime-state-and-reasoning-surface-contracts.md) | Accepted; v1 schemas superseded by 0014 | Executable runtime-state reducer and bounded reasoning-surface contracts before scheduling |
-| [0014](0014-frontier-progress-and-scheduling.md) | Accepted; public identity schemas superseded by 0016 | Canonical frontier/progress relations, deterministic bounded work selection, and decision-bound runtime/surface v2 |
-| [0015](0015-workload-centered-product.md) | Accepted; CLI/admission loop superseded by 0049 | Workload-centered product and scenario-qualified compute graphs |
-| [0016](0016-first-workload-slice.md) | Accepted | Built-in zero-agent workload slice, local result index, typed scenario deltas, and workload identity cutover |
-| [0017](0017-mining-capability-model.md) | Accepted | Relational and source mining operations, artifacts, diffs, visualization, and workload/runtime placement |
-| [0018](0018-first-mining-workload.md) | Accepted | Source-search workload, typed relation/text deltas, evidence-linked CLI, and one delta-directed reasoning fixture |
-| [0019](0019-git-shaped-environment-history.md) | Accepted; commit timestamp and human loop superseded by 0033 | Hard-cut `env` CLI, verified local environment commits, status, and patch-bearing linear history |
-| [0020](0020-environment-mapping-graph.md) | Accepted | Human env diff, YAML variable/file/executable graph, safe observations, and removal of manual proof plumbing |
-| [0021](0021-environment-admission-index.md) | Accepted | Unified environment status, HEAD-bound admission index, staged diff, partial add, and index-only commit |
-| [0022](0022-portfolio-mining-and-workload-attention.md) | Accepted | Ongoing portfolio mining, typed workload attention, explicit coverage/blocker/exclusion evidence, and workload-centered CLI placement |
-| [0023](0023-workspace-workload-packages.md) | Accepted; self-declared admission superseded by 0049 and default root by 0050 | Workspace packages as the default product catalog, frozen generated scenarios, exact proposal provenance, and explicit built-in conformance catalog |
-| [0024](0024-workload-creation-requests.md) | Accepted; default root superseded by 0050 | Explicit content-addressed workload creation requests, external coding-harness handoff, visible drafts, and strict admission gating |
-| [0025](0025-local-operator-ui.md) | Accepted; workload write boundary superseded by 0049 | Loopback-first HTTP, embedded TanStack Router application, and pinned Hifi Kinetic Precision grammar |
-| [0026](0026-context-topology-explorer.md) | Accepted | UI-first human operation, default context-topology Explorer, semantic zoom regimes, full-screen canvas, and passive revalidation |
-| [0027](0027-environment-operator-delta.md) | Accepted; application presentation superseded by 0031 and status projection by 0033 | Shared CLI/UI environment delta, bounded value capture, env-shaped variable diff, and found/not-found application evidence |
-| [0028](0028-environment-three-plane-diff.md) | Accepted | Three-plane human env diff for unstaged and staged directions with unchanged authoritative JSON |
-| [0029](0029-environment-history-projection.md) | Accepted; commit header and schemas superseded by 0033 | Compact environment chronology and three-plane patch expansion over retained transitions |
-| [0030](0030-operator-cadence-agents-and-explorer-coordinates.md) | Accepted; `/agents` superseded by 0034; matrix coordinates hard-cut by 0041; cadence v1 extended by 0036 | Historical partial-order cadence, provenance-derived agent registry, and matrix-style Explorer coordinates |
-| [0031](0031-desired-application-inventory-and-search-records.md) | Accepted; conventional map superseded by 0032 | Exact desired-application declaration records separated from bounded search records |
-| [0032](0032-seed-discovery-survey-and-live-communications.md) | Accepted | Process-owned seed discovery, explicit agent maps, locator survey, cadence processing, and a two-axis operator communication plane |
-| [0033](0033-git-shaped-environment-loop-fidelity.md) | Accepted | Compact status, provenance-safe patch admission, dated v2 history, and Git/environment clock separation |
-| [0034](0034-agent-runtime-inventory-and-derived-task-plane.md) | Accepted; `/agents` presentation superseded by 0035 | Process-owned agent runtime discovery, derived task/operation plane, and non-retained journeys |
-| [0035](0035-agent-recommendations-and-observed-work.md) | Accepted; recommendation plane extended by 0037 | Evidence-ranked agent recommendations and observed-work ledger; runtime inventory remains in Environment |
-| [0036](0036-cadence-repository-state-and-publication.md) | Accepted | Working-tree attention and exact local-upstream publication state in cadence |
-| [0037](0037-explore-bound-collaboration-journal.md) | Accepted | Shared human, agent, and system Journal entries bound to exact Explorer coordinates |
-| [0038](0038-unauthenticated-hyperlinkable-journal.md) | Accepted | Unauthenticated Journal writes plus exact entry and block hyperlinks |
-| [0039](0039-bounded-operator-feed.md) | Accepted | Bounded high-cadence inspection queue and signal feed without inventing a global event log |
-| [0040](0040-workspace-channels-and-operator-index.md) | Accepted | Standalone frontier observations, Journal seeds, workspace-local channel graph, Git-shaped operator index, Feed persistence, and relay boundary |
-| [0041](0041-continuous-coordinate-topography.md) | Accepted; workload admission path superseded by 0049 | Hard-cut semantic coordinate/scale links, continuous lens, admitted survey voyages, and incremental evidence-backed context topography |
-| [0042](0042-world-geometry-and-probe-navigation.md) | Accepted; transport/path projection superseded by 0043 | Six-level World projection and probe horizons |
-| [0043](0043-emergent-natural-features-and-separate-paths.md) | Accepted | Anchor-field relief, unresolved weather, runoff hydrology and erosion, and separate discovered/constructed path evidence |
-| [0044](0044-explorer-projection-engine.md) | Accepted; single-camera scope superseded by 0054 | High-fidelity spatial game engine for evidence-bound high-dimensional projection, terrain fidelity, immutable scenes, field/LOD/render-graph boundaries, and renderer qualification |
-| [0045](0045-threejs-webgpu-renderer.md) | Accepted | Three.js WebGPURenderer and TSL production boundary with WebGPU-first, WebGL2 compatibility, and deterministic reference paths |
-| [0046](0046-read-first-scene-editor.md) | Accepted | Read-first scene editor candidates, exact native GeoJSON objects, Git-shaped staging, immutable packages, and a separate workload admission boundary |
-| [0047](0047-semantic-spherical-atlas.md) | Accepted; chart grammar extended by 0056 | Admission-revisioned synthetic semantic sphere, deterministic regional clustering, and World globe projection without an Earth-coordinate claim |
-| [0048](0048-fresh-v1-contract-baseline.md) | Accepted | Destructive fresh v1 public-contract baseline, no compatibility readers, and a Rey-evidence-authored county candidate |
-| [0049](0049-workload-admission-history.md) | Accepted; browser pre-staged-INDEX requirement superseded by 0050 | Git-shaped workload HEAD/INDEX/WORKING, exact staged qualification, human approval, and admission-first UI |
-| [0050](0050-file-backed-workload-admission.md) | Accepted | Visible `sys/<workload>/` packages as WORKING and exact browser stage/qualification/admission from file state |
-| [0051](0051-typed-workspace-ignore-file.md) | Accepted | Bounded typed `.reyignore` rules narrow WORKING while retaining exact omission policy and match evidence |
-| [0052](0052-provider-independent-foundation.md) | Accepted | Hard cut to Rey-owned local contracts with no privileged external platform or compatibility aliases |
-| [0053](0053-github-ci-and-cargo-dist-releases.md) | Accepted | Nix-backed GitHub CI and cargo-dist releases gated by matching semantic-version tags |
-| [0054](0054-diff-directed-journal-broadsheet.md) | Accepted | Immutable live Journal revisions and a bounded 12-column broadsheet grammar |
-| [0055](0055-editor-project-state-ownership.md) | Accepted | Editor project metadata owned by `.rey`, read-only uninitialized status, and no ambient `rey.scene.json` |
-| [0056](0056-continuous-globe-mercator-county-grammar.md) | Accepted | Continuous World globe, synthetic semantic Mercator Atlas, and admitted isometric county grammar with stable identity across projection changes |
-| [0057](0057-procedural-terrain-program.md) | Accepted | Native procedural terrain programs, camera-relative transient working sets, absolute-coordinate evaluation, and optional raster imports |
-| [0058](0058-consent-first-explorer-orientation.md) | Accepted | Fresh-state orientation globe, exact workload beacons, and a consent-first project survey loop without an atlas or activity claim |
+Use this projection after the [Constitution](../../CONSTITUTION.md) and the
+relevant subject documents. When a summary here conflicts with a foundational
+contract, the foundational contract wins and this projection must be corrected
+in the same change.
 
-Normally, when a decision changes, add a superseding decision and link both
-documents. ADR 0052 records an explicit pre-alpha hard cut that removed the
-former external-platform integration decisions instead of preserving them as
-design context.
+## Plane Map
+
+| Plane | Accepted structural choice | Authoritative contract | Implementation posture |
+| --- | --- | --- | --- |
+| Product and evidence | Rey is a client-oriented, diff-directed mining and compute runtime. Deltas direct subsequent bounded work; proof remains scoped to exact evidence, coverage, and limits. | [Architecture](../ARCHITECTURE.md), [Diffs](../DIFFS.md), [Proofs](../PROOFS.md) | Typed relational and text deltas, capability certificates, and local proof bundles exist; general structural comparison and complete proof orchestration remain partial. |
+| Data and artifacts | Polars DataFrames are canonical bounded in-process relations and Arrow is preferred typed interchange. Native source, documents, trees, graphs, geometry, raster, and binary artifacts retain their own identity rather than being counterfeited as tables. | [Architecture](../ARCHITECTURE.md), [Mining](../MINING.md), [Diffs](../DIFFS.md) | Frame/Arrow helpers and typed relations exist beside native text and GeoJSON artifacts. |
+| Environment and providers | Bootstrap begins only from process-owned `HOME`, `PWD`, and `PATH`, compiled adapters, and explicitly supplied maps. Discovery is bounded and read-only; finding an executable grants no action authority. Providers own their actual guarantees. | [Environment](../ENVIRONMENT.md), [Locators](../LOCATORS.md), [Interfaces](../INTERFACES.md) | The implemented profile is local and provider-independent. No remote provider is privileged or implied. |
+| Admission and revision state | Environment, workload, editor, and Channel topology use explicit `HEAD → INDEX → WORKING` comparison planes. `add` freezes exact INDEX; `commit` consumes INDEX without rereading WORKING. Each plane retains distinct authority. | [CLI](../CLI.md), [Environment](../ENVIRONMENT.md), [Workloads](../WORKLOADS.md), [Interfaces](../INTERFACES.md) | All four local loops exist. Workloads additionally require fresh complete staged qualification before HEAD. |
+| Workloads and mining | A workload is the public unit of computation: one graph, scenario suite, policy boundary, qualification contract, and total budget. Relational and source mining are peer capability families. Workspace packages are visible file-backed proposals under `sys/`; compiled fixtures are explicit conformance-only inputs. | [Workloads](../WORKLOADS.md), [Mining](../MINING.md), [Runtime](../RUNTIME.md) | Workspace admission, deterministic DAG/scenario execution, literal source mining, topography survey, and portfolio-attention conformance paths exist. Harness invocation and the recurring improvement loop do not. |
+| Frontier, runtime, and policy | Portfolio attention explains why work matters; the frontier represents bounded unresolved work; deterministic scheduling selects ready rows. Policy may propose but cannot redefine evidence, bypass admission, or declare its own proposal resolved. | [Frontier](../FRONTIER.md), [Runtime](../RUNTIME.md), [Workloads](../WORKLOADS.md) | Canonical frontier, progress, scheduling, runtime-state, reasoning-surface, and portfolio-attention contracts exist. Live invalidation, generic attention handoff, and recurring policy execution remain planned. |
+| Git and activation | Commit, ref, semantic index, and declared worktree state are first-class inputs. Ref movement is classified rather than flattened into append events; cursors advance only after retained transition evidence and replay is idempotent. | [Git](../GIT.md), [Runtime](../RUNTIME.md) | Bounded observation and Cadence projection exist. Recurring polling, cursor processing, and general activation remain planned. |
+| Operator surface | Humans normally collaborate through `rey ui`; agents use the `rey` CLI. Both project the same typed evidence and authority boundaries. The UI is an explicitly started local operator surface, not a public Rey service. | [CLI](../CLI.md), [Explorer](../EXPLORER.md), [Interfaces](../INTERFACES.md) | The embedded UI, passive revalidation, Feed, Cadence, Environment, Workloads, Journal, and Explorer routes exist. Scenario/delta deep inspection remains incomplete. |
+| Collaboration | Feed is a bounded high-cadence projection, Channel state is explicit collaboration topology plus immutable messages, Journal is retained synthesis, and the footer conversation axis is a separate transport boundary. None aliases another. | [Journal](../JOURNAL.md), [Explorer](../EXPLORER.md), [CLI](../CLI.md), [Interfaces](../INTERFACES.md) | Channel graph history, messages, explicit relay, one-shot beacons, Journal broadsheets, and Feed projection exist. Observation frontiers, Journal seeding, and a conversation transport do not. |
+| Explorer and coordinates | Explorer is a read-first projection engine over admitted evidence. Semantic coordinate identity is separate from camera and view state. A fresh workspace shows exact workload beacons on an explicitly unmapped orientation globe; it does not infer an atlas or run a survey. | [Explorer](../EXPLORER.md), [Locators](../LOCATORS.md), [Mining](../MINING.md) | Orientation, admitted survey topography, a synthetic semantic atlas, World globe rotation, local terrain, and exact view links exist. Semantic Mercator, retained sector deltas, and admitted County entry remain planned. |
+| Scene authoring and rendering | Editor commits are immutable candidate packages, never Explorer evidence. A qualified scene-admission workload is the only path from a package to an admitted regional scene. Terrain is a deterministic program with disposable camera-relative working sets. Three.js WebGPU/TSL is the accelerated renderer, WebGL2 its compatibility path, and the deterministic accessible renderer the semantic fallback. | [Explorer](../EXPLORER.md), [Mining](../MINING.md), [CLI](../CLI.md), [Interfaces](../INTERFACES.md) | Candidate GeoJSON authoring, terrain generation, projection packets, procedural working sets, continuous relief, and globe rendering exist. Scene admission, complete render-graph separation, County layers, and retained visual/performance qualification do not. |
+| Delivery | Rust and the pinned Nix shell define the implementation and development boundary. Root `just` tasks are canonical. GitHub Actions runs the same checks; cargo-dist publishes only from an intentional matching semantic-version tag. | [Development](../DEVELOPMENT.md), [Releases](../RELEASES.md) | The twelve-crate workspace, embedded UI build, CI, release planning, and native artifact configuration exist. |
+
+## Cross-Plane Invariants
+
+The current choices compose through four paths:
+
+```text
+context → mine → evidence → delta → attention/frontier
+        → schedule → reason → propose → admit → act → observe
+
+WORKING → INDEX → qualification where required → HEAD
+
+editor WORKING → SCENE@n candidate → scene-admission workload
+               → admitted regional scene → projection packet → /explore
+
+runtime evidence → Feed / mailbox / Journal / Channel projections
+                 ≠ conversation transport or execution authority
+```
+
+- Exact inputs, revisions, capabilities, limits, omissions, completeness, and
+  lineage survive every path.
+- Read, admission, execution, assignment, publication, and proof authority
+  remain separate.
+- A renderer, model, process exit, author label, or visual analogy cannot mint
+  evidence or convergence.
+- Current local guarantees are never silently upgraded to remote durability,
+  authentication, federation, or provider semantics.
+- Pre-alpha contract changes are hard cutovers unless an active plan explicitly
+  accepts migration behavior. Compatibility code is not retained by default.
+
+## Changing The Decision Plane
+
+A consequential change updates three places together:
+
+1. the owning foundational document, including current versus target posture;
+2. the corresponding row or invariant in this projection; and
+3. the active plan and proof path that will make the change repository truth.
+
+Do not create a chronological decision file for each implementation slice.
+Git preserves superseded rationale. Add a separate record only when a retained
+external compatibility, governance, or migration obligation cannot be stated
+coherently in the current plane and its owning contract.

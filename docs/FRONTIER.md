@@ -1,28 +1,18 @@
 # Frontier, Progress, And Scheduling
 
-This document defines the v1 executable frontier, progress, scheduling, and
-reasoning-surface contracts. Their current workload-centered identities are a
-fresh pre-alpha baseline under ADR 0048. The implementation is a deterministic library slice; it
-also has one workload-specific source-mining fixture that derives and selects a
-single graph-revision work row. It does not execute an effect or run a
+This document defines the executable frontier, progress, scheduling, and
+reasoning-surface contracts. The implemented v1 envelopes bind workload,
+graph, scenario-suite, and campaign identities. A deterministic source-mining
+fixture derives and selects one graph-revision work row from complete typed
+relation and ordered text deltas; it does not execute an effect or run a
 recurring loop.
 
-ADR 0015 places this contract inside workload test campaigns. The implemented
-v1 envelope binds workload, graph, scenario suite, and campaign identities
-directly. The first CLI slice executes scenarios but does not yet derive a
-frontier from ordinary text-fixture deltas. The source-search workload now
-derives one frontier from its complete failing typed relation and ordered text
-deltas.
-
-ADR 0017 makes mining the evidence-acquisition layer after selection. The
-frontier may be directed by relational, text, structural, or claim evidence;
-the generic scheduler remains ignorant of domain-specific mining semantics.
-
-ADR 0022 introduces a distinct upstream `rey.workload-attention.v1` relation.
-Portfolio mining derives why a workload or uncovered surface needs attention;
-the frontier/scheduler remains responsible for admitted bounded selection. The
-first attention relation is executable, but its adapter into `rey.frontier.v1`
-is intentionally the next stage rather than an implicit conversion.
+Relational, text, structural, or claim evidence may direct a frontier; the
+generic scheduler remains ignorant of domain-specific mining semantics.
+Upstream `rey.workload-attention.v1` separately explains why a workload or
+uncovered surface needs attention. Its adapter into `rey.frontier.v1` remains
+explicit [Plan 0001](../plans/0001-runtime-loop.md) work rather than an
+implicit conversion.
 
 ## Frontier Envelope
 

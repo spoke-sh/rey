@@ -2,11 +2,11 @@
 
 This document defines Rey's target semantic contracts for frames, typed deltas,
 native deltas, and diff renderings. Physical schemas and serialized formats
-remain provisional until accepted by an ADR and proved by fixtures. ADR 0017
-places relational, text, and structural comparison inside the common mining
-model. Capability deltas, ordered UTF-8 line deltas, scenario-output deltas,
-and the typed source-match relation delta are implemented; generic frame and
-structural delta families remain target contracts.
+remain provisional until accepted in the current decision plane and proved by
+fixtures. Relational, text, and structural comparison belong to the common
+mining model. Capability deltas, ordered UTF-8 line deltas, scenario-output
+deltas, and the typed source-match relation delta are implemented; generic
+frame and structural delta families remain target contracts.
 
 ## Direction
 
@@ -182,8 +182,8 @@ in one frontier, but it does not flatten them into an artificial mega-delta.
 
 ### Implemented Capability Specialization
 
-ADR 0010 fixes a narrow `rey.capability-delta.v1` specialization rather than
-claiming the generic representation above is solved. It compares verified
+The narrow `rey.capability-delta.v1` specialization does not claim the generic
+representation above is solved. It compares verified
 `rey.capabilities.v1` snapshots by the composite key `(provider_id,
 provider_revision, capability_id)`. Exact typed equality covers every snapshot
 identity field; `observed_at` and `error_detail` are deliberately excluded.
@@ -197,7 +197,7 @@ CSV are non-authoritative projections of that delta.
 
 ### Implemented Source-Mining Specializations
 
-ADR 0018 adds two bounded authoritative forms:
+Two bounded authoritative source-mining forms are implemented:
 
 - `rey.text-delta.v1` binds source/target UTF-8 artifact identities and labels,
   comparator, line segmentation, final-newline state, input/line/alignment/

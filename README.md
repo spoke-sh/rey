@@ -225,8 +225,8 @@ zero delta proves agreement only inside those declared bounds.
 ## Foundations
 
 Start with the [Documentation Index](docs/README.md); it is the reference map
-for Rey's foundational contracts, interfaces, decision history, and active
-implementation plans. The key bearings are:
+for Rey's foundational contracts, interfaces, current decision plane, and
+active implementation plans. The key bearings are:
 
 - [Constitution](CONSTITUTION.md) — durable values and invariants.
 - [Architecture](docs/ARCHITECTURE.md) — ownership, planes, data flow, and
@@ -244,9 +244,9 @@ implementation plans. The key bearings are:
   limit, HTTP, and persistence semantics.
 
 Contributors should also read [Contributor Instructions](INSTRUCTIONS.md).
-Accepted architectural choices are indexed in
-[Architecture Decisions](docs/decisions/README.md), and active delivery slices
-live in [Implementation Plans](plans/README.md).
+Accepted architectural choices are projected in the
+[Current Decision Plane](docs/decisions/README.md), and executable delivery
+slices live in [Current Plans](plans/README.md).
 
 ## Development
 

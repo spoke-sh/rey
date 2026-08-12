@@ -46,8 +46,8 @@
           ./crates/rey-environment/tests/fixtures
           ./crates/rey-runtime/tests/fixtures
           ./crates/rey/tests/fixtures
-          ./docs/decisions/0041-continuous-coordinate-topography.md
-          ./plans/0017-incremental-context-topography.md
+          ./docs/decisions/README.md
+          ./plans/0003-scene-to-explorer.md
           ./scenes/rey-county
           ./sys/context-anchor-survey
         ];

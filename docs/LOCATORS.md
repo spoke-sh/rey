@@ -69,16 +69,14 @@ fragments remain later breadth. The current carrier is deliberately local:
 Rey claims no remote resolution, durability, global identity, or federation
 semantics.
 
-The first CLI proof is the admitted `context-anchor-survey` workload in [Plan
-0017](../plans/0017-incremental-context-topography.md). It begins with a bounded
-process-owned seed-name inventory containing `AGENTS.md` and README variants,
-locates URI and reference candidates, records typed resolution outcomes, and
-emits `rey.topography-patch.v1` plus a directed patch delta. Those seed names are workload inputs rather than
-implicit configuration, and neither locator parsing nor Explorer navigation
-initiates recursive retrieval.
+The first CLI proof is the admitted `context-anchor-survey` workload. It begins
+with a bounded process-owned seed-name inventory containing `AGENTS.md` and
+README variants, locates URI and reference candidates, records typed resolution
+outcomes, and emits `rey.topography-patch.v1` plus a directed patch delta. Those
+seed names are workload inputs rather than implicit configuration, and neither
+locator parsing nor Explorer navigation initiates recursive retrieval.
 
-[Plan 0019](../plans/0019-emergent-context-features.md) projects an unresolved
-locator outcome as a frontier station and local weather condition and labels
-the required prerequisite. It draws no line back to the source anchor: the
-front is neither a crossing, a resolved relationship, a path, nor permission
-to invoke a resolver.
+Explorer projects an unresolved locator outcome as a frontier station and
+local weather condition and labels the required prerequisite. It draws no line
+back to the source anchor: the front is neither a crossing, a resolved
+relationship, a path, nor permission to invoke a resolver.

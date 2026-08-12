@@ -31,8 +31,8 @@ provider, adapter, scheduler loop, or action executor exists.
 3. `INSTRUCTIONS.md`
 4. `docs/README.md`
 
-Use the documentation index to select the subject contracts, accepted
-decisions, and active plans relevant to the change. Read selected foundational
+Use the documentation index to select the subject contracts, current decision
+plane, and active plans relevant to the change. Read selected foundational
 documents completely before acting; do not infer implementation from titles or
 target-state prose.
 
@@ -187,7 +187,7 @@ Resolve ambiguity in this order:
 
 1. `CONSTITUTION.md`
 2. the relevant foundational contracts indexed by `docs/README.md`
-3. the relevant accepted decisions indexed there
+3. the relevant accepted choices in the current decision plane
 4. the relevant active plans indexed there
 5. code and tests
 6. external standards and libraries

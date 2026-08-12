@@ -33,8 +33,9 @@ Procedural guidance for humans and agents working on Rey.
     contracts.
 17. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
 18. `docs/RELEASES.md` before changing CI, distribution, tags, or publication.
-19. `plans/README.md` and the active plans before implementation work.
-20. `docs/decisions/README.md` for accepted choices that constrain the work.
+19. `docs/decisions/README.md` for the accepted current plane that constrains
+    the work.
+20. `plans/README.md` and the active plans before implementation work.
 
 ## Working Loop
 
@@ -70,14 +71,14 @@ scenario evaluator, qualification record, local result provider, five
 workload commands, and a read-only `rey ui` operator surface. Humans land on
 the `/explore` context-topology canvas and normally remain in the UI; agents
 use the CLI as their primary runtime interface, with humans descending to it
-for exact diagnosis. `/explore` is now architecturally defined as a
-high-fidelity spatial game engine specialized for evidence-bound projections
-of high-dimensional context. Its current React/SVG relief remains incomplete
-enabling work, now isolated as a deterministic reference renderer beside an
-unmounted, pinned Three.js WebGPU adapter. The implemented
-`rey.projection-packet.v1` binds the current CLI/browser scene input; [Plan
-0020](plans/0020-high-fidelity-projection-engine.md) owns engine extraction,
-continuous terrain rendering, and the remaining CLI/browser/performance proof.
+for exact diagnosis. `/explore` is a high-fidelity spatial game engine
+specialized for evidence-bound projections of high-dimensional context. The
+implemented `rey.projection-packet.v1` carries a deterministic terrain program
+and bounded camera-relative working-set policy. Explorer renders a live
+Three.js WebGPU-first/WebGL2-compatible surface beside the deterministic
+accessible reference path; [Plan 0003](plans/0003-scene-to-explorer.md) owns
+scene admission, remaining engine separation, World/Atlas/County completion,
+and CLI/browser/performance proof.
 The former Instrument dashboard is
 Environment at `/environment`. `/cadence` keeps bounded Git reachability, Rey
 admissions, and mounted browser scans on explicit partial-order clocks. `/agents` ranks
@@ -263,13 +264,15 @@ link/repository-truth review.
 
 ## Plans And Decisions
 
-- Plans in `plans/` are executable checklists with a top-level completion list.
-- Mark only repository-proven facts complete.
-- Put open choices in the active plan for that bearing; put accepted consequential choices in an
-  ADR.
-- Add a superseding ADR rather than silently rewriting why an accepted decision
-  was made.
-- Update the plan and decision indexes whenever status changes.
+- Plans in `plans/` are current executable checklists with a top-level
+  completion list.
+- Mark only repository-proven facts complete and remove completed plans; Git
+  retains delivery history.
+- Put open choices in the active plan for that bearing. Put accepted durable
+  structure in its owning foundational document and the current decision
+  plane.
+- Update the owning contract, decision projection, and active plan together
+  when accepted structure changes.
 
 ## Hygiene
 

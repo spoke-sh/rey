@@ -21,10 +21,10 @@ generation:
   inputs:
     - source: sys/context-anchor-survey/request.yaml
       revision: blake3:ade2598ed7107f32b0be2c3dae4a0478d53fd57e38be786954de0d6694063d4a
-    - source: plans/0017-incremental-context-topography.md
-      revision: git:f9e0a8c4daf2bc537f9e91d10bc8afd584878c6e
-    - source: docs/decisions/0041-continuous-coordinate-topography.md
-      revision: git:f9e0a8c4daf2bc537f9e91d10bc8afd584878c6e
+    - source: plans/0003-scene-to-explorer.md
+      revision: sha256:c80f7168ca62fdc451b971e4ea80e8e10b983814f1811b8ba87d0d05849789dc
+    - source: docs/decisions/README.md
+      revision: sha256:76daf8283d887800ed5c03de77ce39481e86fd98fbde4f3ef393dd1aea8e9c96
 
 graph:
   id: context-anchor-survey.graph

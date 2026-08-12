@@ -141,34 +141,19 @@ Current behavior is:
 - use Polars features narrowly enough that Nix builds prove the intended
   closure rather than an accidental feature set.
 
-ADR 0008 selects Polars 0.55.2 with only `fmt` and `ipc_streaming`, Arrow IPC
-stream transport, BLAKE3 length-framed semantic identity, Serde JSON documents,
-and Clap for the first CLI. ADR 0010 adds the small `csv` encoder for the
-Tabular Diff 0.8 projection. ADR 0013 adds no external dependency: its pure
-runtime reducer uses existing identity/Serde contracts, and its reasoning
-surface uses the existing Polars/DataFrame closure. ADR 0014 adds
-`rey-frontier` using that same closure and no new external dependency. New
-HTTP, async-runtime, Git parsing, or broader Polars features require an
-explicit plan need and dependency review.
+The current data/runtime closure uses Polars 0.55.2 with only `fmt` and
+`ipc_streaming`, Arrow IPC stream transport, BLAKE3 length-framed semantic
+identity, Serde JSON documents, Clap, and the small `csv` encoder used by the
+Tabular Diff 0.8 projection. The pure runtime, frontier, reasoning-surface,
+workload, graph/scenario, qualification, and result-state contracts reuse that
+closure. They do not add a general persistence engine, async runtime, or agent
+transport.
 
-ADR 0015 adds no dependency or executable behavior. It accepts the
-workload-centered product and command contracts while deferring manifest
-encoding, catalog/result storage, graph execution, scenario campaigns, and the
-required runtime/frontier/surface schema cutover to a later implementation
-slice.
-
-ADR 0016 implements that first slice with no new third-party dependency. The
-existing Rey crates provide built-in typed UTF-8 graph operations,
-scenario-output deltas, workload qualification/run results, and bounded local
-JSON result state; it does not add a general persistence engine, async runtime,
-or agent transport.
-
-ADR 0017 accepts the relational/source mining capability model. Plan 0006 now
-implements the narrow `rey-mining` ownership boundary for provider-neutral
-operation, request, result, artifact, completeness, dependency, lineage, and
-limit contracts. The crate adds no third-party dependency beyond the existing
-Serde, BLAKE3 identity, and error closure; it is not a query engine, parser
-bundle, tool runner, visualization library, or persistence layer.
+`rey-mining` owns provider-neutral operation, request, result, artifact,
+completeness, dependency, lineage, and limit contracts. It adds no third-party
+dependency beyond the existing Serde, BLAKE3 identity, and error closure; it is
+not a query engine, parser bundle, tool runner, visualization library, or
+persistence layer.
 
 The first source provider reuses the workspace's existing `base64` dependency
 for reversible Unix-byte and Windows-UTF-16LE path identities and the existing
@@ -177,43 +162,30 @@ process, traversal, storage, or rendering dependency. Deterministic pure
 projections leave optional observed wall time absent from semantic consumption;
 tool-backed probes may record it explicitly.
 
-ADR 0018 completes the first mining workload without a new third-party
-dependency. It adds ordered text and source-match relation deltas and extends
-the runtime graph with a typed source-match value and built-in source
-operations.
-
-ADR 0022 and Plan 0010 add portfolio mining without expanding the workspace's
-third-party dependency closure. `rey-runtime` directly uses the existing
-Polars and `rey-dataframe` workspace dependencies for the canonical
-`rey.workload-attention.v1` relation. It adds typed portfolio snapshot and
-attention values, two deterministic built-in graph operations, one compiled
-system workload, and retained attention evidence in scenario/run results.
-
-ADR 0023 reuses the workspace's existing bounded `serde-saphyr` dependency in
-the `rey` composition crate to load `rey.workload-package.v1`. The default
-catalog is workspace-authored; compiled graphs remain explicit conformance.
-The v1 workload and view contracts bind exact package bytes/path and proposal
-provenance while local workload state stores runtime results rather than
-mutable catalog projections.
-
-ADR 0024 adds no dependency. `workloads create` serializes its strict request
-as JSON-compatible YAML with existing Serde support and loads it through the
-same bounded YAML parser as packages. Drafts are catalog state, not execution
+Ordered text and source-match relation deltas, typed source-match graph values,
+portfolio mining, and `rey.workload-attention.v1` reuse the existing
+Polars/DataFrame closure. The composition crate reuses bounded `serde-saphyr`
+to load `rey.workload-package.v1` and JSON-compatible YAML creation requests.
+The default catalog is workspace-authored; compiled graphs remain explicit
+conformance. Local workload state stores runtime results rather than mutable
+catalog projections, and drafts remain catalog state rather than execution
 state.
 
-ADR 0048 resets every current Rey-owned public document and relation to a
-single fresh v1 baseline. The reset is intentionally destructive: `.rey`
-state from earlier pre-alpha builds must be discarded, and there are no schema
-aliases, migration readers, or partially populated v1 decoders. External
-protocol versions such as Git porcelain v2 and renderer backend capability
-names are not Rey document versions.
+New HTTP, async-runtime, Git parsing, parser, regex, database, or broader
+Polars features require a concrete active-plan need and dependency review.
 
-ADR 0025 adds `tiny_http` 0.12 to the composition binary for a narrow
-synchronous local operator listener. ADR 0037 adds one bounded Journal POST;
-ADR 0038 admits that document without authentication or an origin check on
-every explicitly configured listener. It deliberately adds no async runtime,
-TLS, authenticated identity, background scheduler, or general
-persistence/service topology.
+Current Rey-owned pre-alpha schemas fail closed at their declared versions.
+Earlier `.rey` state must be discarded when a hard cut changes a schema; there
+are no automatic aliases, migration readers, or partially populated decoders
+unless an active plan explicitly accepts them. External protocol versions such
+as Git porcelain v2 and renderer backend capability names are not Rey document
+versions.
+
+The composition binary uses `tiny_http` 0.12 for a narrow synchronous local
+operator listener. Its bounded Journal POST and exact workload-admission POST
+are intentionally unauthenticated and have no origin check on every explicitly
+configured listener. This adds no async runtime, TLS, authenticated identity,
+background scheduler, or general persistence/service topology.
 The TypeScript application uses locked React, TanStack Router, TypeScript,
 Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
@@ -226,8 +198,8 @@ trusted. Crane's filtered source includes built `apps/rey-ui/dist` assets
 consumed by Rust `include_bytes!` calls; the packaged Rey binary does not need
 Node at runtime.
 
-ADR 0037 adds no dependency. `crates/rey/src/journal.rs` owns the shared typed
-entry validator, semantic identity, idempotent ordered log, hard limits,
+`crates/rey/src/journal.rs` owns the shared typed entry validator, semantic
+identity, idempotent ordered log, hard limits,
 symlink checks, file lock, and atomic local publication. `rey journal add`
 admits agent YAML; `POST /api/v1/journal` admits validated human JSON without
 authentication on every explicit bind. Both retain beneath `.rey/journal` by
@@ -235,11 +207,11 @@ default and execute no notebook block. Exact entry routes and block fragments
 make the retained document interface deeply hyperlinkable. The Journal format
 is specified in `docs/JOURNAL.md`.
 
-ADR 0026 adds no runtime dependency. `src/topology.ts` deterministically
-derives bounded World, Atlas, Landscape, Neighborhood, Object, and Evidence
-scenes from admitted patches and projection packets in `rey.workload-list.v1`;
-World additionally compiles the optional `rey.semantic-atlas.v1` into a
-synthetic globe whose Three.js and reference paths share one scene revision.
+`src/topology.ts` deterministically derives bounded World, Atlas, Landscape,
+Neighborhood, Object, and Evidence scenes from admitted patches and projection
+packets in `rey.workload-list.v1`; World additionally compiles the optional
+`rey.semantic-atlas.v1` into a synthetic globe whose Three.js and reference
+paths share one scene revision.
 `src/explore/engine/camera.ts` owns camera math,
 `src/explore/engine/scene.ts` freezes the current scene, and
 `src/explore/engine/fields.ts` owns bounded typed scalar, vector, mask, and
@@ -255,15 +227,14 @@ retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
-ADR 0044 formalizes Explorer as a high-fidelity spatial game engine for
-evidence-bound projection and adds no graphics dependency by itself. Plan 0020
-first extracts typed evidence adapters, projection packets, immutable scenes,
-data-oriented fields, camera/LOD/invalidation, render-graph, picking, backend,
-and React-shell
-boundaries while retaining the existing SVG/DOM output as a reference path.
-ADR 0045 selects a pinned Three.js `WebGPURenderer` and TSL adapter with WebGPU
-preferred and Three.js's WebGL2 backend as compatibility fallback. The current
-package pins Three.js `0.185.1`; its adapter has deterministic lifecycle tests
+Explorer is a high-fidelity spatial game engine for evidence-bound projection.
+Its current boundary separates projection packets, immutable scenes,
+data-oriented fields, camera/LOD, backend lifecycle, and the React shell while
+remaining scene adaptation, invalidation, render-graph, and picking extraction
+is [Plan 0003](../plans/0003-scene-to-explorer.md) work. A pinned Three.js
+`WebGPURenderer` and TSL adapter prefers WebGPU and uses Three.js's WebGL2
+backend as compatibility fallback. The current package pins Three.js
+`0.185.1`; its adapter has deterministic lifecycle tests
 for asynchronous initialization, WebGPU selection, forced WebGL2 selection,
 viewport bounds, failure, and disposal. It is mounted lazily as `/explore`'s
 continuous base-terrain surface, while the reference renderer remains active
@@ -282,10 +253,9 @@ perceptual fidelity. GPU pixels and frame timing are not semantic identities;
 performance results must name the fixture, browser/backend, viewport, DPR,
 hardware, warm/cold posture, revisions, and budgets.
 
-ADRs 0027, 0031, and 0032 add no dependency. The mapping parser hard-cuts to
-`rey.env-map.v1`; the process-owned discovery seed set is `HOME`, `PWD`, and
-`PATH`; a map is loaded only through explicit `--map`; desired executables
-require a bounded purpose; and bounded
+The mapping parser hard-cuts to `rey.env-map.v1`; the process-owned discovery
+seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit
+`--map`; desired executables require a bounded purpose; and bounded
 UTF-8 values are retained only for explicit
 non-sensitive `capture: value` nodes. `crates/rey/src/env.rs` derives the
 shared `rey.environment-operator-projection.v1` from the same frozen HEAD,

@@ -1,20 +1,15 @@
 # Workloads, Compute Graphs, And Scenarios
 
-This document defines Rey's workload-centered product model. ADR 0015 fixes
-the broad semantics, ADR 0016 fixes the first executable runner slice, and ADR
-0023 replaces its product-facing compiled catalog with bounded workspace
-packages, ADR 0049 separates those proposals into workload HEAD, INDEX,
-and WORKING planes, and ADR 0050 makes the visible `sys/<workload>/` tree the
-default file-backed admission source. Rey loads coding-harness-authored graph and scenario
-contracts from `sys/*/workload.yaml`, validates them, stages exact bytes,
-qualifies the frozen INDEX, and admits only an explicit human action. Automatic
-harness invocation remains a target contract; ADR 0024 implements its strict
-creation-request handoff and visible draft state. The recurring improvement
-campaign also remains a target contract. ADR 0017 makes relational and source mining
-first-class graph capabilities; ADR 0018 fixes their first executable workload
-slice.
-ADR 0022 adds the implemented portfolio-mining system workload and makes
-workload attention the outer loop's typed scheduler input.
+This document defines Rey's workload-centered product model. Rey loads bounded
+coding-harness-authored graph and scenario contracts from
+`sys/*/workload.yaml`, validates them, stages exact bytes, qualifies the frozen
+INDEX, and admits only an explicit human action. Request-only packages retain a
+strict external-harness handoff and visible draft state; Rey does not invoke a
+harness. Relational and source mining are first-class graph capabilities, and
+the implemented portfolio-mining conformance workload makes typed workload
+attention an outer-loop input. The recurring ownership, invalidation,
+attention-to-frontier, and harness-response loop remains
+[Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Public Unit
 
@@ -52,13 +47,13 @@ measures whether a staged generated graph behaves as expected, admits an exact
 qualified INDEX through human approval, and runs HEAD against admitted inputs.
 
 `rey ui` is the human admission surface for this same workload plane. It opens
-on the admission Feed, derives incoming candidates and admitted HEAD from the
-same typed state as the CLI, and advances HEAD by freezing, qualifying, and
-committing the exact reviewed WORKING file snapshot with explicit HEAD and
-WORKING preconditions. It defines no second catalog,
+on `/explore`; before survey evidence exists, exact workload beacons link to
+inspection and the admission Feed. The UI derives incoming candidates and
+admitted HEAD from the same typed state as the CLI and advances HEAD by
+freezing, qualifying, and committing the exact reviewed WORKING file snapshot
+with explicit HEAD and WORKING preconditions. It defines no second catalog,
 qualification rule, attention relation, or package mutation path. Journal
-writes and workload approval remain separate authorities. See [ADR
-0049](decisions/0049-workload-admission-history.md).
+writes and workload approval remain separate authorities.
 
 The default catalog is the workspace package catalog. Checked-in packages are
 WORKING proposals, not admitted workloads. The initial product proposal is
@@ -132,8 +127,8 @@ generation:
   producer_revision: gpt-5
   generated: [compute_graph, scenario_suite]
   inputs:
-    - source: plans/0010-portfolio-mining-and-workload-attention.md
-      revision: git:7f108d2fe655cffea830d9dd36da4ecbb9a104f1
+    - source: plans/0001-runtime-loop.md
+      revision: blake3:<exact-content-digest>
 ```
 
 The complete product proposal is

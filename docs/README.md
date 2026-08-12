@@ -1,10 +1,10 @@
 # Rey Documentation
 
 This directory contains Rey's foundational contracts, implementation bearings,
-and architectural decision history. Start with the project scope and
-constitution, then follow the subject document for the plane being changed.
-The documents describe both implemented behavior and target boundaries; each
-document must say which is which.
+and current decision plane. Start with the project scope and constitution, then
+follow the subject document for the plane being changed. The documents describe
+both implemented behavior and target boundaries; each document must say which
+is which.
 
 ## Start Here
 
@@ -46,15 +46,16 @@ document must say which is which.
 | [Development](DEVELOPMENT.md) | Pinned Nix/Rust/TypeScript environment, root `just` tasks, build outputs, dependency updates, and qualification commands. |
 | [Releases](RELEASES.md) | GitHub Actions quality gates, cargo-dist artifact planning, version tags, release permissions, and operator procedure. |
 | [Roadmap](ROADMAP.md) | Delivery sequence from local environment evidence through workloads, topography, admitted mutation, and policy. |
-| [Architecture Decisions](decisions/README.md) | Indexed accepted decisions, their status, summaries, and supersession history. |
-| [Implementation Plans](../plans/README.md) | Active and completed implementation slices with checklists and human verification paths. |
+| [Current Decision Plane](decisions/README.md) | Accepted structural choices grouped by ownership plane, with current implementation posture and authoritative contract links. |
+| [Current Plans](../plans/README.md) | Current executable slices, dependency order, completion criteria, and human verification paths. |
 
 ## How The Documents Relate
 
 Use [Architecture](ARCHITECTURE.md) to decide ownership, [CLI](CLI.md) and
 [Interfaces](INTERFACES.md) to define the human/machine boundary, and the
-subject document to define semantic behavior. Accepted
-[decisions](decisions/README.md) explain why the current contract exists;
-[plans](../plans/README.md) track the bounded work needed to implement or
-change it. When a higher-level decision changes a lower-level description,
-update the stale document in the same change.
+subject document to define semantic behavior. The current
+[decision plane](decisions/README.md) summarizes accepted structure;
+[plans](../plans/README.md) track only bounded current and logically queued
+work. Superseded rationale and completed delivery history remain in Git. When a
+higher-level decision changes a lower-level description, update the stale
+document in the same change.

@@ -1,31 +1,20 @@
 # Runtime Transitions And Reasoning Surfaces
 
 This document defines Rey's formal runtime lifecycle and the bounded input
-surface presented to policy. ADRs 0012–0014 fix the architecture and current
-contracts. The repository implements the pure state reducer through scheduling,
-canonical frontier/progress/selection contracts, and surface
-validation/projection. It also implements one bounded source-mining workload
-fixture that retrieves through a built-in provider, derives and schedules one
-failure row, and projects a reasoning surface. It does not execute the proposed
-revision action or run an agent loop.
+surface presented to policy. The repository implements the pure state reducer
+through scheduling, canonical frontier/progress/selection contracts, and
+reasoning-surface validation/projection. One bounded source-mining workload
+retrieves through a built-in provider, derives and schedules a failure row, and
+projects a reasoning surface. The deterministic outer portfolio campaign also
+derives workload attention from retained inputs. Neither path executes a
+proposed revision action or runs a recurring agent loop.
 
-ADR 0015 places these mechanisms inside a workload test campaign. ADR 0016
-implements the first deterministic workload/graph/scenario/qualification
-slice. The fresh v1 runtime state and reasoning surface bind exact workload,
-graph, scenario-suite, and campaign identities.
-ADR 0017 names the orientation capability layer as mining. ADR 0018 implements
-the first provider-neutral request/result execution path and its
-workload-specific orientation fixture without turning the reducer into a
-generic recurring scheduler.
-
-ADR 0022 adds the outer portfolio campaign. The runtime now has a deterministic
-portfolio-snapshot to workload-attention derivation and an executable system
-workload, but it does not yet feed those rows into recurring generic
-scheduling or policy.
-ADR 0023 moves product workloads to bounded workspace packages with exact
-proposal provenance and frozen scenario admission. The runtime still does not
-invoke a coding harness; it deterministically receives and evaluates admitted
-packages.
+Runtime v1 binds exact workload, graph, scenario-suite, and campaign identities.
+Product workloads arrive as bounded workspace packages with exact proposal
+provenance and frozen scenario admission. Rey does not invoke a coding harness;
+it deterministically receives and evaluates admitted packages. The generic
+attention-to-frontier and recurring loop remains
+[Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Nested Campaigns
 
@@ -236,10 +225,9 @@ runtime reducer does not become a generic graph-task scheduler.
 During orientation, exact immutable retrieval and pure projection may build
 the surface directly within its existing retrieval-iteration and evidence-byte
 bounds. A mutable read or external mining tool invocation is a probe and must
-cross the full proposal/admission/execution/observation boundary. Plan 0006
-proves the local source distinction with a declared bounded read-only graph
-operation; external search or parser processes still require the full probe
-boundary.
+cross the full proposal/admission/execution/observation boundary. The built-in
+local source graph operation proves the pure read-only distinction; external
+search or parser processes still require the full probe boundary.
 
 A graph proposal is an untrusted policy proposal and must pass graph,
 operation, capability, effect, precondition, and limit validation. Only fresh

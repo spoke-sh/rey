@@ -1,38 +1,31 @@
 # Mining Context Into Evidence
 
-This document defines Rey's target mining model. [ADR 0017](decisions/0017-mining-capability-model.md)
-accepts mining as the capability layer that joins environment surfaces to
-workload graphs, deltas, frontiers, and reasoning surfaces. Plan 0006 completes
-the first executable slice. Provider-neutral mining operation, request, result,
-artifact, completeness, lineage, dependency, and limit contracts are now
-implemented. The first deterministic provider, ordered text delta, typed source
-match delta, workload graph, terminal projections, and delta-directed reasoning
-fixture are also implemented. External tool providers, structural indexes, and
-general visualization specifications are not.
+This document defines Rey's mining model: the capability layer joining
+environment surfaces to workload graphs, deltas, frontiers, reasoning surfaces,
+and evidence projections. Provider-neutral operation, request, result,
+artifact, completeness, lineage, dependency, and limit contracts are
+implemented. The first deterministic provider, ordered text delta, typed
+source-match delta, workload graph, terminal projections, and delta-directed
+reasoning fixture are also implemented. External tool providers, structural
+indexes, and general visualization specifications are not.
 
-Plan 0017 adds the first executable survey-mining slice. Canonical locator
-candidates from exact `AGENTS.md` and README seeds resolve under a frozen local
-provider and capability snapshot into typed anchors or explicit unresolved
-outcomes. `rey.topography-patch.v1` retains classified `contains`/`references`
-edges, surveyed and unknown region states, coverage, frontier, omissions,
-lineage, hard limits, and a directed delta. Explorer consumes that retained
-patch; it performs no independent source scan or assessment.
+The executable survey family resolves canonical locator candidates from exact
+`AGENTS.md` and README seeds under a frozen local provider and capability
+snapshot. `rey.topography-patch.v1` retains typed anchors, classified
+`contains`/`references` edges, surveyed and unknown region states, coverage,
+frontier, omissions, lineage, hard limits, and a directed delta. Explorer
+consumes that retained patch and performs no independent source scan or
+assessment. Exact source edges and shared-coordinate equality remain inspector
+evidence rather than transport; anchor samples shape relief, unresolved
+frontier conditions become projected weather, and deterministic runoff may
+carve displayed streams, rivers, and erosion. Those features neither recommend
+mining nor claim a discovered or constructed path.
 
-Plan 0018 added the World projection over that same patch. ADR 0043 and Plan
-0019 correct its visual ontology: exact `contains`/`references` edges and
-shared-coordinate equality remain inspector evidence rather than transport.
-Anchor samples shape relief, unresolved frontier conditions become projected
-weather, and deterministic runoff may carve displayed streams, rivers, and
-erosion. These natural features neither recommend mining nor claim a
-discovered or constructed path, and no projection grants authority or executes
-a probe.
-
-ADR 0022 and Plan 0010 now extend this foundation with ongoing portfolio
-mining. The canonical portfolio snapshot and workload-attention relation, a
-scenario-qualified system workload, and its workload CLI projections are
-implemented; ownership declarations, live invalidation, and scheduler handoff
-remain active work. Product proposal/admission now uses workload
-HEAD/INDEX/WORKING under ADR 0049.
+The implemented outer loop derives a canonical portfolio snapshot and
+workload-attention relation through a scenario-qualified conformance workload
+and workload CLI projections. Ownership declarations, live invalidation, and
+generic scheduler handoff remain [Plan 0001](../plans/0001-runtime-loop.md)
+work. Product proposal and admission use workload HEAD/INDEX/WORKING.
 
 ## Purpose
 
@@ -394,8 +387,8 @@ path, match, row, context, string, output, and time boundaries remain explicit;
 binary and invalid UTF-8 inputs, truncation, malformed parameters, symlinks,
 path escapes, and source drift fail closed or produce typed incomplete results.
 
-`rey.fixture.source-search` completes Plan 0006's first end-to-end standalone
-slice. Its typed graph executes `rey.source-search.literal-utf8@1` and
+`rey.fixture.source-search` is the first end-to-end standalone mining slice.
+Its typed graph executes `rey.source-search.literal-utf8@1` and
 `rey.builtin.source-matches.render-lines@1` in deterministic dependency order.
 Required empty and exact scenarios qualify the graph. Optional mismatch and
 truncation scenarios preserve, respectively, a complete `DIFFERENT` relation
@@ -429,31 +422,34 @@ inputs; `test -vv` opens reviewed refine/retest/create/block/exclusion/clean
 scenarios with exact relation identities; and an input-free qualified `run`
 re-evaluates the retained catalog, workload results, and environment snapshot.
 
-Plan 0017 implements the first survey-mining family: admitted survey workloads emit
-content-identified topography patches. A patch retains locator candidates,
+The first survey-mining family emits content-identified topography patches from
+admitted survey workloads. A patch retains locator candidates,
 typed resolution outcomes, provider-qualified coordinate anchors, classified
 relationships, surveyed regions, coverage, frontier, omissions, completeness,
 lineage, and a directed delta against a prior map revision. Explorer is a
 deterministic visual projection of those artifacts. It does not mine, resolve,
 or interpolate semantic terrain on its own. Broader locator families and
-recurring voyage scheduling remain later work. ADR 0043 removes source-edge
-and camera-path geometry from relief; only a subsequent admitted patch can
-change topography. `rey.projection-packet.v1` now binds each displayed patch to
-its synthetic basis, bounded objects, validity, field/layer descriptors, three
-nested terrain levels, per-level and total allocations, limits, degradation,
-omissions, and lineage through the CLI and `rey.workload-list.v1`. The browser
-compiles the same bounded pyramid and selects overview, regional, or local
-fields by semantic lens without moving shared coordinates or creating evidence.
+recurring voyage scheduling remain later work. Source-edge and camera-path
+geometry is excluded from relief; only a subsequent admitted patch can change
+topography. `rey.projection-packet.v1` binds each displayed patch to its
+synthetic basis, bounded objects, validity, field/layer descriptors,
+deterministic terrain program, macro/meso/micro bands, maximum transient
+working-set allocation, limits, degradation, omissions, and lineage through
+the CLI and `rey.workload-list.v1`. The browser compiles a bounded
+camera-relative working set and selects only frequency bands supported by its
+sample spacing without moving shared coordinates or creating evidence.
 The workload list also derives `rey.semantic-atlas.v1` over the latest admitted
 regional patches. Its bounded survey-structure clustering and synthetic
 spherical placement are pure visualization mining with an exact compiler and
 revision; visual proximity is not a mined relationship or similarity claim.
-Zoom never enters that derivation. Plan 0022 must retain prior atlas revisions
-and a directed movement delta before admission-time topology changes can be
+Zoom never enters that derivation. [Plan
+0003](../plans/0003-scene-to-explorer.md) must retain prior atlas revisions and
+a directed movement delta before admission-time topology changes can be
 inspected historically.
 
-The remaining render-graph extraction, smooth LOD transitions, retained visual
-proof, and named performance qualification remain Plan 0020 work.
+The remaining render-graph extraction, transient-patch transitions, retained
+visual proof, and named performance qualification remain
+[Plan 0003](../plans/0003-scene-to-explorer.md) work.
 
 Rey still does not execute `rg` as a mining provider, support regex/case-folded
 search, compare arbitrary caller-selected source artifacts outside this graph,

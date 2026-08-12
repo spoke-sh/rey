@@ -58,8 +58,8 @@ ignored files are outside its declared scope. Publication records the branch,
 exact `HEAD` and local upstream OIDs, and ahead/behind reachability. Cadence
 classifies each visible commit against the retained upstream OID as `pushed`,
 `local`, or `unknown`. No status read performs fetch or push, so these are
-local-ref facts rather than claims about current remote-host state. See [ADR
-0036](decisions/0036-cadence-repository-state-and-publication.md).
+local-ref facts rather than claims about current remote-host state. See
+[Interfaces](INTERFACES.md) for the Cadence projection.
 
 ## Git Surfaces
 

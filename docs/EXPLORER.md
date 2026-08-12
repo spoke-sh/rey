@@ -23,9 +23,8 @@ WORKING, but generation itself grants no evidence authority. Those packages
 are not Explorer inputs. Only a later qualified workload may admit their
 terrain or features and produce evidence consumed by a projection packet. The
 implemented editor slice has no admission workload, so scene commits change
-neither the UI API nor `/explore`. See [ADR
-0046](decisions/0046-read-first-scene-editor.md) and [Plan
-0021](../plans/0021-read-first-scene-editor.md).
+neither the UI API nor `/explore`. See [CLI](CLI.md), [Mining](MINING.md), and
+[Plan 0003](../plans/0003-scene-to-explorer.md).
 
 ## Operator Model
 
@@ -85,8 +84,8 @@ Omission           = evidence that the current projection folded or excluded
 The current interface hard-cuts the former matrix route. A semantic
 `rey+local://...` coordinate and continuous numeric scale are separate values;
 the `/explore` query envelope combines them only for navigation. Old matrix
-paths are unresolved and have no compatibility parser. This distinction is
-defined by [ADR 0041](decisions/0041-continuous-coordinate-topography.md).
+paths are unresolved and have no compatibility parser. [Locators](LOCATORS.md)
+defines the address and resolution boundary.
 
 Relationships are always labeled. Portfolio projections use `contains`,
 `directs`, `produces`, `observes`, and `depends`; admitted survey patches add
@@ -183,9 +182,10 @@ fills invalid support. A TSL node material consumes the active buffers as one
 continuous relief mesh in `/explore`; React retains the controls, accessible
 overlays, exact evidence links, active band/backend status, and current/maximum
 working-set allocation. `topology.ts` still combines portfolio adaptation,
-scene assembly, contour extraction, and lens data. Plan 0020 owns smooth
-geometric LOD transitions, the remaining render-graph extraction, device-loss
-qualification, and retained visual and performance proof.
+scene assembly, contour extraction, and lens data. [Plan
+0003](../plans/0003-scene-to-explorer.md) owns transient-patch transitions,
+the remaining render-graph extraction, device-loss qualification, and retained
+visual and performance proof.
 
 ### Terrain fidelity
 
@@ -223,8 +223,8 @@ former single top-down 2.5D target while retaining bounded cameras rather than
 unrestricted free orbit. Volumetric space, physics, and a general ECS remain
 deferred. World and County camera posture is presentation state; neither can
 change semantic coordinates, height authority, or admission.
-The production path uses the Three.js `WebGPURenderer` and TSL boundary selected
-by ADR 0045. WebGPU is preferred and Three.js's WebGL2 backend is the
+The production path uses a narrow Three.js `WebGPURenderer` and TSL boundary.
+WebGPU is preferred and Three.js's WebGL2 backend is the
 compatibility path. The implemented adapter awaits asynchronous initialization,
 can force WebGL2 for qualification, bounds viewport pixel work, records the
 active backend, disposes resources, and fails closed to reference status. It is
@@ -283,16 +283,16 @@ east/north/up tangent frame and blends into a stylized isometric camera. If no
 admitted county exists under focus, the lens stops at Atlas and says so.
 
 Detailed county fabric comes from exact editor packages only after a qualified
-scene-admission workload. Its multiresolution terrain, boundary, hydrology,
+scene-admission workload. Its procedural terrain, boundary, hydrology,
 roads, highways, lots, structures, utilities, beacons, construction, labels,
 and markers remain separate typed layers. Source graph edges never become
 roads. Cross-county highways require compatible admitted connector identities;
 a beacon does not imply a running poller or relay; construction does not imply
 observed work. Candidate packages remain absent from `/explore`.
 
-The projection grammar and implementation course are fixed by [ADR
-0056](decisions/0056-continuous-globe-mercator-county-grammar.md) and [Plan
-0029](../plans/0029-continuous-explorer-grammar.md).
+The projection grammar is part of this contract; [Plan
+0003](../plans/0003-scene-to-explorer.md) owns its incomplete implementation
+and proof.
 
 The implementation covers all six levels over one persistent spatial scene.
 World aggregates admitted regional topographies on the semantic sphere. Atlas
@@ -461,10 +461,9 @@ Neighborhood, Object, and Evidence stops inside that continuum. The selected
 coordinate anchors the camera; free pan and viewport remain ephemeral. The
 scene extent is derived from the bounded projection instead of a fixed world
 rectangle. The matrix route is outside the current contract. Journal v2 stores
-coordinate and numeric scale as separate fields and derives the browser envelope. See [ADR
-0041](decisions/0041-continuous-coordinate-topography.md). World geometry and
-probe navigation are fixed by [ADR
-0042](decisions/0042-world-geometry-and-probe-navigation.md).
+coordinate and numeric scale as separate fields and derives the browser
+envelope. [Locators](LOCATORS.md) owns coordinate parsing and bounded
+resolution; this document owns World geometry and read-only probe navigation.
 
 ## Implemented Routes
 
@@ -518,8 +517,7 @@ Timestamped Signals use newest-first display order followed by source-ordered
 records with no wall time. This is not causal order, unread state, or a durable
 global event log. Admission is inspect-only and cannot move a post into Flow.
 The first slice renders at most 64 recent Signals and reports older folded
-records. See
-[ADR 0039](decisions/0039-bounded-operator-feed.md).
+records. [Interfaces](INTERFACES.md) owns the exact Feed and HTTP boundary.
 
 `GET /api/v1/cadence` returns `rey.ui-cadence.v1`. Its leading repository-state
 plane separates working-tree attention from the exact local-upstream push
@@ -585,31 +583,26 @@ requires an exact patch/packet pair before compiling admitted terrain. Typed
 field derivations live under `src/explore/terrain`; `topology.ts` still owns
 their scene adaptation plus contours and natural-feature overlays.
 
-This is current repository truth, not the target ownership shape. Plan 0020
-extracts typed evidence adapters, projection packets, immutable scenes, fields,
-camera/LOD/invalidation, a render graph, renderer backends, picking, and React
-overlays. Future windows and lenses add typed engine inputs rather than fetch or
-invent a second graph inside a visualization component.
+This is current repository truth, not the target ownership shape. [Plan
+0003](../plans/0003-scene-to-explorer.md) completes typed evidence adapters,
+immutable scenes, camera/LOD/invalidation, the render graph, renderer backends,
+picking, and React overlays. Future windows and lenses add typed engine inputs
+rather than fetch or invent a second graph inside a visualization component.
 
 ## Next Boundaries
 
-Plan 0017's seed-to-map voyage is implemented and verified through the CLI,
-structured workload endpoint, and deterministic Explorer read-model tests.
-Plan 0020 remains the active Explorer foundation: extend the implemented
-projection packet, typed multiresolution fields, and continuous TSL surface
-with transition blending and contour/overlay LOD; extract the remaining render
-graph; qualify device-loss and fallback paths in retained browser evidence; and
-close the visual, packaging, and performance proof.
-Exact scenario/delta routes should then carry the CLI `-v`/`-vv` evidence ladder
-into the browser without adding an independent assessment.
-
-Plan 0022 owns the next global projection slice: retain prior atlas revisions
-and movement deltas at admission, rotate rather than pan the World globe,
-and add sector identity. Plan 0029 owns the complete grammar: flatten World
-through semantic Mercator, connect admitted editor regions, enter a local
-isometric county, and qualify its detailed terrain and typed constructed
-layers. Travel, trade, and economic layers require their own typed qualified
-evidence and are not inferred from survey edges or visual proximity.
+The seed-to-map voyage and World globe rotation are implemented and verified
+through the CLI, structured workload endpoint, and deterministic Explorer
+read-model tests. [Plan 0003](../plans/0003-scene-to-explorer.md) now owns the
+critical path: admit one exact editor package, retain atlas revisions and
+movement deltas, add sector identity, unwrap World through semantic Mercator,
+enter a local isometric County, finish the engine/render-graph boundary, and
+qualify detailed terrain and typed constructed layers. Exact scenario/delta
+routes belong to [Plan 0002](../plans/0002-collaboration-loop.md) and must carry
+the CLI `-v`/`-vv` evidence ladder into the browser without adding an
+independent assessment. Travel, trade, and economic layers require their own
+typed qualified evidence and are not inferred from survey edges or visual
+proximity.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and remote streams remain separate decisions.

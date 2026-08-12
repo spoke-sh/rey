@@ -41,9 +41,9 @@ comparison, and broader proof coverage.
 The explicit compiled conformance catalog, workload CLI projections, typed DAG, scenario
 qualification, common mining manifests, exact local literal search, typed match
 and ordered text deltas, source-search workload, linked human projections, and
-one failure-derived reasoning surface are delivered. Plan 0010 also delivers
-the first deterministic outer-loop slice: canonical portfolio snapshots,
-typed workload attention, the `rey.portfolio.attention` system workload, and
+one failure-derived reasoning surface are delivered. The first deterministic
+outer-loop slice is also delivered: canonical portfolio snapshots, typed
+workload attention, the `rey.portfolio.attention` system workload, and
 list/test/run/status projections over retained catalog/result/environment
 inputs. The remaining bullets in
 this phase concern general declarations, activation, invalidation, recurring
@@ -81,6 +81,13 @@ execution, and broader provider behavior.
 
 ## Cross-Cutting — Incremental Context Topography
 
+The seed-to-map survey, consent-first orientation globe, semantic World globe
+rotation, projection packet, procedural terrain program, camera-relative
+working set, and WebGPU/WebGL2/reference renderer boundary are delivered.
+[Plan 0003](../plans/0003-scene-to-explorer.md) owns scene admission,
+retained atlas change, semantic Mercator, County entry, engine completion, and
+fidelity proof.
+
 - Separate provider-qualified semantic coordinates from Explorer camera,
   scale, viewport, selection, and level-of-detail state.
 - Define canonical locator resolution outcomes and one admitted topography
@@ -107,10 +114,10 @@ execution, and broader provider behavior.
   typed projection packets, immutable scenes, data-oriented fields, camera,
   semantic/geometric LOD, invalidation, render graph, picking, reference and
   accelerated backends, and a thin accessible React shell.
-- Replace contour-line relief on a flat plane with bounded multiresolution
-  terrain, normals, multidirectional hillshade, ambient ridge/valley shading,
-  evidence-aware tint, LOD-aware contours, and coherent overlays under named
-  visual and performance proof.
+- Complete bounded camera-relative terrain evaluation, normals,
+  multidirectional hillshade, ambient ridge/valley shading, evidence-aware
+  tint, LOD-aware contours, coherent overlays, transient-patch reuse, and GPU
+  parity under named visual and performance proof.
 - Extend detailed county scenes with independently admitted highway, road, lot,
   structure, beacon, construction, and connector layers. Never infer those
   systems from source edges, visual proximity, or browser interaction.
@@ -128,11 +135,14 @@ execution, and broader provider behavior.
 
 ## Cross-Cutting — Workspace Collaboration Channels
 
+The Channel graph and `HEAD → INDEX → WORKING` loop, immutable messages,
+explicit admitted relay, and one-shot polling beacons are delivered through the
+CLI. [Plan 0002](../plans/0002-collaboration-loop.md) owns browser projection,
+standalone observations, Journal seeding, and the conversation boundary.
+
 - Define stable channels, standalone Channel observations, observation
   admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and
   relays without inventing a global clock.
-- Implement a workspace-local `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING`
-  revision loop and high-fidelity `rey channels` CLI.
 - Persist Feed composition and pointer/keyboard stream movement through the
   same typed working state while retaining URL layouts as detached previews.
 - Admit compact observations independently of the Channel topology index,
@@ -141,8 +151,9 @@ execution, and broader provider behavior.
   execution authority.
 - Project selected exact observations into an unretained Journal seed for
   catch-up; require normal Journal admission before it becomes a retained entry.
-- Specify relay provider, cursor, hop, idempotency, loop-prevention, delivery,
-  and omission contracts before enabling local or remote transport.
+- Extend the implemented exact direct relay only after remote provider, cursor,
+  hop, idempotency, loop-prevention, delivery, and omission contracts are
+  accepted and proved.
 
 ## Phase 3 — Admitted Mutation
 

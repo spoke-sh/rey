@@ -1,53 +1,20 @@
 # Rey Interfaces
 
 This document defines Rey's typed provider, policy, persistence, and HTTP/UI
-boundaries. [Rey Command-Line Interface](CLI.md) is the canonical
-command philosophy and command-level reference; CLI details retained here
-explain the typed contracts projected by those commands.
-The implemented CLI includes a Git-shaped, mapping-aware standalone
-environment revision loop and the workload runner fixed by ADR 0016. ADR 0023
-hard-cuts the default catalog to bounded workspace packages and keeps compiled
-fixtures behind an explicit conformance selector. ADR 0024 adds the strict
-external coding-harness creation request and visible draft lifecycle. Lower-level proof and
+boundaries. [Rey Command-Line Interface](CLI.md) is the canonical command
+philosophy and command-level reference; CLI details retained here explain the
+typed contracts projected by those commands.
+
+The implemented local surface includes Git-shaped environment, workload,
+editor, and Channel topology histories; file-backed workload qualification;
+deterministic workload/mining/portfolio execution; immutable Channel messages
+and explicit relay attempts; bounded Journal admission; and an explicitly
+started embedded operator UI over the same evidence. Lower-level proof and
 local-bundle contracts remain library/runtime capabilities rather than manual
-user commands. Automatic graph proposal policy remains provisional. ADR
-0017 fixes the common relational/source mining boundary; ADR 0018 implements
-its first workload-wired local source corpus, literal search, typed relation
-and ordered text deltas, reasoning fixture, and human CLI projections. ADR
-0019 hard-cuts the environment namespace to `env` and adds verified local
-environment status, commit, and patch-log contracts. ADR 0020 makes `diff`
-HEAD-relative, removes manual proof plumbing, and adds the environment mapping
-graph. ADR 0021 replaces direct HEAD-to-working acceptance with the
-HEAD-bound admission index, merges inventory into status, and removes
-`inspect`.
-ADR 0022 adds ongoing portfolio mining, the typed workload-attention relation,
-and its workload-centered list/test/run/status projections.
-ADR 0023 adds `rey.workload-package.v1`, coding-harness provenance, frozen
-scenario admission, and product/conformance catalog separation.
-ADR 0025 adds the loopback-first, read-only `rey ui` operator projection using
-the same live workload-list derivation as the CLI.
-ADR 0026 makes `/explore` the default human surface, hard-cuts Instrument to
-Environment at `/environment`, adds the bounded semantic-lens canvas, and
-replaces manual refresh with passive five-second revalidation.
-ADR 0027 adds bounded non-sensitive value capture and makes `rey env status`
-plus `/environment` two projections of one typed environment delta. ADR 0031
-hard-cuts the mapping graph to `rey.env-map.v1` and separates exact desired
-application inventory from bounded search records.
-ADR 0030 added partially ordered cadence lanes and the now-superseded matrix
-Explorer coordinates. ADR 0041 hard-cuts those paths to semantic coordinates
-plus numeric view scale. ADR 0034 replaces its agent registry with process-discovered
-runtime options and a task/operation plane derived from the current frontier.
-ADR 0035 keeps runtime inventory in Environment and raises `/agents` to ranked
-recommendations plus retained-work insight.
-ADR 0037 adds the bounded Explore-bound collaboration Journal, shared agent
-CLI and human admission, and inert typed notebook blocks. ADR 0038 makes that
-admission intentionally unauthenticated on every explicit bind and gives every
-entry and block an exact browser address.
-ADR 0032 makes bootstrap discovery process-owned and seed-first, requires
-explicit agent-map input, establishes locator survey as the next boundary, and
-turns the footer into a live typed-attention mailbox.
-ADR 0033 restores a compact Git-shaped environment working-tree view, projects
-interactive admission as environment hunks, and adds bounded dated history.
+commands. Automatic graph-proposal policy, recurring activation, scene
+admission, general provider execution, and a conversation transport remain
+incomplete. The [current decision plane](decisions/README.md) summarizes the
+accepted structure; subject documents own its exact semantics.
 
 ## Interface Principles
 
@@ -174,9 +141,8 @@ proposal identity, INDEX qualification, and admission commit.
 `rey.fixture.text-mismatch` diagnostics. The CLI labels this catalog and each
 workload's origin so compiled fixtures cannot be mistaken for product work.
 
-See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md),
-[ADR 0016](decisions/0016-first-workload-slice.md), and
-[ADR 0018](decisions/0018-first-mining-workload.md).
+See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) and
+[Mining Context Into Evidence](MINING.md).
 
 ## Implemented Workload CLI
 
@@ -253,7 +219,8 @@ integer synthetic semantic longitude/latitude. It declares no Earth CRS.
 `workloads list` exposes its exact revision, compiler, region/cluster counts,
 boundedness, admission-revision recluster rule, and the fact that zoom cannot
 recluster it. The current document derives the atlas from retained admission
-state; prior-revision movement deltas remain Plan 0022 work.
+state; prior-revision movement deltas remain
+[Plan 0003](../plans/0003-scene-to-explorer.md) work.
 
 ## Implemented Environment CLI
 
@@ -436,8 +403,8 @@ aggregation, context, elision, sampling, limits, and omissions.
 
 ### Explorer projection packet
 
-ADR 0044 introduces a projection-engine boundary rather than a second top-level
-resource. The implemented `rey.projection-packet.v1` carries:
+The projection-engine boundary is not a second top-level resource. The
+implemented `rey.projection-packet.v1` carries:
 
 ```text
 packet identity + source evidence identities
@@ -476,17 +443,16 @@ does not contain admission authority or camera instances. An admitted regional
 scene must separately bind its exact editor package, native-to-semantic region
 transform, county-local tangent transform, terrain and feature layers,
 validity/no-data semantics, limits, omissions, and admission lineage before it
-can become Atlas or County fabric. See [ADR
-0056](decisions/0056-continuous-globe-mercator-county-grammar.md) and [ADR
-0057](decisions/0057-procedural-terrain-program.md).
+can become Atlas or County fabric. See [Explorer](EXPLORER.md) and
+[Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to
 absolute scene coordinates and selects only frequency bands supported by the
 current sample spacing while retaining one exact source extent. Clipmap reuse,
 smooth LOD blending, retained
 renderer/fallback captures, viewport evidence, and performance evidence remain
-incomplete Plan 0020 work. Structured output preserves typed values rather than
-serializing GPU state.
+incomplete [Plan 0003](../plans/0003-scene-to-explorer.md) work. Structured
+output preserves typed values rather than serializing GPU state.
 
 The implemented schemas are `rey.source-corpus.v1`,
 `rey.source-search.literal-utf8@1`, `rey.source-matches` version `1`,
@@ -701,9 +667,7 @@ cost ascending, then stable work id. The `rey.scheduled-work` version `2`
 relation retains selection rank and exact frontier row identity. These are
 deterministic selection contracts, not provider reads, action proposals, an
 execution queue, or a recurring scheduler. See
-[Frontier, Progress, and Scheduling](FRONTIER.md) and
-[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md) and the identity
-cutover in [ADR 0016](decisions/0016-first-workload-slice.md).
+[Frontier, Progress, and Scheduling](FRONTIER.md).
 
 ## Reasoning Surface Contract
 
@@ -745,12 +709,9 @@ normal proposal and admission. Surface construction does not turn a local path
 into a provider resource, give a cited capability execution authority, or make the
 surface the sole copy of native source content.
 
-The reasoning-surface schema is a verified v1 library contract whose design
-lineage is fixed by [ADR 0013](decisions/0013-runtime-state-and-reasoning-surface-contracts.md),
-[ADR 0014](decisions/0014-frontier-progress-and-scheduling.md), and
-[ADR 0016](decisions/0016-first-workload-slice.md), with the fresh public
-baseline fixed by [ADR 0048](decisions/0048-fresh-v1-contract-baseline.md). It is not an
-implemented CLI format. The policy-proposal schema remains a target contract.
+The reasoning-surface schema is a verified v1 library contract. It is not an
+implemented top-level CLI format; workload `-vv` output projects its retained
+identity and evidence. The policy-proposal schema remains a target contract.
 
 ## Policy Contract
 
@@ -841,8 +802,8 @@ explicit conformance selection. It uses a bounded
 semantic result. Writes use a same-directory temporary file and rename. This
 single-process provider claims no `fsync`, lock, or remote durability. A graph
 selected for future runs cannot exist solely in a disposable cache. A stronger
-publication protocol requires a separate accepted contract; ADRs 0016 and 0018
-do not select an engine.
+publication protocol requires a separate accepted contract; the current
+workload and mining contracts do not select an engine.
 
 ## Workspace Ignore Surface
 
@@ -867,13 +828,13 @@ explicit omission policy, not deletion: it does not mutate source files,
 retroactively alter HEAD or INDEX, bypass validation, or grant execution
 authority.
 
-For the implemented capability claim, standalone Rey writes the
-[ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed
+For the implemented capability claim, standalone Rey writes the local proof
+bundle manifest, snapshots, typed
 delta JSON and Arrow, Tabular Diff, and certificate to an explicit local
 content-addressed bundle through the lower-level proof API. Publication accepts
 an identical verified replay, and verification bounds and recomputes the bundle
-without following symlinked evidence. ADR 0020 removes the old manual CLI
-plumbing; workloads and runtime composition are the intended user-facing
+without following symlinked evidence. Workloads and runtime composition are
+the intended user-facing
 consumers. The final directory name is not exposed until a same-parent staging
 directory contains all objects and the manifest. The manifest, rather than the
 retention-neutral certificate, states the filesystem-only guarantees and
@@ -882,7 +843,8 @@ explicit non-guarantees.
 Git poll cursors are part of this publication boundary. Local mode retains a
 local cursor with local-file guarantees. A cursor never advances merely
 because a Git poll returned successfully. Any stronger publication boundary
-must coordinate with `docs/PROOFS.md` and a future persistence ADR.
+must coordinate with [Proofs and Evidence](PROOFS.md) and a future accepted
+persistence contract.
 
 ## Errors And Limits
 
@@ -1011,9 +973,9 @@ Admission retains its authoritative source bound. Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,
 causal-order claim, or additional HTTP endpoint.
 
-ADR 0040 and Plan 0016 define the Channel interface. The implemented local
-revision slice provides `rey channels list|status|diff|apply|add|commit|log`.
-It derives one
+The implemented Channel interface provides
+`rey channels list|status|diff|apply|add|commit|log|message|relay|beacon`. It
+derives one
 built-in workspace-local channel, one bounded subscription, and stable Signals,
 Admission, and Flow stream identities without writing local state. `apply`
 accepts a workspace-contained regular non-symlinked
@@ -1083,8 +1045,8 @@ The matrix path and parser are absent from the v1 implementation. Journal v2
 retains semantic coordinate and numeric scale separately; documents outside
 the complete v1 contract are rejected.
 
-Explorer work in Plans 0017 through 0020 consumes admitted
-`rey.topography-patch.v1` evidence produced through the workloads interface.
+Explorer consumes admitted `rey.topography-patch.v1` evidence produced through
+the workloads interface.
 One continuous camera projects World, Atlas, Landscape, Neighborhood, Object,
 and Evidence levels while retaining the selected provider-qualified coordinate.
 Camera state never becomes resource identity. Surveyed-empty, unexplored,
@@ -1092,17 +1054,12 @@ omitted, stale, unsupported, truncated, and frontier regions remain distinct,
 and navigation does not execute locators or workloads. The CLI must expose each patch's seed
 coverage, resolution outcomes, anchors, relationships, world and atmospheric
 conditions, natural-feature projection limits, excluded edge provenance,
-probe prerequisites, directed delta, bounds, and lineage. Plan 0020 additionally
-requires projection basis, immutable scene, field channels, validity masks,
-material/LOD revisions, degradation, render limits, and omissions before the
-high-fidelity browser projection is considered complete. See [Context
-Topology Explorer](EXPLORER.md), [ADR
-0026](decisions/0026-context-topology-explorer.md), and [ADR
-0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md), and
-[ADR 0041](decisions/0041-continuous-coordinate-topography.md), [ADR
-0042](decisions/0042-world-geometry-and-probe-navigation.md), and [ADR
-0043](decisions/0043-emergent-natural-features-and-separate-paths.md), and
-[ADR 0044](decisions/0044-explorer-projection-engine.md).
+probe prerequisites, directed delta, bounds, and lineage. [Plan
+0003](../plans/0003-scene-to-explorer.md) additionally requires projection
+basis, immutable scene, field channels, validity masks, material/LOD
+revisions, degradation, render limits, and omissions before the high-fidelity
+browser projection is considered complete. See [Context Topology
+Explorer](EXPLORER.md).
 
 The agent-facing scene authoring surface is separate:
 
@@ -1149,8 +1106,8 @@ edge jitter, and falloff. Same recipe means same bytes; parameter changes are
 ordinary WORKING changes. The recipe reproduces the generated base; exact
 post-generation agent edits are retained by the source digest and scene delta,
 not folded back into an invented recipe. Generated effect values are candidate
-hints and gain no admission authority. See [ADR
-0046](decisions/0046-read-first-scene-editor.md).
+hints and gain no admission authority. See [Context Topology
+Explorer](EXPLORER.md).
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded
@@ -1169,4 +1126,4 @@ navigation state only and does not mutate route or runtime state.
 This listener does not establish a public API, long-running daemon contract,
 multi-user scheduler, remote policy gateway, authentication system, or durable
 service. Those capabilities still require explicit identity, authorization,
-durability, and topology decisions. See [ADR 0025](decisions/0025-local-operator-ui.md).
+durability, and topology decisions.

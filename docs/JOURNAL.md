@@ -53,8 +53,8 @@ the current Explorer bound. The UI derives
 The former matrix grammar and all earlier Journal documents are rejected with
 no dual reader or automatic migration. The binding may intentionally name
 historical context; Explorer resolution determines whether it is current,
-stale, or missing. See [ADR
-0041](decisions/0041-continuous-coordinate-topography.md).
+stale, or missing. See [Context Topology Explorer](EXPLORER.md) and
+[Locators](LOCATORS.md).
 
 ## Document Addresses
 
@@ -195,20 +195,21 @@ remote retention. Unauthenticated admission does not weaken validation,
 content identity, limits, atomic publication, or the rule that Journal blocks
 carry no execution authority.
 
-## Planned Channel Relationship
+## Channel Relationship
 
-[ADR 0040](decisions/0040-workspace-channels-and-operator-index.md) keeps the
-Journal separate from compact Channel observations. Observations are immutable,
-standalone frontier statements with exact evidence and source bindings;
-Journals are deliberate notebook syntheses that may cite several observations.
-A future broadcast will retain one observation and associate its identity with
-one or more explicit local channels without creating or duplicating a Journal
-entry. `rey journal seed <observation-id>...` and
+Journal remains separate from Channel topology and immutable Channel messages.
+The implemented `rey channels message|relay|beacon` paths do not create or
+revise Journal documents. The planned richer observation contract is a
+standalone frontier statement with exact evidence and source bindings; a
+Journal is deliberate notebook synthesis that may cite several observations.
+A broadcast will retain one observation and associate its identity with one or
+more explicit local channels without creating or duplicating a Journal entry.
+`rey journal seed <observation-id>...` and
 `/journal/new?observations=...` will create deterministic, unretained catch-up
 proposals that preserve exact observation citations. Only ordinary Journal
-observation, channel-admission, seed, and relay behavior is planned by
-[Plan 0016](../plans/0016-channel-graph-and-operator-index.md) and is not part of
-the currently implemented Journal commands or HTTP endpoint.
+admission creates an entry. This observation and seed boundary is owned by
+[Plan 0002](../plans/0002-collaboration-loop.md) and is not part of the current
+Journal commands or HTTP endpoint.
 
 ## Example Agent Proposal
 
@@ -258,8 +259,6 @@ blocks:
     dependency_ids: []
 ```
 
-See [Context Topology Explorer](EXPLORER.md) for coordinate resolution and
-[ADR 0037](decisions/0037-explore-bound-collaboration-journal.md) plus [ADR
-0038](decisions/0038-unauthenticated-hyperlinkable-journal.md) and [ADR
-0054](decisions/0054-diff-directed-journal-broadsheet.md) for the decision
-boundary.
+See [Context Topology Explorer](EXPLORER.md) for coordinate resolution,
+[Interfaces](INTERFACES.md) for HTTP authority, and the
+[current decision plane](decisions/README.md) for the collaboration boundary.
