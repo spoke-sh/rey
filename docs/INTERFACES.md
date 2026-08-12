@@ -629,8 +629,10 @@ The implemented `rey git init --watch-ref refs/...` freezes canonical exact ref
 names and current targets or explicit absence into the cursor. The implemented
 `rey git watch` is the bounded local recurrence surface over that exact
 watched-ref scope, HEAD, and the complete supported semantic-index poll. It
-accepts explicit maximum iterations, interval, elapsed cadence budget, and the
-same bounded trigger documents as a single poll. It retains each
+derives bounded added/removed reachability sets for each changed ref over the
+raw object graph. It accepts explicit reachable-commit, iteration, interval,
+and elapsed cadence bounds and the same bounded trigger documents as a single
+poll. It retains each
 `rey.git-cadence-tick.v1` before continuing, atomically retains a changed
 transition with its terminal tick, and then stops. A completed invocation
 retains a compact
@@ -644,8 +646,9 @@ The implemented trigger declaration includes a stable id/revision,
 repository/worktree identity, source event classes, optional exact `HEAD` or
 watched-ref names, required completeness, target workload/graph/scenario
 selection, and budgets. Its activation proposal retains exact matched events
-and ref names before passing normal runtime admission. Path/stage predicates,
-graph-entry activation, and cross-poll coalescing remain future extensions.
+and ref names, including reachable-added/removed selection, before passing
+normal runtime admission. Path/stage predicates, graph-entry activation, and
+cross-poll coalescing remain future extensions.
 
 Initial event vocabulary may include:
 

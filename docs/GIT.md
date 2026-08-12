@@ -19,11 +19,12 @@ typed triggers into deterministic proposal-only activations. The `rey git`
 CLI freezes an exact watched-ref scope at initialization, including refs that
 are currently absent, and retains the baseline cursor, one pending transition
 with its triggers and proposals, and acknowledged transition history under
-`.rey/git`. The bounded `rey git watch` surface repeats that observation,
-retains every cadence tick and normal terminal receipt, and stops at the first
-changed transition without advancing the cursor. Reachable-set and path
-deltas, cross-poll debounce, and remote synchronization remain future Git
-work. Workload packages can already bind exact
+`.rey/git`. Every changed HEAD or watched ref also carries bounded canonical
+added/removed reachable-commit sets. The bounded `rey git watch` surface
+repeats that observation, retains every cadence tick and normal terminal
+receipt, and stops at the first changed transition without advancing the
+cursor. Path deltas, cross-poll debounce, and remote synchronization remain
+future Git work. Workload packages can already bind exact
 HEAD or semantic-index revisions and derive attention from the acknowledged
 cursor snapshot without treating an ambient observation or activation proposal
 as authority. A separate workload command can admit a current acknowledged
@@ -203,7 +204,7 @@ timestamp. It can include:
 - HEAD symbolic/detached state;
 - semantic index digest;
 - declared worktree-status digest;
-- shallow/replacement interpretation identity;
+- shallow state and the disabled-replacement interpretation;
 - provider implementation revision; and
 - last committed Rey trace/transition identity.
 
@@ -264,8 +265,9 @@ One bounded poll performs:
 2. freeze current HEAD, watched refs, semantic index, and declared worktree
    state;
 3. compare them with the prior cursor;
-4. traverse only the bounded commit graph needed to classify ref movement;
-5. materialize typed Git deltas;
+4. traverse only the bounded raw commit graph needed to classify ref movement
+   and derive added/removed reachability;
+5. materialize typed Git deltas with explicit traversal limits and omissions;
 6. match trigger predicates and create deterministic activation identities;
 7. retain the transition and proposal evidence;
 8. acknowledge that exact evidence and advance the cursor;
@@ -274,7 +276,8 @@ One bounded poll performs:
 10. schedule and execute the selected workload scenarios or graph entry point.
 
 The current library and CLI implement steps 1–8 for HEAD, exact watched refs,
-and the complete supported logical-index semantics. `rey workloads
+bounded reachable-commit sets, and the complete supported logical-index
+semantics. `rey workloads
 admit-activation` implements step 9, and
 `execute-activation` implements the scenario-selection form of step 10. It
 revalidates exact current Git, workload HEAD, graph, scenarios, capabilities,
@@ -302,10 +305,15 @@ Ref movement is classified explicitly:
 - **unknown** — shallow, missing, corrupt, or bounded history prevents a sound
   classification.
 
-A fast-forward can yield an ordered set of newly reachable commits under a
-declared traversal order. A rebase or force-push emits a ref rewrite and
-reachable-set delta; it does not fabricate append events as though history were
-monotonic. Merge commits retain all ordered parent edges.
+The implemented poll derives canonical OID sets for commits reachable only
+from the target (`added`) or only from the source (`removed`) for each changed
+`HEAD` or watched ref. `--max-reachable-commits-per-direction` is a positive
+hard bound; overflow retains the bounded set and an explicit omission.
+Shallow or unavailable history also remains partial even when some known
+commits can be retained. Git replacement objects are disabled for inspection,
+so classification and reachability use the raw object graph. A rebase or
+force-push emits a ref rewrite and reachable-set delta; it does not fabricate
+append events as though history were monotonic.
 
 ## Triggers And Activations
 
@@ -333,15 +341,15 @@ ref.fast_forward
 ref.rewound
 ref.rewritten
 ref.unknown
+commit.reachable_added
+commit.reachable_removed
 index.changed
 index.conflicted
 ```
 
-Later source/path and recurrence work may add:
+Later source/path work may add:
 
 ```text
-commit.reachable_added
-commit.reachable_removed
 worktree.changed
 ```
 
@@ -395,11 +403,14 @@ not cross-poll debounce or evidence loss.
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
 classes, optional exact `HEAD` or watched-ref names, completeness posture,
 exact workload/graph/scenarios, and action, scenario, and evidence budgets.
-Supported semantic-index transitions are complete and can satisfy a
-completeness-requiring trigger. If an unknown persistent flag makes a
-transition incomplete, it matches only when a trigger explicitly permits
-incomplete evidence and the proposal retains the omission. HEAD and watched-
-ref ancestry completeness remain independent from the index axis.
+Reachability events use the same exact ref selection and carry only their
+selected traversal omissions into a proposal. Supported semantic-index
+transitions are complete and can satisfy a completeness-requiring trigger. If
+an unknown persistent flag, traversal bound, shallow history, or missing
+object makes selected evidence incomplete, it matches only when a trigger
+explicitly permits incomplete evidence and the proposal retains the omission.
+HEAD and watched-ref ancestry/reachability completeness remain independent
+from the index axis.
 
 Workloads can therefore activate narrowly. An index delta touching Rust
 sources might select symbol and diagnostic scenarios, while a new commit on a

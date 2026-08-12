@@ -146,6 +146,10 @@ struct GitArgs {
     #[arg(long, global = true, default_value_t = 10_000)]
     max_index_entries: u64,
 
+    /// Maximum added or removed reachable commits retained per changed ref.
+    #[arg(long, global = true, default_value_t = 256)]
+    max_reachable_commits_per_direction: u64,
+
     #[command(subcommand)]
     command: GitCommand,
 }
@@ -1035,6 +1039,9 @@ impl GitArgs {
             || self.command_timeout_ms == 0
             || self.max_capture_bytes == 0
             || self.max_index_entries == 0
+            || self.max_reachable_commits_per_direction == 0
+            || self.max_reachable_commits_per_direction
+                > rey_git::MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION
         {
             return Err(CliError::InvalidLimit);
         }
@@ -1043,6 +1050,7 @@ impl GitArgs {
             command_timeout_ms: self.command_timeout_ms,
             max_capture_bytes: self.max_capture_bytes,
             max_index_entries: self.max_index_entries,
+            max_reachable_commits_per_direction: self.max_reachable_commits_per_direction,
         })
     }
 }
@@ -4252,6 +4260,39 @@ fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(
     }
     write_portfolio_field(
         output,
+        "Reachability deltas",
+        if transition.reachability_deltas.is_empty() {
+            "typed empty"
+        } else {
+            "see below"
+        },
+    )?;
+    for delta in &transition.reachability_deltas {
+        writeln!(
+            output,
+            "    {} · {} added · {} removed · {} · limit {} per direction",
+            delta.ref_name,
+            delta.added_commits.len(),
+            delta.removed_commits.len(),
+            if delta.complete {
+                "complete"
+            } else {
+                "incomplete"
+            },
+            delta.max_commits_per_direction
+        )?;
+        for oid in &delta.added_commits {
+            writeln!(output, "      + {oid}")?;
+        }
+        for oid in &delta.removed_commits {
+            writeln!(output, "      - {oid}")?;
+        }
+        for omission in &delta.omissions {
+            writeln!(output, "      omission: {omission}")?;
+        }
+    }
+    write_portfolio_field(
+        output,
         "Events",
         if transition.events.is_empty() {
             "typed empty"
@@ -4826,7 +4867,7 @@ fn write_git_snapshot_fields(
     write_portfolio_field(
         output,
         "Repository read",
-        "bounded direct argv · no hooks · no optional locks · no network",
+        "bounded direct argv · raw object graph · no hooks · no optional locks · no network",
     )?;
     Ok(())
 }
@@ -10212,7 +10253,7 @@ enum CliError {
         "workspace workload status reports the complete HEAD, INDEX, and WORKING portfolio; omit the workload id"
     )]
     WorkspaceStatusIsPortfolio,
-    #[error("limits must be greater than zero")]
+    #[error("limits must be within their supported positive bounds")]
     InvalidLimit,
     #[error(
         "full recomputation evidence limit {actual} is outside the supported range 1..={max} bytes"

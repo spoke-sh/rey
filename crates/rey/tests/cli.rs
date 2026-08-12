@@ -1325,6 +1325,23 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
     assert!(invalid.stdout.is_empty());
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("watched-ref scope is invalid"));
 
+    let invalid_limit = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "--max-reachable-commits-per-direction",
+        "0",
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(invalid_limit.status.code(), Some(1));
+    assert!(invalid_limit.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&invalid_limit.stderr)
+            .contains("limits must be within their supported positive bounds")
+    );
+
     let initialized = run_rey_workspace(&[
         "git",
         "--workspace",
@@ -1377,7 +1394,7 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
         revision: 1,
         repository_id: snapshot.repository_id.clone(),
         worktree_id: snapshot.worktree_id.clone(),
-        event_classes: vec![GitActivationEventClass::RefFastForward],
+        event_classes: vec![GitActivationEventClass::CommitReachableAdded],
         ref_names: vec!["refs/heads/release".to_owned()],
         require_complete: true,
         workload_id: "fixture-workload".to_owned(),
@@ -1407,6 +1424,18 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
     );
     let polled: GitPollOutcome = serde_json::from_slice(&polled.stdout).unwrap();
     assert_eq!(polled.record.transition.watched_ref_changes.len(), 1);
+    assert_eq!(polled.record.transition.reachability_deltas.len(), 1);
+    assert_eq!(
+        polled.record.transition.reachability_deltas[0].ref_name,
+        "refs/heads/release"
+    );
+    assert_eq!(
+        polled.record.transition.reachability_deltas[0]
+            .added_commits
+            .len(),
+        1
+    );
+    assert!(polled.record.transition.reachability_deltas[0].complete);
     assert_eq!(
         polled.record.transition.watched_ref_changes[0].ref_name,
         "refs/heads/release"
@@ -1431,6 +1460,9 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
     assert!(human.contains("Watched ref changes    see below"));
     assert!(human.contains("refs/heads/release ·"));
     assert!(human.contains("fast_forward · complete"));
+    assert!(human.contains("Reachability deltas    see below"));
+    assert!(human.contains("1 added · 0 removed · complete · limit 256 per direction"));
+    assert!(human.contains("commit.reachable_added"));
     assert!(human.contains("matched refs: refs/heads/release"));
 
     let acknowledged = run_rey_workspace(&[

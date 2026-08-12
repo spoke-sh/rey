@@ -28,6 +28,7 @@ pub const MAX_GIT_COMMIT_SEQUENCE: usize = 256;
 pub const MAX_GIT_ACTIVATION_TRIGGERS: usize = 256;
 pub const MAX_GIT_ACTIVATION_SCENARIOS: usize = 256;
 pub const MAX_GIT_WATCHED_REFS: usize = 256;
+pub const MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION: u64 = 4_096;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitLimits {
@@ -35,6 +36,7 @@ pub struct GitLimits {
     pub command_timeout_ms: u64,
     pub max_capture_bytes: u64,
     pub max_index_entries: u64,
+    pub max_reachable_commits_per_direction: u64,
 }
 
 impl Default for GitLimits {
@@ -44,6 +46,7 @@ impl Default for GitLimits {
             command_timeout_ms: 2_000,
             max_capture_bytes: 4 * 1_024 * 1_024,
             max_index_entries: 10_000,
+            max_reachable_commits_per_direction: 256,
         }
     }
 }
@@ -291,8 +294,11 @@ impl GitSnapshot {
                 self.limits.command_timeout_ms,
                 self.limits.max_capture_bytes,
                 self.limits.max_index_entries,
+                self.limits.max_reachable_commits_per_direction,
             ]
             .contains(&0)
+            || self.limits.max_reachable_commits_per_direction
+                > MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION
             || self.head.symbolic_ref.as_deref().is_some_and(str::is_empty)
             || self
                 .head
@@ -352,6 +358,7 @@ impl GitSnapshot {
         snapshot_hasher.add_u64(self.limits.command_timeout_ms);
         snapshot_hasher.add_u64(self.limits.max_capture_bytes);
         snapshot_hasher.add_u64(self.limits.max_index_entries);
+        snapshot_hasher.add_u64(self.limits.max_reachable_commits_per_direction);
         if self.snapshot_id != snapshot_hasher.finish() {
             return Err(GitError::InvalidSnapshot);
         }
@@ -388,6 +395,8 @@ impl GitSnapshot {
                 "capture_bytes".to_owned(),
                 "direct_argv".to_owned(),
                 "exact_watched_ref_scope".to_owned(),
+                "no_replace_objects".to_owned(),
+                "reachable_commits_per_direction".to_owned(),
                 "no_optional_locks".to_owned(),
                 "semantic_index_flags".to_owned(),
                 "wall_timeout".to_owned(),
@@ -437,6 +446,8 @@ pub enum GitActivationEventClass {
     RefRewound,
     RefRewritten,
     RefUnknown,
+    CommitReachableAdded,
+    CommitReachableRemoved,
     IndexChanged,
     IndexConflicted,
 }
@@ -452,6 +463,8 @@ impl GitActivationEventClass {
             Self::RefRewound => "ref.rewound",
             Self::RefRewritten => "ref.rewritten",
             Self::RefUnknown => "ref.unknown",
+            Self::CommitReachableAdded => "commit.reachable_added",
+            Self::CommitReachableRemoved => "commit.reachable_removed",
             Self::IndexChanged => "index.changed",
             Self::IndexConflicted => "index.conflicted",
         }
@@ -467,6 +480,8 @@ impl GitActivationEventClass {
                 | Self::RefRewound
                 | Self::RefRewritten
                 | Self::RefUnknown
+                | Self::CommitReachableAdded
+                | Self::CommitReachableRemoved
         )
     }
 }
@@ -613,6 +628,8 @@ pub struct GitPollTransition {
     pub target_watched_refs: Vec<GitWatchedRef>,
     #[serde(default)]
     pub watched_ref_changes: Vec<GitWatchedRefChange>,
+    #[serde(default)]
+    pub reachability_deltas: Vec<GitReachabilityDelta>,
     pub source_index_digest: Option<SemanticDigest>,
     pub target_index_digest: Option<SemanticDigest>,
     pub source_index_complete: bool,
@@ -635,12 +652,26 @@ pub struct GitWatchedRefChange {
     pub complete: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitReachabilityDelta {
+    pub ref_name: String,
+    pub source_oid: Option<String>,
+    pub target_oid: Option<String>,
+    pub added_commits: Vec<String>,
+    pub removed_commits: Vec<String>,
+    pub max_commits_per_direction: u64,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+}
+
 impl GitPollTransition {
     fn derive(
         cursor: &GitPollCursor,
         target: &GitSnapshot,
         head_movement: GitRefMovement,
         watched_ref_changes: Vec<GitWatchedRefChange>,
+        reachability_deltas: Vec<GitReachabilityDelta>,
     ) -> Result<Self, GitError> {
         cursor.verify()?;
         target.verify()?;
@@ -685,6 +716,14 @@ impl GitPollTransition {
         for change in &watched_ref_changes {
             events.push(ref_movement_event(change.movement)?);
         }
+        for delta in &reachability_deltas {
+            if !delta.added_commits.is_empty() {
+                events.push(GitActivationEventClass::CommitReachableAdded);
+            }
+            if !delta.removed_commits.is_empty() {
+                events.push(GitActivationEventClass::CommitReachableRemoved);
+            }
+        }
         if cursor.index_digest != target_index_digest {
             events.push(GitActivationEventClass::IndexChanged);
         }
@@ -710,6 +749,9 @@ impl GitPollTransition {
                 ));
             }
         }
+        for delta in &reachability_deltas {
+            omissions.extend(delta.omissions.iter().cloned());
+        }
         if !cursor.index_complete || !target_index_complete {
             omissions
                 .push("semantic index comparison omits unsupported persistent flags".to_owned());
@@ -732,6 +774,7 @@ impl GitPollTransition {
             source_watched_refs: cursor.watched_refs.clone(),
             target_watched_refs: target.watched_refs.clone(),
             watched_ref_changes,
+            reachability_deltas,
             source_index_digest: cursor.index_digest.clone(),
             target_index_digest,
             source_index_complete: cursor.index_complete,
@@ -767,6 +810,9 @@ impl GitPollTransition {
                     change.ref_name
                 ));
             }
+        }
+        for delta in &self.reachability_deltas {
+            expected_omissions.extend(delta.omissions.iter().cloned());
         }
         if !self.source_index_complete || !self.target_index_complete {
             expected_omissions
@@ -811,6 +857,7 @@ impl GitPollTransition {
             || verify_watched_refs(&self.source_watched_refs, &self.object_format).is_err()
             || verify_watched_refs(&self.target_watched_refs, &self.object_format).is_err()
             || verify_watched_ref_changes(self).is_err()
+            || verify_reachability_deltas(self).is_err()
             || self
                 .target_head
                 .commit_oid
@@ -1000,6 +1047,30 @@ impl GitActivationProposal {
                 }
             }
         }
+        for delta in &transition.reachability_deltas {
+            for (event, commits) in [
+                (
+                    GitActivationEventClass::CommitReachableAdded,
+                    &delta.added_commits,
+                ),
+                (
+                    GitActivationEventClass::CommitReachableRemoved,
+                    &delta.removed_commits,
+                ),
+            ] {
+                if !commits.is_empty()
+                    && trigger.event_classes.contains(&event)
+                    && selects_ref(&delta.ref_name)
+                {
+                    matched_events.insert(event);
+                    matched_ref_names.insert(delta.ref_name.clone());
+                    if !delta.complete {
+                        complete = false;
+                        omissions.extend(delta.omissions.iter().cloned());
+                    }
+                }
+            }
+        }
         for event in [
             GitActivationEventClass::IndexChanged,
             GitActivationEventClass::IndexConflicted,
@@ -1122,6 +1193,12 @@ pub struct GitInspector {
     pub git_program: PathBuf,
     pub workspace: PathBuf,
     pub limits: GitLimits,
+}
+
+enum ReachableSetRead {
+    Complete(Vec<String>),
+    Truncated(Vec<String>),
+    Unavailable,
 }
 
 impl GitInspector {
@@ -1254,6 +1331,7 @@ impl GitInspector {
         snapshot_hasher.add_u64(self.limits.command_timeout_ms);
         snapshot_hasher.add_u64(self.limits.max_capture_bytes);
         snapshot_hasher.add_u64(self.limits.max_index_entries);
+        snapshot_hasher.add_u64(self.limits.max_reachable_commits_per_direction);
 
         let snapshot = GitSnapshot {
             schema: GIT_SNAPSHOT_SCHEMA.to_owned(),
@@ -1300,7 +1378,14 @@ impl GitInspector {
         }
         let movement = self.classify_head_movement(cursor, &target, deadline)?;
         let watched_ref_changes = self.classify_watched_ref_changes(cursor, &target, deadline)?;
-        let transition = GitPollTransition::derive(cursor, &target, movement, watched_ref_changes)?;
+        let reachability_deltas = self.inspect_reachability_deltas(cursor, &target, deadline)?;
+        let transition = GitPollTransition::derive(
+            cursor,
+            &target,
+            movement,
+            watched_ref_changes,
+            reachability_deltas,
+        )?;
         Ok(Some((target, transition)))
     }
 
@@ -1405,6 +1490,197 @@ impl GitInspector {
                 })
             })
             .collect()
+    }
+
+    fn inspect_reachability_deltas(
+        &self,
+        cursor: &GitPollCursor,
+        target_snapshot: &GitSnapshot,
+        deadline: Instant,
+    ) -> Result<Vec<GitReachabilityDelta>, GitError> {
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        let mut endpoints = Vec::new();
+        if cursor.head.commit_oid != target_snapshot.head.commit_oid {
+            endpoints.push((
+                "HEAD".to_owned(),
+                cursor.head.commit_oid.clone(),
+                target_snapshot.head.commit_oid.clone(),
+            ));
+        }
+        endpoints.extend(
+            cursor
+                .watched_refs
+                .iter()
+                .zip(&target_snapshot.watched_refs)
+                .filter(|(source, target)| source.target_oid != target.target_oid)
+                .map(|(source, target)| {
+                    (
+                        source.name.clone(),
+                        source.target_oid.clone(),
+                        target.target_oid.clone(),
+                    )
+                }),
+        );
+        endpoints
+            .into_iter()
+            .map(|(ref_name, source_oid, target_oid)| {
+                self.inspect_reachability_delta(
+                    &workspace,
+                    &target_snapshot.object_format,
+                    ref_name,
+                    source_oid,
+                    target_oid,
+                    cursor.shallow || target_snapshot.shallow,
+                    deadline,
+                )
+            })
+            .collect()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn inspect_reachability_delta(
+        &self,
+        workspace: &Path,
+        object_format: &str,
+        ref_name: String,
+        source_oid: Option<String>,
+        target_oid: Option<String>,
+        shallow: bool,
+        deadline: Instant,
+    ) -> Result<GitReachabilityDelta, GitError> {
+        let max_commits = self.limits.max_reachable_commits_per_direction;
+        let added = self.read_reachable_difference(
+            workspace,
+            object_format,
+            target_oid.as_deref(),
+            source_oid.as_deref(),
+            max_commits,
+            deadline,
+        )?;
+        let removed = self.read_reachable_difference(
+            workspace,
+            object_format,
+            source_oid.as_deref(),
+            target_oid.as_deref(),
+            max_commits,
+            deadline,
+        )?;
+        let mut omissions = Vec::new();
+        if shallow {
+            omissions.push(format!(
+                "{ref_name} reachability is incomplete because repository history is shallow"
+            ));
+        }
+        let added_commits = match added {
+            ReachableSetRead::Complete(commits) => commits,
+            ReachableSetRead::Truncated(commits) => {
+                omissions.push(format!(
+                    "{ref_name} added reachability exceeds the {max_commits}-commit per-direction limit"
+                ));
+                commits
+            }
+            ReachableSetRead::Unavailable => {
+                omissions.push(format!(
+                    "{ref_name} added reachability is unavailable because bounded Git history cannot resolve the comparison"
+                ));
+                Vec::new()
+            }
+        };
+        let removed_commits = match removed {
+            ReachableSetRead::Complete(commits) => commits,
+            ReachableSetRead::Truncated(commits) => {
+                omissions.push(format!(
+                    "{ref_name} removed reachability exceeds the {max_commits}-commit per-direction limit"
+                ));
+                commits
+            }
+            ReachableSetRead::Unavailable => {
+                omissions.push(format!(
+                    "{ref_name} removed reachability is unavailable because bounded Git history cannot resolve the comparison"
+                ));
+                Vec::new()
+            }
+        };
+        omissions.sort();
+        omissions.dedup();
+        Ok(GitReachabilityDelta {
+            ref_name,
+            source_oid,
+            target_oid,
+            added_commits,
+            removed_commits,
+            max_commits_per_direction: max_commits,
+            complete: omissions.is_empty(),
+            omissions,
+        })
+    }
+
+    fn read_reachable_difference(
+        &self,
+        workspace: &Path,
+        object_format: &str,
+        include_oid: Option<&str>,
+        exclude_oid: Option<&str>,
+        max_commits: u64,
+        deadline: Instant,
+    ) -> Result<ReachableSetRead, GitError> {
+        let Some(include_oid) = include_oid else {
+            return Ok(ReachableSetRead::Complete(Vec::new()));
+        };
+        let mut owned_args = vec![
+            "rev-list".to_owned(),
+            "--topo-order".to_owned(),
+            format!("--max-count={}", max_commits + 1),
+            include_oid.to_owned(),
+        ];
+        if let Some(exclude_oid) = exclude_oid {
+            owned_args.push(format!("^{exclude_oid}"));
+        }
+        owned_args.push("--".to_owned());
+        let args = owned_args.iter().map(String::as_str).collect::<Vec<_>>();
+        let output = self.git(workspace, &args, deadline)?;
+        if !output.status.success() {
+            return match output.status.code() {
+                Some(128) => Ok(ReachableSetRead::Unavailable),
+                status => Err(GitError::Command {
+                    operation: "derive bounded Git reachability",
+                    status,
+                    stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+                }),
+            };
+        }
+        let text = std::str::from_utf8(&output.stdout)
+            .map_err(|_| GitError::MalformedReachability("commit ids are not ASCII"))?;
+        let mut commits = text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if commits
+            .iter()
+            .any(|commit| !valid_oid(commit, object_format))
+        {
+            return Err(GitError::MalformedReachability(
+                "commit id has an invalid object format",
+            ));
+        }
+        let truncated = commits.len() as u64 > max_commits;
+        commits.truncate(max_commits as usize);
+        commits.sort();
+        if commits.windows(2).any(|window| window[0] == window[1]) {
+            return Err(GitError::MalformedReachability(
+                "duplicate commit id in reachability set",
+            ));
+        }
+        Ok(if truncated {
+            ReachableSetRead::Truncated(commits)
+        } else {
+            ReachableSetRead::Complete(commits)
+        })
     }
 
     fn classify_head_movement(
@@ -1844,6 +2120,7 @@ impl GitInspector {
     ) -> Result<CommandOutput, GitError> {
         let mut fixed = vec![
             OsString::from("--no-pager"),
+            OsString::from("--no-replace-objects"),
             OsString::from("--no-optional-locks"),
             OsString::from("-c"),
             OsString::from("core.hooksPath=/dev/null"),
@@ -2107,6 +2384,17 @@ fn git_transition_digest(transition: &GitPollTransition) -> SemanticDigest {
         hasher.add_str(change.movement.as_str());
         hasher.add_bool(change.complete);
     }
+    hasher.add_u64(transition.reachability_deltas.len() as u64);
+    for delta in &transition.reachability_deltas {
+        hasher.add_str(&delta.ref_name);
+        hasher.add_optional_str(delta.source_oid.as_deref());
+        hasher.add_optional_str(delta.target_oid.as_deref());
+        add_git_strings(&mut hasher, &delta.added_commits);
+        add_git_strings(&mut hasher, &delta.removed_commits);
+        hasher.add_u64(delta.max_commits_per_direction);
+        hasher.add_bool(delta.complete);
+        add_git_strings(&mut hasher, &delta.omissions);
+    }
     hasher.add_optional_str(
         transition
             .source_index_digest
@@ -2168,6 +2456,14 @@ fn expected_transition_events(
     }
     for change in &transition.watched_ref_changes {
         events.push(ref_movement_event(change.movement)?);
+    }
+    for delta in &transition.reachability_deltas {
+        if !delta.added_commits.is_empty() {
+            events.push(GitActivationEventClass::CommitReachableAdded);
+        }
+        if !delta.removed_commits.is_empty() {
+            events.push(GitActivationEventClass::CommitReachableRemoved);
+        }
     }
     if transition.source_index_digest != transition.target_index_digest {
         events.push(GitActivationEventClass::IndexChanged);
@@ -2531,6 +2827,105 @@ fn verify_watched_ref_changes(transition: &GitPollTransition) -> Result<(), GitE
     Ok(())
 }
 
+fn verify_reachability_deltas(transition: &GitPollTransition) -> Result<(), GitError> {
+    let mut endpoints = Vec::new();
+    if transition.source_head.commit_oid != transition.target_head.commit_oid {
+        endpoints.push((
+            "HEAD",
+            &transition.source_head.commit_oid,
+            &transition.target_head.commit_oid,
+            transition.head_movement,
+        ));
+    }
+    endpoints.extend(transition.watched_ref_changes.iter().map(|change| {
+        (
+            change.ref_name.as_str(),
+            &change.source_oid,
+            &change.target_oid,
+            change.movement,
+        )
+    }));
+    if endpoints.len() != transition.reachability_deltas.len() {
+        return Err(GitError::InvalidPollTransition);
+    }
+    for ((ref_name, source_oid, target_oid, movement), delta) in
+        endpoints.into_iter().zip(&transition.reachability_deltas)
+    {
+        let shallow_omission =
+            format!("{ref_name} reachability is incomplete because repository history is shallow");
+        let added_limit_omission = format!(
+            "{ref_name} added reachability exceeds the {}-commit per-direction limit",
+            delta.max_commits_per_direction
+        );
+        let removed_limit_omission = format!(
+            "{ref_name} removed reachability exceeds the {}-commit per-direction limit",
+            delta.max_commits_per_direction
+        );
+        let added_unavailable_omission = format!(
+            "{ref_name} added reachability is unavailable because bounded Git history cannot resolve the comparison"
+        );
+        let removed_unavailable_omission = format!(
+            "{ref_name} removed reachability is unavailable because bounded Git history cannot resolve the comparison"
+        );
+        let allowed_omissions = [
+            shallow_omission.as_str(),
+            added_limit_omission.as_str(),
+            removed_limit_omission.as_str(),
+            added_unavailable_omission.as_str(),
+            removed_unavailable_omission.as_str(),
+        ];
+        if delta.ref_name != ref_name
+            || &delta.source_oid != source_oid
+            || &delta.target_oid != target_oid
+            || delta.max_commits_per_direction == 0
+            || delta.max_commits_per_direction > MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION
+            || delta.added_commits.len() as u64 > delta.max_commits_per_direction
+            || delta.removed_commits.len() as u64 > delta.max_commits_per_direction
+            || !is_canonical(&delta.added_commits)
+            || !is_canonical(&delta.removed_commits)
+            || delta
+                .added_commits
+                .iter()
+                .chain(&delta.removed_commits)
+                .any(|oid| !valid_oid(oid, &transition.object_format))
+            || delta
+                .added_commits
+                .iter()
+                .any(|oid| delta.removed_commits.binary_search(oid).is_ok())
+            || delta.complete != delta.omissions.is_empty()
+            || !is_canonical(&delta.omissions)
+            || delta
+                .omissions
+                .iter()
+                .any(|omission| !allowed_omissions.contains(&omission.as_str()))
+            || (transition.source_shallow || transition.target_shallow)
+                != delta.omissions.contains(&shallow_omission)
+            || delta.omissions.contains(&added_limit_omission)
+                && delta.added_commits.len() as u64 != delta.max_commits_per_direction
+            || delta.omissions.contains(&removed_limit_omission)
+                && delta.removed_commits.len() as u64 != delta.max_commits_per_direction
+            || delta.omissions.contains(&added_unavailable_omission)
+                && !delta.added_commits.is_empty()
+            || delta.omissions.contains(&removed_unavailable_omission)
+                && !delta.removed_commits.is_empty()
+            || delta.omissions.contains(&added_limit_omission)
+                && delta.omissions.contains(&added_unavailable_omission)
+            || delta.omissions.contains(&removed_limit_omission)
+                && delta.omissions.contains(&removed_unavailable_omission)
+            || movement == GitRefMovement::Unknown && delta.complete
+            || matches!(
+                movement,
+                GitRefMovement::FastForward | GitRefMovement::Created
+            ) && !delta.removed_commits.is_empty()
+            || matches!(movement, GitRefMovement::Rewound | GitRefMovement::Deleted)
+                && !delta.added_commits.is_empty()
+        {
+            return Err(GitError::InvalidPollTransition);
+        }
+    }
+    Ok(())
+}
+
 fn canonical_output_path(output: &[u8]) -> Result<PathBuf, GitError> {
     let path = output_path(output)?;
     fs::canonicalize(&path).map_err(|source| GitError::Path { path, source })
@@ -2592,6 +2987,8 @@ pub enum GitError {
     MalformedIndex(&'static str),
     #[error("malformed watched Git ref: {0}")]
     MalformedRef(&'static str),
+    #[error("malformed Git reachability evidence: {0}")]
+    MalformedReachability(&'static str),
     #[error("Git watched-ref scope is invalid")]
     InvalidWatchedRefScope,
     #[error("Git index exceeds {0} logical entries")]
@@ -3044,9 +3441,18 @@ mod tests {
             transition.events,
             vec![
                 GitActivationEventClass::RefFastForward,
+                GitActivationEventClass::CommitReachableAdded,
                 GitActivationEventClass::IndexChanged,
             ]
         );
+        assert_eq!(transition.reachability_deltas.len(), 1);
+        assert_eq!(transition.reachability_deltas[0].ref_name, "HEAD");
+        assert_eq!(
+            transition.reachability_deltas[0].added_commits,
+            vec![target.head.commit_oid.clone().unwrap()]
+        );
+        assert!(transition.reachability_deltas[0].removed_commits.is_empty());
+        assert!(transition.reachability_deltas[0].complete);
         assert!(transition.head_complete);
         assert!(transition.target_index_complete);
 
@@ -3118,13 +3524,27 @@ mod tests {
         assert!(change.complete);
         assert_eq!(
             transition.events,
-            vec![GitActivationEventClass::RefFastForward]
+            vec![
+                GitActivationEventClass::RefFastForward,
+                GitActivationEventClass::CommitReachableAdded,
+            ]
         );
+        assert_eq!(transition.reachability_deltas.len(), 1);
+        assert_eq!(
+            transition.reachability_deltas[0].ref_name,
+            "refs/heads/release"
+        );
+        assert_eq!(transition.reachability_deltas[0].added_commits.len(), 1);
+        assert!(transition.reachability_deltas[0].complete);
 
-        let mut release_trigger = trigger(&initial, GitActivationEventClass::RefFastForward, true);
+        let mut release_trigger = trigger(
+            &initial,
+            GitActivationEventClass::CommitReachableAdded,
+            true,
+        );
         release_trigger.ref_names = vec!["refs/heads/release".to_owned()];
         let mut future_trigger = release_trigger.clone();
-        future_trigger.trigger_id = "fixture.future-fast-forward".to_owned();
+        future_trigger.trigger_id = "fixture.future-reachability".to_owned();
         future_trigger.ref_names = vec!["refs/heads/future".to_owned()];
         let proposals =
             derive_activation_proposals(&transition, &[release_trigger.clone(), future_trigger])
@@ -3184,6 +3604,132 @@ mod tests {
     }
 
     #[test]
+    fn reachable_commit_bounds_are_explicit_and_gate_complete_triggers() {
+        let directory = repository();
+        let mut inspect = inspector(directory.path());
+        inspect.limits.max_reachable_commits_per_direction = 1;
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+        for revision in 2..=4 {
+            fs::write(
+                directory.path().join("tracked"),
+                format!("revision {revision}\n"),
+            )
+            .unwrap();
+            git(directory.path(), &["add", "tracked"]);
+            git(
+                directory.path(),
+                &["commit", "-q", "-m", &format!("revision {revision}")],
+            );
+        }
+
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        let reachability = &transition.reachability_deltas[0];
+        assert_eq!(reachability.ref_name, "HEAD");
+        assert_eq!(reachability.added_commits.len(), 1);
+        assert!(reachability.removed_commits.is_empty());
+        assert!(!reachability.complete);
+        assert_eq!(
+            reachability.omissions,
+            vec!["HEAD added reachability exceeds the 1-commit per-direction limit"]
+        );
+        assert_eq!(transition.omissions, reachability.omissions);
+
+        let complete = trigger(
+            &initial,
+            GitActivationEventClass::CommitReachableAdded,
+            true,
+        );
+        assert!(
+            derive_activation_proposals(&transition, &[complete])
+                .unwrap()
+                .is_empty()
+        );
+        let partial = trigger(
+            &initial,
+            GitActivationEventClass::CommitReachableAdded,
+            false,
+        );
+        let proposal = derive_activation_proposals(&transition, &[partial])
+            .unwrap()
+            .remove(0);
+        assert!(!proposal.complete);
+        assert_eq!(proposal.matched_ref_names, vec!["HEAD"]);
+        assert_eq!(proposal.omissions, reachability.omissions);
+
+        let mut tampered = transition;
+        tampered.reachability_deltas[0].added_commits.clear();
+        assert!(matches!(
+            tampered.verify(),
+            Err(GitError::InvalidPollTransition)
+        ));
+    }
+
+    #[test]
+    fn shallow_reachability_remains_partial_even_when_known_commits_are_retained() {
+        let source = repository();
+        fs::write(source.path().join("tracked"), "two\n").unwrap();
+        git(source.path(), &["add", "tracked"]);
+        git(source.path(), &["commit", "-q", "-m", "second"]);
+        let clone_root = TempDir::new().unwrap();
+        let shallow_path = clone_root.path().join("shallow");
+        let status = Command::new("git")
+            .args([
+                "clone",
+                "-q",
+                "--depth=1",
+                &format!("file://{}", source.path().display()),
+                shallow_path.to_str().unwrap(),
+            ])
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .status()
+            .unwrap();
+        assert!(status.success());
+        git(&shallow_path, &["config", "user.name", "Rey Test"]);
+        git(
+            &shallow_path,
+            &["config", "user.email", "rey@example.invalid"],
+        );
+
+        let inspect = inspector(&shallow_path);
+        let initial = inspect.inspect().unwrap().unwrap();
+        assert!(initial.shallow);
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+        fs::write(shallow_path.join("tracked"), "three\n").unwrap();
+        git(&shallow_path, &["add", "tracked"]);
+        git(&shallow_path, &["commit", "-q", "-m", "third"]);
+
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(transition.head_movement, GitRefMovement::Unknown);
+        let reachability = &transition.reachability_deltas[0];
+        assert_eq!(reachability.added_commits.len(), 1);
+        assert!(reachability.removed_commits.is_empty());
+        assert!(!reachability.complete);
+        assert_eq!(
+            reachability.omissions,
+            vec!["HEAD reachability is incomplete because repository history is shallow"]
+        );
+        assert!(
+            transition
+                .events
+                .contains(&GitActivationEventClass::CommitReachableAdded)
+        );
+        let partial = trigger(
+            &initial,
+            GitActivationEventClass::CommitReachableAdded,
+            false,
+        );
+        let proposal = derive_activation_proposals(&transition, &[partial])
+            .unwrap()
+            .remove(0);
+        assert!(!proposal.complete);
+        assert_eq!(proposal.omissions, reachability.omissions);
+    }
+
+    #[test]
     fn poll_distinguishes_rewind_from_rewrite() {
         let directory = repository();
         let inspect = inspector(directory.path());
@@ -3204,6 +3750,7 @@ mod tests {
             rewind.events,
             vec![
                 GitActivationEventClass::RefRewound,
+                GitActivationEventClass::CommitReachableRemoved,
                 GitActivationEventClass::IndexChanged,
             ]
         );
@@ -3217,6 +3764,8 @@ mod tests {
             rewrite.events,
             vec![
                 GitActivationEventClass::RefRewritten,
+                GitActivationEventClass::CommitReachableAdded,
+                GitActivationEventClass::CommitReachableRemoved,
                 GitActivationEventClass::IndexChanged,
             ]
         );
