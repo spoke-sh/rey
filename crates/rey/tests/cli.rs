@@ -4918,11 +4918,12 @@ blocks:
         text: Coverage moved after the latest survey.
   - kind: query
     id: coverage-query
-    language: sql
-    provider: local
+    language: rey
+    provider: rey.observations
     mode: read_only
-    statement: select * from coverage
-    parameters: {}
+    statement: frontier
+    parameters:
+      limit: "2"
   - kind: action
     id: refine-coverage
     operation: refine
@@ -5032,6 +5033,163 @@ blocks:
     assert!(opportunities_table.contains("no assignment or execution"));
     assert!(opportunities_table.contains("requires_verified_selected_ready_create_attention_row"));
 
+    fs::write(
+        workspace.path().join("observation.yaml"),
+        r#"schema: rey.observation.v1
+kind: finding
+author:
+  kind: agent
+  id: codex
+subject_locator: rey+local://workload/source-mining?revision=blake3%3Aabc
+body: One source coverage gap remains open.
+desired_delta: Reduce uncovered source surfaces to zero.
+completeness: complete
+omissions: []
+evidence: []
+supersedes: null
+"#,
+    )
+    .unwrap();
+    let observation = run_rey_workspace(&[
+        "observations",
+        "--workspace",
+        workspace_path,
+        "add",
+        "observation.yaml",
+        "--no-broadcast",
+        "--format",
+        "json",
+    ]);
+    assert!(observation.status.success());
+
+    let entry_id = admitted["entry"]["entry_id"].as_str().unwrap();
+    let query_admission = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "query",
+        "admit",
+        entry_id,
+        "coverage-query",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        query_admission.status.success(),
+        "{}",
+        String::from_utf8_lossy(&query_admission.stderr)
+    );
+    let query_admission: rey::journal_queries::JournalQueryAdmissionResult =
+        serde_json::from_slice(&query_admission.stdout).unwrap();
+    assert!(query_admission.admitted);
+    assert_eq!(query_admission.admission.limits.max_rows, 2);
+    assert!(
+        workspace
+            .path()
+            .join(".rey/journal/journal-queries.json")
+            .is_file()
+    );
+    let unchanged: Value = serde_json::from_slice(
+        &run_rey_workspace(&[
+            "journal",
+            "--workspace",
+            workspace_path,
+            "list",
+            "--format",
+            "json",
+        ])
+        .stdout,
+    )
+    .unwrap();
+    assert_eq!(unchanged["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        unchanged["entries"][0]["blocks"].as_array().unwrap().len(),
+        3
+    );
+
+    let query_execution = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "query",
+        "execute",
+        query_admission.admission.admission_id.as_str(),
+        "--author",
+        "codex",
+        "--proposal-out",
+        "query-result.json",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        query_execution.status.success(),
+        "{}",
+        String::from_utf8_lossy(&query_execution.stderr)
+    );
+    let query_execution: Value = serde_json::from_slice(&query_execution.stdout).unwrap();
+    assert_eq!(
+        query_execution["schema"],
+        "rey.journal-query-execution-output.v1"
+    );
+    assert_eq!(query_execution["result"]["executed"], true);
+    assert_eq!(
+        query_execution["result"]["execution"]["delta"]["inserted_rows"],
+        1
+    );
+    assert_eq!(query_execution["proposal_path"], "query-result.json");
+    assert!(workspace.path().join("query-result.json").is_file());
+    let unchanged_after_execution: Value = serde_json::from_slice(
+        &run_rey_workspace(&[
+            "journal",
+            "--workspace",
+            workspace_path,
+            "list",
+            "--format",
+            "json",
+        ])
+        .stdout,
+    )
+    .unwrap();
+    assert_eq!(
+        unchanged_after_execution["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let query_list = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "query",
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(query_list.status.success());
+    let query_list = String::from_utf8(query_list.stdout).unwrap();
+    assert!(query_list.contains("JOURNAL QUERIES"));
+    assert!(query_list.contains("1 admissions · 1 executions"));
+    assert!(query_list.contains("EXECUTED"));
+
+    let superseding = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "add",
+        "query-result.json",
+        "--format",
+        "json",
+    ]);
+    assert!(superseding.status.success());
+    let superseding: Value = serde_json::from_slice(&superseding.stdout).unwrap();
+    assert_eq!(superseding["entry"]["sequence"], 2);
+    assert_eq!(superseding["entry"]["supersedes"], entry_id);
+    assert_eq!(superseding["entry"]["blocks"].as_array().unwrap().len(), 5);
+    assert_eq!(superseding["entry"]["blocks"][3]["kind"], "frame");
+    assert_eq!(superseding["entry"]["blocks"][4]["kind"], "diff");
+
     let human_proposal = fs::read_to_string(&proposal)
         .unwrap()
         .replace("kind: agent", "kind: human");
@@ -5094,7 +5252,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Workload admission     ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
         "Channel write          ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         UNBOUND · ",
     ] {

@@ -79,6 +79,9 @@ rey journal [--workspace PATH] [--state-dir PATH] add <proposal.yaml>
 rey journal [--workspace PATH] [--state-dir PATH] list
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] seed <observation-id>... --author <agent-id>
 rey journal [--workspace PATH] [--state-dir PATH] opportunities [-n COUNT]
+rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query admit <entry-id> <block-id>
+rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query execute <admission-id> --author <agent-id> --proposal-out <result.json>
+rey journal [--workspace PATH] [--state-dir PATH] query list
 rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
@@ -1067,7 +1070,14 @@ rows with exact document fragments, source-log identity, completeness,
 omissions, and limits. They have no readiness, assignment, execution, or proof
 authority; crossing into runtime work still requires a separately verified,
 selected, ready `CREATE` attention row and ordinary workload creation and
-admission.
+admission. The separate `journal query admit|execute|list` subcommands implement
+one exact `rey.observations/rey frontier` read-only provider. Admission binds a
+current Journal leaf and exact observation frontier without execution.
+Execution rejects input drift, retains a bounded nine-column/100-row frame and
+directed empty-to-observed delta, and writes only a create-new unretained
+superseding proposal. Normal `journal add` remains the sole Journal-retention
+step. `GET|HEAD /api/v1/journal/queries` exposes retained query admission and
+execution evidence; no browser query write or execution endpoint exists.
 Relay declarations do not enable transport until a provider contract is
 separately admitted.
 

@@ -7,6 +7,7 @@ pub mod git;
 pub mod ignore;
 pub mod journal;
 pub mod journal_opportunities;
+pub mod journal_queries;
 pub mod journal_seed;
 pub mod observations;
 pub mod workloads;

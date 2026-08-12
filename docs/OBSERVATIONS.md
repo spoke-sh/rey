@@ -112,3 +112,9 @@ Journal-seed projection through `rey journal seed` or
 `/journal/new?observations=...`. The seed cites this log and its exact records;
 it does not resolve, copy, mutate, or automatically retain an observation.
 Ordinary Journal validation and admission remain the only retention boundary.
+
+The separately admitted Journal query provider can project this already
+retained frontier through an exact `rey.observations/rey frontier` query cell.
+Its effective limit is 1–100 rows. Query admission binds this log and frontier;
+execution fails on drift, changes no observation state, and only authors an
+unretained superseding Journal proposal containing a bounded frame/delta.

@@ -106,6 +106,10 @@ Rey organizes collaboration around two clients with one evidence plane:
   unresolved frontier without adding unread, priority, assignment, action, or
   proof state. Selected exact unresolved observations can seed a deterministic
   unretained Journal proposal; only ordinary Journal admission retains it.
+  Current action cells project as authored-only opportunities. One narrow
+  retained-observation query can cross separate read-only admission and
+  execution, but its bounded frame/delta enters the Journal only through an
+  ordinary superseding entry.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

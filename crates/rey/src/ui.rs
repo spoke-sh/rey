@@ -17,6 +17,7 @@ use rey::{
         LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
     journal_opportunities::{DEFAULT_JOURNAL_OPPORTUNITY_LIMIT, JournalOpportunitySurface},
+    journal_queries::LocalJournalQueryStore,
     journal_seed::JournalSeed,
     observations::{DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore},
     workloads::LocalWorkloadStore,
@@ -334,6 +335,7 @@ impl UiServer {
             "/api/v1/environment" => self.environment(),
             "/api/v1/journal" => self.journal(),
             "/api/v1/journal/opportunities" => self.journal_opportunities(),
+            "/api/v1/journal/queries" => self.journal_queries(),
             "/api/v1/journal/seed" => self.journal_seed(query),
             "/api/v1/observations" => self.observations(),
             "/api/v1/workloads" => self.workloads(),
@@ -657,6 +659,18 @@ impl UiServer {
             Err(error) => json_error(
                 StatusCode(500),
                 "journal_opportunities_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn journal_queries(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalJournalQueryStore::new(self.config.journal_directory.clone());
+        match store.load() {
+            Ok(state) => json_response(StatusCode(200), &state),
+            Err(error) => json_error(
+                StatusCode(500),
+                "journal_queries_unavailable",
                 &error.to_string(),
             ),
         }
@@ -1258,7 +1272,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(33)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(34)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1364,6 +1378,12 @@ mod tests {
         assert!(opportunities.contains("\"schema\":\"rey.journal-opportunity-surface.v1\""));
         assert!(opportunities.contains("\"runtime_boundary\":\"requires_verified_selected_ready_create_attention_row_and_workload_admission\""));
         assert!(opportunities.contains("\"rows\":[]"));
+
+        let queries = request(&address, "GET /api/v1/journal/queries HTTP/1.1");
+        assert!(queries.starts_with("HTTP/1.1 200"));
+        assert!(queries.contains("\"schema\":\"rey.journal-query-state.v1\""));
+        assert!(queries.contains("\"admissions\":[]"));
+        assert!(queries.contains("\"executions\":[]"));
 
         let proposal = serde_json::json!({
             "schema": "rey.journal-entry-proposal.v2",

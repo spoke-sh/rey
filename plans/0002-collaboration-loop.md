@@ -34,7 +34,11 @@ immutable broadsheet documents and superseding revisions. Current leaf action
 cells now derive into a bounded authored-only opportunity surface in the CLI,
 read-only browser API, and `/agents`; they remain outside scheduler readiness
 and retain no execution authority. Exact scenario/delta routes are absent, and
-the footer conversation composer correctly remains disabled.
+one exact retained-observation query now crosses separate admission and
+execution before emitting an unretained frame/delta supersession proposal;
+ordinary Journal admission remains the only document append. Exact
+scenario/delta routes are absent, and the footer conversation composer
+correctly remains disabled.
 
 ## Completion Checklist
 
@@ -68,7 +72,7 @@ the footer conversation composer correctly remains disabled.
 - [x] Derive unsuperseded action cells as explicit authored opportunities on a
   reasoning surface, then use the delivered workload/policy admission boundary
   if an opportunity becomes runtime work.
-- [ ] Execute one admitted read-only query separately and append its bounded
+- [x] Execute one admitted read-only query separately and append its bounded
   frame/delta only as a superseding Journal entry.
 
 ### 4. Complete operator evidence routes

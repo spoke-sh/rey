@@ -129,7 +129,7 @@ rey env        status | add | diff | commit | log
 rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | execute-activation | verify-activation | run
-rey journal    add | list | seed | opportunities
+rey journal    add | list | seed | opportunities | query
 rey ui
 ```
 
@@ -394,6 +394,14 @@ rey journal [--workspace PATH] [--state-dir PATH]
   --author AGENT_ID [--format table|json]
 rey journal [--workspace PATH] [--state-dir PATH] opportunities
   [-n COUNT] [--format table|json]
+rey journal [--workspace PATH] [--state-dir PATH]
+  [--observation-state-dir PATH] query admit ENTRY_ID BLOCK_ID
+  [--format table|json]
+rey journal [--workspace PATH] [--state-dir PATH]
+  [--observation-state-dir PATH] query execute ADMISSION_ID
+  --author AGENT_ID --proposal-out RESULT.json [--format table|json]
+rey journal [--workspace PATH] [--state-dir PATH] query list
+  [--format table|json]
 ```
 
 `add` validates and idempotently retains one workspace-contained
@@ -406,11 +414,18 @@ admission order, including exact revision, band, cell-kind, and span structure.
 observation sequence, and emits a content-identified valid broadsheet proposal.
 It is read-only and unretained; normal `journal add` validation and admission
 are still required to create a Journal entry.
+
 `opportunities` derives action cells only from unsuperseded Journal leaves and
 renders their exact author, document fragment, semantic binding, desired
 delta, citations, completeness, omissions, and effective row limit. Each row
 is authored-only with no readiness, assignment, execution, or proof authority;
 runtime work still requires the verified workload/policy admission boundary.
+`query admit` retains exact read-only authority for one current
+`rey.observations/rey frontier` cell and exact Journal/observation inputs but
+does not execute it. `query execute` revalidates those inputs, retains bounded
+frame/delta evidence, and writes a create-new unretained superseding proposal;
+it does not append a Journal entry. `query list` is read-only. Only a later
+ordinary `journal add RESULT.json` validates and retains the superseding entry.
 
 ### `rey observations`
 
@@ -485,6 +500,8 @@ does not bypass the three-plane contract.
 | `channels apply` | Writes only the Channel WORKING proposal. |
 | `journal add` | Retains a document only; notebook blocks remain inert. |
 | `journal seed`, `journal opportunities` | Read-only deterministic projections; neither retains a document, schedules work, or executes a block. |
+| `journal query admit` | Retains one exact read-only query admission; executes nothing and leaves the Journal unchanged. |
+| `journal query execute` | Revalidates exact admitted inputs, retains bounded query evidence, and authors a create-new superseding proposal; leaves the Journal unchanged. |
 | `ui` | Starts a server; its narrow writes are Journal admission, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
 
 Process success and semantic convergence remain separate. A successful status

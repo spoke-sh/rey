@@ -5,7 +5,7 @@ mod ui;
 use std::{
     collections::BTreeMap,
     ffi::OsString,
-    fs::{self, File},
+    fs::{self, File, OpenOptions},
     io::{self, BufRead, IsTerminal, Read, Write},
     net::IpAddr,
     path::{Path, PathBuf},
@@ -57,6 +57,10 @@ use rey::{
     },
     journal_opportunities::{
         DEFAULT_JOURNAL_OPPORTUNITY_LIMIT, JournalOpportunityError, JournalOpportunitySurface,
+    },
+    journal_queries::{
+        JournalQueryAdmissionResult, JournalQueryError, JournalQueryExecutionResult,
+        JournalQueryState, LocalJournalQueryStore,
     },
     journal_seed::{JournalSeed, JournalSeedError},
     observations::{
@@ -683,6 +687,8 @@ enum JournalCommand {
     Seed(JournalSeedArgs),
     /// Project current authored action cells without granting runtime authority.
     Opportunities(JournalOpportunitiesArgs),
+    /// Admit, inspect, or execute the narrow read-only Journal query contract.
+    Query(JournalQueryArgs),
 }
 
 #[derive(Debug, Args)]
@@ -726,6 +732,66 @@ struct JournalOpportunitiesArgs {
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct JournalQueryArgs {
+    #[command(subcommand)]
+    command: JournalQueryCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum JournalQueryCommand {
+    /// Admit one exact current rey.observations frontier query without executing it.
+    Admit(JournalQueryAdmitArgs),
+    /// Execute one exact retained admission and write an unretained superseding proposal.
+    Execute(JournalQueryExecuteArgs),
+    /// List retained query admissions and executions without executing anything.
+    List(JournalQueryOutputArgs),
+}
+
+#[derive(Debug, Args)]
+struct JournalQueryAdmitArgs {
+    /// Exact current retained Journal entry identity.
+    entry_id: String,
+
+    /// Exact query block id within the retained entry.
+    block_id: String,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct JournalQueryExecuteArgs {
+    /// Exact retained journal-query admission identity.
+    admission_id: String,
+
+    /// Self-asserted agent author for the unretained superseding proposal.
+    #[arg(long, required = true)]
+    author: String,
+
+    /// Workspace-relative create-new JSON proposal path for ordinary journal add.
+    #[arg(long, required = true)]
+    proposal_out: PathBuf,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct JournalQueryOutputArgs {
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Serialize)]
+struct JournalQueryExecutionOutput {
+    schema: String,
+    result: JournalQueryExecutionResult,
+    proposal_path: String,
+    proposal_digest: SemanticDigest,
+    next: String,
 }
 
 #[derive(Debug, Args)]
@@ -2240,14 +2306,16 @@ fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
     if !workspace.is_dir() {
         return Err(CliError::WorkspaceDirectory(workspace));
     }
-    let store = match args.state_dir {
-        Some(path) if path.is_absolute() => LocalJournalStore::new(path),
+    let journal_directory = match args.state_dir {
+        Some(path) if path.is_absolute() => path,
         Some(path) if relative_path_escapes(&path) => {
             return Err(CliError::StateDirectoryEscape(path));
         }
-        Some(path) => LocalJournalStore::new(workspace.join(path)),
-        None => LocalJournalStore::default_for_workspace(&workspace),
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey").join("journal"),
     };
+    let store = LocalJournalStore::new(journal_directory.clone());
+    let query_store = LocalJournalQueryStore::new(journal_directory);
     let observation_store = match args.observation_state_dir {
         Some(path) if path.is_absolute() => LocalObservationStore::new(path),
         Some(path) if relative_path_escapes(&path) => {
@@ -2261,7 +2329,93 @@ fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
         JournalCommand::List(command) => journal_list(&store, command),
         JournalCommand::Seed(command) => journal_seed(&observation_store, command),
         JournalCommand::Opportunities(command) => journal_opportunities(&store, command),
+        JournalCommand::Query(command) => journal_query(
+            &store,
+            &query_store,
+            &observation_store,
+            &workspace,
+            command,
+        ),
     }
+}
+
+fn journal_query(
+    journal_store: &LocalJournalStore,
+    query_store: &LocalJournalQueryStore,
+    observation_store: &LocalObservationStore,
+    workspace: &Path,
+    args: JournalQueryArgs,
+) -> Result<ExitCode, CliError> {
+    match args.command {
+        JournalQueryCommand::Admit(args) => {
+            let journal = journal_store.load()?;
+            let observations = observation_store.load()?;
+            let admitted_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            let result = query_store.admit(
+                &journal,
+                &observations,
+                &args.entry_id,
+                &args.block_id,
+                &admitted_at,
+            )?;
+            let mut stdout = io::stdout().lock();
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+                WorkloadOutputFormat::Table => write_journal_query_admission(&mut stdout, &result)?,
+                WorkloadOutputFormat::Auto => {
+                    unreachable!("auto output is resolved before rendering")
+                }
+            }
+        }
+        JournalQueryCommand::Execute(args) => {
+            ensure_journal_query_proposal_target(workspace, &args.proposal_out)?;
+            let journal = journal_store.load()?;
+            let observations = observation_store.load()?;
+            let executed_at = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            let result = query_store.execute(
+                &journal,
+                &observations,
+                &args.admission_id,
+                JournalAuthor {
+                    kind: JournalAuthorKind::Agent,
+                    id: args.author,
+                },
+                &executed_at,
+            )?;
+            let (proposal_path, proposal_digest) = write_journal_query_proposal(
+                workspace,
+                &args.proposal_out,
+                &result.execution.proposal,
+            )?;
+            let output = JournalQueryExecutionOutput {
+                schema: "rey.journal-query-execution-output.v1".to_owned(),
+                next: format!("rey journal add {proposal_path}"),
+                proposal_path,
+                proposal_digest,
+                result,
+            };
+            let mut stdout = io::stdout().lock();
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &output)?,
+                WorkloadOutputFormat::Table => write_journal_query_execution(&mut stdout, &output)?,
+                WorkloadOutputFormat::Auto => {
+                    unreachable!("auto output is resolved before rendering")
+                }
+            }
+        }
+        JournalQueryCommand::List(args) => {
+            let state = query_store.load()?;
+            let mut stdout = io::stdout().lock();
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &state)?,
+                WorkloadOutputFormat::Table => write_journal_query_state(&mut stdout, &state)?,
+                WorkloadOutputFormat::Auto => {
+                    unreachable!("auto output is resolved before rendering")
+                }
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn journal_opportunities(
@@ -3711,7 +3865,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(
@@ -4690,6 +4844,273 @@ fn write_journal_opportunities(
         )?;
     }
     Ok(())
+}
+
+fn write_journal_query_admission(
+    output: &mut impl Write,
+    result: &JournalQueryAdmissionResult,
+) -> Result<(), CliError> {
+    let admission = &result.admission;
+    writeln!(output)?;
+    writeln!(
+        output,
+        "{}",
+        if result.admitted {
+            "JOURNAL QUERY ADMITTED · NOT EXECUTED"
+        } else {
+            "JOURNAL QUERY ALREADY ADMITTED · NOT EXECUTED"
+        }
+    )?;
+    write_portfolio_field(output, "Admission", admission.admission_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Query cell",
+        &format!("J@{}#{}", admission.entry_sequence, admission.block_id),
+    )?;
+    write_portfolio_field(
+        output,
+        "Provider",
+        &format!(
+            "{} / {} / {}",
+            admission.declaration.provider,
+            admission.declaration.language,
+            admission.declaration.statement
+        ),
+    )?;
+    write_portfolio_field(output, "Journal log", admission.journal_log_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Observation log",
+        admission.observation_log_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Frontier",
+        admission.observation_frontier_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Limit",
+        &format!("{} rows · 9 columns", admission.limits.max_rows),
+    )?;
+    write_portfolio_field(
+        output,
+        "Authority",
+        "READ-ONLY QUERY ADMISSION · no execution, Journal revision, assignment, action, or proof",
+    )?;
+    writeln!(output)?;
+    Ok(())
+}
+
+fn write_journal_query_execution(
+    output: &mut impl Write,
+    output_document: &JournalQueryExecutionOutput,
+) -> Result<(), CliError> {
+    let execution = &output_document.result.execution;
+    writeln!(output)?;
+    writeln!(
+        output,
+        "{}",
+        if output_document.result.executed {
+            "JOURNAL QUERY EXECUTED · PROPOSAL UNRETAINED"
+        } else {
+            "JOURNAL QUERY REPLAYED · PROPOSAL UNRETAINED"
+        }
+    )?;
+    write_portfolio_field(output, "Execution", execution.execution_id.as_str())?;
+    write_portfolio_field(output, "Admission", execution.admission_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Frame",
+        &format!(
+            "{} · {} of {} unresolved rows · {}",
+            execution.frame_snapshot_id,
+            execution.observation_frontier.rows.len(),
+            execution.observation_frontier.summary.unresolved,
+            if execution.observation_frontier.complete {
+                "complete"
+            } else {
+                "truncated"
+            }
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Delta",
+        &format!(
+            "{} · {} · +{} -{} ~{} · {} omitted",
+            execution.delta.delta_id,
+            execution.delta.assessment,
+            execution.delta.inserted_rows,
+            execution.delta.deleted_rows,
+            execution.delta.modified_rows,
+            execution.delta.omitted_rows
+        ),
+    )?;
+    write_portfolio_field(output, "Proposal", &output_document.proposal_path)?;
+    write_portfolio_field(
+        output,
+        "Proposal digest",
+        output_document.proposal_digest.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Authority",
+        "QUERY EVIDENCE RETAINED · superseding Journal proposal is not retained",
+    )?;
+    write_portfolio_field(output, "Next", &output_document.next)?;
+    writeln!(output)?;
+    Ok(())
+}
+
+fn write_journal_query_state(
+    output: &mut impl Write,
+    state: &JournalQueryState,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "JOURNAL QUERIES")?;
+    write_portfolio_field(output, "Identity", state.state_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Retained",
+        &format!(
+            "{} admissions · {} executions",
+            state.admissions.len(),
+            state.executions.len()
+        ),
+    )?;
+    if state.admissions.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No journal queries admitted.")?;
+        return Ok(());
+    }
+    for admission in &state.admissions {
+        let execution = state
+            .executions
+            .iter()
+            .find(|execution| execution.admission_id == admission.admission_id);
+        writeln!(output)?;
+        writeln!(
+            output,
+            "  Q@{}  {}#{} · {}",
+            admission.sequence,
+            admission.entry_sequence,
+            admission.block_id,
+            if execution.is_some() {
+                "EXECUTED"
+            } else {
+                "ADMITTED"
+            }
+        )?;
+        write_portfolio_field(output, "Admission", admission.admission_id.as_str())?;
+        write_portfolio_field(
+            output,
+            "Input",
+            &format!(
+                "journal {} · observations {}",
+                admission.journal_log_id, admission.observation_log_id
+            ),
+        )?;
+        if let Some(execution) = execution {
+            write_portfolio_field(output, "Execution", execution.execution_id.as_str())?;
+            write_portfolio_field(
+                output,
+                "Result",
+                &format!(
+                    "{} rows · {} · delta {}",
+                    execution.observation_frontier.rows.len(),
+                    if execution.observation_frontier.complete {
+                        "complete"
+                    } else {
+                        "truncated"
+                    },
+                    execution.delta.delta_id
+                ),
+            )?;
+        }
+    }
+    writeln!(output)?;
+    Ok(())
+}
+
+fn ensure_journal_query_proposal_target(workspace: &Path, relative: &Path) -> Result<(), CliError> {
+    if relative.is_absolute() || relative_path_escapes(relative) || relative.as_os_str().is_empty()
+    {
+        return Err(CliError::JournalQueryProposalPath(relative.to_owned()));
+    }
+    let target = workspace.join(relative);
+    match fs::symlink_metadata(&target) {
+        Ok(_) => return Err(CliError::JournalQueryProposalExists(target)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(source) => {
+            return Err(CliError::JournalQueryProposalWrite {
+                path: target,
+                source,
+            });
+        }
+    }
+    let parent = target
+        .parent()
+        .ok_or_else(|| CliError::JournalQueryProposalPath(relative.to_owned()))?;
+    let canonical_parent =
+        parent
+            .canonicalize()
+            .map_err(|source| CliError::JournalQueryProposalWrite {
+                path: parent.to_owned(),
+                source,
+            })?;
+    if !canonical_parent.starts_with(workspace) || !canonical_parent.is_dir() {
+        return Err(CliError::JournalQueryProposalPath(relative.to_owned()));
+    }
+    let mut current = workspace.to_owned();
+    if let Ok(parent_relative) = parent.strip_prefix(workspace) {
+        for component in parent_relative.components() {
+            current.push(component);
+            let metadata = fs::symlink_metadata(&current).map_err(|source| {
+                CliError::JournalQueryProposalWrite {
+                    path: current.clone(),
+                    source,
+                }
+            })?;
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(CliError::JournalQueryProposalPath(relative.to_owned()));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_journal_query_proposal(
+    workspace: &Path,
+    relative: &Path,
+    proposal: &JournalEntryProposal,
+) -> Result<(String, SemanticDigest), CliError> {
+    ensure_journal_query_proposal_target(workspace, relative)?;
+    proposal.validate()?;
+    let mut bytes = serde_json::to_vec_pretty(proposal)?;
+    bytes.push(b'\n');
+    if bytes.len() as u64 > MAX_JOURNAL_PROPOSAL_BYTES {
+        return Err(CliError::JournalInputLimit(MAX_JOURNAL_PROPOSAL_BYTES));
+    }
+    let target = workspace.join(relative);
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target)
+        .map_err(|source| CliError::JournalQueryProposalWrite {
+            path: target.clone(),
+            source,
+        })?;
+    if let Err(source) = file.write_all(&bytes).and_then(|()| file.flush()) {
+        let _ = fs::remove_file(&target);
+        return Err(CliError::JournalQueryProposalWrite {
+            path: target,
+            source,
+        });
+    }
+    let mut hasher = SemanticHasher::new("rey.journal-query-proposal-source.v1");
+    hasher.add_bytes(&bytes);
+    Ok((relative.display().to_string(), hasher.finish()))
 }
 
 fn write_journal_log(output: &mut impl Write, log: &JournalLog) -> Result<(), CliError> {
@@ -11155,7 +11576,17 @@ enum CliError {
     #[error(transparent)]
     JournalOpportunity(#[from] JournalOpportunityError),
     #[error(transparent)]
+    JournalQuery(#[from] JournalQueryError),
+    #[error(transparent)]
     JournalSeed(#[from] JournalSeedError),
+    #[error(
+        "journal query proposal path must be a workspace-relative path below a real directory: {0}"
+    )]
+    JournalQueryProposalPath(PathBuf),
+    #[error("journal query proposal target already exists: {0}")]
+    JournalQueryProposalExists(PathBuf),
+    #[error("journal query proposal {path} could not be written: {source}")]
+    JournalQueryProposalWrite { path: PathBuf, source: io::Error },
     #[error(transparent)]
     ChannelGraph(#[from] ChannelGraphError),
     #[error(transparent)]

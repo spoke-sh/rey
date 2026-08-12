@@ -1318,7 +1318,9 @@ for `rey workloads run`.
 
 A read-only request to a provider's declared query surface. Journal query
 blocks are inert declarations; actual query execution requires a separate
-admission handshake and exact provider/input binding.
+admission handshake and exact provider/input binding. The implemented narrow
+provider projects a bounded retained observation frontier and authors an
+unretained superseding Journal proposal containing its exact frame/delta.
 
 ## R
 

@@ -249,6 +249,60 @@ verified selected ready `CREATE` attention row and then cross the existing
 `rey workloads create --attention-row ...` generation and workload admission
 boundary. Journal authors cannot manufacture or bypass that scheduler state.
 
+## Separately Admitted Read-Only Query
+
+The first executable Journal query is deliberately narrow:
+
+```yaml
+kind: query
+id: open-observations
+language: rey
+provider: rey.observations
+mode: read_only
+statement: frontier
+parameters:
+  limit: "64"
+```
+
+Only the optional canonical decimal `limit` is accepted, from 1 through 100.
+The provider reads the already retained local observation log and projects its
+oldest-open-first frontier; it performs no broadcast, resolution, locator
+read, workload operation, or mutation.
+
+Execution crosses three distinct gates:
+
+```text
+retained current query cell
+  → journal query admit       exact Journal + observation log/frontier
+  → journal query execute     retained frame/delta evidence
+                             + create-new unretained superseding proposal
+  → journal add               ordinary validation and Journal retention
+```
+
+`rey journal query admit <entry-id> <block-id>` accepts only a query cell on an
+unsuperseded entry. `rey.journal-query-admission.v1` binds the exact Journal
+log, entry and block, complete declaration, observation log and frontier,
+effective frame bounds, and read-only authority. Admission is retained and
+idempotent but does not execute the query or change the Journal.
+
+`rey journal query execute <admission-id> --author <agent-id>
+--proposal-out <workspace-relative.json>` revalidates every admitted input,
+executes only that bounded projection, and retains
+`rey.journal-query-execution.v1`. Its exact frame contains at most nine typed
+columns and 100 preview rows; `row_count`, truncation, omitted rows, source and
+target snapshots, and the directed empty-to-observed delta remain explicit.
+Changed Journal or observation input fails before a new execution. Exact
+execution replay returns retained evidence without rerunning the projection.
+
+Execution still does not write the Journal. It uses create-new semantics for a
+workspace-contained JSON proposal that preserves the original query, appends
+its frame and diff blocks, and sets `supersedes` to the exact source entry.
+JSON is valid input to `rey journal add`; only that existing ordinary admission
+can append the result. The browser read endpoint
+`GET|HEAD /api/v1/journal/queries` exposes retained admissions and executions,
+and the existing exact Journal route renders frame/diff cells after admission.
+The browser grants no query-admission or execution write.
+
 ## Example Agent Proposal
 
 ```yaml

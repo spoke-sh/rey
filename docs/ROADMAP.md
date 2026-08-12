@@ -167,6 +167,9 @@ and the conversation boundary.
 - Preserve unsuperseded Journal action cells as bounded authored-only
   opportunities; require verified runtime attention and ordinary workload
   admission before any proposed idea becomes executable work.
+- Preserve the narrow retained-observation query as a separately admitted
+  read-only projection: execution retains bounded frame/delta evidence and
+  normal Journal admission alone may append its superseding document.
 - Extend the implemented exact direct relay only after remote provider, cursor,
   hop, idempotency, loop-prevention, delivery, and omission contracts are
   accepted and proved.
