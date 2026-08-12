@@ -7,8 +7,9 @@ INDEX, and admits only an explicit human action. Request-only packages retain a
 strict external-harness handoff and visible draft state; Rey does not invoke a
 harness. Relational and source mining are first-class graph capabilities, and
 the implemented portfolio-mining conformance workload makes typed workload
-attention an outer-loop input. The recurring ownership, invalidation,
-attention-to-frontier, and harness-response loop remains
+attention an outer-loop input. Owned mapped surfaces and exact Git HEAD or
+semantic-index dependencies derive live invalidation from retained evidence;
+activation admission and bounded recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Public Unit
@@ -152,6 +153,13 @@ ownership:
     - surface_id: plans/0001-runtime-loop.md
       source_revision: blake3:<exact-observed-content-digest>
       required_capabilities: [parser.rust]
+  git_dependencies:
+    - dependency_id: repository-head
+      repository_id: blake3:<exact-repository-identity>
+      worktree_id: blake3:<exact-worktree-identity>
+      kind: head
+      symbolic_ref: refs/heads/main
+      source_revision: sha1:<exact-object-id>
 ```
 
 The complete product proposal is
@@ -164,16 +172,31 @@ Discovery is workspace-confined and count/byte bounded; unknown fields,
 unknown operations, duplicate workload ids, unsafe paths, and incomplete
 generation provenance fail closed.
 
-The optional ownership block is semantic workload input. Each declaration
+The optional ownership block is semantic workload input. A surface declaration
 names one mapped surface, the exact source revision the graph was built
 against, and a canonical set of required capability ids. Workload limits bound
-both surface and capability counts. Portfolio composition binds those
-declarations to the exact workload, graph, retained environment snapshot, and
-currently observed mapped-file revision. A changed or unobserved revision
+surface, Git-dependency, and capability counts. Portfolio composition binds
+surface declarations to the exact workload, graph, retained environment
+snapshot, and admitted mapped-file revision. A changed or unobserved revision
 derives a dependency-change fact; an unavailable required capability derives a
 blocked attention fact. Two workloads cannot own the same surface in one
-portfolio snapshot. A declaration grants neither file-read nor action
-authority.
+portfolio snapshot.
+
+A Git dependency instead binds a stable dependency id, exact repository and
+optional worktree semantic identities, one `head` or `semantic_index` kind,
+and the exact source revision. HEAD dependencies may additionally bind the
+symbolic ref and use an algorithm-qualified `sha1:` or `sha256:` object id, or
+`unborn`; semantic-index dependencies use an exact `blake3:` entry digest or
+`absent`. Declarations are canonical, bounded, fail closed on malformed
+identity/revision combinations, and participate in workload identity.
+
+Portfolio composition compares Git declarations only with the cursor snapshot
+retained by `rey git init` or advanced by exact `rey git ack` evidence. A fresh
+ambient repository observation, including `rey git status` or an unacknowledged
+pending poll, cannot change workload attention. A missing cursor is
+`unobserved`; an acknowledged mismatch derives `dependency_changed` and cites
+the exact Git snapshot plus the actual dependency revision. Neither kind of
+declaration grants file-read, Git-mutation, activation, or action authority.
 
 The root `.reyignore` file may contain `workload: <pattern>` rules. Rey loads
 and validates the complete catalog before filtering matching package or draft
@@ -215,6 +238,7 @@ A workload declaration binds at least:
 - allowed relational/source mining operations, input artifact kinds,
   completeness requirements, and traversal/result limits;
 - environment profile, required capabilities, and trust requirements;
+- exact acknowledged Git HEAD or semantic-index dependency revisions;
 - graph-proposal policy contract, which may be an agent, rule, or human;
 - exact scenario-suite revision and required/optional scenario membership;
 - claim, comparator, evaluator, and normalizer revisions;
@@ -655,9 +679,12 @@ retained results, and environment mapping through typed attention, scenario
 qualification, list/status inspection, and retained-input run. Workspace
 packages may now bind mapped files to bounded ownership declarations; live
 portfolio composition derives owners, changed source dependencies, and missing
-required capabilities from the retained environment snapshot. Git-native
-dependency evidence and the generic attention-to-frontier handoff remain open.
-Generic distributed or recurring scheduling, arbitrary code execution, a
-coding-harness response executor, a persistence engine,
-parser/index breadth, and provider-specific policy loops remain outside this
-boundary.
+required capabilities from the retained environment snapshot. Packages may
+also bind exact Git HEAD or semantic-index dependencies; live portfolio
+composition derives their changes only from the acknowledged Git cursor
+snapshot. Ready attention reaches the generic frontier and one bounded
+reasoning surface, and a selected `CREATE` row can complete the immutable
+harness-response and human-admission cycle. Git activation admission, generic
+distributed or recurring scheduling, arbitrary code execution, a persistence
+engine, parser/index breadth, and provider-specific policy loops remain outside
+this boundary.

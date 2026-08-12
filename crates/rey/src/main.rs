@@ -2038,8 +2038,13 @@ fn workload_create(
             let catalog = store.head_catalog()?;
             let state = store.load()?;
             let environment = retained_environment_snapshot(workspace)?;
-            let snapshot =
-                derive_portfolio_snapshot(&catalog.definitions(), &state, environment.as_ref())?;
+            let git = retained_git_snapshot(workspace)?;
+            let snapshot = derive_portfolio_snapshot(
+                &catalog.definitions(),
+                &state,
+                environment.as_ref(),
+                git.as_ref(),
+            )?;
             let attention = WorkloadAttention::derive(&snapshot)?;
             let runtime = orient_portfolio_attention(&snapshot, &attention)?;
             WorkloadCreationAttentionBinding::from_runtime(&snapshot, &attention, &runtime, row_id)
@@ -2089,7 +2094,9 @@ fn current_workload_list(
         .collect();
     let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
-    let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+    let git = retained_git_snapshot(workspace)?;
+    let snapshot =
+        derive_portfolio_snapshot(&definitions, &state, environment.as_ref(), git.as_ref())?;
     let attention = WorkloadAttention::derive(&snapshot)?;
     let runtime = environment
         .as_ref()
@@ -2132,7 +2139,13 @@ fn workload_list(
                 .collect();
             let definitions = catalog.definitions();
             let environment = retained_environment_snapshot(workspace)?;
-            let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+            let git = retained_git_snapshot(workspace)?;
+            let snapshot = derive_portfolio_snapshot(
+                &definitions,
+                &state,
+                environment.as_ref(),
+                git.as_ref(),
+            )?;
             let attention = WorkloadAttention::derive(&snapshot)?;
             let runtime = environment
                 .as_ref()
@@ -2194,7 +2207,9 @@ fn workload_conformance_status(
         .collect();
     let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
-    let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+    let git = retained_git_snapshot(workspace)?;
+    let snapshot =
+        derive_portfolio_snapshot(&definitions, &state, environment.as_ref(), git.as_ref())?;
     let attention = WorkloadAttention::derive(&snapshot)?;
     let runtime = environment
         .as_ref()
@@ -2473,7 +2488,9 @@ fn workload_run(
         }
         let definitions = catalog.definitions();
         let environment = retained_environment_snapshot(workspace)?;
-        let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+        let git = retained_git_snapshot(workspace)?;
+        let snapshot =
+            derive_portfolio_snapshot(&definitions, &state, environment.as_ref(), git.as_ref())?;
         inputs.insert(
             "portfolio".to_owned(),
             WorkloadValue::PortfolioSnapshot(Box::new(snapshot)),
@@ -2578,6 +2595,12 @@ fn retained_environment_snapshot(workspace: &Path) -> Result<Option<CapabilitySn
     Ok(index
         .map(|index| index.snapshot)
         .or_else(|| history.head().map(|commit| commit.snapshot.clone())))
+}
+
+fn retained_git_snapshot(workspace: &Path) -> Result<Option<rey_git::GitSnapshot>, CliError> {
+    Ok(LocalGitStore::default_for_workspace(workspace)
+        .load()?
+        .cursor_snapshot)
 }
 
 fn test_batch_exit(batch: &WorkloadTestBatch) -> ExitCode {
@@ -4554,29 +4577,48 @@ fn write_workload_ownership(
     workload: &WorkloadSummary,
 ) -> Result<(), CliError> {
     if workload.owned_surfaces.is_empty() {
-        return write_portfolio_field(output, "Ownership", "no surfaces declared");
-    }
-    write_portfolio_field(
-        output,
-        "Ownership",
-        &format!(
-            "{} bounded surface declarations",
-            workload.owned_surfaces.len()
-        ),
-    )?;
-    for surface in &workload.owned_surfaces {
+        write_portfolio_field(output, "Ownership", "no surfaces declared")?;
+    } else {
         write_portfolio_field(
             output,
-            "Owned surface",
+            "Ownership",
             &format!(
-                "{} · revision {} · capabilities {}",
-                surface.surface_id,
-                surface.source_revision,
-                if surface.required_capability_ids.is_empty() {
-                    "none".to_owned()
-                } else {
-                    surface.required_capability_ids.join(", ")
-                },
+                "{} bounded surface declarations",
+                workload.owned_surfaces.len()
+            ),
+        )?;
+        for surface in &workload.owned_surfaces {
+            write_portfolio_field(
+                output,
+                "Owned surface",
+                &format!(
+                    "{} · revision {} · capabilities {}",
+                    surface.surface_id,
+                    surface.source_revision,
+                    if surface.required_capability_ids.is_empty() {
+                        "none".to_owned()
+                    } else {
+                        surface.required_capability_ids.join(", ")
+                    },
+                ),
+            )?;
+        }
+    }
+    if workload.git_dependencies.is_empty() {
+        write_portfolio_field(output, "Git dependencies", "none declared")?;
+    }
+    for dependency in &workload.git_dependencies {
+        write_portfolio_field(
+            output,
+            "Git dependency",
+            &format!(
+                "{} · {} · repository {} · worktree {} · ref {} · revision {}",
+                dependency.dependency_id,
+                dependency.kind.as_str(),
+                dependency.repository_id,
+                dependency.worktree_id.as_deref().unwrap_or("absent"),
+                dependency.symbolic_ref.as_deref().unwrap_or("detached"),
+                dependency.source_revision,
             ),
         )?;
     }
@@ -4619,6 +4661,26 @@ fn write_attention_frontier(
             row.priority,
             row.estimated_cost_units,
         )?;
+        if !row.evidence_ids.is_empty() || !row.dependency_ids.is_empty() {
+            writeln!(
+                output,
+                "    evidence {} · dependencies {}",
+                if row.evidence_ids.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.evidence_ids
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                },
+                if row.dependency_ids.is_empty() {
+                    "none".to_owned()
+                } else {
+                    row.dependency_ids.join(", ")
+                },
+            )?;
+        }
     }
     Ok(())
 }

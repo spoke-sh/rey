@@ -45,9 +45,11 @@ one failure-derived reasoning surface are delivered. The first deterministic
 outer-loop slice is also delivered: canonical portfolio snapshots, typed
 workload attention, the `rey.portfolio.attention` system workload, and
 list/test/run/status projections over retained catalog/result/environment
-inputs. The remaining bullets in
-this phase concern general declarations, activation, invalidation, recurring
-execution, and broader provider behavior.
+inputs. Bounded mapped-surface and acknowledged-Git dependency invalidation,
+the generic attention/frontier handoff, and one immutable harness response
+cycle are also delivered. Remaining work in this phase concerns activation
+admission, full-recomputation proof, recurring execution, and broader provider
+behavior.
 
 - Fix the smallest workload declaration, graph, scenario, campaign,
   qualification, catalog, and result schemas.

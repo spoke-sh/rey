@@ -528,7 +528,7 @@ which workload or uncovered surface needs attention. Workloads are therefore
 both mining instruments and mineable runtime context.
 
 `rey.workload-attention.v1` is evidence between derivation and scheduling. Its
-ready rows may feed the generic frontier; blocked and policy-excluded rows stay
+ready rows feed the generic frontier; blocked and policy-excluded rows stay
 visible but ineligible. The scheduler does not invent attention reasons, and a
 policy cannot resolve its own row. See [Frontier, Progress, and
 Scheduling](FRONTIER.md) and [Plan 0001](../plans/0001-runtime-loop.md).
@@ -545,6 +545,11 @@ Repository state is not folded into the `rey env` admission snapshot: that
 surface retains the `git` application identity, while cadence and workload
 activation retain exact Git observations on their own clock.
 
+Workloads may declare exact repository/worktree HEAD or semantic-index
+revisions. Portfolio invalidation compares those declarations only with the
+acknowledged Git cursor snapshot; an ambient observation or pending transition
+does not become workload evidence before its exact acknowledgement.
+
 A poll compares the current repository snapshot with its last completely
 processed cursor. Fast-forward refs can expose newly reachable commits; rewinds
 and divergence emit explicit ref/reachability deltas; semantic index changes
@@ -554,9 +559,9 @@ by stat-cache refresh do not activate staged-content workload entries.
 Triggers select delta subsets and name an affected workload revision, scenario
 selection, or declared graph entry point. An activation has deterministic
 identity over the trigger, workload/graph/scenario selection, source/target
-snapshots, and matched delta. It enters ordinary action admission and can be
-replayed after a crash. The poll cursor advances only after required transition
-evidence reaches its claimed retention boundary.
+snapshots, and matched delta. It is a proposal that must enter ordinary action
+admission and can be replayed after a crash. The poll cursor advances only
+after required transition evidence reaches its claimed retention boundary.
 
 ## Delta And Frontier
 
@@ -839,8 +844,8 @@ continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
 deterministic reference paths. Render-graph extraction, transient-patch reuse,
 retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic
-Git-native dependency invalidation, persistent activation processing,
-recurring scheduling, and policy proposals remain target architecture.
+activation admission, persistent activation processing, recurring scheduling,
+and policy proposals remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.
@@ -863,10 +868,14 @@ Polars-backed `rey.workload-attention.v1` relation, and the qualified
 attention actions, reasons, readiness, coverage, evidence, priority, cost, and
 exclusions. Read-only list/status consume retained environment state; the
 explicit conformance run evaluates the same retained portfolio inputs under
-fresh qualification.
+fresh qualification. Workspace packages declare bounded mapped-surface and
+Git HEAD/index dependencies. List/status derive live invalidation from retained
+environment evidence and the acknowledged Git cursor, then hand ready rows to
+the generic frontier and one bounded reasoning surface. One selected `CREATE`
+row can cross an immutable harness request/response and exact human workload
+admission cycle without Rey invoking the harness.
 
-No workload ownership declaration, live dependency invalidation, attention-to-
-frontier adapter, coding-harness request/response, recurring scheduler,
-admitted `rg` search, parser/index provider, general structural delta, or agent
-loop is implemented. Those require the same human-verifiable end-to-end
+Recurring scheduling, Git activation admission, admitted `rg` search,
+parser/index breadth, general structural delta, and a provider-specific agent
+loop remain unimplemented. Those require the same human-verifiable end-to-end
 boundary before they count as delivered.

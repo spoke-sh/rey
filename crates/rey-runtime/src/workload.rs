@@ -487,6 +487,7 @@ pub struct WorkloadLimits {
     pub max_scenarios: u64,
     pub max_outputs_per_scenario: u64,
     pub max_owned_surfaces: u64,
+    pub max_git_dependencies: u64,
     pub max_required_capabilities: u64,
     pub max_string_bytes: u64,
     pub scenario_delta: ScenarioDeltaLimits,
@@ -498,6 +499,7 @@ impl Default for WorkloadLimits {
             max_scenarios: 64,
             max_outputs_per_scenario: 16,
             max_owned_surfaces: 64,
+            max_git_dependencies: 64,
             max_required_capabilities: 256,
             max_string_bytes: 512 * 1_024,
             scenario_delta: ScenarioDeltaLimits::default(),
@@ -512,6 +514,34 @@ pub struct WorkloadOwnedSurface {
     pub required_capability_ids: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkloadGitDependencyKind {
+    Head,
+    SemanticIndex,
+}
+
+impl WorkloadGitDependencyKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Head => "head",
+            Self::SemanticIndex => "semantic_index",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadGitDependency {
+    pub dependency_id: String,
+    pub repository_id: String,
+    pub worktree_id: Option<String>,
+    pub kind: WorkloadGitDependencyKind,
+    pub symbolic_ref: Option<String>,
+    pub source_revision: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct WorkloadDefinition {
     pub schema: String,
@@ -519,6 +549,7 @@ pub struct WorkloadDefinition {
     pub proposal: Option<ContractIdentity>,
     pub title: String,
     pub owned_surfaces: Vec<WorkloadOwnedSurface>,
+    pub git_dependencies: Vec<WorkloadGitDependency>,
     pub inputs: Vec<WorkloadPort>,
     pub outputs: Vec<WorkloadPort>,
     pub graph: ComputeGraph,
@@ -533,6 +564,7 @@ pub struct WorkloadDefinitionParts {
     pub revision: u64,
     pub title: String,
     pub owned_surfaces: Vec<WorkloadOwnedSurface>,
+    pub git_dependencies: Vec<WorkloadGitDependency>,
     pub proposal: Option<ContractIdentity>,
     pub inputs: Vec<WorkloadPort>,
     pub outputs: Vec<WorkloadPort>,
@@ -550,6 +582,7 @@ impl WorkloadDefinition {
             proposal: parts.proposal,
             title: parts.title,
             owned_surfaces: parts.owned_surfaces,
+            git_dependencies: parts.git_dependencies,
             inputs: parts.inputs,
             outputs: parts.outputs,
             graph: parts.graph,
@@ -581,6 +614,7 @@ impl WorkloadDefinition {
         validate_text("workload title", &self.title)?;
         validate_workload_limits(&self.limits)?;
         validate_owned_surfaces(&self.owned_surfaces, &self.limits)?;
+        validate_git_dependencies(&self.git_dependencies, &self.limits)?;
         ports_by_id("workload input", &self.inputs)?;
         ports_by_id("workload output", &self.outputs)?;
         self.graph.verify(&self.inputs, &self.outputs)?;
@@ -1748,6 +1782,7 @@ fn portfolio_attention_workload() -> Result<WorkloadDefinition, WorkloadError> {
         proposal: None,
         title: "Mine portfolio attention".to_owned(),
         owned_surfaces: Vec::new(),
+        git_dependencies: Vec::new(),
         inputs: vec![WorkloadPort {
             port_id: PORTFOLIO_INPUT_ID.to_owned(),
             value_type: ValueType::PortfolioSnapshot,
@@ -1885,6 +1920,7 @@ fn text_workload(normalize: bool) -> Result<WorkloadDefinition, WorkloadError> {
             "Deliberate fixture mismatch".to_owned()
         },
         owned_surfaces: Vec::new(),
+        git_dependencies: Vec::new(),
         inputs: vec![WorkloadPort {
             port_id: INPUT_ID.to_owned(),
             value_type: ValueType::Utf8,
@@ -2043,6 +2079,7 @@ fn source_search_workload() -> Result<WorkloadDefinition, WorkloadError> {
         proposal: None,
         title: "Mine exact local source evidence".to_owned(),
         owned_surfaces: Vec::new(),
+        git_dependencies: Vec::new(),
         inputs: vec![WorkloadPort {
             port_id: INPUT_ID.to_owned(),
             value_type: ValueType::Utf8,
@@ -2573,6 +2610,7 @@ fn validate_workload_limits(limits: &WorkloadLimits) -> Result<(), WorkloadError
     if limits.max_scenarios == 0
         || limits.max_outputs_per_scenario == 0
         || limits.max_owned_surfaces == 0
+        || limits.max_git_dependencies == 0
         || limits.max_required_capabilities == 0
         || limits.max_string_bytes == 0
         || limits.scenario_delta.max_value_bytes == 0
@@ -2584,6 +2622,83 @@ fn validate_workload_limits(limits: &WorkloadLimits) -> Result<(), WorkloadError
         return Err(WorkloadError::InvalidLimit);
     }
     Ok(())
+}
+
+fn validate_git_dependencies(
+    dependencies: &[WorkloadGitDependency],
+    limits: &WorkloadLimits,
+) -> Result<(), WorkloadError> {
+    if dependencies.len() as u64 > limits.max_git_dependencies {
+        return Err(WorkloadError::CountLimit {
+            role: "Git dependencies",
+            limit: limits.max_git_dependencies,
+            observed: dependencies.len() as u64,
+        });
+    }
+    let mut previous = None;
+    for dependency in dependencies {
+        for value in [
+            dependency.dependency_id.as_str(),
+            dependency.repository_id.as_str(),
+            dependency.source_revision.as_str(),
+        ] {
+            validate_text("Git dependency", value)?;
+        }
+        if let Some(worktree_id) = dependency.worktree_id.as_deref() {
+            validate_text("Git worktree", worktree_id)?;
+        }
+        if let Some(symbolic_ref) = dependency.symbolic_ref.as_deref() {
+            validate_text("Git symbolic ref", symbolic_ref)?;
+        }
+        let repository_is_digest = is_semantic_digest(&dependency.repository_id);
+        let worktree_is_digest = dependency
+            .worktree_id
+            .as_deref()
+            .is_none_or(is_semantic_digest);
+        let revision_is_valid = match dependency.kind {
+            WorkloadGitDependencyKind::Head => {
+                dependency.source_revision == "unborn"
+                    || is_git_object_revision(&dependency.source_revision)
+            }
+            WorkloadGitDependencyKind::SemanticIndex => {
+                dependency.source_revision == "absent"
+                    || is_semantic_digest(&dependency.source_revision)
+            }
+        };
+        if !repository_is_digest
+            || !worktree_is_digest
+            || !revision_is_valid
+            || previous.is_some_and(|value| value >= dependency.dependency_id.as_str())
+            || dependency.kind == WorkloadGitDependencyKind::SemanticIndex
+                && dependency.symbolic_ref.is_some()
+        {
+            return Err(WorkloadError::ResultShape(
+                "Git dependencies are invalid or not in canonical order",
+            ));
+        }
+        previous = Some(dependency.dependency_id.as_str());
+    }
+    Ok(())
+}
+
+fn is_semantic_digest(value: &str) -> bool {
+    value.len() == "blake3:".len() + 64
+        && value.starts_with("blake3:")
+        && value["blake3:".len()..]
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+}
+
+fn is_git_object_revision(value: &str) -> bool {
+    [("sha1:", 40_usize), ("sha256:", 64_usize)]
+        .into_iter()
+        .any(|(prefix, length)| {
+            value.len() == prefix.len() + length
+                && value.starts_with(prefix)
+                && value[prefix.len()..]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        })
 }
 
 fn validate_owned_surfaces(
@@ -2882,6 +2997,15 @@ fn workload_digest(workload: &WorkloadDefinition) -> SemanticDigest {
             hasher.add_str(capability_id);
         }
     }
+    hasher.add_u64(workload.git_dependencies.len() as u64);
+    for dependency in &workload.git_dependencies {
+        hasher.add_str(&dependency.dependency_id);
+        hasher.add_str(&dependency.repository_id);
+        hasher.add_optional_str(dependency.worktree_id.as_deref());
+        hasher.add_str(dependency.kind.as_str());
+        hasher.add_optional_str(dependency.symbolic_ref.as_deref());
+        hasher.add_str(&dependency.source_revision);
+    }
     hasher.add_u64(workload.inputs.len() as u64);
     for port in &workload.inputs {
         hasher.add_str(&port.port_id);
@@ -2898,6 +3022,7 @@ fn workload_digest(workload: &WorkloadDefinition) -> SemanticDigest {
     hasher.add_u64(workload.limits.max_scenarios);
     hasher.add_u64(workload.limits.max_outputs_per_scenario);
     hasher.add_u64(workload.limits.max_owned_surfaces);
+    hasher.add_u64(workload.limits.max_git_dependencies);
     hasher.add_u64(workload.limits.max_required_capabilities);
     hasher.add_u64(workload.limits.max_string_bytes);
     hasher.add_u64(workload.limits.scenario_delta.max_value_bytes);
@@ -3230,6 +3355,18 @@ fn semantic_string_bytes_workload(workload: &WorkloadDefinition) -> Result<u64, 
             add_string_bytes(&mut bytes, capability_id)?;
         }
     }
+    for dependency in &workload.git_dependencies {
+        add_string_bytes(&mut bytes, &dependency.dependency_id)?;
+        add_string_bytes(&mut bytes, &dependency.repository_id)?;
+        if let Some(worktree_id) = &dependency.worktree_id {
+            add_string_bytes(&mut bytes, worktree_id)?;
+        }
+        add_string_bytes(&mut bytes, dependency.kind.as_str())?;
+        if let Some(symbolic_ref) = &dependency.symbolic_ref {
+            add_string_bytes(&mut bytes, symbolic_ref)?;
+        }
+        add_string_bytes(&mut bytes, &dependency.source_revision)?;
+    }
     for port in workload.inputs.iter().chain(&workload.outputs) {
         add_string_bytes(&mut bytes, &port.port_id)?;
         add_string_bytes(&mut bytes, port.value_type.as_str())?;
@@ -3412,9 +3549,10 @@ mod tests {
     use super::{
         BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
         BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits,
-        RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadOwnedSurface,
-        WorkloadValue, built_in_workload, built_in_workloads, execute_workload, run_workload,
-        test_workload, test_workload_with_observer,
+        RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadGitDependency,
+        WorkloadGitDependencyKind, WorkloadOwnedSurface, WorkloadValue, built_in_workload,
+        built_in_workloads, execute_workload, run_workload, test_workload,
+        test_workload_with_observer,
     };
 
     #[test]
@@ -3473,6 +3611,75 @@ mod tests {
             over_limit.verify(),
             Err(WorkloadError::CountLimit {
                 role: "owned surfaces",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn git_dependencies_are_exact_bounded_canonical_and_semantic() {
+        let original = built_in_workload(BUILT_IN_NORMALIZE_WORKLOAD_ID).unwrap();
+        let mut dependent = original.clone();
+        dependent.git_dependencies = vec![WorkloadGitDependency {
+            dependency_id: "repository-head".to_owned(),
+            repository_id: SemanticHasher::new("repository").finish().to_string(),
+            worktree_id: Some(SemanticHasher::new("worktree").finish().to_string()),
+            kind: WorkloadGitDependencyKind::Head,
+            symbolic_ref: Some("refs/heads/main".to_owned()),
+            source_revision: format!("sha1:{}", "1".repeat(40)),
+        }];
+        let dependent = dependent.finalize().unwrap();
+        assert_ne!(
+            dependent.workload.semantic_digest,
+            original.workload.semantic_digest
+        );
+        dependent.verify().unwrap();
+
+        let mut malformed_repository = dependent.clone();
+        malformed_repository.git_dependencies[0].repository_id = "repository".to_owned();
+        assert!(matches!(
+            malformed_repository.verify(),
+            Err(WorkloadError::ResultShape(
+                "Git dependencies are invalid or not in canonical order"
+            ))
+        ));
+
+        let mut wrong_revision_kind = dependent.clone();
+        wrong_revision_kind.git_dependencies[0].kind = WorkloadGitDependencyKind::SemanticIndex;
+        wrong_revision_kind.git_dependencies[0].symbolic_ref = None;
+        assert!(matches!(
+            wrong_revision_kind.verify(),
+            Err(WorkloadError::ResultShape(
+                "Git dependencies are invalid or not in canonical order"
+            ))
+        ));
+
+        let mut duplicate = dependent.clone();
+        duplicate
+            .git_dependencies
+            .push(duplicate.git_dependencies[0].clone());
+        assert!(matches!(
+            duplicate.verify(),
+            Err(WorkloadError::ResultShape(
+                "Git dependencies are invalid or not in canonical order"
+            ))
+        ));
+
+        let mut over_limit = dependent;
+        over_limit.limits.max_git_dependencies = 1;
+        let mut second = over_limit.git_dependencies[0].clone();
+        second.dependency_id = "semantic-index".to_owned();
+        second.kind = WorkloadGitDependencyKind::SemanticIndex;
+        second.symbolic_ref = None;
+        second.source_revision = SemanticHasher::new("index").finish().to_string();
+        over_limit.git_dependencies.push(second);
+        over_limit
+            .git_dependencies
+            .sort_by(|left, right| left.dependency_id.cmp(&right.dependency_id));
+        assert!(matches!(
+            over_limit.verify(),
+            Err(WorkloadError::CountLimit {
+                role: "Git dependencies",
                 ..
             })
         ));

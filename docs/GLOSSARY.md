@@ -1886,9 +1886,11 @@ catalog `run` may execute.
 An exact declaration that a workload is responsible for a mapped context
 surface. Portfolio mining uses ownership plus coverage and revisions to avoid
 duplicate creation and to derive `CREATE`, `RETEST`, or blocked capability
-attention. The implemented package syntax binds a surface id, exact source
-revision, and bounded required capability ids; Git-native and arbitrary
-provider dependency declarations remain active plan work.
+attention. The implemented package syntax binds mapped surfaces through exact
+source revisions and bounded required capability ids. It also binds exact
+repository, worktree, HEAD/ref, or semantic-index dependency revisions,
+compared only with the acknowledged Git cursor. Arbitrary provider dependencies
+remain active plan work.
 
 ### Workspace package catalog
 

@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
 use rey_environment::{Availability, CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
+use rey_git::GitSnapshot;
 use rey_mining::{ProjectionPacket, SemanticAtlas, TopographyCoverage, TopographyPatch};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
@@ -17,9 +18,9 @@ use rey_runtime::{
     PortfolioSnapshot, PortfolioSurfaceObservation, PortfolioWorkloadObservation,
     QualificationRecord, RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite,
     TestStatus, TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention,
-    WorkloadDefinition, WorkloadDefinitionParts, WorkloadLimits, WorkloadOwnedSurface,
-    WorkloadPort, WorkloadRunResult, WorkloadTestResult, WorkloadValue,
-    built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
+    WorkloadDefinition, WorkloadDefinitionParts, WorkloadGitDependency, WorkloadGitDependencyKind,
+    WorkloadLimits, WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
+    WorkloadValue, built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -1416,6 +1417,8 @@ struct SuppliedWorkloadPackage {
 struct SuppliedWorkloadOwnership {
     #[serde(default)]
     surfaces: Vec<SuppliedOwnedSurface>,
+    #[serde(default)]
+    git_dependencies: Vec<WorkloadGitDependency>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1629,6 +1632,7 @@ impl SuppliedWorkloadPackage {
                     required_capability_ids: surface.required_capabilities,
                 })
                 .collect(),
+            git_dependencies: self.ownership.git_dependencies,
             proposal: Some(proposal),
             inputs: self.workload.inputs,
             outputs: self.workload.outputs,
@@ -2643,6 +2647,7 @@ pub struct WorkloadSummary {
     pub workload: ContractIdentity,
     pub title: String,
     pub owned_surfaces: Vec<WorkloadOwnedSurface>,
+    pub git_dependencies: Vec<WorkloadGitDependency>,
     pub candidate_graph: ContractIdentity,
     pub scenario_suite: ContractIdentity,
     pub evaluator: ContractIdentity,
@@ -2799,6 +2804,7 @@ impl WorkloadSummary {
             workload: workload.workload.clone(),
             title: workload.title.clone(),
             owned_surfaces: workload.owned_surfaces.clone(),
+            git_dependencies: workload.git_dependencies.clone(),
             candidate_graph: workload.graph.graph.clone(),
             scenario_suite: workload.scenario_suite.suite.clone(),
             evaluator: workload.evaluator.clone(),
@@ -2935,7 +2941,12 @@ pub fn derive_portfolio_snapshot(
     definitions: &[WorkloadDefinition],
     state: &LocalWorkloadState,
     environment: Option<&CapabilitySnapshot>,
+    git: Option<&GitSnapshot>,
 ) -> Result<PortfolioSnapshot, PortfolioError> {
+    if let Some(git) = git {
+        git.verify()
+            .map_err(|error| PortfolioError::InvalidContract(format!("Git snapshot: {error}")))?;
+    }
     let mut catalog_hasher = SemanticHasher::new("rey.workload-catalog.v1");
     catalog_hasher.add_u64(definitions.len() as u64);
     let available_capability_ids = environment
@@ -2999,6 +3010,11 @@ pub fn derive_portfolio_snapshot(
         if let Some(result) = record.and_then(|record| record.last_run.as_ref()) {
             evidence_ids.push(result.run_id.clone());
         }
+        if !definition.git_dependencies.is_empty()
+            && let Some(git) = git
+        {
+            evidence_ids.push(git.snapshot_id.clone());
+        }
         let mut changed_dependency_ids = Vec::new();
         let mut missing_capability_ids = Vec::new();
         for surface in &definition.owned_surfaces {
@@ -3023,6 +3039,16 @@ pub fn derive_portfolio_snapshot(
                     })
                     .cloned(),
             );
+        }
+        for dependency in &definition.git_dependencies {
+            let actual = git_dependency_revision(dependency, git);
+            if actual.as_deref() != Some(dependency.source_revision.as_str()) {
+                changed_dependency_ids.push(format!(
+                    "git:{}@{}",
+                    dependency.dependency_id,
+                    actual.as_deref().unwrap_or("unobserved")
+                ));
+            }
         }
         workloads.push(PortfolioWorkloadObservation {
             workload: definition.workload.clone(),
@@ -3087,8 +3113,53 @@ pub fn derive_workload_attention(
     definitions: &[WorkloadDefinition],
     state: &LocalWorkloadState,
     environment: Option<&CapabilitySnapshot>,
+    git: Option<&GitSnapshot>,
 ) -> Result<WorkloadAttention, PortfolioError> {
-    WorkloadAttention::derive(&derive_portfolio_snapshot(definitions, state, environment)?)
+    WorkloadAttention::derive(&derive_portfolio_snapshot(
+        definitions,
+        state,
+        environment,
+        git,
+    )?)
+}
+
+fn git_dependency_revision(
+    dependency: &WorkloadGitDependency,
+    git: Option<&GitSnapshot>,
+) -> Option<String> {
+    let snapshot = git?;
+    if dependency.repository_id != snapshot.repository_id.as_str() {
+        return Some(format!("repository:{}", snapshot.repository_id));
+    }
+    if dependency.worktree_id.as_deref()
+        != snapshot.worktree_id.as_ref().map(SemanticDigest::as_str)
+    {
+        return Some(format!(
+            "worktree:{}",
+            snapshot
+                .worktree_id
+                .as_ref()
+                .map_or("absent", SemanticDigest::as_str)
+        ));
+    }
+    match dependency.kind {
+        WorkloadGitDependencyKind::Head => {
+            if dependency.symbolic_ref.as_deref() != snapshot.head.symbolic_ref.as_deref() {
+                return Some(format!(
+                    "ref:{}",
+                    snapshot.head.symbolic_ref.as_deref().unwrap_or("detached")
+                ));
+            }
+            Some(snapshot.head.commit_oid.as_ref().map_or_else(
+                || "unborn".to_owned(),
+                |oid| format!("{}:{oid}", snapshot.object_format),
+            ))
+        }
+        WorkloadGitDependencyKind::SemanticIndex => Some(snapshot.index.as_ref().map_or_else(
+            || "absent".to_owned(),
+            |index| index.entry_digest.to_string(),
+        )),
+    }
 }
 
 impl WorkloadStatusView {
@@ -3557,6 +3628,7 @@ mod tests {
             std::slice::from_ref(&definition),
             &state,
             Some(&environment),
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -3579,9 +3651,13 @@ mod tests {
             )],
         )
         .unwrap();
-        let changed_snapshot =
-            derive_portfolio_snapshot(std::slice::from_ref(&definition), &state, Some(&changed))
-                .unwrap();
+        let changed_snapshot = derive_portfolio_snapshot(
+            std::slice::from_ref(&definition),
+            &state,
+            Some(&changed),
+            None,
+        )
+        .unwrap();
         assert_eq!(
             changed_snapshot.workloads[0].missing_capability_ids,
             ["parser.rust"]
@@ -3594,7 +3670,7 @@ mod tests {
         let mut colliding = definition.clone();
         colliding.workload.id = "other-owner".to_owned();
         assert!(matches!(
-            derive_portfolio_snapshot(&[definition, colliding], &state, Some(&environment)),
+            derive_portfolio_snapshot(&[definition, colliding], &state, Some(&environment), None,),
             Err(PortfolioError::OwnershipCollision { .. })
         ));
 
@@ -3611,7 +3687,8 @@ mod tests {
             )],
         )
         .unwrap();
-        let unowned = derive_portfolio_snapshot(&[], &state, Some(&unowned_environment)).unwrap();
+        let unowned =
+            derive_portfolio_snapshot(&[], &state, Some(&unowned_environment), None).unwrap();
         let attention = rey_runtime::WorkloadAttention::derive(&unowned).unwrap();
         assert_eq!(attention.rows[0].action, AttentionAction::Create);
     }

@@ -171,7 +171,7 @@ declared domains while Rey mines workload, result, environment, dependency,
 capability, ownership, and coverage facts to derive attention:
 
 ```text
-catalog + results + environment + coverage
+catalog + results + environment + acknowledged Git + coverage
   → portfolio snapshot → workload attention
   → RETEST | REFINE | CREATE | BLOCK | POLICY_EXCLUDED
   → admitted work → test → observe portfolio again

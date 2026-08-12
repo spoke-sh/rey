@@ -17,8 +17,11 @@ deterministic proposal-only activations. The `rey git` CLI retains an exact
 baseline cursor, one pending transition with its triggers and proposals, and
 acknowledged transition history under `.rey/git`. Watched-ref frames beyond
 HEAD, reachable-set and path deltas, recurring polling and coalescing,
-coalescing, runtime admission, remote synchronization, and complete index flag
-semantics remain future Git work.
+runtime admission, remote synchronization, and complete index flag semantics
+remain future Git work. Workload packages can already bind exact HEAD or
+semantic-index revisions and derive attention from the acknowledged cursor
+snapshot without treating an ambient observation or activation proposal as
+authority.
 
 Git is not part of the `rey env` admission snapshot. That loop discovers the
 `git` executable as an application, while this provider owns repository HEAD,
@@ -214,6 +217,15 @@ transition identity, retains it in history, then advances. A repeated poll is
 idempotent and a different observation cannot overwrite pending evidence.
 Local cursors have local-file retention guarantees. Git remains the
 authoritative source of repository state.
+
+The workload portfolio consumes only this acknowledged cursor snapshot.
+Declarations may select its exact HEAD (repository/worktree, optional symbolic
+ref, and algorithm-qualified object id or `unborn`) or semantic-index entry
+digest (or `absent`). A pending poll and the fresh observation shown by
+`status` remain evidence awaiting admission and cannot invalidate a workload.
+After `ack`, a revision mismatch derives an ordinary typed dependency-change
+attention row citing the acknowledged snapshot; it does not execute an
+activation proposal.
 
 ## Polling And Ref Movement
 

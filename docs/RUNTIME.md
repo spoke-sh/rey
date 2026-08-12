@@ -15,7 +15,8 @@ Runtime v1 binds exact workload, graph, scenario-suite, and campaign identities.
 Product workloads arrive as bounded workspace packages with exact proposal
 provenance and frozen scenario admission. Rey does not invoke a coding harness;
 it deterministically requests, receives, qualifies, and admits exact package
-bytes. Git-native activation and recurrence remain
+bytes. Exact workload Git dependencies now derive invalidation from the
+acknowledged cursor snapshot; activation admission and recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Nested Campaigns
@@ -29,10 +30,10 @@ outer  portfolio snapshot → workload attention → selected workload work
 ```
 
 The outer loop does not add a second scheduler. It derives typed attention
-facts from exact catalog/result/environment/coverage inputs. The existing
-scheduler may later select ready rows; orientation then mines only the evidence
-needed for those rows. Re-evaluation after an admitted action decides whether
-the portfolio delta changed.
+facts from exact catalog, result, retained environment, acknowledged Git, and
+coverage inputs. The existing scheduler selects bounded ready rows;
+orientation mines only the evidence needed for the selected row. Re-evaluation
+after an admitted action decides whether the portfolio delta changed.
 
 ## State Dimensions
 
@@ -273,8 +274,8 @@ The implemented crates deliberately contain no:
 
 - generic workload-specific frontier derivation beyond the source-search
   fixture and portfolio-attention derivation; portfolio invalidation currently
-  covers declared mapped-file revisions and required environment capabilities,
-  not Git-native dependencies or arbitrary providers;
+  covers declared mapped-file revisions, required environment capabilities,
+  and exact acknowledged Git HEAD/index dependencies, not arbitrary providers;
 - automatic coding-harness transport or invocation beyond the immutable
   selected-`CREATE` request and exact response-lineage contract;
 - recurring, fair, parallel, or multi-user scheduling;

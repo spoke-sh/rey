@@ -289,9 +289,13 @@ unresolved assertions, `-v` shows every compact `EXPECTED → ACTUAL` assertion,
 and `-vv` adds exact evidence objects, identities, limits, and lineage.
 Human `list` and `status` output identifies every bounded owned-surface
 declaration with its exact source revision and required capability ids; JSON
-retains the same typed declarations. Portfolio attention separately reports
-the live owner binding, revision drift, missing capability, and unowned mapped
-surface facts derived from retained environment evidence. With an exact
+retains the same typed declarations. It also identifies exact Git dependency
+kind, repository/worktree, symbolic ref, and expected revision. Portfolio
+attention separately reports the live owner binding, revision drift, missing
+capability, unowned mapped-surface, and acknowledged Git dependency facts.
+Attention rows expose their exact evidence and dependency identities. Fresh
+ambient Git state and pending polls do not affect this projection; only the
+retained cursor established by `git init` or advanced by `git ack` does. With an exact
 retained environment snapshot, the same document includes a distinct runtime
 frontier identity, its source attention trace and portfolio/environment
 bindings, and each admitted ready row. Without that snapshot the human view

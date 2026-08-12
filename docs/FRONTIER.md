@@ -255,9 +255,10 @@ turn exclusion into convergence.
 
 ## Deferred Behavior
 
-Later slices still own broader workload-specific derivation, Git-native
-dependency invalidation, portfolio reasoning-surface construction, policy
-proposal parsing, action admission, execution, retry, transition persistence,
-activation, and recurring scheduling. They must consume these contracts rather
-than introducing a provider-specific queue or second lifecycle. The frontier
-does not become a query, parsing, indexing, or visualization engine.
+Later slices still own broader workload-specific derivation, Git activation
+admission, policy proposal parsing, action admission, execution, retry,
+transition persistence, and recurring scheduling. Exact acknowledged Git
+HEAD/index dependency invalidation and bounded portfolio reasoning-surface
+construction already consume these contracts. Future work must not introduce a
+provider-specific queue or second lifecycle. The frontier does not become a
+query, parsing, indexing, or visualization engine.

@@ -27,9 +27,11 @@ surfaces; retained mapped-file and capability changes derive owner attention.
 One selected ready `CREATE` row now crosses an immutable external-harness
 request/response and human admission cycle without Rey invoking a harness.
 A manual bounded Git poll now retains cursor, pending transition, and
-proposal-only activation evidence. Git-native workload dependency
-invalidation, runtime admission, coalescing, and a bounded recurring scheduler
-remain open.
+proposal-only activation evidence. Workloads can declare exact Git HEAD or
+semantic-index dependencies; portfolio attention compares them only with the
+acknowledged cursor snapshot, so ambient repository movement cannot silently
+invalidate work. Activation runtime admission, coalescing, and a bounded
+recurring scheduler remain open.
 
 ## Completion Checklist
 
@@ -37,7 +39,7 @@ remain open.
 
 - [x] Define bounded workload-owned surface declarations with exact workload,
   graph, environment, and source revisions.
-- [ ] Derive changed-dependency and missing-capability facts from retained
+- [x] Derive changed-dependency and missing-capability facts from retained
   environment and Git evidence instead of fixture-only or empty live fields.
 - [ ] Prove ownership collision, missing owner, changed owner, stale revision,
   policy exclusion, incomplete coverage, and typed-empty attention behavior.

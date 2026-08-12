@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Feed retained Git/environment dependency changes and proposal-only activations into ordinary workload attention/runtime admission, then add bounded recurrence. | Implemented ownership, attention/frontier handoff, harness response, and manual Git cursor/transition loop. |
+| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Admit retained proposal-only Git activations into the ordinary workload runtime, then coalesce replay and add bounded recurrence. | Implemented environment/Git dependency invalidation, attention/frontier handoff, harness response, and manual Git cursor/transition loop. |
 | [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, and runtime evidence. Plan 0001 only where an authored opportunity becomes runtime work. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 

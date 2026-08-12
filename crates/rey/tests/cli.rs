@@ -26,9 +26,9 @@ use rey_git::{
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
-    AttentionAction, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
-    BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
-    ScenarioEvaluation, TestStatus,
+    AttentionAction, AttentionReason, BUILT_IN_MISMATCH_WORKLOAD_ID,
+    BUILT_IN_NORMALIZE_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
+    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, TestStatus,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -1241,6 +1241,239 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     assert!(clean.contains("Observed delta         UNCHANGED"));
     assert!(clean.contains("Retained transitions   1"));
     assert!(clean.contains("Pending transition     none"));
+}
+
+#[test]
+fn workload_git_dependencies_follow_only_the_acknowledged_cursor() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["config", "user.name", "Rey Test"],
+        vec!["config", "user.email", "rey@example.invalid"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "one\n").unwrap();
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "tracked"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "commit", "-q", "-m", "initial"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let initialized = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "init",
+        "--format",
+        "json",
+    ]);
+    assert!(initialized.status.success());
+    let baseline = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let baseline: GitOperatorStatus = serde_json::from_slice(&baseline.stdout).unwrap();
+    let cursor = baseline.state.cursor_snapshot.as_ref().unwrap();
+    let expected_revision = format!(
+        "{}:{}",
+        cursor.object_format,
+        cursor.head.commit_oid.as_deref().unwrap()
+    );
+    let package_dir = workspace.path().join("sys/git-dependent-normalization");
+    fs::create_dir_all(&package_dir).unwrap();
+    let package = include_str!("fixtures/workloads/agent-proposed-normalization.yaml")
+        .replace(
+            "rey.fixture.agent-proposed-normalization",
+            "rey.fixture.git-dependent-normalization",
+        )
+        .replace(
+            "\ngraph:\n",
+            &format!(
+                "\nownership:\n  git_dependencies:\n    - dependency_id: repository-head\n      repository_id: {}\n      worktree_id: {}\n      kind: head\n      symbolic_ref: {}\n      source_revision: {expected_revision}\n    - dependency_id: semantic-index\n      repository_id: {}\n      worktree_id: {}\n      kind: semantic_index\n      source_revision: {}\n\ngraph:\n",
+                cursor.repository_id,
+                cursor.worktree_id.as_ref().unwrap(),
+                cursor.head.symbolic_ref.as_deref().unwrap(),
+                cursor.repository_id,
+                cursor.worktree_id.as_ref().unwrap(),
+                cursor.index.as_ref().unwrap().entry_digest,
+            ),
+        );
+    fs::write(package_dir.join("workload.yaml"), package).unwrap();
+
+    for args in [
+        vec!["workloads", "--workspace", workspace_path, "add"],
+        vec![
+            "workloads",
+            "--workspace",
+            workspace_path,
+            "test",
+            "--staged",
+            "rey.fixture.git-dependent-normalization",
+        ],
+        vec![
+            "workloads",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "admit Git-dependent fixture",
+        ],
+    ] {
+        let output = run_rey_workspace(&args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let admitted = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let admitted: WorkloadList = serde_json::from_slice(&admitted.stdout).unwrap();
+    assert!(admitted.attention.rows.is_empty());
+    assert_eq!(admitted.workloads[0].git_dependencies.len(), 2);
+    assert_eq!(
+        admitted.workloads[0].git_dependencies[0].source_revision,
+        expected_revision
+    );
+
+    fs::write(workspace.path().join("tracked"), "two\n").unwrap();
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "tracked"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "commit", "-q", "-m", "second"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let ambient = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let ambient: WorkloadList = serde_json::from_slice(&ambient.stdout).unwrap();
+    assert!(
+        ambient.attention.rows.is_empty(),
+        "ambient repository state must not invalidate admitted workload evidence"
+    );
+
+    let polled = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--format",
+        "json",
+    ]);
+    assert!(polled.status.success());
+    let polled: GitPollOutcome = serde_json::from_slice(&polled.stdout).unwrap();
+    let target = &polled.record.target_snapshot;
+    let actual_revision = format!(
+        "{}:{}",
+        target.object_format,
+        target.head.commit_oid.as_deref().unwrap()
+    );
+    let actual_index_revision = target.index.as_ref().unwrap().entry_digest.to_string();
+    let transition_id = polled.record.transition.transition_id.to_string();
+    let acknowledged = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "ack",
+        &transition_id,
+        "--format",
+        "json",
+    ]);
+    assert!(acknowledged.status.success());
+
+    let changed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let changed: WorkloadList = serde_json::from_slice(&changed.stdout).unwrap();
+    let row = changed
+        .attention
+        .rows
+        .iter()
+        .find(|row| row.subject_id == "rey.fixture.git-dependent-normalization")
+        .unwrap();
+    assert_eq!(row.action, AttentionAction::Retest);
+    assert_eq!(row.reason, AttentionReason::DependencyChanged);
+    assert_eq!(
+        row.dependency_ids,
+        [
+            format!("git:repository-head@{actual_revision}"),
+            format!("git:semantic-index@{actual_index_revision}"),
+        ]
+    );
+    assert!(row.evidence_ids.contains(&target.snapshot_id));
+
+    let human = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(human.status.success());
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "Git dependency",
+        "repository-head · head",
+        "semantic-index · semantic_index",
+        "dependency_changed",
+        &format!("git:repository-head@{actual_revision}"),
+        target.snapshot_id.as_str(),
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing Git dependency evidence: {evidence}"
+        );
+    }
 }
 
 #[test]
