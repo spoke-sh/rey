@@ -641,6 +641,10 @@
     padding-block: 5px;
   }
 
+  .x1t0vds8 {
+    padding-block: 6px;
+  }
+
   .xknfcqp {
     padding-block: 7px;
   }
@@ -1005,6 +1009,10 @@
     background-color: color-mix(in srgb,var(--rey-accent) 11%,transparent);
   }
 
+  .xydsth0 {
+    background-color: color-mix(in srgb,var(--rey-accent) 18%,var(--surface));
+  }
+
   .x1bb7u2j {
     background-color: color-mix(in srgb,var(--rey-accent) 3%,var(--surface));
   }
@@ -1031,6 +1039,10 @@
 
   .x6kuria {
     background-color: color-mix(in srgb,var(--rey-background) 91%,transparent);
+  }
+
+  .xfj7eyt {
+    background-color: color-mix(in srgb,var(--rey-background) 91%,var(--rey-accent));
   }
 
   .x1d9ei38 {
@@ -1181,6 +1193,10 @@
     color: #1c302d;
   }
 
+  .xousq3x {
+    color: #1c6b4c;
+  }
+
   .x8e5rsw {
     color: #237047;
   }
@@ -1221,8 +1237,16 @@
     color: #9a3c25;
   }
 
+  .x113qm2u {
+    color: #9a3d22;
+  }
+
   .x1xz8lni {
     color: #9a6411;
+  }
+
+  .x12cqed4 {
+    color: #a52b22;
   }
 
   .x1nu5p2f {
@@ -2558,8 +2582,16 @@
     opacity: .3;
   }
 
+  .x1lfpgzf:disabled {
+    opacity: .4;
+  }
+
   .xcd54w4:hover {
     background-color: #ffffff36;
+  }
+
+  .xyvuvoz:hover {
+    background-color: var(--rey-accent);
   }
 
   .x12zqzco:hover {
@@ -3160,6 +3192,10 @@
     margin-left: 24px;
   }
 
+  .x8x9d4c {
+    margin-left: auto;
+  }
+
   .x1x0meh9 {
     margin-right: .1em;
   }
@@ -3374,6 +3410,10 @@
 
   .x2xcw19 {
     min-height: 440px;
+  }
+
+  .x1wjjzik {
+    min-height: 45px;
   }
 
   .xt55aet {

@@ -1279,6 +1279,8 @@ mod tests {
         assert!(application.contains("PUSH RELATION"));
         assert!(application.contains("NO NETWORK FETCH"));
         assert!(application.contains("data-feed-stream"));
+        assert!(application.contains("ADOPT INTO CHANNEL WORKING"));
+        assert!(application.contains("data-feed-drag-identity"));
         assert!(application.contains("STREAM COORDINATE"));
         assert!(application.contains("ADD STREAM"));
         assert!(application.contains("APPLY LENS"));

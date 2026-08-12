@@ -146,15 +146,18 @@ fidelity proof.
 The Channel graph and `HEAD → INDEX → WORKING` loop, immutable messages,
 explicit admitted relay, and one-shot polling beacons are delivered through the
 CLI. The browser now projects bounded Channel status and conditionally replaces
-WORKING under exact preconditions. [Plan 0002](../plans/0002-collaboration-loop.md)
-owns Feed layout adoption, standalone observations, Journal seeding, and the
-conversation boundary.
+WORKING under exact preconditions. Feed layout precedence, deliberate adoption,
+stable pointer/keyboard movement, semantic-delta reporting, and failed-write
+rollback are delivered over that boundary.
+[Plan 0002](../plans/0002-collaboration-loop.md) owns standalone observations,
+Journal seeding, exact evidence routes, and the conversation boundary.
 
 - Define stable channels, standalone Channel observations, observation
   admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and
   relays without inventing a global clock.
-- Persist Feed composition and pointer/keyboard stream movement through the
-  same typed working state while retaining URL layouts as detached previews.
+- Preserve the delivered Feed composition and pointer/keyboard stream movement
+  through the same typed working state while retaining URL layouts as detached
+  previews.
 - Admit compact observations independently of the Channel topology index,
   derive the unresolved collaboration frontier, and broadcast one observation
   identity to the visible bounded local default channel set without granting

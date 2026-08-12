@@ -38,9 +38,9 @@ import {
 } from "./environment";
 import { ExplorePage } from "./explore";
 import {
-  DEFAULT_FEED_STREAMS,
+  channelWorkingWriteForFeedLayout,
   FeedPage,
-  parseFeedStreams,
+  resolveFeedLayout,
   serializeFeedStreams,
 } from "./feed";
 import { GitCommitLink } from "./git-commit-link";
@@ -1007,19 +1007,43 @@ function ExploreRoutePage() {
 
 function FeedRoutePage() {
   const initialSources = feedRoute.useLoaderData();
-  const { document: sources } = usePassiveDocument(initialSources, loadFeed);
+  const { document: sources, publish } = usePassiveDocument(
+    initialSources,
+    loadFeed,
+  );
   const search = feedRoute.useSearch();
   const navigate = feedRoute.useNavigate();
+  const layout = resolveFeedLayout(search.streams ?? null, sources.channels);
   return (
     <FeedPage
-      configuration={parseFeedStreams(search.streams ?? null)}
+      layout={layout}
+      onAdopted={() => {
+        void navigate({ replace: true, search: {} });
+      }}
       onConfigurationChange={(streams) => {
         const encoded = serializeFeedStreams(streams);
-        const defaultEncoding = serializeFeedStreams(DEFAULT_FEED_STREAMS);
         void navigate({
           replace: true,
-          search: encoded === defaultEncoding ? {} : { streams: encoded },
+          search: { streams: encoded },
         });
+      }}
+      onLayoutWrite={async (streams) => {
+        try {
+          const result = await writeChannelWorking(
+            channelWorkingWriteForFeedLayout(sources.channels, streams),
+          );
+          const channels = await loadChannels();
+          publish({ ...sources, channels });
+          return { result, projection: channels, error: null };
+        } catch (error) {
+          const channels = await loadChannels();
+          publish({ ...sources, channels });
+          return {
+            result: null,
+            projection: channels,
+            error: error instanceof Error ? error : new Error(String(error)),
+          };
+        }
       }}
       portfolio={usePortfolio()}
       sources={sources}

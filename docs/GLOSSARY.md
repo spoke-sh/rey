@@ -722,13 +722,13 @@ cursor, attention rows, admission authority, live telemetry, or causal order.
 One independently scrolling, configured lens over the Feed Firehose. A stream
 selects a source plane and filter, such as `signals.journal`, `admission.now`,
 or `flow.failing`, plus an optional human name. Its title is editable inline and
-currently autosaves into the deep-linkable URL coordinate. The implemented
-Channel graph now gives the built-in Signals, Admission, and Flow streams stable
-topology identities. The `/channels` operator surface reads that graph and may
-replace its complete WORKING proposal under exact snapshot preconditions. Feed
-still uses URL preview state until later layout resolution/adoption work.
-Repeating, naming, ordering, tuning, or removing a stream changes the human
-projection only; it does not copy, admit, schedule, or mutate source records.
+creates a detached deep-linkable URL preview. Feed resolves URL preview,
+Channel WORKING, Channel HEAD, and built-in layout in that order. Explicit
+adoption replaces only WORKING under exact snapshot preconditions. Stable
+pointer and keyboard movement over a Channel-backed layout uses the same write,
+shows its semantic delta, and rolls back on rejection. Repeating, naming,
+tuning, or removing a stream remains preview-only until adoption; none of these
+operations copies, admits, schedules, or mutates projected source records.
 
 ### Firehose
 

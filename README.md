@@ -98,7 +98,9 @@ Rey organizes collaboration around two clients with one evidence plane:
 - **Humans navigate and consent.** Explorer provides the spatial bearing;
   Feed carries incoming signals and admission attention; Journal retains
   addressable human/agent synthesis; Channels exposes the exact collaboration
-  topology and a bounded WORKING-only editor.
+  topology and a bounded WORKING-only editor. Feed resolves detached URL
+  previews ahead of Channel WORKING, HEAD, and built-in layouts; adoption and
+  stream movement remain explicit WORKING-only writes.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

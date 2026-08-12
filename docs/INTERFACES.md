@@ -976,16 +976,30 @@ can add, tune, reorder, repeat, or remove streams up to an eight-lane display
 bound. Signals filters are `all|journal|git|environment`; Admission filters are
 `all|now|watch|bound`; Flow filters are
 `all|attention|failing|qualified`. The ordered composition uses the query
-grammar `?streams={plane}.{filter}[~{percent-encoded-name}],...`, for example
-`?streams=signals.journal~Review,admission.now,flow.failing`. A stream title is
-an inline editor: blur or Enter normalizes and autosaves at most 48 Unicode
-scalar values into the URL; Escape cancels, and an empty or derived-default
-name removes the suffix. Invalid entries are ignored and an entirely invalid or
-absent composition uses the three defaults. The URL is browser projection state
-and a deep-link boundary, not a retained runtime configuration or new API. The
-TanStack Feed route validates and owns this search state; autosave replaces the
-current route location rather than writing around the router with the raw
-browser History API.
+grammar `?streams=[{stable-id}=]{plane}.{filter}[~{percent-encoded-name}],...`,
+for example
+`?streams=review=signals.journal~Review,admission=admission.now,flow=flow.failing`.
+Legacy coordinates without an id acquire a bounded stable preview identity. A
+stream title is an inline editor: blur or Enter normalizes and saves at most 48
+Unicode scalar values into the detached URL preview; Escape cancels, and an
+empty or derived-default name removes the suffix. Invalid, duplicate-id, and
+over-limit entries are reported as omissions and prevent adoption. The URL is
+browser projection state and a deep-link boundary, not retained runtime
+configuration. Explicit adoption conditionally replaces Channel WORKING
+against exact HEAD and WORKING snapshot ids through the existing Channel API.
+With no URL preview, resolution selects an explicit Channel WORKING graph, then
+Channel HEAD, then the canonical built-in graph. The TanStack route owns this
+search state rather than writing around the router with the raw browser History
+API.
+
+Each resolved Channel stream retains its graph identity and revision. Pointer
+drag, the move buttons, and `Alt+ArrowLeft`/`Alt+ArrowRight` move those identities
+rather than display indexes. Movement over a Channel-backed layout increments
+the layout revision and conditionally replaces WORKING; the returned typed
+semantic delta is visible in Feed. A rejected or stale write restores the last
+exact resolved layout and exposes the failure. Tuning, renaming, adding, or
+removing first creates a detached URL preview so none of those view changes is
+silently admitted.
 
 Signals renders rich Git, environment, and Journal posts, including bounded
 Journal block previews and exact Git lineage. Evidence bodies are collapsed by
@@ -1022,8 +1036,9 @@ require an exact environment-HEAD application plus admitted graph declarations.
 directed deltas. Its bounded unauthenticated editor calls the same graph
 validator/store, rejects stale expected HEAD or WORKING snapshots, and can
 write WORKING only; INDEX, HEAD, relay, and execution remain CLI/runtime
-boundaries. Feed layout resolution/adoption, remote inbound polling, resident
-scheduling, browser drag/reorder persistence, and the richer
+boundaries. Feed layout resolution, deliberate adoption, and stable
+pointer/keyboard reorder persistence are implemented through that boundary.
+Remote inbound polling, resident scheduling, and the richer
 `rey observations add|list|show` frontier remain planned.
 Planned observation broadcast associates one observation identity with explicit
 local channels. `rey journal seed` and

@@ -1,6 +1,20 @@
 import { admitWorkloadFiles, type FeedSources } from "./api";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import type { CadenceProjection, CadenceTick } from "./cadence";
+import type {
+  ChannelApplyResult,
+  ChannelGraph,
+  ChannelGraphSnapshot,
+  ChannelProjection,
+  ChannelWorkingWriteRequest,
+  FeedStreamDefinition,
+} from "./channels";
 import {
   shortDigest,
   type AttentionReadiness,
@@ -35,9 +49,40 @@ export type FeedStreamFilter =
   | "qualified";
 
 export interface FeedStreamSpec {
+  id?: string;
   kind: FeedStreamKind;
   filter: FeedStreamFilter;
   name?: string;
+}
+
+export interface ResolvedFeedStream extends FeedStreamSpec {
+  id: string;
+  revision: number | null;
+  subscriptionId: string | null;
+}
+
+export type FeedLayoutSource =
+  "url_preview" | "channel_working" | "channel_head" | "built_in";
+
+export interface FeedLayoutResolution {
+  source: FeedLayoutSource;
+  detached: boolean;
+  snapshotId: string | null;
+  graphId: string | null;
+  streams: ResolvedFeedStream[];
+  omissions: string[];
+}
+
+export interface FeedLayoutWriteOutcome {
+  result: ChannelApplyResult | null;
+  projection: ChannelProjection;
+  error: Error | null;
+}
+
+export interface FeedLayoutMovementOutcome {
+  streams: ResolvedFeedStream[];
+  result: ChannelApplyResult | null;
+  error: Error | null;
 }
 
 export const DEFAULT_FEED_STREAMS: FeedStreamSpec[] = [
@@ -52,31 +97,86 @@ const FEED_STREAM_FILTERS: Record<FeedStreamKind, FeedStreamFilter[]> = {
   flow: ["all", "attention", "failing", "qualified"],
 };
 
-export function parseFeedStreams(value: string | null): FeedStreamSpec[] {
-  if (!value) return DEFAULT_FEED_STREAMS.map((stream) => ({ ...stream }));
-  const streams = value
+interface ParsedFeedPreview {
+  streams: FeedStreamSpec[];
+  rejected: number;
+}
+
+export function parseFeedPreview(
+  value: string | null,
+): ParsedFeedPreview | null {
+  if (!value) return null;
+  let rejected = 0;
+  const parsedStreams = value
     .split(",")
     .slice(0, FEED_STREAM_LIMIT)
     .flatMap((token): FeedStreamSpec[] => {
-      const [coordinate, encodedName, ...nameRest] = token.split("~");
-      if (nameRest.length > 0) return [];
+      const [identityAndCoordinate, encodedName, ...nameRest] =
+        token.split("~");
+      if (nameRest.length > 0) {
+        rejected += 1;
+        return [];
+      }
+      const separator = identityAndCoordinate!.indexOf("=");
+      const id =
+        separator < 0 ? undefined : identityAndCoordinate!.slice(0, separator);
+      const coordinate =
+        separator < 0
+          ? identityAndCoordinate!
+          : identityAndCoordinate!.slice(separator + 1);
+      if (id !== undefined && !isFeedStreamId(id)) {
+        rejected += 1;
+        return [];
+      }
       const [kindValue, filterValue, ...coordinateRest] =
         coordinate!.split(".");
-      if (coordinateRest.length > 0 || !isFeedStreamKind(kindValue)) return [];
+      if (coordinateRest.length > 0 || !isFeedStreamKind(kindValue)) {
+        rejected += 1;
+        return [];
+      }
       const filter = filterValue ?? "all";
-      if (!isFeedStreamFilter(kindValue, filter)) return [];
+      if (!isFeedStreamFilter(kindValue, filter)) {
+        rejected += 1;
+        return [];
+      }
       let name: string | undefined;
       if (encodedName !== undefined) {
         try {
           name = normalizeFeedStreamName(decodeURIComponent(encodedName));
         } catch {
+          rejected += 1;
           return [];
         }
       }
-      return [{ kind: kindValue, filter, ...(name ? { name } : {}) }];
+      return [
+        {
+          ...(id ? { id } : {}),
+          kind: kindValue,
+          filter,
+          ...(name ? { name } : {}),
+        },
+      ];
     });
-  return streams.length > 0
-    ? streams
+  if (value.split(",").length > FEED_STREAM_LIMIT) {
+    rejected += value.split(",").length - FEED_STREAM_LIMIT;
+  }
+  const identities = new Set<string>();
+  const streams = parsedStreams.filter((stream) => {
+    if (!stream.id) return true;
+    if (identities.has(stream.id)) {
+      rejected += 1;
+      return false;
+    }
+    identities.add(stream.id);
+    return true;
+  });
+  return { streams, rejected };
+}
+
+export function parseFeedStreams(value: string | null): FeedStreamSpec[] {
+  const preview = parseFeedPreview(value);
+  return preview && preview.streams.length > 0
+    ? preview.streams
     : DEFAULT_FEED_STREAMS.map((stream) => ({ ...stream }));
 }
 
@@ -88,7 +188,9 @@ export function serializeFeedStreams(streams: FeedStreamSpec[]): string {
       const encodedName = name
         ? `~${encodeURIComponent(name).replaceAll("~", "%7E")}`
         : "";
-      return `${stream.kind}.${stream.filter}${encodedName}`;
+      const identity =
+        stream.id && isFeedStreamId(stream.id) ? `${stream.id}=` : "";
+      return `${identity}${stream.kind}.${stream.filter}${encodedName}`;
     })
     .join(",");
 }
@@ -101,6 +203,242 @@ export function normalizeFeedStreamName(value: string): string | undefined {
     .trim();
   if (!normalized) return undefined;
   return Array.from(normalized).slice(0, 48).join("");
+}
+
+export function resolveFeedLayout(
+  urlPreview: string | null,
+  channels: ChannelProjection,
+): FeedLayoutResolution {
+  const parsedPreview = parseFeedPreview(urlPreview);
+  const base = channels.status.working_present
+    ? channels.status.working
+    : channels.status.head;
+  if (parsedPreview) {
+    return {
+      source: "url_preview",
+      detached: true,
+      snapshotId: base.snapshot_id,
+      graphId: base.graph_id,
+      streams: materializeFeedStreamIds(parsedPreview.streams, base),
+      omissions:
+        parsedPreview.rejected > 0
+          ? [
+              `${parsedPreview.rejected} invalid or over-limit URL stream coordinates were omitted`,
+            ]
+          : [],
+    };
+  }
+  const source: FeedLayoutSource = channels.status.working_present
+    ? "channel_working"
+    : channels.status.head_commit
+      ? "channel_head"
+      : "built_in";
+  return resolutionFromSnapshot(source, base);
+}
+
+export function channelWorkingWriteForFeedLayout(
+  channels: ChannelProjection,
+  streams: readonly ResolvedFeedStream[],
+): ChannelWorkingWriteRequest {
+  const base = channels.status.working;
+  const graph = graphWithFeedLayout(base.graph, streams);
+  return {
+    schema: "rey.ui-channel-working-write.v1",
+    expected_head_snapshot_id: channels.status.head.snapshot_id,
+    expected_working_snapshot_id: base.snapshot_id,
+    graph,
+  };
+}
+
+export function reorderFeedStreams(
+  streams: readonly ResolvedFeedStream[],
+  sourceId: string,
+  targetId: string,
+): ResolvedFeedStream[] {
+  const sourceIndex = streams.findIndex((stream) => stream.id === sourceId);
+  const targetIndex = streams.findIndex((stream) => stream.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+    return streams.map((stream) => ({ ...stream }));
+  }
+  const next = streams.map((stream) => ({ ...stream }));
+  const [source] = next.splice(sourceIndex, 1);
+  next.splice(targetIndex, 0, source!);
+  return next;
+}
+
+export async function persistFeedLayoutMovement(
+  previous: readonly ResolvedFeedStream[],
+  next: readonly ResolvedFeedStream[],
+  write: (
+    streams: readonly ResolvedFeedStream[],
+  ) => Promise<FeedLayoutWriteOutcome>,
+): Promise<FeedLayoutMovementOutcome> {
+  try {
+    const outcome = await write(next);
+    return {
+      streams: resolveFeedLayout(null, outcome.projection).streams,
+      result: outcome.result,
+      error: outcome.error,
+    };
+  } catch (error) {
+    return {
+      streams: previous.map((stream) => ({ ...stream })),
+      result: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+}
+
+function resolutionFromSnapshot(
+  source: Exclude<FeedLayoutSource, "url_preview">,
+  snapshot: ChannelGraphSnapshot,
+): FeedLayoutResolution {
+  const omissions: string[] = [];
+  const streams = snapshot.graph.layout.stream_ids.flatMap((streamId) => {
+    const stream = snapshot.graph.streams.find(
+      (candidate) => candidate.id === streamId,
+    );
+    if (!stream) {
+      omissions.push(`layout references missing stream ${streamId}`);
+      return [];
+    }
+    const lens = parseChannelLens(stream);
+    if (!lens) {
+      omissions.push(
+        `stream ${stream.id} has unsupported Feed lens ${stream.lens}`,
+      );
+      return [];
+    }
+    return [
+      {
+        id: stream.id,
+        revision: stream.revision,
+        subscriptionId: stream.subscription_id,
+        kind: lens.kind,
+        filter: lens.filter,
+        name: stream.name,
+      } satisfies ResolvedFeedStream,
+    ];
+  });
+  return {
+    source,
+    detached: false,
+    snapshotId: snapshot.snapshot_id,
+    graphId: snapshot.graph_id,
+    streams,
+    omissions,
+  };
+}
+
+function parseChannelLens(
+  stream: FeedStreamDefinition,
+): Pick<FeedStreamSpec, "kind" | "filter"> | null {
+  const [kind, filter = "all", ...rest] = stream.lens.split(".");
+  if (
+    rest.length > 0 ||
+    !isFeedStreamKind(kind) ||
+    !isFeedStreamFilter(kind, filter)
+  ) {
+    return null;
+  }
+  return { kind, filter };
+}
+
+function graphWithFeedLayout(
+  base: ChannelGraph,
+  streams: readonly ResolvedFeedStream[],
+): ChannelGraph {
+  const definitions = streams.map((stream) => {
+    const current = base.streams.find(
+      (candidate) => candidate.id === stream.id,
+    );
+    const desired = {
+      id: stream.id,
+      name: normalizeFeedStreamName(stream.name ?? "") ?? streamTitle(stream),
+      subscription_id:
+        current?.subscription_id ??
+        stream.subscriptionId ??
+        base.subscriptions[0]!.id,
+      lens: feedLens(stream),
+    };
+    const changed =
+      current !== undefined &&
+      (current.name !== desired.name ||
+        current.subscription_id !== desired.subscription_id ||
+        current.lens !== desired.lens);
+    return {
+      ...desired,
+      revision: current ? current.revision + (changed ? 1 : 0) : 1,
+    };
+  });
+  definitions.sort((left, right) =>
+    left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+  );
+  const streamIds = streams.map((stream) => stream.id);
+  const layoutChanged =
+    base.layout.stream_ids.length !== streamIds.length ||
+    base.layout.stream_ids.some((id, index) => id !== streamIds[index]);
+  return {
+    ...base,
+    streams: definitions,
+    layout: {
+      ...base.layout,
+      revision: base.layout.revision + (layoutChanged ? 1 : 0),
+      stream_ids: streamIds,
+    },
+  };
+}
+
+function materializeFeedStreamIds(
+  streams: readonly FeedStreamSpec[],
+  base: ChannelGraphSnapshot,
+): ResolvedFeedStream[] {
+  const used = new Set<string>();
+  return streams.map((stream) => {
+    let id = stream.id && !used.has(stream.id) ? stream.id : undefined;
+    const expectedName =
+      normalizeFeedStreamName(stream.name ?? "") ?? streamTitle(stream);
+    const matched = id
+      ? base.graph.streams.find((candidate) => candidate.id === id)
+      : base.graph.streams.find(
+          (candidate) =>
+            !used.has(candidate.id) &&
+            candidate.lens === feedLens(stream) &&
+            candidate.name === expectedName,
+        );
+    id ??= matched?.id;
+    id ??= allocateFeedStreamId(stream.kind, used, base.graph.streams);
+    used.add(id);
+    return {
+      ...stream,
+      id,
+      revision: matched?.revision ?? null,
+      subscriptionId: matched?.subscription_id ?? null,
+    };
+  });
+}
+
+function allocateFeedStreamId(
+  kind: FeedStreamKind,
+  used: ReadonlySet<string>,
+  existing: readonly FeedStreamDefinition[],
+): string {
+  const unavailable = new Set(existing.map((stream) => stream.id));
+  for (let sequence = 1; sequence <= FEED_STREAM_LIMIT + 1; sequence += 1) {
+    const candidate = sequence === 1 ? kind : `${kind}-${sequence}`;
+    if (!used.has(candidate) && !unavailable.has(candidate)) return candidate;
+  }
+  return `stream-${used.size + 1}`;
+}
+
+function feedLens(stream: FeedStreamSpec): string {
+  return stream.filter === "all"
+    ? stream.kind
+    : `${stream.kind}.${stream.filter}`;
+}
+
+function isFeedStreamId(value: string): boolean {
+  return /^[a-z0-9][a-z0-9._-]{0,79}$/.test(value);
 }
 
 export interface InspectionRow {
@@ -375,29 +713,42 @@ export function deriveFeedEvents(
 
 export function FeedPage({
   configuration,
+  layout,
+  onAdopted,
   onConfigurationChange,
+  onLayoutWrite,
   portfolio,
   sources,
 }: {
   configuration?: FeedStreamSpec[];
+  layout?: FeedLayoutResolution;
+  onAdopted?: () => void;
   onConfigurationChange?: (streams: FeedStreamSpec[]) => void;
+  onLayoutWrite?: (
+    streams: readonly ResolvedFeedStream[],
+  ) => Promise<FeedLayoutWriteOutcome>;
   portfolio: WorkloadList;
-  sources: FeedSources;
+  sources: Pick<FeedSources, "cadence" | "journal">;
 }) {
   const queue = deriveInspectionQueue(portfolio, sources.cadence);
   const events = deriveFeedEvents(sources.cadence, sources.journal);
-  const [streams, setStreams] = useState<FeedStreamSpec[]>(
-    () =>
-      configuration?.map((stream) => ({ ...stream })) ?? parseFeedStreams(null),
+  const resolvedLayout =
+    layout ?? detachedFeedLayout(configuration ?? parseFeedStreams(null));
+  const [streams, setStreams] = useState<ResolvedFeedStream[]>(() =>
+    resolvedLayout.streams.map((stream) => ({ ...stream })),
   );
-  const configurationKey = configuration
-    ? serializeFeedStreams(configuration)
-    : null;
+  const layoutKey = `${resolvedLayout.source}:${resolvedLayout.snapshotId ?? "none"}:${serializeFeedStreams(resolvedLayout.streams)}`;
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<FeedStreamSpec>({
     kind: "signals",
     filter: "all",
   });
+  const [draggingStreamId, setDraggingStreamId] = useState<string | null>(null);
+  const [writingLayout, setWritingLayout] = useState(false);
+  const [layoutResult, setLayoutResult] = useState<ChannelApplyResult | null>(
+    null,
+  );
+  const [layoutWriteError, setLayoutWriteError] = useState<Error | null>(null);
   const sourceEventCount =
     sources.journal.log.entries.length +
     sources.cadence.lanes.reduce((count, lane) => count + lane.ticks.length, 0);
@@ -405,14 +756,15 @@ export function FeedPage({
   const omissions = boundedOmissions(sources.cadence, foldedEvents);
 
   useEffect(() => {
-    if (configurationKey !== null)
-      setStreams(parseFeedStreams(configurationKey));
-  }, [configurationKey]);
+    setStreams(resolvedLayout.streams.map((stream) => ({ ...stream })));
+  }, [layoutKey]);
 
-  const publishStreams = (next: FeedStreamSpec[]) => {
+  const publishPreview = (next: ResolvedFeedStream[]) => {
     const bounded = next.slice(0, FEED_STREAM_LIMIT);
     setStreams(bounded);
     onConfigurationChange?.(bounded);
+    setLayoutResult(null);
+    setLayoutWriteError(null);
   };
 
   const openFirehose = (target: number | "new") => {
@@ -426,26 +778,80 @@ export function FeedPage({
 
   const saveDraft = () => {
     if (editing === null) return;
-    if (editing === "new") publishStreams([...streams, draft]);
-    else
-      publishStreams(
-        streams.map((stream, index) => (index === editing ? draft : stream)),
+    if (editing === "new") {
+      const used = new Set(streams.map((stream) => stream.id));
+      publishPreview([
+        ...streams,
+        {
+          ...draft,
+          id: allocateFeedStreamId(draft.kind, used, []),
+          revision: null,
+          subscriptionId: null,
+        },
+      ]);
+    } else {
+      publishPreview(
+        streams.map((stream, index) =>
+          index === editing
+            ? {
+                ...stream,
+                kind: draft.kind,
+                filter: draft.filter,
+                ...(draft.name ? { name: draft.name } : { name: undefined }),
+              }
+            : stream,
+        ),
       );
+    }
     setEditing(null);
   };
 
   const removeStream = (index: number) => {
     if (streams.length === 1) return;
-    publishStreams(streams.filter((_, candidate) => candidate !== index));
+    publishPreview(streams.filter((_, candidate) => candidate !== index));
     setEditing(null);
   };
 
-  const moveStream = (index: number, offset: -1 | 1) => {
+  const persistMovement = async (
+    previous: ResolvedFeedStream[],
+    next: ResolvedFeedStream[],
+  ) => {
+    setStreams(next);
+    setLayoutResult(null);
+    setLayoutWriteError(null);
+    if (resolvedLayout.detached || !onLayoutWrite) {
+      onConfigurationChange?.(next);
+      return;
+    }
+    if (resolvedLayout.omissions.length > 0 || writingLayout) {
+      setStreams(previous);
+      return;
+    }
+    setWritingLayout(true);
+    const outcome = await persistFeedLayoutMovement(
+      previous,
+      next,
+      onLayoutWrite,
+    );
+    setStreams(outcome.streams);
+    setLayoutResult(outcome.result);
+    setLayoutWriteError(outcome.error);
+    setWritingLayout(false);
+  };
+
+  const moveStream = (streamId: string, offset: -1 | 1) => {
+    const index = streams.findIndex((stream) => stream.id === streamId);
     const destination = index + offset;
     if (destination < 0 || destination >= streams.length) return;
     const next = [...streams];
     [next[index], next[destination]] = [next[destination]!, next[index]!];
-    publishStreams(next);
+    void persistMovement(streams, next);
+  };
+
+  const moveStreamTo = (sourceId: string, targetId: string) => {
+    const next = reorderFeedStreams(streams, sourceId, targetId);
+    if (next.every((stream, index) => stream.id === streams[index]?.id)) return;
+    void persistMovement(streams, next);
   };
 
   const renameStream = (index: number, name: string) => {
@@ -455,71 +861,232 @@ export function FeedPage({
     const derived = streamTitle({ ...current, name: undefined });
     const customName = normalized === derived ? undefined : normalized;
     if (current.name === customName) return;
-    publishStreams(
+    publishPreview(
       streams.map((stream, candidate) =>
         candidate === index ? { ...stream, name: customName } : stream,
       ),
     );
   };
 
+  const adoptPreview = async () => {
+    if (
+      !resolvedLayout.detached ||
+      !onLayoutWrite ||
+      resolvedLayout.omissions.length > 0 ||
+      writingLayout
+    ) {
+      return;
+    }
+    setWritingLayout(true);
+    setLayoutResult(null);
+    setLayoutWriteError(null);
+    try {
+      const outcome = await onLayoutWrite(streams);
+      setStreams(
+        resolveFeedLayout(null, outcome.projection).streams.map((stream) => ({
+          ...stream,
+        })),
+      );
+      setLayoutResult(outcome.result);
+      setLayoutWriteError(outcome.error);
+      if (!outcome.error) onAdopted?.();
+    } catch (error) {
+      setLayoutWriteError(
+        error instanceof Error ? error : new Error(String(error)),
+      );
+    } finally {
+      setWritingLayout(false);
+    }
+  };
+
   return (
     <main className={sx(styles.page)} data-feed-streams={streams.length}>
-      {streams.map((stream, index) => (
-        <FeedStream
-          events={events}
-          index={index}
-          key={`${index}:${stream.kind}:${stream.filter}`}
-          omissions={omissions}
-          onMove={moveStream}
-          onRename={renameStream}
-          onTune={openFirehose}
-          portfolio={portfolio}
-          queue={queue}
-          sources={sources}
-          stream={stream}
-          streamCount={streams.length}
-        />
-      ))}
-      {editing === null ? (
-        <button
-          className={sx(styles.firehoseRail)}
-          disabled={streams.length >= FEED_STREAM_LIMIT}
-          onClick={() => openFirehose("new")}
-          type="button"
-        >
-          <span aria-hidden="true">＋</span>
-          <strong>FIREHOSE</strong>
-          <small>
-            {events.length + queue.length + portfolio.workloads.length}
-          </small>
-        </button>
-      ) : (
-        <FirehoseConfigurator
-          draft={draft}
-          editing={editing}
-          onCancel={() => setEditing(null)}
-          onChange={setDraft}
-          onRemove={
-            editing === "new" || streams.length === 1
-              ? null
-              : () => removeStream(editing)
-          }
-          onSave={saveDraft}
-          sourceCounts={{
-            admission: queue.length,
-            flow: portfolio.workloads.length,
-            signals: events.length,
-          }}
-        />
-      )}
+      <FeedLayoutBoundary
+        layout={resolvedLayout}
+        onAdopt={onLayoutWrite ? () => void adoptPreview() : null}
+        result={layoutResult}
+        writeError={layoutWriteError}
+        writing={writingLayout}
+      />
+      <div className={sx(styles.streamDeck)}>
+        {streams.map((stream, index) => (
+          <FeedStream
+            dragging={draggingStreamId === stream.id}
+            events={events}
+            index={index}
+            key={stream.id}
+            movementDisabled={writingLayout}
+            omissions={omissions}
+            onDragEnd={() => setDraggingStreamId(null)}
+            onDragStart={() => setDraggingStreamId(stream.id)}
+            onDrop={(sourceId, targetId) => {
+              moveStreamTo(sourceId, targetId);
+              setDraggingStreamId(null);
+            }}
+            onMove={moveStream}
+            onRename={renameStream}
+            onTune={openFirehose}
+            portfolio={portfolio}
+            queue={queue}
+            sources={sources}
+            stream={stream}
+            streamCount={streams.length}
+          />
+        ))}
+        {editing === null ? (
+          <button
+            className={sx(styles.firehoseRail)}
+            disabled={streams.length >= FEED_STREAM_LIMIT}
+            onClick={() => openFirehose("new")}
+            type="button"
+          >
+            <span aria-hidden="true">＋</span>
+            <strong>FIREHOSE</strong>
+            <small>
+              {events.length + queue.length + portfolio.workloads.length}
+            </small>
+          </button>
+        ) : (
+          <FirehoseConfigurator
+            draft={draft}
+            editing={editing}
+            onCancel={() => setEditing(null)}
+            onChange={setDraft}
+            onRemove={
+              editing === "new" || streams.length === 1
+                ? null
+                : () => removeStream(editing)
+            }
+            onSave={saveDraft}
+            sourceCounts={{
+              admission: queue.length,
+              flow: portfolio.workloads.length,
+              signals: events.length,
+            }}
+          />
+        )}
+      </div>
     </main>
   );
 }
 
+function detachedFeedLayout(
+  configuration: readonly FeedStreamSpec[],
+): FeedLayoutResolution {
+  const used = new Set<string>();
+  return {
+    source: "url_preview",
+    detached: true,
+    snapshotId: null,
+    graphId: null,
+    streams: configuration.slice(0, FEED_STREAM_LIMIT).map((stream) => {
+      const id =
+        stream.id && !used.has(stream.id)
+          ? stream.id
+          : allocateFeedStreamId(stream.kind, used, []);
+      used.add(id);
+      return {
+        ...stream,
+        id,
+        revision: null,
+        subscriptionId: null,
+      };
+    }),
+    omissions: [],
+  };
+}
+
+function FeedLayoutBoundary({
+  layout,
+  onAdopt,
+  result,
+  writeError,
+  writing,
+}: {
+  layout: FeedLayoutResolution;
+  onAdopt: (() => void) | null;
+  result: ChannelApplyResult | null;
+  writeError: Error | null;
+  writing: boolean;
+}) {
+  const source = layout.source.replaceAll("_", " ").toUpperCase();
+  return (
+    <aside
+      className={sx(styles.layoutBoundary)}
+      aria-label="Feed layout source"
+    >
+      <div className={sx(styles.layoutIdentity)}>
+        <span className={sx(chrome.micro)}>FEED LAYOUT / {source}</span>
+        <strong>
+          {layout.detached
+            ? "DETACHED PREVIEW · NOT RETAINED"
+            : `${layout.streams.length} STABLE STREAM IDENTITIES`}
+        </strong>
+      </div>
+      <div className={sx(styles.layoutRevision)}>
+        {layout.snapshotId ? (
+          <code title={layout.snapshotId}>
+            SNAPSHOT / {shortDigest(layout.snapshotId)}
+          </code>
+        ) : (
+          <code>SNAPSHOT / DETACHED</code>
+        )}
+        {layout.graphId ? (
+          <code title={layout.graphId}>
+            GRAPH / {shortDigest(layout.graphId)}
+          </code>
+        ) : null}
+      </div>
+      {layout.omissions.map((omission) => (
+        <span className={sx(styles.layoutOmission)} key={omission}>
+          OMITTED / {omission}
+        </span>
+      ))}
+      {result ? (
+        <span className={sx(styles.layoutResult)} title={result.delta.delta_id}>
+          DELTA / {result.delta.assessment.toUpperCase()} ·{" "}
+          {result.delta.summary.moved} MOVED · {result.delta.summary.modified}{" "}
+          MODIFIED
+        </span>
+      ) : null}
+      {writeError ? (
+        <span className={sx(styles.layoutError)} role="alert">
+          WORKING WRITE REJECTED · VIEW ROLLED BACK · {writeError.message}
+        </span>
+      ) : null}
+      {layout.detached ? (
+        onAdopt ? (
+          <button
+            className={sx(styles.adoptButton)}
+            disabled={writing || layout.omissions.length > 0}
+            onClick={onAdopt}
+            type="button"
+          >
+            {writing ? "ADOPTING…" : "ADOPT INTO CHANNEL WORKING"}
+          </button>
+        ) : (
+          <span className={sx(styles.layoutAuthority)}>
+            PREVIEW ONLY · ADOPTION UNAVAILABLE
+          </span>
+        )
+      ) : (
+        <span className={sx(styles.layoutAuthority)}>
+          {writing ? "WRITING EXACT WORKING…" : "MOVEMENT WRITES WORKING ONLY"}
+        </span>
+      )}
+    </aside>
+  );
+}
+
 function FeedStream({
+  dragging,
   events,
   index,
+  movementDisabled,
   omissions,
+  onDragEnd,
+  onDragStart,
+  onDrop,
   onMove,
   onRename,
   onTune,
@@ -529,36 +1096,56 @@ function FeedStream({
   stream,
   streamCount,
 }: {
+  dragging: boolean;
   events: FeedEvent[];
   index: number;
+  movementDisabled: boolean;
   omissions: string[];
-  onMove: (index: number, offset: -1 | 1) => void;
+  onDragEnd: () => void;
+  onDragStart: () => void;
+  onDrop: (sourceId: string, targetId: string) => void;
+  onMove: (streamId: string, offset: -1 | 1) => void;
   onRename: (index: number, name: string) => void;
   onTune: (index: number) => void;
   portfolio: WorkloadList;
   queue: InspectionRow[];
-  sources: FeedSources;
-  stream: FeedStreamSpec;
+  sources: Pick<FeedSources, "cadence" | "journal">;
+  stream: ResolvedFeedStream;
   streamCount: number;
 }) {
   const filteredEvents = filterEvents(events, stream.filter);
   const filteredQueue = filterQueue(queue, stream.filter);
   const filteredWorkloads = filterWorkloads(portfolio, stream.filter);
-  const id = `feed-stream-${index + 1}`;
+  const id = `feed-stream-${stream.id}`;
   return (
     <section
       className={sx(styles.lane)}
       aria-labelledby={id}
       data-feed-filter={stream.filter}
+      data-feed-stream-id={stream.id}
       data-feed-stream={stream.kind}
+      data-feed-stream-revision={stream.revision ?? "detached"}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        const sourceId = event.dataTransfer.getData("text/plain");
+        if (sourceId) onDrop(sourceId, stream.id);
+      }}
     >
       <LaneHeader
+        dragging={dragging}
         id={id}
         index={String(index + 1).padStart(2, "0")}
-        onMoveLeft={index > 0 ? () => onMove(index, -1) : null}
-        onMoveRight={index < streamCount - 1 ? () => onMove(index, 1) : null}
+        movementDisabled={movementDisabled}
+        onDragEnd={onDragEnd}
+        onDragStart={onDragStart}
+        onMoveLeft={index > 0 ? () => onMove(stream.id, -1) : null}
+        onMoveRight={
+          index < streamCount - 1 ? () => onMove(stream.id, 1) : null
+        }
         onRename={(name) => onRename(index, name)}
         onTune={() => onTune(index)}
+        streamId={stream.id}
         title={streamTitle(stream)}
       />
       <div className={sx(styles.laneScroll)} role="feed">
@@ -796,8 +1383,9 @@ function FirehoseConfigurator({
           <span className={sx(chrome.micro)}>STREAM COORDINATE</span>
           <code>{serializeFeedStreams([draft])}</code>
           <p>
-            Saved in the Feed URL. Source records stay owned by their existing
-            runtime contracts.
+            Applying creates a detached Feed URL preview. Adopt that preview
+            explicitly to replace Channel WORKING; source records stay owned by
+            their existing runtime contracts.
           </p>
         </div>
       </div>
@@ -1027,34 +1615,79 @@ function QuietPost({ detail, title }: { detail: string; title: string }) {
 }
 
 function LaneHeader({
+  dragging,
   id,
   index,
+  movementDisabled,
+  onDragEnd,
+  onDragStart,
   onMoveLeft,
   onMoveRight,
   onRename,
   onTune,
+  streamId,
   title,
 }: {
+  dragging: boolean;
   id: string;
   index: string;
+  movementDisabled: boolean;
+  onDragEnd: () => void;
+  onDragStart: () => void;
   onMoveLeft: (() => void) | null;
   onMoveRight: (() => void) | null;
   onRename: (name: string) => void;
   onTune: () => void;
+  streamId: string;
   title: string;
 }) {
+  const moveWithKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if (
+      !event.altKey ||
+      movementDisabled ||
+      event.target !== event.currentTarget
+    )
+      return;
+    if (event.key === "ArrowLeft" && onMoveLeft) {
+      event.preventDefault();
+      onMoveLeft();
+    }
+    if (event.key === "ArrowRight" && onMoveRight) {
+      event.preventDefault();
+      onMoveRight();
+    }
+  };
   return (
-    <header className={sx(styles.laneHeader)}>
+    <header
+      aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+      className={sx(styles.laneHeader, dragging && styles.laneHeaderDragging)}
+      data-feed-drag-identity={streamId}
+      draggable={!movementDisabled}
+      onDragEnd={onDragEnd}
+      onDragStart={(event: DragEvent<HTMLElement>) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", streamId);
+        onDragStart();
+      }}
+      onKeyDown={moveWithKeyboard}
+      tabIndex={0}
+    >
       <div className={sx(styles.laneIdentity)}>
-        <span className={sx(styles.laneIndex)}>{index}</span>
+        <span
+          className={sx(styles.laneIndex)}
+          title={`Stable stream ${streamId}`}
+        >
+          {index}
+        </span>
         <EditableStreamTitle id={id} onCommit={onRename} title={title} />
       </div>
       <div className={sx(styles.laneMeta)}>
         <div className={sx(styles.laneActions)}>
           <button
             aria-label={`Move ${title} left`}
+            aria-keyshortcuts="Alt+ArrowLeft"
             className={sx(styles.iconButton)}
-            disabled={onMoveLeft === null}
+            disabled={movementDisabled || onMoveLeft === null}
             onClick={onMoveLeft ?? undefined}
             type="button"
           >
@@ -1062,8 +1695,9 @@ function LaneHeader({
           </button>
           <button
             aria-label={`Move ${title} right`}
+            aria-keyshortcuts="Alt+ArrowRight"
             className={sx(styles.iconButton)}
-            disabled={onMoveRight === null}
+            disabled={movementDisabled || onMoveRight === null}
             onClick={onMoveRight ?? undefined}
             type="button"
           >

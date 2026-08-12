@@ -15,15 +15,17 @@ authority.
 
 The Channel CLI implements a complete topology `HEAD → INDEX → WORKING` loop,
 immutable file-backed messages, explicit direct relay through an admitted
-environment application, and bounded one-shot polling beacons. Feed is a
-read-only URL-composed projection. Journal v2 retains immutable broadsheet
-documents and superseding revisions. `/channels` now projects the exact bounded
-Channel status and conditionally replaces WORKING through the shared validator
-and store; it exposes exact listener/authentication authority and grants no
-INDEX, HEAD, relay, or execution authority. Feed does not yet resolve or adopt
-that topology. No standalone observation/frontier contract exists, Journal
-action cells are inert, exact scenario/delta routes are absent, and the footer
-conversation composer correctly remains disabled.
+environment application, and bounded one-shot polling beacons. `/channels`
+projects the exact bounded status and conditionally replaces WORKING through
+the shared validator and store. Feed resolves URL preview, WORKING, HEAD, and
+built-in layouts in order; URL edits remain detached until explicit adoption,
+while stable pointer or keyboard movement conditionally writes WORKING, reports
+the semantic delta, and rolls back on rejection. Neither browser path grants
+INDEX, HEAD, relay, or execution authority. Journal v2 retains immutable
+broadsheet documents and superseding revisions. No standalone
+observation/frontier contract exists, Journal action cells are inert, exact
+scenario/delta routes are absent, and the footer conversation composer
+correctly remains disabled.
 
 ## Completion Checklist
 
@@ -32,9 +34,9 @@ conversation composer correctly remains disabled.
 - [x] Add bounded UI reads and explicit WORKING writes over the same Channel
   validator/store, with exact listener exposure and unauthenticated-write
   warnings.
-- [ ] Resolve Feed layouts in `URL preview → WORKING → HEAD → built-in`
+- [x] Resolve Feed layouts in `URL preview → WORKING → HEAD → built-in`
   order; keep URL layouts detached until deliberately adopted.
-- [ ] Support pointer drag and keyboard movement over stable stream identities,
+- [x] Support pointer drag and keyboard movement over stable stream identities,
   report the resulting semantic delta, and roll back failed writes.
 
 ### 2. Admit one collaboration observation

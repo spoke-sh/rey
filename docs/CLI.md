@@ -420,6 +420,11 @@ it when required. `/channels` reads the same exact Channel status as the CLI.
 Its editor requires the displayed HEAD and WORKING snapshot identities, passes
 the complete graph through the existing validator/store, and writes WORKING
 only. It cannot stage, commit, relay, or execute anything.
+`/feed` uses that Channel projection in `URL preview → WORKING → HEAD → built-in`
+order. URL tuning stays detached until the operator adopts it; stable drag,
+move-button, and `Alt+Arrow` layout movement conditionally replaces WORKING,
+shows the returned semantic delta, and restores the prior layout after a stale
+or rejected write. These controls grant no additional Channel authority.
 
 Browser workload approval is a combined human action over visible file state:
 it checks expected HEAD and WORKING identities, freezes the reviewed files in

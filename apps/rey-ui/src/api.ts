@@ -33,6 +33,7 @@ export type OperatorContext = WorkloadList & {
 
 export interface FeedSources {
   cadence: CadenceProjection;
+  channels: ChannelProjection;
   journal: JournalProjection;
 }
 
@@ -116,8 +117,12 @@ export async function loadCadence(): Promise<CadenceProjection> {
 }
 
 export async function loadFeed(): Promise<FeedSources> {
-  const [cadence, journal] = await Promise.all([loadCadence(), loadJournal()]);
-  return { cadence, journal };
+  const [cadence, channels, journal] = await Promise.all([
+    loadCadence(),
+    loadChannels(),
+    loadJournal(),
+  ]);
+  return { cadence, channels, journal };
 }
 
 export async function loadJournal(): Promise<JournalProjection> {

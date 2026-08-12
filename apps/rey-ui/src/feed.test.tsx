@@ -2,8 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { CadenceProjection } from "./cadence";
+import type { ChannelGraphSnapshot, ChannelProjection } from "./channels";
 import type { WorkloadList } from "./domain";
 import {
+  channelWorkingWriteForFeedLayout,
   DEFAULT_FEED_STREAMS,
   FEED_EVENT_LIMIT,
   FEED_STREAM_LIMIT,
@@ -11,6 +13,9 @@ import {
   deriveFeedEvents,
   deriveInspectionQueue,
   parseFeedStreams,
+  persistFeedLayoutMovement,
+  reorderFeedStreams,
+  resolveFeedLayout,
   serializeFeedStreams,
 } from "./feed";
 import type { JournalProjection } from "./journal";
@@ -122,6 +127,97 @@ describe("high-cadence operator feed", () => {
     );
   });
 
+  it("resolves URL preview, WORKING, HEAD, and built-in layouts in order", () => {
+    const builtIn = channelProjection();
+    expect(resolveFeedLayout(null, builtIn)).toMatchObject({
+      source: "built_in",
+      detached: false,
+      streams: [
+        { id: "signals", kind: "signals", filter: "all" },
+        { id: "admission", kind: "admission", filter: "all" },
+        { id: "flow", kind: "flow", filter: "all" },
+      ],
+    });
+
+    const admitted = channelProjection();
+    admitted.status.head_commit = { sequence: 1, commit_id: "blake3:commit" };
+    expect(resolveFeedLayout(null, admitted).source).toBe("channel_head");
+
+    const working = channelProjection();
+    working.status.working_present = true;
+    working.status.working = channelSnapshot("working", [
+      "flow",
+      "signals",
+      "admission",
+    ]);
+    expect(resolveFeedLayout(null, working)).toMatchObject({
+      source: "channel_working",
+      streams: [{ id: "flow" }, { id: "signals" }, { id: "admission" }],
+    });
+
+    expect(
+      resolveFeedLayout(
+        "review=signals.journal~Review,flow=flow.failing",
+        working,
+      ),
+    ).toMatchObject({
+      source: "url_preview",
+      detached: true,
+      streams: [
+        { id: "review", kind: "signals", filter: "journal" },
+        { id: "flow", kind: "flow", filter: "failing" },
+      ],
+    });
+  });
+
+  it("writes stable identity movement as one revisioned Channel semantic delta", () => {
+    const projection = channelProjection();
+    const resolved = resolveFeedLayout(null, projection);
+    const moved = reorderFeedStreams(resolved.streams, "flow", "signals");
+    const write = channelWorkingWriteForFeedLayout(projection, moved);
+
+    expect(moved.map((stream) => stream.id)).toEqual([
+      "flow",
+      "signals",
+      "admission",
+    ]);
+    expect(write.expected_head_snapshot_id).toBe("blake3:snapshot-built-in");
+    expect(write.expected_working_snapshot_id).toBe("blake3:snapshot-built-in");
+    expect(write.graph.layout).toEqual({
+      id: "feed",
+      revision: 2,
+      stream_ids: ["flow", "signals", "admission"],
+    });
+    expect(
+      write.graph.streams.map((stream) => [stream.id, stream.revision]),
+    ).toEqual([
+      ["admission", 1],
+      ["flow", 1],
+      ["signals", 1],
+    ]);
+  });
+
+  it("rolls a rejected movement back to the last exact layout", async () => {
+    const projection = channelProjection();
+    const previous = resolveFeedLayout(null, projection).streams;
+    const next = reorderFeedStreams(previous, "flow", "signals");
+    const outcome = await persistFeedLayoutMovement(
+      previous,
+      next,
+      async () => {
+        throw new Error("WORKING snapshot changed");
+      },
+    );
+
+    expect(outcome.streams.map((stream) => stream.id)).toEqual([
+      "signals",
+      "admission",
+      "flow",
+    ]);
+    expect(outcome.result).toBeNull();
+    expect(outcome.error?.message).toBe("WORKING snapshot changed");
+  });
+
   it("renders three calm, tunable streams with exact evidence links", () => {
     const portfolio = emptyPortfolio();
     const ignoreRule = {
@@ -186,6 +282,9 @@ describe("high-cadence operator feed", () => {
     );
 
     expect(markup).toContain('data-feed-stream="signals"');
+    expect(markup).toContain('data-feed-stream-id="signals"');
+    expect(markup).toContain("DETACHED PREVIEW · NOT RETAINED");
+    expect(markup).toContain("Alt+ArrowLeft Alt+ArrowRight");
     expect(markup).toContain('data-feed-stream="admission"');
     expect(markup).toContain('data-feed-stream="flow"');
     expect(markup.indexOf('data-feed-stream="signals"')).toBeLessThan(
@@ -236,6 +335,130 @@ function equalChangeSet(
     deleted: 0,
     modified: 0,
     changes: [],
+  };
+}
+
+function channelSnapshot(
+  label: string,
+  streamIds: string[] = ["signals", "admission", "flow"],
+): ChannelGraphSnapshot {
+  return {
+    schema: "rey.channel-graph-snapshot.v1",
+    snapshot_id: `blake3:snapshot-${label}`,
+    graph_id: `blake3:graph-${label}`,
+    source: {
+      kind: label === "built-in" ? "built_in" : "worktree",
+      locator:
+        label === "built-in"
+          ? "builtin://rey/channel-graph/default"
+          : "ui:///channels/working",
+      content_digest: `blake3:content-${label}`,
+    },
+    limits: {
+      max_channels: 32,
+      max_subscriptions: 32,
+      max_streams: 8,
+      max_relays: 32,
+      max_applications: 16,
+      max_polling_beacons: 16,
+      max_subscription_records: 256,
+      max_relay_hops: 16,
+    },
+    graph: {
+      schema: "rey.channel-graph.v1",
+      channels: [
+        {
+          id: "workspace",
+          revision: 1,
+          name: "Workspace",
+          scope: "workspace_local",
+          accepted_observation_kinds: ["finding", "question"],
+          broadcast_default: true,
+        },
+      ],
+      subscriptions: [
+        {
+          id: "workspace",
+          revision: 1,
+          channel_ids: ["workspace"],
+          observation_kinds: ["finding", "question"],
+          filters: {},
+          limit: 64,
+        },
+      ],
+      streams: [
+        {
+          id: "admission",
+          revision: 1,
+          name: "Admission",
+          subscription_id: "workspace",
+          lens: "admission",
+        },
+        {
+          id: "flow",
+          revision: 1,
+          name: "Flow",
+          subscription_id: "workspace",
+          lens: "flow",
+        },
+        {
+          id: "signals",
+          revision: 1,
+          name: "Signals",
+          subscription_id: "workspace",
+          lens: "signals",
+        },
+      ],
+      layout: { id: "feed", revision: 1, stream_ids: streamIds },
+      applications: [],
+      relays: [],
+      beacons: [],
+    },
+  };
+}
+
+function channelProjection(): ChannelProjection {
+  const snapshot = channelSnapshot("built-in");
+  const delta = (source: string, target: string) => ({
+    schema: "rey.channel-graph-delta.v1" as const,
+    delta_id: `blake3:${source}-${target}`,
+    source_label: source,
+    target_label: target,
+    source_graph_id: snapshot.graph_id,
+    target_graph_id: snapshot.graph_id,
+    assessment: "equal" as const,
+    summary: {
+      added: 0,
+      removed: 0,
+      modified: 0,
+      renamed: 0,
+      retargeted: 0,
+      moved: 0,
+      total: 0,
+    },
+    changes: [],
+  });
+  return {
+    schema: "rey.ui-channels.v1",
+    write_enabled: true,
+    authority: "unauthenticated_channel_working_write",
+    listener: {
+      address: "127.0.0.1:5714",
+      loopback_only: true,
+      authentication: "none",
+      warning: "local clients may replace WORKING",
+    },
+    status: {
+      schema: "rey.channel-status.v1",
+      state: "clean",
+      working_present: false,
+      head_commit: null,
+      head: snapshot,
+      index: null,
+      working: snapshot,
+      staged: delta("BUILT-IN", "INDEX"),
+      unstaged: delta("INDEX", "WORKING"),
+    },
   };
 }
 
