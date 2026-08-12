@@ -42,11 +42,15 @@ survey source edges; no road, route, or traversability is claimed.
 
 ## Retention transcript
 
-The checked-in project and native files are the authored WORKING scene. They
-include generated terrain-control lineage plus exact agent fine-tuning and
-additional declared feature families; the generator recipe is not presented as
-reproducing those subsequent edits. From an empty local editor state, the
-current public surface retains those exact checked-in bytes with:
+The checked-in native files are the authored source fixture. They include
+generated terrain-control lineage plus exact agent fine-tuning and additional
+feature families; the generator recipe is not presented as reproducing those
+subsequent edits. The project declaration and `SCENE@1` history that originally
+grouped these files are local Rey state and are not checked into the workspace.
+These sources therefore do not become an ambient default scene when
+`rey editor status` runs.
+
+The historical retention loop was:
 
 ```text
 rey editor status
@@ -58,10 +62,11 @@ rey editor log -p
 ```
 
 For a new scene, `rey editor generate terrain ... --scene-id <scene>` creates
-the project and first native source. The agent then fine-tunes generated files
-and the workspace-contained project in WORKING before using the same retention
-loop. There is no separate initialization, import, or validation command;
-commit validates the frozen INDEX and refuses to advance on failure.
+`.rey/editor/project.json` and the first workspace-native source. The agent then
+fine-tunes generated files in WORKING before using the same retention loop.
+There is no separate initialization, import, or validation command; registering
+an existing multi-source fixture remains future editor work. Commit validates
+the frozen INDEX and refuses to advance on failure.
 
 Packaging freezes a candidate only. `/explore` cannot consume this package
 until a separate qualified scene-admission workload is implemented.

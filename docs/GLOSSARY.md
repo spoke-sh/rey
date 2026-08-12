@@ -576,18 +576,20 @@ semantic identity because changing them can change completeness or results.
 
 ### Editor project
 
-A workspace-authored `rey.editor-project.v1` declaration of bounded native
+A Rey-owned `rey.editor-project.v1` declaration of bounded workspace-native
 scene sources, explicit feature roles, and one coordinate-system contract. It
-is mutable WORKING source, not admitted evidence; `.rey/editor` is only its
-candidate/index cache.
+lives at `.rey/editor/project.json` by default and is mutable WORKING state,
+not admitted evidence. The declared native artifacts remain workspace files
+and are not replaced by the local state projection.
 
 ### Editor planes
 
 `HEAD`, `INDEX`, and `WORKING` are the latest immutable `SCENE@n` commit, the
 exact staged candidate snapshot plus frozen native objects, and fresh
-observation of an editor project. Scene HEAD is retained authoring history, but
-its package is not admitted evidence. `commit` packages only INDEX and creates
-an unadmitted workload request.
+observation of an initialized editor project. Before initialization, WORKING is
+absent and read-only status remains clean. Scene HEAD is retained authoring
+history, but its package is not admitted evidence. `commit` packages only INDEX
+and creates an unadmitted workload request.
 
 ### Environment
 

@@ -19,7 +19,7 @@ pub const SCENE_CANDIDATE_SNAPSHOT_SCHEMA: &str = "rey.scene-candidate-snapshot.
 pub const SCENE_CHANGE_SET_SCHEMA: &str = "rey.scene-change-set.v1";
 pub const SCENE_PACKAGE_SCHEMA: &str = "rey.scene-package.v1";
 pub const SCENE_ADMISSION_REQUEST_SCHEMA: &str = "rey.scene-admission-request.v1";
-pub const EDITOR_STATUS_SCHEMA: &str = "rey.editor-status.v1";
+pub const EDITOR_STATUS_SCHEMA: &str = "rey.editor-status.v2";
 pub const EDITOR_STATE_SCHEMA: &str = "rey.editor-state.v1";
 pub const EDITOR_ADD_RESULT_SCHEMA: &str = "rey.editor-add-result.v1";
 pub const SCENE_COMMIT_SCHEMA: &str = "rey.scene-commit.v1";
@@ -28,6 +28,7 @@ pub const EDITOR_LOG_SCHEMA: &str = "rey.editor-log.v1";
 pub const SCENE_GENERATION_SCHEMA: &str = "rey.scene-generation.v1";
 pub const EDITOR_GENERATE_RESULT_SCHEMA: &str = "rey.editor-generate-result.v1";
 
+const PROJECT_FILE_NAME: &str = "project.json";
 const STATE_FILE_NAME: &str = "state.json";
 const LOCK_FILE_NAME: &str = "editor.lock";
 const MAX_PROJECT_BYTES: u64 = 1_048_576;
@@ -605,10 +606,11 @@ impl SceneCommit {
 #[serde(deny_unknown_fields)]
 pub struct EditorStatus {
     pub schema: String,
+    pub initialized: bool,
     pub state: EditorWorkingState,
     pub head: Option<SceneCommit>,
     pub index: Option<SceneCandidateSnapshot>,
-    pub working: SceneCandidateSnapshot,
+    pub working: Option<SceneCandidateSnapshot>,
     pub staged: SceneChangeSet,
     pub unstaged: SceneChangeSet,
     pub admission_boundary: String,
@@ -780,13 +782,10 @@ impl LocalEditorStore {
         Self::new(workspace.to_owned(), workspace.join(".rey").join("editor"))
     }
 
-    fn init_project(
-        &self,
-        project_path: &Path,
-        project_id: String,
-    ) -> Result<EditorProject, EditorError> {
+    fn init_project(&self, project_id: String) -> Result<EditorProject, EditorError> {
         let project = EditorProject::new(project_id)?.canonicalize()?;
-        let path = self.resolve_new_project_path(project_path)?;
+        self.prepare_directory()?;
+        let path = self.directory.join(PROJECT_FILE_NAME);
         let bytes = serde_json::to_vec_pretty(&project)?;
         let mut file = OpenOptions::new()
             .write(true)
@@ -806,7 +805,6 @@ impl LocalEditorStore {
     #[allow(clippy::too_many_arguments)]
     pub fn generate_terrain(
         &self,
-        project_path: &Path,
         output_path: &Path,
         scene_id: Option<String>,
         source_id: String,
@@ -820,7 +818,6 @@ impl LocalEditorStore {
         }
         validate_generation_bounds(&bounds)?;
         validate_generation_parameters(&parameters)?;
-        validate_path_argument(project_path)?;
         validate_path_argument(output_path)?;
         if output_path
             .extension()
@@ -832,24 +829,14 @@ impl LocalEditorStore {
             ));
         }
 
-        let project_argument = self.workspace.join(project_path);
-        let project_created = match fs::symlink_metadata(&project_argument) {
-            Ok(_) => false,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                self.init_project(
-                    project_path,
-                    scene_id.clone().unwrap_or_else(|| source_id.clone()),
-                )?;
-                true
-            }
-            Err(source) => {
-                return Err(EditorError::Read {
-                    path: project_argument,
-                    source,
-                });
+        let (project_file, mut project, project_created) = match self.load_optional_project()? {
+            Some((path, project)) => (path, project, false),
+            None => {
+                let project =
+                    self.init_project(scene_id.clone().unwrap_or_else(|| source_id.clone()))?;
+                (self.directory.join(PROJECT_FILE_NAME), project, true)
             }
         };
-        let (project_file, mut project) = self.load_project(project_path)?;
         if scene_id
             .as_ref()
             .is_some_and(|scene_id| scene_id != &project.project_id)
@@ -859,7 +846,7 @@ impl LocalEditorStore {
                 actual: scene_id.expect("scene id was present"),
             });
         }
-        let output_file = self.resolve_new_project_path(output_path)?;
+        let output_file = self.resolve_new_workspace_path(output_path)?;
         let output = path_string(output_path)?;
         let source = SceneSourceDeclaration {
             source_id: source_id.clone(),
@@ -926,7 +913,7 @@ impl LocalEditorStore {
             schema: EDITOR_GENERATE_RESULT_SCHEMA.to_owned(),
             changed: source_changed || project_changed,
             project_created,
-            project_path: path_string(project_path)?,
+            project_path: self.project_storage_path()?,
             output_path: output,
             source,
             recipe,
@@ -935,10 +922,20 @@ impl LocalEditorStore {
         })
     }
 
-    pub fn status(&self, project_path: &Path) -> Result<EditorStatus, EditorError> {
-        let working = self.observe(project_path)?.snapshot;
+    pub fn status(&self) -> Result<EditorStatus, EditorError> {
         let state = self.load_state()?;
         let head = state.commits.last().cloned();
+        let initialized = self.project_exists()?;
+        if !initialized && (head.is_some() || state.index.is_some()) {
+            return Err(EditorError::MissingProject(
+                self.directory.join(PROJECT_FILE_NAME),
+            ));
+        }
+        let working = if initialized {
+            Some(self.observe()?.snapshot)
+        } else {
+            None
+        };
         let package = self.load_commit_package(head.as_ref())?;
         let head_snapshot = package.as_ref().map(|package| &package.snapshot);
         let staged = SceneChangeSet::derive(
@@ -951,7 +948,7 @@ impl LocalEditorStore {
             "INDEX",
             state.index.as_ref().or(head_snapshot),
             "WORKING",
-            Some(&working),
+            working.as_ref(),
         );
         let state_kind = match (
             staged.assessment == DeltaAssessment::Different,
@@ -964,6 +961,7 @@ impl LocalEditorStore {
         };
         Ok(EditorStatus {
             schema: EDITOR_STATUS_SCHEMA.to_owned(),
+            initialized,
             state: state_kind,
             head,
             index: state.index,
@@ -974,8 +972,8 @@ impl LocalEditorStore {
         })
     }
 
-    pub fn diff(&self, project_path: &Path, staged: bool) -> Result<SceneChangeSet, EditorError> {
-        let status = self.status(project_path)?;
+    pub fn diff(&self, staged: bool) -> Result<SceneChangeSet, EditorError> {
+        let status = self.status()?;
         Ok(if staged {
             status.staged
         } else {
@@ -983,9 +981,9 @@ impl LocalEditorStore {
         })
     }
 
-    pub fn add(&self, project_path: &Path) -> Result<EditorAddResult, EditorError> {
+    pub fn add(&self) -> Result<EditorAddResult, EditorError> {
         self.with_lock(|| {
-            let observed = self.observe(project_path)?;
+            let observed = self.observe()?;
             let mut state = self.load_state()?;
             let package = self.load_commit_package(state.commits.last())?;
             let head_snapshot = package.as_ref().map(|package| &package.snapshot);
@@ -1108,8 +1106,8 @@ impl LocalEditorStore {
         })
     }
 
-    fn observe(&self, project_path: &Path) -> Result<ObservedScene, EditorError> {
-        let (_, project) = self.load_project(project_path)?;
+    fn observe(&self) -> Result<ObservedScene, EditorError> {
+        let (_, project) = self.load_project()?;
         let mut artifacts = BTreeMap::new();
         let mut sources = Vec::with_capacity(project.sources.len());
         let mut features = Vec::new();
@@ -1204,27 +1202,59 @@ impl LocalEditorStore {
         })
     }
 
-    fn load_project(&self, project_path: &Path) -> Result<(PathBuf, EditorProject), EditorError> {
-        let relative = workspace_relative(&self.workspace, project_path, MAX_PROJECT_BYTES)?;
-        let path = self.workspace.join(relative);
+    fn load_project(&self) -> Result<(PathBuf, EditorProject), EditorError> {
+        self.load_optional_project()?.ok_or_else(|| {
+            EditorError::UninitializedProject(self.directory.join(PROJECT_FILE_NAME))
+        })
+    }
+
+    fn load_optional_project(&self) -> Result<Option<(PathBuf, EditorProject)>, EditorError> {
+        self.verify_directory_boundary()?;
+        let path = self.directory.join(PROJECT_FILE_NAME);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(EditorError::Read { path, source }),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(EditorError::UnsafePath(path));
+        }
+        if metadata.len() > MAX_PROJECT_BYTES {
+            return Err(EditorError::InputLimit {
+                path,
+                limit: MAX_PROJECT_BYTES,
+            });
+        }
         let bytes = read_bounded_file(&path, MAX_PROJECT_BYTES, "editor project")?;
         let project: EditorProject = serde_json::from_slice(&bytes)?;
         let project = project.canonicalize()?;
-        Ok((path, project))
+        Ok(Some((path, project)))
     }
 
-    fn resolve_new_project_path(&self, project_path: &Path) -> Result<PathBuf, EditorError> {
-        validate_path_argument(project_path)?;
-        let path = self.workspace.join(project_path);
+    fn project_exists(&self) -> Result<bool, EditorError> {
+        Ok(self.load_optional_project()?.is_some())
+    }
+
+    fn project_storage_path(&self) -> Result<String, EditorError> {
+        let path = self.directory.join(PROJECT_FILE_NAME);
+        match path.strip_prefix(&self.workspace) {
+            Ok(relative) => path_string(relative),
+            Err(_) => path_string(&path),
+        }
+    }
+
+    fn resolve_new_workspace_path(&self, workspace_path: &Path) -> Result<PathBuf, EditorError> {
+        validate_path_argument(workspace_path)?;
+        let path = self.workspace.join(workspace_path);
         let parent = path
             .parent()
-            .ok_or_else(|| EditorError::Path(project_path.to_owned()))?;
+            .ok_or_else(|| EditorError::Path(workspace_path.to_owned()))?;
         let canonical_parent = parent.canonicalize().map_err(|source| EditorError::Read {
             path: parent.to_owned(),
             source,
         })?;
         if !canonical_parent.starts_with(&self.workspace) {
-            return Err(EditorError::PathEscape(project_path.to_owned()));
+            return Err(EditorError::PathEscape(workspace_path.to_owned()));
         }
         Ok(path)
     }
@@ -2574,6 +2604,10 @@ pub enum EditorError {
         path: PathBuf,
         source: std::io::Error,
     },
+    #[error("editor project is not initialized in {0}; run `rey editor generate terrain --help`")]
+    UninitializedProject(PathBuf),
+    #[error("editor project state is missing from {0} while retained INDEX or HEAD exists")]
+    MissingProject(PathBuf),
     #[error("editor state lock {path} failed: {source}")]
     Lock {
         path: PathBuf,
@@ -2723,7 +2757,7 @@ pub enum EditorError {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
+    use std::fs;
 
     use rey_diff::DeltaAssessment;
     use tempfile::TempDir;
@@ -2732,12 +2766,11 @@ mod tests {
 
     fn declare_geojson_source(
         store: &LocalEditorStore,
-        project_path: &Path,
         source_path: &str,
         source_id: &str,
         role: SceneSourceRole,
     ) {
-        let (project_file, mut project) = store.load_project(project_path).unwrap();
+        let (project_file, mut project) = store.load_project().unwrap();
         project.sources = vec![SceneSourceDeclaration {
             source_id: source_id.to_owned(),
             path: source_path.to_owned(),
@@ -2752,9 +2785,7 @@ mod tests {
     fn stages_exact_native_geojson_and_commits_only_the_index() {
         let workspace = TempDir::new().unwrap();
         let store = LocalEditorStore::default_for_workspace(workspace.path());
-        store
-            .init_project(Path::new("scene.json"), "atlas".to_owned())
-            .unwrap();
+        store.init_project("atlas".to_owned()).unwrap();
         fs::write(
             workspace.path().join("markers.geojson"),
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ridge","geometry":{"type":"Point","coordinates":[-122.4,37.8]},"properties":{"title":"Ridge","category":"survey","min_zoom":3,"collision_priority":10}}]}"#,
@@ -2762,16 +2793,15 @@ mod tests {
         .unwrap();
         declare_geojson_source(
             &store,
-            Path::new("scene.json"),
             "markers.geojson",
             "survey-poi",
             SceneSourceRole::Markers,
         );
 
-        let working = store.status(Path::new("scene.json")).unwrap();
-        assert_eq!(working.working.coverage.markers, 1);
+        let working = store.status().unwrap();
+        assert_eq!(working.working.unwrap().coverage.markers, 1);
         assert_eq!(working.unstaged.inserted, 2);
-        let added = store.add(Path::new("scene.json")).unwrap();
+        let added = store.add().unwrap();
         assert!(added.staged);
         let committed = store.commit("initial terrain".to_owned()).unwrap();
         assert_eq!(committed.commit.sequence, 1);
@@ -2785,10 +2815,10 @@ mod tests {
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ridge","geometry":{"type":"Point","coordinates":[-122.5,37.8]},"properties":{"title":"Ridge"}}]}"#,
         )
         .unwrap();
-        let second = store.status(Path::new("scene.json")).unwrap();
+        let second = store.status().unwrap();
         assert_eq!(second.staged.assessment, DeltaAssessment::Equal);
         assert_eq!(second.unstaged.modified, 2);
-        store.add(Path::new("scene.json")).unwrap();
+        store.add().unwrap();
         let second_commit = store.commit("move ridge".to_owned()).unwrap();
         assert_ne!(
             second_commit.package.package_id,
@@ -2811,9 +2841,7 @@ mod tests {
     fn commit_validates_frozen_index_before_advancing_head() {
         let workspace = TempDir::new().unwrap();
         let store = LocalEditorStore::default_for_workspace(workspace.path());
-        store
-            .init_project(Path::new("scene.json"), "atlas".to_owned())
-            .unwrap();
+        store.init_project("atlas".to_owned()).unwrap();
         fs::write(
             workspace.path().join("terrain.geojson"),
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ridge","geometry":{"type":"Point","coordinates":[-122.4,37.8]},"properties":{}}]}"#,
@@ -2821,12 +2849,11 @@ mod tests {
         .unwrap();
         declare_geojson_source(
             &store,
-            Path::new("scene.json"),
             "terrain.geojson",
             "terrain",
             SceneSourceRole::TerrainControl,
         );
-        let added = store.add(Path::new("scene.json")).unwrap();
+        let added = store.add().unwrap();
         let object_path = workspace
             .path()
             .join(".rey/editor")
@@ -2846,9 +2873,7 @@ mod tests {
     fn rejects_geojson_without_stable_feature_identity() {
         let workspace = TempDir::new().unwrap();
         let store = LocalEditorStore::default_for_workspace(workspace.path());
-        store
-            .init_project(Path::new("scene.json"), "atlas".to_owned())
-            .unwrap();
+        store.init_project("atlas".to_owned()).unwrap();
         fs::write(
             workspace.path().join("features.geojson"),
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}]}"#,
@@ -2856,13 +2881,65 @@ mod tests {
         .unwrap();
         declare_geojson_source(
             &store,
-            Path::new("scene.json"),
             "features.geojson",
             "features",
             SceneSourceRole::Features,
         );
-        let error = store.status(Path::new("scene.json")).unwrap_err();
+        let error = store.status().unwrap_err();
         assert!(error.to_string().contains("stable string or number ids"));
+    }
+
+    #[test]
+    fn missing_project_with_a_retained_index_fails_closed() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store.init_project("atlas".to_owned()).unwrap();
+        fs::write(
+            workspace.path().join("features.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"poi","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            "features.geojson",
+            "features",
+            SceneSourceRole::Features,
+        );
+        store.add().unwrap();
+        fs::remove_file(workspace.path().join(".rey/editor/project.json")).unwrap();
+
+        let error = store.status().unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("while retained INDEX or HEAD exists")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlinked_internal_project() {
+        use std::os::unix::fs::symlink;
+
+        let workspace = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let editor = workspace.path().join(".rey/editor");
+        fs::create_dir_all(&editor).unwrap();
+        fs::write(
+            outside.path().join("project.json"),
+            serde_json::to_vec_pretty(&super::EditorProject::new("atlas".to_owned()).unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+        symlink(
+            outside.path().join("project.json"),
+            editor.join("project.json"),
+        )
+        .unwrap();
+
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        let error = store.status().unwrap_err();
+        assert!(error.to_string().contains("non-symlinked"));
     }
 
     #[cfg(unix)]
@@ -2873,9 +2950,7 @@ mod tests {
         let workspace = TempDir::new().unwrap();
         let outside = TempDir::new().unwrap();
         let store = LocalEditorStore::default_for_workspace(workspace.path());
-        store
-            .init_project(Path::new("scene.json"), "atlas".to_owned())
-            .unwrap();
+        store.init_project("atlas".to_owned()).unwrap();
         fs::write(
             outside.path().join("features.geojson"),
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"poi","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}]}"#,
@@ -2888,12 +2963,11 @@ mod tests {
         .unwrap();
         declare_geojson_source(
             &store,
-            Path::new("scene.json"),
             "linked.geojson",
             "features",
             SceneSourceRole::Features,
         );
-        let source_error = store.status(Path::new("scene.json")).unwrap_err();
+        let source_error = store.status().unwrap_err();
         assert!(source_error.to_string().contains("non-symlinked"));
 
         fs::write(
@@ -2903,12 +2977,11 @@ mod tests {
         .unwrap();
         declare_geojson_source(
             &store,
-            Path::new("scene.json"),
             "features.geojson",
             "features",
             SceneSourceRole::Features,
         );
-        store.add(Path::new("scene.json")).unwrap();
+        store.add().unwrap();
         fs::remove_dir(workspace.path().join(".rey/editor/packages")).unwrap();
         symlink(
             outside.path(),

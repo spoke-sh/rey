@@ -103,17 +103,13 @@ enum Command {
 
 #[derive(Debug, Args)]
 struct EditorArgs {
-    /// Workspace containing the project and its agent-authored native sources.
+    /// Workspace containing the agent-authored native sources.
     #[arg(long, global = true, default_value = ".")]
     workspace: PathBuf,
 
     /// Explicit local editor-state directory; relative paths resolve below the workspace.
     #[arg(long, global = true)]
     state_dir: Option<PathBuf>,
-
-    /// Workspace-relative rey.editor-project.v1 JSON document.
-    #[arg(long, global = true, default_value = "rey.scene.json")]
-    project: PathBuf,
 
     #[command(subcommand)]
     command: EditorCommand,
@@ -791,21 +787,17 @@ fn editor_command(args: EditorArgs) -> Result<ExitCode, CliError> {
         None => LocalEditorStore::default_for_workspace(&workspace),
     };
     match args.command {
-        EditorCommand::Generate(command) => editor_generate(&store, &args.project, command),
-        EditorCommand::Status(command) => editor_status(&store, &args.project, command),
-        EditorCommand::Add(command) => editor_add(&store, &args.project, command),
+        EditorCommand::Generate(command) => editor_generate(&store, command),
+        EditorCommand::Status(command) => editor_status(&store, command),
+        EditorCommand::Add(command) => editor_add(&store, command),
         EditorCommand::Commit(command) => editor_commit(&store, command),
         EditorCommand::Log(command) => editor_log(&store, command),
-        EditorCommand::Diff(command) => editor_diff(&store, &args.project, command),
+        EditorCommand::Diff(command) => editor_diff(&store, command),
     }
 }
 
-fn editor_status(
-    store: &LocalEditorStore,
-    project_path: &Path,
-    args: EditorOutputArgs,
-) -> Result<ExitCode, CliError> {
-    let status = store.status(project_path)?;
+fn editor_status(store: &LocalEditorStore, args: EditorOutputArgs) -> Result<ExitCode, CliError> {
+    let status = store.status()?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
@@ -817,12 +809,8 @@ fn editor_status(
     Ok(ExitCode::SUCCESS)
 }
 
-fn editor_diff(
-    store: &LocalEditorStore,
-    project_path: &Path,
-    args: EditorDiffArgs,
-) -> Result<ExitCode, CliError> {
-    let diff = store.diff(project_path, args.staged)?;
+fn editor_diff(store: &LocalEditorStore, args: EditorDiffArgs) -> Result<ExitCode, CliError> {
+    let diff = store.diff(args.staged)?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &diff)?,
@@ -832,12 +820,8 @@ fn editor_diff(
     Ok(ExitCode::SUCCESS)
 }
 
-fn editor_add(
-    store: &LocalEditorStore,
-    project_path: &Path,
-    args: EditorOutputArgs,
-) -> Result<ExitCode, CliError> {
-    let result = store.add(project_path)?;
+fn editor_add(store: &LocalEditorStore, args: EditorOutputArgs) -> Result<ExitCode, CliError> {
+    let result = store.add()?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
@@ -849,12 +833,10 @@ fn editor_add(
 
 fn editor_generate(
     store: &LocalEditorStore,
-    project_path: &Path,
     args: EditorGenerateArgs,
 ) -> Result<ExitCode, CliError> {
     let EditorGeneratorCommand::Terrain(args) = args.generator;
     let result = store.generate_terrain(
-        project_path,
         &args.output,
         args.scene_id,
         args.id,
@@ -6842,6 +6824,16 @@ fn write_editor_status(
         |commit| format!("SCENE@{}", commit.sequence),
     );
     writeln!(output, "On scene {head}")?;
+
+    if !status.initialized {
+        writeln!(output)?;
+        writeln!(output, "No scene project initialized.")?;
+        writeln!(
+            output,
+            "Use `rey editor generate terrain --help` to create WORKING in `.rey/editor`."
+        )?;
+        return Ok(());
+    }
 
     write_editor_status_changes(
         output,

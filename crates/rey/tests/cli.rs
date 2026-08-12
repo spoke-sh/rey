@@ -2,7 +2,6 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
-    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -29,18 +28,12 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 #[test]
-fn checked_in_scene_is_available_through_the_default_editor_surface() {
-    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .unwrap();
-    let state = TempDir::new().unwrap();
+fn editor_status_is_read_only_before_a_scene_is_initialized() {
+    let workspace = TempDir::new().unwrap();
     let output = run_rey(&[
         "editor",
         "--workspace",
-        workspace.to_str().unwrap(),
-        "--state-dir",
-        state.path().to_str().unwrap(),
+        workspace.path().to_str().unwrap(),
         "status",
         "--format",
         "json",
@@ -53,21 +46,21 @@ fn checked_in_scene_is_available_through_the_default_editor_surface() {
     );
     assert!(output.stderr.is_empty());
     let status: EditorStatus = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(status.state, EditorWorkingState::Working);
-    assert_eq!(status.working.project_id, "rey-county");
-    assert_eq!(status.working.coverage.sources, 5);
-    assert_eq!(status.working.coverage.features, 34);
-    assert_eq!(status.working.coverage.markers, 12);
-    assert_eq!(status.working.coverage.coordinates, 137);
+    assert_eq!(status.schema, "rey.editor-status.v2");
+    assert!(!status.initialized);
+    assert_eq!(status.state, EditorWorkingState::Clean);
+    assert!(status.working.is_none());
     assert!(status.head.is_none());
     assert!(status.index.is_none());
+    assert!(status.staged.changes.is_empty());
+    assert!(status.unstaged.changes.is_empty());
+    assert!(!workspace.path().join(".rey").exists());
+    assert!(!workspace.path().join("rey.scene.json").exists());
 
     let human = run_rey(&[
         "editor",
         "--workspace",
-        workspace.to_str().unwrap(),
-        "--state-dir",
-        state.path().to_str().unwrap(),
+        workspace.path().to_str().unwrap(),
         "status",
         "--format",
         "table",
@@ -77,27 +70,23 @@ fn checked_in_scene_is_available_through_the_default_editor_surface() {
     let human = String::from_utf8(human.stdout).unwrap();
     for evidence in [
         "On scene no commits yet",
-        "Changes not staged for scene commit:",
-        "new:       source: rey-county-boundary",
-        "new:       feature: rey-county-markers/poi-rey-county-seat",
-        "no changes added to scene commit (use `rey editor add` to stage)",
+        "No scene project initialized.",
+        "Use `rey editor generate terrain --help` to create WORKING in `.rey/editor`.",
     ] {
         assert!(
             human.contains(evidence),
             "missing status evidence: {evidence}"
         );
     }
-    for snapshot_detail in [
-        "State         ",
-        "HEAD→INDEX",
-        "Scene snapshot:",
-        "Admission ",
-    ] {
-        assert!(
-            !human.contains(snapshot_detail),
-            "status leaked detailed evidence: {snapshot_detail}"
-        );
-    }
+    assert!(!workspace.path().join(".rey").exists());
+
+    let help = run_rey(&["editor", "--help"]);
+    assert!(help.status.success());
+    assert!(
+        !String::from_utf8(help.stdout)
+            .unwrap()
+            .contains("--project")
+    );
 }
 
 #[test]
@@ -160,8 +149,10 @@ fn editor_cli_commits_agent_tuned_generated_sources_without_admitting_explore_st
     assert!(generated.stderr.is_empty());
     let generated = String::from_utf8(generated.stdout).unwrap();
     assert!(generated.contains("created scene project"));
+    assert!(generated.contains("project      .rey/editor/project.json"));
     assert!(generated.contains("2 features · 12 coordinate positions"));
-    assert!(workspace.path().join("rey.scene.json").is_file());
+    assert!(workspace.path().join(".rey/editor/project.json").is_file());
+    assert!(!workspace.path().join("rey.scene.json").exists());
 
     let source_path = workspace.path().join("terrain.geojson");
     let mut source: Value = serde_json::from_slice(&fs::read(&source_path).unwrap()).unwrap();
@@ -368,9 +359,10 @@ fn editor_generate_retains_tunable_deterministic_terrain_lineage() {
         "json",
     ]);
     let status: EditorStatus = serde_json::from_slice(&status.stdout).unwrap();
-    assert_eq!(status.working.coverage.sources, 1);
-    assert_eq!(status.working.coverage.features, 4);
-    assert_eq!(status.working.coverage.coordinates, 28);
+    let working = status.working.unwrap();
+    assert_eq!(working.coverage.sources, 1);
+    assert_eq!(working.coverage.features, 4);
+    assert_eq!(working.coverage.coordinates, 28);
     assert_eq!(status.unstaged.inserted, 5);
 
     assert!(
