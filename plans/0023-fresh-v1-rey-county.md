@@ -51,11 +51,13 @@ evidence, and `/explore`.
 
 ### 4. Exercise the editor contract
 
-- [x] Create the project with `rey editor init` and import every source through
-      the explicit role surface.
-- [x] Validate, inspect WORKING, stage the exact snapshot, and inspect the
-      staged diff through human CLI renderings.
-- [x] Package only INDEX and inspect the exact immutable candidate package.
+- [x] Retain the checked project and exact agent-authored native sources as one
+      WORKING scene; new scene bootstrapping now belongs exclusively to `rey
+      editor generate` and agents fine-tune its output directly.
+- [x] Inspect WORKING, stage the exact snapshot, inspect the staged diff, and
+      exercise commit-time validation through human CLI renderings.
+- [x] Commit only INDEX and inspect the exact immutable candidate package
+      through `rey editor log -p`.
 - [x] Preserve candidate-only authority and document that `/explore` cannot
       consume the package before scene admission exists.
 
@@ -88,20 +90,21 @@ produced `REY COUNTY`.
 The editor snapshot
 `blake3:168229cb1c1cabb30cfa1f4597873cf17a3307fcb673abe7e1413f1c9a5ce993`
 contains five native sources, 34 stable-ID features, 12 markers, and 137
-positions with complete coverage and no omissions. It is frozen as candidate
-package
-`blake3:a4420196779a49d7b17dac134911efaa7a6bf40bff1bd6fc5e066c99d42df097`
+positions with complete coverage and no omissions. `SCENE@1`
+`blake3:9c571b5e713d7ad3b347ffe10bba9cb244f633b6e1206cadb071d045c11a8099`
+retains the message `establish Rey County`, candidate package
+`blake3:3c683ad8675549b5dba753a8174d7382d865c2c3a7d313e969fbf079741c275d`,
 and request
-`blake3:910d6ce8fe93ca33a9726f7edf978df136c1a662f8d545a4eba20dbbca84bc2c`.
-`rey editor status` is clean and exact package inspection succeeds. The
-request still reports `requires_workload`, `admitted=false`, and `/explore`
-unchanged; that is the intended authority boundary rather than an omitted
-implementation claim.
+`blake3:4154e143175a8c9030164732825e485f3743252b4969e38ecb9bf15bd2b2c038`.
+`rey editor status` is clean and `rey editor log -p` resolves the exact commit,
+package, and parent-to-commit delta. The request still reports
+`requires_workload`, `admitted=false`, and `/explore` unchanged; that is the
+intended authority boundary rather than an omitted implementation claim.
 
 Repository-wide qualification on 2026-08-11:
 
 - `just check` passed Git whitespace validation, Prettier, TypeScript, 75 UI
   tests across 24 files, the production Vite build, Rust formatting, workspace
   Clippy with warnings denied, and Nix flake evaluation on x86_64 Linux.
-- `just test` passed the same 75 UI tests, 183 Rust tests across 14 binaries,
+- `just test` passed the same 75 UI tests, 185 Rust tests across 14 binaries,
   and every workspace doc-test target with no failures or skips.

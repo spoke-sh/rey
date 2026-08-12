@@ -585,10 +585,11 @@ candidate/index cache.
 
 ### Editor planes
 
-`PACKAGE`, `INDEX`, and `WORKING` are the latest immutable scene candidate, the
+`HEAD`, `INDEX`, and `WORKING` are the latest immutable `SCENE@n` commit, the
 exact staged candidate snapshot plus frozen native objects, and fresh
-observation of an editor project. Unlike environment `HEAD`, editor PACKAGE is
-not admitted history. `package` creates an unadmitted workload request.
+observation of an editor project. Scene HEAD is retained authoring history, but
+its package is not admitted evidence. `commit` packages only INDEX and creates
+an unadmitted workload request.
 
 ### Environment
 
@@ -1469,6 +1470,20 @@ editor project: exact native source identities, explicit roles, coordinate
 system and bounds, feature/POI index, coverage, completeness, omissions, and
 limits. It is an editor INDEX/package input, not the projection-engine scene
 snapshot used by `/explore`.
+
+### Scene commit
+
+An immutable linear `rey.scene-commit.v1` editor revision identified to humans
+as `SCENE@n`. It binds sequence, parent, timestamp, message, and one exact scene
+package reference. It is authoring history, not an admission decision.
+
+### Scene generation recipe
+
+A `rey.scene-generation.v1` record embedded in a generator-owned native scene
+source. It binds the generator revision, source identity, seed, coordinate
+bounds, and every effective geometry/effect hyperparameter required for exact
+replay. Generated values remain candidate hints until admitted by a qualified
+workload.
 
 ### Scene package
 

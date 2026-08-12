@@ -37,19 +37,26 @@ discovered.
 ## Decision
 
 Rey introduces a separate **scene editor candidate plane** owned by the `rey
-editor` CLI. Its state transition is:
+editor` CLI. Generation is the single authoring entry point; agent editing of
+the generated native artifacts is an intentional part of the loop. Its state
+transition is:
 
 ```text
-native survey artifacts + rey.editor-project.v1
+explicit bounds + generator hyperparameters
                     │
+                    │ rey editor generate terrain <output> <parameters>
                     ▼
-             WORKING scene
+     rey.editor-project.v1 + generated native source
+                    │
+                    │ agent fine-tunes native WORKING bytes
+                    ▼
+             WORKING scene candidate
                     │ rey editor add
                     ▼
        INDEX + frozen native objects
-                    │ rey editor package
+                    │ rey editor commit -m <message>
                     ▼
-       immutable rey.scene-package.v1
+       SCENE@n + immutable rey.scene-package.v1
                     │
                     └─ rey.scene-admission-request.v1
                                   │
@@ -63,31 +70,59 @@ native survey artifacts + rey.editor-project.v1
                               /explore
 ```
 
-`PACKAGE → INDEX → WORKING` is a comparison model, not a claim that PACKAGE is
-admitted. PACKAGE means the latest immutable editor candidate. INDEX contains
-the exact verified project snapshot and content-addressed native bytes selected
-by `rey editor add`. WORKING is re-observed from the project and its declared
-sources. `rey editor package` reads only INDEX, retains a directed change set,
-and emits a candidate-only admission request. It does not re-observe mutable
-sources, execute a survey, admit evidence, or change `/explore`.
+`HEAD → INDEX → WORKING` is the editor comparison model. HEAD means the latest
+immutable `SCENE@n` editor commit; it does not mean the associated package is
+admitted. INDEX contains the exact verified project snapshot and
+content-addressed native bytes selected by `rey editor add`. WORKING is
+re-observed from the project and its declared sources. `rey editor commit`
+revalidates only INDEX and its frozen objects. On success it records a message,
+timestamp, sequence, parent, immutable package, validation evidence, and
+directed change set, then emits a candidate-only admission request. On failure
+it does not advance HEAD. It does not re-observe mutable sources, execute a
+survey, admit evidence, or change `/explore`.
 
 The first executable command surface is:
 
 ```text
-rey editor init --id <project>
-rey editor import <source.geojson> --id <source> --role <role>
+rey editor generate terrain <output.geojson> --id <source> --seed <seed> \
+  [--scene-id <project>] \
+  --west <lon> --south <lat> --east <lon> --north <lat> [hyperparameters]
 rey editor status
-rey editor diff [--staged]
 rey editor add
-rey editor validate
-rey editor package
-rey editor inspect <exact-package-id>
+rey editor commit -m <message>
+rey editor log [-p] [-n <count>]
+rey editor diff [--staged]
 ```
 
 Every command has a human evidence rendering and structured JSON. Project and
 source inputs are workspace-contained bounded regular files; symlinks and path
 escapes are rejected. The local `.rey/editor` store is a content-addressed
 candidate/index cache and is never the sole copy of user-authored sources.
+The human `status` rendering follows the same Git-shaped operator grammar as
+`rey env status`: it identifies `SCENE@n`, separates changes staged for commit
+from changes still in WORKING, lists their semantic scene objects, and ends
+with actionable state guidance. The successful `commit` receipt exposes the
+frozen snapshot's validation evidence; retained messages, parents, packages,
+and exact deltas belong to `log`; structured `status` retains the complete
+typed state. There is no separate public `init`, `import`, or `validate`
+command: `generate` bootstraps the project, agents fine-tune its native output,
+and validation is a commit gate rather than an optional diagnostic ritual.
+
+`generate terrain` is a deterministic authoring operation over explicit CRS84
+bounds. Its effective seed, feature count, polygon resolution, scale interval,
+uplift ratio, strength and variation, roughness and variation, anisotropy,
+orientation and variation, edge jitter, and falloff are all validated and
+embedded in a `rey.scene-generation.v1` foreign member of the generated native
+GeoJSON. If the project is absent, generation creates it and uses
+`--scene-id`, or the source ID by default, as its stable identity. Repeating the
+same recipe yields the same generated base bytes. Changing a parameter changes
+WORKING and is reviewed, staged, and committed through the ordinary editor
+loop. Agents may subsequently edit the generated native artifact; the commit
+binds those exact bytes and their semantic delta without pretending the base
+recipe reproduces the manual edits. The command refuses to overwrite a file
+that does not already carry matching generator ownership. Generated effects
+remain authored candidate hints; they are not surveyed terrain or admitted
+semantic truth.
 
 The first source adapter accepts RFC 7946 GeoJSON `Feature` and
 `FeatureCollection` documents with Point, MultiPoint, LineString,
@@ -106,13 +141,14 @@ not observed importance or admission authority. Feature properties remain in
 the native object and receive an exact digest; the index does not pretend to be
 the native artifact.
 
-The scene package retains:
+The scene commit and its package retain:
 
-- exact project, snapshot, package, parent, and native-object identities;
+- exact commit sequence, message, timestamp, parent, project, snapshot,
+  package, generation recipe, and native-object identities;
 - coordinate system, geographic bounds, source formats and roles;
 - bounded feature and POI indexes with geometry kinds and coordinate counts;
 - coverage, completeness, omissions, and effective limits;
-- a directed prior-package to candidate change set; and
+- a directed parent-commit to commit change set; and
 - a candidate-only authority marker plus a separate content-identified
   admission request.
 
@@ -139,14 +175,17 @@ semantics, units, tiling, limits, and qualification before it is advertised.
   authoring or admission UI.
 - Agents and surveys gain a deterministic CLI surface for assembling and
   reviewing scene candidates without bypassing workload policy.
-- Exact native artifacts survive packaging, while bounded indexes make status,
-  diffs, POIs, and later admission inspectable.
+- Exact native artifacts survive commit packaging, while bounded indexes make
+  status, diffs, history, POIs, and later admission inspectable.
+- Agents can sweep deterministic terrain-control hyperparameters while every
+  generated effect remains reproducible, diffable, and explicitly candidate
+  only.
 - GeoJSON interoperability is real but narrow: geographic CRS84 vectors and
   markers are implemented; GeoPackage, GeoTIFF/COG, Arrow, semantic charts,
   and raster terrain are not yet accepted.
 - Lines retain their declared feature role. They do not become roads, rivers,
   source edges, or constructed/discovered paths by visual analogy.
-- Package creation is incomplete enabling work until one qualified admission
+- Scene commit creation is incomplete enabling work until one qualified admission
   workload exposes the resulting admitted inputs, results, deltas, omissions,
   limits, and lineage through the CLI and `/explore` consumes that same retained
   evidence.

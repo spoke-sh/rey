@@ -17,10 +17,12 @@ or assessment authority.
 
 Explorer is also the read-first runtime side of a level-editor architecture.
 The separate `rey editor` CLI assembles WORKING projects, stages exact native
-objects in INDEX, and emits immutable candidate scene packages. Those packages
+objects in INDEX, and commits linear `SCENE@n` history with immutable candidate
+scene packages. Deterministic generators may author tunable source features in
+WORKING, but generation itself grants no evidence authority. Those packages
 are not Explorer inputs. Only a later qualified workload may admit their
 terrain or features and produce evidence consumed by a projection packet. The
-implemented editor slice has no admission workload, so packaging changes
+implemented editor slice has no admission workload, so scene commits change
 neither the UI API nor `/explore`. See [ADR
 0046](decisions/0046-read-first-scene-editor.md) and [Plan
 0021](../plans/0021-read-first-scene-editor.md).

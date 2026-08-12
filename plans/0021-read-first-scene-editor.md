@@ -20,8 +20,8 @@ topography and projection contracts consumed by Explorer.
 
 - [x] Accept ADR 0046 and separate editor candidates from topography patches,
       projection packets, browser scene state, and admission authority.
-- [x] Define `PACKAGE → INDEX → WORKING` as editor comparison state while
-      stating that PACKAGE remains an unadmitted candidate.
+- [x] Define `HEAD → INDEX → WORKING` as editor comparison state while stating
+      that each `SCENE@n` commit's package remains an unadmitted candidate.
 - [x] Define `rey.editor-project.v1`, `rey.scene-candidate-snapshot.v1`,
       `rey.scene-change-set.v1`, `rey.scene-package.v1`, and
       `rey.scene-admission-request.v1`.
@@ -33,15 +33,23 @@ topography and projection contracts consumed by Explorer.
 
 ### 2. Establish the agent-first editor CLI
 
-- [x] Implement `rey editor init`, `import`, `status`, `diff`, `add`,
-      `validate`, `package`, and `inspect` with human and structured output.
+- [x] Keep one authoring entry point: `rey editor generate terrain` bootstraps
+      the project and emits tunable native WORKING artifacts; agents may then
+      fine-tune those exact bytes directly.
+- [x] Implement only the public revision loop `generate`, `status`, `diff`,
+      `add`, `commit`, and `log` with human and structured output; remove the
+      redundant public `init`, `import`, and `validate` surfaces.
+- [x] Keep human `status` Git-shaped and concise, expose immutable
+      commit/package evidence through `log`, retain complete typed state through
+      JSON, and render validation evidence as part of successful `commit`.
 - [x] Reject workspace escapes, symlinked inputs, non-files, malformed JSON,
       custom GeoJSON CRS declarations, unstable feature identities, invalid
       geometries, out-of-range coordinates, and explicit bounds violations.
-- [x] Make `add` freeze exact verified native objects and make `package` read
-      only the staged INDEX rather than ambient WORKING state.
-- [x] Retain immutable packages and requests by content identity, make repeated
-      packaging idempotent, and keep older package identities inspectable.
+- [x] Make `add` freeze exact verified native objects and make `commit`
+      revalidate only the staged INDEX rather than ambient WORKING state,
+      failing without advancing HEAD when the gate does not pass.
+- [x] Retain linear `SCENE@n` history with messages, timestamps, parents,
+      immutable packages, requests, and optional log patches.
 - [ ] Add partial feature/source staging after a CLI design can preserve native
       artifact integrity without inventing a second editable geometry store.
 - [ ] Add an explicit restore/reset workflow only with clear treatment of
@@ -66,6 +74,9 @@ topography and projection contracts consumed by Explorer.
 
 ### 4. Add detailed terrain and semantic-chart sources
 
+- [x] Add a deterministic terrain-control generator with retained seed, CRS84
+      bounds, geometry/effect hyperparameters, overwrite ownership, and exact
+      replay through the ordinary WORKING → INDEX → HEAD loop.
 - [ ] Specify a Rey-native multiresolution terrain manifest that references
       exact typed height, validity, normal/material, and optional provider field
       artifacts without embedding large arrays in JSON.
@@ -103,7 +114,7 @@ topography and projection contracts consumed by Explorer.
 - [ ] Use a distinct route and persistent `UNADMITTED` treatment for candidate
       previews; never layer WORKING or INDEX directly into `/explore`.
 - [ ] Provide map-grade feature selection, layer ordering, POI/label preview,
-      validation, diff review, staging, and packaging while retaining exact
+      validation, diff review, staging, and commits while retaining exact
       CLI parity and keyboard/accessibility behavior.
 - [ ] Keep the browser from executing admission workloads unless a separate
       authenticated, authorized action contract is accepted.
@@ -111,11 +122,12 @@ topography and projection contracts consumed by Explorer.
 ### 7. Proof and qualification
 
 - [x] Add unit proof that native bytes are frozen at staging, later WORKING
-      changes do not alter retained packages, package reuse is idempotent, and
-      missing feature IDs fail closed.
-- [x] Add CLI proof covering init → import → status → validate → add → package →
-      inspect → working diff with human evidence, JSON contracts, stderr, and
-      exit behavior.
+      changes do not alter retained commits/packages, history remains linear,
+      and missing feature IDs fail closed.
+- [x] Add CLI proof covering generate → agent fine-tune → status → add →
+      commit-time validation → log → working diff, including rejection of
+      the removed commands, human evidence, JSON contracts, stderr, and exit
+      behavior.
 - [ ] Add malformed geometry nesting, every geometry family, duplicate IDs,
       source/feature/property/coordinate/byte limits, symlink, tampering,
       historical package, and concurrent writer fixtures.
@@ -128,12 +140,16 @@ topography and projection contracts consumed by Explorer.
 
 The first slice is intentionally incomplete enabling work. The `rey` crate now
 owns a dependency-light editor module and CLI. A JSON editor project declares
-bounded GeoJSON sources. WORKING validation constructs a deterministic feature
-and POI index while retaining exact source bytes as native artifacts. `add`
+bounded GeoJSON sources. `generate terrain` bootstraps the project and a
+deterministic native source, after which an agent may fine-tune WORKING bytes.
+Observation constructs a deterministic feature and POI index while retaining
+exact source bytes as native artifacts. `add`
 publishes those artifacts and the snapshot atomically under `.rey/editor`;
-`package` content-identifies the staged snapshot and directed changes, then
-emits a separate request whose status is `requires_workload` and whose
-`admitted` field is false.
+`commit` revalidates only the frozen INDEX, advances linear `SCENE@n` history,
+retains its immutable package and directed change set, then emits a separate
+request whose status is `requires_workload` and whose `admitted` field is
+false. The embedded generation recipe reproduces the base output; exact later
+agent edits remain bound by the source digest and scene delta.
 
 No scene-admission workload exists yet. The current `context-anchor-survey`
 remains the only executable producer of admitted topography, and creating an
@@ -143,10 +159,10 @@ partial staging, and browser editing remain explicitly unsupported.
 
 Repository-wide evidence for this checkpoint:
 
-- `just check` passed UI formatting/typechecking, 73 UI tests, the production
+- `just check` passed UI formatting/typechecking, 75 UI tests, the production
   browser build, Rust formatting and workspace Clippy with warnings denied, and
   Nix flake evaluation on x86_64 Linux.
-- `just test` passed the same 73 UI tests, 179 Rust tests across 14 binaries,
+- `just test` passed the same 75 UI tests, 185 Rust tests across 14 binaries,
   and all workspace documentation tests.
 
 ## Acceptance Boundary

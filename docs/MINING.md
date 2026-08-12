@@ -304,12 +304,14 @@ validity or change assessment, coverage, confidence, progress, or proof.
 
 ### Scene editor candidates
 
-A scene editor package is an input candidate for mining and admission, not a
-visualization result and not admitted evidence. `rey editor` preserves exact
-native survey artifacts and derives bounded source, feature, geometry, bounds,
-marker, coverage, limit, and change indexes so an operator can review what a
-future admission workload would inspect. INDEX freezes exact bytes; PACKAGE
-records only that verified index and emits a separate unadmitted request.
+A committed scene editor package is an input candidate for mining and
+admission, not a visualization result and not admitted evidence. `rey editor`
+preserves exact native survey or generated artifacts and derives bounded
+source, feature, geometry, bounds, marker, coverage, limit, and change indexes
+so an operator can review what a future admission workload would inspect.
+INDEX freezes exact bytes; `commit` advances `SCENE@n`, packages only that
+verified index, and emits a separate unadmitted request. Generator recipes,
+seeds, and hyperparameters are source lineage, not evidence claims.
 
 An admission operation must verify every frozen object identity, qualify its
 format adapter, preserve native artifacts, and bind coordinate semantics before

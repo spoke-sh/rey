@@ -9,7 +9,7 @@ use std::{
 use rey::channels::{
     ChannelApplyResult, ChannelDiff, ChannelGraphSnapshot, ChannelStatus, ChannelWorkingState,
 };
-use rey::editor::{EditorPackageResult, EditorStatus, EditorWorkingState, ScenePackage};
+use rey::editor::{EditorCommitResult, EditorStatus, EditorWorkingState};
 use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
@@ -58,124 +58,135 @@ fn checked_in_scene_is_available_through_the_default_editor_surface() {
     assert_eq!(status.working.coverage.features, 34);
     assert_eq!(status.working.coverage.markers, 12);
     assert_eq!(status.working.coverage.coordinates, 137);
-    assert!(status.package.is_none());
+    assert!(status.head.is_none());
     assert!(status.index.is_none());
+
+    let human = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace.to_str().unwrap(),
+        "--state-dir",
+        state.path().to_str().unwrap(),
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(human.status.success());
+    assert!(human.stderr.is_empty());
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "On scene no commits yet",
+        "Changes not staged for scene commit:",
+        "new:       source: rey-county-boundary",
+        "new:       feature: rey-county-markers/poi-rey-county-seat",
+        "no changes added to scene commit (use `rey editor add` to stage)",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing status evidence: {evidence}"
+        );
+    }
+    for snapshot_detail in [
+        "State         ",
+        "HEAD→INDEX",
+        "Scene snapshot:",
+        "Admission ",
+    ] {
+        assert!(
+            !human.contains(snapshot_detail),
+            "status leaked detailed evidence: {snapshot_detail}"
+        );
+    }
 }
 
 #[test]
-fn editor_cli_freezes_native_scene_candidates_without_admitting_explore_state() {
+fn editor_cli_commits_agent_tuned_generated_sources_without_admitting_explore_state() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
 
-    let initialized = run_rey(&[
-        "editor",
-        "--workspace",
-        workspace_path,
-        "init",
-        "--id",
-        "semantic-atlas",
-        "--format",
-        "table",
-    ]);
-    assert!(initialized.status.success());
-    assert!(initialized.stderr.is_empty());
-    let initialized = String::from_utf8(initialized.stdout).unwrap();
-    for needle in [
-        "Initialized empty scene project",
-        "rey.editor-project.v1",
-        "OGC CRS84",
-        "WORKING only · nothing staged or admitted",
-    ] {
+    for removed in ["init", "import", "validate", "package", "inspect"] {
+        let output = run_rey(&["editor", removed]);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unrecognized subcommand"));
+    }
+    let help = run_rey(&["editor", "--help"]);
+    assert!(help.status.success());
+    let help = String::from_utf8(help.stdout).unwrap();
+    for command in ["generate", "status", "add", "commit", "log", "diff"] {
         assert!(
-            initialized.contains(needle),
-            "missing init evidence: {needle}"
+            help.lines()
+                .any(|line| line.trim_start().starts_with(command))
+        );
+    }
+    for removed in ["init", "import", "validate", "package", "inspect"] {
+        assert!(
+            !help
+                .lines()
+                .any(|line| line.trim_start().starts_with(removed))
         );
     }
 
-    fs::write(
-        workspace.path().join("survey.geojson"),
-        r#"{
-  "type": "FeatureCollection",
-  "features": [
-    {
-      "type": "Feature",
-      "id": "ridge-observatory",
-      "geometry": {"type": "Point", "coordinates": [-122.401, 37.792, 24.0]},
-      "properties": {
-        "title": "Ridge observatory",
-        "category": "survey",
-        "symbol": "observatory",
-        "min_zoom": 3,
-        "max_zoom": 18,
-        "collision_priority": 80
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "frontier-probe",
-      "geometry": {"type": "Point", "coordinates": [-122.387, 37.781]},
-      "properties": {"title": "Frontier probe", "min_zoom": 7}
-    }
-  ]
-}"#,
-    )
-    .unwrap();
-
-    let imported = run_rey(&[
+    let generated = run_rey(&[
         "editor",
         "--workspace",
         workspace_path,
-        "import",
-        "survey.geojson",
+        "generate",
+        "terrain",
+        "terrain.geojson",
         "--id",
-        "anchor-pois",
-        "--role",
-        "markers",
+        "agent-terrain",
+        "--scene-id",
+        "semantic-atlas",
+        "--seed",
+        "7",
+        "--west",
+        "-123",
+        "--south",
+        "37",
+        "--east",
+        "-122",
+        "--north",
+        "38",
+        "--features",
+        "2",
+        "--vertices",
+        "5",
         "--format",
         "table",
     ]);
-    assert!(imported.status.success());
-    assert!(imported.stderr.is_empty());
-    let imported = String::from_utf8(imported.stdout).unwrap();
-    assert!(imported.contains("Imported GeoJSON source anchor-pois"));
-    assert!(imported.contains("2 features · 2 coordinate positions"));
-    assert!(imported.contains("WORKING only"));
+    assert!(generated.status.success());
+    assert!(generated.stderr.is_empty());
+    let generated = String::from_utf8(generated.stdout).unwrap();
+    assert!(generated.contains("created scene project"));
+    assert!(generated.contains("2 features · 12 coordinate positions"));
+    assert!(workspace.path().join("rey.scene.json").is_file());
 
-    let status = run_rey(&[
+    let source_path = workspace.path().join("terrain.geojson");
+    let mut source: Value = serde_json::from_slice(&fs::read(&source_path).unwrap()).unwrap();
+    source["features"][0]["properties"]["name"] = Value::String("Agent tuned ridge".to_owned());
+    fs::write(&source_path, serde_json::to_vec_pretty(&source).unwrap()).unwrap();
+
+    let working = run_rey(&[
         "editor",
         "--workspace",
         workspace_path,
         "status",
         "--format",
-        "json",
-    ]);
-    assert!(status.status.success());
-    let status: EditorStatus = serde_json::from_slice(&status.stdout).unwrap();
-    assert_eq!(status.state, EditorWorkingState::Working);
-    assert_eq!(status.working.coverage.markers, 2);
-    assert!(status.package.is_none());
-    assert!(status.admission_boundary.contains("candidate only"));
-
-    let validated = run_rey(&[
-        "editor",
-        "--workspace",
-        workspace_path,
-        "validate",
-        "--format",
         "table",
     ]);
-    assert!(validated.status.success());
-    let validated = String::from_utf8(validated.stdout).unwrap();
-    for needle in [
-        "SCENE VALIDATION · VERIFIED",
-        "rey.scene-candidate-snapshot.v1",
-        "2 markers",
-        "POI \"Ridge observatory\" · zoom 3..18 · priority 80",
-        "validation does not stage or admit",
+    assert!(working.status.success());
+    let working = String::from_utf8(working.stdout).unwrap();
+    for evidence in [
+        "On scene no commits yet",
+        "Changes not staged for scene commit:",
+        "new:       source: agent-terrain",
+        "new:       feature: agent-terrain/control-0001",
+        "no changes added to scene commit",
     ] {
         assert!(
-            validated.contains(needle),
-            "missing validation evidence: {needle}"
+            working.contains(evidence),
+            "missing status evidence: {evidence}"
         );
     }
 
@@ -189,44 +200,44 @@ fn editor_cli_freezes_native_scene_candidates_without_admitting_explore_state() 
     ]);
     assert!(added.status.success());
     let added = String::from_utf8(added.stdout).unwrap();
-    assert!(added.contains("Staged scene index"));
+    assert!(added.contains("SCENE INDEX"));
+    assert!(added.contains("3 scene changes staged"));
     assert!(added.contains("native objects frozen · not admitted"));
 
-    let packaged = run_rey(&[
+    let committed = run_rey(&[
         "editor",
         "--workspace",
         workspace_path,
-        "package",
-        "--format",
-        "json",
-    ]);
-    assert!(packaged.status.success());
-    assert!(packaged.stderr.is_empty());
-    let packaged: EditorPackageResult = serde_json::from_slice(&packaged.stdout).unwrap();
-    assert_eq!(packaged.package.schema, "rey.scene-package.v1");
-    assert_eq!(packaged.admission_request.status, "requires_workload");
-    assert!(!packaged.admission_request.admitted);
-    packaged.package.verify().unwrap();
-
-    let inspected = run_rey(&[
-        "editor",
-        "--workspace",
-        workspace_path,
-        "inspect",
-        packaged.package.package_id.as_str(),
+        "commit",
+        "-m",
+        "retain agent tuned terrain",
         "--format",
         "table",
     ]);
-    assert!(inspected.status.success());
-    let inspected = String::from_utf8(inspected.stdout).unwrap();
-    assert!(inspected.contains("SCENE PACKAGE · CANDIDATE ONLY"));
-    assert!(inspected.contains("no admission claim"));
+    assert!(committed.status.success());
+    assert!(committed.stderr.is_empty());
+    let committed = String::from_utf8(committed.stdout).unwrap();
+    assert!(committed.contains("[SCENE@1"));
+    assert!(committed.contains("validation complete"));
+    assert!(committed.contains("1 sources · 2 features · 0 omissions"));
+    assert!(committed.contains("candidate only"));
+    assert!(committed.contains("admitted=false · /explore unchanged"));
 
-    fs::write(
-        workspace.path().join("survey.geojson"),
-        r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ridge-observatory","geometry":{"type":"Point","coordinates":[-122.399,37.792]},"properties":{"title":"Ridge observatory"}}]}"#,
-    )
-    .unwrap();
+    let clean = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert_eq!(
+        String::from_utf8(clean.stdout).unwrap(),
+        "On scene SCENE@1\n\nnothing to commit, working scene clean\n"
+    );
+
+    source["features"][0]["properties"]["name"] = Value::String("Second tuning pass".to_owned());
+    fs::write(&source_path, serde_json::to_vec_pretty(&source).unwrap()).unwrap();
     let diff = run_rey(&[
         "editor",
         "--workspace",
@@ -235,71 +246,183 @@ fn editor_cli_freezes_native_scene_candidates_without_admitting_explore_state() 
         "--format",
         "table",
     ]);
-    assert!(diff.status.success());
     let diff = String::from_utf8(diff.stdout).unwrap();
     assert!(diff.contains("INDEX → WORKING"));
-    assert!(diff.contains("DIFFERENT · +0 -1 ~2"));
-    assert!(diff.contains("~ source  anchor-pois"));
-    assert!(diff.contains("- feature anchor-pois/frontier-probe"));
+    assert!(diff.contains("DIFFERENT · +0 -0 ~2"));
+    assert!(diff.contains("~ source  agent-terrain"));
+    assert!(diff.contains("~ feature agent-terrain/control-0001"));
 
-    let retained = run_rey(&[
+    let logged = run_rey(&[
         "editor",
         "--workspace",
         workspace_path,
-        "inspect",
-        packaged.package.package_id.as_str(),
+        "log",
+        "-p",
         "--format",
-        "json",
+        "table",
     ]);
-    let retained: ScenePackage = serde_json::from_slice(&retained.stdout).unwrap();
-    assert_eq!(retained.snapshot.coverage.markers, 2);
+    let logged = String::from_utf8(logged.stdout).unwrap();
+    assert!(logged.contains("commit SCENE@1"));
+    assert!(logged.contains("retain agent tuned terrain"));
+    assert!(logged.contains("SCENE CHANGE SET"));
+    assert!(logged.contains("candidate only · no admission claim"));
 }
 
 #[test]
-fn editor_cli_rejects_geojson_identity_and_workspace_boundary_violations() {
+fn editor_generate_retains_tunable_deterministic_terrain_lineage() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
+
+    let generation_args = [
+        "editor",
+        "--workspace",
+        workspace_path,
+        "generate",
+        "terrain",
+        "generated.geojson",
+        "--id",
+        "procedural-relief",
+        "--scene-id",
+        "generated-atlas",
+        "--seed",
+        "42",
+        "--west",
+        "-123.0",
+        "--south",
+        "37.0",
+        "--east",
+        "-122.0",
+        "--north",
+        "38.0",
+        "--features",
+        "4",
+        "--vertices",
+        "6",
+        "--uplift-ratio",
+        "0.75",
+        "--strength",
+        "0.8",
+        "--roughness",
+        "0.4",
+        "--anisotropy",
+        "2.25",
+        "--orientation-degrees",
+        "55",
+        "--falloff",
+        "3.5",
+        "--format",
+        "table",
+    ];
+    let generated = run_rey(&generation_args);
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    assert!(generated.stderr.is_empty());
+    let generated = String::from_utf8(generated.stdout).unwrap();
+    for evidence in [
+        "Generated deterministic terrain source procedural-relief",
+        "created scene project",
+        "rey.editor.terrain-controls@1 · seed 42",
+        "4 features · 28 coordinate positions",
+        "uplift=0.750 · strength=0.800±0.240 · roughness=0.400±0.200 · falloff=3.500",
+        "anisotropy=2.250 · orientation=55.0°±45.0°",
+        "generated WORKING candidate",
+    ] {
+        assert!(
+            generated.contains(evidence),
+            "missing generation evidence: {evidence}"
+        );
+    }
+
+    let generated_bytes = fs::read(workspace.path().join("generated.geojson")).unwrap();
+    let document: Value = serde_json::from_slice(&generated_bytes).unwrap();
+    assert_eq!(
+        document["rey_generation"]["schema"],
+        "rey.scene-generation.v1"
+    );
+    assert_eq!(document["rey_generation"]["seed"], 42);
+    assert_eq!(document["rey_generation"]["parameters"]["anisotropy"], 2.25);
+    assert_eq!(document["features"].as_array().unwrap().len(), 4);
+
+    let replayed = run_rey(&generation_args);
+    assert!(replayed.status.success());
+    assert!(
+        String::from_utf8(replayed.stdout)
+            .unwrap()
+            .contains("Verified deterministic terrain source")
+    );
+    assert_eq!(
+        fs::read(workspace.path().join("generated.geojson")).unwrap(),
+        generated_bytes
+    );
+
+    let status = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let status: EditorStatus = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status.working.coverage.sources, 1);
+    assert_eq!(status.working.coverage.features, 4);
+    assert_eq!(status.working.coverage.coordinates, 28);
+    assert_eq!(status.unstaged.inserted, 5);
+
     assert!(
         run_rey(&[
             "editor",
             "--workspace",
             workspace_path,
-            "init",
-            "--id",
-            "atlas"
+            "add",
+            "--format",
+            "json",
         ])
         .status
         .success()
     );
+    let committed = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "generate procedural relief",
+        "--format",
+        "json",
+    ]);
+    let committed: EditorCommitResult = serde_json::from_slice(&committed.stdout).unwrap();
+    assert_eq!(committed.commit.sequence, 1);
+    assert_eq!(committed.package.snapshot.coverage.features, 4);
+
     fs::write(
-        workspace.path().join("invalid.geojson"),
-        r#"{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}]}"#,
+        workspace.path().join("manual.geojson"),
+        r#"{"type":"FeatureCollection","features":[]}"#,
     )
     .unwrap();
-    let missing_id = run_rey(&[
+    let refused = run_rey(&[
         "editor",
         "--workspace",
         workspace_path,
-        "import",
-        "invalid.geojson",
+        "generate",
+        "terrain",
+        "manual.geojson",
         "--id",
-        "invalid",
+        "manual",
+        "--west",
+        "-123",
+        "--south",
+        "37",
+        "--east",
+        "-122",
+        "--north",
+        "38",
     ]);
-    assert_eq!(missing_id.status.code(), Some(1));
-    assert!(missing_id.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&missing_id.stderr).contains("stable string or number ids"));
-
-    let escape = run_rey(&[
-        "editor",
-        "--workspace",
-        workspace_path,
-        "import",
-        "../outside.geojson",
-        "--id",
-        "outside",
-    ]);
-    assert_eq!(escape.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&escape.stderr).contains("workspace-relative"));
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("refusing to overwrite"));
 }
 
 #[test]

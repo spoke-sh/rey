@@ -35,9 +35,10 @@ Rey separates ten responsibilities:
    topography patches; browser projections never become a resolver.
 4. **Scene-editor candidate plane** — agents, surveys, and eventually humans
    assemble bounded native terrain, feature, marker, hydrology, and boundary
-   artifacts into reviewable INDEX state and immutable candidate packages;
-   packages grant no admission authority and reach Explorer only through a
-   qualified workload.
+   artifacts into reviewable INDEX state and linear `SCENE@n` commits with
+   immutable candidate packages; deterministic generators retain their exact
+   recipes, packages grant no admission authority, and they reach Explorer only
+   through a qualified workload.
 5. **Projection-engine plane** — exact admitted evidence and a versioned
    coordinate/projection basis compile into immutable scenes, bounded fields,
    semantic LOD, render passes, picking, and high-fidelity browser pixels;
@@ -151,6 +152,8 @@ poll cursors, and delta-triggered workloads.
 | Mining result       | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions                                                                                    | Rey evidence index; artifacts remain provider-owned or explicitly retained                                      |
 | Topography patch    | Admitted survey result containing coordinate anchors, classified relationships, coverage, frontier, omissions, lineage, and a directed map delta                                                       | Rey evidence index; source artifacts and coordinates remain provider-owned                                      |
 | Editor project      | User-authored declaration of bounded native scene sources, explicit roles, and one coordinate-system contract                                                                                          | Workspace source; `.rey/editor` is only a candidate/index cache                                                  |
+| Scene commit        | Linear immutable editor revision binding sequence, parent, timestamp, message, and one exact candidate package                                                                                          | Local editor history; authoring HEAD but explicitly not admitted evidence                                       |
+| Scene generation recipe | Generator revision, source identity, seed, bounds, and complete effective geometry/effect hyperparameters embedded in its native output                                                            | Workspace source lineage; deterministic authoring, never evidence authority                                     |
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
 | Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
 | Semantic atlas      | Content-identified bounded layout over admitted regional evidence with stable region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, and lineage                           | Deterministic workload-list projection today; target retained admission revision and directed movement delta    |

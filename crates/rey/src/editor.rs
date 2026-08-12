@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use chrono::{DateTime, Utc};
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
 use serde::{Deserialize, Serialize};
@@ -21,8 +22,11 @@ pub const SCENE_ADMISSION_REQUEST_SCHEMA: &str = "rey.scene-admission-request.v1
 pub const EDITOR_STATUS_SCHEMA: &str = "rey.editor-status.v1";
 pub const EDITOR_STATE_SCHEMA: &str = "rey.editor-state.v1";
 pub const EDITOR_ADD_RESULT_SCHEMA: &str = "rey.editor-add-result.v1";
-pub const EDITOR_PACKAGE_RESULT_SCHEMA: &str = "rey.editor-package-result.v1";
-pub const EDITOR_IMPORT_RESULT_SCHEMA: &str = "rey.editor-import-result.v1";
+pub const SCENE_COMMIT_SCHEMA: &str = "rey.scene-commit.v1";
+pub const EDITOR_COMMIT_RESULT_SCHEMA: &str = "rey.editor-commit-result.v1";
+pub const EDITOR_LOG_SCHEMA: &str = "rey.editor-log.v1";
+pub const SCENE_GENERATION_SCHEMA: &str = "rey.scene-generation.v1";
+pub const EDITOR_GENERATE_RESULT_SCHEMA: &str = "rey.editor-generate-result.v1";
 
 const STATE_FILE_NAME: &str = "state.json";
 const LOCK_FILE_NAME: &str = "editor.lock";
@@ -36,6 +40,9 @@ const MAX_PROPERTIES: usize = 64;
 const MAX_PROPERTIES_BYTES: usize = 65_536;
 const MAX_IDENTIFIER_CHARS: usize = 96;
 const MAX_LABEL_CHARS: usize = 160;
+const MAX_SCENE_COMMITS: usize = 256;
+const MAX_COMMIT_MESSAGE_BYTES: usize = 4_096;
+const MAX_GENERATED_FEATURES: u64 = 512;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -521,12 +528,85 @@ pub struct ScenePackageReference {
     pub admission_request_path: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneCommit {
+    pub schema: String,
+    pub commit_id: SemanticDigest,
+    pub sequence: u64,
+    pub parent_commit_id: Option<SemanticDigest>,
+    pub committed_at_unix: i64,
+    pub message: String,
+    pub package: ScenePackageReference,
+}
+
+impl SceneCommit {
+    fn new(
+        sequence: u64,
+        parent_commit_id: Option<SemanticDigest>,
+        message: String,
+        package: ScenePackageReference,
+    ) -> Result<Self, EditorError> {
+        let message = normalize_commit_message(message)?;
+        let committed_at_unix = Utc::now().timestamp();
+        validate_commit_timestamp(committed_at_unix)?;
+        let commit_id = scene_commit_identity(
+            sequence,
+            parent_commit_id.as_ref(),
+            committed_at_unix,
+            &message,
+            &package,
+        );
+        let commit = Self {
+            schema: SCENE_COMMIT_SCHEMA.to_owned(),
+            commit_id,
+            sequence,
+            parent_commit_id,
+            committed_at_unix,
+            message,
+            package,
+        };
+        commit.verify()?;
+        Ok(commit)
+    }
+
+    fn verify(&self) -> Result<(), EditorError> {
+        if self.schema != SCENE_COMMIT_SCHEMA {
+            return Err(EditorError::Schema {
+                expected: SCENE_COMMIT_SCHEMA,
+                actual: self.schema.clone(),
+            });
+        }
+        if self.sequence == 0 {
+            return Err(EditorError::CommitSequence {
+                expected: 1,
+                actual: self.sequence,
+            });
+        }
+        validate_commit_timestamp(self.committed_at_unix)?;
+        if normalize_commit_message(self.message.clone())? != self.message {
+            return Err(EditorError::NonCanonicalCommitMessage);
+        }
+        let expected = scene_commit_identity(
+            self.sequence,
+            self.parent_commit_id.as_ref(),
+            self.committed_at_unix,
+            &self.message,
+            &self.package,
+        );
+        if self.commit_id != expected {
+            return Err(EditorError::CommitIdentity);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EditorStatus {
     pub schema: String,
     pub state: EditorWorkingState,
-    pub package: Option<ScenePackageReference>,
+    pub head: Option<SceneCommit>,
     pub index: Option<SceneCandidateSnapshot>,
     pub working: SceneCandidateSnapshot,
     pub staged: SceneChangeSet,
@@ -587,20 +667,71 @@ pub struct SceneAdmissionRequest {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct EditorPackageResult {
+pub struct EditorCommitResult {
     pub schema: String,
-    pub created: bool,
+    pub commit: SceneCommit,
     pub package: ScenePackage,
     pub admission_request: SceneAdmissionRequest,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct EditorImportResult {
+pub struct EditorLogEntry {
+    pub commit: SceneCommit,
+    pub package: ScenePackage,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EditorLog {
     pub schema: String,
-    pub imported: bool,
+    pub head_commit_id: Option<SemanticDigest>,
+    pub total_commits: u64,
+    pub selected_commits: u64,
+    pub patch: bool,
+    pub entries: Vec<EditorLogEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTerrainGenerationParameters {
+    pub feature_count: u64,
+    pub vertices: u64,
+    pub scale_min: f64,
+    pub scale_max: f64,
+    pub uplift_ratio: f64,
+    pub strength: f64,
+    pub strength_jitter: f64,
+    pub roughness: f64,
+    pub roughness_jitter: f64,
+    pub anisotropy: f64,
+    pub orientation_degrees: f64,
+    pub orientation_jitter_degrees: f64,
+    pub edge_jitter: f64,
+    pub falloff: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneGenerationRecipe {
+    pub schema: String,
+    pub generator: String,
+    pub source_id: String,
+    pub seed: u64,
+    pub bounds: SceneBounds,
+    pub parameters: SceneTerrainGenerationParameters,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EditorGenerateResult {
+    pub schema: String,
+    pub changed: bool,
+    pub project_created: bool,
     pub project_path: String,
+    pub output_path: String,
     pub source: SceneSourceDeclaration,
+    pub recipe: SceneGenerationRecipe,
     pub feature_count: u64,
     pub coordinate_count: u64,
 }
@@ -609,7 +740,7 @@ pub struct EditorImportResult {
 #[serde(deny_unknown_fields)]
 struct EditorStateDocument {
     schema: String,
-    package: Option<ScenePackageReference>,
+    commits: Vec<SceneCommit>,
     index: Option<SceneCandidateSnapshot>,
 }
 
@@ -617,7 +748,7 @@ impl Default for EditorStateDocument {
     fn default() -> Self {
         Self {
             schema: EDITOR_STATE_SCHEMA.to_owned(),
-            package: None,
+            commits: Vec::new(),
             index: None,
         }
     }
@@ -649,7 +780,7 @@ impl LocalEditorStore {
         Self::new(workspace.to_owned(), workspace.join(".rey").join("editor"))
     }
 
-    pub fn init_project(
+    fn init_project(
         &self,
         project_path: &Path,
         project_id: String,
@@ -672,83 +803,153 @@ impl LocalEditorStore {
         Ok(project)
     }
 
-    pub fn import_geojson(
+    #[allow(clippy::too_many_arguments)]
+    pub fn generate_terrain(
         &self,
         project_path: &Path,
-        source_path: &Path,
+        output_path: &Path,
+        scene_id: Option<String>,
         source_id: String,
-        role: SceneSourceRole,
-    ) -> Result<EditorImportResult, EditorError> {
+        seed: u64,
+        bounds: SceneBounds,
+        parameters: SceneTerrainGenerationParameters,
+    ) -> Result<EditorGenerateResult, EditorError> {
         validate_identifier("source id", &source_id)?;
+        if let Some(scene_id) = &scene_id {
+            validate_identifier("scene id", scene_id)?;
+        }
+        validate_generation_bounds(&bounds)?;
+        validate_generation_parameters(&parameters)?;
+        validate_path_argument(project_path)?;
+        validate_path_argument(output_path)?;
+        if output_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            != Some("geojson")
+        {
+            return Err(EditorError::GeneratedOutputExtension(
+                output_path.to_owned(),
+            ));
+        }
+
+        let project_argument = self.workspace.join(project_path);
+        let project_created = match fs::symlink_metadata(&project_argument) {
+            Ok(_) => false,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.init_project(
+                    project_path,
+                    scene_id.clone().unwrap_or_else(|| source_id.clone()),
+                )?;
+                true
+            }
+            Err(source) => {
+                return Err(EditorError::Read {
+                    path: project_argument,
+                    source,
+                });
+            }
+        };
         let (project_file, mut project) = self.load_project(project_path)?;
-        let relative_source = workspace_relative(&self.workspace, source_path, MAX_SOURCE_BYTES)?;
-        let source_bytes = read_bounded_file(
-            &self.workspace.join(&relative_source),
-            MAX_SOURCE_BYTES,
-            "scene source",
-        )?;
-        let parsed = parse_geojson(&source_id, role, &source_bytes)?;
+        if scene_id
+            .as_ref()
+            .is_some_and(|scene_id| scene_id != &project.project_id)
+        {
+            return Err(EditorError::ProjectIdentity {
+                expected: project.project_id,
+                actual: scene_id.expect("scene id was present"),
+            });
+        }
+        let output_file = self.resolve_new_project_path(output_path)?;
+        let output = path_string(output_path)?;
         let source = SceneSourceDeclaration {
-            source_id,
-            path: path_string(&relative_source)?,
+            source_id: source_id.clone(),
+            path: output.clone(),
             format: SceneSourceFormat::GeoJson,
-            role,
+            role: SceneSourceRole::TerrainControl,
         };
         if let Some(existing) = project
             .sources
             .iter()
-            .find(|existing| existing.source_id == source.source_id)
+            .find(|existing| existing.source_id == source_id)
+            && existing != &source
         {
-            if existing == &source {
-                return Ok(EditorImportResult {
-                    schema: EDITOR_IMPORT_RESULT_SCHEMA.to_owned(),
-                    imported: false,
-                    project_path: path_string(project_path)?,
-                    source,
-                    feature_count: parsed.features.len() as u64,
-                    coordinate_count: parsed.coordinate_count,
-                });
-            }
-            return Err(EditorError::DuplicateSourceId(source.source_id));
+            return Err(EditorError::DuplicateSourceId(source_id));
         }
-        if project
+        if let Some(existing) = project
             .sources
             .iter()
-            .any(|existing| existing.path == source.path)
+            .find(|existing| existing.path == output)
+            && existing != &source
         {
-            return Err(EditorError::DuplicateSourcePath(source.path));
+            return Err(EditorError::DuplicateSourcePath(output));
         }
-        project.sources.push(source.clone());
-        project = project.canonicalize()?;
-        self.write_project(&project_file, &project)?;
-        Ok(EditorImportResult {
-            schema: EDITOR_IMPORT_RESULT_SCHEMA.to_owned(),
-            imported: true,
+
+        let recipe = SceneGenerationRecipe {
+            schema: SCENE_GENERATION_SCHEMA.to_owned(),
+            generator: "rey.editor.terrain-controls@1".to_owned(),
+            source_id: source_id.clone(),
+            seed,
+            bounds,
+            parameters,
+        };
+        let bytes = generate_terrain_geojson(&recipe)?;
+        let parsed = parse_geojson(&source_id, SceneSourceRole::TerrainControl, &bytes)?;
+        let existing_bytes = match fs::symlink_metadata(&output_file) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err(EditorError::UnsafePath(output_file));
+                }
+                let bytes =
+                    read_bounded_file(&output_file, MAX_SOURCE_BYTES, "generated scene source")?;
+                verify_generated_output(&bytes, &source_id)?;
+                Some(bytes)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(source) => {
+                return Err(EditorError::Read {
+                    path: output_file,
+                    source,
+                });
+            }
+        };
+        let source_changed = existing_bytes.as_deref().map(strip_final_newline) != Some(&bytes);
+        if source_changed {
+            write_atomic(&output_file, &bytes)?;
+        }
+        let project_changed = !project.sources.iter().any(|existing| existing == &source);
+        if project_changed {
+            project.sources.push(source.clone());
+            project = project.canonicalize()?;
+            self.write_project(&project_file, &project)?;
+        }
+        Ok(EditorGenerateResult {
+            schema: EDITOR_GENERATE_RESULT_SCHEMA.to_owned(),
+            changed: source_changed || project_changed,
+            project_created,
             project_path: path_string(project_path)?,
+            output_path: output,
             source,
+            recipe,
             feature_count: parsed.features.len() as u64,
             coordinate_count: parsed.coordinate_count,
         })
     }
 
-    pub fn validate(&self, project_path: &Path) -> Result<SceneCandidateSnapshot, EditorError> {
-        Ok(self.observe(project_path)?.snapshot)
-    }
-
     pub fn status(&self, project_path: &Path) -> Result<EditorStatus, EditorError> {
         let working = self.observe(project_path)?.snapshot;
         let state = self.load_state()?;
-        let package = self.load_package_reference(state.package.as_ref())?;
-        let package_snapshot = package.as_ref().map(|package| &package.snapshot);
+        let head = state.commits.last().cloned();
+        let package = self.load_commit_package(head.as_ref())?;
+        let head_snapshot = package.as_ref().map(|package| &package.snapshot);
         let staged = SceneChangeSet::derive(
-            "PACKAGE",
-            package_snapshot,
+            "HEAD",
+            head_snapshot,
             "INDEX",
-            state.index.as_ref().or(package_snapshot),
+            state.index.as_ref().or(head_snapshot),
         );
         let unstaged = SceneChangeSet::derive(
             "INDEX",
-            state.index.as_ref().or(package_snapshot),
+            state.index.as_ref().or(head_snapshot),
             "WORKING",
             Some(&working),
         );
@@ -764,12 +965,12 @@ impl LocalEditorStore {
         Ok(EditorStatus {
             schema: EDITOR_STATUS_SCHEMA.to_owned(),
             state: state_kind,
-            package: state.package,
+            head,
             index: state.index,
             working,
             staged,
             unstaged,
-            admission_boundary: "candidate only; no scene package is admitted until a validated rey.scene-admission workload retains an admitted projection".to_owned(),
+            admission_boundary: "scene commits retain candidate only packages; no scene package is admitted until a validated rey.scene-admission workload retains an admitted projection".to_owned(),
         })
     }
 
@@ -786,17 +987,17 @@ impl LocalEditorStore {
         self.with_lock(|| {
             let observed = self.observe(project_path)?;
             let mut state = self.load_state()?;
-            let package = self.load_package_reference(state.package.as_ref())?;
-            let package_snapshot = package.as_ref().map(|package| &package.snapshot);
-            let delta = SceneChangeSet::derive(
-                "PACKAGE",
-                package_snapshot,
-                "INDEX",
-                Some(&observed.snapshot),
-            );
+            let package = self.load_commit_package(state.commits.last())?;
+            let head_snapshot = package.as_ref().map(|package| &package.snapshot);
+            let delta =
+                SceneChangeSet::derive("HEAD", head_snapshot, "INDEX", Some(&observed.snapshot));
             self.write_artifacts(&observed)?;
-            let staged = state.index.as_ref() != Some(&observed.snapshot);
-            state.index = Some(observed.snapshot.clone());
+            let staged = state.index.as_ref().or(head_snapshot) != Some(&observed.snapshot);
+            state.index = if head_snapshot == Some(&observed.snapshot) {
+                None
+            } else {
+                Some(observed.snapshot.clone())
+            };
             self.save_state(&state)?;
             Ok(EditorAddResult {
                 schema: EDITOR_ADD_RESULT_SCHEMA.to_owned(),
@@ -807,27 +1008,29 @@ impl LocalEditorStore {
         })
     }
 
-    pub fn package(&self) -> Result<EditorPackageResult, EditorError> {
+    pub fn commit(&self, message: String) -> Result<EditorCommitResult, EditorError> {
+        let message = normalize_commit_message(message)?;
         self.with_lock(|| {
             let mut state = self.load_state()?;
             let snapshot = state.index.clone().ok_or(EditorError::EmptyIndex)?;
             snapshot.verify()?;
             self.verify_staged_artifacts(&snapshot)?;
-            let parent = self.load_package_reference(state.package.as_ref())?;
-            if let (Some(reference), Some(parent)) = (state.package.as_ref(), parent.as_ref())
-                && parent.snapshot.snapshot_revision == snapshot.snapshot_revision
-            {
-                let request = self.load_admission_request(&reference.admission_request_path)?;
-                return Ok(EditorPackageResult {
-                    schema: EDITOR_PACKAGE_RESULT_SCHEMA.to_owned(),
-                    created: false,
-                    package: parent.clone(),
-                    admission_request: request,
-                });
+            if state.commits.len() >= MAX_SCENE_COMMITS {
+                return Err(EditorError::CommitLimit(MAX_SCENE_COMMITS));
             }
+            let head = state.commits.last().cloned();
+            let parent = self.load_commit_package(head.as_ref())?;
             let parent_snapshot = parent.as_ref().map(|package| &package.snapshot);
-            let change_set =
-                SceneChangeSet::derive("PACKAGE", parent_snapshot, "CANDIDATE", Some(&snapshot));
+            if parent_snapshot == Some(&snapshot) {
+                return Err(EditorError::NothingToCommit);
+            }
+            let sequence = state.commits.len() as u64 + 1;
+            let change_set = SceneChangeSet::derive(
+                if sequence == 1 { "EMPTY" } else { "HEAD" },
+                parent_snapshot,
+                &format!("SCENE@{sequence}"),
+                Some(&snapshot),
+            );
             let mut package = ScenePackage {
                 schema: SCENE_PACKAGE_SCHEMA.to_owned(),
                 package_id: digest_placeholder(),
@@ -840,7 +1043,7 @@ impl LocalEditorStore {
             package.verify()?;
             let package_relative = format!("packages/{}.json", digest_key(&package.package_id));
             let package_path = self.directory.join(&package_relative);
-            let created = write_content_addressed_json(&package_path, &package)?;
+            write_content_addressed_json(&package_path, &package)?;
             let mut request = SceneAdmissionRequest {
                 schema: SCENE_ADMISSION_REQUEST_SCHEMA.to_owned(),
                 request_id: digest_placeholder(),
@@ -853,29 +1056,56 @@ impl LocalEditorStore {
             request.request_id = admission_request_identity(&request);
             let request_relative = format!("requests/{}.json", digest_key(&request.request_id));
             write_content_addressed_json(&self.directory.join(&request_relative), &request)?;
-            state.package = Some(ScenePackageReference {
+            let reference = ScenePackageReference {
                 package_id: package.package_id.clone(),
                 snapshot_revision: package.snapshot.snapshot_revision.clone(),
                 package_path: package_relative,
                 admission_request_path: request_relative,
-            });
+            };
+            let commit = SceneCommit::new(
+                sequence,
+                head.map(|head| head.commit_id),
+                message,
+                reference,
+            )?;
+            state.commits.push(commit.clone());
+            state.index = None;
             self.save_state(&state)?;
-            Ok(EditorPackageResult {
-                schema: EDITOR_PACKAGE_RESULT_SCHEMA.to_owned(),
-                created,
+            Ok(EditorCommitResult {
+                schema: EDITOR_COMMIT_RESULT_SCHEMA.to_owned(),
+                commit,
                 package,
                 admission_request: request,
             })
         })
     }
 
-    pub fn inspect(&self, package_id: &str) -> Result<ScenePackage, EditorError> {
-        let key = validate_digest_argument(package_id)?;
-        let package = self.load_package_path(&format!("packages/{key}.json"))?;
-        if package.package_id.as_str() != package_id {
-            return Err(EditorError::UnknownPackage(package_id.to_owned()));
+    pub fn log(&self, max_count: usize, patch: bool) -> Result<EditorLog, EditorError> {
+        if max_count == 0 || max_count > MAX_SCENE_COMMITS {
+            return Err(EditorError::LogLimit {
+                limit: MAX_SCENE_COMMITS,
+                actual: max_count,
+            });
         }
-        Ok(package)
+        let state = self.load_state()?;
+        let mut entries = Vec::with_capacity(max_count.min(state.commits.len()));
+        for commit in state.commits.iter().rev().take(max_count) {
+            let package = self.load_commit_package(Some(commit))?.ok_or_else(|| {
+                EditorError::UnknownPackage(commit.package.package_id.to_string())
+            })?;
+            entries.push(EditorLogEntry {
+                commit: commit.clone(),
+                package,
+            });
+        }
+        Ok(EditorLog {
+            schema: EDITOR_LOG_SCHEMA.to_owned(),
+            head_commit_id: state.commits.last().map(|commit| commit.commit_id.clone()),
+            total_commits: state.commits.len() as u64,
+            selected_commits: entries.len() as u64,
+            patch,
+            entries,
+        })
     }
 
     fn observe(&self, project_path: &Path) -> Result<ObservedScene, EditorError> {
@@ -1029,10 +1259,15 @@ impl LocalEditorStore {
         if let Some(index) = &state.index {
             index.verify()?;
         }
+        verify_commit_history(&state.commits)?;
         Ok(state)
     }
 
     fn save_state(&self, state: &EditorStateDocument) -> Result<(), EditorError> {
+        verify_commit_history(&state.commits)?;
+        if let Some(index) = &state.index {
+            index.verify()?;
+        }
         self.prepare_directory()?;
         let bytes = serde_json::to_vec_pretty(state)?;
         if bytes.len().saturating_add(1) as u64 > MAX_STATE_BYTES {
@@ -1041,13 +1276,26 @@ impl LocalEditorStore {
         write_atomic(&self.directory.join(STATE_FILE_NAME), &bytes)
     }
 
-    fn load_package_reference(
+    fn load_commit_package(
         &self,
-        reference: Option<&ScenePackageReference>,
+        commit: Option<&SceneCommit>,
     ) -> Result<Option<ScenePackage>, EditorError> {
-        reference
-            .map(|reference| self.load_package_path(&reference.package_path))
-            .transpose()
+        let Some(commit) = commit else {
+            return Ok(None);
+        };
+        let package = self.load_package_path(&commit.package.package_path)?;
+        if package.package_id != commit.package.package_id
+            || package.snapshot.snapshot_revision != commit.package.snapshot_revision
+        {
+            return Err(EditorError::CommitPackageIdentity);
+        }
+        let request = self.load_admission_request(&commit.package.admission_request_path)?;
+        if request.package_id != package.package_id
+            || request.package_path != commit.package.package_path
+        {
+            return Err(EditorError::CommitPackageIdentity);
+        }
+        Ok(Some(package))
     }
 
     fn load_package_path(&self, relative: &str) -> Result<ScenePackage, EditorError> {
@@ -1221,6 +1469,232 @@ impl LocalEditorStore {
             }
         }
         Ok(())
+    }
+}
+
+fn validate_generation_bounds(bounds: &SceneBounds) -> Result<(), EditorError> {
+    if ![bounds.west, bounds.south, bounds.east, bounds.north]
+        .into_iter()
+        .all(f64::is_finite)
+        || !(-180.0..=180.0).contains(&bounds.west)
+        || !(-180.0..=180.0).contains(&bounds.east)
+        || !(-90.0..=90.0).contains(&bounds.south)
+        || !(-90.0..=90.0).contains(&bounds.north)
+        || bounds.west >= bounds.east
+        || bounds.south >= bounds.north
+    {
+        return Err(EditorError::GenerationParameter(
+            "bounds require finite ordered CRS84 west/south/east/north values".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_generation_parameters(
+    parameters: &SceneTerrainGenerationParameters,
+) -> Result<(), EditorError> {
+    let unit = |name: &str, value: f64| {
+        if value.is_finite() && (0.0..=1.0).contains(&value) {
+            Ok(())
+        } else {
+            Err(EditorError::GenerationParameter(format!(
+                "{name} must be finite and within 0..=1"
+            )))
+        }
+    };
+    if !(1..=MAX_GENERATED_FEATURES).contains(&parameters.feature_count) {
+        return Err(EditorError::GenerationParameter(format!(
+            "features must be within 1..={MAX_GENERATED_FEATURES}"
+        )));
+    }
+    if !(3..=32).contains(&parameters.vertices) {
+        return Err(EditorError::GenerationParameter(
+            "vertices must be within 3..=32".to_owned(),
+        ));
+    }
+    unit("scale_min", parameters.scale_min)?;
+    unit("scale_max", parameters.scale_max)?;
+    if parameters.scale_min <= 0.0 || parameters.scale_min > parameters.scale_max {
+        return Err(EditorError::GenerationParameter(
+            "scale_min must be positive and no greater than scale_max".to_owned(),
+        ));
+    }
+    unit("uplift_ratio", parameters.uplift_ratio)?;
+    unit("strength", parameters.strength)?;
+    unit("strength_jitter", parameters.strength_jitter)?;
+    unit("roughness", parameters.roughness)?;
+    unit("roughness_jitter", parameters.roughness_jitter)?;
+    unit("edge_jitter", parameters.edge_jitter)?;
+    if parameters.edge_jitter > 0.5 {
+        return Err(EditorError::GenerationParameter(
+            "edge_jitter must be within 0..=0.5".to_owned(),
+        ));
+    }
+    if !parameters.anisotropy.is_finite() || !(1.0..=8.0).contains(&parameters.anisotropy) {
+        return Err(EditorError::GenerationParameter(
+            "anisotropy must be finite and within 1..=8".to_owned(),
+        ));
+    }
+    if parameters.scale_max * parameters.anisotropy.sqrt() * (1.0 + parameters.edge_jitter) >= 0.5 {
+        return Err(EditorError::GenerationParameter(
+            "scale_max, anisotropy, and edge_jitter exceed the generation bounds".to_owned(),
+        ));
+    }
+    if !parameters.orientation_degrees.is_finite() {
+        return Err(EditorError::GenerationParameter(
+            "orientation_degrees must be finite".to_owned(),
+        ));
+    }
+    if !parameters.orientation_jitter_degrees.is_finite()
+        || !(0.0..=180.0).contains(&parameters.orientation_jitter_degrees)
+    {
+        return Err(EditorError::GenerationParameter(
+            "orientation_jitter_degrees must be finite and within 0..=180".to_owned(),
+        ));
+    }
+    if !parameters.falloff.is_finite() || !(0.1..=16.0).contains(&parameters.falloff) {
+        return Err(EditorError::GenerationParameter(
+            "falloff must be finite and within 0.1..=16".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn generate_terrain_geojson(recipe: &SceneGenerationRecipe) -> Result<Vec<u8>, EditorError> {
+    let parameters = &recipe.parameters;
+    let width = recipe.bounds.east - recipe.bounds.west;
+    let height = recipe.bounds.north - recipe.bounds.south;
+    let axis_root = parameters.anisotropy.sqrt();
+    let mut random = SplitMix64::new(recipe.seed);
+    let mut features = Vec::with_capacity(parameters.feature_count as usize);
+    for index in 0..parameters.feature_count {
+        let scale = lerp(parameters.scale_min, parameters.scale_max, random.unit());
+        let major = scale * axis_root;
+        let minor = scale / axis_root;
+        let margin = major * (1.0 + parameters.edge_jitter);
+        let center_x = lerp(margin, 1.0 - margin, random.unit());
+        let center_y = lerp(margin, 1.0 - margin, random.unit());
+        let orientation = parameters.orientation_degrees
+            + random.signed() * parameters.orientation_jitter_degrees;
+        let orientation_radians = orientation.to_radians();
+        let orientation_cos = orientation_radians.cos();
+        let orientation_sin = orientation_radians.sin();
+        let mut ring = Vec::with_capacity(parameters.vertices as usize + 1);
+        for vertex in 0..parameters.vertices {
+            let angle = std::f64::consts::TAU * vertex as f64 / parameters.vertices as f64;
+            let radius = 1.0 + random.signed() * parameters.edge_jitter;
+            let local_x = major * angle.cos() * radius;
+            let local_y = minor * angle.sin() * radius;
+            let normalized_x = center_x + local_x * orientation_cos - local_y * orientation_sin;
+            let normalized_y = center_y + local_x * orientation_sin + local_y * orientation_cos;
+            ring.push(vec![
+                rounded_coordinate(recipe.bounds.west + normalized_x * width),
+                rounded_coordinate(recipe.bounds.south + normalized_y * height),
+            ]);
+        }
+        ring.push(ring[0].clone());
+
+        let uplift = random.unit() < parameters.uplift_ratio;
+        let strength =
+            clamp_unit(parameters.strength + random.signed() * parameters.strength_jitter);
+        let roughness =
+            clamp_unit(parameters.roughness + random.signed() * parameters.roughness_jitter);
+        let effect = if uplift { "uplift" } else { "depression" };
+        let relative_elevation = if uplift {
+            0.5 + strength * 0.5
+        } else {
+            0.5 - strength * 0.5
+        };
+        features.push(serde_json::json!({
+            "type": "Feature",
+            "id": format!("control-{:04}", index + 1),
+            "properties": {
+                "name": format!("Generated {} {:04}", if uplift { "uplift" } else { "basin" }, index + 1),
+                "terrain_class": format!("generated_{effect}_control"),
+                "terrain_effect": effect,
+                "effect_strength": rounded_parameter(strength),
+                "relative_elevation": rounded_parameter(relative_elevation),
+                "roughness": rounded_parameter(roughness),
+                "falloff": rounded_parameter(parameters.falloff),
+                "anisotropy": rounded_parameter(parameters.anisotropy),
+                "orientation_degrees": rounded_parameter(orientation.rem_euclid(180.0)),
+                "generator": recipe.generator,
+                "generation_seed": recipe.seed,
+                "generation_index": index + 1,
+                "authority": "generated_candidate_hint"
+            },
+            "geometry": {"type": "Polygon", "coordinates": [ring]}
+        }));
+    }
+    let document = serde_json::json!({
+        "type": "FeatureCollection",
+        "name": format!("{} deterministic terrain controls", recipe.source_id),
+        "rey_generation": recipe,
+        "features": features
+    });
+    Ok(serde_json::to_vec_pretty(&document)?)
+}
+
+fn verify_generated_output(bytes: &[u8], source_id: &str) -> Result<(), EditorError> {
+    let document: Value = serde_json::from_slice(bytes)?;
+    let recipe: SceneGenerationRecipe = serde_json::from_value(
+        document
+            .get("rey_generation")
+            .cloned()
+            .ok_or_else(|| EditorError::GeneratedOutputAuthority(source_id.to_owned()))?,
+    )?;
+    if recipe.schema != SCENE_GENERATION_SCHEMA
+        || recipe.generator != "rey.editor.terrain-controls@1"
+        || recipe.source_id != source_id
+    {
+        return Err(EditorError::GeneratedOutputAuthority(source_id.to_owned()));
+    }
+    Ok(())
+}
+
+fn strip_final_newline(bytes: &[u8]) -> &[u8] {
+    bytes.strip_suffix(b"\n").unwrap_or(bytes)
+}
+
+fn lerp(start: f64, end: f64, amount: f64) -> f64 {
+    start + (end - start) * amount
+}
+
+fn clamp_unit(value: f64) -> f64 {
+    value.clamp(0.0, 1.0)
+}
+
+fn rounded_coordinate(value: f64) -> f64 {
+    (value * 1_000_000_000.0).round() / 1_000_000_000.0
+}
+
+fn rounded_parameter(value: f64) -> f64 {
+    (value * 1_000_000.0).round() / 1_000_000.0
+}
+
+struct SplitMix64 {
+    state: u64,
+}
+
+impl SplitMix64 {
+    const fn new(seed: u64) -> Self {
+        Self { state: seed }
+    }
+
+    fn next(&mut self) -> u64 {
+        self.state = self.state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut value = self.state;
+        value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        value ^ (value >> 31)
+    }
+
+    fn unit(&mut self) -> f64 {
+        (self.next() >> 11) as f64 / (1_u64 << 53) as f64
+    }
+
+    fn signed(&mut self) -> f64 {
+        self.unit() * 2.0 - 1.0
     }
 }
 
@@ -1688,6 +2162,71 @@ fn snapshot_identity(snapshot: &SceneCandidateSnapshot) -> Result<SemanticDigest
     Ok(hasher.finish())
 }
 
+fn verify_commit_history(commits: &[SceneCommit]) -> Result<(), EditorError> {
+    if commits.len() > MAX_SCENE_COMMITS {
+        return Err(EditorError::CommitLimit(MAX_SCENE_COMMITS));
+    }
+    let mut ids = BTreeSet::new();
+    let mut parent: Option<&SceneCommit> = None;
+    for (index, commit) in commits.iter().enumerate() {
+        commit.verify()?;
+        let expected_sequence = index as u64 + 1;
+        if commit.sequence != expected_sequence {
+            return Err(EditorError::CommitSequence {
+                expected: expected_sequence,
+                actual: commit.sequence,
+            });
+        }
+        if commit.parent_commit_id.as_ref() != parent.map(|parent| &parent.commit_id) {
+            return Err(EditorError::CommitParent(commit.sequence));
+        }
+        if !ids.insert(commit.commit_id.clone()) {
+            return Err(EditorError::DuplicateCommit(commit.commit_id.clone()));
+        }
+        parent = Some(commit);
+    }
+    Ok(())
+}
+
+fn scene_commit_identity(
+    sequence: u64,
+    parent_commit_id: Option<&SemanticDigest>,
+    committed_at_unix: i64,
+    message: &str,
+    package: &ScenePackageReference,
+) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(SCENE_COMMIT_SCHEMA);
+    hasher.add_u64(sequence);
+    hasher.add_optional_str(parent_commit_id.map(SemanticDigest::as_str));
+    hasher.add_str(&committed_at_unix.to_string());
+    hasher.add_str(message);
+    hasher.add_str(package.package_id.as_str());
+    hasher.add_str(package.snapshot_revision.as_str());
+    hasher.add_str(&package.package_path);
+    hasher.add_str(&package.admission_request_path);
+    hasher.finish()
+}
+
+fn normalize_commit_message(message: String) -> Result<String, EditorError> {
+    let message = message.trim().to_owned();
+    if message.is_empty() {
+        return Err(EditorError::EmptyCommitMessage);
+    }
+    if message.len() > MAX_COMMIT_MESSAGE_BYTES {
+        return Err(EditorError::CommitMessageLimit(MAX_COMMIT_MESSAGE_BYTES));
+    }
+    if message.contains('\0') {
+        return Err(EditorError::CommitMessageNul);
+    }
+    Ok(message)
+}
+
+fn validate_commit_timestamp(committed_at_unix: i64) -> Result<(), EditorError> {
+    DateTime::<Utc>::from_timestamp(committed_at_unix, 0)
+        .ok_or(EditorError::CommitTimestamp(committed_at_unix))?;
+    Ok(())
+}
+
 fn package_identity(package: &ScenePackage) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(SCENE_PACKAGE_SCHEMA);
     hasher.add_str(package.snapshot.snapshot_revision.as_str());
@@ -1780,16 +2319,6 @@ fn digest_key(digest: &SemanticDigest) -> &str {
         .as_str()
         .strip_prefix("blake3:")
         .unwrap_or(digest.as_str())
-}
-
-fn validate_digest_argument(value: &str) -> Result<&str, EditorError> {
-    let key = value
-        .strip_prefix("blake3:")
-        .ok_or_else(|| EditorError::UnknownPackage(value.to_owned()))?;
-    if key.len() != 64 || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(EditorError::UnknownPackage(value.to_owned()));
-    }
-    Ok(key)
 }
 
 fn validate_identifier(field: &'static str, value: &str) -> Result<(), EditorError> {
@@ -2068,8 +2597,18 @@ pub enum EditorError {
     DuplicateSourceId(String),
     #[error("duplicate editor source path: {0}")]
     DuplicateSourcePath(String),
+    #[error(
+        "generated scene identity does not match the project: expected {expected}, found {actual}"
+    )]
+    ProjectIdentity { expected: String, actual: String },
     #[error("duplicate scene feature id: {0}")]
     DuplicateFeatureId(String),
+    #[error("generated scene output must use the .geojson extension: {0}")]
+    GeneratedOutputExtension(PathBuf),
+    #[error("refusing to overwrite a source not owned by the declared generator: {0}")]
+    GeneratedOutputAuthority(String),
+    #[error("invalid terrain generation parameter: {0}")]
+    GenerationParameter(String),
     #[error("GeoJSON root must be a Feature or FeatureCollection object")]
     GeoJsonRoot,
     #[error("GeoJSON member is missing or has the wrong type: {0}")]
@@ -2146,8 +2685,34 @@ pub enum EditorError {
     AdmissionRequestIdentity,
     #[error("staged scene artifact identity changed: {0}")]
     ArtifactIdentity(String),
-    #[error("editor index is empty; run `rey editor add` before packaging")]
+    #[error("editor index is empty; run `rey editor add` before committing")]
     EmptyIndex,
+    #[error("nothing staged for scene commit")]
+    NothingToCommit,
+    #[error("scene commit message must not be empty")]
+    EmptyCommitMessage,
+    #[error("scene commit message exceeds {0} bytes")]
+    CommitMessageLimit(usize),
+    #[error("scene commit message must not contain NUL")]
+    CommitMessageNul,
+    #[error("scene commit message is not canonical")]
+    NonCanonicalCommitMessage,
+    #[error("scene commit timestamp is invalid: {0}")]
+    CommitTimestamp(i64),
+    #[error("scene commit sequence mismatch: expected {expected}, found {actual}")]
+    CommitSequence { expected: u64, actual: u64 },
+    #[error("scene commit {0} has the wrong parent")]
+    CommitParent(u64),
+    #[error("duplicate scene commit identity: {0}")]
+    DuplicateCommit(SemanticDigest),
+    #[error("scene commit history exceeds {0} commits")]
+    CommitLimit(usize),
+    #[error("scene commit does not resolve to its exact package and admission request")]
+    CommitPackageIdentity,
+    #[error("scene log count must be 1..={limit}, found {actual}")]
+    LogLimit { limit: usize, actual: usize },
+    #[error("scene commit identity does not match its contents")]
+    CommitIdentity,
     #[error("unknown current scene package: {0}")]
     UnknownPackage(String),
     #[error("editor JSON failed: {0}")]
@@ -2163,10 +2728,28 @@ mod tests {
     use rey_diff::DeltaAssessment;
     use tempfile::TempDir;
 
-    use super::{LocalEditorStore, SceneSourceRole};
+    use super::{LocalEditorStore, SceneSourceDeclaration, SceneSourceFormat, SceneSourceRole};
+
+    fn declare_geojson_source(
+        store: &LocalEditorStore,
+        project_path: &Path,
+        source_path: &str,
+        source_id: &str,
+        role: SceneSourceRole,
+    ) {
+        let (project_file, mut project) = store.load_project(project_path).unwrap();
+        project.sources = vec![SceneSourceDeclaration {
+            source_id: source_id.to_owned(),
+            path: source_path.to_owned(),
+            format: SceneSourceFormat::GeoJson,
+            role,
+        }];
+        let project = project.canonicalize().unwrap();
+        store.write_project(&project_file, &project).unwrap();
+    }
 
     #[test]
-    fn stages_exact_native_geojson_and_packages_only_the_index() {
+    fn stages_exact_native_geojson_and_commits_only_the_index() {
         let workspace = TempDir::new().unwrap();
         let store = LocalEditorStore::default_for_workspace(workspace.path());
         store
@@ -2177,26 +2760,25 @@ mod tests {
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ridge","geometry":{"type":"Point","coordinates":[-122.4,37.8]},"properties":{"title":"Ridge","category":"survey","min_zoom":3,"collision_priority":10}}]}"#,
         )
         .unwrap();
-        store
-            .import_geojson(
-                Path::new("scene.json"),
-                Path::new("markers.geojson"),
-                "survey-poi".to_owned(),
-                SceneSourceRole::Markers,
-            )
-            .unwrap();
+        declare_geojson_source(
+            &store,
+            Path::new("scene.json"),
+            "markers.geojson",
+            "survey-poi",
+            SceneSourceRole::Markers,
+        );
 
         let working = store.status(Path::new("scene.json")).unwrap();
         assert_eq!(working.working.coverage.markers, 1);
         assert_eq!(working.unstaged.inserted, 2);
         let added = store.add(Path::new("scene.json")).unwrap();
         assert!(added.staged);
-        let packaged = store.package().unwrap();
-        assert!(!packaged.admission_request.admitted);
-        assert_eq!(packaged.admission_request.status, "requires_workload");
-        let reused = store.package().unwrap();
-        assert!(!reused.created);
-        assert_eq!(reused.package.package_id, packaged.package.package_id);
+        let committed = store.commit("initial terrain".to_owned()).unwrap();
+        assert_eq!(committed.commit.sequence, 1);
+        assert_eq!(committed.commit.message, "initial terrain");
+        assert!(!committed.admission_request.admitted);
+        assert_eq!(committed.admission_request.status, "requires_workload");
+        assert!(store.commit("duplicate".to_owned()).is_err());
 
         fs::write(
             workspace.path().join("markers.geojson"),
@@ -2207,13 +2789,57 @@ mod tests {
         assert_eq!(second.staged.assessment, DeltaAssessment::Equal);
         assert_eq!(second.unstaged.modified, 2);
         store.add(Path::new("scene.json")).unwrap();
-        let second_package = store.package().unwrap();
+        let second_commit = store.commit("move ridge".to_owned()).unwrap();
         assert_ne!(
-            second_package.package.package_id,
-            packaged.package.package_id
+            second_commit.package.package_id,
+            committed.package.package_id
         );
-        let retained = store.inspect(packaged.package.package_id.as_str()).unwrap();
-        assert_eq!(retained.snapshot.features[0].bounds.west, -122.4);
+        assert_eq!(second_commit.commit.sequence, 2);
+        assert_eq!(
+            second_commit.commit.parent_commit_id.as_ref(),
+            Some(&committed.commit.commit_id)
+        );
+        let log = store.log(32, true).unwrap();
+        assert_eq!(log.total_commits, 2);
+        assert_eq!(
+            log.entries[1].package.snapshot.features[0].bounds.west,
+            -122.4
+        );
+    }
+
+    #[test]
+    fn commit_validates_frozen_index_before_advancing_head() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store
+            .init_project(Path::new("scene.json"), "atlas".to_owned())
+            .unwrap();
+        fs::write(
+            workspace.path().join("terrain.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ridge","geometry":{"type":"Point","coordinates":[-122.4,37.8]},"properties":{}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            Path::new("scene.json"),
+            "terrain.geojson",
+            "terrain",
+            SceneSourceRole::TerrainControl,
+        );
+        let added = store.add(Path::new("scene.json")).unwrap();
+        let object_path = workspace
+            .path()
+            .join(".rey/editor")
+            .join(&added.snapshot.sources[0].artifact.object_path);
+        fs::write(object_path, b"tampered frozen bytes").unwrap();
+
+        let error = store.commit("must fail closed".to_owned()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("staged scene artifact identity changed")
+        );
+        assert_eq!(store.log(32, false).unwrap().total_commits, 0);
     }
 
     #[test]
@@ -2228,14 +2854,14 @@ mod tests {
             r#"{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[0,0]},"properties":{}}]}"#,
         )
         .unwrap();
-        let error = store
-            .import_geojson(
-                Path::new("scene.json"),
-                Path::new("features.geojson"),
-                "features".to_owned(),
-                SceneSourceRole::Features,
-            )
-            .unwrap_err();
+        declare_geojson_source(
+            &store,
+            Path::new("scene.json"),
+            "features.geojson",
+            "features",
+            SceneSourceRole::Features,
+        );
+        let error = store.status(Path::new("scene.json")).unwrap_err();
         assert!(error.to_string().contains("stable string or number ids"));
     }
 
@@ -2260,14 +2886,14 @@ mod tests {
             workspace.path().join("linked.geojson"),
         )
         .unwrap();
-        let source_error = store
-            .import_geojson(
-                Path::new("scene.json"),
-                Path::new("linked.geojson"),
-                "features".to_owned(),
-                SceneSourceRole::Features,
-            )
-            .unwrap_err();
+        declare_geojson_source(
+            &store,
+            Path::new("scene.json"),
+            "linked.geojson",
+            "features",
+            SceneSourceRole::Features,
+        );
+        let source_error = store.status(Path::new("scene.json")).unwrap_err();
         assert!(source_error.to_string().contains("non-symlinked"));
 
         fs::write(
@@ -2275,14 +2901,13 @@ mod tests {
             fs::read(outside.path().join("features.geojson")).unwrap(),
         )
         .unwrap();
-        store
-            .import_geojson(
-                Path::new("scene.json"),
-                Path::new("features.geojson"),
-                "features".to_owned(),
-                SceneSourceRole::Features,
-            )
-            .unwrap();
+        declare_geojson_source(
+            &store,
+            Path::new("scene.json"),
+            "features.geojson",
+            "features",
+            SceneSourceRole::Features,
+        );
         store.add(Path::new("scene.json")).unwrap();
         fs::remove_dir(workspace.path().join(".rey/editor/packages")).unwrap();
         symlink(
@@ -2290,7 +2915,7 @@ mod tests {
             workspace.path().join(".rey/editor/packages"),
         )
         .unwrap();
-        let package_error = store.package().unwrap_err();
+        let package_error = store.commit("blocked package".to_owned()).unwrap_err();
         assert!(package_error.to_string().contains("non-symlinked"));
     }
 }

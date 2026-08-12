@@ -67,8 +67,10 @@ relationship, path, assessment, read authority, or surveyed claim. See [ADR
 0020](plans/0020-high-fidelity-projection-engine.md).
 
 Explorer is the read-first projection side of a level-editor architecture. The
-agent-facing `rey editor` CLI assembles bounded native survey sources into
-WORKING, freezes exact objects in INDEX, and emits immutable scene packages.
+agent-facing `rey editor` CLI generates a bounded native WORKING baseline from
+a retained seed and tunable effect/geometry hyperparameters, lets the agent
+fine-tune those artifacts, freezes exact objects in INDEX, and commits
+`SCENE@n` history with immutable admission packages.
 Those packages remain candidate-only and cannot affect `/explore` until a
 separate qualified workload admits them. The first implemented adapter accepts
 RFC 7946 GeoJSON features and marker POIs in OGC CRS84; detailed raster terrain,
@@ -240,14 +242,14 @@ rey env diff
 rey env add [-p]
 rey env commit -m <message>
 rey env log [-p] [-n <count>]
-rey editor init --id <project>
-rey editor import <source.geojson> --id <source> --role <role>
+rey editor generate terrain <output.geojson> --id <source> \
+  [--scene-id <project>] --seed <seed> \
+  --west <lon> --south <lat> --east <lon> --north <lat>
 rey editor status
-rey editor diff [--staged]
 rey editor add
-rey editor validate
-rey editor package
-rey editor inspect <package-id>
+rey editor commit -m <message>
+rey editor log [-p] [-n <count>]
+rey editor diff [--staged]
 rey workloads create <workload-id> [--title <title>] [--intent <intent>]
 rey workloads list
 rey workloads test [<workload-id>] [-v|-vv]
@@ -284,14 +286,17 @@ just rey env commit -m 'accept local toolchain'
 just rey env log
 just rey env log -n 3
 just rey env log -p
-just rey editor init --id semantic-atlas --format table
-# After creating an RFC 7946 survey.geojson with stable feature ids:
-just rey editor import survey.geojson --id anchor-pois --role markers --format table
+# Bootstrap the scene and author deterministic terrain controls:
+just rey editor generate terrain generated-relief.geojson \
+  --id generated-relief --scene-id semantic-atlas --seed 42 \
+  --west=-123 --south=37 --east=-122 --north=38 \
+  --features 24 --uplift-ratio 0.7 --roughness 0.55 --anisotropy 2.0
+# Fine-tune generated-relief.geojson directly, then review and retain its exact bytes:
 just rey editor status --format table
 just rey editor diff --format table
-just rey editor validate --format table
 just rey editor add --format table
-just rey editor package --format table
+just rey editor commit -m 'retain surveyed scene' --format table
+just rey editor log -p --format table
 just rey workloads create api-drift \
   --title 'API drift mining' \
   --intent 'Mine authoritative API behavior and formalize its graph and scenarios' \
@@ -707,13 +712,19 @@ layout, typed semantic deltas, and a symlink-safe atomic WORKING proposal.
 verification without moving observations into the topology index. Immutable
 HEAD/INDEX admission and browser persistence remain the next topology slices.
 
-The first read-first scene editor slice is executable. `rey editor init`,
-`import`, `status`, `diff`, `validate`, `add`, `package`, and `inspect` preserve
-workspace-authored GeoJSON, build a bounded feature/POI index, freeze exact
-native objects, and retain directed immutable candidate packages plus explicit
-admission requests. This is incomplete enabling work: no scene-admission
-workload exists, candidate requests report `admitted=false`, and `/explore`
-continues to consume only retained survey-workload topography.
+The first read-first scene editor slice is executable. `rey editor generate
+terrain` is the only authoring entry point: it bootstraps the scene project,
+writes deterministic GeoJSON from explicit hyperparameters, and leaves the
+result in WORKING for an agent to fine-tune directly. `status`, `diff`, `add`,
+`commit`, and `log` then preserve the exact edited bytes through the same
+Git-shaped revision loop as the environment surface. `commit` validates only
+the frozen INDEX before retaining linear `SCENE@n` history, an immutable
+candidate package, and an explicit admission request. The embedded generation
+recipe reproduces the base output; later agent edits remain attributable by
+their exact native-object digest and scene delta. This is incomplete enabling
+work: no scene-admission workload exists, candidate requests report
+`admitted=false`, and `/explore` continues to consume only retained
+survey-workload topography.
 
 [Rey County](scenes/rey-county/README.md) is the first complete editor fixture
 authored from a fresh Rey environment commit and freshly executed workspace

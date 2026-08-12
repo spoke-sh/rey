@@ -40,27 +40,28 @@ survey source edges; no road, route, or traversability is claimed.
   `blake3:70e6615ebcd02f121f506c5e0bb34389255a72d51019f5de846f28dc55922d7a`
   produced the canonical label `REY COUNTY`.
 
-## Creation transcript
+## Retention transcript
 
-These were the one-time authoring commands run from an empty scene path:
+The checked-in project and native files are the authored WORKING scene. They
+include generated terrain-control lineage plus exact agent fine-tuning and
+additional declared feature families; the generator recipe is not presented as
+reproducing those subsequent edits. From an empty local editor state, the
+current public surface retains those exact checked-in bytes with:
 
 ```text
-rey editor init --id rey-county
-rey editor import scenes/rey-county/boundary.geojson --id rey-county-boundary --role boundary
-rey editor import scenes/rey-county/terrain-controls.geojson --id rey-county-terrain --role terrain-control
-rey editor import scenes/rey-county/hydrology.geojson --id rey-county-hydrology --role hydrology
-rey editor import scenes/rey-county/features.geojson --id rey-county-features --role features
-rey editor import scenes/rey-county/markers.geojson --id rey-county-markers --role markers
-rey editor validate
 rey editor status
+rey editor diff
 rey editor add
-rey editor package
+rey editor diff --staged
+rey editor commit -m 'establish Rey County'
+rey editor log -p
 ```
 
-The checked-in project already contains the imported source declarations. A
-fresh clone can reproduce its local candidate state with `validate`, `status`,
-`add`, `diff --staged`, `package`, and exact-ID `inspect`; it should not rerun
-`init` or `import` over the existing project.
+For a new scene, `rey editor generate terrain ... --scene-id <scene>` creates
+the project and first native source. The agent then fine-tunes generated files
+and the workspace-contained project in WORKING before using the same retention
+loop. There is no separate initialization, import, or validation command;
+commit validates the frozen INDEX and refuses to advance on failure.
 
 Packaging freezes a candidate only. `/explore` cannot consume this package
 until a separate qualified scene-admission workload is implemented.

@@ -1072,26 +1072,46 @@ Topology Explorer](EXPLORER.md), [ADR
 The agent-facing scene authoring surface is separate:
 
 ```text
-rey editor init --id <project>
-rey editor import <source.geojson> --id <source> \
-  --role features|markers|terrain-control|hydrology|boundary
+rey editor generate terrain <output.geojson> --id <source> --seed <seed> \
+  [--scene-id <project>] \
+  --west <lon> --south <lat> --east <lon> --north <lat> [hyperparameters]
 rey editor status
-rey editor diff [--staged]
 rey editor add
-rey editor validate
-rey editor package
-rey editor inspect <blake3-package-id>
+rey editor commit -m <message>
+rey editor log [-p] [-n <count>]
+rey editor diff [--staged]
 ```
 
 All editor commands accept `--format table|json` (and terminal-sensitive
 `auto`). The project defaults to workspace-relative `rey.scene.json`; all
 project/native inputs remain bounded, regular, non-symlinked, and contained by
-the workspace. `status` and `diff` compare candidate `PACKAGE → INDEX →
-WORKING`. `add` is the only staging operation and freezes exact native bytes.
-`package` reads only INDEX, writes `rey.scene-package.v1` plus
+the workspace. `generate` creates the project when it is absent; `--scene-id`
+sets that initial identity and otherwise defaults to the generated source ID.
+The agent then fine-tunes the generated native source directly in WORKING.
+`status` and `diff` compare `HEAD → INDEX → WORKING`. `add` is the only
+staging operation and freezes the exact agent-edited native bytes. `commit`
+reads and validates only INDEX, advances `SCENE@n`, writes
+`rey.scene-package.v1` plus
 `rey.scene-admission-request.v1`, and reports `candidate_only`,
 `requires_workload`, and `admitted=false`. It never changes the workload store
-or UI. See [ADR 0046](decisions/0046-read-first-scene-editor.md).
+or UI. `log` exposes retained commit messages, parents, packages, snapshots,
+and optional exact patches. Human `status` uses the concise Git-shaped
+environment-status grammar: current scene commit, changes staged for commit,
+changes not staged, and an actionable final state. Successful `commit` renders
+the validation receipt for the frozen snapshot; validation failure prevents
+HEAD from advancing. Use `log` for immutable history/package evidence and JSON
+`status` for the complete typed state.
+
+`generate terrain` writes a deterministic terrain-control GeoJSON source into
+WORKING and registers it in the project. It binds the complete effective recipe
+in `rey.scene-generation.v1`: seed, CRS84 bounds, feature and vertex counts,
+scale interval, uplift ratio, strength, roughness, anisotropy, orientation,
+edge jitter, and falloff. Same recipe means same bytes; parameter changes are
+ordinary WORKING changes. The recipe reproduces the generated base; exact
+post-generation agent edits are retained by the source digest and scene delta,
+not folded back into an invented recipe. Generated effect values are candidate
+hints and gain no admission authority. See [ADR
+0046](decisions/0046-read-first-scene-editor.md).
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded

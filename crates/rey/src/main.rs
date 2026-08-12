@@ -21,9 +21,9 @@ use rey::{
         LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
     },
     editor::{
-        EditorAddResult, EditorError, EditorImportResult, EditorPackageResult, EditorStatus,
-        LocalEditorStore, SceneCandidateSnapshot, SceneChangeKind, SceneChangeSet, SceneObjectKind,
-        ScenePackage, SceneSourceRole,
+        EditorAddResult, EditorCommitResult, EditorError, EditorGenerateResult, EditorLog,
+        EditorStatus, LocalEditorStore, SceneBounds, SceneChangeKind, SceneChangeSet, SceneCommit,
+        SceneObjectKind, SceneTerrainGenerationParameters,
     },
     env::{
         EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentApplicationObservation,
@@ -90,7 +90,7 @@ enum Command {
     Channels(ChannelsArgs),
     /// Track bounded compute environment revisions.
     Env(EnvArgs),
-    /// Build immutable read-first scene candidates for explicit Rey admission.
+    /// Track and generate read-first scene revisions for explicit Rey admission.
     Editor(EditorArgs),
     /// Inspect, test, qualify, and execute bounded compute graphs.
     Workloads(WorkloadsArgs),
@@ -102,7 +102,7 @@ enum Command {
 
 #[derive(Debug, Args)]
 struct EditorArgs {
-    /// Workspace containing the project and all imported native sources.
+    /// Workspace containing the project and its agent-authored native sources.
     #[arg(long, global = true, default_value = ".")]
     workspace: PathBuf,
 
@@ -120,51 +120,18 @@ struct EditorArgs {
 
 #[derive(Debug, Subcommand)]
 enum EditorCommand {
-    /// Create an empty OGC CRS84 scene project without staging it.
-    Init(EditorInitArgs),
-    /// Validate and register one workspace-contained GeoJSON source in WORKING.
-    Import(EditorImportArgs),
-    /// Show PACKAGE, INDEX, and WORKING state without changing it.
+    /// Deterministically generate tunable scene features into WORKING.
+    Generate(EditorGenerateArgs),
+    /// Show HEAD, INDEX, and WORKING state without changing it.
     Status(EditorOutputArgs),
-    /// Show INDEX to WORKING changes, or PACKAGE to INDEX with --staged.
-    Diff(EditorDiffArgs),
     /// Stage the exact verified project and immutable native-source objects.
     Add(EditorOutputArgs),
-    /// Validate all declared sources and render the resulting scene snapshot.
-    Validate(EditorOutputArgs),
-    /// Package exactly the staged index and emit an unadmitted workload request.
-    Package(EditorOutputArgs),
-    /// Inspect an immutable scene package by exact package identity.
-    Inspect(EditorInspectArgs),
-}
-
-#[derive(Debug, Args)]
-struct EditorInitArgs {
-    /// Stable scene project identity.
-    #[arg(long)]
-    id: String,
-
-    /// Human receipt or typed JSON project.
-    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
-    format: WorkloadOutputFormat,
-}
-
-#[derive(Debug, Args)]
-struct EditorImportArgs {
-    /// Workspace-relative GeoJSON Feature or FeatureCollection.
-    source: PathBuf,
-
-    /// Stable identity for this native survey source.
-    #[arg(long)]
-    id: String,
-
-    /// Semantic projection role; line features do not imply discovered paths.
-    #[arg(long, value_enum, default_value_t = EditorRoleArg::Features)]
-    role: EditorRoleArg,
-
-    /// Human receipt or typed JSON result.
-    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
-    format: WorkloadOutputFormat,
+    /// Validate and commit exactly the staged INDEX, then emit its unadmitted request.
+    Commit(EditorCommitArgs),
+    /// Show committed scene revisions newest first.
+    Log(EditorLogArgs),
+    /// Show INDEX to WORKING changes, or HEAD to INDEX with --staged.
+    Diff(EditorDiffArgs),
 }
 
 #[derive(Debug, Args)]
@@ -176,7 +143,7 @@ struct EditorOutputArgs {
 
 #[derive(Debug, Args)]
 struct EditorDiffArgs {
-    /// Compare the current PACKAGE candidate with the INDEX.
+    /// Compare the current scene HEAD with the INDEX.
     #[arg(long)]
     staged: bool,
 
@@ -186,34 +153,135 @@ struct EditorDiffArgs {
 }
 
 #[derive(Debug, Args)]
-struct EditorInspectArgs {
-    /// Exact blake3 scene package identity.
-    package_id: String,
+struct EditorCommitArgs {
+    /// Commit message bound into the scene revision identity.
+    #[arg(short = 'm', long = "message", required = true)]
+    message: String,
 
-    /// Human package evidence or typed JSON package.
+    /// Human receipt or typed JSON commit, package, and admission request.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum EditorRoleArg {
-    Features,
-    Markers,
-    TerrainControl,
-    Hydrology,
-    Boundary,
+#[derive(Debug, Args)]
+struct EditorLogArgs {
+    /// Render each exact parent-to-commit scene patch.
+    #[arg(short = 'p', long = "patch")]
+    patch: bool,
+
+    /// Maximum number of newest commits to show.
+    #[arg(short = 'n', long = "max-count", default_value_t = 32)]
+    max_count: usize,
+
+    /// Human history or typed JSON log.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
-impl From<EditorRoleArg> for SceneSourceRole {
-    fn from(value: EditorRoleArg) -> Self {
-        match value {
-            EditorRoleArg::Features => Self::Features,
-            EditorRoleArg::Markers => Self::Markers,
-            EditorRoleArg::TerrainControl => Self::TerrainControl,
-            EditorRoleArg::Hydrology => Self::Hydrology,
-            EditorRoleArg::Boundary => Self::Boundary,
-        }
-    }
+#[derive(Debug, Args)]
+struct EditorGenerateArgs {
+    #[command(subcommand)]
+    generator: EditorGeneratorCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum EditorGeneratorCommand {
+    /// Generate deterministic polygonal uplift and depression controls.
+    Terrain(EditorGenerateTerrainArgs),
+}
+
+#[derive(Debug, Args)]
+struct EditorGenerateTerrainArgs {
+    /// Workspace-relative generated GeoJSON output.
+    output: PathBuf,
+
+    /// Stable source identity registered in the scene project.
+    #[arg(long)]
+    id: String,
+
+    /// Scene identity used when generate creates the project; defaults to source id.
+    #[arg(long)]
+    scene_id: Option<String>,
+
+    /// Deterministic generator seed.
+    #[arg(long, default_value_t = 1)]
+    seed: u64,
+
+    /// Western CRS84 longitude bound.
+    #[arg(long, allow_hyphen_values = true)]
+    west: f64,
+
+    /// Southern CRS84 latitude bound.
+    #[arg(long, allow_hyphen_values = true)]
+    south: f64,
+
+    /// Eastern CRS84 longitude bound.
+    #[arg(long, allow_hyphen_values = true)]
+    east: f64,
+
+    /// Northern CRS84 latitude bound.
+    #[arg(long, allow_hyphen_values = true)]
+    north: f64,
+
+    /// Number of generated terrain controls.
+    #[arg(long, default_value_t = 24)]
+    features: u64,
+
+    /// Polygon vertices per terrain control.
+    #[arg(long, default_value_t = 9)]
+    vertices: u64,
+
+    /// Minimum feature scale as a fraction of the generation bounds.
+    #[arg(long, default_value_t = 0.025)]
+    scale_min: f64,
+
+    /// Maximum feature scale as a fraction of the generation bounds.
+    #[arg(long, default_value_t = 0.09)]
+    scale_max: f64,
+
+    /// Fraction of controls producing uplift instead of depression.
+    #[arg(long, default_value_t = 0.68)]
+    uplift_ratio: f64,
+
+    /// Mean normalized terrain-effect strength.
+    #[arg(long, default_value_t = 0.72)]
+    strength: f64,
+
+    /// Symmetric normalized variation around effect strength.
+    #[arg(long, default_value_t = 0.24)]
+    strength_jitter: f64,
+
+    /// Mean normalized surface roughness.
+    #[arg(long, default_value_t = 0.58)]
+    roughness: f64,
+
+    /// Symmetric normalized variation around roughness.
+    #[arg(long, default_value_t = 0.2)]
+    roughness_jitter: f64,
+
+    /// Major-to-minor feature-axis ratio.
+    #[arg(long, default_value_t = 1.8)]
+    anisotropy: f64,
+
+    /// Mean feature-axis orientation in degrees.
+    #[arg(long, default_value_t = 30.0, allow_hyphen_values = true)]
+    orientation_degrees: f64,
+
+    /// Symmetric orientation variation in degrees.
+    #[arg(long, default_value_t = 45.0)]
+    orientation_jitter_degrees: f64,
+
+    /// Normalized per-vertex outline variation.
+    #[arg(long, default_value_t = 0.14)]
+    edge_jitter: f64,
+
+    /// Positive radial influence falloff exponent.
+    #[arg(long, default_value_t = 2.2)]
+    falloff: f64,
+
+    /// Human generation receipt or typed JSON lineage.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -673,58 +741,13 @@ fn editor_command(args: EditorArgs) -> Result<ExitCode, CliError> {
         None => LocalEditorStore::default_for_workspace(&workspace),
     };
     match args.command {
-        EditorCommand::Init(command) => editor_init(&store, &args.project, command),
-        EditorCommand::Import(command) => editor_import(&store, &args.project, command),
+        EditorCommand::Generate(command) => editor_generate(&store, &args.project, command),
         EditorCommand::Status(command) => editor_status(&store, &args.project, command),
-        EditorCommand::Diff(command) => editor_diff(&store, &args.project, command),
         EditorCommand::Add(command) => editor_add(&store, &args.project, command),
-        EditorCommand::Validate(command) => editor_validate(&store, &args.project, command),
-        EditorCommand::Package(command) => editor_package(&store, command),
-        EditorCommand::Inspect(command) => editor_inspect(&store, command),
+        EditorCommand::Commit(command) => editor_commit(&store, command),
+        EditorCommand::Log(command) => editor_log(&store, command),
+        EditorCommand::Diff(command) => editor_diff(&store, &args.project, command),
     }
-}
-
-fn editor_init(
-    store: &LocalEditorStore,
-    project_path: &Path,
-    args: EditorInitArgs,
-) -> Result<ExitCode, CliError> {
-    let project = store.init_project(project_path, args.id)?;
-    let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &project)?,
-        WorkloadOutputFormat::Table => {
-            writeln!(
-                stdout,
-                "Initialized empty scene project in {}",
-                project_path.display()
-            )?;
-            writeln!(stdout, "project      {}", project.project_id)?;
-            writeln!(stdout, "schema       {}", project.schema)?;
-            writeln!(stdout, "coordinates  OGC CRS84 · longitude/latitude")?;
-            writeln!(
-                stdout,
-                "authority    WORKING only · nothing staged or admitted"
-            )?;
-        }
-        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
-    }
-    Ok(ExitCode::SUCCESS)
-}
-
-fn editor_import(
-    store: &LocalEditorStore,
-    project_path: &Path,
-    args: EditorImportArgs,
-) -> Result<ExitCode, CliError> {
-    let result = store.import_geojson(project_path, &args.source, args.id, args.role.into())?;
-    let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
-        WorkloadOutputFormat::Table => write_editor_import(&mut stdout, &result)?,
-        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
-    }
-    Ok(ExitCode::SUCCESS)
 }
 
 fn editor_status(
@@ -736,7 +759,9 @@ fn editor_status(
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
-        WorkloadOutputFormat::Table => write_editor_status(&mut stdout, &status)?,
+        WorkloadOutputFormat::Table => {
+            write_editor_status(&mut stdout, &status, TerminalStyle::stdout())?
+        }
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
@@ -772,45 +797,69 @@ fn editor_add(
     Ok(ExitCode::SUCCESS)
 }
 
-fn editor_validate(
+fn editor_generate(
     store: &LocalEditorStore,
     project_path: &Path,
-    args: EditorOutputArgs,
+    args: EditorGenerateArgs,
 ) -> Result<ExitCode, CliError> {
-    let snapshot = store.validate(project_path)?;
-    let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &snapshot)?,
-        WorkloadOutputFormat::Table => {
-            writeln!(stdout, "SCENE VALIDATION · VERIFIED")?;
-            write_editor_snapshot(&mut stdout, &snapshot)?;
-            writeln!(
-                stdout,
-                "Admission       none · validation does not stage or admit"
-            )?;
-        }
-        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
-    }
-    Ok(ExitCode::SUCCESS)
-}
-
-fn editor_package(store: &LocalEditorStore, args: EditorOutputArgs) -> Result<ExitCode, CliError> {
-    let result = store.package()?;
+    let EditorGeneratorCommand::Terrain(args) = args.generator;
+    let result = store.generate_terrain(
+        project_path,
+        &args.output,
+        args.scene_id,
+        args.id,
+        args.seed,
+        SceneBounds {
+            west: args.west,
+            south: args.south,
+            east: args.east,
+            north: args.north,
+        },
+        SceneTerrainGenerationParameters {
+            feature_count: args.features,
+            vertices: args.vertices,
+            scale_min: args.scale_min,
+            scale_max: args.scale_max,
+            uplift_ratio: args.uplift_ratio,
+            strength: args.strength,
+            strength_jitter: args.strength_jitter,
+            roughness: args.roughness,
+            roughness_jitter: args.roughness_jitter,
+            anisotropy: args.anisotropy,
+            orientation_degrees: args.orientation_degrees,
+            orientation_jitter_degrees: args.orientation_jitter_degrees,
+            edge_jitter: args.edge_jitter,
+            falloff: args.falloff,
+        },
+    )?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
-        WorkloadOutputFormat::Table => write_editor_package(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_editor_generate(&mut stdout, &result)?,
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
 }
 
-fn editor_inspect(store: &LocalEditorStore, args: EditorInspectArgs) -> Result<ExitCode, CliError> {
-    let package = store.inspect(&args.package_id)?;
+fn editor_commit(store: &LocalEditorStore, args: EditorCommitArgs) -> Result<ExitCode, CliError> {
+    let result = store.commit(args.message)?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &package)?,
-        WorkloadOutputFormat::Table => write_editor_package_inspection(&mut stdout, &package)?,
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_editor_commit(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn editor_log(store: &LocalEditorStore, args: EditorLogArgs) -> Result<ExitCode, CliError> {
+    let log = store.log(args.max_count, args.patch)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &log)?,
+        WorkloadOutputFormat::Table => {
+            write_editor_log(&mut stdout, &log, TerminalStyle::stdout())?
+        }
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
@@ -6091,23 +6140,44 @@ fn capability_field(
     ))
 }
 
-fn write_editor_import(
+fn write_editor_generate(
     output: &mut impl Write,
-    result: &EditorImportResult,
+    result: &EditorGenerateResult,
 ) -> Result<(), CliError> {
     writeln!(
         output,
-        "{} GeoJSON source {}",
-        if result.imported {
-            "Imported"
+        "{} deterministic terrain source {}",
+        if result.changed {
+            "Generated"
         } else {
-            "Already registered"
+            "Verified"
         },
         result.source.source_id
     )?;
     writeln!(output, "project      {}", result.project_path)?;
-    writeln!(output, "source       {}", result.source.path)?;
-    writeln!(output, "role         {}", result.source.role.label())?;
+    writeln!(
+        output,
+        "bootstrap    {}",
+        if result.project_created {
+            "created scene project"
+        } else {
+            "existing scene project"
+        }
+    )?;
+    writeln!(output, "output       {}", result.output_path)?;
+    writeln!(
+        output,
+        "generator    {} · seed {}",
+        result.recipe.generator, result.recipe.seed
+    )?;
+    writeln!(
+        output,
+        "bounds       [{:.6}, {:.6}] → [{:.6}, {:.6}]",
+        result.recipe.bounds.west,
+        result.recipe.bounds.south,
+        result.recipe.bounds.east,
+        result.recipe.bounds.north
+    )?;
     writeln!(
         output,
         "coverage     {} features · {} coordinate positions",
@@ -6115,45 +6185,112 @@ fn write_editor_import(
     )?;
     writeln!(
         output,
-        "authority    WORKING only · run `rey editor add` to stage"
+        "effects      uplift={:.3} · strength={:.3}±{:.3} · roughness={:.3}±{:.3} · falloff={:.3}",
+        result.recipe.parameters.uplift_ratio,
+        result.recipe.parameters.strength,
+        result.recipe.parameters.strength_jitter,
+        result.recipe.parameters.roughness,
+        result.recipe.parameters.roughness_jitter,
+        result.recipe.parameters.falloff
+    )?;
+    writeln!(
+        output,
+        "geometry     scale={:.3}..{:.3} · anisotropy={:.3} · orientation={:.1}°±{:.1}° · edge jitter={:.3}",
+        result.recipe.parameters.scale_min,
+        result.recipe.parameters.scale_max,
+        result.recipe.parameters.anisotropy,
+        result.recipe.parameters.orientation_degrees,
+        result.recipe.parameters.orientation_jitter_degrees,
+        result.recipe.parameters.edge_jitter
+    )?;
+    writeln!(
+        output,
+        "authority    generated WORKING candidate · run `rey editor diff`, then `rey editor add`"
     )?;
     Ok(())
 }
 
-fn write_editor_status(output: &mut impl Write, status: &EditorStatus) -> Result<(), CliError> {
-    match &status.package {
-        Some(package) => writeln!(output, "On scene package {}", package.package_id)?,
-        None => writeln!(output, "No scene package yet")?,
+fn write_editor_status(
+    output: &mut impl Write,
+    status: &EditorStatus,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    let head = status.head.as_ref().map_or_else(
+        || "no commits yet".to_owned(),
+        |commit| format!("SCENE@{}", commit.sequence),
+    );
+    writeln!(output, "On scene {head}")?;
+
+    write_editor_status_changes(
+        output,
+        &status.staged,
+        "Changes to be committed:",
+        "  (use \"rey editor diff --staged\" to review)",
+        true,
+        style,
+    )?;
+    write_editor_status_changes(
+        output,
+        &status.unstaged,
+        "Changes not staged for scene commit:",
+        "  (use \"rey editor diff\" to review; \"rey editor add\" to stage)",
+        false,
+        style,
+    )?;
+
+    writeln!(output)?;
+    match status.state {
+        rey::editor::EditorWorkingState::Clean => {
+            writeln!(output, "nothing to commit, working scene clean")?
+        }
+        rey::editor::EditorWorkingState::Working => writeln!(
+            output,
+            "no changes added to scene commit (use `rey editor add` to stage)"
+        )?,
+        rey::editor::EditorWorkingState::Staged => {
+            writeln!(output, "changes staged in the scene index")?
+        }
+        rey::editor::EditorWorkingState::Mixed => writeln!(
+            output,
+            "staged changes and unstaged scene changes are both present"
+        )?,
+    }
+    Ok(())
+}
+
+fn write_editor_status_changes(
+    output: &mut impl Write,
+    changes: &SceneChangeSet,
+    heading: &str,
+    hint: &str,
+    staged: bool,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    if changes.changes.is_empty() {
+        return Ok(());
     }
     writeln!(output)?;
-    writeln!(
-        output,
-        "State          {}",
-        match status.state {
-            rey::editor::EditorWorkingState::Clean => "clean",
-            rey::editor::EditorWorkingState::Working => "working changes",
-            rey::editor::EditorWorkingState::Staged => "staged changes",
-            rey::editor::EditorWorkingState::Mixed => "staged and working changes",
-        }
-    )?;
-    writeln!(
-        output,
-        "PACKAGE→INDEX +{} -{} ~{} · {}",
-        status.staged.inserted,
-        status.staged.deleted,
-        status.staged.modified,
-        scene_assessment(status.staged.assessment)
-    )?;
-    writeln!(
-        output,
-        "INDEX→WORKING +{} -{} ~{} · {}",
-        status.unstaged.inserted,
-        status.unstaged.deleted,
-        status.unstaged.modified,
-        scene_assessment(status.unstaged.assessment)
-    )?;
-    write_editor_snapshot(output, &status.working)?;
-    writeln!(output, "Admission       {}", status.admission_boundary)?;
+    writeln!(output, "{heading}")?;
+    writeln!(output, "{hint}")?;
+
+    for change in &changes.changes {
+        let change_label = match change.change_kind {
+            SceneChangeKind::Inserted => "new:",
+            SceneChangeKind::Deleted => "deleted:",
+            SceneChangeKind::Modified => "modified:",
+        };
+        let object_kind = match change.object_kind {
+            SceneObjectKind::Source => "source",
+            SceneObjectKind::Feature => "feature",
+        };
+        let line = format!("{change_label:<10} {object_kind}: {}", change.object_id);
+        let line = if staged {
+            style.green(&line)
+        } else {
+            style.red(&line)
+        };
+        writeln!(output, "        {line}")?;
+    }
     Ok(())
 }
 
@@ -6213,187 +6350,171 @@ fn write_editor_diff(output: &mut impl Write, diff: &SceneChangeSet) -> Result<(
 }
 
 fn write_editor_add(output: &mut impl Write, result: &EditorAddResult) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "SCENE INDEX")?;
     writeln!(
         output,
-        "{} scene index",
+        "  Snapshot               {}",
+        result.snapshot.snapshot_revision
+    )?;
+    writeln!(
+        output,
+        "  Scene                  {} sources · {} features · {} markers · {} positions",
+        result.snapshot.coverage.sources,
+        result.snapshot.coverage.features,
+        result.snapshot.coverage.markers,
+        result.snapshot.coverage.coordinates
+    )?;
+    writeln!(
+        output,
+        "  Selection              {} scene changes {}",
+        result.delta.changes.len(),
         if result.staged {
-            "Staged"
+            "staged"
         } else {
-            "Verified unchanged"
+            "verified unchanged"
         }
     )?;
-    write_editor_snapshot(output, &result.snapshot)?;
     writeln!(
         output,
-        "PACKAGE→INDEX +{} -{} ~{}",
-        result.delta.inserted, result.delta.deleted, result.delta.modified
+        "  Commit delta           {} · +{} -{} ~{}",
+        scene_assessment(result.delta.assessment),
+        result.delta.inserted,
+        result.delta.deleted,
+        result.delta.modified
     )?;
     writeln!(
         output,
-        "Authority       staged candidate · native objects frozen · not admitted"
+        "  Authority              candidate only · native objects frozen · not admitted"
     )?;
     Ok(())
 }
 
-fn write_editor_snapshot(
+fn write_editor_commit(
     output: &mut impl Write,
-    snapshot: &SceneCandidateSnapshot,
+    result: &EditorCommitResult,
 ) -> Result<(), CliError> {
-    writeln!(output, "Scene snapshot:")?;
-    writeln!(output, "  schema          {}", snapshot.schema)?;
-    writeln!(output, "  project         {}", snapshot.project_id)?;
-    writeln!(output, "  revision        {}", snapshot.snapshot_revision)?;
     writeln!(
         output,
-        "  coordinates     {} {} · {}",
-        snapshot.coordinate_system.authority,
-        snapshot.coordinate_system.code,
-        snapshot.coordinate_system.axis_order
+        "[SCENE@{} {}] {}",
+        result.commit.sequence, result.commit.commit_id, result.commit.message
     )?;
-    match &snapshot.bounds {
-        Some(bounds) => writeln!(
-            output,
-            "  bounds          [{:.6}, {:.6}] → [{:.6}, {:.6}]",
-            bounds.west, bounds.south, bounds.east, bounds.north
-        )?,
-        None => writeln!(output, "  bounds          empty · no geographic claim")?,
+    writeln!(
+        output,
+        " validation complete · snapshot {} · {} sources · {} features · {} omissions",
+        result.package.snapshot.snapshot_revision,
+        result.package.snapshot.coverage.sources,
+        result.package.snapshot.coverage.features,
+        result.package.snapshot.omissions.len()
+    )?;
+    writeln!(
+        output,
+        " {} scene changes · +{} -{} ~{}",
+        result.package.change_set.changes.len(),
+        result.package.change_set.inserted,
+        result.package.change_set.deleted,
+        result.package.change_set.modified
+    )?;
+    writeln!(
+        output,
+        " package {} · candidate only",
+        result.package.package_id
+    )?;
+    writeln!(
+        output,
+        " admission {} · {} · admitted={} · /explore unchanged",
+        result.admission_request.request_id,
+        result.admission_request.status,
+        result.admission_request.admitted
+    )?;
+    Ok(())
+}
+
+fn write_editor_log(
+    output: &mut impl Write,
+    log: &EditorLog,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output, "REY EDITOR LOG")?;
+    writeln!(
+        output,
+        "  History                {} total · {} shown · newest first",
+        log.total_commits, log.selected_commits
+    )?;
+    if log.entries.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No scene commits.")?;
+        return Ok(());
     }
-    writeln!(
-        output,
-        "  coverage        {} sources · {} features · {} markers · {} positions",
-        snapshot.coverage.sources,
-        snapshot.coverage.features,
-        snapshot.coverage.markers,
-        snapshot.coverage.coordinates
-    )?;
-    writeln!(
-        output,
-        "  completeness    {} · {} omissions",
-        if snapshot.complete {
-            "complete"
-        } else {
-            "bounded"
-        },
-        snapshot.omissions.len()
-    )?;
-    writeln!(
-        output,
-        "  limits          sources={} · source_bytes={} · features={} · coordinates={} · properties={}/{} bytes",
-        snapshot.limits.max_sources,
-        snapshot.limits.max_source_bytes,
-        snapshot.limits.max_features,
-        snapshot.limits.max_coordinates,
-        snapshot.limits.max_properties_per_feature,
-        snapshot.limits.max_properties_bytes_per_feature
-    )?;
-    for source in &snapshot.sources {
+    for entry in &log.entries {
+        let commit = &entry.commit;
+        let package = &entry.package;
+        let head = log.head_commit_id.as_ref() == Some(&commit.commit_id);
+        writeln!(output)?;
         writeln!(
             output,
-            "  SOURCE {} · {} · {} · {} features · {} positions",
-            source.source_id,
-            source.role.label(),
-            source.artifact.content_digest,
-            source.feature_count,
-            source.coordinate_count
+            "{}{}",
+            style.bold(&format!(
+                "commit SCENE@{} {}",
+                commit.sequence, commit.commit_id
+            )),
+            if head { " (HEAD)" } else { "" }
         )?;
         writeln!(
             output,
-            "         worktree={} · object={} · {} bytes · {}",
-            source.worktree_path,
-            source.artifact.object_path,
-            source.artifact.bytes,
-            source.artifact.media_type
+            "Parent: {}",
+            commit.parent_commit_id.as_ref().map_or_else(
+                || "EMPTY".to_owned(),
+                |parent| format!("SCENE@{} {parent}", commit.sequence.saturating_sub(1))
+            )
         )?;
-    }
-    const HUMAN_FEATURE_LIMIT: usize = 24;
-    for feature in snapshot.features.iter().take(HUMAN_FEATURE_LIMIT) {
-        write!(
-            output,
-            "  FEATURE {} · {} · {} · {} positions",
-            feature.feature_id,
-            feature.role.label(),
-            feature.geometry_kind,
-            feature.coordinate_count
-        )?;
-        if let Some(marker) = &feature.marker {
-            write!(
-                output,
-                " · POI {:?} · zoom {}..{} · priority {}",
-                marker.title, marker.min_zoom, marker.max_zoom, marker.collision_priority
-            )?;
+        writeln!(output, "Date:   {}", format_scene_commit_date(commit))?;
+        writeln!(output)?;
+        for line in commit.message.lines() {
+            writeln!(output, "    {line}")?;
         }
         writeln!(output)?;
-    }
-    if snapshot.features.len() > HUMAN_FEATURE_LIMIT {
         writeln!(
             output,
-            "  … {} additional features retained in structured output and native artifacts",
-            snapshot.features.len() - HUMAN_FEATURE_LIMIT
+            "  Scene                  {} sources · {} features · {} markers · {} positions",
+            package.snapshot.coverage.sources,
+            package.snapshot.coverage.features,
+            package.snapshot.coverage.markers,
+            package.snapshot.coverage.coordinates
         )?;
+        writeln!(
+            output,
+            "  Snapshot               {}",
+            package.snapshot.snapshot_revision
+        )?;
+        writeln!(
+            output,
+            "  Package                {} · candidate only · no admission claim",
+            package.package_id
+        )?;
+        writeln!(
+            output,
+            "  Delta                  {} → {} · {} · +{} -{} ~{}",
+            package.change_set.source_label,
+            package.change_set.target_label,
+            scene_assessment(package.change_set.assessment),
+            package.change_set.inserted,
+            package.change_set.deleted,
+            package.change_set.modified
+        )?;
+        if log.patch {
+            writeln!(output)?;
+            write_editor_diff(output, &package.change_set)?;
+        }
     }
     Ok(())
 }
 
-fn write_editor_package(
-    output: &mut impl Write,
-    result: &EditorPackageResult,
-) -> Result<(), CliError> {
-    writeln!(
-        output,
-        "{} immutable scene package",
-        if result.created { "Created" } else { "Reused" }
-    )?;
-    write_editor_package_inspection(output, &result.package)?;
-    writeln!(output, "Admission request:")?;
-    writeln!(
-        output,
-        "  schema          {}",
-        result.admission_request.schema
-    )?;
-    writeln!(
-        output,
-        "  request         {}",
-        result.admission_request.request_id
-    )?;
-    writeln!(
-        output,
-        "  operation       {}",
-        result.admission_request.requested_operation
-    )?;
-    writeln!(
-        output,
-        "  status          {} · admitted={} · /explore unchanged",
-        result.admission_request.status, result.admission_request.admitted
-    )?;
-    Ok(())
-}
-
-fn write_editor_package_inspection(
-    output: &mut impl Write,
-    package: &ScenePackage,
-) -> Result<(), CliError> {
-    writeln!(output, "SCENE PACKAGE · CANDIDATE ONLY")?;
-    writeln!(output, "Package         {}", package.package_id)?;
-    writeln!(
-        output,
-        "Parent          {}",
-        package
-            .parent_package_id
-            .as_ref()
-            .map_or("none", SemanticDigest::as_str)
-    )?;
-    writeln!(
-        output,
-        "Authority       {} · no admission claim",
-        package.admission_authority
-    )?;
-    writeln!(
-        output,
-        "Directed delta  PACKAGE → CANDIDATE · +{} -{} ~{}",
-        package.change_set.inserted, package.change_set.deleted, package.change_set.modified
-    )?;
-    write_editor_snapshot(output, &package.snapshot)?;
-    Ok(())
+fn format_scene_commit_date(commit: &SceneCommit) -> String {
+    DateTime::<Utc>::from_timestamp(commit.committed_at_unix, 0).map_or_else(
+        || "invalid timestamp".to_owned(),
+        |date| date.format("%a %b %e %H:%M:%S %Y %z").to_string(),
+    )
 }
 
 const fn scene_assessment(assessment: DeltaAssessment) -> &'static str {
