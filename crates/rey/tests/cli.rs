@@ -1167,6 +1167,7 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
         repository_id: snapshot.repository_id.clone(),
         worktree_id: snapshot.worktree_id.clone(),
         event_classes: vec![GitActivationEventClass::RefFastForward],
+        ref_names: Vec::new(),
         require_complete: true,
         workload_id: "fixture-workload".to_owned(),
         graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -1260,6 +1261,210 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     assert!(clean.contains("Observed delta         UNCHANGED"));
     assert!(clean.contains("Retained transitions   1"));
     assert!(clean.contains("Pending transition     none"));
+}
+
+#[test]
+fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["config", "user.name", "Rey Test"],
+        vec!["config", "user.email", "rey@example.invalid"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "one\n").unwrap();
+    for args in [
+        vec!["add", "tracked"],
+        vec!["commit", "-q", "-m", "initial"],
+        vec!["branch", "release"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "two\n").unwrap();
+    for args in [vec!["add", "tracked"], vec!["commit", "-q", "-m", "second"]] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
+    let invalid = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "init",
+        "--watch-ref",
+        "release",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(invalid.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("watched-ref scope is invalid"));
+
+    let initialized = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "init",
+        "--watch-ref",
+        "refs/heads/release",
+        "--watch-ref",
+        "refs/heads/future",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    let initialized: LocalGitState = serde_json::from_slice(&initialized.stdout).unwrap();
+    let snapshot = initialized.cursor_snapshot.as_ref().unwrap();
+    assert_eq!(snapshot.watched_refs.len(), 2);
+    assert_eq!(snapshot.watched_refs[0].name, "refs/heads/future");
+    assert!(snapshot.watched_refs[0].target_oid.is_none());
+    assert_eq!(snapshot.watched_refs[1].name, "refs/heads/release");
+    assert!(snapshot.watched_refs[1].target_oid.is_some());
+
+    let status = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(status.status.success());
+    let status = String::from_utf8(status.stdout).unwrap();
+    assert!(status.contains("Watched refs           see below"));
+    assert!(status.contains("refs/heads/future · ABSENT"));
+    assert!(status.contains("refs/heads/release ·"));
+
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "branch", "-f", "release", "HEAD"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let trigger = GitActivationTrigger {
+        schema: GIT_ACTIVATION_TRIGGER_SCHEMA.to_owned(),
+        trigger_id: "fixture.watched-release".to_owned(),
+        revision: 1,
+        repository_id: snapshot.repository_id.clone(),
+        worktree_id: snapshot.worktree_id.clone(),
+        event_classes: vec![GitActivationEventClass::RefFastForward],
+        ref_names: vec!["refs/heads/release".to_owned()],
+        require_complete: true,
+        workload_id: "fixture-workload".to_owned(),
+        graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
+        scenario_ids: vec!["fixture-scenario".to_owned()],
+        budget: GitActivationBudget::default(),
+    };
+    fs::write(
+        workspace.path().join("trigger.json"),
+        serde_json::to_vec_pretty(&trigger).unwrap(),
+    )
+    .unwrap();
+    let polled = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--trigger",
+        "trigger.json",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        polled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&polled.stderr)
+    );
+    let polled: GitPollOutcome = serde_json::from_slice(&polled.stdout).unwrap();
+    assert_eq!(polled.record.transition.watched_ref_changes.len(), 1);
+    assert_eq!(
+        polled.record.transition.watched_ref_changes[0].ref_name,
+        "refs/heads/release"
+    );
+    assert_eq!(polled.record.proposals.len(), 1);
+    assert_eq!(
+        polled.record.proposals[0].matched_ref_names,
+        vec!["refs/heads/release"]
+    );
+    let human = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--trigger",
+        "trigger.json",
+        "--format",
+        "table",
+    ]);
+    assert!(human.status.success());
+    let human = String::from_utf8(human.stdout).unwrap();
+    assert!(human.contains("Watched ref changes    see below"));
+    assert!(human.contains("refs/heads/release ·"));
+    assert!(human.contains("fast_forward · complete"));
+    assert!(human.contains("matched refs: refs/heads/release"));
+
+    let acknowledged = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "ack",
+        polled.record.transition.transition_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(acknowledged.status.success());
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "branch", "future", "HEAD"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let created = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--format",
+        "json",
+    ]);
+    assert!(created.status.success());
+    let created: GitPollOutcome = serde_json::from_slice(&created.stdout).unwrap();
+    assert_eq!(created.record.transition.watched_ref_changes.len(), 1);
+    assert_eq!(
+        created.record.transition.watched_ref_changes[0].movement,
+        rey_git::GitRefMovement::Created
+    );
 }
 
 #[test]
@@ -1407,6 +1612,7 @@ fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
         repository_id: initial_snapshot.repository_id.clone(),
         worktree_id: initial_snapshot.worktree_id.clone(),
         event_classes: vec![GitActivationEventClass::RefFastForward],
+        ref_names: Vec::new(),
         require_complete: true,
         workload_id: "fixture-workload".to_owned(),
         graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -1900,6 +2106,7 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         repository_id: snapshot.repository_id.clone(),
         worktree_id: snapshot.worktree_id.clone(),
         event_classes: vec![GitActivationEventClass::RefFastForward],
+        ref_names: Vec::new(),
         require_complete: true,
         workload_id: workload.workload.id.clone(),
         graph: workload.candidate_graph.clone(),

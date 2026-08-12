@@ -155,7 +155,7 @@ enum GitCommand {
     /// Observe current repository and retained cursor state without changing either.
     Status(GitOutputArgs),
     /// Retain the exact current repository snapshot as the initial poll cursor.
-    Init(GitOutputArgs),
+    Init(GitInitArgs),
     /// Observe and retain one exact pending transition without advancing its cursor.
     Poll(GitPollArgs),
     /// Repeatedly observe under explicit cadence bounds, retaining every tick.
@@ -166,6 +166,17 @@ enum GitCommand {
 
 #[derive(Debug, Args)]
 struct GitOutputArgs {
+    /// Human evidence or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct GitInitArgs {
+    /// Exact full Git ref to retain in the poll scope; repeatable.
+    #[arg(long = "watch-ref")]
+    watched_refs: Vec<String>,
+
     /// Human evidence or typed JSON contract.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
@@ -1075,8 +1086,13 @@ fn git_command(args: GitArgs) -> Result<ExitCode, CliError> {
     }
 }
 
-fn git_snapshot(inspector: &GitInspector) -> Result<rey_git::GitSnapshot, CliError> {
-    inspector.inspect()?.ok_or(CliError::GitRepositoryAbsent)
+fn git_snapshot(
+    inspector: &GitInspector,
+    watched_refs: &[String],
+) -> Result<rey_git::GitSnapshot, CliError> {
+    inspector
+        .inspect_with_watched_refs(watched_refs)?
+        .ok_or(CliError::GitRepositoryAbsent)
 }
 
 fn git_status(
@@ -1084,7 +1100,19 @@ fn git_status(
     inspector: &GitInspector,
     args: GitOutputArgs,
 ) -> Result<ExitCode, CliError> {
-    let status = GitOperatorStatus::new(git_snapshot(inspector)?, store.load()?)?;
+    let state = store.load()?;
+    let watched_refs = state
+        .cursor
+        .as_ref()
+        .map(|cursor| {
+            cursor
+                .watched_refs
+                .iter()
+                .map(|watched| watched.name.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let status = GitOperatorStatus::new(git_snapshot(inspector, &watched_refs)?, state)?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
@@ -1097,9 +1125,9 @@ fn git_status(
 fn git_init(
     store: &LocalGitStore,
     inspector: &GitInspector,
-    args: GitOutputArgs,
+    args: GitInitArgs,
 ) -> Result<ExitCode, CliError> {
-    let state = store.initialize(git_snapshot(inspector)?)?;
+    let state = store.initialize(git_snapshot(inspector, &args.watched_refs)?)?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &state)?,
@@ -4200,6 +4228,30 @@ fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(
     )?;
     write_portfolio_field(
         output,
+        "Watched ref changes",
+        if transition.watched_ref_changes.is_empty() {
+            "typed empty"
+        } else {
+            "see below"
+        },
+    )?;
+    for change in &transition.watched_ref_changes {
+        writeln!(
+            output,
+            "    {} · {} → {} · {} · {}",
+            change.ref_name,
+            change.source_oid.as_deref().unwrap_or("ABSENT"),
+            change.target_oid.as_deref().unwrap_or("ABSENT"),
+            change.movement.as_str(),
+            if change.complete {
+                "complete"
+            } else {
+                "incomplete"
+            }
+        )?;
+    }
+    write_portfolio_field(
+        output,
         "Events",
         if transition.events.is_empty() {
             "typed empty"
@@ -4252,6 +4304,13 @@ fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(
             proposal.graph.revision,
             proposal.scenario_ids.len()
         )?;
+        if !proposal.matched_ref_names.is_empty() {
+            writeln!(
+                output,
+                "      matched refs: {}",
+                proposal.matched_ref_names.join(", ")
+            )?;
+        }
         writeln!(output, "      authority: {}", proposal.authority)?;
     }
     write_portfolio_field(
@@ -4736,6 +4795,23 @@ fn write_git_snapshot_fields(
             snapshot.head.commit_oid.as_deref().unwrap_or("UNBORN")
         ),
     )?;
+    write_portfolio_field(
+        output,
+        "Watched refs",
+        if snapshot.watched_refs.is_empty() {
+            "none"
+        } else {
+            "see below"
+        },
+    )?;
+    for watched in &snapshot.watched_refs {
+        writeln!(
+            output,
+            "    {} · {}",
+            watched.name,
+            watched.target_oid.as_deref().unwrap_or("ABSENT")
+        )?;
+    }
     write_portfolio_field(
         output,
         "Index",

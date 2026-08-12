@@ -551,9 +551,10 @@ acknowledged Git cursor snapshot; an ambient observation or pending transition
 does not become workload evidence before its exact acknowledgement.
 
 A poll compares the current repository snapshot with its last completely
-processed cursor. Fast-forward refs can expose newly reachable commits; rewinds
-and divergence emit explicit ref/reachability deltas; semantic index changes
-expose staged proposals before a commit exists. Raw index changes caused only
+processed cursor. Initialization freezes exact watched-ref names and retains
+their targets or absence; each later movement is classified independently
+from HEAD. Reachable/path deltas remain planned. Semantic index changes expose
+staged proposals before a commit exists, while raw index changes caused only
 by stat-cache refresh do not activate staged-content workload entries.
 
 Triggers select delta subsets and name an affected workload revision, scenario

@@ -512,6 +512,7 @@ impl LocalGitState {
             || cursor.repository_id != snapshot.repository_id
             || cursor.worktree_id != snapshot.worktree_id
             || cursor.object_format != snapshot.object_format
+            || cursor.watched_refs != snapshot.watched_refs
         {
             return Err(LocalGitStateError::InvalidState);
         }
@@ -526,6 +527,7 @@ impl LocalGitState {
                 object_format: transition.object_format.clone(),
                 shallow: transition.source_shallow,
                 head: transition.source_head.clone(),
+                watched_refs: transition.source_watched_refs.clone(),
                 index_digest: transition.source_index_digest.clone(),
                 index_complete: transition.source_index_complete,
                 index_conflicted: transition.source_index_conflicted,

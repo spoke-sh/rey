@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Add watched-ref and reachable/path activation evidence, then close retry, cancellation, and partial-failure recurrence bounds. | Implemented ownership/invalidation edge proofs, complete supported semantic-index polling, attention/frontier and harness handoffs, bounded Git cadence, exact activation admission/execution, compatible result reuse, and selected-versus-full recomputation proof. |
+| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Add reachable/path activation evidence, then close retry, cancellation, and partial-failure recurrence bounds. | Implemented ownership/invalidation edge proofs, exact watched-ref and complete supported semantic-index polling, attention/frontier and harness handoffs, bounded Git cadence, exact activation admission/execution, compatible result reuse, and selected-versus-full recomputation proof. |
 | [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, and runtime evidence. Plan 0001 only where an authored opportunity becomes runtime work. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
@@ -40,8 +40,9 @@ The current repository already provides:
 - an embedded operator UI with Feed, Explorer, Cadence, Environment,
   Workloads, Journal, passive revalidation, and exact Git links;
 - immutable Channel messages, explicit relay and one-shot beacon commands;
-- a bounded Git cursor/pending-transition loop with classified HEAD and partial
-  semantic-index evidence, retained cadence ticks/receipts, proposal-only
+- a bounded Git cursor/pending-transition loop with independently classified
+  HEAD and exact watched refs, complete supported semantic-index evidence,
+  retained cadence ticks/receipts, proposal-only
   activations, exact workload admission, replay-stable selected-scenario
   execution, and strict same-transition coalescing;
 - candidate-only native scene authoring and procedural terrain generation; and

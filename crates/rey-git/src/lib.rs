@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
@@ -27,6 +27,7 @@ pub const GIT_ACTIVATION_PROPOSAL_SCHEMA: &str = "rey.git-activation-proposal.v1
 pub const MAX_GIT_COMMIT_SEQUENCE: usize = 256;
 pub const MAX_GIT_ACTIVATION_TRIGGERS: usize = 256;
 pub const MAX_GIT_ACTIVATION_SCENARIOS: usize = 256;
+pub const MAX_GIT_WATCHED_REFS: usize = 256;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitLimits {
@@ -117,6 +118,27 @@ fn path_bytes(path: &Path) -> &[u8] {
 pub struct GitHead {
     pub symbolic_ref: Option<String>,
     pub commit_oid: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitWatchedRef {
+    pub name: String,
+    pub target_oid: Option<String>,
+}
+
+impl GitWatchedRef {
+    fn verify(&self, object_format: &str) -> Result<(), GitError> {
+        if !valid_full_ref_name(&self.name)
+            || self
+                .target_oid
+                .as_deref()
+                .is_some_and(|oid| !valid_oid(oid, object_format))
+        {
+            return Err(GitError::InvalidSnapshot);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -253,6 +275,8 @@ pub struct GitSnapshot {
     pub bare: bool,
     pub shallow: bool,
     pub head: GitHead,
+    #[serde(default)]
+    pub watched_refs: Vec<GitWatchedRef>,
     pub index: Option<GitIndexSummary>,
     pub complete: bool,
     pub limits: GitLimits,
@@ -305,6 +329,7 @@ impl GitSnapshot {
         if let Some(index) = &self.index {
             index.verify(&self.object_format)?;
         }
+        verify_watched_refs(&self.watched_refs, &self.object_format)?;
         if self.complete != self.index.as_ref().is_none_or(|index| index.complete) {
             return Err(GitError::InvalidSnapshot);
         }
@@ -316,6 +341,7 @@ impl GitSnapshot {
         snapshot_hasher.add_bool(self.shallow);
         snapshot_hasher.add_optional_str(self.head.symbolic_ref.as_deref());
         snapshot_hasher.add_optional_str(self.head.commit_oid.as_deref());
+        add_watched_refs(&mut snapshot_hasher, &self.watched_refs);
         snapshot_hasher.add_optional_str(
             self.index
                 .as_ref()
@@ -356,10 +382,12 @@ impl GitSnapshot {
                 "inspect_recent_commits".to_owned(),
                 "inspect_repository".to_owned(),
                 "inspect_repository_status".to_owned(),
+                "inspect_watched_refs".to_owned(),
             ],
             enforced_limits: vec![
                 "capture_bytes".to_owned(),
                 "direct_argv".to_owned(),
+                "exact_watched_ref_scope".to_owned(),
                 "no_optional_locks".to_owned(),
                 "semantic_index_flags".to_owned(),
                 "wall_timeout".to_owned(),
@@ -429,7 +457,7 @@ impl GitActivationEventClass {
         }
     }
 
-    const fn needs_complete_head(self) -> bool {
+    const fn is_ref_event(self) -> bool {
         matches!(
             self,
             Self::HeadRefChanged
@@ -454,6 +482,8 @@ pub struct GitPollCursor {
     pub object_format: String,
     pub shallow: bool,
     pub head: GitHead,
+    #[serde(default)]
+    pub watched_refs: Vec<GitWatchedRef>,
     pub index_digest: Option<SemanticDigest>,
     pub index_complete: bool,
     pub index_conflicted: bool,
@@ -479,6 +509,7 @@ impl GitPollCursor {
             object_format: snapshot.object_format.clone(),
             shallow: snapshot.shallow,
             head: snapshot.head.clone(),
+            watched_refs: snapshot.watched_refs.clone(),
             index_digest: snapshot
                 .index
                 .as_ref()
@@ -517,6 +548,7 @@ impl GitPollCursor {
             object_format: transition.object_format.clone(),
             shallow: transition.target_shallow,
             head: transition.target_head.clone(),
+            watched_refs: transition.target_watched_refs.clone(),
             index_digest: transition.target_index_digest.clone(),
             index_complete: transition.target_index_complete,
             index_conflicted: transition.target_index_conflicted,
@@ -551,6 +583,7 @@ impl GitPollCursor {
                 .commit_oid
                 .as_deref()
                 .is_some_and(|oid| !valid_oid(oid, &self.object_format))
+            || verify_watched_refs(&self.watched_refs, &self.object_format).is_err()
             || self.cursor_id != git_cursor_digest(self)
         {
             return Err(GitError::InvalidPollCursor);
@@ -574,6 +607,12 @@ pub struct GitPollTransition {
     pub target_head: GitHead,
     pub head_movement: GitRefMovement,
     pub head_complete: bool,
+    #[serde(default)]
+    pub source_watched_refs: Vec<GitWatchedRef>,
+    #[serde(default)]
+    pub target_watched_refs: Vec<GitWatchedRef>,
+    #[serde(default)]
+    pub watched_ref_changes: Vec<GitWatchedRefChange>,
     pub source_index_digest: Option<SemanticDigest>,
     pub target_index_digest: Option<SemanticDigest>,
     pub source_index_complete: bool,
@@ -586,17 +625,33 @@ pub struct GitPollTransition {
     pub omissions: Vec<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitWatchedRefChange {
+    pub ref_name: String,
+    pub source_oid: Option<String>,
+    pub target_oid: Option<String>,
+    pub movement: GitRefMovement,
+    pub complete: bool,
+}
+
 impl GitPollTransition {
     fn derive(
         cursor: &GitPollCursor,
         target: &GitSnapshot,
         head_movement: GitRefMovement,
+        watched_ref_changes: Vec<GitWatchedRefChange>,
     ) -> Result<Self, GitError> {
         cursor.verify()?;
         target.verify()?;
         if cursor.repository_id != target.repository_id
             || cursor.worktree_id != target.worktree_id
             || cursor.object_format != target.object_format
+            || cursor
+                .watched_refs
+                .iter()
+                .map(|watched| &watched.name)
+                .ne(target.watched_refs.iter().map(|watched| &watched.name))
         {
             return Err(GitError::RepositoryIdentityChanged);
         }
@@ -627,6 +682,9 @@ impl GitPollTransition {
         } else if head_movement != GitRefMovement::Unchanged {
             return Err(GitError::InvalidPollTransition);
         }
+        for change in &watched_ref_changes {
+            events.push(ref_movement_event(change.movement)?);
+        }
         if cursor.index_digest != target_index_digest {
             events.push(GitActivationEventClass::IndexChanged);
         }
@@ -644,10 +702,20 @@ impl GitPollTransition {
                     .to_owned(),
             );
         }
+        for change in &watched_ref_changes {
+            if !change.complete {
+                omissions.push(format!(
+                    "watched ref {} movement is unknown because bounded history cannot establish ancestry",
+                    change.ref_name
+                ));
+            }
+        }
         if !cursor.index_complete || !target_index_complete {
             omissions
                 .push("semantic index comparison omits unsupported persistent flags".to_owned());
         }
+        omissions.sort();
+        omissions.dedup();
         let mut transition = Self {
             schema: GIT_POLL_TRANSITION_SCHEMA.to_owned(),
             transition_id: SemanticHasher::new("rey.git-poll-transition.pending.v1").finish(),
@@ -661,6 +729,9 @@ impl GitPollTransition {
             target_head: target.head.clone(),
             head_movement,
             head_complete,
+            source_watched_refs: cursor.watched_refs.clone(),
+            target_watched_refs: target.watched_refs.clone(),
+            watched_ref_changes,
             source_index_digest: cursor.index_digest.clone(),
             target_index_digest,
             source_index_complete: cursor.index_complete,
@@ -689,10 +760,20 @@ impl GitPollTransition {
                     .to_owned(),
             );
         }
+        for change in &self.watched_ref_changes {
+            if !change.complete {
+                expected_omissions.push(format!(
+                    "watched ref {} movement is unknown because bounded history cannot establish ancestry",
+                    change.ref_name
+                ));
+            }
+        }
         if !self.source_index_complete || !self.target_index_complete {
             expected_omissions
                 .push("semantic index comparison omits unsupported persistent flags".to_owned());
         }
+        expected_omissions.sort();
+        expected_omissions.dedup();
         if self.schema != GIT_POLL_TRANSITION_SCHEMA
             || !is_semantic_digest(&self.transition_id)
             || !is_semantic_digest(&self.source_cursor_id)
@@ -727,6 +808,9 @@ impl GitPollTransition {
                 .commit_oid
                 .as_deref()
                 .is_some_and(|oid| !valid_oid(oid, &self.object_format))
+            || verify_watched_refs(&self.source_watched_refs, &self.object_format).is_err()
+            || verify_watched_refs(&self.target_watched_refs, &self.object_format).is_err()
+            || verify_watched_ref_changes(self).is_err()
             || self
                 .target_head
                 .commit_oid
@@ -750,14 +834,6 @@ impl GitPollTransition {
             return Err(GitError::InvalidPollTransition);
         }
         Ok(())
-    }
-
-    fn event_complete(&self, event: GitActivationEventClass) -> bool {
-        if event.needs_complete_head() {
-            self.head_complete
-        } else {
-            self.source_index_complete && self.target_index_complete
-        }
     }
 }
 
@@ -788,6 +864,8 @@ pub struct GitActivationTrigger {
     pub repository_id: SemanticDigest,
     pub worktree_id: Option<SemanticDigest>,
     pub event_classes: Vec<GitActivationEventClass>,
+    #[serde(default)]
+    pub ref_names: Vec<String>,
     pub require_complete: bool,
     pub workload_id: String,
     pub graph: ContractIdentity,
@@ -807,6 +885,12 @@ impl GitActivationTrigger {
                 .is_some_and(|digest| !is_semantic_digest(digest))
             || self.event_classes.is_empty()
             || !is_canonical(&self.event_classes)
+            || !is_canonical(&self.ref_names)
+            || self.ref_names.len() > MAX_GIT_WATCHED_REFS + 1
+            || self
+                .ref_names
+                .iter()
+                .any(|name| name != "HEAD" && !valid_full_ref_name(name))
             || self.workload_id.trim().is_empty()
             || self.graph.id.trim().is_empty()
             || self.graph.revision == 0
@@ -839,6 +923,8 @@ pub struct GitActivationProposal {
     pub source_snapshot_id: SemanticDigest,
     pub target_snapshot_id: SemanticDigest,
     pub matched_events: Vec<GitActivationEventClass>,
+    #[serde(default)]
+    pub matched_ref_names: Vec<String>,
     pub complete: bool,
     pub omissions: Vec<String>,
     pub workload_id: String,
@@ -863,26 +949,80 @@ impl GitActivationProposal {
         {
             return Ok(None);
         }
-        let matched_events = trigger
-            .event_classes
-            .iter()
-            .filter(|event| transition.events.contains(event))
-            .copied()
-            .collect::<Vec<_>>();
+        let selects_ref = |name: &str| {
+            trigger.ref_names.is_empty()
+                || trigger
+                    .ref_names
+                    .binary_search_by(|candidate| candidate.as_str().cmp(name))
+                    .is_ok()
+        };
+        let mut matched_events = BTreeSet::new();
+        let mut matched_ref_names = BTreeSet::new();
+        let mut omissions = BTreeSet::new();
+        let mut complete = true;
+        let head_omission =
+            "HEAD movement is unknown because bounded history cannot establish ancestry";
+        if transition.source_head.symbolic_ref != transition.target_head.symbolic_ref
+            && trigger
+                .event_classes
+                .contains(&GitActivationEventClass::HeadRefChanged)
+            && selects_ref("HEAD")
+        {
+            matched_events.insert(GitActivationEventClass::HeadRefChanged);
+            matched_ref_names.insert("HEAD".to_owned());
+            if !transition.head_complete {
+                complete = false;
+                omissions.insert(head_omission.to_owned());
+            }
+        }
+        if transition.source_head.commit_oid != transition.target_head.commit_oid {
+            let event = ref_movement_event(transition.head_movement)?;
+            if trigger.event_classes.contains(&event) && selects_ref("HEAD") {
+                matched_events.insert(event);
+                matched_ref_names.insert("HEAD".to_owned());
+                if !transition.head_complete {
+                    complete = false;
+                    omissions.insert(head_omission.to_owned());
+                }
+            }
+        }
+        for change in &transition.watched_ref_changes {
+            let event = ref_movement_event(change.movement)?;
+            if trigger.event_classes.contains(&event) && selects_ref(&change.ref_name) {
+                matched_events.insert(event);
+                matched_ref_names.insert(change.ref_name.clone());
+                if !change.complete {
+                    complete = false;
+                    omissions.insert(format!(
+                        "watched ref {} movement is unknown because bounded history cannot establish ancestry",
+                        change.ref_name
+                    ));
+                }
+            }
+        }
+        for event in [
+            GitActivationEventClass::IndexChanged,
+            GitActivationEventClass::IndexConflicted,
+        ] {
+            if transition.events.contains(&event) && trigger.event_classes.contains(&event) {
+                matched_events.insert(event);
+                if !transition.source_index_complete || !transition.target_index_complete {
+                    complete = false;
+                    omissions.insert(
+                        "semantic index comparison omits unsupported persistent flags".to_owned(),
+                    );
+                }
+            }
+        }
         if matched_events.is_empty() {
             return Ok(None);
         }
-        let complete = matched_events
-            .iter()
-            .all(|event| transition.event_complete(*event));
         if trigger.require_complete && !complete {
             return Ok(None);
         }
-        let omissions = if complete {
-            Vec::new()
-        } else {
-            transition.omissions.clone()
-        };
+        let matched_events = matched_events.into_iter().collect::<Vec<_>>();
+        let matched_ref_names = matched_ref_names.into_iter().collect::<Vec<_>>();
+        let omissions = omissions.into_iter().collect::<Vec<_>>();
         let mut proposal = Self {
             schema: GIT_ACTIVATION_PROPOSAL_SCHEMA.to_owned(),
             activation_id: SemanticHasher::new("rey.git-activation-proposal.pending.v1").finish(),
@@ -892,6 +1032,7 @@ impl GitActivationProposal {
             source_snapshot_id: transition.source_snapshot_id.clone(),
             target_snapshot_id: transition.target_snapshot_id.clone(),
             matched_events,
+            matched_ref_names,
             complete,
             omissions,
             workload_id: trigger.workload_id.clone(),
@@ -917,7 +1058,16 @@ impl GitActivationProposal {
             || self.trigger_revision == 0
             || self.matched_events.is_empty()
             || !is_canonical(&self.matched_events)
+            || !is_canonical(&self.matched_ref_names)
+            || self.matched_ref_names.len() > MAX_GIT_WATCHED_REFS + 1
+            || self
+                .matched_ref_names
+                .iter()
+                .any(|name| name != "HEAD" && !valid_full_ref_name(name))
+            || (self.matched_events.iter().any(|event| event.is_ref_event())
+                != !self.matched_ref_names.is_empty())
             || self.complete != self.omissions.is_empty()
+            || !is_canonical(&self.omissions)
             || self.workload_id.trim().is_empty()
             || self.graph.id.trim().is_empty()
             || self.graph.revision == 0
@@ -976,10 +1126,28 @@ pub struct GitInspector {
 
 impl GitInspector {
     pub fn inspect(&self) -> Result<Option<GitSnapshot>, GitError> {
-        self.inspect_until(Instant::now() + Duration::from_millis(self.limits.total_timeout_ms))
+        self.inspect_with_watched_refs(&[])
+    }
+
+    pub fn inspect_with_watched_refs(
+        &self,
+        watched_ref_names: &[String],
+    ) -> Result<Option<GitSnapshot>, GitError> {
+        self.inspect_until_with_watched_refs(
+            Instant::now() + Duration::from_millis(self.limits.total_timeout_ms),
+            watched_ref_names,
+        )
     }
 
     pub fn inspect_until(&self, outer_deadline: Instant) -> Result<Option<GitSnapshot>, GitError> {
+        self.inspect_until_with_watched_refs(outer_deadline, &[])
+    }
+
+    fn inspect_until_with_watched_refs(
+        &self,
+        outer_deadline: Instant,
+        watched_ref_names: &[String],
+    ) -> Result<Option<GitSnapshot>, GitError> {
         let local_deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
         let deadline = local_deadline.min(outer_deadline);
         let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
@@ -1044,6 +1212,8 @@ impl GitInspector {
             symbolic_ref,
             commit_oid,
         };
+        let watched_refs =
+            self.inspect_watched_refs(&workspace, &object_format, watched_ref_names, deadline)?;
         let index = if bare {
             None
         } else {
@@ -1076,6 +1246,7 @@ impl GitInspector {
         snapshot_hasher.add_bool(shallow);
         snapshot_hasher.add_optional_str(head.symbolic_ref.as_deref());
         snapshot_hasher.add_optional_str(head.commit_oid.as_deref());
+        add_watched_refs(&mut snapshot_hasher, &watched_refs);
         snapshot_hasher
             .add_optional_str(index.as_ref().map(|summary| summary.entry_digest.as_str()));
         snapshot_hasher.add_bool(complete);
@@ -1097,6 +1268,7 @@ impl GitInspector {
             bare,
             shallow,
             head,
+            watched_refs,
             index,
             complete,
             limits: self.limits.clone(),
@@ -1111,7 +1283,13 @@ impl GitInspector {
     ) -> Result<Option<(GitSnapshot, GitPollTransition)>, GitError> {
         cursor.verify()?;
         let deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
-        let Some(target) = self.inspect_until(deadline)? else {
+        let watched_ref_names = cursor
+            .watched_refs
+            .iter()
+            .map(|watched| watched.name.clone())
+            .collect::<Vec<_>>();
+        let Some(target) = self.inspect_until_with_watched_refs(deadline, &watched_ref_names)?
+        else {
             return Ok(None);
         };
         if cursor.repository_id != target.repository_id
@@ -1121,8 +1299,112 @@ impl GitInspector {
             return Err(GitError::RepositoryIdentityChanged);
         }
         let movement = self.classify_head_movement(cursor, &target, deadline)?;
-        let transition = GitPollTransition::derive(cursor, &target, movement)?;
+        let watched_ref_changes = self.classify_watched_ref_changes(cursor, &target, deadline)?;
+        let transition = GitPollTransition::derive(cursor, &target, movement, watched_ref_changes)?;
         Ok(Some((target, transition)))
+    }
+
+    fn inspect_watched_refs(
+        &self,
+        workspace: &Path,
+        object_format: &str,
+        watched_ref_names: &[String],
+        deadline: Instant,
+    ) -> Result<Vec<GitWatchedRef>, GitError> {
+        if watched_ref_names.len() > MAX_GIT_WATCHED_REFS
+            || watched_ref_names
+                .iter()
+                .any(|name| !valid_full_ref_name(name))
+        {
+            return Err(GitError::InvalidWatchedRefScope);
+        }
+        let mut names = watched_ref_names.to_vec();
+        names.sort();
+        if names.windows(2).any(|window| window[0] == window[1]) {
+            return Err(GitError::InvalidWatchedRefScope);
+        }
+        if names.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut owned_args = vec![
+            "for-each-ref".to_owned(),
+            "--format=%(refname)%00%(objectname)".to_owned(),
+        ];
+        owned_args.extend(names.iter().cloned());
+        let args = owned_args.iter().map(String::as_str).collect::<Vec<_>>();
+        let output = self
+            .git(workspace, &args, deadline)?
+            .success("read exact watched Git refs")?;
+        let mut observed = BTreeMap::new();
+        for line in output.split(|byte| *byte == b'\n') {
+            let line = line.strip_suffix(b"\r").unwrap_or(line);
+            if line.is_empty() {
+                continue;
+            }
+            let mut fields = line.split(|byte| *byte == 0);
+            let name = fields
+                .next()
+                .and_then(|field| std::str::from_utf8(field).ok())
+                .ok_or(GitError::MalformedRef("ref name is not UTF-8"))?;
+            let oid = fields
+                .next()
+                .and_then(|field| std::str::from_utf8(field).ok())
+                .ok_or(GitError::MalformedRef("ref target is not ASCII"))?;
+            if fields.next().is_some() || !valid_oid(oid, object_format) {
+                return Err(GitError::MalformedRef("ref record has invalid fields"));
+            }
+            if names
+                .binary_search_by(|candidate| candidate.as_str().cmp(name))
+                .is_ok()
+                && observed.insert(name.to_owned(), oid.to_owned()).is_some()
+            {
+                return Err(GitError::MalformedRef("duplicate watched ref record"));
+            }
+        }
+        Ok(names
+            .into_iter()
+            .map(|name| GitWatchedRef {
+                target_oid: observed.remove(&name),
+                name,
+            })
+            .collect())
+    }
+
+    fn classify_watched_ref_changes(
+        &self,
+        cursor: &GitPollCursor,
+        target_snapshot: &GitSnapshot,
+        deadline: Instant,
+    ) -> Result<Vec<GitWatchedRefChange>, GitError> {
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        cursor
+            .watched_refs
+            .iter()
+            .zip(&target_snapshot.watched_refs)
+            .filter(|(source, target_ref)| source.target_oid != target_ref.target_oid)
+            .map(|(source, target_ref)| {
+                if source.name != target_ref.name {
+                    return Err(GitError::RepositoryIdentityChanged);
+                }
+                let movement = self.classify_oid_movement(
+                    &workspace,
+                    source.target_oid.as_deref(),
+                    target_ref.target_oid.as_deref(),
+                    cursor.shallow || target_snapshot.shallow,
+                    deadline,
+                )?;
+                Ok(GitWatchedRefChange {
+                    ref_name: source.name.clone(),
+                    source_oid: source.target_oid.clone(),
+                    target_oid: target_ref.target_oid.clone(),
+                    movement,
+                    complete: movement != GitRefMovement::Unknown,
+                })
+            })
+            .collect()
     }
 
     fn classify_head_movement(
@@ -1131,36 +1413,45 @@ impl GitInspector {
         target: &GitSnapshot,
         deadline: Instant,
     ) -> Result<GitRefMovement, GitError> {
-        let (Some(source_oid), Some(target_oid)) = (
-            cursor.head.commit_oid.as_deref(),
-            target.head.commit_oid.as_deref(),
-        ) else {
-            return Ok(
-                match (
-                    cursor.head.commit_oid.is_some(),
-                    target.head.commit_oid.is_some(),
-                ) {
-                    (false, false) => GitRefMovement::Unchanged,
-                    (false, true) => GitRefMovement::Created,
-                    (true, false) => GitRefMovement::Deleted,
-                    (true, true) => unreachable!("both commit ids were destructured above"),
-                },
-            );
-        };
-        if source_oid == target_oid {
-            return Ok(GitRefMovement::Unchanged);
-        }
-        if cursor.shallow || target.shallow {
-            return Ok(GitRefMovement::Unknown);
-        }
         let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
             path: self.workspace.clone(),
             source,
         })?;
-        match self.is_ancestor(&workspace, source_oid, target_oid, deadline)? {
+        self.classify_oid_movement(
+            &workspace,
+            cursor.head.commit_oid.as_deref(),
+            target.head.commit_oid.as_deref(),
+            cursor.shallow || target.shallow,
+            deadline,
+        )
+    }
+
+    fn classify_oid_movement(
+        &self,
+        workspace: &Path,
+        source_oid: Option<&str>,
+        target_oid: Option<&str>,
+        incomplete_history: bool,
+        deadline: Instant,
+    ) -> Result<GitRefMovement, GitError> {
+        let (Some(source_oid), Some(target_oid)) = (source_oid, target_oid) else {
+            return Ok(match (source_oid.is_some(), target_oid.is_some()) {
+                (false, false) => GitRefMovement::Unchanged,
+                (false, true) => GitRefMovement::Created,
+                (true, false) => GitRefMovement::Deleted,
+                (true, true) => unreachable!("both object ids were destructured above"),
+            });
+        };
+        if source_oid == target_oid {
+            return Ok(GitRefMovement::Unchanged);
+        }
+        if incomplete_history {
+            return Ok(GitRefMovement::Unknown);
+        }
+        match self.is_ancestor(workspace, source_oid, target_oid, deadline)? {
             Some(true) => Ok(GitRefMovement::FastForward),
             None => Ok(GitRefMovement::Unknown),
-            Some(false) => match self.is_ancestor(&workspace, target_oid, source_oid, deadline)? {
+            Some(false) => match self.is_ancestor(workspace, target_oid, source_oid, deadline)? {
                 Some(true) => Ok(GitRefMovement::Rewound),
                 Some(false) => Ok(GitRefMovement::Rewritten),
                 None => Ok(GitRefMovement::Unknown),
@@ -1785,6 +2076,7 @@ fn git_cursor_digest(cursor: &GitPollCursor) -> SemanticDigest {
     hasher.add_str(&cursor.object_format);
     hasher.add_bool(cursor.shallow);
     add_git_head(&mut hasher, &cursor.head);
+    add_watched_refs(&mut hasher, &cursor.watched_refs);
     hasher.add_optional_str(cursor.index_digest.as_ref().map(SemanticDigest::as_str));
     hasher.add_bool(cursor.index_complete);
     hasher.add_bool(cursor.index_conflicted);
@@ -1805,6 +2097,16 @@ fn git_transition_digest(transition: &GitPollTransition) -> SemanticDigest {
     add_git_head(&mut hasher, &transition.target_head);
     hasher.add_str(transition.head_movement.as_str());
     hasher.add_bool(transition.head_complete);
+    add_watched_refs(&mut hasher, &transition.source_watched_refs);
+    add_watched_refs(&mut hasher, &transition.target_watched_refs);
+    hasher.add_u64(transition.watched_ref_changes.len() as u64);
+    for change in &transition.watched_ref_changes {
+        hasher.add_str(&change.ref_name);
+        hasher.add_optional_str(change.source_oid.as_deref());
+        hasher.add_optional_str(change.target_oid.as_deref());
+        hasher.add_str(change.movement.as_str());
+        hasher.add_bool(change.complete);
+    }
     hasher.add_optional_str(
         transition
             .source_index_digest
@@ -1864,6 +2166,9 @@ fn expected_transition_events(
         }
         _ => return Err(GitError::InvalidPollTransition),
     }
+    for change in &transition.watched_ref_changes {
+        events.push(ref_movement_event(change.movement)?);
+    }
     if transition.source_index_digest != transition.target_index_digest {
         events.push(GitActivationEventClass::IndexChanged);
     }
@@ -1889,6 +2194,7 @@ fn git_activation_digest(proposal: &GitActivationProposal) -> SemanticDigest {
     for event in &proposal.matched_events {
         hasher.add_str(event.as_str());
     }
+    add_git_strings(&mut hasher, &proposal.matched_ref_names);
     hasher.add_bool(proposal.complete);
     add_git_strings(&mut hasher, &proposal.omissions);
     hasher.add_str(&proposal.workload_id);
@@ -1904,6 +2210,14 @@ fn git_activation_digest(proposal: &GitActivationProposal) -> SemanticDigest {
 fn add_git_head(hasher: &mut SemanticHasher, head: &GitHead) {
     hasher.add_optional_str(head.symbolic_ref.as_deref());
     hasher.add_optional_str(head.commit_oid.as_deref());
+}
+
+fn add_watched_refs(hasher: &mut SemanticHasher, watched_refs: &[GitWatchedRef]) {
+    hasher.add_u64(watched_refs.len() as u64);
+    for watched in watched_refs {
+        hasher.add_str(&watched.name);
+        hasher.add_optional_str(watched.target_oid.as_deref());
+    }
 }
 
 fn add_git_strings(hasher: &mut SemanticHasher, values: &[String]) {
@@ -2109,6 +2423,114 @@ fn valid_oid(value: &str, object_format: &str) -> bool {
     value.len() == expected && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+fn valid_full_ref_name(name: &str) -> bool {
+    name.len() <= 1_024
+        && name.starts_with("refs/")
+        && !name.ends_with('/')
+        && !name.ends_with('.')
+        && !name.contains("..")
+        && !name.contains("@{")
+        && !name.contains("//")
+        && !name.contains('\\')
+        && !name.bytes().any(|byte| {
+            byte.is_ascii_control()
+                || byte == b' '
+                || byte == 0x7f
+                || matches!(byte, b'~' | b'^' | b':' | b'?' | b'*' | b'[')
+        })
+        && name.split('/').all(|component| {
+            !component.is_empty() && !component.starts_with('.') && !component.ends_with(".lock")
+        })
+}
+
+fn verify_watched_refs(
+    watched_refs: &[GitWatchedRef],
+    object_format: &str,
+) -> Result<(), GitError> {
+    let names = watched_refs
+        .iter()
+        .map(|watched| &watched.name)
+        .collect::<Vec<_>>();
+    if watched_refs.len() > MAX_GIT_WATCHED_REFS || !is_canonical(&names) {
+        return Err(GitError::InvalidSnapshot);
+    }
+    watched_refs
+        .iter()
+        .try_for_each(|watched| watched.verify(object_format))
+}
+
+fn ref_movement_event(movement: GitRefMovement) -> Result<GitActivationEventClass, GitError> {
+    match movement {
+        GitRefMovement::Created => Ok(GitActivationEventClass::RefCreated),
+        GitRefMovement::Deleted => Ok(GitActivationEventClass::RefDeleted),
+        GitRefMovement::FastForward => Ok(GitActivationEventClass::RefFastForward),
+        GitRefMovement::Rewound => Ok(GitActivationEventClass::RefRewound),
+        GitRefMovement::Rewritten => Ok(GitActivationEventClass::RefRewritten),
+        GitRefMovement::Unknown => Ok(GitActivationEventClass::RefUnknown),
+        GitRefMovement::Unchanged => Err(GitError::InvalidPollTransition),
+    }
+}
+
+fn verify_watched_ref_changes(transition: &GitPollTransition) -> Result<(), GitError> {
+    let change_names = transition
+        .watched_ref_changes
+        .iter()
+        .map(|change| &change.ref_name)
+        .collect::<Vec<_>>();
+    if transition.source_watched_refs.len() != transition.target_watched_refs.len()
+        || transition.watched_ref_changes.len() > MAX_GIT_WATCHED_REFS
+        || !is_canonical(&change_names)
+    {
+        return Err(GitError::InvalidPollTransition);
+    }
+    let mut expected_changes = 0;
+    for (source, target) in transition
+        .source_watched_refs
+        .iter()
+        .zip(&transition.target_watched_refs)
+    {
+        if source.name != target.name {
+            return Err(GitError::InvalidPollTransition);
+        }
+        if source.target_oid == target.target_oid {
+            continue;
+        }
+        expected_changes += 1;
+        let change = transition
+            .watched_ref_changes
+            .iter()
+            .find(|change| change.ref_name == source.name)
+            .ok_or(GitError::InvalidPollTransition)?;
+        if change.source_oid != source.target_oid
+            || change.target_oid != target.target_oid
+            || change.complete != (change.movement != GitRefMovement::Unknown)
+            || (transition.source_shallow || transition.target_shallow)
+                && change.source_oid.is_some()
+                && change.target_oid.is_some()
+                && change.movement != GitRefMovement::Unknown
+            || !matches!(
+                (&change.source_oid, &change.target_oid, change.movement),
+                (None, Some(_), GitRefMovement::Created)
+                    | (Some(_), None, GitRefMovement::Deleted)
+                    | (
+                        Some(_),
+                        Some(_),
+                        GitRefMovement::FastForward
+                            | GitRefMovement::Rewound
+                            | GitRefMovement::Rewritten
+                            | GitRefMovement::Unknown
+                    )
+            )
+        {
+            return Err(GitError::InvalidPollTransition);
+        }
+    }
+    if expected_changes != transition.watched_ref_changes.len() {
+        return Err(GitError::InvalidPollTransition);
+    }
+    Ok(())
+}
+
 fn canonical_output_path(output: &[u8]) -> Result<PathBuf, GitError> {
     let path = output_path(output)?;
     fs::canonicalize(&path).map_err(|source| GitError::Path { path, source })
@@ -2168,6 +2590,10 @@ pub enum GitError {
     MalformedOutput(&'static str),
     #[error("malformed Git index: {0}")]
     MalformedIndex(&'static str),
+    #[error("malformed watched Git ref: {0}")]
+    MalformedRef(&'static str),
+    #[error("Git watched-ref scope is invalid")]
+    InvalidWatchedRefScope,
     #[error("Git index exceeds {0} logical entries")]
     IndexEntryLimit(u64),
     #[error("Git commit sequence limit {actual} is outside 1..={limit}")]
@@ -2272,6 +2698,7 @@ mod tests {
             repository_id: snapshot.repository_id.clone(),
             worktree_id: snapshot.worktree_id.clone(),
             event_classes: vec![event],
+            ref_names: Vec::new(),
             require_complete,
             workload_id: "fixture-workload".to_owned(),
             graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -2649,6 +3076,111 @@ mod tests {
         let (_, unchanged) = inspect.inspect_transition(&advanced).unwrap().unwrap();
         assert_eq!(unchanged.head_movement, GitRefMovement::Unchanged);
         assert!(unchanged.events.is_empty());
+    }
+
+    #[test]
+    fn watched_refs_retain_absence_classify_independently_and_scope_triggers() {
+        let directory = repository();
+        git(directory.path(), &["branch", "release"]);
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "second"]);
+
+        let inspect = inspector(directory.path());
+        let watched_names = vec![
+            "refs/heads/release".to_owned(),
+            "refs/heads/future".to_owned(),
+        ];
+        let initial = inspect
+            .inspect_with_watched_refs(&watched_names)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            initial
+                .watched_refs
+                .iter()
+                .map(|watched| watched.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["refs/heads/future", "refs/heads/release"]
+        );
+        assert!(initial.watched_refs[0].target_oid.is_none());
+        assert!(initial.watched_refs[1].target_oid.is_some());
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+
+        git(directory.path(), &["branch", "-f", "release", "main"]);
+        let (target, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(transition.head_movement, GitRefMovement::Unchanged);
+        assert_eq!(transition.watched_ref_changes.len(), 1);
+        let change = &transition.watched_ref_changes[0];
+        assert_eq!(change.ref_name, "refs/heads/release");
+        assert_eq!(change.movement, GitRefMovement::FastForward);
+        assert!(change.complete);
+        assert_eq!(
+            transition.events,
+            vec![GitActivationEventClass::RefFastForward]
+        );
+
+        let mut release_trigger = trigger(&initial, GitActivationEventClass::RefFastForward, true);
+        release_trigger.ref_names = vec!["refs/heads/release".to_owned()];
+        let mut future_trigger = release_trigger.clone();
+        future_trigger.trigger_id = "fixture.future-fast-forward".to_owned();
+        future_trigger.ref_names = vec!["refs/heads/future".to_owned()];
+        let proposals =
+            derive_activation_proposals(&transition, &[release_trigger.clone(), future_trigger])
+                .unwrap();
+        assert_eq!(proposals.len(), 1);
+        assert_eq!(proposals[0].matched_ref_names, vec!["refs/heads/release"]);
+
+        let (_, replay) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(transition, replay);
+        let advanced = cursor
+            .advance(&transition, transition.transition_id.clone())
+            .unwrap();
+        assert_eq!(advanced.watched_refs, target.watched_refs);
+        git(directory.path(), &["branch", "future", "main"]);
+        let (created_target, created) = inspect.inspect_transition(&advanced).unwrap().unwrap();
+        assert_eq!(created.watched_ref_changes.len(), 1);
+        assert_eq!(created.watched_ref_changes[0].ref_name, "refs/heads/future");
+        assert_eq!(
+            created.watched_ref_changes[0].movement,
+            GitRefMovement::Created
+        );
+        let mut future_created = trigger(&initial, GitActivationEventClass::RefCreated, true);
+        future_created.ref_names = vec!["refs/heads/future".to_owned()];
+        assert_eq!(
+            derive_activation_proposals(&created, &[future_created])
+                .unwrap()
+                .remove(0)
+                .matched_ref_names,
+            vec!["refs/heads/future"]
+        );
+        let created_cursor = advanced
+            .advance(&created, created.transition_id.clone())
+            .unwrap();
+        assert_eq!(created_cursor.watched_refs, created_target.watched_refs);
+        git(directory.path(), &["branch", "-D", "future"]);
+        let (_, deleted) = inspect
+            .inspect_transition(&created_cursor)
+            .unwrap()
+            .unwrap();
+        assert_eq!(deleted.watched_ref_changes.len(), 1);
+        assert_eq!(deleted.watched_ref_changes[0].ref_name, "refs/heads/future");
+        assert_eq!(
+            deleted.watched_ref_changes[0].movement,
+            GitRefMovement::Deleted
+        );
+
+        let mut tampered = transition;
+        tampered.target_watched_refs[1].target_oid = None;
+        assert!(matches!(
+            tampered.verify(),
+            Err(GitError::InvalidPollTransition)
+        ));
+        assert!(matches!(
+            inspect.inspect_with_watched_refs(&["main".to_owned()]),
+            Err(GitError::InvalidWatchedRefScope)
+        ));
     }
 
     #[test]

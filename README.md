@@ -196,8 +196,9 @@ it does not re-observe ambient state. History admission records evidence. It
 does not grant a tool, workload, agent, or scene permission to act.
 
 Repository activation uses a separate explicit evidence loop: `rey git init`
-retains a baseline, `poll` retains one typed transition and proposal set, and
-`ack` advances the cursor only from that exact evidence. These commands never
+retains a baseline and any exact `--watch-ref refs/...` scope, `poll` retains
+one typed HEAD/watched-ref/index transition and proposal set, and `ack`
+advances the cursor only from that exact evidence. These commands never
 mutate Git or execute a proposed workload. `rey git watch` repeats the same
 observation under explicit iteration, cadence, and elapsed bounds, retaining
 every tick and its terminal receipt; it stops at the first changed transition

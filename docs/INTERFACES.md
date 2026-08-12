@@ -625,29 +625,33 @@ deltas, history completeness, matched triggers, activation ids, transition
 outcomes, and the next cursor. The next cursor is publishable only after the
 required activation evidence reaches its declared retention boundary.
 
-The implemented `rey git watch` is the bounded local recurrence surface over
-the current HEAD and complete supported semantic-index poll. It accepts explicit maximum
-iterations, interval, elapsed cadence budget, and the same bounded trigger
-documents as a single poll. It retains each `rey.git-cadence-tick.v1` before
-continuing, atomically retains a changed transition with its terminal tick,
-and then stops. A completed invocation retains a compact
+The implemented `rey git init --watch-ref refs/...` freezes canonical exact ref
+names and current targets or explicit absence into the cursor. The implemented
+`rey git watch` is the bounded local recurrence surface over that exact
+watched-ref scope, HEAD, and the complete supported semantic-index poll. It
+accepts explicit maximum iterations, interval, elapsed cadence budget, and the
+same bounded trigger documents as a single poll. It retains each
+`rey.git-cadence-tick.v1` before continuing, atomically retains a changed
+transition with its terminal tick, and then stops. A completed invocation
+retains a compact
 `rey.git-watch-receipt.v1` referencing its tick sequence and exact
 `rey.git-watch-outcome.v1` identity. A process interruption may therefore
 leave retained unreceipted ticks, which the human status reports as an
 evidence gap. No watch acknowledges a transition, executes an activation, or
 claims convergence.
 
-A trigger declaration includes a stable id/revision, source event classes,
-ref/path/stage predicates, required Git capabilities/completeness, target
-workload revision plus scenario selection or graph entry point, coalescing
-policy, budgets, and replay/idempotency behavior. Trigger output is an
-activation proposal and passes normal runtime admission.
+The implemented trigger declaration includes a stable id/revision,
+repository/worktree identity, source event classes, optional exact `HEAD` or
+watched-ref names, required completeness, target workload/graph/scenario
+selection, and budgets. Its activation proposal retains exact matched events
+and ref names before passing normal runtime admission. Path/stage predicates,
+graph-entry activation, and cross-poll coalescing remain future extensions.
 
 Initial event vocabulary may include:
 
 ```text
-ref.created|deleted|fast_forward|rewound|rewritten
-head.changed
+ref.created|deleted|fast_forward|rewound|rewritten|unknown
+head.ref_changed
 commit.reachable_added|reachable_removed
 index.changed|conflicted
 worktree.changed

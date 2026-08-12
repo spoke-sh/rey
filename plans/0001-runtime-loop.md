@@ -26,11 +26,12 @@ scheduling, and bounded reasoning surfaces. Workloads declare bounded owned
 surfaces; retained mapped-file and capability changes derive owner attention.
 One selected ready `CREATE` row now crosses an immutable external-harness
 request/response and human admission cycle without Rey invoking a harness.
-A bounded Git poll/watch now retains cursor, every cadence tick, normal watch
-receipts, pending transition, and proposal-only activation evidence. Its
-semantic index identity now includes stages, modes, OIDs, reversible paths,
-and supported behavior flags while ignoring stat/cache storage churn. Workloads
-can declare exact Git HEAD or
+A bounded Git poll/watch now retains cursor, exact watched-ref names and
+targets or absence, every cadence tick, normal watch receipts, pending
+transition, and proposal-only activation evidence. It classifies watched refs
+independently from HEAD and retains exact trigger-ref matches. Its semantic
+index identity includes stages, modes, OIDs, reversible paths, and supported
+behavior flags while ignoring stat/cache storage churn. Workloads can declare exact Git HEAD or
 semantic-index dependencies; portfolio attention compares them only with the
 acknowledged cursor snapshot, so ambient repository movement cannot silently
 invalidate work. An acknowledged proposal can now cross a separate exact
@@ -94,7 +95,8 @@ and the remaining recurrence failure bounds remain open.
 - [ ] Extend activation evidence through watched refs, reachable/path deltas,
   and complete supported index semantics. Standard stage, mode, OID, path,
   assume-unchanged, skip-worktree, and intent-to-add semantics are complete;
-  watched refs and reachable/path deltas remain open.
+  exact watched-ref scope, absence, movement, and trigger matching are
+  complete; reachable/path deltas remain open.
 - [x] Coalesce compatible same-transition activations onto one exact retained
   scenario result only when all frozen inputs match and the result fits the
   stricter admission budget.

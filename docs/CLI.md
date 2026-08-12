@@ -231,7 +231,7 @@ unadmitted candidate. There is intentionally no separate `init`, `import`, or
 
 ```text
 rey git [--workspace PATH] [--state-dir PATH] status
-rey git ... init
+rey git ... init [--watch-ref refs/...]...
 rey git ... poll [--trigger TRIGGER.yaml]...
 rey git ... watch [--trigger TRIGGER.yaml]... [--max-iterations N]
   [--interval-ms N] [--max-elapsed-ms N]
@@ -240,9 +240,13 @@ rey git ... ack TRANSITION_ID
 
 `status` performs a bounded read-only repository observation and compares its
 exact snapshot identity with the retained cursor without creating `.rey`
-state. `init` explicitly retains that snapshot as the first cursor. `poll`
-revalidates the repository/worktree identity, classifies HEAD movement,
-compares the complete supported semantic index, and retains one changed transition plus
+state. `init` explicitly retains that snapshot as the first cursor. Repeatable
+`--watch-ref` values must be canonical full `refs/...` names; initialization
+sorts and freezes that exact scope and records a missing ref as `ABSENT` so a
+later creation is observable. `status`, `poll`, and `watch` reuse the retained
+scope without discovering more refs. `poll` revalidates repository/worktree
+identity, classifies HEAD and each changed watched ref independently, compares
+the complete supported semantic index, and retains one changed transition plus
 its exact triggers and deterministic proposal-only activations. Repeating the
 same poll is identity-stable and does not duplicate pending evidence; a
 different transition cannot replace an unacknowledged one.
@@ -264,10 +268,12 @@ transition, or tampered state fails closed. It does not execute a workload,
 mutate Git, contact a remote, or turn a trigger into authority. Trigger inputs
 are bounded workspace-contained regular YAML or JSON documents under
 `rey.git-activation-trigger.v1`; they bind repository/worktree, event and
-completeness selection, exact workload/graph/scenarios, and activation budget.
-The human view exposes source and target snapshots, movement completeness,
-events, semantic-index posture, omissions, proposals, authority, and next
-acknowledgement. JSON retains the same typed documents.
+optional exact `HEAD`/watched-ref selection, completeness, exact
+workload/graph/scenarios, and activation budget. Proposals retain their exact
+matched ref names. The human view exposes source and target snapshots, HEAD
+and watched-ref movement completeness, events, semantic-index posture,
+omissions, proposals, matched refs, authority, and next acknowledgement. JSON
+retains the same typed documents.
 
 After acknowledgement, `rey workloads admit-activation` is the separate
 ordinary workload gate. It never changes Git and does not run as part of

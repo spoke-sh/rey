@@ -12,15 +12,16 @@ the newest 24 commits currently reachable from `HEAD`, preserving exact OIDs,
 ordered parents, committer time, subject, object format, shallow state,
 truncation, and a semantic sequence identity. It now pairs that sequence with
 bounded porcelain-v2 working-tree counts and exact local-upstream publication
-state. `rey-git` now also derives one bounded HEAD/semantic-index transition
-from a verified retained cursor, classifies created, deleted, fast-forward,
-rewound, rewritten, and unknown movement, and matches typed triggers into
-deterministic proposal-only activations. The `rey git` CLI retains an exact
-baseline cursor, one pending transition with its triggers and proposals, and
-acknowledged transition history under `.rey/git`. The bounded `rey git watch`
-surface repeats that HEAD/index observation, retains every cadence tick and
-normal terminal receipt, and stops at the first changed transition without
-advancing the cursor. Watched-ref frames beyond HEAD, reachable-set and path
+state. `rey-git` now also derives one bounded HEAD/watched-ref/semantic-index
+transition from a verified retained cursor. It classifies each changed ref as
+created, deleted, fast-forward, rewound, rewritten, or unknown and matches
+typed triggers into deterministic proposal-only activations. The `rey git`
+CLI freezes an exact watched-ref scope at initialization, including refs that
+are currently absent, and retains the baseline cursor, one pending transition
+with its triggers and proposals, and acknowledged transition history under
+`.rey/git`. The bounded `rey git watch` surface repeats that observation,
+retains every cadence tick and normal terminal receipt, and stops at the first
+changed transition without advancing the cursor. Reachable-set and path
 deltas, cross-poll debounce, and remote synchronization remain future Git
 work. Workload packages can already bind exact
 HEAD or semantic-index revisions and derive attention from the acknowledged
@@ -226,6 +227,13 @@ idempotent and a different observation cannot overwrite pending evidence.
 Local cursors have local-file retention guarantees. Git remains the
 authoritative source of repository state.
 
+`rey git init --watch-ref refs/...` accepts repeatable canonical full ref
+names, sorts them into one exact retained scope, and records each name with its
+current OID or explicit absence. Later `status`, `poll`, and `watch` reuse that
+scope; they do not discover additional refs. Each watched ref is classified
+independently from `HEAD`. Trigger `ref_names` select `HEAD` or exact watched
+ref names, and each proposal retains the exact names it matched.
+
 `rey git watch` is an explicitly invoked bounded recurrence over the same
 poll. Maximum iteration count, interval, and elapsed cadence time are positive
 bounded inputs. Before another observation can be scheduled, the current
@@ -265,8 +273,9 @@ One bounded poll performs:
    and
 10. schedule and execute the selected workload scenarios or graph entry point.
 
-The current library and CLI implement steps 1–8 for HEAD and the partial
-logical index. `rey workloads admit-activation` implements step 9, and
+The current library and CLI implement steps 1–8 for HEAD, exact watched refs,
+and the complete supported logical-index semantics. `rey workloads
+admit-activation` implements step 9, and
 `execute-activation` implements the scenario-selection form of step 10. It
 revalidates exact current Git, workload HEAD, graph, scenarios, capabilities,
 and budgets before executing. `rey workloads verify-activation` can then
@@ -384,12 +393,13 @@ cannot inherit the result. This is deterministic same-transition work reuse,
 not cross-poll debounce or evidence loss.
 
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
-classes, completeness posture, exact workload/graph/scenarios, and an action,
-scenario, and evidence budget. Supported semantic-index transitions are now
-complete and can satisfy a completeness-requiring trigger. If an unknown
-persistent flag makes a transition incomplete, it matches only when a trigger
-explicitly permits incomplete evidence and the proposal retains the omission.
-HEAD ancestry completeness remains independent from the index axis.
+classes, optional exact `HEAD` or watched-ref names, completeness posture,
+exact workload/graph/scenarios, and action, scenario, and evidence budgets.
+Supported semantic-index transitions are complete and can satisfy a
+completeness-requiring trigger. If an unknown persistent flag makes a
+transition incomplete, it matches only when a trigger explicitly permits
+incomplete evidence and the proposal retains the omission. HEAD and watched-
+ref ancestry completeness remain independent from the index axis.
 
 Workloads can therefore activate narrowly. An index delta touching Rust
 sources might select symbol and diagnostic scenarios, while a new commit on a
