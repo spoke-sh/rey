@@ -489,6 +489,7 @@ export interface WorkloadList {
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];
   semantic_atlas: SemanticAtlas | null;
+  scene_admissions: SceneAdmission[];
   revision?: WorkloadRevisionStatus;
   attention: {
     schema: string;
@@ -496,6 +497,87 @@ export interface WorkloadList {
     source_snapshot_id: string;
     rows: AttentionRow[];
     summary: AttentionSummary;
+  };
+}
+
+export type SceneSourceRole =
+  "features" | "markers" | "terrain_control" | "hydrology" | "boundary";
+
+export interface SceneBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+export interface SceneGeometry {
+  type: string;
+  coordinates?: unknown;
+  geometries?: SceneGeometry[];
+}
+
+export interface SceneProjectedFeature {
+  feature_id: string;
+  source_id: string;
+  role: SceneSourceRole;
+  geometry_kind: string;
+  geometry: SceneGeometry;
+  label: string;
+  detail: string;
+  category: string | null;
+  marker: {
+    title: string;
+    category: string | null;
+    symbol: string | null;
+    min_zoom: number;
+    max_zoom: number;
+    collision_priority: number;
+  } | null;
+  feature_revision: string;
+}
+
+export interface SceneAdmission {
+  schema: "rey.scene-admission.v1";
+  admission_id: string;
+  request_id: string;
+  package_id: string;
+  status: "admitted";
+  admitted: true;
+  validation: {
+    schema: "rey.scene-validation.v1";
+    validator: string;
+    workload: ContractIdentity;
+    graph: ContractIdentity;
+    scenario_suite: ContractIdentity;
+    evaluator: ContractIdentity;
+    test_result_id: string;
+    qualification_id: string;
+    run_id: string;
+    package_id: string;
+    snapshot_revision: string;
+    source_objects: string[];
+    sources: number;
+    features: number;
+    coordinates: number;
+    complete: true;
+    omissions: string[];
+  };
+  projection: {
+    schema: "rey.scene-projection.v1";
+    projection_id: string;
+    package_id: string;
+    snapshot_revision: string;
+    project_id: string;
+    coordinate_system: {
+      kind: "geographic";
+      authority: "OGC";
+      code: "CRS84";
+      axis_order: "longitude_latitude";
+    };
+    bounds: SceneBounds | null;
+    features: SceneProjectedFeature[];
+    complete: true;
+    omissions: string[];
   };
 }
 

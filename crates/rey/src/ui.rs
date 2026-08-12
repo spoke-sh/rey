@@ -846,7 +846,68 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{UiServer, UiServerConfig};
-    use rey::workloads::LocalWorkloadStore;
+    use rey::{
+        editor::{LocalEditorStore, SceneBounds, SceneTerrainGenerationParameters},
+        workloads::LocalWorkloadStore,
+    };
+
+    #[test]
+    fn workload_api_exposes_only_the_qualified_editor_scene_admission() {
+        let workspace = TempDir::new().unwrap();
+        let editor = LocalEditorStore::default_for_workspace(workspace.path());
+        editor
+            .generate_terrain(
+                std::path::Path::new("terrain.geojson"),
+                Some("qualified-scene".to_owned()),
+                "terrain".to_owned(),
+                7,
+                SceneBounds {
+                    west: -2.0,
+                    south: 1.0,
+                    east: 2.0,
+                    north: 3.0,
+                },
+                SceneTerrainGenerationParameters {
+                    feature_count: 2,
+                    vertices: 5,
+                    scale_min: 0.025,
+                    scale_max: 0.09,
+                    uplift_ratio: 0.68,
+                    strength: 0.72,
+                    strength_jitter: 0.24,
+                    roughness: 0.58,
+                    roughness_jitter: 0.2,
+                    anisotropy: 1.8,
+                    orientation_degrees: 30.0,
+                    orientation_jitter_degrees: 45.0,
+                    edge_jitter: 0.14,
+                    falloff: 2.2,
+                },
+            )
+            .unwrap();
+        editor.add().unwrap();
+        editor.commit("admit qualified scene".to_owned()).unwrap();
+
+        let server = UiServer::bind(UiServerConfig {
+            workspace: workspace.path().to_owned(),
+            state_directory: workspace.path().join(".rey/workloads"),
+            catalog_directory: "sys".into(),
+            journal_directory: workspace.path().join(".rey/journal"),
+            host: "127.0.0.1".parse().unwrap(),
+            port: 0,
+        })
+        .unwrap();
+        let address = server.descriptor().address;
+        let handle = thread::spawn(move || server.serve_bounded(Some(1)).unwrap());
+        let response = request(&address, "GET /api/v1/workloads HTTP/1.1");
+        handle.join().unwrap();
+
+        assert!(response.starts_with("HTTP/1.1 200"));
+        assert!(response.contains("\"scene_admissions\":[{"));
+        assert!(response.contains("\"workload\":{\"id\":\"rey.scene-admission\""));
+        assert!(response.contains("\"project_id\":\"qualified-scene\""));
+        assert!(response.contains("\"admitted\":true"));
+    }
 
     #[test]
     fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {

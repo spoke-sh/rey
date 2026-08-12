@@ -309,10 +309,13 @@ A committed scene editor package is an input candidate for mining and
 admission, not a visualization result and not admitted evidence. `rey editor`
 preserves exact native survey or generated artifacts and derives bounded
 source, feature, geometry, bounds, marker, coverage, limit, and change indexes
-so an operator can review what a future admission workload would inspect.
-INDEX freezes exact bytes; `commit` advances `SCENE@n`, packages only that
-verified index, and emits a separate unadmitted request. Generator recipes,
-seeds, and hyperparameters are source lineage, not evidence claims.
+so an operator can review what the admission workload inspects. INDEX freezes
+exact bytes; `commit` packages only that verified index, freshly qualifies the
+fixed `rey.scene-admission` workload, and advances `SCENE@n` only after the
+workload reparses the objects and accepts their exact rederived snapshot and
+projection bindings. The package and request remain candidates; the separate
+admission result is the Explorer authority. Generator recipes, seeds, and
+hyperparameters are source lineage, not evidence claims.
 
 An admission operation must verify every frozen object identity, qualify its
 format adapter, preserve native artifacts, and bind coordinate semantics before

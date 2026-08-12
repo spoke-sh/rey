@@ -80,12 +80,14 @@ agent-facing `rey editor` CLI generates a bounded native WORKING baseline from
 a retained seed and tunable effect/geometry hyperparameters, lets the agent
 fine-tune those artifacts, freezes exact objects in INDEX, and commits
 `SCENE@n` history with immutable admission packages.
-Those packages remain candidate-only and cannot affect `/explore` until a
-separate qualified workload admits them. The first implemented adapter accepts
-RFC 7946 GeoJSON features and marker POIs in OGC CRS84; detailed raster terrain,
-GeoPackage, GeoTIFF/COG, Arrow, and provider-qualified semantic charts remain
-planned adapters. See [ADR
-0046](docs/decisions/0046-read-first-scene-editor.md) and [Plan
+The package remains candidate-only, while commit reparses its frozen objects
+and runs the separately defined, nine-scenario `rey.scene-admission` workload
+before retaining an admitted vector projection. `/explore` consumes only that
+exact admission. The first implemented adapter accepts RFC 7946 GeoJSON
+features and marker POIs in OGC CRS84; detailed raster terrain, GeoPackage,
+GeoTIFF/COG, Arrow, and provider-qualified semantic charts remain planned
+adapters. See [ADR 0046](docs/decisions/0046-read-first-scene-editor.md), [ADR
+0058](docs/decisions/0058-qualified-editor-commit-admission.md), and [Plan
 0021](plans/0021-read-first-scene-editor.md).
 
 ## Context Lifecycle
@@ -467,8 +469,11 @@ the UI freezes and qualifies those bytes before advancing HEAD. `workloads creat
 side of the external harness handoff; automatic harness invocation remains a
 later boundary.
 
-The explicit conformance catalog contains four executable diagnostic workloads. Two graphs cover
-deterministic UTF-8 `trim` and `uppercase`. The source-search graph composes
+The explicit conformance catalog contains five executable diagnostic
+workloads. Two graphs cover deterministic UTF-8 `trim` and `uppercase`. The
+`rey.scene-admission` graph qualifies nine exact acceptance and fail-closed
+editor bindings before any candidate projection enters Explorer. The
+source-search graph composes
 `rey.source-search.literal-utf8` with a deterministic match renderer over an
 explicit bounded corpus. Its required empty and exact scenarios qualify the
 graph; optional mismatch and truncation scenarios retain a typed match
@@ -759,19 +764,22 @@ WORKING without creating `.rey`. `status`, `diff`, `add`,
 `commit`, and `log` then preserve the exact edited bytes through the same
 Git-shaped revision loop as the environment surface. `commit` validates only
 the frozen INDEX before retaining linear `SCENE@n` history, an immutable
-candidate package, and an explicit admission request. The embedded generation
-recipe reproduces the base output; later agent edits remain attributable by
-their exact native-object digest and scene delta. This is incomplete enabling
-work: no scene-admission workload exists, candidate requests report
-`admitted=false`, and `/explore` continues to consume only retained
-survey-workload topography.
+candidate package, and an explicit admission request. It then freshly
+qualifies the built-in `rey.scene-admission` workload, reparses every frozen
+object, rederives INDEX and native vector geometry, and admits the projection
+only when the exact workload run passes. The request and package remain
+candidate-only; the separate admission carries the workload proof consumed by
+`/explore`. The embedded generation recipe reproduces the base output; later
+agent edits remain attributable by their exact native-object digest and scene
+delta.
 
 [Rey County](scenes/rey-county/README.md) is the first complete native-source
 fixture authored from a fresh Rey environment commit and freshly executed
 workspace workloads. Its five OGC CRS84 sources exercise boundary, terrain
 control, hydrology, feature, and marker roles. The source files remain
-reviewable, while their historical local package remains candidate-only and
-does not change `/explore`; they are not an ambient default editor project.
+reviewable, while their historical local package remains candidate-only until
+the qualified commit admission is run; they are not an ambient default editor
+project.
 
 Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.

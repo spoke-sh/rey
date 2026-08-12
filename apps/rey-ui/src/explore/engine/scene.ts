@@ -5,6 +5,7 @@ import {
   type TopologyScene,
 } from "../../topology";
 import { admittedTopographies } from "../projection/topography-projector";
+import { admittedScenes } from "../projection/scene-projector";
 import type { TerrainFieldPyramid, TerrainFieldSet } from "../terrain/compile";
 
 export interface SceneSnapshot {
@@ -27,24 +28,40 @@ export function compileSceneSnapshot(
     buildTopologyScene(portfolio, zoom, focusId, retainedRegime),
   );
   const topographies = admittedTopographies(portfolio);
+  const scenes = admittedScenes(portfolio);
   const sourceRevisions =
-    topographies.length > 0
-      ? topographies
-          .map(({ projection }) => projection.packet_id)
+    scenes.length > 0
+      ? scenes
+          .flatMap(({ admission_id, projection }) => [
+            admission_id,
+            projection.projection_id,
+          ])
           .sort((left, right) => left.localeCompare(right))
-      : [
-          portfolio.catalog.schema,
-          portfolio.attention.attention_id,
-          ...portfolio.workloads.map(
-            ({ workload }) => workload.semantic_digest,
-          ),
-        ].sort((left, right) => left.localeCompare(right));
+      : topographies.length > 0
+        ? topographies
+            .map(({ projection }) => projection.packet_id)
+            .sort((left, right) => left.localeCompare(right))
+        : [
+            portfolio.catalog.schema,
+            portfolio.attention.attention_id,
+            ...portfolio.workloads.map(
+              ({ workload }) => workload.semantic_digest,
+            ),
+          ].sort((left, right) => left.localeCompare(right));
   if (portfolio.semantic_atlas)
     sourceRevisions.push(portfolio.semantic_atlas.atlas_revision);
   sourceRevisions.sort((left, right) => left.localeCompare(right));
   const compilerRevisions = topographies
     .map(({ projection }) => projection.scene_compiler.semantic_digest)
     .sort((left, right) => left.localeCompare(right));
+  if (scenes.length > 0)
+    compilerRevisions.push(
+      ...scenes.flatMap(({ validation }) => [
+        validation.workload.semantic_digest,
+        validation.graph.semantic_digest,
+        validation.evaluator.semantic_digest,
+      ]),
+    );
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   compilerRevisions.sort((left, right) => left.localeCompare(right));

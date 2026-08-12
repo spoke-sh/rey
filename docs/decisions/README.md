@@ -58,6 +58,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0054](0054-diff-directed-journal-broadsheet.md) | Accepted | Immutable live Journal revisions and a bounded 12-column broadsheet grammar |
 | [0055](0055-editor-project-state-ownership.md) | Accepted | Editor project metadata owned by `.rey`, read-only uninitialized status, and no ambient `rey.scene.json` |
 | [0056](0056-continuous-globe-mercator-county-grammar.md) | Accepted | Continuous World globe, synthetic semantic Mercator Atlas, and admitted isometric county grammar with stable identity across projection changes |
+| [0058](0058-qualified-editor-commit-admission.md) | Accepted | Commit-time qualified scene admission, frozen-object revalidation, retained vector projection, and Explorer consumption |
 
 Normally, when a decision changes, add a superseding decision and link both
 documents. ADR 0052 records an explicit pre-alpha hard cut that removed the

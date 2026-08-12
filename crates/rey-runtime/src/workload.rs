@@ -43,11 +43,59 @@ pub const WORKLOAD_RUN_RESULT_SCHEMA: &str = "rey.workload-run-result.v1";
 
 pub const BUILT_IN_NORMALIZE_WORKLOAD_ID: &str = "rey.fixture.text-normalize";
 pub const BUILT_IN_MISMATCH_WORKLOAD_ID: &str = "rey.fixture.text-mismatch";
+pub const SCENE_ADMISSION_WORKLOAD_ID: &str = "rey.scene-admission";
+pub const SCENE_ADMISSION_OPERATION_ID: &str = "rey.scene-admission.validate";
+pub const SCENE_ADMISSION_INPUT_SCHEMA: &str = "rey.scene-admission-input.v1";
 
 const NODE_OUTPUT_ID: &str = "value";
 const INPUT_ID: &str = "text";
 const OUTPUT_ID: &str = "text";
 const PORTFOLIO_INPUT_ID: &str = "portfolio";
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionValidationInput {
+    pub schema: String,
+    pub requested_operation: String,
+    pub expected_package_id: String,
+    pub observed_package_id: String,
+    pub expected_snapshot_revision: String,
+    pub observed_snapshot_revision: String,
+    pub expected_source_objects: Vec<String>,
+    pub observed_source_objects: Vec<String>,
+    pub expected_coordinate_system: String,
+    pub observed_coordinate_system: String,
+    pub parent_current: bool,
+    pub limits_valid: bool,
+    pub complete: bool,
+    pub projection_complete: bool,
+}
+
+impl SceneAdmissionValidationInput {
+    #[must_use]
+    pub fn exact(
+        package_id: String,
+        snapshot_revision: String,
+        source_objects: Vec<String>,
+    ) -> Self {
+        Self {
+            schema: SCENE_ADMISSION_INPUT_SCHEMA.to_owned(),
+            requested_operation: format!("{SCENE_ADMISSION_OPERATION_ID}@1"),
+            expected_package_id: package_id.clone(),
+            observed_package_id: package_id,
+            expected_snapshot_revision: snapshot_revision.clone(),
+            observed_snapshot_revision: snapshot_revision,
+            expected_source_objects: source_objects.clone(),
+            observed_source_objects: source_objects,
+            expected_coordinate_system: "OGC:CRS84:longitude_latitude".to_owned(),
+            observed_coordinate_system: "OGC:CRS84:longitude_latitude".to_owned(),
+            parent_current: true,
+            limits_valid: true,
+            complete: true,
+            projection_complete: true,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -1226,6 +1274,7 @@ fn mining_context_matches(
 pub fn built_in_workloads() -> Result<Vec<WorkloadDefinition>, WorkloadError> {
     Ok(vec![
         portfolio_attention_workload()?,
+        scene_admission_workload()?,
         source_search_workload()?,
         text_workload(true)?,
         text_workload(false)?,
@@ -1748,6 +1797,174 @@ fn portfolio_attention_workload() -> Result<WorkloadDefinition, WorkloadError> {
     .finalize()
 }
 
+pub fn scene_admission_workload() -> Result<WorkloadDefinition, WorkloadError> {
+    let graph = ComputeGraph::new(
+        &format!("{SCENE_ADMISSION_WORKLOAD_ID}.graph"),
+        1,
+        vec![GraphNode {
+            node_id: "validate".to_owned(),
+            operation: scene_admission_operation_contract(),
+            input: ValueSource::ExternalInput {
+                input_id: INPUT_ID.to_owned(),
+            },
+            output_id: NODE_OUTPUT_ID.to_owned(),
+            value_type: ValueType::Utf8,
+        }],
+        vec![GraphOutput {
+            output_id: OUTPUT_ID.to_owned(),
+            source: ValueSource::NodeOutput {
+                node_id: "validate".to_owned(),
+                output_id: NODE_OUTPUT_ID.to_owned(),
+            },
+            value_type: ValueType::Utf8,
+        }],
+        GraphLimits::default(),
+    )?;
+    let exact = SceneAdmissionValidationInput::exact(
+        "package:exact".to_owned(),
+        "snapshot:exact".to_owned(),
+        vec!["object:a".to_owned(), "object:b".to_owned()],
+    );
+    let mut scenarios = vec![scene_admission_scenario(
+        "accept-exact",
+        exact.clone(),
+        "admitted",
+    )];
+    let mut input = exact.clone();
+    input.observed_coordinate_system = "synthetic".to_owned();
+    scenarios.push(scene_admission_scenario(
+        "reject-coordinate",
+        input,
+        "rejected:coordinate_mismatch",
+    ));
+    let mut input = exact.clone();
+    input.complete = false;
+    scenarios.push(scene_admission_scenario(
+        "reject-incomplete",
+        input,
+        "rejected:incomplete",
+    ));
+    let mut input = exact.clone();
+    input.limits_valid = false;
+    scenarios.push(scene_admission_scenario(
+        "reject-limits",
+        input,
+        "rejected:limits",
+    ));
+    let mut input = exact.clone();
+    input.observed_source_objects.reverse();
+    scenarios.push(scene_admission_scenario(
+        "reject-objects",
+        input,
+        "rejected:object_mismatch",
+    ));
+    let mut input = exact.clone();
+    input.observed_package_id = "package:tampered".to_owned();
+    scenarios.push(scene_admission_scenario(
+        "reject-package",
+        input,
+        "rejected:package_mismatch",
+    ));
+    let mut input = exact.clone();
+    input.parent_current = false;
+    scenarios.push(scene_admission_scenario(
+        "reject-parent",
+        input,
+        "rejected:stale_parent",
+    ));
+    let mut input = exact.clone();
+    input.projection_complete = false;
+    scenarios.push(scene_admission_scenario(
+        "reject-projection",
+        input,
+        "rejected:projection_incomplete",
+    ));
+    let mut input = exact;
+    input.observed_snapshot_revision = "snapshot:tampered".to_owned();
+    scenarios.push(scene_admission_scenario(
+        "reject-snapshot",
+        input,
+        "rejected:snapshot_mismatch",
+    ));
+    scenarios.sort_by(|left, right| left.scenario.id.cmp(&right.scenario.id));
+    WorkloadDefinition {
+        schema: WORKLOAD_SCHEMA.to_owned(),
+        workload: placeholder_contract(SCENE_ADMISSION_WORKLOAD_ID, 1, "rey.workload.placeholder"),
+        proposal: None,
+        title: "Validate editor scene admission".to_owned(),
+        inputs: vec![WorkloadPort {
+            port_id: INPUT_ID.to_owned(),
+            value_type: ValueType::Utf8,
+        }],
+        outputs: vec![WorkloadPort {
+            port_id: OUTPUT_ID.to_owned(),
+            value_type: ValueType::Utf8,
+        }],
+        graph,
+        scenario_suite: ScenarioSuite::new(
+            &format!("{SCENE_ADMISSION_WORKLOAD_ID}.scenarios"),
+            scenarios,
+        ),
+        evaluator: utf8_comparator(),
+        limits: WorkloadLimits::default(),
+    }
+    .finalize()
+}
+
+fn scene_admission_scenario(
+    id: &str,
+    input: SceneAdmissionValidationInput,
+    expected: &str,
+) -> Scenario {
+    Scenario::new(
+        &format!("{SCENE_ADMISSION_WORKLOAD_ID}.scenario.{id}"),
+        true,
+        BTreeMap::from([(
+            INPUT_ID.to_owned(),
+            WorkloadValue::Utf8(serde_json::to_string(&input).expect("fixture serializes")),
+        )]),
+        BTreeMap::from([(
+            OUTPUT_ID.to_owned(),
+            WorkloadValue::Utf8(expected.to_owned()),
+        )]),
+        None,
+    )
+}
+
+fn validate_scene_admission(input: &str) -> String {
+    let input: SceneAdmissionValidationInput = match serde_json::from_str(input) {
+        Ok(input) => input,
+        Err(_) => return "rejected:malformed".to_owned(),
+    };
+    let rejection = if input.schema != SCENE_ADMISSION_INPUT_SCHEMA
+        || input.requested_operation != format!("{SCENE_ADMISSION_OPERATION_ID}@1")
+    {
+        Some("contract")
+    } else if input.expected_package_id != input.observed_package_id {
+        Some("package_mismatch")
+    } else if input.expected_snapshot_revision != input.observed_snapshot_revision {
+        Some("snapshot_mismatch")
+    } else if input.expected_source_objects != input.observed_source_objects {
+        Some("object_mismatch")
+    } else if input.expected_coordinate_system != input.observed_coordinate_system {
+        Some("coordinate_mismatch")
+    } else if !input.parent_current {
+        Some("stale_parent")
+    } else if !input.limits_valid {
+        Some("limits")
+    } else if !input.complete {
+        Some("incomplete")
+    } else if !input.projection_complete {
+        Some("projection_incomplete")
+    } else {
+        None
+    };
+    rejection.map_or_else(
+        || "admitted".to_owned(),
+        |reason| format!("rejected:{reason}"),
+    )
+}
+
 fn portfolio_observation(
     id: &str,
     qualification: PortfolioQualificationState,
@@ -2108,6 +2325,14 @@ fn uppercase_contract() -> ContractIdentity {
     )
 }
 
+fn scene_admission_operation_contract() -> ContractIdentity {
+    ContractIdentity::new(
+        SCENE_ADMISSION_OPERATION_ID,
+        1,
+        "validate exact scene package, snapshot, native-object, coordinate, parent, limit, completeness, and projection bindings",
+    )
+}
+
 fn utf8_comparator() -> ContractIdentity {
     ContractIdentity::new(
         "rey.scenario.utf8-exact",
@@ -2134,6 +2359,7 @@ pub fn built_in_operation_contract(
         render_topography_patch_contract(),
         portfolio_attention_operation(),
         render_workload_attention_operation(),
+        scene_admission_operation_contract(),
     ];
     operations
         .into_iter()
@@ -2151,14 +2377,17 @@ enum BuiltInOperation {
     RenderTopography,
     DerivePortfolioAttention,
     RenderPortfolioAttention,
+    ValidateSceneAdmission,
 }
 
 impl BuiltInOperation {
     const fn input_type(self) -> ValueType {
         match self {
-            Self::Trim | Self::Uppercase | Self::SourceSearch | Self::SurveyTopography => {
-                ValueType::Utf8
-            }
+            Self::Trim
+            | Self::Uppercase
+            | Self::SourceSearch
+            | Self::SurveyTopography
+            | Self::ValidateSceneAdmission => ValueType::Utf8,
             Self::RenderSourceMatches => ValueType::SourceMatches,
             Self::RenderTopography => ValueType::TopographyPatch,
             Self::DerivePortfolioAttention => ValueType::PortfolioSnapshot,
@@ -2172,7 +2401,8 @@ impl BuiltInOperation {
             | Self::Uppercase
             | Self::RenderSourceMatches
             | Self::RenderTopography
-            | Self::RenderPortfolioAttention => ValueType::Utf8,
+            | Self::RenderPortfolioAttention
+            | Self::ValidateSceneAdmission => ValueType::Utf8,
             Self::SourceSearch => ValueType::SourceMatches,
             Self::SurveyTopography => ValueType::TopographyPatch,
             Self::DerivePortfolioAttention => ValueType::WorkloadAttention,
@@ -2197,6 +2427,8 @@ fn resolve_operation(contract: &ContractIdentity) -> Result<BuiltInOperation, Wo
         Ok(BuiltInOperation::DerivePortfolioAttention)
     } else if contract == &render_workload_attention_operation() {
         Ok(BuiltInOperation::RenderPortfolioAttention)
+    } else if contract == &scene_admission_operation_contract() {
+        Ok(BuiltInOperation::ValidateSceneAdmission)
     } else {
         Err(WorkloadError::UnknownOperation(contract.id.clone()))
     }
@@ -2211,6 +2443,9 @@ fn apply_operation(
     Ok(match resolve_operation(contract)? {
         BuiltInOperation::Trim => WorkloadValue::Utf8(value.as_utf8()?.trim().to_owned()),
         BuiltInOperation::Uppercase => WorkloadValue::Utf8(value.as_utf8()?.to_uppercase()),
+        BuiltInOperation::ValidateSceneAdmission => {
+            WorkloadValue::Utf8(validate_scene_admission(value.as_utf8()?))
+        }
         BuiltInOperation::SourceSearch => WorkloadValue::SourceMatches(Box::new(
             execute_source_search(source_context.ok_or(WorkloadError::MissingSourceInput)?)?,
         )),
@@ -3328,25 +3563,73 @@ mod tests {
     use super::{
         BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
         BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits,
-        RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadValue, built_in_workload,
-        built_in_workloads, execute_workload, run_workload, test_workload,
+        RunStatus, SCENE_ADMISSION_WORKLOAD_ID, ScenarioEvaluation, SceneAdmissionValidationInput,
+        TestStatus, WorkloadError, WorkloadValue, built_in_workload, built_in_workloads,
+        execute_workload, run_workload, scene_admission_workload, test_workload,
         test_workload_with_observer,
     };
 
     #[test]
     fn built_in_catalog_is_canonical_and_verified() {
         let workloads = built_in_workloads().unwrap();
-        assert_eq!(workloads.len(), 4);
+        assert_eq!(workloads.len(), 5);
         assert_eq!(
             workloads[0].workload.id,
             BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID
         );
-        assert_eq!(workloads[1].workload.id, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID);
-        assert_eq!(workloads[2].workload.id, BUILT_IN_NORMALIZE_WORKLOAD_ID);
-        assert_eq!(workloads[3].workload.id, BUILT_IN_MISMATCH_WORKLOAD_ID);
+        assert_eq!(workloads[1].workload.id, SCENE_ADMISSION_WORKLOAD_ID);
+        assert_eq!(workloads[2].workload.id, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID);
+        assert_eq!(workloads[3].workload.id, BUILT_IN_NORMALIZE_WORKLOAD_ID);
+        assert_eq!(workloads[4].workload.id, BUILT_IN_MISMATCH_WORKLOAD_ID);
         for workload in workloads {
             workload.verify().unwrap();
         }
+    }
+
+    #[test]
+    fn scene_admission_workload_qualifies_before_admitting_exact_input() {
+        let workload = scene_admission_workload().unwrap();
+        let test = test_workload(&workload).unwrap();
+        assert_eq!(test.status, TestStatus::Passed);
+        assert_eq!(test.summary.required, 9);
+        assert_eq!(test.summary.passed, 9);
+        let qualification = test.qualification.as_ref().unwrap();
+        let exact = SceneAdmissionValidationInput::exact(
+            "package:1".to_owned(),
+            "snapshot:1".to_owned(),
+            vec!["object:1".to_owned()],
+        );
+        let run = run_workload(
+            &workload,
+            qualification,
+            BTreeMap::from([(
+                "text".to_owned(),
+                WorkloadValue::Utf8(serde_json::to_string(&exact).unwrap()),
+            )]),
+        )
+        .unwrap();
+        assert_eq!(
+            run.outputs.get("text"),
+            Some(&WorkloadValue::Utf8("admitted".to_owned()))
+        );
+
+        let mut tampered = exact;
+        tampered.observed_snapshot_revision = "snapshot:tampered".to_owned();
+        let rejected = run_workload(
+            &workload,
+            qualification,
+            BTreeMap::from([(
+                "text".to_owned(),
+                WorkloadValue::Utf8(serde_json::to_string(&tampered).unwrap()),
+            )]),
+        )
+        .unwrap();
+        assert_eq!(
+            rejected.outputs.get("text"),
+            Some(&WorkloadValue::Utf8(
+                "rejected:snapshot_mismatch".to_owned()
+            ))
+        );
     }
 
     #[test]

@@ -294,7 +294,7 @@ does not bypass the three-plane contract.
 | --- | --- |
 | `status`, `list`, `diff`, `log` | Read-only with respect to Rey admission state. A status/diff may perform its documented bounded fresh observation. |
 | `env add`, `editor add`, `workloads add` | Mutate only the corresponding INDEX. |
-| `env commit`, `editor commit`, `workloads commit` | Verify and advance only from INDEX; never absorb later WORKING state. |
+| `env commit`, `editor commit`, `workloads commit` | Verify and advance only from INDEX; never absorb later WORKING state. Editor commit additionally qualifies and runs the fixed scene-admission workload over the frozen objects before retaining a separate Explorer admission. |
 | `workloads test --staged` | Executes bounded scenario probes and retains qualification evidence; never advances HEAD. |
 | `workloads run` | Executes an admitted graph and retains results under declared provider/effect contracts. |
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
@@ -389,7 +389,7 @@ By default Rey keeps local state under the selected workspace:
 ```text
 .rey/env/         environment history and admission index
 .rey/workloads/   workload objects, qualification results, and history
-.rey/editor/      scene INDEX objects, packages, and history
+.rey/editor/      scene INDEX objects, candidate packages, history, and qualified admissions
 .rey/channels/    Channel WORKING proposal
 .rey/journal/     retained Journal entries
 ```

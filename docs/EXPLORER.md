@@ -20,11 +20,11 @@ The separate `rey editor` CLI assembles WORKING projects, stages exact native
 objects in INDEX, and commits linear `SCENE@n` history with immutable candidate
 scene packages. Deterministic generators may author tunable source features in
 WORKING, but generation itself grants no evidence authority. Those packages
-are not Explorer inputs. Only a later qualified workload may admit their
-terrain or features and produce evidence consumed by a projection packet. The
-implemented editor slice has no admission workload, so scene commits change
-neither the UI API nor `/explore`. See [ADR
-0046](decisions/0046-read-first-scene-editor.md) and [Plan
+are not Explorer inputs. Commit freshly qualifies and runs the separate
+`rey.scene-admission` workload over the exact frozen objects; only its retained
+complete admission and vector projection enter the UI API and `/explore`. See
+[ADR 0046](decisions/0046-read-first-scene-editor.md), [ADR
+0058](decisions/0058-qualified-editor-commit-admission.md), and [Plan
 0021](../plans/0021-read-first-scene-editor.md).
 
 ## Operator Model

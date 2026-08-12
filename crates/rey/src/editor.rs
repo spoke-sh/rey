@@ -8,8 +8,12 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use rey_core::{SemanticDigest, SemanticHasher};
+use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
+use rey_runtime::{
+    SCENE_ADMISSION_OPERATION_ID, SceneAdmissionValidationInput, TestStatus, WorkloadValue,
+    run_workload, scene_admission_workload, test_workload,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -19,11 +23,14 @@ pub const SCENE_CANDIDATE_SNAPSHOT_SCHEMA: &str = "rey.scene-candidate-snapshot.
 pub const SCENE_CHANGE_SET_SCHEMA: &str = "rey.scene-change-set.v1";
 pub const SCENE_PACKAGE_SCHEMA: &str = "rey.scene-package.v1";
 pub const SCENE_ADMISSION_REQUEST_SCHEMA: &str = "rey.scene-admission-request.v1";
+pub const SCENE_VALIDATION_SCHEMA: &str = "rey.scene-validation.v1";
+pub const SCENE_PROJECTION_SCHEMA: &str = "rey.scene-projection.v1";
+pub const SCENE_ADMISSION_SCHEMA: &str = "rey.scene-admission.v1";
 pub const EDITOR_STATUS_SCHEMA: &str = "rey.editor-status.v2";
 pub const EDITOR_STATE_SCHEMA: &str = "rey.editor-state.v1";
 pub const EDITOR_ADD_RESULT_SCHEMA: &str = "rey.editor-add-result.v1";
 pub const SCENE_COMMIT_SCHEMA: &str = "rey.scene-commit.v1";
-pub const EDITOR_COMMIT_RESULT_SCHEMA: &str = "rey.editor-commit-result.v1";
+pub const EDITOR_COMMIT_RESULT_SCHEMA: &str = "rey.editor-commit-result.v2";
 pub const EDITOR_LOG_SCHEMA: &str = "rey.editor-log.v1";
 pub const SCENE_GENERATION_SCHEMA: &str = "rey.scene-generation.v1";
 pub const EDITOR_GENERATE_RESULT_SCHEMA: &str = "rey.editor-generate-result.v1";
@@ -43,6 +50,7 @@ const MAX_IDENTIFIER_CHARS: usize = 96;
 const MAX_LABEL_CHARS: usize = 160;
 const MAX_SCENE_COMMITS: usize = 256;
 const MAX_COMMIT_MESSAGE_BYTES: usize = 4_096;
+const MAX_PROJECTED_DETAIL_CHARS: usize = 1_024;
 const MAX_GENERATED_FEATURES: u64 = 512;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -667,6 +675,71 @@ pub struct SceneAdmissionRequest {
     pub admitted: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneValidationEvidence {
+    pub schema: String,
+    pub validator: String,
+    pub workload: ContractIdentity,
+    pub graph: ContractIdentity,
+    pub scenario_suite: ContractIdentity,
+    pub evaluator: ContractIdentity,
+    pub test_result_id: SemanticDigest,
+    pub qualification_id: SemanticDigest,
+    pub run_id: SemanticDigest,
+    pub package_id: SemanticDigest,
+    pub snapshot_revision: SemanticDigest,
+    pub source_objects: Vec<SemanticDigest>,
+    pub sources: u64,
+    pub features: u64,
+    pub coordinates: u64,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneProjectedFeature {
+    pub feature_id: String,
+    pub source_id: String,
+    pub role: SceneSourceRole,
+    pub geometry_kind: String,
+    pub geometry: Value,
+    pub label: String,
+    pub detail: String,
+    pub category: Option<String>,
+    pub marker: Option<SceneMarkerIndex>,
+    pub feature_revision: SemanticDigest,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneProjection {
+    pub schema: String,
+    pub projection_id: SemanticDigest,
+    pub package_id: SemanticDigest,
+    pub snapshot_revision: SemanticDigest,
+    pub project_id: String,
+    pub coordinate_system: SceneCoordinateSystem,
+    pub bounds: Option<SceneBounds>,
+    pub features: Vec<SceneProjectedFeature>,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmission {
+    pub schema: String,
+    pub admission_id: SemanticDigest,
+    pub request_id: SemanticDigest,
+    pub package_id: SemanticDigest,
+    pub status: String,
+    pub admitted: bool,
+    pub validation: SceneValidationEvidence,
+    pub projection: SceneProjection,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EditorCommitResult {
@@ -674,6 +747,7 @@ pub struct EditorCommitResult {
     pub commit: SceneCommit,
     pub package: ScenePackage,
     pub admission_request: SceneAdmissionRequest,
+    pub admission: SceneAdmission,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -968,7 +1042,7 @@ impl LocalEditorStore {
             working,
             staged,
             unstaged,
-            admission_boundary: "scene commits retain candidate only packages; no scene package is admitted until a validated rey.scene-admission workload retains an admitted projection".to_owned(),
+            admission_boundary: "scene packages remain candidate-only; commit reparses the frozen native objects and only a matching complete rey.scene-admission validation publishes an admitted projection".to_owned(),
         })
     }
 
@@ -1010,9 +1084,39 @@ impl LocalEditorStore {
         let message = normalize_commit_message(message)?;
         self.with_lock(|| {
             let mut state = self.load_state()?;
+            if state.index.is_none()
+                && let Some(commit) = state.commits.last()
+            {
+                let expected_parent_package_id = state
+                    .commits
+                    .iter()
+                    .rev()
+                    .nth(1)
+                    .map(|parent| parent.package.package_id.clone());
+                let package = self
+                    .load_commit_package(Some(commit))?
+                    .ok_or(EditorError::EmptyIndex)?;
+                if self.load_optional_admission(&package.package_id)?.is_some() {
+                    return Err(EditorError::EmptyIndex);
+                }
+                let request =
+                    self.load_admission_request(&commit.package.admission_request_path)?;
+                let admission = self.validate_for_admission(
+                    &package,
+                    &request,
+                    expected_parent_package_id.as_ref(),
+                )?;
+                self.write_admission(&admission)?;
+                return Ok(EditorCommitResult {
+                    schema: EDITOR_COMMIT_RESULT_SCHEMA.to_owned(),
+                    commit: commit.clone(),
+                    package,
+                    admission_request: request,
+                    admission,
+                });
+            }
             let snapshot = state.index.clone().ok_or(EditorError::EmptyIndex)?;
             snapshot.verify()?;
-            self.verify_staged_artifacts(&snapshot)?;
             if state.commits.len() >= MAX_SCENE_COMMITS {
                 return Err(EditorError::CommitLimit(MAX_SCENE_COMMITS));
             }
@@ -1029,10 +1133,12 @@ impl LocalEditorStore {
                 &format!("SCENE@{sequence}"),
                 Some(&snapshot),
             );
+            let expected_parent_package_id =
+                parent.as_ref().map(|package| package.package_id.clone());
             let mut package = ScenePackage {
                 schema: SCENE_PACKAGE_SCHEMA.to_owned(),
                 package_id: digest_placeholder(),
-                parent_package_id: parent.map(|package| package.package_id),
+                parent_package_id: expected_parent_package_id.clone(),
                 snapshot,
                 change_set,
                 admission_authority: "candidate_only".to_owned(),
@@ -1040,8 +1146,6 @@ impl LocalEditorStore {
             package.package_id = package_identity(&package);
             package.verify()?;
             let package_relative = format!("packages/{}.json", digest_key(&package.package_id));
-            let package_path = self.directory.join(&package_relative);
-            write_content_addressed_json(&package_path, &package)?;
             let mut request = SceneAdmissionRequest {
                 schema: SCENE_ADMISSION_REQUEST_SCHEMA.to_owned(),
                 request_id: digest_placeholder(),
@@ -1052,8 +1156,16 @@ impl LocalEditorStore {
                 admitted: false,
             };
             request.request_id = admission_request_identity(&request);
+            let admission = self.validate_for_admission(
+                &package,
+                &request,
+                expected_parent_package_id.as_ref(),
+            )?;
+            let package_path = self.directory.join(&package_relative);
+            write_content_addressed_json(&package_path, &package)?;
             let request_relative = format!("requests/{}.json", digest_key(&request.request_id));
             write_content_addressed_json(&self.directory.join(&request_relative), &request)?;
+            self.write_admission(&admission)?;
             let reference = ScenePackageReference {
                 package_id: package.package_id.clone(),
                 snapshot_revision: package.snapshot.snapshot_revision.clone(),
@@ -1074,8 +1186,38 @@ impl LocalEditorStore {
                 commit,
                 package,
                 admission_request: request,
+                admission,
             })
         })
+    }
+
+    pub fn admitted_scenes(&self) -> Result<Vec<SceneAdmission>, EditorError> {
+        let state = self.load_state()?;
+        let mut admissions = Vec::new();
+        let mut expected_parent_package_id: Option<SemanticDigest> = None;
+        for commit in &state.commits {
+            if let Some(admission) = self.load_optional_admission(&commit.package.package_id)? {
+                let package = self.load_commit_package(Some(commit))?.ok_or_else(|| {
+                    EditorError::UnknownPackage(commit.package.package_id.to_string())
+                })?;
+                let request =
+                    self.load_admission_request(&commit.package.admission_request_path)?;
+                let revalidated = self.validate_for_admission(
+                    &package,
+                    &request,
+                    expected_parent_package_id.as_ref(),
+                )?;
+                if admission != revalidated
+                    || admission.package_id != commit.package.package_id
+                    || admission.projection.snapshot_revision != commit.package.snapshot_revision
+                {
+                    return Err(EditorError::AdmissionIdentity);
+                }
+                admissions.push(admission);
+            }
+            expected_parent_package_id = Some(commit.package.package_id.clone());
+        }
+        Ok(admissions)
     }
 
     pub fn log(&self, max_count: usize, patch: bool) -> Result<EditorLog, EditorError> {
@@ -1359,18 +1501,193 @@ impl LocalEditorStore {
         Ok(())
     }
 
-    fn verify_staged_artifacts(
+    fn validate_for_admission(
         &self,
-        snapshot: &SceneCandidateSnapshot,
-    ) -> Result<(), EditorError> {
-        for source in &snapshot.sources {
+        package: &ScenePackage,
+        request: &SceneAdmissionRequest,
+        expected_parent_package_id: Option<&SemanticDigest>,
+    ) -> Result<SceneAdmission, EditorError> {
+        package.verify()?;
+        if request.package_id != package.package_id
+            || request.package_path != format!("packages/{}.json", digest_key(&package.package_id))
+        {
+            return Err(EditorError::AdmissionRequestIdentity);
+        }
+        let snapshot = &package.snapshot;
+        let mut features = Vec::new();
+        let mut projected_features = Vec::new();
+        let mut source_objects = Vec::new();
+        let mut coordinate_count = 0_u64;
+        let mut bounds: Option<SceneBounds> = None;
+        let mut derived_sources = snapshot.sources.clone();
+        for (source, derived_source) in snapshot.sources.iter().zip(&mut derived_sources) {
             let path = self.safe_store_path(&source.artifact.object_path)?;
             let bytes = read_bounded_file(&path, MAX_SOURCE_BYTES, "staged scene object")?;
-            if content_identity(&bytes) != source.artifact.content_digest {
+            let observed_object = content_identity(&bytes);
+            if observed_object != source.artifact.content_digest {
                 return Err(EditorError::ArtifactIdentity(source.source_id.clone()));
             }
+            let parsed = parse_geojson(&source.source_id, source.role, &bytes)?;
+            derived_source.artifact.bytes = bytes.len() as u64;
+            derived_source.feature_count = parsed.features.len() as u64;
+            derived_source.coordinate_count = parsed.coordinate_count;
+            coordinate_count = coordinate_count.saturating_add(parsed.coordinate_count);
+            if let Some(parsed_bounds) = &parsed.bounds {
+                match &mut bounds {
+                    Some(bounds) => bounds.merge(parsed_bounds),
+                    None => bounds = Some(parsed_bounds.clone()),
+                }
+            }
+            features.extend(parsed.features);
+            projected_features.extend(parsed.projected_features);
+            source_objects.push(observed_object);
         }
+        features.sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
+        projected_features.sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
+        let mut derived_snapshot = snapshot.clone();
+        derived_snapshot.snapshot_revision = digest_placeholder();
+        derived_snapshot.sources = derived_sources;
+        derived_snapshot.bounds = bounds.clone();
+        derived_snapshot.coverage = SceneCoverage {
+            sources: derived_snapshot.sources.len() as u64,
+            features: features.len() as u64,
+            markers: features
+                .iter()
+                .filter(|feature| feature.marker.is_some())
+                .count() as u64,
+            coordinates: coordinate_count,
+        };
+        derived_snapshot.features = features;
+        derived_snapshot.snapshot_revision = snapshot_identity(&derived_snapshot)?;
+        derived_snapshot.verify()?;
+        let mut projection = SceneProjection {
+            schema: SCENE_PROJECTION_SCHEMA.to_owned(),
+            projection_id: digest_placeholder(),
+            package_id: package.package_id.clone(),
+            snapshot_revision: snapshot.snapshot_revision.clone(),
+            project_id: snapshot.project_id.clone(),
+            coordinate_system: snapshot.coordinate_system.clone(),
+            bounds: snapshot.bounds.clone(),
+            features: projected_features,
+            complete: snapshot.complete,
+            omissions: snapshot.omissions.clone(),
+        };
+        projection.projection_id = projection_identity(&projection)?;
+        let workload = scene_admission_workload()?;
+        let test = test_workload(&workload)?;
+        if test.status != TestStatus::Passed {
+            return Err(EditorError::AdmissionWorkloadQualification);
+        }
+        let qualification = test
+            .qualification
+            .as_ref()
+            .ok_or(EditorError::AdmissionWorkloadQualification)?;
+        let input = SceneAdmissionValidationInput {
+            schema: rey_runtime::SCENE_ADMISSION_INPUT_SCHEMA.to_owned(),
+            requested_operation: format!("{SCENE_ADMISSION_OPERATION_ID}@1"),
+            expected_package_id: package.package_id.to_string(),
+            observed_package_id: package_identity(package).to_string(),
+            expected_snapshot_revision: snapshot.snapshot_revision.to_string(),
+            observed_snapshot_revision: derived_snapshot.snapshot_revision.to_string(),
+            expected_source_objects: snapshot
+                .sources
+                .iter()
+                .map(|source| source.artifact.content_digest.to_string())
+                .collect(),
+            observed_source_objects: source_objects.iter().map(ToString::to_string).collect(),
+            expected_coordinate_system: "OGC:CRS84:longitude_latitude".to_owned(),
+            observed_coordinate_system: format!(
+                "{}:{}:{}",
+                snapshot.coordinate_system.authority,
+                snapshot.coordinate_system.code,
+                snapshot.coordinate_system.axis_order
+            ),
+            parent_current: package.parent_package_id.as_ref() == expected_parent_package_id,
+            limits_valid: snapshot_limits_valid(snapshot),
+            complete: snapshot.complete,
+            projection_complete: projection.complete,
+        };
+        let run = run_workload(
+            &workload,
+            qualification,
+            BTreeMap::from([(
+                "text".to_owned(),
+                WorkloadValue::Utf8(serde_json::to_string(&input)?),
+            )]),
+        )?;
+        let outcome = match run.outputs.get("text") {
+            Some(WorkloadValue::Utf8(outcome)) => outcome,
+            _ => return Err(EditorError::AdmissionWorkloadResult),
+        };
+        if outcome != "admitted" {
+            return Err(EditorError::AdmissionRejected(outcome.clone()));
+        }
+        let validation = SceneValidationEvidence {
+            schema: SCENE_VALIDATION_SCHEMA.to_owned(),
+            validator: format!("{SCENE_ADMISSION_OPERATION_ID}@1"),
+            workload: workload.workload,
+            graph: workload.graph.graph,
+            scenario_suite: workload.scenario_suite.suite,
+            evaluator: workload.evaluator,
+            test_result_id: test.result_id,
+            qualification_id: qualification.qualification_id.clone(),
+            run_id: run.run_id,
+            package_id: package.package_id.clone(),
+            snapshot_revision: snapshot.snapshot_revision.clone(),
+            source_objects,
+            sources: snapshot.coverage.sources,
+            features: snapshot.coverage.features,
+            coordinates: snapshot.coverage.coordinates,
+            complete: snapshot.complete,
+            omissions: snapshot.omissions.clone(),
+        };
+        let mut admission = SceneAdmission {
+            schema: SCENE_ADMISSION_SCHEMA.to_owned(),
+            admission_id: digest_placeholder(),
+            request_id: request.request_id.clone(),
+            package_id: package.package_id.clone(),
+            status: "admitted".to_owned(),
+            admitted: true,
+            validation,
+            projection,
+        };
+        admission.admission_id = admission_identity(&admission)?;
+        verify_admission(&admission)?;
+        Ok(admission)
+    }
+
+    fn write_admission(&self, admission: &SceneAdmission) -> Result<(), EditorError> {
+        let bytes = serde_json::to_vec_pretty(admission)?;
+        if bytes.len().saturating_add(1) as u64 > MAX_STATE_BYTES {
+            return Err(EditorError::StateLimit(MAX_STATE_BYTES));
+        }
+        write_content_addressed_json(&self.admission_path(&admission.package_id), admission)?;
         Ok(())
+    }
+
+    fn load_optional_admission(
+        &self,
+        package_id: &SemanticDigest,
+    ) -> Result<Option<SceneAdmission>, EditorError> {
+        let path = self.admission_path(package_id);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                return Err(EditorError::UnsafePath(path));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => return Err(EditorError::Read { path, source }),
+        }
+        let bytes = read_bounded_file(&path, MAX_STATE_BYTES, "scene admission")?;
+        let admission: SceneAdmission = serde_json::from_slice(&bytes)?;
+        verify_admission(&admission)?;
+        Ok(Some(admission))
+    }
+
+    fn admission_path(&self, package_id: &SemanticDigest) -> PathBuf {
+        self.directory
+            .join("admissions")
+            .join(format!("{}.json", digest_key(package_id)))
     }
 
     fn with_lock<T>(
@@ -1420,6 +1737,7 @@ impl LocalEditorStore {
                 self.prepare_store_child("objects")?;
                 self.prepare_store_child("packages")?;
                 self.prepare_store_child("requests")?;
+                self.prepare_store_child("admissions")?;
                 Ok(())
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -1430,6 +1748,7 @@ impl LocalEditorStore {
                 self.prepare_store_child("objects")?;
                 self.prepare_store_child("packages")?;
                 self.prepare_store_child("requests")?;
+                self.prepare_store_child("admissions")?;
                 Ok(())
             }
             Err(source) => Err(EditorError::Write {
@@ -1731,6 +2050,7 @@ impl SplitMix64 {
 #[derive(Debug)]
 struct ParsedGeoJson {
     features: Vec<SceneFeatureIndex>,
+    projected_features: Vec<SceneProjectedFeature>,
     coordinate_count: u64,
     bounds: Option<SceneBounds>,
 }
@@ -1760,6 +2080,7 @@ fn parse_geojson(
         return Err(EditorError::FeatureLimit(MAX_FEATURES));
     }
     let mut features = Vec::with_capacity(feature_values.len());
+    let mut projected_features = Vec::with_capacity(feature_values.len());
     let mut source_coordinates = 0_u64;
     let mut source_bounds: Option<SceneBounds> = None;
     let mut ids = BTreeSet::new();
@@ -1828,23 +2149,89 @@ fn parse_geojson(
             None => source_bounds = Some(bounds.clone()),
         }
         features.push(SceneFeatureIndex {
-            feature_id,
+            feature_id: feature_id.clone(),
             source_id: source_id.to_owned(),
-            source_feature_id,
+            source_feature_id: source_feature_id.clone(),
             role,
-            geometry_kind: geometry_summary.kind,
+            geometry_kind: geometry_summary.kind.clone(),
             bounds,
             coordinate_count: geometry_summary.coordinates,
             properties_digest,
-            feature_revision,
+            feature_revision: feature_revision.clone(),
+            marker: marker.clone(),
+        });
+        projected_features.push(SceneProjectedFeature {
+            feature_id,
+            source_id: source_id.to_owned(),
+            role,
+            geometry_kind: geometry_summary.kind,
+            geometry: Value::Object(geometry.clone()),
+            label: projected_label(&source_feature_id, properties),
+            detail: projected_detail(properties),
+            category: projected_property(
+                properties,
+                &[
+                    "category",
+                    "feature_class",
+                    "flow_class",
+                    "terrain_class",
+                    "kind",
+                ],
+            ),
             marker,
+            feature_revision,
         });
     }
     features.sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
+    projected_features.sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
     Ok(ParsedGeoJson {
         features,
+        projected_features,
         coordinate_count: source_coordinates,
         bounds: source_bounds,
+    })
+}
+
+fn projected_label(source_feature_id: &str, properties: &serde_json::Map<String, Value>) -> String {
+    projected_property(properties, &["title", "name"])
+        .unwrap_or_else(|| source_feature_id.to_owned())
+}
+
+fn projected_detail(properties: &serde_json::Map<String, Value>) -> String {
+    let mut detail = [
+        "responsibility",
+        "note",
+        "direction",
+        "basis",
+        "invariant",
+        "control",
+        "coverage",
+        "omissions",
+    ]
+    .into_iter()
+    .filter_map(|key| projected_property(properties, &[key]))
+    .collect::<Vec<_>>()
+    .join(" · ");
+    if detail.chars().count() > MAX_PROJECTED_DETAIL_CHARS {
+        detail = detail
+            .chars()
+            .take(MAX_PROJECTED_DETAIL_CHARS.saturating_sub(1))
+            .collect::<String>();
+        detail.push('…');
+    }
+    detail
+}
+
+fn projected_property(
+    properties: &serde_json::Map<String, Value>,
+    keys: &[&str],
+) -> Option<String> {
+    keys.iter().find_map(|key| {
+        properties
+            .get(*key)
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| value.trim().chars().take(MAX_LABEL_CHARS).collect())
     })
 }
 
@@ -2192,6 +2579,17 @@ fn snapshot_identity(snapshot: &SceneCandidateSnapshot) -> Result<SemanticDigest
     Ok(hasher.finish())
 }
 
+fn snapshot_limits_valid(snapshot: &SceneCandidateSnapshot) -> bool {
+    snapshot.limits == SceneLimits::default()
+        && snapshot.coverage.sources <= snapshot.limits.max_sources
+        && snapshot.coverage.features <= snapshot.limits.max_features
+        && snapshot.coverage.coordinates <= snapshot.limits.max_coordinates
+        && snapshot
+            .sources
+            .iter()
+            .all(|source| source.artifact.bytes <= snapshot.limits.max_source_bytes)
+}
+
 fn verify_commit_history(commits: &[SceneCommit]) -> Result<(), EditorError> {
     if commits.len() > MAX_SCENE_COMMITS {
         return Err(EditorError::CommitLimit(MAX_SCENE_COMMITS));
@@ -2316,6 +2714,91 @@ fn admission_request_identity(request: &SceneAdmissionRequest) -> SemanticDigest
     hasher.add_str(&request.status);
     hasher.add_bool(request.admitted);
     hasher.finish()
+}
+
+fn projection_identity(projection: &SceneProjection) -> Result<SemanticDigest, EditorError> {
+    let mut hasher = SemanticHasher::new(SCENE_PROJECTION_SCHEMA);
+    hasher.add_str(projection.package_id.as_str());
+    hasher.add_str(projection.snapshot_revision.as_str());
+    hasher.add_str(&projection.project_id);
+    hasher.add_bytes(&serde_json::to_vec(&projection.coordinate_system)?);
+    hasher.add_bytes(&serde_json::to_vec(&projection.bounds)?);
+    for feature in &projection.features {
+        hasher.add_bytes(&serde_json::to_vec(feature)?);
+    }
+    hasher.add_bool(projection.complete);
+    for omission in &projection.omissions {
+        hasher.add_str(omission);
+    }
+    Ok(hasher.finish())
+}
+
+fn admission_identity(admission: &SceneAdmission) -> Result<SemanticDigest, EditorError> {
+    let mut hasher = SemanticHasher::new(SCENE_ADMISSION_SCHEMA);
+    hasher.add_str(admission.request_id.as_str());
+    hasher.add_str(admission.package_id.as_str());
+    hasher.add_str(&admission.status);
+    hasher.add_bool(admission.admitted);
+    hasher.add_str(&admission.validation.validator);
+    admission.validation.workload.add_semantics(&mut hasher);
+    admission.validation.graph.add_semantics(&mut hasher);
+    admission
+        .validation
+        .scenario_suite
+        .add_semantics(&mut hasher);
+    admission.validation.evaluator.add_semantics(&mut hasher);
+    hasher.add_str(admission.validation.test_result_id.as_str());
+    hasher.add_str(admission.validation.qualification_id.as_str());
+    hasher.add_str(admission.validation.run_id.as_str());
+    hasher.add_str(admission.validation.snapshot_revision.as_str());
+    for source in &admission.validation.source_objects {
+        hasher.add_str(source.as_str());
+    }
+    hasher.add_u64(admission.validation.sources);
+    hasher.add_u64(admission.validation.features);
+    hasher.add_u64(admission.validation.coordinates);
+    hasher.add_bool(admission.validation.complete);
+    for omission in &admission.validation.omissions {
+        hasher.add_str(omission);
+    }
+    hasher.add_str(admission.projection.projection_id.as_str());
+    Ok(hasher.finish())
+}
+
+fn verify_admission(admission: &SceneAdmission) -> Result<(), EditorError> {
+    if admission.schema != SCENE_ADMISSION_SCHEMA
+        || admission.validation.schema != SCENE_VALIDATION_SCHEMA
+        || admission.projection.schema != SCENE_PROJECTION_SCHEMA
+        || admission.status != "admitted"
+        || !admission.admitted
+        || admission.package_id != admission.validation.package_id
+        || admission.package_id != admission.projection.package_id
+        || admission.validation.snapshot_revision != admission.projection.snapshot_revision
+        || admission.validation.features != admission.projection.features.len() as u64
+        || !admission.validation.complete
+        || !admission.projection.complete
+        || admission.projection.projection_id != projection_identity(&admission.projection)?
+        || admission.admission_id != admission_identity(admission)?
+    {
+        return Err(EditorError::AdmissionIdentity);
+    }
+    let workload = scene_admission_workload()?;
+    let test = test_workload(&workload)?;
+    let qualification = test
+        .qualification
+        .as_ref()
+        .ok_or(EditorError::AdmissionWorkloadQualification)?;
+    if admission.validation.validator != format!("{SCENE_ADMISSION_OPERATION_ID}@1")
+        || admission.validation.workload != workload.workload
+        || admission.validation.graph != workload.graph.graph
+        || admission.validation.scenario_suite != workload.scenario_suite.suite
+        || admission.validation.evaluator != workload.evaluator
+        || admission.validation.test_result_id != test.result_id
+        || admission.validation.qualification_id != qualification.qualification_id
+    {
+        return Err(EditorError::AdmissionIdentity);
+    }
+    Ok(())
 }
 
 fn content_identity(bytes: &[u8]) -> SemanticDigest {
@@ -2717,6 +3200,14 @@ pub enum EditorError {
     PackageAuthority,
     #[error("scene admission request identity or candidate-only boundary is invalid")]
     AdmissionRequestIdentity,
+    #[error("scene admission identity or validation evidence is invalid")]
+    AdmissionIdentity,
+    #[error("scene-admission workload did not produce a fresh passing qualification")]
+    AdmissionWorkloadQualification,
+    #[error("scene-admission workload produced an invalid result shape")]
+    AdmissionWorkloadResult,
+    #[error("scene admission rejected by the qualified workload: {0}")]
+    AdmissionRejected(String),
     #[error("staged scene artifact identity changed: {0}")]
     ArtifactIdentity(String),
     #[error("editor index is empty; run `rey editor add` before committing")]
@@ -2753,6 +3244,8 @@ pub enum EditorError {
     Json(#[from] serde_json::Error),
     #[error("editor filesystem operation failed: {0}")]
     Io(#[from] std::io::Error),
+    #[error("scene-admission workload failed: {0}")]
+    Workload(#[from] rey_runtime::WorkloadError),
 }
 
 #[cfg(test)]
@@ -2808,6 +3301,10 @@ mod tests {
         assert_eq!(committed.commit.message, "initial terrain");
         assert!(!committed.admission_request.admitted);
         assert_eq!(committed.admission_request.status, "requires_workload");
+        assert!(committed.admission.admitted);
+        assert_eq!(committed.admission.status, "admitted");
+        assert_eq!(committed.admission.projection.features.len(), 1);
+        assert_eq!(store.admitted_scenes().unwrap().len(), 1);
         assert!(store.commit("duplicate".to_owned()).is_err());
 
         fs::write(
@@ -2867,6 +3364,148 @@ mod tests {
                 .contains("staged scene artifact identity changed")
         );
         assert_eq!(store.log(32, false).unwrap().total_commits, 0);
+        assert!(store.admitted_scenes().unwrap().is_empty());
+    }
+
+    #[test]
+    fn commit_rederives_the_projection_from_frozen_objects_before_admission() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store.init_project("atlas".to_owned()).unwrap();
+        fs::write(
+            workspace.path().join("features.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ledger","geometry":{"type":"Polygon","coordinates":[[[-2.0,1.0],[-1.0,1.0],[-1.0,2.0],[-2.0,1.0]]]},"properties":{"name":"Ledger","responsibility":"Immutable accounting evidence"}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            "features.geojson",
+            "architecture",
+            SceneSourceRole::Features,
+        );
+        store.add().unwrap();
+
+        let mut state = store.load_state().unwrap();
+        let snapshot = state.index.as_mut().unwrap();
+        snapshot.features[0].bounds.west = -3.0;
+        snapshot.snapshot_revision = super::snapshot_identity(snapshot).unwrap();
+        store.save_state(&state).unwrap();
+
+        let error = store.commit("tampered index".to_owned()).unwrap_err();
+        assert!(matches!(
+            error,
+            super::EditorError::AdmissionRejected(ref outcome)
+                if outcome == "rejected:snapshot_mismatch"
+        ));
+        assert_eq!(store.log(32, false).unwrap().total_commits, 0);
+        assert!(store.admitted_scenes().unwrap().is_empty());
+    }
+
+    #[test]
+    fn admitted_scene_reads_revalidate_frozen_objects_and_fail_closed() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store.init_project("atlas".to_owned()).unwrap();
+        fs::write(
+            workspace.path().join("features.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ledger","geometry":{"type":"Point","coordinates":[1.0,2.0]},"properties":{"name":"Ledger"}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            "features.geojson",
+            "architecture",
+            SceneSourceRole::Features,
+        );
+        let added = store.add().unwrap();
+        store.commit("admit scene".to_owned()).unwrap();
+        assert_eq!(store.admitted_scenes().unwrap().len(), 1);
+
+        let object_path = workspace
+            .path()
+            .join(".rey/editor")
+            .join(&added.snapshot.sources[0].artifact.object_path);
+        fs::write(object_path, b"tampered after admission").unwrap();
+        assert!(matches!(
+            store.admitted_scenes().unwrap_err(),
+            super::EditorError::ArtifactIdentity(_)
+        ));
+    }
+
+    #[test]
+    fn commit_resumes_an_existing_unadmitted_head_without_new_history() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store.init_project("atlas".to_owned()).unwrap();
+        fs::write(
+            workspace.path().join("features.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ledger","geometry":{"type":"Point","coordinates":[1.0,2.0]},"properties":{"name":"Ledger"}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            "features.geojson",
+            "architecture",
+            SceneSourceRole::Features,
+        );
+        store.add().unwrap();
+        let first = store.commit("original message".to_owned()).unwrap();
+        fs::remove_file(store.admission_path(&first.package.package_id)).unwrap();
+
+        let resumed = store.commit("resume admission".to_owned()).unwrap();
+        assert_eq!(resumed.commit, first.commit);
+        assert_eq!(resumed.commit.message, "original message");
+        assert!(resumed.admission.admitted);
+        assert_eq!(store.log(32, false).unwrap().total_commits, 1);
+    }
+
+    #[test]
+    fn admission_derives_parent_freshness_and_limits_from_the_candidate() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store.init_project("atlas".to_owned()).unwrap();
+        fs::write(
+            workspace.path().join("features.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"ledger","geometry":{"type":"Point","coordinates":[1.0,2.0]},"properties":{"name":"Ledger"}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            "features.geojson",
+            "architecture",
+            SceneSourceRole::Features,
+        );
+        store.add().unwrap();
+        let committed = store.commit("admit scene".to_owned()).unwrap();
+
+        let unexpected_parent = super::content_identity(b"unexpected parent");
+        assert!(matches!(
+            store
+                .validate_for_admission(
+                    &committed.package,
+                    &committed.admission_request,
+                    Some(&unexpected_parent),
+                )
+                .unwrap_err(),
+            super::EditorError::AdmissionRejected(ref outcome)
+                if outcome == "rejected:stale_parent"
+        ));
+
+        let mut package = committed.package;
+        package.snapshot.limits.max_sources = 0;
+        package.snapshot.snapshot_revision = super::snapshot_identity(&package.snapshot).unwrap();
+        package.change_set.target_revision = Some(package.snapshot.snapshot_revision.clone());
+        package.package_id = super::package_identity(&package);
+        let mut request = committed.admission_request;
+        request.package_id = package.package_id.clone();
+        request.package_path = format!("packages/{}.json", super::digest_key(&package.package_id));
+        request.request_id = super::admission_request_identity(&request);
+        assert!(matches!(
+            store
+                .validate_for_admission(&package, &request, None)
+                .unwrap_err(),
+            super::EditorError::AdmissionRejected(ref outcome) if outcome == "rejected:limits"
+        ));
     }
 
     #[test]

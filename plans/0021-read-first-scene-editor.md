@@ -99,17 +99,20 @@ topography and projection contracts consumed by Explorer.
 
 ### 5. Close the admission loop
 
-- [ ] Add a workspace `scene-admission` workload package with deterministic
-      scenarios for package/object tampering, unsupported formats, coordinate
-      mismatch, duplicate identity, missing objects, limits, omissions, stale
-      parents, and deterministic replay.
+- [x] Add the built-in `rey.scene-admission` workload with nine required
+      deterministic scenarios for exact acceptance plus package, object,
+      coordinate, snapshot, limit, completeness, projection, and stale-parent
+      rejection. ADR 0058 chooses a built-in core validator because commit must
+      remain portable in workspaces that do not carry Rey's source packages.
 - [ ] Expose package inputs, operation/provider/implementation revisions,
       capability snapshot, limits, progress, result, directed delta, lineage,
       and omissions through `rey workloads test|run|status ... -vv`.
-- [ ] Emit one admitted scene-layer/topography result whose exact identity is
-      retained by the workload store and projected into a verified
-      `rey.projection-packet.v1`.
-- [ ] Make `/explore` consume that retained result through its evidence adapter;
+- [x] Emit one separately retained `rey.scene-admission.v1` and
+      `rey.scene-projection.v1` whose exact package, snapshot, native-object,
+      validation-workload, test, qualification, and run identities are bound.
+      Integration into the richer terrain `rey.projection-packet.v1` remains
+      Plan 0029 work.
+- [x] Make `/explore` consume that retained result through its evidence adapter;
       panning, zooming, selection, and opening a link remain read-only.
 - [ ] Show editor-origin provenance at Evidence scale without exposing the
       package's candidate-only hints as observed semantic truth.
@@ -155,24 +158,27 @@ creating local state.
 Observation constructs a deterministic feature and POI index while retaining
 exact source bytes as native artifacts. `add`
 publishes those artifacts and the snapshot atomically under `.rey/editor`;
-`commit` revalidates only the frozen INDEX, advances linear `SCENE@n` history,
-retains its immutable package and directed change set, then emits a separate
-request whose status is `requires_workload` and whose `admitted` field is
-false. The embedded generation recipe reproduces the base output; exact later
-agent edits remain bound by the source digest and scene delta.
+`commit` reparses only the frozen INDEX objects and does not observe mutable
+WORKING. It freshly qualifies the public built-in `rey.scene-admission`
+workload against nine required scenarios, runs its exact package/snapshot/object
+binding, and advances linear `SCENE@n` history only after that run admits the
+candidate. The package and original request stay candidate-only. A separate
+immutable admission retains the workload proof and native vector projection;
+the workload-list API and `/explore` revalidate and consume only that result.
+Historical unadmitted HEAD packages can pass through this same gate without a
+fabricated second editor commit.
 
-No scene-admission workload exists yet. The current `context-anchor-survey`
-remains the only executable producer of admitted topography, and creating an
-editor package does not alter the workload store, projection packet, UI API, or
-`/explore`. GeoPackage, GeoTIFF/COG, Arrow, raster terrain, semantic charts,
+The current vector projection retains CRS84 geometry, explicit source roles,
+labels, descriptions, markers, feature revisions, limits, and omissions.
+GeoPackage, GeoTIFF/COG, Arrow, raster terrain, semantic-chart transforms,
 partial staging, and browser editing remain explicitly unsupported.
 
 Repository-wide evidence for this checkpoint:
 
-- `just check` passed UI formatting/typechecking, 79 UI tests, the production
+- `just check` passed UI formatting/typechecking, 81 UI tests, the production
   browser build, Rust formatting and workspace Clippy with warnings denied, and
   Nix flake evaluation on x86_64 Linux.
-- `just test` passed the same 79 UI tests, 196 Rust tests across 14 binaries,
+- `just test` passed the same 81 UI tests, 204 Rust tests across 14 binaries,
   and all workspace documentation tests.
 
 ## Acceptance Boundary

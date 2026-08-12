@@ -128,7 +128,7 @@ enum EditorCommand {
     Status(EditorOutputArgs),
     /// Stage the exact verified project and immutable native-source objects.
     Add(EditorOutputArgs),
-    /// Validate and commit exactly the staged INDEX, then emit its unadmitted request.
+    /// Validate the frozen INDEX, commit it, and retain its admitted projection.
     Commit(EditorCommitArgs),
     /// Show committed scene revisions newest first.
     Log(EditorLogArgs),
@@ -160,7 +160,7 @@ struct EditorCommitArgs {
     #[arg(short = 'm', long = "message", required = true)]
     message: String,
 
-    /// Human receipt or typed JSON commit, package, and admission request.
+    /// Human receipt or typed JSON commit, package, validation, and admission.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
@@ -1787,13 +1787,15 @@ fn current_workload_list(
     let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
     let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
+    let scene_admissions = LocalEditorStore::default_for_workspace(workspace).admitted_scenes()?;
     let list = WorkloadList::new(
         catalog.descriptor.clone(),
         summaries,
         revision.drafts.clone(),
         attention,
         Some(revision),
-    );
+    )
+    .with_scene_admissions(scene_admissions);
     Ok(list)
 }
 
@@ -7800,10 +7802,11 @@ fn write_editor_commit(
     )?;
     writeln!(
         output,
-        " admission {} · {} · admitted={} · /explore unchanged",
-        result.admission_request.request_id,
-        result.admission_request.status,
-        result.admission_request.admitted
+        " admission {} · {} · admitted={} · projection {} · /explore ready",
+        result.admission.admission_id,
+        result.admission.status,
+        result.admission.admitted,
+        result.admission.projection.projection_id
     )?;
     Ok(())
 }

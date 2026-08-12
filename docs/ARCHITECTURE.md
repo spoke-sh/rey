@@ -196,8 +196,10 @@ admitted county footprints are separate identities; focus may raise a sector
 as transient presentation without changing its evidence or height.
 
 Atlas derives terrain-style contour isolines from bounded anchor-sample
-influence and will use admitted scene packages as the primary detailed map
-fabric once the scene-admission workload exists. Entering one admitted county
+influence. The qualified scene-admission workload now supplies exact native
+vector scene geometry to the planar Explorer, while the native-to-semantic
+county transform and terrain packet remain incomplete. Once those contracts
+land, admitted scene packages become the primary detailed map fabric. Entering one admitted county
 expands its revision-bound local tangent frame under a stylized isometric
 camera. Landscape, Neighborhood, Object, and Evidence progressively add
 terrain, watersheds, admitted highways/roads/lots/structures/artifacts, labels,

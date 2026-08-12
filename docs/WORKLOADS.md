@@ -65,12 +65,17 @@ WORKING proposals, not admitted workloads. The initial product proposal is
 `context-anchor-survey`; an operator must stage, qualify, and approve it before
 it appears in HEAD or can run.
 
-The explicitly selected built-in conformance catalog contains four diagnostic
+The explicitly selected built-in conformance catalog contains five diagnostic
 workloads:
 
 - `rey.portfolio.attention` derives and renders the canonical typed attention
   relation from one frozen portfolio snapshot. Six required scenarios cover
   blocked, clean, create, excluded, refine, and retest behavior.
+
+- `rey.scene-admission` validates exact editor package, snapshot, native-object,
+  coordinate, parent, limit, completeness, and projection bindings. Nine
+  required scenarios qualify one exact acceptance and eight fail-closed
+  mismatch classes before an editor commit may retain an admission.
 
 - `rey.fixture.source-search` executes literal source search followed by a
   canonical match renderer. Required empty/exact scenarios pass; optional
@@ -462,10 +467,10 @@ example:
 
 ```text
 WORKLOAD PORTFOLIO
-  Qualification          3/4 qualified · 1 failing · 0 inconclusive · 0 stale
-  Scenarios              11/12 passing · 12/12 evaluated · 0 stale · 2 optional
-  Runs                   1 passed · 0 blocked · 3 not run
-  Inventory              4 total · 4 tested · 0 untested
+  Qualification          4/5 qualified · 1 failing · 0 inconclusive · 0 stale
+  Scenarios              20/21 passing · 21/21 evaluated · 0 stale · 2 optional
+  Runs                   1 passed · 0 blocked · 4 not run
+  Inventory              5 total · 5 tested · 0 untested
   Mining                 2 workloads · 10 retained results · 1 incomplete
   Attention              0 refine · 0 retest · 1 create · 0 blocked · 1 policy excluded
   Coverage               1 mapped surfaces · 0 owned · 1 unowned
@@ -604,7 +609,7 @@ qualification, run gating, and provenance-driven staleness through the
 evaluation and inspection commands. The creation command proves the request
 half of the handshake and exposes drafts, but Rey does not launch the harness.
 
-Four small compiled workloads remain in the explicit conformance catalog. The
+Five small compiled workloads remain in the explicit conformance catalog. The
 source-search workload closes the first mining loop from explicit corpus through operation,
 typed relation/native context, ordered and relational deltas, one scheduled
 frontier row, reasoning surface, qualification, and admitted real-input run.
@@ -613,6 +618,8 @@ retained results, and environment mapping through typed attention, scenario
 qualification, list/status inspection, and retained-input run. It currently
 treats admitted mapped files as unowned because workload ownership declaration
 syntax remains required for attention binding.
+The scene-admission workload supplies the independently qualified validation
+gate between editor candidates and Explorer's admitted vector read model.
 Generic distributed or recurring scheduling, arbitrary code execution, a
 coding-harness response executor, a persistence engine,
 parser/index breadth, and provider-specific policy loops remain outside this

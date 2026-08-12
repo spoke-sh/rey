@@ -1532,7 +1532,7 @@ workload.
 An immutable `rey.scene-package.v1` editor candidate binding one exact scene
 candidate snapshot, native object references, parent package, and directed
 change set. Candidate-only authority is part of its identity. It cannot affect
-Explorer until a separate qualified workload admits derived evidence.
+Explorer; only a separate qualified workload admission derived from it can.
 
 ### Scene admission request
 
@@ -1540,6 +1540,16 @@ A content-identified `rey.scene-admission-request.v1` handoff naming one exact
 scene package and the operation required to validate it. The implemented
 request says `requires_workload` and `admitted=false`; it is not itself a
 workload result, action admission, or proof.
+
+### Scene admission
+
+An immutable `rey.scene-admission.v1` result produced only after the
+`rey.scene-admission` workload freshly qualifies and accepts an exact candidate
+package, frozen native objects, rederived snapshot, coordinate binding, limits,
+parent, completeness, and projection. It retains workload, test,
+qualification, and run identities plus the `rey.scene-projection.v1` available
+to `/explore`; it does not change the candidate-only authority of the source
+package.
 
 ### Sector
 

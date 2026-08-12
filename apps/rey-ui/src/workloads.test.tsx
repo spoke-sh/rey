@@ -114,6 +114,7 @@ function portfolio(): WorkloadList {
   return {
     schema: "rey.workload-list.v1",
     semantic_atlas: null,
+    scene_admissions: [],
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",

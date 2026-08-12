@@ -22,7 +22,7 @@ use rey_mining::MiningCompleteness;
 use rey_runtime::{
     BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
-    ScenarioEvaluation, TestStatus,
+    SCENE_ADMISSION_WORKLOAD_ID, ScenarioEvaluation, TestStatus,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -90,7 +90,7 @@ fn editor_status_is_read_only_before_a_scene_is_initialized() {
 }
 
 #[test]
-fn editor_cli_commits_agent_tuned_generated_sources_without_admitting_explore_state() {
+fn editor_cli_validates_and_admits_agent_tuned_generated_sources() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
 
@@ -213,7 +213,8 @@ fn editor_cli_commits_agent_tuned_generated_sources_without_admitting_explore_st
     assert!(committed.contains("validation complete"));
     assert!(committed.contains("1 sources · 2 features · 0 omissions"));
     assert!(committed.contains("candidate only"));
-    assert!(committed.contains("admitted=false · /explore unchanged"));
+    assert!(committed.contains("admitted=true · projection"));
+    assert!(committed.contains("/explore ready"));
 
     let clean = run_rey(&[
         "editor",
@@ -390,6 +391,13 @@ fn editor_generate_retains_tunable_deterministic_terrain_lineage() {
     let committed: EditorCommitResult = serde_json::from_slice(&committed.stdout).unwrap();
     assert_eq!(committed.commit.sequence, 1);
     assert_eq!(committed.package.snapshot.coverage.features, 4);
+    assert!(committed.admission.admitted);
+    assert_eq!(committed.admission.status, "admitted");
+    assert_eq!(committed.admission.projection.features.len(), 4);
+    assert_eq!(
+        committed.admission.projection.snapshot_revision,
+        committed.package.snapshot.snapshot_revision
+    );
 
     fs::write(
         workspace.path().join("manual.geojson"),
@@ -2295,7 +2303,7 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
         conformance.catalog.kind,
         WorkloadCatalogKind::BuiltInConformance
     );
-    assert_eq!(conformance.workloads.len(), 4);
+    assert_eq!(conformance.workloads.len(), 5);
 
     let staged = run_rey_workspace(&[
         "workloads",
@@ -2898,7 +2906,7 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     assert!(output.stderr.is_empty());
     assert!(!workspace.path().join(".rey").exists());
     let list: WorkloadList = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(list.workloads.len(), 4);
+    assert_eq!(list.workloads.len(), 5);
     assert_eq!(
         list.workloads
             .iter()
@@ -2906,6 +2914,7 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
             .collect::<Vec<_>>(),
         [
             BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
+            SCENE_ADMISSION_WORKLOAD_ID,
             BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
             BUILT_IN_NORMALIZE_WORKLOAD_ID,
             BUILT_IN_MISMATCH_WORKLOAD_ID
@@ -2933,30 +2942,30 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     assert!(table.starts_with("\nWORKLOAD PORTFOLIO\n"));
     assert!(
         table.contains(
-            "Qualification          0/4 qualified · 0 failing · 0 inconclusive · 0 stale"
+            "Qualification          0/5 qualified · 0 failing · 0 inconclusive · 0 stale"
         )
     );
     assert!(
         table.contains(
-            "Scenarios              0/12 passing · 0/12 evaluated · 0 stale · 2 optional"
+            "Scenarios              0/21 passing · 0/21 evaluated · 0 stale · 2 optional"
         )
     );
-    assert!(table.contains("Runs                   0 passed · 0 blocked · 4 not run"));
+    assert!(table.contains("Runs                   0 passed · 0 blocked · 5 not run"));
     assert!(
         table.contains(
-            "Inventory              4 total · 4 admitted · 0 draft · 0 tested · 4 untested"
+            "Inventory              5 total · 5 admitted · 0 draft · 0 tested · 5 untested"
         )
     );
     assert!(
         table.contains("Mining                 2 workloads · 0 retained results · 0 incomplete")
     );
     assert!(table.contains(
-        "Attention              0 refine · 2 retest · 0 create · 0 blocked · 2 policy excluded"
+        "Attention              0 refine · 3 retest · 0 create · 0 blocked · 2 policy excluded"
     ));
     assert!(table.contains("Coverage               0 mapped surfaces · 0 owned · 0 unowned"));
     assert!(table.contains("ATTENTION FRONTIER"));
     assert!(table.contains("rey.fixture.source-search · untested · ready"));
-    assert_eq!(table.matches("Journey                TEST").count(), 4);
+    assert_eq!(table.matches("Journey                TEST").count(), 5);
     assert_eq!(
         table
             .matches("░░░░░░░░░░░░░░░░░░░░    0%  0/2 passing · 0/2 evaluated")
@@ -2966,8 +2975,8 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     assert!(table.contains("0%  0/6 passing · 0/6 evaluated"));
     assert!(table.contains("Graph                  rey.fixture.text-normalize.graph@1"));
     assert!(table.contains("Candidate              blake3:"));
-    assert_eq!(table.matches("Qualification          UNTESTED").count(), 4);
-    assert_eq!(table.matches("Test evidence          none").count(), 4);
+    assert_eq!(table.matches("Qualification          UNTESTED").count(), 5);
+    assert_eq!(table.matches("Test evidence          none").count(), 5);
     assert!(!table.contains('\t'));
     assert!(!table.contains("\u{1b}["));
 
@@ -3002,18 +3011,18 @@ fn workload_list_is_read_only_machine_clean_and_renders_a_portfolio() {
     let evolved = String::from_utf8(evolved.stdout).unwrap();
     assert!(
         evolved.contains(
-            "Qualification          3/4 qualified · 1 failing · 0 inconclusive · 0 stale"
+            "Qualification          4/5 qualified · 1 failing · 0 inconclusive · 0 stale"
         )
     );
     assert!(
         evolved.contains(
-            "Scenarios              11/12 passing · 12/12 evaluated · 0 stale · 2 optional"
+            "Scenarios              20/21 passing · 21/21 evaluated · 0 stale · 2 optional"
         )
     );
-    assert!(evolved.contains("Runs                   1 passed · 0 blocked · 3 not run"));
+    assert!(evolved.contains("Runs                   1 passed · 0 blocked · 4 not run"));
     assert!(
         evolved.contains(
-            "Inventory              4 total · 4 admitted · 0 draft · 4 tested · 0 untested"
+            "Inventory              5 total · 5 admitted · 0 draft · 5 tested · 0 untested"
         )
     );
     assert!(evolved.contains("Journey                RUN COMPLETE"));
@@ -3759,7 +3768,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     assert!(initial.stderr.is_empty());
     assert!(!workspace.path().join(".rey").exists());
     let initial: WorkloadList = serde_json::from_slice(&initial.stdout).unwrap();
-    assert_eq!(initial.attention.summary.retest, 2);
+    assert_eq!(initial.attention.summary.retest, 3);
     assert_eq!(initial.attention.summary.policy_excluded, 2);
     assert_eq!(initial.attention.summary.create, 0);
 
@@ -3809,7 +3818,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     let run: WorkloadRunView = serde_json::from_slice(&run.stdout).unwrap();
     let run = &run.result;
     assert_eq!(run.attention.len(), 1);
-    assert_eq!(run.attention[0].summary.retest, 2);
+    assert_eq!(run.attention[0].summary.retest, 3);
     assert_eq!(run.attention[0].summary.policy_excluded, 1);
     run.verify().unwrap();
 
@@ -3877,7 +3886,7 @@ edges: []
     ]);
     assert!(listed.status.success());
     let listed = String::from_utf8(listed.stdout).unwrap();
-    assert!(listed.contains("Attention              0 refine · 2 retest · 1 create"));
+    assert!(listed.contains("Attention              0 refine · 3 retest · 1 create"));
     assert!(listed.contains("Coverage               1 mapped surfaces · 0 owned · 1 unowned"));
     assert!(listed.contains("input.txt · unowned_surface · ready"));
 
@@ -3892,7 +3901,7 @@ edges: []
     ]);
     assert!(rerun.status.success());
     let rerun = String::from_utf8(rerun.stdout).unwrap();
-    assert!(rerun.contains("Portfolio attention: 4 rows"));
+    assert!(rerun.contains("Portfolio attention: 5 rows"));
     assert!(rerun.contains("create   input.txt · unowned_surface"));
 }
 
@@ -3909,7 +3918,7 @@ fn aggregate_test_and_invalid_state_preserve_stdout_stderr_contracts() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stderr.is_empty());
     let batch: WorkloadTestBatch = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(batch.results.len(), 4);
+    assert_eq!(batch.results.len(), 5);
     assert!(
         batch
             .results

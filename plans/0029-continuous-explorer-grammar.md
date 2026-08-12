@@ -20,9 +20,10 @@ projection geometry and visible layer density change.
 
 World currently renders a lit sphere but drag still pans the scene. Atlas and
 closer regimes use a flat local relief layout rather than a qualified Mercator
-chart, and there are no stable sector polygons or globe-to-chart morph. The
-editor produces candidate-only CRS84 GeoJSON; no scene-admission workload can
-turn a package into an admitted county. The accelerated terrain proves typed
+chart, and there are no stable sector polygons or globe-to-chart morph. ADR
+0058 closes the qualified vector/marker scene-admission loop and renders exact
+native CRS84 geometry, but does not yet transform it into an admitted semantic
+county. The accelerated terrain proves typed
 multiresolution fields and a TSL material boundary, but sparse generated fields
 do not supply the source resolution, tiled geometry, cartographic layers, or
 isometric county scene needed for the reference fidelity.
@@ -100,10 +101,9 @@ isometric county scene needed for the reference fidelity.
 
 ### 6. Admit editor packages as regional fabric
 
-- [ ] Implement and scenario-qualify the scene-admission workload from Plan
-      0021. It must bind one exact package, native objects, coordinate
-      transforms, normalized layers, validity/no-data, limits, omissions, and
-      an admitted regional-scene identity.
+- [ ] Extend Plan 0021's scenario-qualified vector admission with native-to-local
+      coordinate transforms, normalized terrain layers, validity/no-data,
+      richer limits/omissions, and an admitted regional-scene identity.
 - [ ] Define and implement the Rey-native abstract-scene manifest so semantic
       longitude/latitude and county-local coordinates do not misuse RFC 7946
       CRS84 positions.

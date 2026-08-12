@@ -8,6 +8,8 @@
 - Extended by: [ADR
   0056](0056-continuous-globe-mercator-county-grammar.md), which makes admitted
   editor scenes the primary semantic-Mercator and isometric-County fabric
+- Extended by: [ADR 0058](0058-qualified-editor-commit-admission.md), which
+  closes the first qualified commit-to-Explorer admission loop
 
 ## Context
 

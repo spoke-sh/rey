@@ -91,8 +91,9 @@ deterministic accessible orthographic globe using the same atlas revision.
 Three.js owns graphics mechanics only; Rey owns atlas semantics, scene
 identity, LOD, evidence binding, and qualification.
 
-`rey editor` candidates do not enter the atlas. A future scene-admission
-workload must validate an exact package and emit an admitted regional result
+`rey editor` candidates do not enter the atlas. ADR 0058 adds the first
+qualified scene-admission workload and exact native vector projection, but
+that result still requires an admitted native-to-semantic regional transform
 before it becomes an atlas source. Geographic GeoJSON remains native CRS84
 evidence. A qualified adapter may project it into a semantic region, but Rey
 does not relabel its Earth coordinates or confuse synthetic semantic axes with

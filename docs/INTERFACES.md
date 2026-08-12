@@ -1116,16 +1116,20 @@ source ID. Before initialization, `status` returns `rey.editor-status.v2` with
 The agent then fine-tunes the generated native source directly in WORKING.
 `status` and `diff` compare `HEAD → INDEX → WORKING`. `add` is the only
 staging operation and freezes the exact agent-edited native bytes. `commit`
-reads and validates only INDEX, advances `SCENE@n`, writes
-`rey.scene-package.v1` plus
-`rey.scene-admission-request.v1`, and reports `candidate_only`,
-`requires_workload`, and `admitted=false`. It never changes the workload store
-or UI. `log` exposes retained commit messages, parents, packages, snapshots,
+reads only INDEX and the frozen native objects, freshly qualifies the built-in
+`rey.scene-admission` workload, rederives the snapshot and projected geometry,
+and advances `SCENE@n` only when the exact workload run admits it. It writes a
+candidate-only `rey.scene-package.v1`, its unadmitted
+`rey.scene-admission-request.v1`, and a separate immutable
+`rey.scene-admission.v1` carrying validation/workload identities and the
+`rey.scene-projection.v1` consumed by `/explore`. `log` exposes retained commit messages, parents, packages, snapshots,
 and optional exact patches. Human `status` uses the concise Git-shaped
 environment-status grammar: current scene commit, changes staged for commit,
 changes not staged, and an actionable final state. Successful `commit` renders
 the validation receipt for the frozen snapshot; validation failure prevents
-HEAD from advancing. Use `log` for immutable history/package evidence and JSON
+HEAD from advancing or an admission from being retained. Repeating `commit`
+on a historical unadmitted clean HEAD validates and admits that package
+without inventing another scene revision. Use `log` for immutable history/package evidence and JSON
 `status` for the complete typed state.
 
 `generate terrain` writes a deterministic terrain-control GeoJSON source into

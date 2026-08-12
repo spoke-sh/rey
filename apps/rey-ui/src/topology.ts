@@ -2,6 +2,9 @@ import type {
   AgentSummary,
   AttentionRow,
   ProjectionPacket,
+  SceneAdmission,
+  SceneGeometry,
+  SceneProjectedFeature,
   SemanticAtlas,
   WorkloadDraft,
   WorkloadList,
@@ -19,6 +22,7 @@ import {
   admittedTopographies,
   type AdmittedTopography,
 } from "./explore/projection/topography-projector";
+import { admittedScenes } from "./explore/projection/scene-projector";
 import {
   fieldPoint,
   type MaskField2D,
@@ -132,7 +136,7 @@ export interface TopologyLandform {
 export interface TopologyNaturalFeature {
   id: string;
   path: string;
-  kind: "stream" | "river" | "weather_front";
+  kind: "stream" | "river" | "weather_front" | "authored_line";
   label: string;
   detail: string;
   intensity: number;
@@ -219,6 +223,15 @@ export function buildTopologyScene(
   retainedRegime?: LensRegime,
 ): TopologyScene {
   const regime = retainedRegime ?? lensRegimeForZoom(zoom);
+  const scenes = admittedScenes(portfolio);
+  if (scenes.length > 0)
+    return {
+      ...buildAdmittedEditorScene(scenes, focusId, regime),
+      contours: [],
+      terrain_fields: [],
+      terrain_pyramids: [],
+      globe: null,
+    };
   let projection: TopologyProjection;
   if (regime === "world") projection = buildWorld(portfolio, focusId);
   else if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
@@ -249,6 +262,257 @@ export function buildTopologyScene(
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
   };
+}
+
+function buildAdmittedEditorScene(
+  admissions: SceneAdmission[],
+  focusId: string,
+  regime: LensRegime,
+): TopologyScene {
+  const projections = admissions.map((admission) => admission.projection);
+  const bounds = projections
+    .map((projection) => projection.bounds)
+    .filter((value) => value !== null);
+  const extent = bounds.reduce(
+    (combined, value) => ({
+      west: Math.min(combined.west, value.west),
+      south: Math.min(combined.south, value.south),
+      east: Math.max(combined.east, value.east),
+      north: Math.max(combined.north, value.north),
+    }),
+    bounds[0] ?? { west: -1, south: -1, east: 1, north: 1 },
+  );
+  const project = sceneCoordinateProjector(extent);
+  const features = projections.flatMap((projection) =>
+    projection.features.map((feature) => ({
+      feature,
+      projectId: projection.project_id,
+    })),
+  );
+  const landforms = features.flatMap(({ feature }) => {
+    const path = geometryPath(feature.geometry, project);
+    return path && geometryHasSurface(feature.geometry)
+      ? [
+          {
+            id: `scene-landform:${feature.feature_id}`,
+            path,
+            kind: "charted" as const,
+            label: feature.label,
+            detail:
+              feature.detail || `${feature.role} · ${feature.geometry_kind}`,
+            tone: sceneRoleTone(feature),
+          },
+        ]
+      : [];
+  });
+  const naturalFeatures = features.flatMap(({ feature, projectId }) => {
+    const path = geometryPath(feature.geometry, project);
+    if (!path || !geometryHasLine(feature.geometry)) return [];
+    return [
+      {
+        id: `scene-line:${feature.feature_id}`,
+        path,
+        kind:
+          feature.role === "hydrology"
+            ? ("river" as const)
+            : ("authored_line" as const),
+        label: feature.label,
+        detail: feature.detail || `${feature.role} · ${feature.geometry_kind}`,
+        intensity: feature.role === "hydrology" ? 0.88 : 0.58,
+        workload_id: `scene:${projectId}`,
+      },
+    ];
+  });
+  const points = features.flatMap(({ feature, projectId }) => {
+    const positions = geometryPositions(feature.geometry);
+    if (positions.length === 0) return [];
+    const center = positions.reduce(
+      (sum, position) => ({
+        x: sum.x + position[0],
+        y: sum.y + position[1],
+      }),
+      { x: 0, y: 0 },
+    );
+    const position = project([
+      center.x / positions.length,
+      center.y / positions.length,
+    ]);
+    return [
+      {
+        id: `scene-point:${feature.feature_id}`,
+        focus_id: `scene-feature:${feature.feature_id}`,
+        kind: "anchor" as const,
+        family: feature.role.toUpperCase(),
+        label: feature.label,
+        detail: feature.detail || `${feature.role} · ${feature.geometry_kind}`,
+        x: position.x,
+        y: position.y,
+        prominence: feature.marker
+          ? Math.max(0.4, feature.marker.collision_priority / 1_000)
+          : 0.45,
+        signal: feature.category ?? feature.geometry_kind,
+        action: "inspect admitted scene evidence",
+        tone: sceneRoleTone(feature),
+        workload_id: `scene:${projectId}`,
+      },
+    ];
+  });
+  const selected = points.find((point) => point.focus_id === focusId);
+  const omissions = projections.flatMap((projection) => projection.omissions);
+  return {
+    regime,
+    label:
+      selected?.label ??
+      projections.map(({ project_id }) => project_id).join(" + "),
+    detail:
+      selected?.detail ??
+      `${admissions.length} validated scene admission${admissions.length === 1 ? "" : "s"} · ${features.length} exact native features`,
+    focus_id: focusId,
+    regions: [],
+    landforms,
+    contours: [],
+    natural_features: naturalFeatures,
+    points,
+    nodes: [],
+    edges: [],
+    omissions,
+    bearing: {
+      status: "charted",
+      label: "VALIDATED EDITOR SCENE",
+      detail: `${features.length} features admitted from ${projections.length} projection${projections.length === 1 ? "" : "s"}`,
+      sampled_conditions: features.length,
+      unresolved_boundaries: omissions.length,
+    },
+    world: TOPOLOGY_WORLD,
+    fit_world: TOPOLOGY_WORLD,
+    terrain: true,
+    terrain_fields: [],
+    terrain_pyramids: [],
+    globe: null,
+  };
+}
+
+type ScenePosition = readonly [number, number];
+
+function sceneCoordinateProjector(bounds: {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}): (position: ScenePosition) => TopologyPosition {
+  const margin = 54;
+  const width = Math.max(bounds.east - bounds.west, Number.EPSILON);
+  const height = Math.max(bounds.north - bounds.south, Number.EPSILON);
+  const scale = Math.min(
+    (TOPOLOGY_WORLD.width - margin * 2) / width,
+    (TOPOLOGY_WORLD.height - margin * 2) / height,
+  );
+  const drawnWidth = width * scale;
+  const drawnHeight = height * scale;
+  const offsetX = (TOPOLOGY_WORLD.width - drawnWidth) / 2;
+  const offsetY = (TOPOLOGY_WORLD.height - drawnHeight) / 2;
+  return ([longitude, latitude]) => ({
+    x: offsetX + (longitude - bounds.west) * scale,
+    y: offsetY + (bounds.north - latitude) * scale,
+  });
+}
+
+function geometryPath(
+  geometry: SceneGeometry,
+  project: (position: ScenePosition) => TopologyPosition,
+): string {
+  const sequence = (coordinates: unknown, close = false): string => {
+    if (!Array.isArray(coordinates)) return "";
+    const positions = coordinates.flatMap((value) => {
+      const position = scenePosition(value);
+      return position ? [project(position)] : [];
+    });
+    if (positions.length === 0) return "";
+    return `${positions
+      .map(
+        (position, index) =>
+          `${index === 0 ? "M" : "L"}${position.x.toFixed(2)},${position.y.toFixed(2)}`,
+      )
+      .join(" ")}${close ? " Z" : ""}`;
+  };
+  const coordinates = geometry.coordinates;
+  if (geometry.type === "LineString") return sequence(coordinates);
+  if (geometry.type === "MultiLineString" && Array.isArray(coordinates))
+    return coordinates
+      .map((line) => sequence(line))
+      .filter(Boolean)
+      .join(" ");
+  if (geometry.type === "Polygon" && Array.isArray(coordinates))
+    return coordinates
+      .map((ring) => sequence(ring, true))
+      .filter(Boolean)
+      .join(" ");
+  if (geometry.type === "MultiPolygon" && Array.isArray(coordinates))
+    return coordinates
+      .flatMap((polygon) =>
+        Array.isArray(polygon)
+          ? polygon.map((ring) => sequence(ring, true))
+          : [],
+      )
+      .filter(Boolean)
+      .join(" ");
+  if (geometry.type === "GeometryCollection")
+    return (geometry.geometries ?? [])
+      .map((nested) => geometryPath(nested, project))
+      .filter(Boolean)
+      .join(" ");
+  return "";
+}
+
+function geometryPositions(geometry: SceneGeometry): ScenePosition[] {
+  if (geometry.type === "GeometryCollection")
+    return (geometry.geometries ?? []).flatMap(geometryPositions);
+  const positions: ScenePosition[] = [];
+  const visit = (value: unknown) => {
+    const position = scenePosition(value);
+    if (position) {
+      positions.push(position);
+      return;
+    }
+    if (Array.isArray(value)) value.forEach(visit);
+  };
+  visit(geometry.coordinates);
+  return positions;
+}
+
+function scenePosition(value: unknown): ScenePosition | null {
+  return Array.isArray(value) &&
+    value.length >= 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number"
+    ? [value[0], value[1]]
+    : null;
+}
+
+function geometryHasSurface(geometry: SceneGeometry): boolean {
+  return (
+    geometry.type === "Polygon" ||
+    geometry.type === "MultiPolygon" ||
+    (geometry.type === "GeometryCollection" &&
+      (geometry.geometries ?? []).some(geometryHasSurface))
+  );
+}
+
+function geometryHasLine(geometry: SceneGeometry): boolean {
+  return (
+    geometry.type === "LineString" ||
+    geometry.type === "MultiLineString" ||
+    (geometry.type === "GeometryCollection" &&
+      (geometry.geometries ?? []).some(geometryHasLine))
+  );
+}
+
+function sceneRoleTone(feature: SceneProjectedFeature): TopologyTone {
+  if (feature.role === "markers") return "attention";
+  if (feature.role === "hydrology") return "healthy";
+  if (feature.role === "terrain_control") return "accent";
+  if (feature.role === "boundary") return "neutral";
+  return "unknown";
 }
 
 type TopologyProjection = Omit<

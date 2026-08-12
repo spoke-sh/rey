@@ -23,7 +23,10 @@ use rey_runtime::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::ignore::{ReyIgnoreError, ReyIgnoreFile, ReyIgnoreProjection};
+use crate::{
+    editor::SceneAdmission,
+    ignore::{ReyIgnoreError, ReyIgnoreFile, ReyIgnoreProjection},
+};
 
 pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v1";
 pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v1";
@@ -2514,7 +2517,7 @@ impl WorkloadSummary {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct WorkloadList {
     pub schema: String,
     pub catalog: WorkloadCatalogDescriptor,
@@ -2522,6 +2525,7 @@ pub struct WorkloadList {
     pub drafts: Vec<WorkloadDraft>,
     pub attention: WorkloadAttention,
     pub semantic_atlas: Option<SemanticAtlas>,
+    pub scene_admissions: Vec<SceneAdmission>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<WorkloadRevisionStatus>,
 }
@@ -2550,8 +2554,15 @@ impl WorkloadList {
             drafts,
             attention,
             semantic_atlas,
+            scene_admissions: Vec::new(),
             revision,
         }
+    }
+
+    #[must_use]
+    pub fn with_scene_admissions(mut self, scene_admissions: Vec<SceneAdmission>) -> Self {
+        self.scene_admissions = scene_admissions;
+        self
     }
 }
 

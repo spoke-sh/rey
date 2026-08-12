@@ -72,8 +72,9 @@ separate authorities.
 
 ### 5. Connect the editor admission loop
 
-- [ ] Complete Plan 0021's scene-admission workload and admitted scene-layer
-      result before any editor package can become an atlas region.
+- [ ] Extend Plan 0021's admitted vector scene result with the county transform,
+      terrain fields, and projection-packet semantics required before making
+      an editor package an atlas region.
 - [ ] Define how native CRS84, raster terrain, and provider-qualified semantic
       charts enter a local region frame without conflating coordinate systems.
 - [ ] Prove editor package → qualified admission → atlas revision → World POI →
