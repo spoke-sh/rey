@@ -92,12 +92,15 @@ topography to an admitted semantic atlas remain explicit later steps.
 
 ### 4. Reach a COBE-class World experience
 
-- [ ] Move World drag from planar pan to inertial globe rotation while keeping
-      rotation, idle motion, and camera framing outside semantic identity.
+- [x] Move World drag from planar pan to direct globe rotation while keeping
+      rotation and camera framing outside semantic identity. Inertial release
+      and optional idle motion remain future presentation work.
 - [ ] Render bounded sector surfaces, admitted-region markers, lighting,
       atmosphere, antialiasing, front/back culling, collision-managed labels,
       selection recentering, and visible validity/omission state through the
-      Three.js WebGPU/TSL graph.
+      Three.js WebGPU/TSL graph. Dense deterministic stipple, atmosphere,
+      lighting, marker occlusion, and shared reference/WebGPU projection are
+      implemented; sectors, collision management, and recentering remain.
 - [ ] Keep the reference globe keyboard navigable and semantically equivalent;
       respect reduced motion and never require automatic spin.
 - [ ] Refuse untyped arcs. Routes, trade, and travel remain absent unless their

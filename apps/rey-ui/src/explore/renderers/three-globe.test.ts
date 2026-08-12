@@ -38,9 +38,20 @@ describe("Three.js semantic globe", () => {
 
     expect(bundle.material_revision).toBe(SEMANTIC_GLOBE_MATERIAL_REVISION);
     expect(
+      bundle.scene.getObjectByName("context-globe-samples:0"),
+    ).toBeDefined();
+    expect(
+      bundle.scene.getObjectByName("context-globe-atmosphere:2"),
+    ).toBeDefined();
+    expect(
       bundle.scene.getObjectByName("semantic-region:region:1"),
     ).toBeDefined();
-    expect(bundle.statistics.triangles).toBeGreaterThan(16_000);
+    expect(bundle.statistics.triangles).toBeGreaterThan(80_000);
+    expect(bundle.statistics.vertices).toBeGreaterThan(14_000);
+    bundle.updateGlobeView?.({ yaw_degrees: 24, pitch_degrees: -8 });
+    expect(
+      bundle.scene.getObjectByName("context-globe:atlas:1")?.rotation.y,
+    ).not.toBe(0);
     bundle.dispose();
   });
 
@@ -80,6 +91,8 @@ describe("Three.js semantic globe", () => {
     expect(
       bundle.scene.getObjectByName("workload-beacon:context-anchor-survey"),
     ).toBeDefined();
+    expect(bundle.statistics.field_sets).toBe(1);
+    expect(bundle.statistics.field_bytes).toBeGreaterThan(200_000);
     bundle.dispose();
   });
 });

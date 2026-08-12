@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RendererStatus } from "../engine/renderer";
 import type { SceneSnapshot } from "../engine/scene";
+import type { GlobeCameraView } from "../engine/camera";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import {
@@ -61,13 +62,17 @@ export function AcceleratedTerrainSurface({
   snapshot,
   view,
   visible,
+  globeView = { yaw_degrees: 0, pitch_degrees: 0 },
 }: {
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
   view: TerrainCameraView;
   visible: boolean;
+  globeView?: GlobeCameraView;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const globeViewRef = useRef(globeView);
+  globeViewRef.current = globeView;
   const adapterRef = useRef<
     import("./three-webgpu").ThreeWebGpuRendererAdapter | undefined
   >(undefined);
@@ -220,6 +225,7 @@ export function AcceleratedTerrainSurface({
           ? (await import("./three-globe")).createContextGlobeBundle(
               semanticGlobe,
               snapshot.scene.world,
+              globeViewRef.current,
             )
           : (await import("./three-terrain")).createContinuousReliefBundle(
               runtimeFields,
@@ -257,6 +263,23 @@ export function AcceleratedTerrainSurface({
       if (adapterRef.current === adapter) adapterRef.current = undefined;
     };
   }, [onReport, snapshot.snapshot_id, workingSetRevision]);
+
+  useEffect(() => {
+    const adapter = adapterRef.current;
+    const bundle = bundleRef.current;
+    if (!adapter || !bundle || !semanticGlobe) return;
+    bundle.updateGlobeView?.(globeView);
+    adapter.render(bundle.scene, bundle.camera, {
+      snapshot_id: snapshot.snapshot_id,
+      camera_revision: `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}`,
+      material_revision: bundle.material_revision,
+    });
+  }, [
+    globeView.pitch_degrees,
+    globeView.yaw_degrees,
+    semanticGlobe,
+    snapshot.snapshot_id,
+  ]);
 
   useEffect(() => {
     const adapter = adapterRef.current;

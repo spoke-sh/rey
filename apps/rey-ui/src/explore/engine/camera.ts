@@ -11,6 +11,29 @@ export interface WorldExtent {
   height: number;
 }
 
+export interface GlobeCameraView {
+  yaw_degrees: number;
+  pitch_degrees: number;
+}
+
+export const DEFAULT_GLOBE_VIEW: GlobeCameraView = Object.freeze({
+  yaw_degrees: 0,
+  pitch_degrees: 0,
+});
+
+export function draggedGlobeView(
+  origin: GlobeCameraView,
+  delta: CameraPoint,
+): GlobeCameraView {
+  return {
+    yaw_degrees: origin.yaw_degrees + delta.x * 0.22,
+    pitch_degrees: Math.min(
+      62,
+      Math.max(-62, origin.pitch_degrees - delta.y * 0.18),
+    ),
+  };
+}
+
 export const MIN_LENS_ZOOM = 0.05;
 export const MAX_LENS_ZOOM = 5.4;
 export const WORLD_LENS_ZOOM = 0.1;

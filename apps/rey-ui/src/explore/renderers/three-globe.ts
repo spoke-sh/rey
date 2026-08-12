@@ -1,158 +1,153 @@
 import {
   AmbientLight,
-  BufferGeometry,
+  CircleGeometry,
   DirectionalLight,
-  Float32BufferAttribute,
   Group,
-  Line,
-  LineBasicMaterial,
+  InstancedMesh,
+  Matrix4,
   Mesh,
+  MeshBasicNodeMaterial,
   MeshStandardNodeMaterial,
-  PerspectiveCamera,
+  OrthographicCamera,
+  Quaternion,
+  RingGeometry,
   Scene,
   SphereGeometry,
+  Vector3,
+  type BufferGeometry,
   type Material,
 } from "three/webgpu";
+import type { GlobeCameraView } from "../engine/camera";
 import type { TopologyGlobe } from "../../topology";
 import type { ThreeTerrainBundle } from "./three-terrain";
+import { contextGlobeSamples } from "./globe-samples";
 
 export const SEMANTIC_GLOBE_MATERIAL_REVISION =
-  "rey.semantic-globe.tsl-material@1";
+  "rey.semantic-globe.tsl-stippled-atmosphere@2";
 
 const GLOBE_RADIUS = 1.72;
+const SAMPLE_RADIUS = 0.0082;
+const SAMPLE_COUNT = 26_000;
+const SURFACE_NORMAL = new Vector3(0, 0, 1);
+const X_AXIS = new Vector3(1, 0, 0);
+const Y_AXIS = new Vector3(0, 1, 0);
 
 export function createContextGlobeBundle(
   globe: TopologyGlobe,
   world: { width: number; height: number },
+  initialView: GlobeCameraView = { yaw_degrees: 0, pitch_degrees: 0 },
 ): ThreeTerrainBundle {
   const scene = new Scene();
   const globeGroup = new Group();
   globeGroup.name = `context-globe:${globe.source_revision}`;
+  applyGlobeView(globeGroup, initialView);
   scene.add(globeGroup);
 
   const geometries: BufferGeometry[] = [];
   const materials: Material[] = [];
-  const sphereGeometry = new SphereGeometry(GLOBE_RADIUS, 128, 64);
+  const sphereGeometry = new SphereGeometry(GLOBE_RADIUS, 160, 96);
   const sphereMaterial = new MeshStandardNodeMaterial();
   sphereMaterial.name = SEMANTIC_GLOBE_MATERIAL_REVISION;
-  sphereMaterial.color.set(0x8fa58a);
-  sphereMaterial.roughness = 0.94;
+  sphereMaterial.color.set(0xe8e9df);
+  sphereMaterial.roughness = 0.98;
   sphereMaterial.metalness = 0;
   geometries.push(sphereGeometry);
   materials.push(sphereMaterial);
   globeGroup.add(new Mesh(sphereGeometry, sphereMaterial));
 
-  const graticuleMaterial = new LineBasicMaterial({
-    color: 0xdce4d3,
-    opacity: 0.24,
-    transparent: true,
-  });
-  materials.push(graticuleMaterial);
-  for (let latitude = -60; latitude <= 60; latitude += 30) {
-    const points = Array.from({ length: 97 }, (_, index) =>
-      sphericalPoint(-180 + (360 * index) / 96, latitude, GLOBE_RADIUS * 1.002),
-    );
-    const geometry = lineGeometry(points);
-    geometries.push(geometry);
-    globeGroup.add(new Line(geometry, graticuleMaterial));
-  }
-  for (let longitude = -150; longitude <= 180; longitude += 30) {
-    const points = Array.from({ length: 65 }, (_, index) =>
-      sphericalPoint(longitude, -90 + (180 * index) / 64, GLOBE_RADIUS * 1.002),
-    );
-    const geometry = lineGeometry(points);
-    geometries.push(geometry);
-    globeGroup.add(new Line(geometry, graticuleMaterial));
-  }
+  addAtmosphere(globeGroup, geometries, materials);
 
+  const samples = contextGlobeSamples(
+    globe.source_revision,
+    SAMPLE_COUNT,
+    globe.regions,
+  );
+  const sampleTriangleCount = addSampleField(
+    globeGroup,
+    samples,
+    geometries,
+    materials,
+  );
+
+  let markerTriangles = 0;
   for (const region of globe.regions) {
     const radius =
-      0.035 + Math.min(0.075, region.angular_radius_degrees / 1800);
-    const geometry = new SphereGeometry(radius, 20, 12);
-    const material = new MeshStandardNodeMaterial();
-    material.color.set(
+      0.026 + Math.min(0.056, region.angular_radius_degrees / 2_200);
+    markerTriangles += addSurfaceMarker(
+      globeGroup,
+      `semantic-region:${region.id}`,
+      region.longitude_degrees,
+      region.latitude_degrees,
+      radius,
       region.tone === "frontier"
         ? 0xd6a94d
         : region.tone === "omitted"
           ? 0xa87862
-          : 0xe6edbd,
+          : 0x446c61,
+      geometries,
+      materials,
     );
-    material.roughness = 0.82;
-    const marker = new Mesh(geometry, material);
-    marker.name = `semantic-region:${region.id}`;
-    marker.position.set(
-      ...sphericalPoint(
-        region.longitude_degrees,
-        region.latitude_degrees,
-        GLOBE_RADIUS + radius * 0.64,
-      ),
-    );
-    geometries.push(geometry);
-    materials.push(material);
-    globeGroup.add(marker);
   }
 
   for (const beacon of globe.beacons) {
-    const radius = beacon.mapping_role === "survey" ? 0.072 : 0.052;
-    const geometry = new SphereGeometry(radius, 24, 16);
-    const material = new MeshStandardNodeMaterial();
-    material.color.set(
+    const radius = beacon.mapping_role === "survey" ? 0.065 : 0.048;
+    const color =
       beacon.state === "admitted"
-        ? 0xb7d7a8
+        ? 0x3b7458
         : beacon.state === "index"
-          ? 0xe9d278
+          ? 0xb28a25
           : beacon.state === "request"
-            ? 0xb5c8d2
-            : 0xf2a94d,
+            ? 0x658593
+            : 0xd57824;
+    markerTriangles += addSurfaceMarker(
+      globeGroup,
+      `workload-beacon:${beacon.workload_id}`,
+      beacon.longitude_degrees,
+      beacon.latitude_degrees,
+      radius,
+      color,
+      geometries,
+      materials,
+      true,
     );
-    material.emissive.set(beacon.state === "admitted" ? 0x24472f : 0x6f3d0c);
-    material.emissiveIntensity = beacon.mapping_role === "survey" ? 0.72 : 0.4;
-    material.roughness = 0.58;
-    const marker = new Mesh(geometry, material);
-    marker.name = `workload-beacon:${beacon.workload_id}`;
-    marker.position.set(
-      ...sphericalPoint(
-        beacon.longitude_degrees,
-        beacon.latitude_degrees,
-        GLOBE_RADIUS + radius * 0.72,
-      ),
-    );
-    geometries.push(geometry);
-    materials.push(material);
-    globeGroup.add(marker);
   }
 
-  scene.add(new AmbientLight(0xdde4da, 1.25));
-  const keyLight = new DirectionalLight(0xfff2ce, 3.1);
-  keyLight.position.set(-3.8, 4.6, 5.8);
+  scene.add(new AmbientLight(0xf4f0df, 1.72));
+  const keyLight = new DirectionalLight(0xfff4d2, 3.4);
+  keyLight.position.set(-3.8, 4.8, 6.2);
   scene.add(keyLight);
-  const rimLight = new DirectionalLight(0x9ec8d0, 1.25);
-  rimLight.position.set(4.5, 1.8, -3.4);
+  const rimLight = new DirectionalLight(0x8fb6ac, 1.55);
+  rimLight.position.set(4.8, 1.4, -3.8);
   scene.add(rimLight);
 
-  const camera = new PerspectiveCamera(
-    37,
-    world.width / Math.max(1, world.height),
+  const aspect = world.width / Math.max(1, world.height);
+  const halfHeight = 2.12;
+  const camera = new OrthographicCamera(
+    -halfHeight * aspect,
+    halfHeight * aspect,
+    halfHeight,
+    -halfHeight,
     0.1,
     100,
   );
-  camera.position.set(0, 0.08, 5.25);
+  camera.position.set(0, 0, 6);
   camera.lookAt(0, 0, 0);
   camera.updateProjectionMatrix();
 
-  const sphereTriangles = 128 * 64 * 2;
-  const markerTriangles =
-    globe.regions.length * 20 * 12 * 2 + globe.beacons.length * 24 * 16 * 2;
+  const sphereTriangles = 160 * 96 * 2;
   return {
     scene,
     camera,
     material_revision: SEMANTIC_GLOBE_MATERIAL_REVISION,
     statistics: Object.freeze({
-      field_sets: 0,
-      vertices: sphereGeometry.getAttribute("position").count,
-      triangles: sphereTriangles + markerTriangles,
-      field_bytes: 0,
+      field_sets: 1,
+      vertices: sphereGeometry.getAttribute("position").count + samples.length,
+      triangles: sphereTriangles + sampleTriangleCount + markerTriangles,
+      field_bytes: samples.length * 16,
     }),
+    updateGlobeView(view) {
+      applyGlobeView(globeGroup, view);
+    },
     dispose() {
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
@@ -161,29 +156,155 @@ export function createContextGlobeBundle(
   };
 }
 
-function sphericalPoint(
+function applyGlobeView(group: Group, view: GlobeCameraView) {
+  const pitch = new Quaternion().setFromAxisAngle(
+    X_AXIS,
+    (view.pitch_degrees * Math.PI) / 180,
+  );
+  const yaw = new Quaternion().setFromAxisAngle(
+    Y_AXIS,
+    (view.yaw_degrees * Math.PI) / 180,
+  );
+  group.quaternion.copy(yaw).multiply(pitch);
+}
+
+function addAtmosphere(
+  group: Group,
+  geometries: BufferGeometry[],
+  materials: Material[],
+) {
+  const layers = [
+    { radius: GLOBE_RADIUS * 1.018, color: 0xf6ecd4, opacity: 0.12 },
+    { radius: GLOBE_RADIUS * 1.045, color: 0xcbd8c9, opacity: 0.055 },
+    { radius: GLOBE_RADIUS * 1.082, color: 0x6f9188, opacity: 0.022 },
+  ];
+  for (const [index, layer] of layers.entries()) {
+    const geometry = new SphereGeometry(layer.radius, 112, 64);
+    const material = new MeshBasicNodeMaterial({
+      color: layer.color,
+      opacity: layer.opacity,
+      transparent: true,
+      depthWrite: false,
+    });
+    const shell = new Mesh(geometry, material);
+    shell.name = `context-globe-atmosphere:${index}`;
+    geometries.push(geometry);
+    materials.push(material);
+    group.add(shell);
+  }
+}
+
+function addSampleField(
+  group: Group,
+  samples: ReturnType<typeof contextGlobeSamples>,
+  geometries: BufferGeometry[],
+  materials: Material[],
+) {
+  const buckets = [
+    { minimum: 0, color: 0x708079, opacity: 0.48 },
+    { minimum: 0.58, color: 0x3e504c, opacity: 0.7 },
+    { minimum: 0.76, color: 0x243b38, opacity: 0.88 },
+  ];
+  let triangles = 0;
+  for (let bucketIndex = 0; bucketIndex < buckets.length; bucketIndex += 1) {
+    const bucket = buckets[bucketIndex]!;
+    const maximum =
+      buckets[bucketIndex + 1]?.minimum ?? Number.POSITIVE_INFINITY;
+    const members = samples.filter(
+      (sample) =>
+        sample.brightness >= bucket.minimum && sample.brightness < maximum,
+    );
+    if (members.length === 0) continue;
+    const geometry = new CircleGeometry(SAMPLE_RADIUS, 5);
+    const material = new MeshBasicNodeMaterial({
+      color: bucket.color,
+      opacity: bucket.opacity,
+      transparent: bucket.opacity < 1,
+    });
+    const mesh = new InstancedMesh(geometry, material, members.length);
+    mesh.name = `context-globe-samples:${bucketIndex}`;
+    const matrix = new Matrix4();
+    const quaternion = new Quaternion();
+    const scale = new Vector3(1, 1, 1);
+    for (const [index, sample] of members.entries()) {
+      const position = sphericalVector(
+        sample.longitude_degrees,
+        sample.latitude_degrees,
+        GLOBE_RADIUS * 1.005,
+      );
+      quaternion.setFromUnitVectors(
+        SURFACE_NORMAL,
+        position.clone().normalize(),
+      );
+      matrix.compose(position, quaternion, scale);
+      mesh.setMatrixAt(index, matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    geometries.push(geometry);
+    materials.push(material);
+    group.add(mesh);
+    triangles += members.length * 5;
+  }
+  return triangles;
+}
+
+function addSurfaceMarker(
+  group: Group,
+  name: string,
+  longitude: number,
+  latitude: number,
+  radius: number,
+  color: number,
+  geometries: BufferGeometry[],
+  materials: Material[],
+  halo = false,
+) {
+  const markerGroup = new Group();
+  markerGroup.name = name;
+  const position = sphericalVector(longitude, latitude, GLOBE_RADIUS * 1.013);
+  markerGroup.position.copy(position);
+  markerGroup.quaternion.setFromUnitVectors(
+    SURFACE_NORMAL,
+    position.clone().normalize(),
+  );
+
+  const pointGeometry = new CircleGeometry(radius, 24);
+  const pointMaterial = new MeshBasicNodeMaterial({ color });
+  geometries.push(pointGeometry);
+  materials.push(pointMaterial);
+  markerGroup.add(new Mesh(pointGeometry, pointMaterial));
+
+  let triangles = 24;
+  if (halo) {
+    const haloGeometry = new RingGeometry(radius * 1.5, radius * 2.25, 36);
+    const haloMaterial = new MeshBasicNodeMaterial({
+      color,
+      depthWrite: false,
+      opacity: 0.42,
+      transparent: true,
+    });
+    const haloMesh = new Mesh(haloGeometry, haloMaterial);
+    haloMesh.position.z = -0.001;
+    geometries.push(haloGeometry);
+    materials.push(haloMaterial);
+    markerGroup.add(haloMesh);
+    triangles += 72;
+  }
+  group.add(markerGroup);
+  return triangles;
+}
+
+function sphericalVector(
   longitudeDegrees: number,
   latitudeDegrees: number,
   radius: number,
-): [number, number, number] {
+) {
   const longitude = (longitudeDegrees * Math.PI) / 180;
   const latitude = (latitudeDegrees * Math.PI) / 180;
   const latitudeRadius = Math.cos(latitude) * radius;
-  return [
+  return new Vector3(
     Math.sin(longitude) * latitudeRadius,
     Math.sin(latitude) * radius,
     Math.cos(longitude) * latitudeRadius,
-  ];
-}
-
-function lineGeometry(points: Array<[number, number, number]>): BufferGeometry {
-  const geometry = new BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new Float32BufferAttribute(
-      points.flatMap((point) => point),
-      3,
-    ),
   );
-  return geometry;
 }

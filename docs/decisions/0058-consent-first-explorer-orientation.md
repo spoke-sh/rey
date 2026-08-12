@@ -46,6 +46,19 @@ coverage, or project-boundary claim. They do not enter the semantic atlas and
 are replaced, not reinterpreted, when admitted survey evidence produces the
 real World geometry.
 
+The sphere itself uses a dense deterministic spherical-Fibonacci stipple field,
+layered atmospheric shells, orthographic projection, front/back occlusion, and
+camera-relative brightness to expose curvature at COBE-class visual density.
+Before survey admission, that stipple is explicitly projection fabric: it is
+not a continent, terrain, coverage, similarity, or empty-space claim. Admitted
+semantic regions may emphasize the frozen field, but unknown space may not be
+filled by semantic interpolation.
+
+Pointer drag rotates the globe and the exact beacon projection together. Yaw,
+pitch, zoom, viewport, animation, and lighting remain view state outside scene
+identity. Rey does not auto-rotate the globe: a quiet globe is honest, respects
+reduced-motion expectations, and avoids fabricating activity.
+
 All pre-survey lens levels remain on the World orientation posture. Zoom may
 change optical scale but cannot reveal portfolio cards, invented terrain, or
 unadmitted details. Selecting a beacon focuses it and exposes exact workload

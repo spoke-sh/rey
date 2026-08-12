@@ -27,6 +27,7 @@ import {
 import { fieldPoint } from "../engine/fields";
 import type { TerrainFieldSet } from "../terrain/compile";
 import type { TerrainCameraView } from "../terrain/compile";
+import type { GlobeCameraView } from "../engine/camera";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
@@ -42,6 +43,7 @@ export interface ThreeTerrainBundle {
     field_bytes: number;
   };
   updateView?(view: TerrainCameraView): void;
+  updateGlobeView?(view: GlobeCameraView): void;
   dispose(): void;
 }
 

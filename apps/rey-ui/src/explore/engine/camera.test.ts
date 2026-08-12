@@ -9,6 +9,7 @@ import {
   OBJECT_LENS_ZOOM,
   WORLD_LENS_ZOOM,
   clampLensZoom,
+  draggedGlobeView,
   fitScaleForViewport,
   lensRegimeForZoom,
   panForFocusedPoint,
@@ -55,5 +56,18 @@ describe("Explorer camera engine", () => {
       ),
     ).toEqual({ x: -75, y: -75 });
     expect(renderedSceneScale(true, 0.5, DEFAULT_LENS_ZOOM, "atlas")).toBe(0.5);
+  });
+
+  it("turns planar drag into bounded presentation-only globe rotation", () => {
+    expect(
+      draggedGlobeView(
+        { yaw_degrees: 4, pitch_degrees: -2 },
+        { x: 100, y: -50 },
+      ),
+    ).toEqual({ yaw_degrees: 26, pitch_degrees: 7 });
+    expect(
+      draggedGlobeView({ yaw_degrees: 0, pitch_degrees: 58 }, { x: 0, y: -100 })
+        .pitch_degrees,
+    ).toBe(62);
   });
 });

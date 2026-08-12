@@ -139,6 +139,11 @@ cannot execute, qualify, or admit itself. The initial
 `context-anchor-survey` beacon is the proposed first mapping step; selecting it
 opens exact workload inspection and an explicit route to the Feed admission
 control. Only consent followed by a bounded agent run can reveal terrain.
+The orientation renderer uses dense deterministic spherical projection fabric,
+layered atmosphere, limb lighting, and depth-aware beacon occlusion rather than
+a coarse wireframe. Drag orbits that fabric and every label through one shared
+camera transform. The fabric remains presentation-only until admitted survey
+coordinates can emphasize it; it never stands in for surveyed land.
 
 The upstream editor pipeline is deliberately outside this render flow:
 

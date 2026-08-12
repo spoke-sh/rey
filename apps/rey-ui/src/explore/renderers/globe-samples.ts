@@ -1,0 +1,113 @@
+export interface GlobeSample {
+  longitude_degrees: number;
+  latitude_degrees: number;
+  brightness: number;
+}
+
+export interface GlobeSampleEmphasis {
+  longitude_degrees: number;
+  latitude_degrees: number;
+  angular_radius_degrees: number;
+}
+
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+/**
+ * Builds deterministic presentation fabric over a sphere. The base field is
+ * deliberately coordinate scaffolding, not inferred terrain. Admitted
+ * semantic coordinates may brighten the fabric but never create samples
+ * outside the same frozen field.
+ */
+export function contextGlobeSamples(
+  sourceRevision: string,
+  candidateCount = 26_000,
+  emphasis: readonly GlobeSampleEmphasis[] = [],
+): readonly GlobeSample[] {
+  const seed = revisionSeed(sourceRevision);
+  const phase = ((seed % 65_521) / 65_521) * Math.PI * 2;
+  const samples: GlobeSample[] = [];
+
+  for (let index = 0; index < candidateCount; index += 1) {
+    const y = 1 - ((index + 0.5) * 2) / candidateCount;
+    const latitude = Math.asin(y);
+    const latitudeRadius = Math.sqrt(Math.max(0, 1 - y * y));
+    const azimuth = index * GOLDEN_ANGLE + phase;
+    const x = Math.sin(azimuth) * latitudeRadius;
+    const z = Math.cos(azimuth) * latitudeRadius;
+    const longitude = Math.atan2(x, z);
+    const fabric = projectionFabric(x, y, z, seed);
+    const emphasized =
+      emphasis.length === 0
+        ? 0
+        : emphasisStrength(longitude, latitude, emphasis);
+
+    // The sparse intervals keep the globe legible while the coherent terms
+    // reveal its curvature. Emphasis only raises admitted regions; it does not
+    // turn unknown space into a semantic landmass.
+    const selection = pseudoRandom(index, seed);
+    const density = Math.min(0.98, Math.max(0.44, 0.69 + fabric * 0.2));
+    if (selection > density && emphasized < 0.12) continue;
+    samples.push({
+      longitude_degrees: (longitude * 180) / Math.PI,
+      latitude_degrees: (latitude * 180) / Math.PI,
+      brightness: Math.min(
+        1,
+        Math.max(0.28, 0.54 + fabric * 0.27 + emphasized * 0.46),
+      ),
+    });
+  }
+  return Object.freeze(samples.map((sample) => Object.freeze(sample)));
+}
+
+function pseudoRandom(index: number, seed: number) {
+  let value = (index + 1) ^ seed;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return ((value ^ (value >>> 16)) >>> 0) / 4_294_967_295;
+}
+
+function projectionFabric(x: number, y: number, z: number, seed: number) {
+  const a = ((seed >>> 3) % 997) / 997;
+  const b = ((seed >>> 13) % 991) / 991;
+  const broad = Math.sin(x * 4.2 + y * 2.7 + a * 6.1) * 0.46;
+  const folded = Math.sin(y * 7.3 - z * 3.8 + b * 5.4) * 0.31;
+  const grain = Math.cos((x - z) * 13.1 + y * 5.6 + a * 3.2) * 0.15;
+  const polar = Math.cos(y * Math.PI * 2.3 + b) * 0.08;
+  return broad + folded + grain + polar;
+}
+
+function emphasisStrength(
+  longitude: number,
+  latitude: number,
+  emphasis: readonly GlobeSampleEmphasis[],
+) {
+  let maximum = 0;
+  for (const region of emphasis) {
+    const regionLongitude = (region.longitude_degrees * Math.PI) / 180;
+    const regionLatitude = (region.latitude_degrees * Math.PI) / 180;
+    const cosine =
+      Math.sin(latitude) * Math.sin(regionLatitude) +
+      Math.cos(latitude) *
+        Math.cos(regionLatitude) *
+        Math.cos(longitude - regionLongitude);
+    const distance = Math.acos(Math.min(1, Math.max(-1, cosine)));
+    const radius = Math.max(
+      (region.angular_radius_degrees * Math.PI) / 180,
+      0.04,
+    );
+    maximum = Math.max(
+      maximum,
+      Math.exp(-(distance * distance) / (radius * radius * 4)),
+    );
+  }
+  return maximum;
+}
+
+function revisionSeed(revision: string) {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < revision.length; index += 1) {
+    hash ^= revision.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}

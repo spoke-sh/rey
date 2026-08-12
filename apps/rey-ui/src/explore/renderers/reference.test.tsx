@@ -205,6 +205,8 @@ describe("reference renderer", () => {
 
     expect(markup).toContain('data-globe-posture="orientation"');
     expect(markup).toContain('data-workload-beacon="context-anchor-survey"');
+    expect(markup).toContain("CONTEXT SURVEY");
+    expect(markup).toContain("PROJECTION FABRIC ONLY");
     expect(markup).toContain("FIRST MAPPING STEP");
     expect(markup).toContain("INSPECT EXACT WORKLOAD");
     expect(markup).toContain("REVIEW &amp; CONSENT");

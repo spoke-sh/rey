@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { OBJECT_LENS_ZOOM, type LensRegime } from "../engine/camera";
+import type { GlobeCameraView } from "../engine/camera";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import type {
@@ -10,6 +11,7 @@ import type {
   TopologyScene,
   TopologyTone,
 } from "../../topology";
+import { contextGlobeSamples } from "./globe-samples";
 
 export type FocusableTopologyObject = Pick<
   TopologyNode | TopologyPointOfInterest,
@@ -28,11 +30,13 @@ export function ReferenceRenderer({
   layers,
   onFocus,
   scene,
+  globeView = { yaw_degrees: 0, pitch_degrees: 0 },
 }: {
   accelerated?: boolean;
   layers: ReferenceLayerVisibility;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
+  globeView?: GlobeCameraView;
 }) {
   const globeWorld = scene.regime === "world" && scene.globe !== null;
   return (
@@ -75,6 +79,7 @@ export function ReferenceRenderer({
         ))}
       <WorldGeometryLayer
         accelerated={accelerated}
+        globeView={globeView}
         onFocus={onFocus}
         scene={scene}
       />
@@ -124,15 +129,18 @@ function WorldGeometryLayer({
   accelerated,
   onFocus,
   scene,
+  globeView,
 }: {
   accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
+  globeView: GlobeCameraView;
 }) {
   if (scene.regime === "world" && scene.globe)
     return (
       <SemanticGlobeLayer
         accelerated={accelerated}
+        globeView={globeView}
         onFocus={onFocus}
         scene={scene}
       />
@@ -211,23 +219,48 @@ function SemanticGlobeLayer({
   accelerated,
   onFocus,
   scene,
+  globeView,
 }: {
   accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
+  globeView: GlobeCameraView;
 }) {
   const globe = scene.globe!;
   const center = { x: scene.world.width / 2, y: scene.world.height / 2 };
   const radius = Math.min(scene.world.width, scene.world.height) * 0.41;
+  const projectedSamples = accelerated
+    ? []
+    : contextGlobeSamples(globe.source_revision, 5_200, globe.regions)
+        .map((sample) => ({
+          sample,
+          ...projectGlobe(sample, center, radius, globeView),
+        }))
+        .filter(({ visible }) => visible);
+  const samplePath = projectedSamples
+    .map(
+      ({ x, y, depth }) =>
+        `M${x.toFixed(1)} ${y.toFixed(1)}h${Math.max(0.45, 0.9 + depth * 0.85).toFixed(1)}`,
+    )
+    .join("");
   const projectedRegions = globe.regions
-    .map((region) => ({ region, ...projectGlobe(region, center, radius) }))
+    .map((region) => ({
+      region,
+      ...projectGlobe(region, center, radius, globeView),
+    }))
     .filter(({ visible }) => visible)
     .sort((left, right) => left.depth - right.depth);
   const projectedClusters = globe.clusters
-    .map((cluster) => ({ cluster, ...projectGlobe(cluster, center, radius) }))
+    .map((cluster) => ({
+      cluster,
+      ...projectGlobe(cluster, center, radius, globeView),
+    }))
     .filter(({ visible }) => visible);
   const projectedBeacons = globe.beacons
-    .map((beacon) => ({ beacon, ...projectGlobe(beacon, center, radius) }))
+    .map((beacon) => ({
+      beacon,
+      ...projectGlobe(beacon, center, radius, globeView),
+    }))
     .filter(({ visible }) => visible)
     .sort((left, right) => left.depth - right.depth);
   const focus = (focus_id: string, x: number, y: number) =>
@@ -255,15 +288,29 @@ function SemanticGlobeLayer({
       </title>
       <defs>
         <radialGradient id="rey-semantic-globe-fill" cx="34%" cy="26%" r="76%">
-          <stop offset="0%" stopColor="#eef1dc" />
-          <stop offset="48%" stopColor="#aebd9a" />
-          <stop offset="82%" stopColor="#708779" />
-          <stop offset="100%" stopColor="#41585a" />
+          <stop offset="0%" stopColor="#f4f1e4" />
+          <stop offset="54%" stopColor="#e3e5da" />
+          <stop offset="84%" stopColor="#bec9bb" />
+          <stop offset="100%" stopColor="#7c9188" />
+        </radialGradient>
+        <radialGradient id="rey-semantic-globe-atmosphere">
+          <stop offset="72%" stopColor="#dbe3d7" stopOpacity="0" />
+          <stop offset="91%" stopColor="#a8bdb3" stopOpacity="0.13" />
+          <stop offset="97%" stopColor="#f7edd7" stopOpacity="0.36" />
+          <stop offset="100%" stopColor="#6f9188" stopOpacity="0" />
         </radialGradient>
         <clipPath id="rey-semantic-globe-clip">
           <circle cx={center.x} cy={center.y} r={radius} />
         </clipPath>
       </defs>
+      <circle
+        aria-hidden="true"
+        className={sx(styles.semanticGlobeAtmosphere)}
+        cx={center.x}
+        cy={center.y}
+        fill="url(#rey-semantic-globe-atmosphere)"
+        r={radius * 1.09}
+      />
       <circle
         className={sx(styles.semanticGlobeSphere)}
         cx={center.x}
@@ -272,36 +319,14 @@ function SemanticGlobeLayer({
         fill={accelerated ? "transparent" : "url(#rey-semantic-globe-fill)"}
         r={radius}
       />
-      <g
-        aria-hidden="true"
-        className={sx(styles.semanticGlobeGraticule)}
-        clipPath="url(#rey-semantic-globe-clip)"
-      >
-        {[-60, -30, 0, 30, 60].map((latitude) => {
-          const latitudeRadians = (latitude * Math.PI) / 180;
-          return (
-            <ellipse
-              cx={center.x}
-              cy={center.y - radius * Math.sin(latitudeRadians)}
-              key={`latitude:${latitude}`}
-              rx={radius * Math.cos(latitudeRadians)}
-              ry={radius * 0.075 * Math.cos(latitudeRadians)}
-            />
-          );
-        })}
-        {[-60, -30, 0, 30, 60].map((longitude) => (
-          <ellipse
-            cx={center.x}
-            cy={center.y}
-            key={`longitude:${longitude}`}
-            rx={Math.max(
-              4,
-              radius * Math.abs(Math.sin((longitude * Math.PI) / 180)),
-            )}
-            ry={radius}
-          />
-        ))}
-      </g>
+      {samplePath ? (
+        <path
+          aria-hidden="true"
+          className={sx(styles.semanticGlobeSamples)}
+          clipPath="url(#rey-semantic-globe-clip)"
+          d={samplePath}
+        />
+      ) : null}
       <g aria-label={`${globe.clusters.length} world clusters`}>
         {projectedClusters.map(({ cluster, x, y, depth }) => (
           <circle
@@ -345,6 +370,13 @@ function SemanticGlobeLayer({
               cx={x}
               cy={y}
               r={7 + depth * 7}
+            />
+            <line
+              className={sx(styles.semanticGlobeBeaconLeader)}
+              x1={x + 6}
+              x2={x + 16}
+              y1={y - 6}
+              y2={y - 15}
             />
             <text
               className={sx(styles.semanticGlobeRegionLabel)}
@@ -392,19 +424,26 @@ function SemanticGlobeLayer({
               cy={y}
               r={beacon.mapping_role === "survey" ? 10 : 7}
             />
+            <line
+              className={sx(styles.semanticGlobeBeaconLeader)}
+              x1={x + 6}
+              x2={x + 16}
+              y1={y - 6}
+              y2={y - 15}
+            />
             <text
               className={sx(styles.semanticGlobeBeaconLabel)}
               x={x + 17}
               y={y - 13}
             >
-              {beacon.workload_id}
+              {globeBeaconLabel(beacon.workload_id, beacon.mapping_role)}
             </text>
             <text
               className={sx(styles.semanticGlobeBeaconState)}
               x={x + 17}
               y={y + 3}
             >
-              {beacon.state.toUpperCase()} / {beacon.mapping_role.toUpperCase()}
+              {beacon.state.toUpperCase()} · SELECT TO REVIEW
             </text>
             <title>{`${beacon.label} / ${beacon.detail} / ${beacon.next_step}`}</title>
           </g>
@@ -423,17 +462,36 @@ function SemanticGlobeLayer({
   );
 }
 
+function globeBeaconLabel(workloadId: string, mappingRole: string) {
+  if (mappingRole === "survey") return "CONTEXT SURVEY";
+  return workloadId
+    .split(/[-_]/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ")
+    .toUpperCase();
+}
+
 function projectGlobe(
   coordinate: { longitude_degrees: number; latitude_degrees: number },
   center: { x: number; y: number },
   radius: number,
+  view: GlobeCameraView,
 ) {
   const longitude = (coordinate.longitude_degrees * Math.PI) / 180;
   const latitude = (coordinate.latitude_degrees * Math.PI) / 180;
-  const depth = Math.cos(latitude) * Math.cos(longitude);
+  const localX = Math.cos(latitude) * Math.sin(longitude);
+  const localY = Math.sin(latitude);
+  const localZ = Math.cos(latitude) * Math.cos(longitude);
+  const pitch = (view.pitch_degrees * Math.PI) / 180;
+  const yaw = (view.yaw_degrees * Math.PI) / 180;
+  const pitchY = localY * Math.cos(pitch) - localZ * Math.sin(pitch);
+  const pitchZ = localY * Math.sin(pitch) + localZ * Math.cos(pitch);
+  const rotatedX = localX * Math.cos(yaw) + pitchZ * Math.sin(yaw);
+  const depth = -localX * Math.sin(yaw) + pitchZ * Math.cos(yaw);
   return {
-    x: center.x + radius * Math.cos(latitude) * Math.sin(longitude),
-    y: center.y - radius * Math.sin(latitude),
+    x: center.x + radius * rotatedX,
+    y: center.y - radius * pitchY,
     depth,
     visible: depth >= -0.02,
   };
@@ -785,6 +843,55 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
     (feature) => feature.kind === "weather_front",
   );
   const probes = scene.points.filter((point) => point.kind === "frontier");
+  if (orientation) {
+    return (
+      <aside
+        className={sx(styles.mapReading, styles.orientationMapReading)}
+        aria-label="Project orientation and survey consent"
+      >
+        {selectedBeacon ? (
+          <div
+            className={sx(styles.orientationGuide)}
+            data-selected-workload-beacon={selectedBeacon.workload_id}
+          >
+            <span className={sx(styles.bearingEyebrow)}>
+              FIRST MAPPING STEP · {scene.bearing.label}
+            </span>
+            <strong className={sx(styles.bearingTitle)}>
+              {selectedBeacon.label}
+            </strong>
+            <small className={sx(styles.bearingDetail)}>
+              {selectedBeacon.next_step}
+            </small>
+            <code title={selectedBeacon.source_revision}>
+              {selectedBeacon.state.toUpperCase()} · {selectedBeacon.source}
+            </code>
+            <span className={sx(styles.orientationActions)}>
+              <a
+                className={sx(styles.orientationAction)}
+                href={`/workloads/${encodeURIComponent(selectedBeacon.workload_id)}`}
+              >
+                INSPECT EXACT WORKLOAD →
+              </a>
+              {selectedBeacon.state === "working" ||
+              selectedBeacon.state === "index" ? (
+                <a
+                  className={sx(styles.orientationAction, styles.consentAction)}
+                  href="/feed?streams=admission.all"
+                >
+                  REVIEW & CONSENT →
+                </a>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
+        <div className={sx(styles.orientationBoundary)} aria-hidden="true">
+          {scene.globe?.beacons.length ?? 0} FILE-BACKED SIGNALS · PROJECTION
+          FABRIC ONLY · NO SURVEY CLAIM · NO DISTANCE CLAIM
+        </div>
+      </aside>
+    );
+  }
   return (
     <aside className={sx(styles.mapReading)} aria-label="Map evidence legend">
       <div className={sx(styles.bearingCard)}>
@@ -798,72 +905,26 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
           {scene.bearing.detail}
         </small>
       </div>
-      {selectedBeacon ? (
-        <div
-          className={sx(styles.orientationGuide)}
-          data-selected-workload-beacon={selectedBeacon.workload_id}
-        >
-          <span className={sx(styles.bearingEyebrow)}>
-            {selectedBeacon.mapping_role === "survey"
-              ? "FIRST MAPPING STEP"
-              : "AGENTIC WORKLOAD"}
-          </span>
-          <strong className={sx(styles.bearingTitle)}>
-            {selectedBeacon.label}
-          </strong>
-          <code title={selectedBeacon.source_revision}>
-            {selectedBeacon.state.toUpperCase()} / {selectedBeacon.source}
-          </code>
-          <small className={sx(styles.bearingDetail)}>
-            {selectedBeacon.next_step}
-          </small>
-          <span className={sx(styles.orientationActions)}>
-            <a
-              className={sx(styles.orientationAction)}
-              href={`/workloads/${encodeURIComponent(selectedBeacon.workload_id)}`}
-            >
-              INSPECT EXACT WORKLOAD →
-            </a>
-            {selectedBeacon.state === "working" ||
-            selectedBeacon.state === "index" ? (
-              <a
-                className={sx(styles.orientationAction, styles.consentAction)}
-                href="/feed?streams=admission.all"
-              >
-                REVIEW & CONSENT →
-              </a>
-            ) : null}
-          </span>
-        </div>
-      ) : null}
-      {orientation ? (
-        <div className={sx(styles.mapKey)} aria-hidden="true">
-          <span>● WORKLOAD BEACON</span>
-          <span>○ UNMAPPED PROJECT</span>
-          <span>SELECT / REVIEW</span>
-        </div>
-      ) : (
-        <div className={sx(styles.mapKey)} aria-hidden="true">
-          <span>
-            <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
-          </span>
-          <span>
-            <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
-          </span>
-          <span>
-            <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
-          </span>
-          <span>
-            <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
-          </span>
-        </div>
-      )}
+      <div className={sx(styles.mapKey)} aria-hidden="true">
+        <span>
+          <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
+        </span>
+        <span>
+          <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
+        </span>
+        <span>
+          <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
+        </span>
+        <span>
+          <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
+        </span>
+      </div>
       <div className={sx(styles.mapScale)} aria-hidden="true">
         <i className={sx(styles.mapScaleBar)} />
         <span>
-          {orientation
-            ? `${scene.globe?.beacons.length ?? 0} EXACT FILE-BACKED SIGNALS · NO SURVEY CLAIM · NO DISTANCE CLAIM`
-            : `${waterSystems.length} PROJECTED WATER SYSTEMS · ${weatherFronts.length} WEATHER FRONTS · ${probes.length} PROBES · NO PATH CLAIM · LOD ${scene.regime.toUpperCase()}`}
+          {waterSystems.length} PROJECTED WATER SYSTEMS · {weatherFronts.length}{" "}
+          WEATHER FRONTS · {probes.length} PROBES · NO PATH CLAIM · LOD{" "}
+          {scene.regime.toUpperCase()}
         </span>
       </div>
     </aside>

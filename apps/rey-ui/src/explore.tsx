@@ -25,6 +25,8 @@ import {
   OBJECT_LENS_ZOOM,
   WORLD_LENS_ZOOM,
   clampLensZoom,
+  DEFAULT_GLOBE_VIEW,
+  draggedGlobeView,
   fitScaleForViewport,
   lensRegimeForZoom,
   panForFocusedPoint,
@@ -32,6 +34,7 @@ import {
   renderedSceneScale,
   stepLensZoom,
   type LensRegime,
+  type GlobeCameraView,
 } from "./explore/engine/camera";
 import { compileSceneSnapshot } from "./explore/engine/scene";
 import { admittedTopographies } from "./explore/projection/topography-projector";
@@ -85,7 +88,13 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<
-    | { pointerId: number; origin: Point; pan: Point; distance: number }
+    | {
+        pointerId: number;
+        origin: Point;
+        pan: Point;
+        globeView: GlobeCameraView;
+        distance: number;
+      }
     | undefined
   >(undefined);
   const initialZoom =
@@ -96,6 +105,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     coordinate ? coordinate.view.scale : initialZoom,
   );
   const [pan, setPan] = useState<Point>(zeroPoint);
+  const [globeView, setGlobeView] =
+    useState<GlobeCameraView>(DEFAULT_GLOBE_VIEW);
   const [fitScale, setFitScale] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
   const [focusId, setFocusId] = useState(
@@ -217,6 +228,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       pointerId: event.pointerId,
       origin: { x: event.clientX, y: event.clientY },
       pan,
+      globeView,
       distance: 0,
     };
     setIsDragging(true);
@@ -230,7 +242,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       y: event.clientY - drag.origin.y,
     };
     drag.distance = Math.hypot(delta.x, delta.y);
-    setPan({ x: drag.pan.x + delta.x, y: drag.pan.y + delta.y });
+    if (scene.globe) setGlobeView(draggedGlobeView(drag.globeView, delta));
+    else setPan({ x: drag.pan.x + delta.x, y: drag.pan.y + delta.y });
   };
 
   const endPan = (event: PointerEvent<HTMLDivElement>) => {
@@ -249,6 +262,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         : DEFAULT_LENS_ZOOM,
     );
     setPan(zeroPoint);
+    setGlobeView(DEFAULT_GLOBE_VIEW);
     setFocusId("cluster:portfolio");
   };
 
@@ -285,6 +299,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     <section
       className={sx(
         styles.canvasShell,
+        scene.globe?.posture === "orientation" && styles.orientationCanvasShell,
         isFullscreen && styles.canvasShellFullscreen,
       )}
       ref={shellRef}
@@ -307,6 +322,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         className={sx(
           styles.canvasViewport,
           scene.terrain && styles.terrainViewport,
+          scene.globe?.posture === "orientation" && styles.orientationViewport,
           isDragging && styles.canvasViewportDragging,
         )}
         onKeyDown={handleKeyDown}
@@ -341,6 +357,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         >
           {scene.globe ? (
             <AcceleratedTerrainSurface
+              globeView={globeView}
               onReport={setTerrainRenderer}
               snapshot={snapshot}
               view={{
@@ -357,15 +374,25 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           ) : null}
           <ReferenceRenderer
             accelerated={acceleratedReady && layers.relief}
+            globeView={globeView}
             layers={layers}
             onFocus={focusNode}
             scene={scene}
           />
         </div>
-        <div className={sx(styles.canvasCoordinates)} aria-hidden="true">
+        <div
+          className={sx(
+            styles.canvasCoordinates,
+            scene.globe?.posture === "orientation" &&
+              styles.orientationCoordinates,
+          )}
+          aria-hidden="true"
+        >
           <span>ZOOM {Math.round(zoom * 100)}%</span>
           <span>
-            X {Math.round(pan.x)} / Y {Math.round(pan.y)}
+            {scene.globe
+              ? `LON ${Math.round(globeView.yaw_degrees)}° / LAT ${Math.round(globeView.pitch_degrees)}°`
+              : `X ${Math.round(pan.x)} / Y ${Math.round(pan.y)}`}
           </span>
           {scene.terrain ? (
             <span data-renderer-backend={terrainRenderer.status.backend}>
@@ -394,7 +421,13 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             </>
           ) : null}
         </div>
-        <div className={sx(styles.lensLegend)}>
+        <div
+          className={sx(
+            styles.lensLegend,
+            scene.globe?.posture === "orientation" &&
+              styles.orientationLensLegend,
+          )}
+        >
           <LensStep active={scene.regime === "world"} label="WORLD" />
           <i className={sx(styles.legendLine)} />
           <LensStep active={scene.regime === "atlas"} label="ATLAS" />
@@ -412,9 +445,16 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         </div>
         <ReferenceMapReading scene={scene} />
       </div>
-      <footer className={sx(styles.canvasFooter)}>
+      <footer
+        className={sx(
+          styles.canvasFooter,
+          scene.globe?.posture === "orientation" &&
+            styles.orientationCanvasFooter,
+        )}
+      >
         <span>
-          WHEEL / + − TO CHANGE LENS · DRAG TO PAN · SELECT TO TRAVERSE
+          WHEEL / + − TO CHANGE LENS ·{" "}
+          {scene.globe ? "DRAG TO ORBIT" : "DRAG TO PAN"} · SELECT TO TRAVERSE
         </span>
         <span>
           {scene.omissions.length > 0
@@ -453,7 +493,13 @@ function CanvasToolbar({
   zoom: number;
 }) {
   return (
-    <header className={sx(styles.canvasToolbar)}>
+    <header
+      className={sx(
+        styles.canvasToolbar,
+        scene.globe?.posture === "orientation" &&
+          styles.orientationCanvasToolbar,
+      )}
+    >
       <div className={sx(styles.lensReadout)}>
         <span className={sx(styles.micro)}>
           LENS / {lensLabel(scene.regime)}
