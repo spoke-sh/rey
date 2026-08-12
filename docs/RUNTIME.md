@@ -18,11 +18,12 @@ it deterministically requests, receives, qualifies, and admits exact package
 bytes. Exact workload Git dependencies now derive invalidation from the
 acknowledged cursor snapshot, and acknowledged activation proposals can cross
 an exact schedule-only workload admission gate, then execute their retained
-scenario selection under revalidated inputs and budget. Cross-poll coalescing
-and recurrence remain [Plan 0001](../plans/0001-runtime-loop.md) work. Compatible
+scenario selection under revalidated inputs and budget. Compatible
 same-transition admissions can reuse one directly evaluated retained scenario
-result under the stricter receiving evidence budget; cross-poll coalescing and
-recurrence remain absent.
+result under the stricter receiving evidence budget. Bounded Git cadence now
+retains each observation and stop receipt without entering this runtime
+machine. Cross-poll debounce and autonomous runtime recurrence remain
+[Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Nested Campaigns
 

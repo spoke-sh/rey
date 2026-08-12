@@ -10,9 +10,9 @@ recurring loop.
 Relational, text, structural, or claim evidence may direct a frontier; the
 generic scheduler remains ignorant of domain-specific mining semantics.
 Upstream `rey.workload-attention.v1` separately explains why a workload or
-uncovered surface needs attention. Its adapter into `rey.frontier.v1` remains
-explicit [Plan 0001](../plans/0001-runtime-loop.md) work rather than an
-implicit conversion.
+uncovered surface needs attention. Its implemented explicit adapter projects
+only ready rows into `rey.frontier.v1`; blocked and excluded rows remain in
+attention evidence rather than being implicitly converted or discarded.
 
 ## Frontier Envelope
 

@@ -11,7 +11,9 @@ attention an outer-loop input. Owned mapped surfaces and exact Git HEAD or
 semantic-index dependencies derive live invalidation from retained evidence;
 acknowledged Git activations can enter schedule-only workload admission, while
 selected-scenario activation execution is retained separately from full-suite
-qualification. Cross-poll coalescing and bounded recurrence remain
+qualification. Compatible same-transition executions can reuse exact retained
+evidence, and bounded Git cadence observation retains every tick. Cross-poll
+debounce and autonomous recurring scheduling remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Public Unit
@@ -183,7 +185,9 @@ records the exact `source_execution_id`; the original result is not relabeled.
 Only a directly evaluated result may be a coalescing source, which prevents
 opaque reuse chains. Changed inputs or insufficient budget fall through to an
 independent execution and normal validation rather than silently widening the
-reuse boundary. Cross-poll debounce and recurring scheduling remain planned.
+reuse boundary. Bounded `git watch` cadence retains observation ticks but does
+not admit or execute them; cross-poll debounce and recurring runtime scheduling
+remain planned.
 
 ## Workspace Package Admission
 
