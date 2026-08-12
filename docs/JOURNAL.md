@@ -222,6 +222,33 @@ duplicate, malformed, or over-limit selection is rejected. Only ordinary
 can retain the proposal. This observation and seed boundary is owned by
 [Plan 0002](../plans/0002-collaboration-loop.md).
 
+## Authored Opportunity Surface
+
+`rey journal opportunities` and read-only
+`GET|HEAD /api/v1/journal/opportunities` derive the same bounded
+`rey.journal-opportunity-surface.v1`. The surface selects action blocks only
+from current Journal leaves: an entry disappears from this projection as soon
+as any retained entry supersedes it, while independent supersession branches
+remain current. Rows retain Journal sequence and entry identity, the exact
+document and block permalink, self-asserted author, semantic binding, proposed
+operation and desired delta, and exact evidence/dependency citations.
+
+The projection is ordered by Journal sequence and block reading order and
+keeps the newest 128 rows by default, with a hard maximum of 256. It binds the
+exact `rey.journal-log.v2` identity, effective Journal entry/block limits,
+completeness, and an explicit oldest-row omission when truncated. Surface and
+row identities are deterministic, and replay against a changed or tampered log
+fails.
+
+Every row is explicitly `authored_only` with `authority: none`. `/agents`
+renders these rows as authored opportunities separately from Rey-derived
+attention and links each one to its exact Journal fragment. The surface does
+not infer readiness, priority, cost, assignment, policy selection, or observed
+work. If the proposed idea becomes runtime work, it must first appear as a
+verified selected ready `CREATE` attention row and then cross the existing
+`rey workloads create --attention-row ...` generation and workload admission
+boundary. Journal authors cannot manufacture or bypass that scheduler state.
+
 ## Example Agent Proposal
 
 ```yaml

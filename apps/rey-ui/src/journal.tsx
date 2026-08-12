@@ -147,6 +147,50 @@ export interface JournalSeed {
   proposal: JournalEntryProposal;
 }
 
+export interface JournalOpportunity {
+  schema: "rey.journal-opportunity.v1";
+  opportunity_id: string;
+  entry_id: string;
+  entry_sequence: number;
+  document_path: string;
+  block_id: string;
+  fragment: string;
+  author: JournalAuthor;
+  binding: JournalBinding;
+  operation: string;
+  desired_delta: string;
+  evidence_ids: string[];
+  dependency_ids: string[];
+  readiness: "authored_only";
+  authority: "none";
+}
+
+export interface JournalOpportunitySurface {
+  schema: "rey.journal-opportunity-surface.v1";
+  surface_id: string;
+  source_log_id: string;
+  ordering: "journal_sequence_then_block_order";
+  completeness: "complete" | "truncated";
+  limits: {
+    max_rows: number;
+    max_log_entries: number;
+    max_blocks_per_entry: number;
+  };
+  summary: {
+    current_entries: number;
+    authored_actions: number;
+    projected: number;
+    omitted: number;
+  };
+  rows: JournalOpportunity[];
+  omissions: Array<{
+    kind: "row_limit";
+    omitted_count: number;
+    reason: string;
+  }>;
+  runtime_boundary: "requires_verified_selected_ready_create_attention_row_and_workload_admission";
+}
+
 export type JournalCellDelta = "inserted" | "modified" | "unchanged";
 
 export interface JournalDraftDelta {

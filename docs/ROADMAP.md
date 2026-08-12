@@ -150,8 +150,8 @@ WORKING under exact preconditions. Feed layout precedence, deliberate adoption,
 stable pointer/keyboard movement, semantic-delta reporting, and failed-write
 rollback are delivered over that boundary.
 [Plan 0002](../plans/0002-collaboration-loop.md) owns observation CLI/browser
-projection, Journal seeding, exact evidence routes, and the conversation
-boundary.
+projection, Journal seeding and authored opportunities, exact evidence routes,
+and the conversation boundary.
 
 - Define stable channels, standalone Channel observations, observation
   admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and
@@ -164,6 +164,9 @@ boundary.
   outcomes, without granting execution authority.
 - Preserve the delivered exact-observation Journal seeds as unretained catch-up
   proposals; require normal Journal admission before one becomes an entry.
+- Preserve unsuperseded Journal action cells as bounded authored-only
+  opportunities; require verified runtime attention and ordinary workload
+  admission before any proposed idea becomes executable work.
 - Extend the implemented exact direct relay only after remote provider, cursor,
   hop, idempotency, loop-prevention, delivery, and omission contracts are
   accepted and proved.

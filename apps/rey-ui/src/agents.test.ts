@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AgentsPage, deriveJournalEntries, deriveWorkInsights } from "./agents";
 import type { WorkloadList, WorkloadSummary } from "./domain";
-import type { JournalProjection } from "./journal";
+import type { JournalOpportunitySurface, JournalProjection } from "./journal";
 
 describe("agent collaboration intelligence", () => {
   it("ranks typed recommendations without duplicating request attention", () => {
@@ -73,6 +73,7 @@ describe("agent collaboration intelligence", () => {
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
         journal: emptyJournal(),
+        opportunities: emptyOpportunities(),
         portfolio: emptyPortfolio(),
       }),
     );
@@ -92,6 +93,7 @@ describe("agent collaboration intelligence", () => {
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
         journal: emptyJournal(),
+        opportunities: emptyOpportunities(),
         portfolio: emptyPortfolio(),
       }),
     );
@@ -99,6 +101,57 @@ describe("agent collaboration intelligence", () => {
     expect(markup).toContain('data-journal-admission="available"');
     expect(markup).toContain('href="/journal/new"');
     expect(markup).not.toContain("AUTHENTICATION REQUIRED");
+  });
+
+  it("renders current authored actions as inert exact opportunities", () => {
+    const opportunities = emptyOpportunities();
+    opportunities.summary = {
+      current_entries: 1,
+      authored_actions: 1,
+      projected: 1,
+      omitted: 0,
+    };
+    opportunities.rows.push({
+      schema: "rey.journal-opportunity.v1",
+      opportunity_id: "blake3:opportunity",
+      entry_id: "blake3:entry",
+      entry_sequence: 4,
+      document_path: "/journal/j4-bearing--blake3-entry",
+      block_id: "next-bearing",
+      fragment: "block-next-bearing",
+      author: { kind: "agent", id: "codex" },
+      binding: {
+        coordinate: "rey+local://document/current?revision=blake3%3Asource",
+        scale: 1,
+        source_revision: "blake3:source",
+      },
+      operation: "refine",
+      desired_delta: "Close the bounded coverage gap.",
+      evidence_ids: ["blake3:evidence"],
+      dependency_ids: [],
+      readiness: "authored_only",
+      authority: "none",
+    });
+
+    const markup = renderToStaticMarkup(
+      createElement(AgentsPage, {
+        journal: emptyJournal(),
+        opportunities,
+        portfolio: emptyPortfolio(),
+      }),
+    );
+
+    expect(markup).toContain(
+      'data-journal-opportunity-surface="blake3:opportunities"',
+    );
+    expect(markup).toContain("J@4#next-bearing");
+    expect(markup).toContain("Close the bounded coverage gap.");
+    expect(markup).toContain("AUTHORED ONLY");
+    expect(markup).toContain("AUTHORITY / NONE");
+    expect(markup).toContain(
+      'href="/journal/j4-bearing--blake3-entry#block-next-bearing"',
+    );
+    expect(markup).toContain("NO ASSIGNMENT OR EXECUTION");
   });
 
   it("reports observed work from retained results rather than agent activity", () => {
@@ -131,6 +184,31 @@ function emptyJournal(): JournalProjection {
       log_id: "blake3:empty",
       entries: [],
     },
+  };
+}
+
+function emptyOpportunities(): JournalOpportunitySurface {
+  return {
+    schema: "rey.journal-opportunity-surface.v1",
+    surface_id: "blake3:opportunities",
+    source_log_id: "blake3:empty",
+    ordering: "journal_sequence_then_block_order",
+    completeness: "complete",
+    limits: {
+      max_rows: 128,
+      max_log_entries: 256,
+      max_blocks_per_entry: 32,
+    },
+    summary: {
+      current_entries: 0,
+      authored_actions: 0,
+      projected: 0,
+      omitted: 0,
+    },
+    rows: [],
+    omissions: [],
+    runtime_boundary:
+      "requires_verified_selected_ready_create_attention_row_and_workload_admission",
   };
 }
 

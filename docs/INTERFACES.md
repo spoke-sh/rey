@@ -77,6 +77,8 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input 
 rey workloads --catalog conformance list|test|run|status ...
 rey journal [--workspace PATH] [--state-dir PATH] add <proposal.yaml>
 rey journal [--workspace PATH] [--state-dir PATH] list
+rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] seed <observation-id>... --author <agent-id>
+rey journal [--workspace PATH] [--state-dir PATH] opportunities [-n COUNT]
 rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
@@ -1057,7 +1059,15 @@ and `/journal/new?observations=...` use the same deterministic bounded
 projection from exact unresolved identities to an unretained valid broadsheet
 proposal. The CLI supplies a self-asserted agent author, while the browser seed
 supplies its self-asserted human `operator` author before opening the ordinary
-live editor. Only normal Journal admission creates an entry.
+live editor. Only normal Journal admission creates an entry. `rey journal
+opportunities` and `GET|HEAD /api/v1/journal/opportunities` derive one bounded,
+content-identified `rey.journal-opportunity-surface.v1` over action cells on
+unsuperseded Journal leaves. `/agents` passively projects the same authored-only
+rows with exact document fragments, source-log identity, completeness,
+omissions, and limits. They have no readiness, assignment, execution, or proof
+authority; crossing into runtime work still requires a separately verified,
+selected, ready `CREATE` attention row and ordinary workload creation and
+admission.
 Relay declarations do not enable transport until a provider contract is
 separately admitted.
 

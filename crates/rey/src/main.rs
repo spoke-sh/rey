@@ -55,6 +55,9 @@ use rey::{
         JournalAdmission, JournalAuthor, JournalAuthorKind, JournalBlock, JournalEntryProposal,
         JournalError, JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
+    journal_opportunities::{
+        DEFAULT_JOURNAL_OPPORTUNITY_LIMIT, JournalOpportunityError, JournalOpportunitySurface,
+    },
     journal_seed::{JournalSeed, JournalSeedError},
     observations::{
         DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore, MAX_OBSERVATION_INPUT_BYTES,
@@ -678,6 +681,8 @@ enum JournalCommand {
     List(JournalListArgs),
     /// Project exact unresolved observations into a deterministic unretained proposal.
     Seed(JournalSeedArgs),
+    /// Project current authored action cells without granting runtime authority.
+    Opportunities(JournalOpportunitiesArgs),
 }
 
 #[derive(Debug, Args)]
@@ -706,6 +711,17 @@ struct JournalSeedArgs {
     /// Self-asserted agent author label for the unretained proposal.
     #[arg(long, required = true)]
     author: String,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct JournalOpportunitiesArgs {
+    /// Maximum newest current action cells to project.
+    #[arg(short = 'n', long = "max-count", default_value_t = DEFAULT_JOURNAL_OPPORTUNITY_LIMIT)]
+    max_count: u64,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
@@ -2244,7 +2260,23 @@ fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
         JournalCommand::Add(command) => journal_add(&store, &workspace, command),
         JournalCommand::List(command) => journal_list(&store, command),
         JournalCommand::Seed(command) => journal_seed(&observation_store, command),
+        JournalCommand::Opportunities(command) => journal_opportunities(&store, command),
     }
+}
+
+fn journal_opportunities(
+    store: &LocalJournalStore,
+    args: JournalOpportunitiesArgs,
+) -> Result<ExitCode, CliError> {
+    let log = store.load()?;
+    let surface = JournalOpportunitySurface::derive(&log, args.max_count)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &surface)?,
+        WorkloadOutputFormat::Table => write_journal_opportunities(&mut stdout, &surface)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn journal_seed(
@@ -4576,6 +4608,87 @@ fn write_journal_seed(output: &mut impl Write, seed: &JournalSeed) -> Result<(),
         "PROPOSAL ONLY · ordinary journal add/admission required · no automatic retention or execution",
     )?;
     writeln!(output)?;
+    Ok(())
+}
+
+fn write_journal_opportunities(
+    output: &mut impl Write,
+    surface: &JournalOpportunitySurface,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "JOURNAL OPPORTUNITIES · AUTHORED ONLY")?;
+    write_portfolio_field(output, "Surface", surface.surface_id.as_str())?;
+    write_portfolio_field(output, "Journal log", surface.source_log_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Projection",
+        &format!(
+            "{} current entries · {} action cells · {} projected",
+            surface.summary.current_entries,
+            surface.summary.authored_actions,
+            surface.summary.projected
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Completeness",
+        &format!(
+            "{:?} · {} omitted · max {} rows",
+            surface.completeness, surface.summary.omitted, surface.limits.max_rows
+        )
+        .to_uppercase(),
+    )?;
+    write_portfolio_field(output, "Ordering", &surface.ordering)?;
+    write_portfolio_field(output, "Runtime gate", &surface.runtime_boundary)?;
+    if surface.rows.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No current authored action cells.")?;
+        return Ok(());
+    }
+    for (index, row) in surface.rows.iter().enumerate() {
+        writeln!(output)?;
+        writeln!(
+            output,
+            "  {:02}  {} · J@{}#{}",
+            index + 1,
+            row.operation.to_uppercase(),
+            row.entry_sequence,
+            row.block_id
+        )?;
+        write_portfolio_field(output, "Opportunity", row.opportunity_id.as_str())?;
+        write_portfolio_field(
+            output,
+            "Author",
+            &format!(
+                "{} / {} · self-asserted",
+                journal_author_kind(row.author.kind),
+                row.author.id
+            ),
+        )?;
+        write_portfolio_field(output, "Desired delta", &row.desired_delta)?;
+        write_portfolio_field(
+            output,
+            "Citations",
+            &format!(
+                "{} evidence · {} dependencies",
+                row.evidence_ids.len(),
+                row.dependency_ids.len()
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Document",
+            &format!("{}#{}", row.document_path, row.fragment),
+        )?;
+        write_portfolio_field(
+            output,
+            "Authority",
+            &format!(
+                "{} · {} · no assignment or execution",
+                row.readiness, row.authority
+            ),
+        )?;
+    }
     Ok(())
 }
 
@@ -11039,6 +11152,8 @@ enum CliError {
     EnvironmentState(#[from] LocalEnvironmentHistoryError),
     #[error(transparent)]
     Journal(#[from] JournalError),
+    #[error(transparent)]
+    JournalOpportunity(#[from] JournalOpportunityError),
     #[error(transparent)]
     JournalSeed(#[from] JournalSeedError),
     #[error(transparent)]

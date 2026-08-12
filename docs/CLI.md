@@ -129,7 +129,7 @@ rey env        status | add | diff | commit | log
 rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | execute-activation | verify-activation | run
-rey journal    add | list
+rey journal    add | list | seed | opportunities
 rey ui
 ```
 
@@ -392,6 +392,8 @@ rey journal [--workspace PATH] [--state-dir PATH] list
 rey journal [--workspace PATH] [--state-dir PATH]
   [--observation-state-dir PATH] seed OBSERVATION_ID...
   --author AGENT_ID [--format table|json]
+rey journal [--workspace PATH] [--state-dir PATH] opportunities
+  [-n COUNT] [--format table|json]
 ```
 
 `add` validates and idempotently retains one workspace-contained
@@ -404,6 +406,11 @@ admission order, including exact revision, band, cell-kind, and span structure.
 observation sequence, and emits a content-identified valid broadsheet proposal.
 It is read-only and unretained; normal `journal add` validation and admission
 are still required to create a Journal entry.
+`opportunities` derives action cells only from unsuperseded Journal leaves and
+renders their exact author, document fragment, semantic binding, desired
+delta, citations, completeness, omissions, and effective row limit. Each row
+is authored-only with no readiness, assignment, execution, or proof authority;
+runtime work still requires the verified workload/policy admission boundary.
 
 ### `rey observations`
 
@@ -477,6 +484,7 @@ does not bypass the three-plane contract.
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
 | `channels apply` | Writes only the Channel WORKING proposal. |
 | `journal add` | Retains a document only; notebook blocks remain inert. |
+| `journal seed`, `journal opportunities` | Read-only deterministic projections; neither retains a document, schedules work, or executes a block. |
 | `ui` | Starts a server; its narrow writes are Journal admission, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
 
 Process success and semantic convergence remain separate. A successful status

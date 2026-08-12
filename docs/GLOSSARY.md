@@ -922,6 +922,13 @@ One typed unit inside a Journal entry: prose, Explore reference, read-only
 query declaration, frame preview, directed diff, or proposed action. Every
 block has a stable fragment permalink and explicit bounds.
 
+### Journal opportunity
+
+An implemented read-only projection of an action block on an unsuperseded
+Journal entry. It preserves the self-asserted author, exact document fragment,
+semantic binding, desired delta, and citations, but is explicitly authored-only
+and carries no scheduler readiness, assignment, execution, or proof authority.
+
 ### Journal seed
 
 An implemented deterministic, unretained Journal-entry proposal projected from

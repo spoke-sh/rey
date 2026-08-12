@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Derive authored Journal action opportunities, then execute one separately admitted read-only query as a superseding entry. | Implemented Channel CLI/operator projection, Feed layout adoption/movement, observation store/CLI/browser/broadcast, deterministic unretained Journal seeding, Journal, runtime evidence, and workload/policy admission boundary. |
+| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Execute one separately admitted read-only Journal query and retain its bounded frame/delta only through a superseding entry. | Implemented Channel CLI/operator projection, Feed layout adoption/movement, observation store/CLI/browser/broadcast, deterministic unretained Journal seeding, authored-only action opportunities, Journal, runtime evidence, and workload/policy admission boundary. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their

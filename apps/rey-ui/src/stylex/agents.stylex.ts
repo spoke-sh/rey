@@ -43,6 +43,15 @@ export const agentsStyles = stylex.create({
     borderWidth: 1,
     marginTop: 20,
   },
+  opportunityBoundary: {
+    backgroundColor: "var(--surface-strong)",
+    borderTopColor: "var(--line)",
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    color: "var(--muted)",
+    lineHeight: 1.5,
+    padding: "14px 20px",
+  },
   journalHeader: {
     backgroundColor: "var(--rey-foreground)",
     color: "var(--rey-background)",

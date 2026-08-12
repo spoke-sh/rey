@@ -9,6 +9,7 @@ import type { EnvironmentStatus } from "./environment";
 import type {
   JournalAdmission,
   JournalEntryProposal,
+  JournalOpportunitySurface,
   JournalProjection,
   JournalSeed,
 } from "./journal";
@@ -39,6 +40,11 @@ export interface FeedSources {
   channels: ChannelProjection;
   journal: JournalProjection;
   observations: ObservationFrontier;
+}
+
+export interface AgentJournalDocument {
+  journal: JournalProjection;
+  opportunities: JournalOpportunitySurface;
 }
 
 export async function loadPortfolio(): Promise<OperatorContext> {
@@ -153,6 +159,27 @@ export async function loadJournal(): Promise<JournalProjection> {
     throw new Error(`Journal request failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as JournalProjection;
+}
+
+export async function loadJournalOpportunities(): Promise<JournalOpportunitySurface> {
+  const response = await fetch("/api/v1/journal/opportunities", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Journal opportunity request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as JournalOpportunitySurface;
+}
+
+export async function loadAgentJournal(): Promise<AgentJournalDocument> {
+  const [journal, opportunities] = await Promise.all([
+    loadJournal(),
+    loadJournalOpportunities(),
+  ]);
+  return { journal, opportunities };
 }
 
 export async function loadJournalSeed(

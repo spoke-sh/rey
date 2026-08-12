@@ -18,6 +18,7 @@ import {
 import { AgentsPage } from "./agents";
 import {
   admitJournalEntry,
+  loadAgentJournal,
   loadCadence,
   loadChannels,
   loadEnvironment,
@@ -1166,9 +1167,15 @@ function ChannelsRoutePage() {
 }
 
 function AgentsRoutePage() {
-  const initialJournal = agentsRoute.useLoaderData();
-  const { document: journal } = usePassiveDocument(initialJournal, loadJournal);
-  return <AgentsPage journal={journal} portfolio={usePortfolio()} />;
+  const initial = agentsRoute.useLoaderData();
+  const { document } = usePassiveDocument(initial, loadAgentJournal);
+  return (
+    <AgentsPage
+      journal={document.journal}
+      opportunities={document.opportunities}
+      portfolio={usePortfolio()}
+    />
+  );
 }
 
 function JournalNewRoutePage() {
@@ -1273,7 +1280,7 @@ const channelsRoute = createRoute({
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
-  loader: loadJournal,
+  loader: loadAgentJournal,
   component: AgentsRoutePage,
 });
 

@@ -30,9 +30,11 @@ separate mailbox source section are delivered. Exact selected observations now
 produce the same deterministic unretained Journal proposal in the CLI and
 `/journal/new`, while normal Journal admission remains the only retention
 boundary. Journal v2 retains
-immutable broadsheet documents and superseding revisions. Journal action cells
-are inert, exact scenario/delta routes are absent, and the footer conversation
-composer correctly remains disabled.
+immutable broadsheet documents and superseding revisions. Current leaf action
+cells now derive into a bounded authored-only opportunity surface in the CLI,
+read-only browser API, and `/agents`; they remain outside scheduler readiness
+and retain no execution authority. Exact scenario/delta routes are absent, and
+the footer conversation composer correctly remains disabled.
 
 ## Completion Checklist
 
@@ -63,7 +65,7 @@ composer correctly remains disabled.
   observation identities in the CLI and `/journal/new`.
 - [x] Require ordinary Journal validation and admission before retaining a
   seed; never duplicate an observation into the Journal automatically.
-- [ ] Derive unsuperseded action cells as explicit authored opportunities on a
+- [x] Derive unsuperseded action cells as explicit authored opportunities on a
   reasoning surface, then use the delivered workload/policy admission boundary
   if an opportunity becomes runtime work.
 - [ ] Execute one admitted read-only query separately and append its bounded

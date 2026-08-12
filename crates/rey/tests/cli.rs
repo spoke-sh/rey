@@ -4906,6 +4906,10 @@ layout:
           span: 8
         - block_id: coverage-query
           span: 4
+    - id: bearing
+      cells:
+        - block_id: refine-coverage
+          span: 12
 blocks:
   - kind: prose
     id: context
@@ -4919,6 +4923,13 @@ blocks:
     mode: read_only
     statement: select * from coverage
     parameters: {}
+  - kind: action
+    id: refine-coverage
+    operation: refine
+    desired_delta: Reduce uncovered source surfaces to zero.
+    evidence_ids:
+      - blake3:coverage
+    dependency_ids: []
 "#,
     )
     .unwrap();
@@ -4941,6 +4952,7 @@ blocks:
     assert_eq!(admitted["entry"]["author"]["kind"], "agent");
     assert_eq!(admitted["entry"]["blocks"][1]["kind"], "query");
     assert_eq!(admitted["entry"]["blocks"][1]["mode"], "read_only");
+    assert_eq!(admitted["entry"]["blocks"][2]["kind"], "action");
 
     let repeated = run_rey_workspace(&[
         "journal",
@@ -4957,7 +4969,7 @@ blocks:
     assert!(repeated.contains("agent / codex"));
     assert!(repeated.contains("rey+local://workload/source-mining"));
     assert!(repeated.contains("Broadsheet"));
-    assert!(repeated.contains("12 columns · 1 band"));
+    assert!(repeated.contains("12 columns · 2 bands"));
     assert!(repeated.contains("/journal/j1-inspect-source-coverage--blake3-"));
 
     let listed = run_rey_workspace(&[
@@ -4984,8 +4996,41 @@ blocks:
     ]);
     assert!(listed_table.status.success());
     let listed_table = String::from_utf8(listed_table.stdout).unwrap();
-    assert!(listed_table.contains("2 cells / 1 band"));
+    assert!(listed_table.contains("3 cells / 2 bands"));
     assert!(listed_table.contains("[evidence] context:prose 8/12 | coverage-query:query 4/12"));
+    assert!(listed_table.contains("[bearing] refine-coverage:action 12/12"));
+
+    let opportunities = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "opportunities",
+        "--format",
+        "json",
+    ]);
+    assert!(opportunities.status.success());
+    let opportunities: rey::journal_opportunities::JournalOpportunitySurface =
+        serde_json::from_slice(&opportunities.stdout).unwrap();
+    assert_eq!(opportunities.summary.current_entries, 1);
+    assert_eq!(opportunities.summary.authored_actions, 1);
+    assert_eq!(opportunities.rows[0].block_id, "refine-coverage");
+    assert_eq!(opportunities.rows[0].readiness, "authored_only");
+    assert_eq!(opportunities.rows[0].authority, "none");
+
+    let opportunities_table = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "opportunities",
+        "--format",
+        "table",
+    ]);
+    assert!(opportunities_table.status.success());
+    let opportunities_table = String::from_utf8(opportunities_table.stdout).unwrap();
+    assert!(opportunities_table.contains("JOURNAL OPPORTUNITIES · AUTHORED ONLY"));
+    assert!(opportunities_table.contains("Reduce uncovered source surfaces to zero."));
+    assert!(opportunities_table.contains("no assignment or execution"));
+    assert!(opportunities_table.contains("requires_verified_selected_ready_create_attention_row"));
 
     let human_proposal = fs::read_to_string(&proposal)
         .unwrap()

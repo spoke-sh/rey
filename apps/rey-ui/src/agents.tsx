@@ -13,6 +13,8 @@ import { className as sx } from "./stylex/shared.stylex";
 import {
   JournalCreateLink,
   JournalEntries,
+  type JournalOpportunity,
+  type JournalOpportunitySurface,
   type JournalProjection,
 } from "./journal";
 
@@ -202,9 +204,11 @@ function readinessOrder(readiness: AttentionReadiness): number {
 
 export function AgentsPage({
   journal,
+  opportunities,
   portfolio,
 }: {
   journal: JournalProjection;
+  opportunities: JournalOpportunitySurface;
   portfolio: WorkloadList;
 }) {
   const systemEntries = deriveJournalEntries(portfolio);
@@ -228,6 +232,9 @@ export function AgentsPage({
         />
         {journal.log.entries.length > 0 ? (
           <JournalEntries compact entries={journal.log.entries} />
+        ) : null}
+        {opportunities.rows.length > 0 ? (
+          <AuthoredOpportunities surface={opportunities} />
         ) : null}
         {totalEntries === 0 ? (
           <div className={sx(chrome.micro, styles.empty)}>
@@ -283,6 +290,99 @@ export function AgentsPage({
         )}
       </section>
     </main>
+  );
+}
+
+function AuthoredOpportunities({
+  surface,
+}: {
+  surface: JournalOpportunitySurface;
+}) {
+  return (
+    <div
+      className={sx(styles.table)}
+      data-journal-opportunity-surface={surface.surface_id}
+      role="table"
+      title={`${surface.source_log_id} · ${surface.ordering}`}
+    >
+      <div className={sx(chrome.micro, styles.journalHeader)} role="row">
+        <span>ENTRY / CELL</span>
+        <span>OPERATION</span>
+        <span>DESIRED DELTA</span>
+        <span>CITATIONS</span>
+        <span>READINESS</span>
+        <span>LOCATION</span>
+      </div>
+      {surface.rows.map((opportunity, index) => (
+        <AuthoredOpportunityRow
+          index={index}
+          key={opportunity.opportunity_id}
+          opportunity={opportunity}
+        />
+      ))}
+      <div className={sx(chrome.micro, styles.opportunityBoundary)}>
+        AUTHORED OPPORTUNITIES · {surface.completeness.toUpperCase()} ·{" "}
+        {surface.summary.omitted} OMITTED · NO ASSIGNMENT OR EXECUTION · RUNTIME
+        WORK REQUIRES A VERIFIED SELECTED READY CREATE ATTENTION ROW AND
+        WORKLOAD ADMISSION
+      </div>
+    </div>
+  );
+}
+
+function AuthoredOpportunityRow({
+  index,
+  opportunity,
+}: {
+  index: number;
+  opportunity: JournalOpportunity;
+}) {
+  return (
+    <article className={sx(styles.journalRow)} role="row">
+      <div className={sx(styles.identity)}>
+        <span className={sx(styles.ordinal)}>
+          {String(index + 1).padStart(2, "0")}
+        </span>
+        <div className={sx(styles.identityDetail)}>
+          <strong>
+            J@{opportunity.entry_sequence}#{opportunity.block_id}
+          </strong>
+          <code title={opportunity.opportunity_id}>
+            {shortDigest(opportunity.opportunity_id)}
+          </code>
+          <span className={sx(chrome.micro)}>
+            {opportunity.author.kind} / {opportunity.author.id} / self-asserted
+          </span>
+        </div>
+      </div>
+      <div className={sx(styles.operation)}>
+        <strong>{opportunity.operation.toUpperCase()}</strong>
+        <span className={sx(chrome.micro)}>AUTHORED ACTION CELL</span>
+      </div>
+      <div className={sx(styles.reason)}>
+        <p className={sx(styles.reasonText)}>{opportunity.desired_delta}</p>
+        <code title={opportunity.entry_id}>
+          {shortDigest(opportunity.entry_id)}
+        </code>
+      </div>
+      <div className={sx(styles.bounds)}>
+        <strong>
+          {opportunity.evidence_ids.length} evidence ·{" "}
+          {opportunity.dependency_ids.length} dependencies
+        </strong>
+        <span className={sx(chrome.micro)}>EXACT AUTHORED CITATIONS</span>
+      </div>
+      <div className={sx(styles.readiness)}>
+        <strong>AUTHORED ONLY</strong>
+        <span className={sx(chrome.micro)}>AUTHORITY / NONE</span>
+      </div>
+      <a
+        className={sx(styles.locate)}
+        href={`${opportunity.document_path}#${opportunity.fragment}`}
+      >
+        OPEN EXACT CELL →
+      </a>
+    </article>
   );
 }
 

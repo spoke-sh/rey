@@ -16,6 +16,7 @@ use rey::{
         JournalAdmission, JournalAuthor, JournalAuthorKind, JournalEntryProposal, JournalLog,
         LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
+    journal_opportunities::{DEFAULT_JOURNAL_OPPORTUNITY_LIMIT, JournalOpportunitySurface},
     journal_seed::JournalSeed,
     observations::{DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore},
     workloads::LocalWorkloadStore,
@@ -332,6 +333,7 @@ impl UiServer {
             "/api/v1/channels" => self.channels(),
             "/api/v1/environment" => self.environment(),
             "/api/v1/journal" => self.journal(),
+            "/api/v1/journal/opportunities" => self.journal_opportunities(),
             "/api/v1/journal/seed" => self.journal_seed(query),
             "/api/v1/observations" => self.observations(),
             "/api/v1/workloads" => self.workloads(),
@@ -635,6 +637,28 @@ impl UiServer {
                 },
             ),
             Err(error) => json_error(StatusCode(500), "journal_unavailable", &error.to_string()),
+        }
+    }
+
+    fn journal_opportunities(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalJournalStore::new(self.config.journal_directory.clone());
+        let log = match store.load() {
+            Ok(log) => log,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "journal_opportunities_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        match JournalOpportunitySurface::derive(&log, DEFAULT_JOURNAL_OPPORTUNITY_LIMIT) {
+            Ok(surface) => json_response(StatusCode(200), &surface),
+            Err(error) => json_error(
+                StatusCode(500),
+                "journal_opportunities_unavailable",
+                &error.to_string(),
+            ),
         }
     }
 
@@ -1234,7 +1258,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(30)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(33)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1335,6 +1359,12 @@ mod tests {
         assert!(journal.contains("\"authority\":\"unauthenticated_journal_admission\""));
         assert!(journal.contains("\"entries\":[]"));
 
+        let opportunities = request(&address, "GET /api/v1/journal/opportunities HTTP/1.1");
+        assert!(opportunities.starts_with("HTTP/1.1 200"));
+        assert!(opportunities.contains("\"schema\":\"rey.journal-opportunity-surface.v1\""));
+        assert!(opportunities.contains("\"runtime_boundary\":\"requires_verified_selected_ready_create_attention_row_and_workload_admission\""));
+        assert!(opportunities.contains("\"rows\":[]"));
+
         let proposal = serde_json::json!({
             "schema": "rey.journal-entry-proposal.v2",
             "title": "Bind the Journal",
@@ -1347,16 +1377,32 @@ mod tests {
             "layout": {
                 "kind": "broadsheet",
                 "columns": 12,
-                "bands": [{
-                    "id": "lead",
-                    "cells": [{ "block_id": "context", "span": 12 }]
-                }]
+                "bands": [
+                    {
+                        "id": "lead",
+                        "cells": [{ "block_id": "context", "span": 12 }]
+                    },
+                    {
+                        "id": "bearing",
+                        "cells": [{ "block_id": "next-bearing", "span": 12 }]
+                    }
+                ]
             },
-            "blocks": [{
-                "kind": "prose",
-                "id": "context",
-                "document": [{ "kind": "paragraph", "text": "A retained human entry." }]
-            }]
+            "blocks": [
+                {
+                    "kind": "prose",
+                    "id": "context",
+                    "document": [{ "kind": "paragraph", "text": "A retained human entry." }]
+                },
+                {
+                    "kind": "action",
+                    "id": "next-bearing",
+                    "operation": "refine",
+                    "desired_delta": "Close the bounded coverage gap.",
+                    "evidence_ids": ["blake3:coverage"],
+                    "dependency_ids": []
+                }
+            ]
         })
         .to_string();
         let cross_origin = request_with_body(
@@ -1370,6 +1416,15 @@ mod tests {
         );
         assert!(cross_origin.starts_with("HTTP/1.1 201"));
         assert!(cross_origin.contains("\"admitted\":true"));
+
+        let opportunities = request(&address, "HEAD /api/v1/journal/opportunities HTTP/1.1");
+        assert!(opportunities.starts_with("HTTP/1.1 200"));
+        assert!(opportunities.contains("Content-Length:"));
+        assert!(!opportunities.contains("next-bearing"));
+        let opportunities = request(&address, "GET /api/v1/journal/opportunities HTTP/1.1");
+        assert!(opportunities.contains("\"block_id\":\"next-bearing\""));
+        assert!(opportunities.contains("\"readiness\":\"authored_only\""));
+        assert!(opportunities.contains("\"authority\":\"none\""));
 
         let agent_proposal = proposal.replace("\"kind\":\"human\"", "\"kind\":\"agent\"");
         let wrong_author = request_with_body(

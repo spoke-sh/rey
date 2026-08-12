@@ -127,6 +127,14 @@ uses create-new semantics, and refuses to overwrite any existing workload
 directory. It creates no `workload.yaml`; a harness must mine authoritative
 revisioned inputs and materialize that file.
 
+Authored Journal action cells remain outside this boundary. The bounded
+Journal opportunity surface labels them `authored_only` and grants no
+scheduler readiness. An author, UI, or Journal projection cannot pass one as
+`--attention-row`; only an exact current row derived, scheduled, and verified
+by the portfolio reasoning surface is accepted. If an authored opportunity is
+later supported by runtime evidence, the normal attention derivation and this
+existing creation/admission path remain authoritative.
+
 A request-only directory is a draft catalog entry. `workloads list`, `status`,
 and the admission Feed render its `HYDRATE` journey, missing graph,
 non-admitted oracle, exact request/source revisions, and `AWAITING HARNESS`
