@@ -50,7 +50,7 @@ use rey::{
         WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult, WorkloadDraft, WorkloadList,
         WorkloadLog, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
         WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState,
-        derive_portfolio_snapshot, derive_workload_attention, fresh_qualification,
+        derive_portfolio_snapshot, fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -71,8 +71,9 @@ use rey_runtime::{
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
     CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
     SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention, WorkloadDefinition,
-    WorkloadRunResult, WorkloadTestResult, WorkloadValue, run_workload, run_workload_with_source,
-    run_workload_with_topography, source_fixture_root, test_workload_with_observer_and_snapshot,
+    WorkloadRunResult, WorkloadTestResult, WorkloadValue, derive_portfolio_frontier, run_workload,
+    run_workload_with_source, run_workload_with_topography, source_fixture_root,
+    test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -1786,12 +1787,18 @@ fn current_workload_list(
         .collect();
     let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
-    let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
+    let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+    let attention = WorkloadAttention::derive(&snapshot)?;
+    let frontier = environment
+        .as_ref()
+        .map(|_| derive_portfolio_frontier(&snapshot, &attention))
+        .transpose()?;
     let list = WorkloadList::new(
         catalog.descriptor.clone(),
         summaries,
         revision.drafts.clone(),
         attention,
+        frontier,
         Some(revision),
     );
     Ok(list)
@@ -1823,12 +1830,18 @@ fn workload_list(
                 .collect();
             let definitions = catalog.definitions();
             let environment = retained_environment_snapshot(workspace)?;
-            let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
+            let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+            let attention = WorkloadAttention::derive(&snapshot)?;
+            let frontier = environment
+                .as_ref()
+                .map(|_| derive_portfolio_frontier(&snapshot, &attention))
+                .transpose()?;
             WorkloadList::new(
                 catalog.descriptor.clone(),
                 summaries,
                 catalog.drafts.clone(),
                 attention,
+                frontier,
                 None,
             )
         }
@@ -1879,9 +1892,19 @@ fn workload_conformance_status(
         .collect();
     let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
-    let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
-    let batch =
-        WorkloadStatusBatch::new(catalog.descriptor.clone(), statuses, Vec::new(), attention);
+    let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
+    let attention = WorkloadAttention::derive(&snapshot)?;
+    let frontier = environment
+        .as_ref()
+        .map(|_| derive_portfolio_frontier(&snapshot, &attention))
+        .transpose()?;
+    let batch = WorkloadStatusBatch::new(
+        catalog.descriptor.clone(),
+        statuses,
+        Vec::new(),
+        attention,
+        frontier,
+    );
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
@@ -3647,6 +3670,7 @@ fn write_workload_list(
         ),
     )?;
     write_attention_frontier(output, &list.attention, style)?;
+    write_runtime_frontier(output, list.frontier.as_ref(), style)?;
     if list.workloads.is_empty() && list.drafts.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
@@ -3973,6 +3997,56 @@ fn write_attention_frontier(
     Ok(())
 }
 
+fn write_runtime_frontier(
+    output: &mut impl Write,
+    frontier: Option<&rey_frontier::Frontier>,
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("RUNTIME FRONTIER"))?;
+    let Some(frontier) = frontier else {
+        writeln!(
+            output,
+            "  {}",
+            style.yellow("Unavailable · no retained environment snapshot")
+        )?;
+        return Ok(());
+    };
+    write_portfolio_field(
+        output,
+        "Frontier",
+        &format!(
+            "{} · {:?} · {} schedulable rows",
+            frontier.frontier_id,
+            frontier.assessment,
+            frontier.rows.len(),
+        ),
+    )?;
+    write_portfolio_field(output, "Attention trace", frontier.inputs.trace_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Portfolio snapshot",
+        frontier.inputs.committed_record_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Environment",
+        frontier.inputs.capability_snapshot_id.as_str(),
+    )?;
+    for row in &frontier.rows {
+        writeln!(
+            output,
+            "  {:<22} {} · {} · priority {} · cost {}",
+            "Ready work", row.entity_kind, row.entity_id, row.priority, row.estimated_cost_units,
+        )?;
+        writeln!(output, "  {:<22} {}", "Frontier row", row.row_id)?;
+        for claim in &row.claim_ids {
+            writeln!(output, "  {:<22} {claim}", "Attention claim")?;
+        }
+    }
+    Ok(())
+}
+
 fn render_journey(summary: &WorkloadSummary, style: TerminalStyle) -> String {
     match summary.qualification {
         rey::workloads::QualificationState::Untested => style.cyan_bold("TEST"),
@@ -4198,6 +4272,7 @@ fn write_workload_status(
     }
     writeln!(output)?;
     write_attention_frontier(output, &batch.attention, TerminalStyle::stdout())?;
+    write_runtime_frontier(output, batch.frontier.as_ref(), TerminalStyle::stdout())?;
     Ok(())
 }
 

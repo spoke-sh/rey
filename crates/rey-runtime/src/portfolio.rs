@@ -3,6 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use polars::df;
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_dataframe::{Frame, FrameError, FrameMetadata};
+use rey_frontier::{
+    Frontier, FrontierCoverage, FrontierError, FrontierInputs, FrontierLimits, FrontierRowInput,
+    Readiness, RequiredClaims,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -474,6 +478,127 @@ pub fn render_workload_attention(attention: &WorkloadAttention) -> String {
         rendered.push('\n');
     }
     rendered
+}
+
+pub fn derive_portfolio_frontier(
+    snapshot: &PortfolioSnapshot,
+    attention: &WorkloadAttention,
+) -> Result<Frontier, PortfolioError> {
+    attention.verify_against(snapshot)?;
+    let environment_snapshot_id = snapshot
+        .environment_snapshot_id
+        .clone()
+        .ok_or(PortfolioError::EnvironmentSnapshotRequired)?;
+    let system_workload =
+        crate::workload::built_in_workload(BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID)
+            .map_err(|error| PortfolioError::SystemWorkload(error.to_string()))?;
+    let ready = attention
+        .rows
+        .iter()
+        .filter(|row| row.readiness == AttentionReadiness::Ready)
+        .map(|row| {
+            let action = portfolio_frontier_action(row.action).ok_or_else(|| {
+                PortfolioError::InvalidReadyAction(row.action.as_str().to_owned())
+            })?;
+            Ok(FrontierRowInput {
+                work_id: format!("portfolio-attention:{}", row.row_id),
+                entity_kind: row.subject_kind.as_str().to_owned(),
+                entity_id: row.subject_id.clone(),
+                transition_delta_ids: Vec::new(),
+                residual_delta_ids: Vec::new(),
+                claim_ids: vec![
+                    format!("rey.workload-attention-row:{}", row.row_id),
+                    format!("rey.workload-attention-reason:{}", row.reason.as_str()),
+                ],
+                dependent_lens_ids: vec![WORKLOAD_ATTENTION_SCHEMA.to_owned()],
+                admissible_action_ids: vec![action.id],
+                readiness: Readiness::Ready,
+                blockers: Vec::new(),
+                priority: row.priority,
+                estimated_cost_units: row.estimated_cost_units,
+            })
+        })
+        .collect::<Result<Vec<_>, PortfolioError>>()?;
+    let required_claims = if !ready.is_empty() {
+        RequiredClaims::Violated
+    } else if attention.rows.is_empty() {
+        RequiredClaims::Satisfied
+    } else {
+        RequiredClaims::Unknown
+    };
+    let mut campaign = SemanticHasher::new("rey.portfolio-attention-campaign.v1");
+    system_workload.workload.add_semantics(&mut campaign);
+    system_workload.graph.graph.add_semantics(&mut campaign);
+    system_workload
+        .scenario_suite
+        .suite
+        .add_semantics(&mut campaign);
+    campaign.add_str(attention.attention_id.as_str());
+    Frontier::new(
+        FrontierInputs {
+            workload: system_workload.workload,
+            graph: system_workload.graph.graph,
+            scenario_suite: system_workload.scenario_suite.suite,
+            campaign_id: campaign.finish(),
+            space: ContractIdentity::new(
+                "rey.portfolio",
+                1,
+                "bounded catalog, result, environment, dependency, capability, ownership, and coverage facts",
+            ),
+            trace_id: attention.attention_id.clone(),
+            committed_record_id: snapshot.snapshot_id.clone(),
+            capability_snapshot_id: environment_snapshot_id,
+            derivation: ContractIdentity::new(
+                "rey.portfolio.attention.frontier",
+                1,
+                "project only ready workload-attention rows into generic frontier claims while retaining exact attention-row and reason identities",
+            ),
+            prioritization: ContractIdentity::new(
+                "rey.portfolio.attention.priority",
+                1,
+                "preserve workload-attention priority and estimated cost without scheduler reinterpretation",
+            ),
+        },
+        FrontierLimits::default(),
+        FrontierCoverage {
+            deltas_complete: true,
+            claims_complete: true,
+            required_claims,
+        },
+        ready,
+    )
+    .map_err(PortfolioError::from)
+}
+
+pub fn verify_portfolio_frontier(
+    frontier: &Frontier,
+    snapshot: &PortfolioSnapshot,
+    attention: &WorkloadAttention,
+) -> Result<(), PortfolioError> {
+    let expected = derive_portfolio_frontier(snapshot, attention)?;
+    if frontier != &expected {
+        return Err(PortfolioError::FrontierDerivationMismatch);
+    }
+    Ok(())
+}
+
+fn portfolio_frontier_action(action: AttentionAction) -> Option<ContractIdentity> {
+    let (id, definition) = match action {
+        AttentionAction::Refine => (
+            "rey.action.refine-workload",
+            "propose an immutable revision to an existing workload graph or scenario suite",
+        ),
+        AttentionAction::Retest => (
+            "rey.action.retest-workload",
+            "execute the exact frozen scenario suite for a changed or untested workload revision",
+        ),
+        AttentionAction::Create => (
+            "rey.action.create-workload",
+            "materialize a bounded workload package for an exact unowned surface attention row",
+        ),
+        AttentionAction::Block | AttentionAction::PolicyExcluded => return None,
+    };
+    Some(ContractIdentity::new(id, 1, definition))
 }
 
 fn workload_attention_row(workload: &PortfolioWorkloadObservation) -> Option<WorkloadAttentionRow> {
@@ -1038,6 +1163,14 @@ pub enum PortfolioError {
     SourceSnapshotMismatch,
     #[error("portfolio attention does not match deterministic derivation")]
     DerivationMismatch,
+    #[error("portfolio frontier requires one exact retained environment snapshot")]
+    EnvironmentSnapshotRequired,
+    #[error("portfolio system workload is invalid: {0}")]
+    SystemWorkload(String),
+    #[error("ready attention action {0} has no admitted frontier action")]
+    InvalidReadyAction(String),
+    #[error("portfolio frontier does not match deterministic attention projection")]
+    FrontierDerivationMismatch,
     #[error("portfolio relation is not in canonical order")]
     NonCanonical,
     #[error("duplicate portfolio identity {0}")]
@@ -1075,16 +1208,22 @@ pub enum PortfolioError {
     Frame(#[from] FrameError),
     #[error(transparent)]
     Polars(#[from] polars::error::PolarsError),
+    #[error(transparent)]
+    Frontier(#[from] FrontierError),
 }
 
 #[cfg(test)]
 mod tests {
     use rey_core::{ContractIdentity, SemanticHasher};
+    use rey_frontier::{
+        FrontierAssessment, ScheduleOutcome, SchedulerLimits, SchedulingPreconditions, schedule,
+    };
 
     use super::{
         AttentionAction, AttentionPolicy, AttentionReadiness, PortfolioLimits,
         PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
-        PortfolioWorkloadObservation, WorkloadAttention,
+        PortfolioWorkloadObservation, WorkloadAttention, derive_portfolio_frontier,
+        verify_portfolio_frontier,
     };
 
     fn contract(id: &str) -> ContractIdentity {
@@ -1256,6 +1395,139 @@ mod tests {
             ),
             Err(super::PortfolioError::UnknownOwner { .. })
         ));
+    }
+
+    #[test]
+    fn ready_attention_projects_to_generic_frontier_without_policy_invention() {
+        let mut blocked = observation(
+            "blocked",
+            PortfolioQualificationState::Qualified,
+            AttentionPolicy::Track,
+        );
+        blocked.missing_capability_ids = vec!["parser.rust".to_owned()];
+        let snapshot = PortfolioSnapshot::new(
+            SemanticHasher::new("catalog").finish(),
+            Some(SemanticHasher::new("environment").finish()),
+            vec![
+                blocked,
+                observation(
+                    "excluded",
+                    PortfolioQualificationState::Failing,
+                    AttentionPolicy::Exclude,
+                ),
+                observation(
+                    "failing",
+                    PortfolioQualificationState::Failing,
+                    AttentionPolicy::Track,
+                ),
+                observation(
+                    "untested",
+                    PortfolioQualificationState::Untested,
+                    AttentionPolicy::Track,
+                ),
+            ],
+            vec![PortfolioSurfaceObservation {
+                surface_id: "docs/unowned.md".to_owned(),
+                source_revision: SemanticHasher::new("surface").finish(),
+                owners: Vec::new(),
+                evidence_ids: Vec::new(),
+            }],
+            PortfolioLimits::default(),
+        )
+        .unwrap();
+        let attention = WorkloadAttention::derive(&snapshot).unwrap();
+        let frontier = derive_portfolio_frontier(&snapshot, &attention).unwrap();
+
+        assert_eq!(attention.rows.len(), 5);
+        assert_eq!(frontier.rows.len(), 3);
+        assert_eq!(frontier.assessment, FrontierAssessment::Open);
+        assert!(frontier.rows.iter().all(|row| {
+            let source = attention
+                .rows
+                .iter()
+                .find(|attention| {
+                    row.claim_ids
+                        .contains(&format!("rey.workload-attention-row:{}", attention.row_id))
+                })
+                .unwrap();
+            row.priority == source.priority
+                && row.estimated_cost_units == source.estimated_cost_units
+                && row.claim_ids.contains(&format!(
+                    "rey.workload-attention-reason:{}",
+                    source.reason.as_str()
+                ))
+        }));
+        verify_portfolio_frontier(&frontier, &snapshot, &attention).unwrap();
+        let scheduling = schedule(
+            &frontier,
+            SchedulingPreconditions {
+                expected_committed_record_id: frontier.inputs.committed_record_id.clone(),
+                expected_frontier_id: frontier.frontier_id.clone(),
+                expected_capability_snapshot_id: frontier.inputs.capability_snapshot_id.clone(),
+            },
+            SchedulerLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(scheduling.outcome, ScheduleOutcome::Selected);
+        assert_eq!(scheduling.selected.len(), 3);
+
+        let mut tampered = frontier;
+        tampered.rows[0].priority += 1;
+        assert!(verify_portfolio_frontier(&tampered, &snapshot, &attention).is_err());
+    }
+
+    #[test]
+    fn empty_and_only_ineligible_attention_do_not_share_convergence() {
+        let clean = PortfolioSnapshot::new(
+            SemanticHasher::new("clean-catalog").finish(),
+            Some(SemanticHasher::new("environment").finish()),
+            vec![observation(
+                "clean",
+                PortfolioQualificationState::Qualified,
+                AttentionPolicy::Track,
+            )],
+            Vec::new(),
+            PortfolioLimits::default(),
+        )
+        .unwrap();
+        let clean_attention = WorkloadAttention::derive(&clean).unwrap();
+        assert_eq!(
+            derive_portfolio_frontier(&clean, &clean_attention)
+                .unwrap()
+                .assessment,
+            FrontierAssessment::Converged
+        );
+
+        let blocked = PortfolioSnapshot::new(
+            SemanticHasher::new("blocked-catalog").finish(),
+            Some(SemanticHasher::new("environment").finish()),
+            vec![observation(
+                "blocked",
+                PortfolioQualificationState::Inconclusive,
+                AttentionPolicy::Track,
+            )],
+            Vec::new(),
+            PortfolioLimits::default(),
+        )
+        .unwrap();
+        let blocked_attention = WorkloadAttention::derive(&blocked).unwrap();
+        assert_eq!(
+            derive_portfolio_frontier(&blocked, &blocked_attention)
+                .unwrap()
+                .assessment,
+            FrontierAssessment::Inconclusive
+        );
+
+        let no_environment = PortfolioSnapshot::new(
+            SemanticHasher::new("catalog").finish(),
+            None,
+            Vec::new(),
+            Vec::new(),
+            PortfolioLimits::default(),
+        )
+        .unwrap();
+        let attention = WorkloadAttention::derive(&no_environment).unwrap();
+        assert!(derive_portfolio_frontier(&no_environment, &attention).is_err());
     }
 
     #[test]

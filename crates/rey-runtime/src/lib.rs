@@ -13,8 +13,8 @@ pub use portfolio::{
     PortfolioLimits, PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
     PortfolioWorkloadObservation, WORKLOAD_ATTENTION_RELATION, WORKLOAD_ATTENTION_SCHEMA,
     WORKLOAD_ATTENTION_SCHEMA_VERSION, WorkloadAttention, WorkloadAttentionRow,
-    WorkloadAttentionSummary, portfolio_attention_operation, render_workload_attention,
-    render_workload_attention_operation,
+    WorkloadAttentionSummary, derive_portfolio_frontier, portfolio_attention_operation,
+    render_workload_attention, render_workload_attention_operation, verify_portfolio_frontier,
 };
 
 pub use workload::{

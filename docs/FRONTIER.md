@@ -229,17 +229,26 @@ does not derive a misleading ready row.
 
 Portfolio attention preserves `REFINE`, `RETEST`, `CREATE`, `BLOCK`, and
 `POLICY_EXCLUDED`, with reason, readiness, evidence, dependency, priority, and
-estimated cost fields. Only ready rows are candidates for a later frontier.
+estimated cost fields. The implemented deterministic adapter projects only
+ready rows into `rey.frontier.v1`. Each frontier claim cites the exact
+attention-row identity and reason, preserves priority and estimated cost, and
+maps the admitted action without copying the portfolio snapshot. Its frontier
+inputs retain distinct portfolio-snapshot, environment-snapshot, attention,
+campaign, derivation, and prioritization identities.
+
 Blocked and excluded rows remain visible portfolio evidence and must not be
-silently filtered from human or machine summaries. The scheduler may enforce
-limits and select rows, but it may not invent an attention reason or turn
-exclusion into convergence.
+silently filtered from human or machine summaries. When no ready row exists,
+an empty attention relation converges while a nonempty relation containing only
+blocked or excluded rows remains inconclusive. A missing retained environment
+snapshot leaves the runtime frontier explicitly unavailable. The scheduler may
+enforce limits and select rows, but it may not invent an attention reason or
+turn exclusion into convergence.
 
 ## Deferred Behavior
 
-Later slices still own generic workload-specific derivation, dependency
-invalidation, orientation readiness strategy, policy proposal parsing, action
-admission, execution, retry, transition persistence, activation, and recurring
-scheduling. They must consume these contracts rather than introducing a
-provider-specific queue or second lifecycle. The frontier does not become a
-query, parsing, indexing, or visualization engine.
+Later slices still own broader workload-specific derivation, Git-native
+dependency invalidation, portfolio reasoning-surface construction, policy
+proposal parsing, action admission, execution, retry, transition persistence,
+activation, and recurring scheduling. They must consume these contracts rather
+than introducing a provider-specific queue or second lifecycle. The frontier
+does not become a query, parsing, indexing, or visualization engine.

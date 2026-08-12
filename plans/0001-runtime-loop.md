@@ -41,7 +41,7 @@ their owners, and no recurring scheduler or Git cursor drives the loop.
 
 ### 2. Hand attention to runtime work
 
-- [ ] Project admitted ready attention rows into the generic frontier without
+- [x] Project admitted ready attention rows into the generic frontier without
   copying the portfolio or allowing the scheduler to invent reasons.
 - [ ] Build one bounded reasoning surface that cites the exact attention row,
   dependent deltas, evidence, omissions, allowed graph operations, and total

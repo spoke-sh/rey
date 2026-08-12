@@ -253,7 +253,12 @@ Human `list` and `status` output identifies every bounded owned-surface
 declaration with its exact source revision and required capability ids; JSON
 retains the same typed declarations. Portfolio attention separately reports
 the live owner binding, revision drift, missing capability, and unowned mapped
-surface facts derived from retained environment evidence.
+surface facts derived from retained environment evidence. With an exact
+retained environment snapshot, the same document includes a distinct runtime
+frontier identity, its source attention trace and portfolio/environment
+bindings, and each admitted ready row. Without that snapshot the human view
+states that the runtime frontier is unavailable; it does not mint an identity
+for absent capability evidence.
 `commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.

@@ -24,6 +24,7 @@ clap.workspace = true
 rey-core = { path = "../rey-core" }
 rey-diff = { path = "../rey-diff" }
 rey-environment = { path = "../rey-environment" }
+rey-frontier = { path = "../rey-frontier" }
 rey-git = { path = "../rey-git" }
 rey-locator = { path = "../rey-locator" }
 rey-mining = { path = "../rey-mining" }
