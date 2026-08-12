@@ -197,9 +197,9 @@ does not grant a tool, workload, agent, or scene permission to act.
 
 Repository activation uses a separate explicit evidence loop: `rey git init`
 retains a baseline and any exact `--watch-ref refs/...` scope, `poll` retains
-one typed HEAD/watched-ref/reachability/index transition and proposal set, and
-`ack` advances the cursor only from that exact evidence. These commands never
-mutate Git or execute a proposed workload. `rey git watch` repeats the same
+one typed HEAD/watched-ref/reachability/path/index transition and proposal set,
+and `ack` advances the cursor only from that exact evidence. These commands
+never mutate Git or execute a proposed workload. `rey git watch` repeats the same
 observation under explicit iteration, cadence, and elapsed bounds, retaining
 every tick and its terminal receipt; it stops at the first changed transition
 and still requires exact `ack`. `rey workloads admit-activation` then applies

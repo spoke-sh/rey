@@ -231,7 +231,8 @@ unadmitted candidate. There is intentionally no separate `init`, `import`, or
 
 ```text
 rey git [--workspace PATH] [--state-dir PATH]
-  [--max-reachable-commits-per-direction N] status
+  [--max-reachable-commits-per-direction N]
+  [--max-path-changes-per-ref N] status
 rey git ... init [--watch-ref refs/...]...
 rey git ... poll [--trigger TRIGGER.yaml]...
 rey git ... watch [--trigger TRIGGER.yaml]... [--max-iterations N]
@@ -247,13 +248,17 @@ sorts and freezes that exact scope and records a missing ref as `ABSENT` so a
 later creation is observable. `status`, `poll`, and `watch` reuse the retained
 scope without discovering more refs. `poll` revalidates repository/worktree
 identity, classifies HEAD and each changed watched ref independently, compares
-bounded added/removed reachable-commit sets, compares the complete supported
-semantic index, and retains one changed transition plus its exact triggers and
-deterministic proposal-only activations. The global
+bounded added/removed reachable-commit sets and tree-to-tree path changes,
+compares the complete supported semantic index, and retains one changed
+transition plus its exact triggers and deterministic proposal-only
+activations. The global
 `--max-reachable-commits-per-direction` limit bounds each side of each changed
-ref; shallow, unavailable, and truncated history remains explicit partial
-evidence. Repeating the same poll is identity-stable and does not duplicate
-pending evidence; a different transition cannot replace an unacknowledged one.
+ref. `--max-path-changes-per-ref` bounds each changed ref's canonical raw-byte
+path sequence; every change retains direction, reversible identity, modes, and
+object OIDs without rename inference. Shallow, unavailable, and truncated
+evidence remains explicit partial evidence. Repeating the same poll is
+identity-stable and does not duplicate pending evidence; a different
+transition cannot replace an unacknowledged one.
 
 `watch` repeats that exact poll observation only under explicit iteration,
 cadence, and elapsed scheduling bounds. Each observation is retained first as
@@ -273,12 +278,13 @@ mutate Git, contact a remote, or turn a trigger into authority. Trigger inputs
 are bounded workspace-contained regular YAML or JSON documents under
 `rey.git-activation-trigger.v1`; they bind repository/worktree, event and
 optional exact `HEAD`/watched-ref selection, completeness, exact
-workload/graph/scenarios, and activation budget. Proposals retain their exact
-matched ref names. The human view exposes source and target snapshots, HEAD
-and watched-ref movement completeness, events, semantic-index posture,
-added/removed commit OIDs and traversal limits, omissions, proposals, matched
-refs, authority, and next acknowledgement. JSON retains the same typed
-documents.
+workload/graph/scenarios, activation budget, and optional reversible byte
+prefixes for path events. Proposals retain their exact matched ref names and
+matched path identities/directions. The human view exposes source and target
+snapshots, HEAD and watched-ref movement completeness, events, semantic-index
+posture, added/removed commit OIDs, exact path changes and limits, omissions,
+proposals, matched refs/paths, authority, and next acknowledgement. JSON
+retains the same typed documents.
 
 After acknowledgement, `rey workloads admit-activation` is the separate
 ordinary workload gate. It never changes Git and does not run as part of

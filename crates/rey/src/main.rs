@@ -150,6 +150,10 @@ struct GitArgs {
     #[arg(long, global = true, default_value_t = 256)]
     max_reachable_commits_per_direction: u64,
 
+    /// Maximum tree-to-tree path changes retained per changed ref.
+    #[arg(long, global = true, default_value_t = 2_048)]
+    max_path_changes_per_ref: u64,
+
     #[command(subcommand)]
     command: GitCommand,
 }
@@ -1042,6 +1046,8 @@ impl GitArgs {
             || self.max_reachable_commits_per_direction == 0
             || self.max_reachable_commits_per_direction
                 > rey_git::MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION
+            || self.max_path_changes_per_ref == 0
+            || self.max_path_changes_per_ref > rey_git::MAX_GIT_PATH_CHANGES_PER_REF
         {
             return Err(CliError::InvalidLimit);
         }
@@ -1051,6 +1057,7 @@ impl GitArgs {
             max_capture_bytes: self.max_capture_bytes,
             max_index_entries: self.max_index_entries,
             max_reachable_commits_per_direction: self.max_reachable_commits_per_direction,
+            max_path_changes_per_ref: self.max_path_changes_per_ref,
         })
     }
 }
@@ -4293,6 +4300,50 @@ fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(
     }
     write_portfolio_field(
         output,
+        "Path deltas",
+        if transition.path_deltas.is_empty() {
+            "typed empty"
+        } else {
+            "see below"
+        },
+    )?;
+    for delta in &transition.path_deltas {
+        writeln!(
+            output,
+            "    {} · {} changes · {} · limit {}",
+            delta.ref_name,
+            delta.changes.len(),
+            if delta.complete {
+                "complete"
+            } else {
+                "incomplete"
+            },
+            delta.max_changes
+        )?;
+        for change in &delta.changes {
+            writeln!(
+                output,
+                "      {} {} · {}:{}",
+                change.kind.as_str(),
+                change.path.display,
+                change.path.encoding,
+                change.path.bytes
+            )?;
+            writeln!(
+                output,
+                "        {} {} → {} {}",
+                change.source_mode.as_deref().unwrap_or("ABSENT"),
+                change.source_oid.as_deref().unwrap_or("ABSENT"),
+                change.target_mode.as_deref().unwrap_or("ABSENT"),
+                change.target_oid.as_deref().unwrap_or("ABSENT")
+            )?;
+        }
+        for omission in &delta.omissions {
+            writeln!(output, "      omission: {omission}")?;
+        }
+    }
+    write_portfolio_field(
+        output,
         "Events",
         if transition.events.is_empty() {
             "typed empty"
@@ -4350,6 +4401,17 @@ fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(
                 output,
                 "      matched refs: {}",
                 proposal.matched_ref_names.join(", ")
+            )?;
+        }
+        for change in &proposal.matched_path_changes {
+            writeln!(
+                output,
+                "      matched path: {} · {} · {} · {}:{}",
+                change.ref_name,
+                change.kind.as_str(),
+                change.path.display,
+                change.path.encoding,
+                change.path.bytes
             )?;
         }
         writeln!(output, "      authority: {}", proposal.authority)?;

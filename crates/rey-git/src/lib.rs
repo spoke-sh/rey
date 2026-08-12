@@ -29,6 +29,8 @@ pub const MAX_GIT_ACTIVATION_TRIGGERS: usize = 256;
 pub const MAX_GIT_ACTIVATION_SCENARIOS: usize = 256;
 pub const MAX_GIT_WATCHED_REFS: usize = 256;
 pub const MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION: u64 = 4_096;
+pub const MAX_GIT_PATH_CHANGES_PER_REF: u64 = 100_000;
+pub const MAX_GIT_MATCHED_PATH_CHANGES: usize = 100_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitLimits {
@@ -37,6 +39,7 @@ pub struct GitLimits {
     pub max_capture_bytes: u64,
     pub max_index_entries: u64,
     pub max_reachable_commits_per_direction: u64,
+    pub max_path_changes_per_ref: u64,
 }
 
 impl Default for GitLimits {
@@ -47,6 +50,7 @@ impl Default for GitLimits {
             max_capture_bytes: 4 * 1_024 * 1_024,
             max_index_entries: 10_000,
             max_reachable_commits_per_direction: 256,
+            max_path_changes_per_ref: 2_048,
         }
     }
 }
@@ -295,10 +299,12 @@ impl GitSnapshot {
                 self.limits.max_capture_bytes,
                 self.limits.max_index_entries,
                 self.limits.max_reachable_commits_per_direction,
+                self.limits.max_path_changes_per_ref,
             ]
             .contains(&0)
             || self.limits.max_reachable_commits_per_direction
                 > MAX_GIT_REACHABLE_COMMITS_PER_DIRECTION
+            || self.limits.max_path_changes_per_ref > MAX_GIT_PATH_CHANGES_PER_REF
             || self.head.symbolic_ref.as_deref().is_some_and(str::is_empty)
             || self
                 .head
@@ -359,6 +365,7 @@ impl GitSnapshot {
         snapshot_hasher.add_u64(self.limits.max_capture_bytes);
         snapshot_hasher.add_u64(self.limits.max_index_entries);
         snapshot_hasher.add_u64(self.limits.max_reachable_commits_per_direction);
+        snapshot_hasher.add_u64(self.limits.max_path_changes_per_ref);
         if self.snapshot_id != snapshot_hasher.finish() {
             return Err(GitError::InvalidSnapshot);
         }
@@ -396,6 +403,7 @@ impl GitSnapshot {
                 "direct_argv".to_owned(),
                 "exact_watched_ref_scope".to_owned(),
                 "no_replace_objects".to_owned(),
+                "path_changes_per_ref".to_owned(),
                 "reachable_commits_per_direction".to_owned(),
                 "no_optional_locks".to_owned(),
                 "semantic_index_flags".to_owned(),
@@ -448,6 +456,10 @@ pub enum GitActivationEventClass {
     RefUnknown,
     CommitReachableAdded,
     CommitReachableRemoved,
+    PathAdded,
+    PathDeleted,
+    PathModified,
+    PathTypeChanged,
     IndexChanged,
     IndexConflicted,
 }
@@ -465,6 +477,10 @@ impl GitActivationEventClass {
             Self::RefUnknown => "ref.unknown",
             Self::CommitReachableAdded => "commit.reachable_added",
             Self::CommitReachableRemoved => "commit.reachable_removed",
+            Self::PathAdded => "path.added",
+            Self::PathDeleted => "path.deleted",
+            Self::PathModified => "path.modified",
+            Self::PathTypeChanged => "path.type_changed",
             Self::IndexChanged => "index.changed",
             Self::IndexConflicted => "index.conflicted",
         }
@@ -482,6 +498,17 @@ impl GitActivationEventClass {
                 | Self::RefUnknown
                 | Self::CommitReachableAdded
                 | Self::CommitReachableRemoved
+                | Self::PathAdded
+                | Self::PathDeleted
+                | Self::PathModified
+                | Self::PathTypeChanged
+        )
+    }
+
+    const fn is_path_event(self) -> bool {
+        matches!(
+            self,
+            Self::PathAdded | Self::PathDeleted | Self::PathModified | Self::PathTypeChanged
         )
     }
 }
@@ -630,6 +657,8 @@ pub struct GitPollTransition {
     pub watched_ref_changes: Vec<GitWatchedRefChange>,
     #[serde(default)]
     pub reachability_deltas: Vec<GitReachabilityDelta>,
+    #[serde(default)]
+    pub path_deltas: Vec<GitPathDelta>,
     pub source_index_digest: Option<SemanticDigest>,
     pub target_index_digest: Option<SemanticDigest>,
     pub source_index_complete: bool,
@@ -665,6 +694,50 @@ pub struct GitReachabilityDelta {
     pub omissions: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GitPathChangeKind {
+    Added,
+    Deleted,
+    Modified,
+    TypeChanged,
+}
+
+impl GitPathChangeKind {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Deleted => "deleted",
+            Self::Modified => "modified",
+            Self::TypeChanged => "type_changed",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitPathChange {
+    pub path: PathIdentity,
+    pub kind: GitPathChangeKind,
+    pub source_mode: Option<String>,
+    pub source_oid: Option<String>,
+    pub target_mode: Option<String>,
+    pub target_oid: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitPathDelta {
+    pub ref_name: String,
+    pub source_oid: Option<String>,
+    pub target_oid: Option<String>,
+    pub changes: Vec<GitPathChange>,
+    pub max_changes: u64,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+}
+
 impl GitPollTransition {
     fn derive(
         cursor: &GitPollCursor,
@@ -672,6 +745,7 @@ impl GitPollTransition {
         head_movement: GitRefMovement,
         watched_ref_changes: Vec<GitWatchedRefChange>,
         reachability_deltas: Vec<GitReachabilityDelta>,
+        path_deltas: Vec<GitPathDelta>,
     ) -> Result<Self, GitError> {
         cursor.verify()?;
         target.verify()?;
@@ -724,6 +798,11 @@ impl GitPollTransition {
                 events.push(GitActivationEventClass::CommitReachableRemoved);
             }
         }
+        for delta in &path_deltas {
+            for change in &delta.changes {
+                events.push(path_change_event(change.kind));
+            }
+        }
         if cursor.index_digest != target_index_digest {
             events.push(GitActivationEventClass::IndexChanged);
         }
@@ -752,6 +831,9 @@ impl GitPollTransition {
         for delta in &reachability_deltas {
             omissions.extend(delta.omissions.iter().cloned());
         }
+        for delta in &path_deltas {
+            omissions.extend(delta.omissions.iter().cloned());
+        }
         if !cursor.index_complete || !target_index_complete {
             omissions
                 .push("semantic index comparison omits unsupported persistent flags".to_owned());
@@ -775,6 +857,7 @@ impl GitPollTransition {
             target_watched_refs: target.watched_refs.clone(),
             watched_ref_changes,
             reachability_deltas,
+            path_deltas,
             source_index_digest: cursor.index_digest.clone(),
             target_index_digest,
             source_index_complete: cursor.index_complete,
@@ -812,6 +895,9 @@ impl GitPollTransition {
             }
         }
         for delta in &self.reachability_deltas {
+            expected_omissions.extend(delta.omissions.iter().cloned());
+        }
+        for delta in &self.path_deltas {
             expected_omissions.extend(delta.omissions.iter().cloned());
         }
         if !self.source_index_complete || !self.target_index_complete {
@@ -858,6 +944,7 @@ impl GitPollTransition {
             || verify_watched_refs(&self.target_watched_refs, &self.object_format).is_err()
             || verify_watched_ref_changes(self).is_err()
             || verify_reachability_deltas(self).is_err()
+            || verify_path_deltas(self).is_err()
             || self
                 .target_head
                 .commit_oid
@@ -913,6 +1000,8 @@ pub struct GitActivationTrigger {
     pub event_classes: Vec<GitActivationEventClass>,
     #[serde(default)]
     pub ref_names: Vec<String>,
+    #[serde(default)]
+    pub path_prefixes: Vec<PathIdentity>,
     pub require_complete: bool,
     pub workload_id: String,
     pub graph: ContractIdentity,
@@ -938,6 +1027,9 @@ impl GitActivationTrigger {
                 .ref_names
                 .iter()
                 .any(|name| name != "HEAD" && !valid_full_ref_name(name))
+            || verify_path_prefixes(&self.path_prefixes).is_err()
+            || !self.path_prefixes.is_empty()
+                && !self.event_classes.iter().any(|event| event.is_path_event())
             || self.workload_id.trim().is_empty()
             || self.graph.id.trim().is_empty()
             || self.graph.revision == 0
@@ -972,6 +1064,8 @@ pub struct GitActivationProposal {
     pub matched_events: Vec<GitActivationEventClass>,
     #[serde(default)]
     pub matched_ref_names: Vec<String>,
+    #[serde(default)]
+    pub matched_path_changes: Vec<GitMatchedPathChange>,
     pub complete: bool,
     pub omissions: Vec<String>,
     pub workload_id: String,
@@ -979,6 +1073,14 @@ pub struct GitActivationProposal {
     pub scenario_ids: Vec<String>,
     pub budget: GitActivationBudget,
     pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitMatchedPathChange {
+    pub ref_name: String,
+    pub path: PathIdentity,
+    pub kind: GitPathChangeKind,
 }
 
 impl GitActivationProposal {
@@ -1003,8 +1105,13 @@ impl GitActivationProposal {
                     .binary_search_by(|candidate| candidate.as_str().cmp(name))
                     .is_ok()
         };
+        let path_prefixes = trigger_path_prefix_bytes(trigger)?;
+        let selects_path = |path: &[u8]| {
+            path_prefixes.is_empty() || path_prefixes.iter().any(|prefix| path.starts_with(prefix))
+        };
         let mut matched_events = BTreeSet::new();
         let mut matched_ref_names = BTreeSet::new();
+        let mut matched_path_changes = BTreeMap::new();
         let mut omissions = BTreeSet::new();
         let mut complete = true;
         let head_omission =
@@ -1071,6 +1178,36 @@ impl GitActivationProposal {
                 }
             }
         }
+        for delta in &transition.path_deltas {
+            if !selects_ref(&delta.ref_name) {
+                continue;
+            }
+            for change in &delta.changes {
+                let path = change.path.decoded_bytes()?;
+                let event = path_change_event(change.kind);
+                if trigger.event_classes.contains(&event) && selects_path(&path) {
+                    matched_events.insert(event);
+                    matched_ref_names.insert(delta.ref_name.clone());
+                    matched_path_changes.insert(
+                        (delta.ref_name.clone(), path, change.kind),
+                        GitMatchedPathChange {
+                            ref_name: delta.ref_name.clone(),
+                            path: change.path.clone(),
+                            kind: change.kind,
+                        },
+                    );
+                    if matched_path_changes.len() > MAX_GIT_MATCHED_PATH_CHANGES {
+                        return Err(GitError::ActivationPathMatchLimit(
+                            MAX_GIT_MATCHED_PATH_CHANGES,
+                        ));
+                    }
+                    if !delta.complete {
+                        complete = false;
+                        omissions.extend(delta.omissions.iter().cloned());
+                    }
+                }
+            }
+        }
         for event in [
             GitActivationEventClass::IndexChanged,
             GitActivationEventClass::IndexConflicted,
@@ -1093,6 +1230,7 @@ impl GitActivationProposal {
         }
         let matched_events = matched_events.into_iter().collect::<Vec<_>>();
         let matched_ref_names = matched_ref_names.into_iter().collect::<Vec<_>>();
+        let matched_path_changes = matched_path_changes.into_values().collect::<Vec<_>>();
         let omissions = omissions.into_iter().collect::<Vec<_>>();
         let mut proposal = Self {
             schema: GIT_ACTIVATION_PROPOSAL_SCHEMA.to_owned(),
@@ -1104,6 +1242,7 @@ impl GitActivationProposal {
             target_snapshot_id: transition.target_snapshot_id.clone(),
             matched_events,
             matched_ref_names,
+            matched_path_changes,
             complete,
             omissions,
             workload_id: trigger.workload_id.clone(),
@@ -1135,8 +1274,30 @@ impl GitActivationProposal {
                 .matched_ref_names
                 .iter()
                 .any(|name| name != "HEAD" && !valid_full_ref_name(name))
+            || verify_matched_path_changes(&self.matched_path_changes).is_err()
+            || self.matched_path_changes.iter().any(|change| {
+                !self.matched_ref_names.contains(&change.ref_name)
+                    || !self
+                        .matched_events
+                        .contains(&path_change_event(change.kind))
+            })
+            || self
+                .matched_events
+                .iter()
+                .filter(|event| event.is_path_event())
+                .any(|event| {
+                    !self
+                        .matched_path_changes
+                        .iter()
+                        .any(|change| path_change_event(change.kind) == *event)
+                })
             || (self.matched_events.iter().any(|event| event.is_ref_event())
                 != !self.matched_ref_names.is_empty())
+            || (self
+                .matched_events
+                .iter()
+                .any(|event| event.is_path_event())
+                != !self.matched_path_changes.is_empty())
             || self.complete != self.omissions.is_empty()
             || !is_canonical(&self.omissions)
             || self.workload_id.trim().is_empty()
@@ -1198,6 +1359,12 @@ pub struct GitInspector {
 enum ReachableSetRead {
     Complete(Vec<String>),
     Truncated(Vec<String>),
+    Unavailable,
+}
+
+enum PathChangeRead {
+    Complete(Vec<GitPathChange>),
+    Truncated(Vec<GitPathChange>),
     Unavailable,
 }
 
@@ -1332,6 +1499,7 @@ impl GitInspector {
         snapshot_hasher.add_u64(self.limits.max_capture_bytes);
         snapshot_hasher.add_u64(self.limits.max_index_entries);
         snapshot_hasher.add_u64(self.limits.max_reachable_commits_per_direction);
+        snapshot_hasher.add_u64(self.limits.max_path_changes_per_ref);
 
         let snapshot = GitSnapshot {
             schema: GIT_SNAPSHOT_SCHEMA.to_owned(),
@@ -1379,12 +1547,14 @@ impl GitInspector {
         let movement = self.classify_head_movement(cursor, &target, deadline)?;
         let watched_ref_changes = self.classify_watched_ref_changes(cursor, &target, deadline)?;
         let reachability_deltas = self.inspect_reachability_deltas(cursor, &target, deadline)?;
+        let path_deltas = self.inspect_path_deltas(cursor, &target, deadline)?;
         let transition = GitPollTransition::derive(
             cursor,
             &target,
             movement,
             watched_ref_changes,
             reachability_deltas,
+            path_deltas,
         )?;
         Ok(Some((target, transition)))
     }
@@ -1681,6 +1851,188 @@ impl GitInspector {
         } else {
             ReachableSetRead::Complete(commits)
         })
+    }
+
+    fn inspect_path_deltas(
+        &self,
+        cursor: &GitPollCursor,
+        target_snapshot: &GitSnapshot,
+        deadline: Instant,
+    ) -> Result<Vec<GitPathDelta>, GitError> {
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        let mut endpoints = Vec::new();
+        if cursor.head.commit_oid != target_snapshot.head.commit_oid {
+            endpoints.push((
+                "HEAD".to_owned(),
+                cursor.head.commit_oid.clone(),
+                target_snapshot.head.commit_oid.clone(),
+            ));
+        }
+        endpoints.extend(
+            cursor
+                .watched_refs
+                .iter()
+                .zip(&target_snapshot.watched_refs)
+                .filter(|(source, target)| source.target_oid != target.target_oid)
+                .map(|(source, target)| {
+                    (
+                        source.name.clone(),
+                        source.target_oid.clone(),
+                        target.target_oid.clone(),
+                    )
+                }),
+        );
+        endpoints
+            .into_iter()
+            .map(|(ref_name, source_oid, target_oid)| {
+                self.inspect_path_delta(
+                    &workspace,
+                    &target_snapshot.object_format,
+                    ref_name,
+                    source_oid,
+                    target_oid,
+                    deadline,
+                )
+            })
+            .collect()
+    }
+
+    fn inspect_path_delta(
+        &self,
+        workspace: &Path,
+        object_format: &str,
+        ref_name: String,
+        source_oid: Option<String>,
+        target_oid: Option<String>,
+        deadline: Instant,
+    ) -> Result<GitPathDelta, GitError> {
+        let max_changes = self.limits.max_path_changes_per_ref;
+        let read = match (source_oid.as_deref(), target_oid.as_deref()) {
+            (Some(source), Some(target)) => self.read_tree_diff_paths(
+                workspace,
+                object_format,
+                source,
+                target,
+                max_changes,
+                deadline,
+            )?,
+            (None, Some(target)) => self.read_tree_inventory_paths(
+                workspace,
+                object_format,
+                target,
+                GitPathChangeKind::Added,
+                max_changes,
+                deadline,
+            )?,
+            (Some(source), None) => self.read_tree_inventory_paths(
+                workspace,
+                object_format,
+                source,
+                GitPathChangeKind::Deleted,
+                max_changes,
+                deadline,
+            )?,
+            (None, None) => return Err(GitError::InvalidPollTransition),
+        };
+        let (changes, omissions) = match read {
+            PathChangeRead::Complete(changes) => (changes, Vec::new()),
+            PathChangeRead::Truncated(changes) => (
+                changes,
+                vec![format!(
+                    "{ref_name} path changes exceed the {max_changes}-change limit"
+                )],
+            ),
+            PathChangeRead::Unavailable => (
+                Vec::new(),
+                vec![format!(
+                    "{ref_name} path delta is unavailable because bounded Git trees cannot resolve the comparison"
+                )],
+            ),
+        };
+        Ok(GitPathDelta {
+            ref_name,
+            source_oid,
+            target_oid,
+            changes,
+            max_changes,
+            complete: omissions.is_empty(),
+            omissions,
+        })
+    }
+
+    fn read_tree_diff_paths(
+        &self,
+        workspace: &Path,
+        object_format: &str,
+        source_oid: &str,
+        target_oid: &str,
+        max_changes: u64,
+        deadline: Instant,
+    ) -> Result<PathChangeRead, GitError> {
+        let output = self.git(
+            workspace,
+            &[
+                "diff-tree",
+                "--raw",
+                "-z",
+                "-r",
+                "--full-index",
+                "--no-renames",
+                "--no-commit-id",
+                source_oid,
+                target_oid,
+                "--",
+            ],
+            deadline,
+        )?;
+        if !output.status.success() {
+            return match output.status.code() {
+                Some(128) => Ok(PathChangeRead::Unavailable),
+                status => Err(GitError::Command {
+                    operation: "derive bounded Git tree path delta",
+                    status,
+                    stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+                }),
+            };
+        }
+        bounded_path_changes(
+            parse_raw_path_changes(&output.stdout, object_format)?,
+            max_changes,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn read_tree_inventory_paths(
+        &self,
+        workspace: &Path,
+        object_format: &str,
+        oid: &str,
+        kind: GitPathChangeKind,
+        max_changes: u64,
+        deadline: Instant,
+    ) -> Result<PathChangeRead, GitError> {
+        let output = self.git(
+            workspace,
+            &["ls-tree", "-r", "-z", "--full-tree", oid, "--"],
+            deadline,
+        )?;
+        if !output.status.success() {
+            return match output.status.code() {
+                Some(128) => Ok(PathChangeRead::Unavailable),
+                status => Err(GitError::Command {
+                    operation: "derive bounded Git tree inventory",
+                    status,
+                    stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+                }),
+            };
+        }
+        bounded_path_changes(
+            parse_tree_inventory_changes(&output.stdout, object_format, kind)?,
+            max_changes,
+        )
     }
 
     fn classify_head_movement(
@@ -2327,6 +2679,214 @@ fn take_debug_index_line<'a>(remaining: &mut &'a [u8]) -> Result<&'a [u8], GitEr
     Ok(line)
 }
 
+fn bounded_path_changes(
+    mut changes: Vec<GitPathChange>,
+    max_changes: u64,
+) -> Result<PathChangeRead, GitError> {
+    changes.sort_by(|left, right| {
+        left.path
+            .decoded_bytes()
+            .expect("parsed path identity is reversible")
+            .cmp(
+                &right
+                    .path
+                    .decoded_bytes()
+                    .expect("parsed path identity is reversible"),
+            )
+    });
+    if path_changes_have_duplicate_paths(&changes)? {
+        return Err(GitError::MalformedPathDelta(
+            "duplicate path in one tree comparison",
+        ));
+    }
+    let truncated = changes.len() as u64 > max_changes;
+    changes.truncate(max_changes as usize);
+    Ok(if truncated {
+        PathChangeRead::Truncated(changes)
+    } else {
+        PathChangeRead::Complete(changes)
+    })
+}
+
+fn parse_raw_path_changes(
+    output: &[u8],
+    object_format: &str,
+) -> Result<Vec<GitPathChange>, GitError> {
+    let mut records = output.split(|byte| *byte == 0).collect::<Vec<_>>();
+    if records.last() == Some(&b"".as_slice()) {
+        records.pop();
+    } else if !records.is_empty() {
+        return Err(GitError::MalformedPathDelta(
+            "raw tree delta is not NUL terminated",
+        ));
+    }
+    if records.len() % 2 != 0 {
+        return Err(GitError::MalformedPathDelta(
+            "raw tree delta is missing a path record",
+        ));
+    }
+    records
+        .chunks_exact(2)
+        .map(|record| {
+            let header = std::str::from_utf8(record[0])
+                .map_err(|_| GitError::MalformedPathDelta("raw header is not ASCII"))?;
+            let mut fields = header
+                .strip_prefix(':')
+                .ok_or(GitError::MalformedPathDelta("raw header is missing ':'"))?
+                .split_whitespace();
+            let source_mode = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("source mode is missing"))?;
+            let target_mode = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("target mode is missing"))?;
+            let source_oid = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("source object id is missing"))?;
+            let target_oid = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("target object id is missing"))?;
+            let status = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("change status is missing"))?;
+            if fields.next().is_some()
+                || !valid_git_mode(source_mode)
+                || !valid_git_mode(target_mode)
+                || !valid_oid_or_zero(source_oid, object_format)
+                || !valid_oid_or_zero(target_oid, object_format)
+                || record[1].is_empty()
+            {
+                return Err(GitError::MalformedPathDelta(
+                    "raw tree delta has invalid fields",
+                ));
+            }
+            let source_mode = (source_mode != "000000").then(|| source_mode.to_owned());
+            let target_mode = (target_mode != "000000").then(|| target_mode.to_owned());
+            let source_oid = (!is_zero_oid(source_oid)).then(|| source_oid.to_owned());
+            let target_oid = (!is_zero_oid(target_oid)).then(|| target_oid.to_owned());
+            let kind = match status {
+                "A" if source_mode.is_none()
+                    && source_oid.is_none()
+                    && target_mode.is_some()
+                    && target_oid.is_some() =>
+                {
+                    GitPathChangeKind::Added
+                }
+                "D" if source_mode.is_some()
+                    && source_oid.is_some()
+                    && target_mode.is_none()
+                    && target_oid.is_none() =>
+                {
+                    GitPathChangeKind::Deleted
+                }
+                "M" if source_mode.is_some()
+                    && source_oid.is_some()
+                    && target_mode.is_some()
+                    && target_oid.is_some() =>
+                {
+                    GitPathChangeKind::Modified
+                }
+                "T" if source_mode.is_some()
+                    && source_oid.is_some()
+                    && target_mode.is_some()
+                    && target_oid.is_some() =>
+                {
+                    GitPathChangeKind::TypeChanged
+                }
+                _ => {
+                    return Err(GitError::MalformedPathDelta(
+                        "unsupported or inconsistent raw change status",
+                    ));
+                }
+            };
+            Ok(GitPathChange {
+                path: PathIdentity::from_bytes(record[1]),
+                kind,
+                source_mode,
+                source_oid,
+                target_mode,
+                target_oid,
+            })
+        })
+        .collect()
+}
+
+fn parse_tree_inventory_changes(
+    output: &[u8],
+    object_format: &str,
+    kind: GitPathChangeKind,
+) -> Result<Vec<GitPathChange>, GitError> {
+    if !matches!(kind, GitPathChangeKind::Added | GitPathChangeKind::Deleted) {
+        return Err(GitError::MalformedPathDelta(
+            "tree inventory requires added or deleted direction",
+        ));
+    }
+    let mut records = output.split(|byte| *byte == 0).collect::<Vec<_>>();
+    if records.last() == Some(&b"".as_slice()) {
+        records.pop();
+    } else if !records.is_empty() {
+        return Err(GitError::MalformedPathDelta(
+            "tree inventory is not NUL terminated",
+        ));
+    }
+    records
+        .into_iter()
+        .map(|record| {
+            let separator = record.iter().position(|byte| *byte == b'\t').ok_or(
+                GitError::MalformedPathDelta("tree inventory record is missing its path separator"),
+            )?;
+            let header = std::str::from_utf8(&record[..separator])
+                .map_err(|_| GitError::MalformedPathDelta("tree header is not ASCII"))?;
+            let path = &record[separator + 1..];
+            let mut fields = header.split_whitespace();
+            let mode = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("tree mode is missing"))?;
+            let object_kind = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("tree object kind is missing"))?;
+            let oid = fields
+                .next()
+                .ok_or(GitError::MalformedPathDelta("tree object id is missing"))?;
+            if fields.next().is_some()
+                || !valid_present_git_mode(mode)
+                || !matches!(object_kind, "blob" | "commit")
+                || !valid_oid(oid, object_format)
+                || path.is_empty()
+            {
+                return Err(GitError::MalformedPathDelta(
+                    "tree inventory has invalid fields",
+                ));
+            }
+            let (source_mode, source_oid, target_mode, target_oid) = match kind {
+                GitPathChangeKind::Added => {
+                    (None, None, Some(mode.to_owned()), Some(oid.to_owned()))
+                }
+                GitPathChangeKind::Deleted => {
+                    (Some(mode.to_owned()), Some(oid.to_owned()), None, None)
+                }
+                GitPathChangeKind::Modified | GitPathChangeKind::TypeChanged => unreachable!(),
+            };
+            Ok(GitPathChange {
+                path: PathIdentity::from_bytes(path),
+                kind,
+                source_mode,
+                source_oid,
+                target_mode,
+                target_oid,
+            })
+        })
+        .collect()
+}
+
+fn path_changes_have_duplicate_paths(changes: &[GitPathChange]) -> Result<bool, GitError> {
+    let paths = changes
+        .iter()
+        .map(|change| change.path.decoded_bytes())
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(paths.windows(2).any(|window| window[0] == window[1]))
+}
+
 fn parse_line(output: &[u8]) -> Result<&str, GitError> {
     let line = std::str::from_utf8(output)
         .map_err(|_| GitError::MalformedOutput("Git output is not UTF-8"))?
@@ -2392,6 +2952,24 @@ fn git_transition_digest(transition: &GitPollTransition) -> SemanticDigest {
         add_git_strings(&mut hasher, &delta.added_commits);
         add_git_strings(&mut hasher, &delta.removed_commits);
         hasher.add_u64(delta.max_commits_per_direction);
+        hasher.add_bool(delta.complete);
+        add_git_strings(&mut hasher, &delta.omissions);
+    }
+    hasher.add_u64(transition.path_deltas.len() as u64);
+    for delta in &transition.path_deltas {
+        hasher.add_str(&delta.ref_name);
+        hasher.add_optional_str(delta.source_oid.as_deref());
+        hasher.add_optional_str(delta.target_oid.as_deref());
+        hasher.add_u64(delta.changes.len() as u64);
+        for change in &delta.changes {
+            change.path.add_semantics(&mut hasher);
+            hasher.add_str(change.kind.as_str());
+            hasher.add_optional_str(change.source_mode.as_deref());
+            hasher.add_optional_str(change.source_oid.as_deref());
+            hasher.add_optional_str(change.target_mode.as_deref());
+            hasher.add_optional_str(change.target_oid.as_deref());
+        }
+        hasher.add_u64(delta.max_changes);
         hasher.add_bool(delta.complete);
         add_git_strings(&mut hasher, &delta.omissions);
     }
@@ -2465,6 +3043,11 @@ fn expected_transition_events(
             events.push(GitActivationEventClass::CommitReachableRemoved);
         }
     }
+    for delta in &transition.path_deltas {
+        for change in &delta.changes {
+            events.push(path_change_event(change.kind));
+        }
+    }
     if transition.source_index_digest != transition.target_index_digest {
         events.push(GitActivationEventClass::IndexChanged);
     }
@@ -2491,6 +3074,12 @@ fn git_activation_digest(proposal: &GitActivationProposal) -> SemanticDigest {
         hasher.add_str(event.as_str());
     }
     add_git_strings(&mut hasher, &proposal.matched_ref_names);
+    hasher.add_u64(proposal.matched_path_changes.len() as u64);
+    for change in &proposal.matched_path_changes {
+        hasher.add_str(&change.ref_name);
+        change.path.add_semantics(&mut hasher);
+        hasher.add_str(change.kind.as_str());
+    }
     hasher.add_bool(proposal.complete);
     add_git_strings(&mut hasher, &proposal.omissions);
     hasher.add_str(&proposal.workload_id);
@@ -2719,6 +3308,29 @@ fn valid_oid(value: &str, object_format: &str) -> bool {
     value.len() == expected && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+fn is_zero_oid(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte == b'0')
+}
+
+fn valid_oid_or_zero(value: &str, object_format: &str) -> bool {
+    valid_oid(value, object_format)
+        || (is_zero_oid(value)
+            && value.len()
+                == match object_format {
+                    "sha1" => 40,
+                    "sha256" => 64,
+                    _ => return false,
+                })
+}
+
+fn valid_git_mode(value: &str) -> bool {
+    value.len() == 6 && value.bytes().all(|byte| matches!(byte, b'0'..=b'7'))
+}
+
+fn valid_present_git_mode(value: &str) -> bool {
+    value != "000000" && valid_git_mode(value)
+}
+
 fn valid_full_ref_name(name: &str) -> bool {
     name.len() <= 1_024
         && name.starts_with("refs/")
@@ -2764,6 +3376,15 @@ fn ref_movement_event(movement: GitRefMovement) -> Result<GitActivationEventClas
         GitRefMovement::Rewritten => Ok(GitActivationEventClass::RefRewritten),
         GitRefMovement::Unknown => Ok(GitActivationEventClass::RefUnknown),
         GitRefMovement::Unchanged => Err(GitError::InvalidPollTransition),
+    }
+}
+
+const fn path_change_event(kind: GitPathChangeKind) -> GitActivationEventClass {
+    match kind {
+        GitPathChangeKind::Added => GitActivationEventClass::PathAdded,
+        GitPathChangeKind::Deleted => GitActivationEventClass::PathDeleted,
+        GitPathChangeKind::Modified => GitActivationEventClass::PathModified,
+        GitPathChangeKind::TypeChanged => GitActivationEventClass::PathTypeChanged,
     }
 }
 
@@ -2926,6 +3547,149 @@ fn verify_reachability_deltas(transition: &GitPollTransition) -> Result<(), GitE
     Ok(())
 }
 
+fn verify_path_deltas(transition: &GitPollTransition) -> Result<(), GitError> {
+    let mut endpoints = Vec::new();
+    if transition.source_head.commit_oid != transition.target_head.commit_oid {
+        endpoints.push((
+            "HEAD",
+            &transition.source_head.commit_oid,
+            &transition.target_head.commit_oid,
+        ));
+    }
+    endpoints.extend(transition.watched_ref_changes.iter().map(|change| {
+        (
+            change.ref_name.as_str(),
+            &change.source_oid,
+            &change.target_oid,
+        )
+    }));
+    if endpoints.len() != transition.path_deltas.len() {
+        return Err(GitError::InvalidPollTransition);
+    }
+    for ((ref_name, source_oid, target_oid), delta) in
+        endpoints.into_iter().zip(&transition.path_deltas)
+    {
+        let limit_omission = format!(
+            "{ref_name} path changes exceed the {}-change limit",
+            delta.max_changes
+        );
+        let unavailable_omission = format!(
+            "{ref_name} path delta is unavailable because bounded Git trees cannot resolve the comparison"
+        );
+        if delta.ref_name != ref_name
+            || &delta.source_oid != source_oid
+            || &delta.target_oid != target_oid
+            || delta.max_changes == 0
+            || delta.max_changes > MAX_GIT_PATH_CHANGES_PER_REF
+            || delta.changes.len() as u64 > delta.max_changes
+            || delta.complete != delta.omissions.is_empty()
+            || !is_canonical(&delta.omissions)
+            || delta
+                .omissions
+                .iter()
+                .any(|omission| omission != &limit_omission && omission != &unavailable_omission)
+            || delta.omissions.contains(&limit_omission)
+                && delta.changes.len() as u64 != delta.max_changes
+            || delta.omissions.contains(&unavailable_omission) && !delta.changes.is_empty()
+            || delta.omissions.contains(&limit_omission)
+                && delta.omissions.contains(&unavailable_omission)
+        {
+            return Err(GitError::InvalidPollTransition);
+        }
+        let mut previous_path: Option<Vec<u8>> = None;
+        for change in &delta.changes {
+            let path = change.path.verify()?;
+            if previous_path
+                .as_ref()
+                .is_some_and(|previous| previous >= &path)
+                || change
+                    .source_mode
+                    .as_deref()
+                    .is_some_and(|mode| !valid_present_git_mode(mode))
+                || change
+                    .target_mode
+                    .as_deref()
+                    .is_some_and(|mode| !valid_present_git_mode(mode))
+                || change
+                    .source_oid
+                    .as_deref()
+                    .is_some_and(|oid| !valid_oid(oid, &transition.object_format))
+                || change
+                    .target_oid
+                    .as_deref()
+                    .is_some_and(|oid| !valid_oid(oid, &transition.object_format))
+                || !matches!(
+                    (
+                        change.kind,
+                        &change.source_mode,
+                        &change.source_oid,
+                        &change.target_mode,
+                        &change.target_oid,
+                    ),
+                    (GitPathChangeKind::Added, None, None, Some(_), Some(_))
+                        | (GitPathChangeKind::Deleted, Some(_), Some(_), None, None)
+                        | (
+                            GitPathChangeKind::Modified | GitPathChangeKind::TypeChanged,
+                            Some(_),
+                            Some(_),
+                            Some(_),
+                            Some(_)
+                        )
+                )
+                || change.kind == GitPathChangeKind::Modified
+                    && change.source_mode == change.target_mode
+                    && change.source_oid == change.target_oid
+                || change.kind == GitPathChangeKind::TypeChanged
+                    && change.source_mode == change.target_mode
+            {
+                return Err(GitError::InvalidPollTransition);
+            }
+            previous_path = Some(path);
+        }
+    }
+    Ok(())
+}
+
+fn verify_path_prefixes(prefixes: &[PathIdentity]) -> Result<(), GitError> {
+    if prefixes.len() > MAX_GIT_WATCHED_REFS {
+        return Err(GitError::InvalidActivationTrigger);
+    }
+    let decoded = prefixes
+        .iter()
+        .map(PathIdentity::verify)
+        .collect::<Result<Vec<_>, _>>()?;
+    if !is_canonical(&decoded) {
+        return Err(GitError::InvalidActivationTrigger);
+    }
+    Ok(())
+}
+
+fn trigger_path_prefix_bytes(trigger: &GitActivationTrigger) -> Result<Vec<Vec<u8>>, GitError> {
+    trigger
+        .path_prefixes
+        .iter()
+        .map(PathIdentity::decoded_bytes)
+        .collect()
+}
+
+fn verify_matched_path_changes(changes: &[GitMatchedPathChange]) -> Result<(), GitError> {
+    if changes.len() > MAX_GIT_MATCHED_PATH_CHANGES {
+        return Err(GitError::InvalidActivationProposal);
+    }
+    let mut previous: Option<(String, Vec<u8>, GitPathChangeKind)> = None;
+    for change in changes {
+        if change.ref_name != "HEAD" && !valid_full_ref_name(&change.ref_name) {
+            return Err(GitError::InvalidActivationProposal);
+        }
+        let key = (change.ref_name.clone(), change.path.verify()?, change.kind);
+        if previous.as_ref().is_some_and(|previous| previous >= &key) {
+            return Err(GitError::InvalidActivationProposal);
+        }
+        previous = Some(key);
+    }
+    Ok(())
+}
+
 fn canonical_output_path(output: &[u8]) -> Result<PathBuf, GitError> {
     let path = output_path(output)?;
     fs::canonicalize(&path).map_err(|source| GitError::Path { path, source })
@@ -2989,6 +3753,8 @@ pub enum GitError {
     MalformedRef(&'static str),
     #[error("malformed Git reachability evidence: {0}")]
     MalformedReachability(&'static str),
+    #[error("malformed Git path delta: {0}")]
+    MalformedPathDelta(&'static str),
     #[error("Git watched-ref scope is invalid")]
     InvalidWatchedRefScope,
     #[error("Git index exceeds {0} logical entries")]
@@ -3017,6 +3783,8 @@ pub enum GitError {
     InvalidActivationProposal,
     #[error("Git activation trigger count exceeds {0}")]
     ActivationTriggerLimit(usize),
+    #[error("Git activation matched path count exceeds {0}")]
+    ActivationPathMatchLimit(usize),
     #[error("duplicate Git activation proposals are not permitted")]
     DuplicateActivationProposal,
 }
@@ -3032,8 +3800,8 @@ mod tests {
 
     use super::{
         GIT_ACTIVATION_TRIGGER_SCHEMA, GitActivationBudget, GitActivationEventClass,
-        GitActivationTrigger, GitError, GitInspector, GitLimits, GitPollCursor, GitRefMovement,
-        derive_activation_proposals, parse_repository_status,
+        GitActivationTrigger, GitError, GitInspector, GitLimits, GitPathChangeKind, GitPollCursor,
+        GitRefMovement, PathIdentity, derive_activation_proposals, parse_repository_status,
     };
 
     fn git(directory: &Path, args: &[&str]) {
@@ -3096,6 +3864,7 @@ mod tests {
             worktree_id: snapshot.worktree_id.clone(),
             event_classes: vec![event],
             ref_names: Vec::new(),
+            path_prefixes: Vec::new(),
             require_complete,
             workload_id: "fixture-workload".to_owned(),
             graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -3442,6 +4211,7 @@ mod tests {
             vec![
                 GitActivationEventClass::RefFastForward,
                 GitActivationEventClass::CommitReachableAdded,
+                GitActivationEventClass::PathModified,
                 GitActivationEventClass::IndexChanged,
             ]
         );
@@ -3453,6 +4223,14 @@ mod tests {
         );
         assert!(transition.reachability_deltas[0].removed_commits.is_empty());
         assert!(transition.reachability_deltas[0].complete);
+        assert_eq!(transition.path_deltas.len(), 1);
+        assert_eq!(transition.path_deltas[0].changes.len(), 1);
+        assert_eq!(
+            transition.path_deltas[0].changes[0].kind,
+            GitPathChangeKind::Modified
+        );
+        assert_eq!(transition.path_deltas[0].changes[0].path.display, "tracked");
+        assert!(transition.path_deltas[0].complete);
         assert!(transition.head_complete);
         assert!(transition.target_index_complete);
 
@@ -3527,6 +4305,7 @@ mod tests {
             vec![
                 GitActivationEventClass::RefFastForward,
                 GitActivationEventClass::CommitReachableAdded,
+                GitActivationEventClass::PathModified,
             ]
         );
         assert_eq!(transition.reachability_deltas.len(), 1);
@@ -3601,6 +4380,220 @@ mod tests {
             inspect.inspect_with_watched_refs(&["main".to_owned()]),
             Err(GitError::InvalidWatchedRefScope)
         ));
+    }
+
+    #[test]
+    fn path_deltas_are_exact_directional_and_selectable_by_byte_prefix() {
+        let directory = repository();
+        fs::create_dir_all(directory.path().join("src")).unwrap();
+        fs::create_dir_all(directory.path().join("docs")).unwrap();
+        fs::write(directory.path().join("src/modified"), "before\n").unwrap();
+        fs::write(directory.path().join("docs/renamed-from"), "same bytes\n").unwrap();
+        git(directory.path(), &["add", "."]);
+        git(directory.path(), &["commit", "-q", "-m", "path baseline"]);
+
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+        fs::write(directory.path().join("src/modified"), "after\n").unwrap();
+        fs::rename(
+            directory.path().join("docs/renamed-from"),
+            directory.path().join("docs/renamed-to"),
+        )
+        .unwrap();
+        git(directory.path(), &["add", "--all"]);
+        git(directory.path(), &["commit", "-q", "-m", "path changes"]);
+
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(transition.path_deltas.len(), 1);
+        let delta = &transition.path_deltas[0];
+        assert_eq!(delta.ref_name, "HEAD");
+        assert!(delta.complete);
+        assert!(delta.omissions.is_empty());
+        assert_eq!(delta.changes.len(), 3);
+        let change = |path: &str| {
+            delta
+                .changes
+                .iter()
+                .find(|change| change.path.display == path)
+                .unwrap()
+        };
+        assert_eq!(change("docs/renamed-from").kind, GitPathChangeKind::Deleted);
+        assert_eq!(change("docs/renamed-to").kind, GitPathChangeKind::Added);
+        assert_eq!(change("src/modified").kind, GitPathChangeKind::Modified);
+        assert_eq!(
+            change("docs/renamed-from").source_oid,
+            change("docs/renamed-to").target_oid
+        );
+        assert!(
+            transition
+                .events
+                .contains(&GitActivationEventClass::PathAdded)
+        );
+        assert!(
+            transition
+                .events
+                .contains(&GitActivationEventClass::PathDeleted)
+        );
+        assert!(
+            transition
+                .events
+                .contains(&GitActivationEventClass::PathModified)
+        );
+
+        let mut source_trigger = trigger(&initial, GitActivationEventClass::PathModified, true);
+        source_trigger.ref_names = vec!["HEAD".to_owned()];
+        source_trigger.path_prefixes = vec![PathIdentity::from_bytes(b"src/")];
+        let proposal = derive_activation_proposals(&transition, &[source_trigger.clone()])
+            .unwrap()
+            .remove(0);
+        assert_eq!(proposal.matched_ref_names, vec!["HEAD"]);
+        assert_eq!(proposal.matched_path_changes.len(), 1);
+        assert_eq!(
+            proposal.matched_path_changes[0].path.display,
+            "src/modified"
+        );
+        assert_eq!(
+            proposal.matched_path_changes[0].kind,
+            GitPathChangeKind::Modified
+        );
+
+        let (_, replay) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(transition, replay);
+        assert_eq!(
+            vec![proposal],
+            derive_activation_proposals(&replay, &[source_trigger]).unwrap()
+        );
+
+        let mut invalid_trigger = trigger(&initial, GitActivationEventClass::RefFastForward, true);
+        invalid_trigger.path_prefixes = vec![PathIdentity::from_bytes(b"src/")];
+        assert!(matches!(
+            invalid_trigger.verify(),
+            Err(GitError::InvalidActivationTrigger)
+        ));
+        let mut tampered = transition;
+        tampered.path_deltas[0].changes[0].path.display = "different".to_owned();
+        assert!(matches!(
+            tampered.verify(),
+            Err(GitError::InvalidPollTransition | GitError::InvalidSnapshot)
+        ));
+    }
+
+    #[test]
+    fn path_change_bounds_are_explicit_and_gate_complete_triggers() {
+        let directory = repository();
+        let mut inspect = inspector(directory.path());
+        inspect.limits.max_path_changes_per_ref = 1;
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+        fs::write(directory.path().join("added-a"), "a\n").unwrap();
+        fs::write(directory.path().join("added-b"), "b\n").unwrap();
+        git(directory.path(), &["add", "added-a", "added-b"]);
+        git(directory.path(), &["commit", "-q", "-m", "two paths"]);
+
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        let delta = &transition.path_deltas[0];
+        assert_eq!(delta.changes.len(), 1);
+        assert_eq!(delta.max_changes, 1);
+        assert!(!delta.complete);
+        assert_eq!(
+            delta.omissions,
+            vec!["HEAD path changes exceed the 1-change limit"]
+        );
+        let complete = trigger(&initial, GitActivationEventClass::PathAdded, true);
+        assert!(
+            derive_activation_proposals(&transition, &[complete])
+                .unwrap()
+                .is_empty()
+        );
+        let partial = trigger(&initial, GitActivationEventClass::PathAdded, false);
+        let proposal = derive_activation_proposals(&transition, &[partial])
+            .unwrap()
+            .remove(0);
+        assert!(!proposal.complete);
+        assert_eq!(proposal.matched_path_changes.len(), 1);
+        assert_eq!(proposal.omissions, delta.omissions);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn path_deltas_and_prefixes_preserve_non_utf8_bytes() {
+        use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+        fs::create_dir(directory.path().join("weird")).unwrap();
+        let filename = OsString::from_vec(vec![0xff]);
+        fs::write(directory.path().join("weird").join(filename), "bytes\n").unwrap();
+        git(directory.path(), &["add", "--all"]);
+        git(directory.path(), &["commit", "-q", "-m", "non utf8 path"]);
+
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        let path = &transition.path_deltas[0].changes[0].path;
+        assert_eq!(path.decoded_bytes().unwrap(), b"weird/\xff");
+        assert_eq!(path.encoding, "base64url");
+        let mut path_trigger = trigger(&initial, GitActivationEventClass::PathAdded, true);
+        path_trigger.path_prefixes = vec![PathIdentity::from_bytes(b"weird/")];
+        let proposal = derive_activation_proposals(&transition, &[path_trigger])
+            .unwrap()
+            .remove(0);
+        assert_eq!(proposal.matched_path_changes[0].path, *path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn path_deltas_distinguish_type_changes_from_mode_only_modifications() {
+        use std::os::unix::{fs::PermissionsExt, fs::symlink};
+
+        let directory = repository();
+        fs::write(directory.path().join("typed"), "target\n").unwrap();
+        fs::write(directory.path().join("mode-only"), "same bytes\n").unwrap();
+        git(directory.path(), &["add", "typed", "mode-only"]);
+        git(directory.path(), &["commit", "-q", "-m", "mode baseline"]);
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+
+        fs::remove_file(directory.path().join("typed")).unwrap();
+        symlink("target", directory.path().join("typed")).unwrap();
+        let mode_path = directory.path().join("mode-only");
+        let mut permissions = fs::metadata(&mode_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&mode_path, permissions).unwrap();
+        git(directory.path(), &["add", "--all"]);
+        git(directory.path(), &["commit", "-q", "-m", "mode changes"]);
+
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        let changes = &transition.path_deltas[0].changes;
+        let mode_only = changes
+            .iter()
+            .find(|change| change.path.display == "mode-only")
+            .unwrap();
+        assert_eq!(mode_only.kind, GitPathChangeKind::Modified);
+        assert_eq!(mode_only.source_oid, mode_only.target_oid);
+        assert_ne!(mode_only.source_mode, mode_only.target_mode);
+        let typed = changes
+            .iter()
+            .find(|change| change.path.display == "typed")
+            .unwrap();
+        assert_eq!(typed.kind, GitPathChangeKind::TypeChanged);
+        assert_ne!(typed.source_mode, typed.target_mode);
+        assert!(
+            transition
+                .events
+                .contains(&GitActivationEventClass::PathModified)
+        );
+        assert!(
+            transition
+                .events
+                .contains(&GitActivationEventClass::PathTypeChanged)
+        );
     }
 
     #[test]
@@ -3751,6 +4744,7 @@ mod tests {
             vec![
                 GitActivationEventClass::RefRewound,
                 GitActivationEventClass::CommitReachableRemoved,
+                GitActivationEventClass::PathModified,
                 GitActivationEventClass::IndexChanged,
             ]
         );
@@ -3766,6 +4760,7 @@ mod tests {
                 GitActivationEventClass::RefRewritten,
                 GitActivationEventClass::CommitReachableAdded,
                 GitActivationEventClass::CommitReachableRemoved,
+                GitActivationEventClass::PathModified,
                 GitActivationEventClass::IndexChanged,
             ]
         );
@@ -3796,6 +4791,11 @@ mod tests {
                 .events
                 .contains(&GitActivationEventClass::RefCreated)
         );
+        assert_eq!(created.path_deltas[0].changes.len(), 1);
+        assert_eq!(
+            created.path_deltas[0].changes[0].kind,
+            GitPathChangeKind::Added
+        );
 
         let created_cursor = GitPollCursor::from_retained_snapshot(
             &created_snapshot,
@@ -3813,6 +4813,11 @@ mod tests {
             deleted
                 .events
                 .contains(&GitActivationEventClass::RefDeleted)
+        );
+        assert_eq!(deleted.path_deltas[0].changes.len(), 1);
+        assert_eq!(
+            deleted.path_deltas[0].changes[0].kind,
+            GitPathChangeKind::Deleted
         );
     }
 

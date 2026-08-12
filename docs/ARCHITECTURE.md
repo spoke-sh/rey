@@ -554,10 +554,12 @@ A poll compares the current repository snapshot with its last completely
 processed cursor. Initialization freezes exact watched-ref names and retains
 their targets or absence; each later movement is classified independently
 from HEAD. Every changed ref retains bounded canonical added/removed reachable
-commit sets from the raw object graph; path deltas remain planned. Semantic
-index changes expose staged proposals before a commit exists, while raw index
-changes caused only by stat-cache refresh do not activate staged-content
-workload entries.
+commit sets from the raw object graph and a bounded canonical tree-to-tree path
+delta. Path evidence preserves reversible byte identity, direction, source and
+target modes/OIDs, omissions, and exact ref scope; rename inference is
+disabled. Semantic index changes expose staged proposals before a commit
+exists, while raw index changes caused only by stat-cache refresh do not
+activate staged-content workload entries.
 
 Triggers select delta subsets and name an affected workload revision, scenario
 selection, or declared graph entry point. An activation has deterministic

@@ -20,11 +20,13 @@ CLI freezes an exact watched-ref scope at initialization, including refs that
 are currently absent, and retains the baseline cursor, one pending transition
 with its triggers and proposals, and acknowledged transition history under
 `.rey/git`. Every changed HEAD or watched ref also carries bounded canonical
-added/removed reachable-commit sets. The bounded `rey git watch` surface
+added/removed reachable-commit sets and a bounded tree-to-tree path delta with
+reversible byte identities, direction, modes, and object OIDs. The bounded
+`rey git watch` surface
 repeats that observation, retains every cadence tick and normal terminal
 receipt, and stops at the first changed transition without advancing the
-cursor. Path deltas, cross-poll debounce, and remote synchronization remain
-future Git work. Workload packages can already bind exact
+cursor. Cross-poll debounce and remote synchronization remain future Git
+work. Workload packages can already bind exact
 HEAD or semantic-index revisions and derive attention from the acknowledged
 cursor snapshot without treating an ambient observation or activation proposal
 as authority. A separate workload command can admit a current acknowledged
@@ -184,9 +186,12 @@ Git-backed spaces commonly compare:
 - one semantic index snapshot to another — staging activity.
 
 Untracked files are a separate declared worktree surface. Ignored files remain
-excluded unless a lens explicitly and safely includes them. A Git text patch is
-useful evidence, but Rey should also retain typed path, mode, OID, rename/copy
-classification, and conflict relations needed for scheduling and proof.
+excluded unless a lens explicitly and safely includes them. A Git text patch
+is useful evidence, but Rey also retains typed path, mode, and OID changes
+needed for scheduling and proof. The current tree delta deliberately disables
+rename/copy inference: a moved blob is one deletion and one addition unless a
+later bounded operation explicitly supplies a stronger classification.
+Conflict and richer rename/copy relations remain future work.
 
 Source mining may add line/text, syntax-tree, symbol/reference, dependency, or
 metric deltas over the same frozen Git inputs. Those artifacts cite their
@@ -265,8 +270,9 @@ One bounded poll performs:
 2. freeze current HEAD, watched refs, semantic index, and declared worktree
    state;
 3. compare them with the prior cursor;
-4. traverse only the bounded raw commit graph needed to classify ref movement
-   and derive added/removed reachability;
+4. traverse only the bounded raw commit graph and exact endpoint trees needed
+   to classify ref movement, derive added/removed reachability, and compare
+   paths;
 5. materialize typed Git deltas with explicit traversal limits and omissions;
 6. match trigger predicates and create deterministic activation identities;
 7. retain the transition and proposal evidence;
@@ -276,9 +282,9 @@ One bounded poll performs:
 10. schedule and execute the selected workload scenarios or graph entry point.
 
 The current library and CLI implement steps 1–8 for HEAD, exact watched refs,
-bounded reachable-commit sets, and the complete supported logical-index
-semantics. `rey workloads
-admit-activation` implements step 9, and
+bounded reachable-commit sets, bounded tree path deltas, and the complete
+supported logical-index semantics. `rey workloads admit-activation` implements
+step 9, and
 `execute-activation` implements the scenario-selection form of step 10. It
 revalidates exact current Git, workload HEAD, graph, scenarios, capabilities,
 and budgets before executing. `rey workloads verify-activation` can then
@@ -315,6 +321,16 @@ so classification and reachability use the raw object graph. A rebase or
 force-push emits a ref rewrite and reachable-set delta; it does not fabricate
 append events as though history were monotonic.
 
+For every changed `HEAD` or watched ref, the implemented poll compares the
+exact source and target commit trees. Created and deleted refs use bounded tree
+inventories. Each retained change carries an added, deleted, modified, or
+type-changed direction; reversible base64url path bytes plus a lossy display;
+and the applicable source/target mode and object OID. Changes are canonical by
+raw path bytes and `--max-path-changes-per-ref` is a positive hard retention
+bound. Overflow retains the canonical prefix and an explicit omission. Missing
+trees make only that path delta partial. Rename and copy heuristics are
+disabled, so their similarity thresholds cannot alter trigger identity.
+
 ## Triggers And Activations
 
 A trigger maps a typed source delta predicate to one or more workload
@@ -343,6 +359,10 @@ ref.rewritten
 ref.unknown
 commit.reachable_added
 commit.reachable_removed
+path.added
+path.deleted
+path.modified
+path.type_changed
 index.changed
 index.conflicted
 ```
@@ -401,16 +421,18 @@ cannot inherit the result. This is deterministic same-transition work reuse,
 not cross-poll debounce or evidence loss.
 
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
-classes, optional exact `HEAD` or watched-ref names, completeness posture,
-exact workload/graph/scenarios, and action, scenario, and evidence budgets.
-Reachability events use the same exact ref selection and carry only their
-selected traversal omissions into a proposal. Supported semantic-index
+classes, optional exact `HEAD` or watched-ref names, optional reversible
+raw-byte path prefixes for path events, completeness posture, exact
+workload/graph/scenarios, and action, scenario, and evidence budgets.
+Reachability and path events use the same exact ref selection. A path proposal
+retains each exact matched ref, path identity, and change direction; only
+omissions from selected evidence enter the proposal. Supported semantic-index
 transitions are complete and can satisfy a completeness-requiring trigger. If
-an unknown persistent flag, traversal bound, shallow history, or missing
-object makes selected evidence incomplete, it matches only when a trigger
-explicitly permits incomplete evidence and the proposal retains the omission.
-HEAD and watched-ref ancestry/reachability completeness remain independent
-from the index axis.
+an unknown persistent flag, traversal or path bound, shallow history, or
+missing object makes selected evidence incomplete, it matches only when a
+trigger explicitly permits incomplete evidence and the proposal retains the
+omission. HEAD and watched-ref ancestry, reachability, and path completeness
+remain independent from the index axis.
 
 Workloads can therefore activate narrowly. An index delta touching Rust
 sources might select symbol and diagnostic scenarios, while a new commit on a

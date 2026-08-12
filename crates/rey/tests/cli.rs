@@ -26,7 +26,7 @@ use rey::workloads::{
 use rey_core::ContractIdentity;
 use rey_git::{
     GIT_ACTIVATION_TRIGGER_SCHEMA, GitActivationBudget, GitActivationEventClass,
-    GitActivationTrigger,
+    GitActivationTrigger, GitPathChangeKind, PathIdentity,
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
@@ -1168,6 +1168,7 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
         worktree_id: snapshot.worktree_id.clone(),
         event_classes: vec![GitActivationEventClass::RefFastForward],
         ref_names: Vec::new(),
+        path_prefixes: Vec::new(),
         require_complete: true,
         workload_id: "fixture-workload".to_owned(),
         graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -1341,6 +1342,22 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
         String::from_utf8_lossy(&invalid_limit.stderr)
             .contains("limits must be within their supported positive bounds")
     );
+    let invalid_path_limit = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "--max-path-changes-per-ref",
+        "0",
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(invalid_path_limit.status.code(), Some(1));
+    assert!(invalid_path_limit.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&invalid_path_limit.stderr)
+            .contains("limits must be within their supported positive bounds")
+    );
 
     let initialized = run_rey_workspace(&[
         "git",
@@ -1394,8 +1411,13 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
         revision: 1,
         repository_id: snapshot.repository_id.clone(),
         worktree_id: snapshot.worktree_id.clone(),
-        event_classes: vec![GitActivationEventClass::CommitReachableAdded],
+        event_classes: vec![GitActivationEventClass::PathModified],
         ref_names: vec!["refs/heads/release".to_owned()],
+        path_prefixes: vec![PathIdentity {
+            encoding: "base64url".to_owned(),
+            bytes: "dHJhY2tlZA".to_owned(),
+            display: "tracked".to_owned(),
+        }],
         require_complete: true,
         workload_id: "fixture-workload".to_owned(),
         graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -1436,6 +1458,18 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
         1
     );
     assert!(polled.record.transition.reachability_deltas[0].complete);
+    assert_eq!(polled.record.transition.path_deltas.len(), 1);
+    assert_eq!(polled.record.transition.path_deltas[0].changes.len(), 1);
+    assert_eq!(
+        polled.record.transition.path_deltas[0].changes[0].kind,
+        GitPathChangeKind::Modified
+    );
+    assert_eq!(
+        polled.record.transition.path_deltas[0].changes[0]
+            .path
+            .display,
+        "tracked"
+    );
     assert_eq!(
         polled.record.transition.watched_ref_changes[0].ref_name,
         "refs/heads/release"
@@ -1444,6 +1478,13 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
     assert_eq!(
         polled.record.proposals[0].matched_ref_names,
         vec!["refs/heads/release"]
+    );
+    assert_eq!(polled.record.proposals[0].matched_path_changes.len(), 1);
+    assert_eq!(
+        polled.record.proposals[0].matched_path_changes[0]
+            .path
+            .display,
+        "tracked"
     );
     let human = run_rey_workspace(&[
         "git",
@@ -1463,7 +1504,16 @@ fn git_cli_retains_exact_watched_ref_scope_and_projects_ref_matches() {
     assert!(human.contains("Reachability deltas    see below"));
     assert!(human.contains("1 added · 0 removed · complete · limit 256 per direction"));
     assert!(human.contains("commit.reachable_added"));
+    assert!(human.contains("Path deltas            see below"));
+    assert!(human.contains("1 changes · complete · limit 2048"));
+    assert!(human.contains("modified tracked · base64url:dHJhY2tlZA"));
+    assert!(human.contains("path.modified"));
     assert!(human.contains("matched refs: refs/heads/release"));
+    assert!(
+        human.contains(
+            "matched path: refs/heads/release · modified · tracked · base64url:dHJhY2tlZA"
+        )
+    );
 
     let acknowledged = run_rey_workspace(&[
         "git",
@@ -1645,6 +1695,7 @@ fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
         worktree_id: initial_snapshot.worktree_id.clone(),
         event_classes: vec![GitActivationEventClass::RefFastForward],
         ref_names: Vec::new(),
+        path_prefixes: Vec::new(),
         require_complete: true,
         workload_id: "fixture-workload".to_owned(),
         graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
@@ -2139,6 +2190,7 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         worktree_id: snapshot.worktree_id.clone(),
         event_classes: vec![GitActivationEventClass::RefFastForward],
         ref_names: Vec::new(),
+        path_prefixes: Vec::new(),
         require_complete: true,
         workload_id: workload.workload.id.clone(),
         graph: workload.candidate_graph.clone(),

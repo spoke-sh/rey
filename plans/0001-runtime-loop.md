@@ -32,10 +32,12 @@ transition, and proposal-only activation evidence. It classifies watched refs
 independently from HEAD, derives bounded added/removed reachable-commit sets,
 and retains exact trigger-ref matches. Its semantic index identity includes
 stages, modes, OIDs, reversible paths, and supported behavior flags while
-ignoring stat/cache storage churn. Workloads can declare exact Git HEAD or
-semantic-index dependencies; portfolio attention compares them only with the
-acknowledged cursor snapshot, so ambient repository movement cannot silently
-invalidate work. An acknowledged proposal can now cross a separate exact
+ignoring stat/cache storage churn. Each changed ref also retains bounded
+tree-to-tree path direction with reversible byte identity, modes, OIDs, and
+exact ref/path trigger matches without rename inference. Workloads can declare
+exact Git HEAD or semantic-index dependencies; portfolio attention compares
+them only with the acknowledged cursor snapshot, so ambient repository movement
+cannot silently invalidate work. An acknowledged proposal can now cross a separate exact
 workload admission gate and execute only its retained scenario selection after
 the Git cursor, workload HEAD, capabilities, and budget are revalidated. The
 result is replay-stable and cannot replace full-suite qualification. Activation
@@ -93,12 +95,12 @@ and the remaining recurrence failure bounds remain open.
 - [x] Execute one admitted scenario selection under its exact evidence budget,
   retain its typed deltas separately from qualification, and replay the result
   without rerunning the graph.
-- [ ] Extend activation evidence through watched refs, reachable/path deltas,
+- [x] Extend activation evidence through watched refs, reachable/path deltas,
   and complete supported index semantics. Standard stage, mode, OID, path,
   assume-unchanged, skip-worktree, and intent-to-add semantics are complete;
   exact watched-ref scope, absence, movement, and trigger matching are
   complete; bounded reachable-commit sets and event matching are complete;
-  path deltas remain open.
+  bounded tree path deltas and raw-byte prefix matching are complete.
 - [x] Coalesce compatible same-transition activations onto one exact retained
   scenario result only when all frozen inputs match and the result fits the
   stricter admission budget.
