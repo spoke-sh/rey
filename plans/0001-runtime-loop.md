@@ -26,8 +26,9 @@ scheduling, and bounded reasoning surfaces. Workloads declare bounded owned
 surfaces; retained mapped-file and capability changes derive owner attention.
 One selected ready `CREATE` row now crosses an immutable external-harness
 request/response and human admission cycle without Rey invoking a harness.
-A manual bounded Git poll now retains cursor, pending transition, and
-proposal-only activation evidence. Workloads can declare exact Git HEAD or
+A bounded Git poll/watch now retains cursor, every cadence tick, normal watch
+receipts, pending transition, and proposal-only activation evidence. Workloads
+can declare exact Git HEAD or
 semantic-index dependencies; portfolio attention compares them only with the
 acknowledged cursor snapshot, so ambient repository movement cannot silently
 invalidate work. An acknowledged proposal can now cross a separate exact
@@ -35,8 +36,10 @@ workload admission gate and execute only its retained scenario selection after
 the Git cursor, workload HEAD, capabilities, and budget are revalidated. The
 result is replay-stable and cannot replace full-suite qualification. Activation
 executions from compatible proposals in the same transition can coalesce onto
-that exact retained result without erasing either activation identity. A
-bounded recurring scheduler and cross-poll debounce remain open.
+that exact retained result without erasing either activation identity. Watch
+stops honestly at iteration/time bounds or the first changed transition and
+never acknowledges or executes it. Autonomous scheduling, cross-poll debounce,
+and full-recomputation equivalence remain open.
 
 ## Completion Checklist
 
@@ -88,11 +91,14 @@ bounded recurring scheduler and cross-poll debounce remain open.
 - [x] Coalesce compatible same-transition activations onto one exact retained
   scenario result only when all frozen inputs match and the result fits the
   stricter admission budget.
-- [ ] Advance recurrence state only after required evidence reaches its claimed
-  retention boundary; retain skipped/coalesced poll evidence explicitly.
+- [x] Advance recurrence observation only after each cadence tick reaches its
+  retention boundary; retain normal watch receipts, changed transitions, quiet
+  ticks, interrupted receipt gaps, and coalesced execution evidence explicitly.
 - [ ] Run the loop under explicit iteration, time, action, evidence, retry,
   cancellation, and partial-failure bounds; stop without claiming convergence
-  when a bound or evidence gap is reached.
+  when a bound or evidence gap is reached. Iteration/time cadence and
+  activation action/evidence bounds are implemented; retry, cancellation, and
+  partial-failure recurrence remain open.
 
 ### 5. Qualify the slice
 

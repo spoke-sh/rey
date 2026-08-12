@@ -198,14 +198,17 @@ does not grant a tool, workload, agent, or scene permission to act.
 Repository activation uses a separate explicit evidence loop: `rey git init`
 retains a baseline, `poll` retains one typed transition and proposal set, and
 `ack` advances the cursor only from that exact evidence. These commands never
-mutate Git or execute a proposed workload. `rey workloads admit-activation`
-then applies the ordinary workload preconditions and retains scheduling
-eligibility only. `rey workloads execute-activation` revalidates those exact
-inputs, evaluates only the admitted scenarios under the retained evidence
-budget, and records a replay-stable result without mutating Git or replacing
-full-suite qualification. Compatible proposals from the same retained Git
-transition can cite that exact result without rerunning the graph; stricter
-budgets and changed inputs never coalesce.
+mutate Git or execute a proposed workload. `rey git watch` repeats the same
+observation under explicit iteration, cadence, and elapsed bounds, retaining
+every tick and its terminal receipt; it stops at the first changed transition
+and still requires exact `ack`. `rey workloads admit-activation` then applies
+the ordinary workload preconditions and retains scheduling eligibility only.
+`rey workloads execute-activation` revalidates those exact inputs, evaluates
+only the admitted scenarios under the retained evidence budget, and records a
+replay-stable result without mutating Git or replacing full-suite
+qualification. Compatible proposals from the same retained Git transition can
+cite that exact result without rerunning the graph; stricter budgets and
+changed inputs never coalesce.
 
 A workload is Rey's public unit of computation: one versioned graph, scenario
 suite, policy boundary, qualification contract, and total budget. Agents,

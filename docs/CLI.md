@@ -233,6 +233,8 @@ unadmitted candidate. There is intentionally no separate `init`, `import`, or
 rey git [--workspace PATH] [--state-dir PATH] status
 rey git ... init
 rey git ... poll [--trigger TRIGGER.yaml]...
+rey git ... watch [--trigger TRIGGER.yaml]... [--max-iterations N]
+  [--interval-ms N] [--max-elapsed-ms N]
 rey git ... ack TRANSITION_ID
 ```
 
@@ -244,6 +246,17 @@ compares the partial semantic index, and retains one changed transition plus
 its exact triggers and deterministic proposal-only activations. Repeating the
 same poll is identity-stable and does not duplicate pending evidence; a
 different transition cannot replace an unacknowledged one.
+
+`watch` repeats that exact poll observation only under explicit iteration,
+cadence, and elapsed scheduling bounds. Each observation is retained first as
+a content-identified cadence tick. A changed tick atomically retains the same
+pending transition and proposal evidence as `poll`, then stops. A normal stop
+also retains a compact receipt that cites its exact tick range, measured
+elapsed time, stop reason (`pending_transition`, `iteration_limit`, or
+`time_limit`), omissions, and authority. If interruption occurs after a tick
+but before the receipt, `git status` exposes the unreceipted count. `watch`
+never acknowledges a transition, advances the cursor, executes a workload, or
+silently starts another watch.
 
 `ack` requires the exact pending transition identity, retains it in local
 history, and advances the cursor from that evidence. A snapshot id, stale
@@ -384,7 +397,7 @@ does not bypass the three-plane contract.
 | --- | --- |
 | `status`, `list`, `diff`, `log` | Read-only with respect to Rey admission state. A status/diff may perform its documented bounded fresh observation. |
 | `git status` | Read-only Git and Rey-state observation; it creates no cursor. |
-| `git init`, `git poll`, `git ack` | Retain a baseline, pending transition evidence, or exact cursor advancement respectively; none mutates Git or executes a workload. |
+| `git init`, `git poll`, `git watch`, `git ack` | Retain a baseline, one pending transition, bounded cadence evidence, or exact cursor advancement respectively; none mutates Git or executes a workload. |
 | `env add`, `editor add`, `workloads add` | Mutate only the corresponding INDEX. |
 | `env commit`, `editor commit`, `workloads commit` | Verify and advance only from INDEX; never absorb later WORKING state. |
 | `workloads test --staged` | Executes bounded scenario probes and retains qualification evidence; never advances HEAD. |
@@ -484,7 +497,7 @@ By default Rey keeps local state under the selected workspace:
 
 ```text
 .rey/env/         environment history and admission index
-.rey/git/         Git cursor, pending activation evidence, and transition history
+.rey/git/         Git cursor, pending activation evidence, cadence receipts, and transition history
 .rey/workloads/   workload objects, qualification results, and history
 .rey/editor/      scene INDEX objects, packages, and history
 .rey/channels/    Channel WORKING proposal

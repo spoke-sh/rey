@@ -1,10 +1,12 @@
 use std::{
+    collections::BTreeSet,
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
 
-use rey_core::SemanticDigest;
+use chrono::Utc;
+use rey_core::{SemanticDigest, SemanticHasher};
 use rey_git::{
     GitActivationProposal, GitActivationTrigger, GitError, GitPollCursor, GitPollTransition,
     GitSnapshot, derive_activation_proposals,
@@ -17,9 +19,17 @@ pub const GIT_POLL_RECORD_SCHEMA: &str = "rey.git-poll-record.v1";
 pub const GIT_OPERATOR_STATUS_SCHEMA: &str = "rey.git-operator-status.v1";
 pub const GIT_POLL_OUTCOME_SCHEMA: &str = "rey.git-poll-outcome.v1";
 pub const GIT_ACKNOWLEDGEMENT_SCHEMA: &str = "rey.git-acknowledgement.v1";
+pub const GIT_CADENCE_TICK_SCHEMA: &str = "rey.git-cadence-tick.v1";
+pub const GIT_WATCH_OUTCOME_SCHEMA: &str = "rey.git-watch-outcome.v1";
+pub const GIT_WATCH_RECEIPT_SCHEMA: &str = "rey.git-watch-receipt.v1";
+pub const MAX_GIT_WATCH_ITERATIONS: u64 = 1_024;
+pub const MAX_GIT_WATCH_INTERVAL_MS: u64 = 60_000;
+pub const MAX_GIT_WATCH_ELAPSED_MS: u64 = 86_400_000;
 const STATE_FILE_NAME: &str = "state.json";
 const MAX_GIT_STATE_BYTES: u64 = 16 * 1_024 * 1_024;
 const MAX_RETAINED_GIT_TRANSITIONS: usize = 1_024;
+const MAX_RETAINED_GIT_CADENCE_TICKS: usize = 4_096;
+const MAX_RETAINED_GIT_WATCH_RECEIPTS: usize = 4_096;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -50,7 +60,7 @@ impl GitOperatorStatus {
             state,
             repository_authority: "read_only_observation; no Git mutation or workload execution"
                 .to_owned(),
-            next: "Initialize a retained cursor, poll a transition, or acknowledge exact retained transition evidence"
+            next: "Initialize a retained cursor, poll/watch transitions, or acknowledge exact retained transition evidence"
                 .to_owned(),
         })
     }
@@ -73,6 +83,329 @@ pub struct GitAcknowledgement {
     pub cursor: GitPollCursor,
     pub retained_transition_count: u64,
     pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitCadenceTick {
+    pub schema: String,
+    pub tick_id: SemanticDigest,
+    pub sequence: u64,
+    pub observed_at_unix_ms: i64,
+    pub source_cursor_id: SemanticDigest,
+    pub source_snapshot_id: SemanticDigest,
+    pub observed_snapshot_id: SemanticDigest,
+    pub changed: bool,
+    pub retained_transition_id: Option<SemanticDigest>,
+    pub activation_ids: Vec<SemanticDigest>,
+    pub interval_ms: u64,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+    pub authority: String,
+}
+
+impl GitCadenceTick {
+    fn new(
+        sequence: u64,
+        cursor: &GitPollCursor,
+        record: &GitPollRecord,
+        changed: bool,
+        interval_ms: u64,
+    ) -> Result<Self, LocalGitStateError> {
+        let mut omissions = record.transition.omissions.clone();
+        if !record.target_snapshot.complete && omissions.is_empty() {
+            omissions.push("Git snapshot is incomplete under provider semantics".to_owned());
+        }
+        omissions.sort();
+        omissions.dedup();
+        let mut activation_ids = record
+            .proposals
+            .iter()
+            .map(|proposal| proposal.activation_id.clone())
+            .collect::<Vec<_>>();
+        activation_ids.sort();
+        let mut tick = Self {
+            schema: GIT_CADENCE_TICK_SCHEMA.to_owned(),
+            tick_id: SemanticHasher::new("rey.git-cadence-tick.pending.v1").finish(),
+            sequence,
+            observed_at_unix_ms: Utc::now().timestamp_millis(),
+            source_cursor_id: cursor.cursor_id.clone(),
+            source_snapshot_id: cursor.snapshot_id.clone(),
+            observed_snapshot_id: record.target_snapshot.snapshot_id.clone(),
+            changed,
+            retained_transition_id: changed.then(|| record.transition.transition_id.clone()),
+            activation_ids,
+            interval_ms,
+            complete: omissions.is_empty(),
+            omissions,
+            authority: "cadence_observation_only; no Git mutation or workload execution".to_owned(),
+        };
+        tick.tick_id = git_cadence_tick_digest(&tick);
+        tick.verify_against(record)?;
+        Ok(tick)
+    }
+
+    pub fn verify(&self) -> Result<(), LocalGitStateError> {
+        if self.schema != GIT_CADENCE_TICK_SCHEMA
+            || !is_semantic_digest(&self.tick_id)
+            || self.sequence == 0
+            || self.observed_at_unix_ms < 0
+            || !is_semantic_digest(&self.source_cursor_id)
+            || !is_semantic_digest(&self.source_snapshot_id)
+            || !is_semantic_digest(&self.observed_snapshot_id)
+            || self.interval_ms == 0
+            || self.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
+            || self.complete != self.omissions.is_empty()
+            || !is_canonical(&self.activation_ids)
+            || !is_canonical(&self.omissions)
+            || self
+                .retained_transition_id
+                .as_ref()
+                .is_some_and(|transition| !is_semantic_digest(transition))
+            || if self.changed {
+                self.retained_transition_id.is_none()
+            } else {
+                self.retained_transition_id.is_some()
+                    || !self.activation_ids.is_empty()
+                    || self.source_snapshot_id != self.observed_snapshot_id
+            }
+            || self.authority != "cadence_observation_only; no Git mutation or workload execution"
+            || self.tick_id != git_cadence_tick_digest(self)
+        {
+            return Err(LocalGitStateError::InvalidCadenceTick);
+        }
+        Ok(())
+    }
+
+    fn verify_against(&self, record: &GitPollRecord) -> Result<(), LocalGitStateError> {
+        self.verify()?;
+        record.verify()?;
+        let changed = record.transition.source_snapshot_id != record.transition.target_snapshot_id
+            || !record.transition.events.is_empty();
+        let mut activation_ids = record
+            .proposals
+            .iter()
+            .map(|proposal| proposal.activation_id.clone())
+            .collect::<Vec<_>>();
+        activation_ids.sort();
+        let mut omissions = record.transition.omissions.clone();
+        if !record.target_snapshot.complete && omissions.is_empty() {
+            omissions.push("Git snapshot is incomplete under provider semantics".to_owned());
+        }
+        omissions.sort();
+        omissions.dedup();
+        if self.source_cursor_id != record.transition.source_cursor_id
+            || self.source_snapshot_id != record.transition.source_snapshot_id
+            || self.observed_snapshot_id != record.transition.target_snapshot_id
+            || self.changed != changed
+            || self.retained_transition_id.as_ref()
+                != changed.then_some(&record.transition.transition_id)
+            || self.activation_ids != activation_ids
+            || self.omissions != omissions
+            || self.complete != omissions.is_empty()
+        {
+            return Err(LocalGitStateError::InvalidCadenceTick);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GitWatchStopReason {
+    PendingTransition,
+    IterationLimit,
+    TimeLimit,
+}
+
+impl GitWatchStopReason {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PendingTransition => "pending_transition",
+            Self::IterationLimit => "iteration_limit",
+            Self::TimeLimit => "time_limit",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitWatchOutcome {
+    pub schema: String,
+    pub watch_id: SemanticDigest,
+    pub max_iterations: u64,
+    pub interval_ms: u64,
+    pub max_elapsed_ms: u64,
+    pub elapsed_ms: u64,
+    pub ticks: Vec<GitCadenceTick>,
+    pub stop_reason: GitWatchStopReason,
+    pub pending_transition_id: Option<SemanticDigest>,
+    pub authority: String,
+}
+
+impl GitWatchOutcome {
+    pub fn new(
+        max_iterations: u64,
+        interval_ms: u64,
+        max_elapsed_ms: u64,
+        elapsed_ms: u64,
+        ticks: Vec<GitCadenceTick>,
+        stop_reason: GitWatchStopReason,
+    ) -> Result<Self, LocalGitStateError> {
+        let pending_transition_id = ticks
+            .last()
+            .and_then(|tick| tick.retained_transition_id.clone());
+        let mut outcome = Self {
+            schema: GIT_WATCH_OUTCOME_SCHEMA.to_owned(),
+            watch_id: SemanticHasher::new("rey.git-watch-outcome.pending.v1").finish(),
+            max_iterations,
+            interval_ms,
+            max_elapsed_ms,
+            elapsed_ms,
+            ticks,
+            stop_reason,
+            pending_transition_id,
+            authority:
+                "bounded_cadence_observation; pending evidence requires explicit acknowledgement"
+                    .to_owned(),
+        };
+        outcome.watch_id = git_watch_outcome_digest(&outcome);
+        outcome.verify()?;
+        Ok(outcome)
+    }
+
+    pub fn verify(&self) -> Result<(), LocalGitStateError> {
+        for tick in &self.ticks {
+            tick.verify()?;
+        }
+        let canonical_sequence = self
+            .ticks
+            .windows(2)
+            .all(|window| window[0].sequence + 1 == window[1].sequence);
+        if self.schema != GIT_WATCH_OUTCOME_SCHEMA
+            || !is_semantic_digest(&self.watch_id)
+            || self.max_iterations == 0
+            || self.max_iterations > MAX_GIT_WATCH_ITERATIONS
+            || self.interval_ms == 0
+            || self.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
+            || self.max_elapsed_ms == 0
+            || self.max_elapsed_ms > MAX_GIT_WATCH_ELAPSED_MS
+            || self.ticks.is_empty()
+            || self.ticks.len() as u64 > self.max_iterations
+            || self
+                .ticks
+                .iter()
+                .any(|tick| tick.interval_ms != self.interval_ms)
+            || !canonical_sequence
+            || self.pending_transition_id
+                != self
+                    .ticks
+                    .last()
+                    .and_then(|tick| tick.retained_transition_id.clone())
+            || ((self.stop_reason == GitWatchStopReason::PendingTransition)
+                != self.pending_transition_id.is_some())
+            || (self.stop_reason == GitWatchStopReason::IterationLimit
+                && self.ticks.len() as u64 != self.max_iterations)
+            || (self.stop_reason == GitWatchStopReason::TimeLimit
+                && self.elapsed_ms < self.max_elapsed_ms
+                && self.elapsed_ms.saturating_add(self.interval_ms) <= self.max_elapsed_ms)
+            || self
+                .ticks
+                .iter()
+                .take(self.ticks.len().saturating_sub(1))
+                .any(|tick| tick.changed)
+            || self.authority
+                != "bounded_cadence_observation; pending evidence requires explicit acknowledgement"
+            || self.watch_id != git_watch_outcome_digest(self)
+        {
+            return Err(LocalGitStateError::InvalidWatchOutcome);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitWatchReceipt {
+    pub schema: String,
+    pub watch_id: SemanticDigest,
+    pub max_iterations: u64,
+    pub interval_ms: u64,
+    pub max_elapsed_ms: u64,
+    pub elapsed_ms: u64,
+    pub start_sequence: u64,
+    pub end_sequence: u64,
+    pub tick_ids: Vec<SemanticDigest>,
+    pub stop_reason: GitWatchStopReason,
+    pub pending_transition_id: Option<SemanticDigest>,
+    pub authority: String,
+}
+
+impl GitWatchReceipt {
+    fn from_outcome(outcome: &GitWatchOutcome) -> Result<Self, LocalGitStateError> {
+        outcome.verify()?;
+        let first = outcome
+            .ticks
+            .first()
+            .ok_or(LocalGitStateError::InvalidWatchOutcome)?;
+        let last = outcome
+            .ticks
+            .last()
+            .ok_or(LocalGitStateError::InvalidWatchOutcome)?;
+        let receipt = Self {
+            schema: GIT_WATCH_RECEIPT_SCHEMA.to_owned(),
+            watch_id: outcome.watch_id.clone(),
+            max_iterations: outcome.max_iterations,
+            interval_ms: outcome.interval_ms,
+            max_elapsed_ms: outcome.max_elapsed_ms,
+            elapsed_ms: outcome.elapsed_ms,
+            start_sequence: first.sequence,
+            end_sequence: last.sequence,
+            tick_ids: outcome
+                .ticks
+                .iter()
+                .map(|tick| tick.tick_id.clone())
+                .collect(),
+            stop_reason: outcome.stop_reason,
+            pending_transition_id: outcome.pending_transition_id.clone(),
+            authority: outcome.authority.clone(),
+        };
+        receipt.verify()?;
+        Ok(receipt)
+    }
+
+    pub fn verify(&self) -> Result<(), LocalGitStateError> {
+        let unique_ticks = self.tick_ids.iter().collect::<BTreeSet<_>>();
+        if self.schema != GIT_WATCH_RECEIPT_SCHEMA
+            || !is_semantic_digest(&self.watch_id)
+            || self.max_iterations == 0
+            || self.max_iterations > MAX_GIT_WATCH_ITERATIONS
+            || self.interval_ms == 0
+            || self.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
+            || self.max_elapsed_ms == 0
+            || self.max_elapsed_ms > MAX_GIT_WATCH_ELAPSED_MS
+            || self.start_sequence == 0
+            || self.end_sequence < self.start_sequence
+            || self.end_sequence - self.start_sequence + 1 != self.tick_ids.len() as u64
+            || self.tick_ids.is_empty()
+            || self.tick_ids.len() as u64 > self.max_iterations
+            || unique_ticks.len() != self.tick_ids.len()
+            || self.tick_ids.iter().any(|tick| !is_semantic_digest(tick))
+            || ((self.stop_reason == GitWatchStopReason::PendingTransition)
+                != self.pending_transition_id.is_some())
+            || (self.stop_reason == GitWatchStopReason::IterationLimit
+                && self.tick_ids.len() as u64 != self.max_iterations)
+            || (self.stop_reason == GitWatchStopReason::TimeLimit
+                && self.elapsed_ms < self.max_elapsed_ms
+                && self.elapsed_ms.saturating_add(self.interval_ms) <= self.max_elapsed_ms)
+            || self.authority
+                != "bounded_cadence_observation; pending evidence requires explicit acknowledgement"
+            || self.watch_id != git_watch_receipt_digest(self)
+        {
+            return Err(LocalGitStateError::InvalidWatchReceipt);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -133,6 +466,10 @@ pub struct LocalGitState {
     pub cursor: Option<GitPollCursor>,
     pub pending: Option<GitPollRecord>,
     pub retained_polls: Vec<GitPollRecord>,
+    #[serde(default)]
+    pub cadence_ticks: Vec<GitCadenceTick>,
+    #[serde(default)]
+    pub watch_receipts: Vec<GitWatchReceipt>,
 }
 
 impl Default for LocalGitState {
@@ -143,6 +480,8 @@ impl Default for LocalGitState {
             cursor: None,
             pending: None,
             retained_polls: Vec::new(),
+            cadence_ticks: Vec::new(),
+            watch_receipts: Vec::new(),
         }
     }
 }
@@ -151,12 +490,18 @@ impl LocalGitState {
     pub fn verify(&self) -> Result<(), LocalGitStateError> {
         if self.schema != LOCAL_GIT_STATE_SCHEMA
             || self.retained_polls.len() > MAX_RETAINED_GIT_TRANSITIONS
+            || self.cadence_ticks.len() > MAX_RETAINED_GIT_CADENCE_TICKS
+            || self.watch_receipts.len() > MAX_RETAINED_GIT_WATCH_RECEIPTS
             || self.cursor.is_some() != self.cursor_snapshot.is_some()
         {
             return Err(LocalGitStateError::InvalidState);
         }
         let (Some(cursor), Some(snapshot)) = (&self.cursor, &self.cursor_snapshot) else {
-            if self.pending.is_some() || !self.retained_polls.is_empty() {
+            if self.pending.is_some()
+                || !self.retained_polls.is_empty()
+                || !self.cadence_ticks.is_empty()
+                || !self.watch_receipts.is_empty()
+            {
                 return Err(LocalGitStateError::InvalidState);
             }
             return Ok(());
@@ -218,6 +563,57 @@ impl LocalGitState {
                 return Err(LocalGitStateError::InvalidState);
             }
         }
+        for (index, tick) in self.cadence_ticks.iter().enumerate() {
+            tick.verify()?;
+            if tick.sequence != index as u64 + 1 {
+                return Err(LocalGitStateError::InvalidState);
+            }
+            if let Some(transition_id) = &tick.retained_transition_id {
+                let record = self
+                    .pending
+                    .iter()
+                    .chain(self.retained_polls.iter())
+                    .find(|record| &record.transition.transition_id == transition_id)
+                    .ok_or(LocalGitStateError::InvalidState)?;
+                tick.verify_against(record)?;
+            } else if !cursor_boundary_exists(self, tick) {
+                return Err(LocalGitStateError::InvalidState);
+            }
+        }
+        for (index, receipt) in self.watch_receipts.iter().enumerate() {
+            receipt.verify()?;
+            if index > 0 && self.watch_receipts[index - 1].end_sequence >= receipt.start_sequence {
+                return Err(LocalGitStateError::InvalidState);
+            }
+            let start = usize::try_from(receipt.start_sequence - 1)
+                .map_err(|_| LocalGitStateError::InvalidState)?;
+            let end = usize::try_from(receipt.end_sequence)
+                .map_err(|_| LocalGitStateError::InvalidState)?;
+            let ticks = self
+                .cadence_ticks
+                .get(start..end)
+                .ok_or(LocalGitStateError::InvalidState)?;
+            if ticks
+                .iter()
+                .map(|tick| &tick.tick_id)
+                .ne(receipt.tick_ids.iter())
+                || ticks
+                    .iter()
+                    .any(|tick| tick.interval_ms != receipt.interval_ms)
+                || receipt.pending_transition_id
+                    != ticks
+                        .last()
+                        .and_then(|tick| tick.retained_transition_id.clone())
+                || ticks
+                    .iter()
+                    .take(ticks.len().saturating_sub(1))
+                    .any(|tick| tick.changed)
+                || ((receipt.stop_reason == GitWatchStopReason::PendingTransition)
+                    != ticks.last().is_some_and(|tick| tick.changed))
+            {
+                return Err(LocalGitStateError::InvalidState);
+            }
+        }
         Ok(())
     }
 
@@ -248,6 +644,98 @@ impl LocalGitState {
             activation_id.to_owned(),
         ))
     }
+}
+
+fn cursor_boundary_exists(state: &LocalGitState, tick: &GitCadenceTick) -> bool {
+    state.cursor.as_ref().is_some_and(|cursor| {
+        cursor.cursor_id == tick.source_cursor_id && cursor.snapshot_id == tick.source_snapshot_id
+    }) || state.retained_polls.iter().any(|record| {
+        record.transition.source_cursor_id == tick.source_cursor_id
+            && record.transition.source_snapshot_id == tick.source_snapshot_id
+    })
+}
+
+fn git_cadence_tick_digest(tick: &GitCadenceTick) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(GIT_CADENCE_TICK_SCHEMA);
+    hasher.add_u64(tick.sequence);
+    hasher.add_u64(tick.observed_at_unix_ms as u64);
+    hasher.add_str(tick.source_cursor_id.as_str());
+    hasher.add_str(tick.source_snapshot_id.as_str());
+    hasher.add_str(tick.observed_snapshot_id.as_str());
+    hasher.add_bool(tick.changed);
+    hasher.add_optional_str(
+        tick.retained_transition_id
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
+    hasher.add_u64(tick.activation_ids.len() as u64);
+    for activation_id in &tick.activation_ids {
+        hasher.add_str(activation_id.as_str());
+    }
+    hasher.add_u64(tick.interval_ms);
+    hasher.add_bool(tick.complete);
+    hasher.add_u64(tick.omissions.len() as u64);
+    for omission in &tick.omissions {
+        hasher.add_str(omission);
+    }
+    hasher.add_str(&tick.authority);
+    hasher.finish()
+}
+
+fn git_watch_outcome_digest(outcome: &GitWatchOutcome) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(GIT_WATCH_OUTCOME_SCHEMA);
+    hasher.add_u64(outcome.max_iterations);
+    hasher.add_u64(outcome.interval_ms);
+    hasher.add_u64(outcome.max_elapsed_ms);
+    hasher.add_u64(outcome.elapsed_ms);
+    hasher.add_u64(outcome.ticks.len() as u64);
+    for tick in &outcome.ticks {
+        hasher.add_str(tick.tick_id.as_str());
+    }
+    hasher.add_str(outcome.stop_reason.as_str());
+    hasher.add_optional_str(
+        outcome
+            .pending_transition_id
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
+    hasher.add_str(&outcome.authority);
+    hasher.finish()
+}
+
+fn git_watch_receipt_digest(receipt: &GitWatchReceipt) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(GIT_WATCH_OUTCOME_SCHEMA);
+    hasher.add_u64(receipt.max_iterations);
+    hasher.add_u64(receipt.interval_ms);
+    hasher.add_u64(receipt.max_elapsed_ms);
+    hasher.add_u64(receipt.elapsed_ms);
+    hasher.add_u64(receipt.tick_ids.len() as u64);
+    for tick_id in &receipt.tick_ids {
+        hasher.add_str(tick_id.as_str());
+    }
+    hasher.add_str(receipt.stop_reason.as_str());
+    hasher.add_optional_str(
+        receipt
+            .pending_transition_id
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
+    hasher.add_str(&receipt.authority);
+    hasher.finish()
+}
+
+fn is_semantic_digest(digest: &SemanticDigest) -> bool {
+    let Some(value) = digest.as_str().strip_prefix("blake3:") else {
+        return false;
+    };
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_canonical<T: Ord>(values: &[T]) -> bool {
+    values.windows(2).all(|window| window[0] < window[1])
 }
 
 #[derive(Clone, Debug)]
@@ -343,6 +831,74 @@ impl LocalGitStore {
             ));
         }
         state.pending = Some(record);
+        self.save(&state)?;
+        Ok(state)
+    }
+
+    pub fn retain_cadence_poll(
+        &self,
+        record: GitPollRecord,
+        interval_ms: u64,
+    ) -> Result<(LocalGitState, GitCadenceTick), LocalGitStateError> {
+        let mut state = self.load()?;
+        let cursor = state
+            .cursor
+            .as_ref()
+            .ok_or(LocalGitStateError::Uninitialized)?;
+        if record.transition.source_cursor_id != cursor.cursor_id
+            || record.transition.source_snapshot_id != cursor.snapshot_id
+        {
+            return Err(LocalGitStateError::StalePoll);
+        }
+        if let Some(pending) = &state.pending {
+            return Err(LocalGitStateError::PendingPoll(
+                pending.transition.transition_id.clone(),
+            ));
+        }
+        if state.cadence_ticks.len() >= MAX_RETAINED_GIT_CADENCE_TICKS {
+            return Err(LocalGitStateError::CadenceTickLimit(
+                MAX_RETAINED_GIT_CADENCE_TICKS,
+            ));
+        }
+        let changed = record.transition.source_snapshot_id != record.transition.target_snapshot_id
+            || !record.transition.events.is_empty();
+        let tick = GitCadenceTick::new(
+            state.cadence_ticks.len() as u64 + 1,
+            cursor,
+            &record,
+            changed,
+            interval_ms,
+        )?;
+        if changed {
+            state.pending = Some(record);
+        }
+        state.cadence_ticks.push(tick.clone());
+        self.save(&state)?;
+        Ok((state, tick))
+    }
+
+    pub fn retain_watch_outcome(
+        &self,
+        outcome: &GitWatchOutcome,
+    ) -> Result<LocalGitState, LocalGitStateError> {
+        let receipt = GitWatchReceipt::from_outcome(outcome)?;
+        let mut state = self.load()?;
+        if let Some(existing) = state
+            .watch_receipts
+            .iter()
+            .find(|existing| existing.watch_id == receipt.watch_id)
+        {
+            if existing == &receipt {
+                return Ok(state);
+            }
+            return Err(LocalGitStateError::InvalidWatchReceipt);
+        }
+        if state.watch_receipts.len() >= MAX_RETAINED_GIT_WATCH_RECEIPTS {
+            return Err(LocalGitStateError::WatchReceiptLimit(
+                MAX_RETAINED_GIT_WATCH_RECEIPTS,
+            ));
+        }
+        state.watch_receipts.push(receipt);
         self.save(&state)?;
         Ok(state)
     }
@@ -517,6 +1073,16 @@ pub enum LocalGitStateError {
     },
     #[error("retained Git transition history exceeds {0}")]
     TransitionLimit(usize),
+    #[error("retained Git cadence history exceeds {0} ticks")]
+    CadenceTickLimit(usize),
+    #[error("retained Git watch history exceeds {0} receipts")]
+    WatchReceiptLimit(usize),
+    #[error("retained Git cadence tick is invalid or semantically tampered")]
+    InvalidCadenceTick,
+    #[error("Git watch outcome is invalid or semantically tampered")]
+    InvalidWatchOutcome,
+    #[error("retained Git watch receipt is invalid or semantically tampered")]
+    InvalidWatchReceipt,
     #[error("Git activation {0} is pending and must be acknowledged before workload admission")]
     ActivationNotAcknowledged(String),
     #[error("unknown acknowledged Git activation {0}")]

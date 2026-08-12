@@ -625,6 +625,18 @@ deltas, history completeness, matched triggers, activation ids, transition
 outcomes, and the next cursor. The next cursor is publishable only after the
 required activation evidence reaches its declared retention boundary.
 
+The implemented `rey git watch` is the bounded local recurrence surface over
+the current HEAD and partial semantic-index poll. It accepts explicit maximum
+iterations, interval, elapsed cadence budget, and the same bounded trigger
+documents as a single poll. It retains each `rey.git-cadence-tick.v1` before
+continuing, atomically retains a changed transition with its terminal tick,
+and then stops. A completed invocation retains a compact
+`rey.git-watch-receipt.v1` referencing its tick sequence and exact
+`rey.git-watch-outcome.v1` identity. A process interruption may therefore
+leave retained unreceipted ticks, which the human status reports as an
+evidence gap. No watch acknowledges a transition, executes an activation, or
+claims convergence.
+
 A trigger declaration includes a stable id/revision, source event classes,
 ref/path/stage predicates, required Git capabilities/completeness, target
 workload revision plus scenario selection or graph entry point, coalescing

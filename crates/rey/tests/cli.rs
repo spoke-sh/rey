@@ -13,7 +13,9 @@ use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
 };
-use rey::git::{GitOperatorStatus, GitPollOutcome};
+use rey::git::{
+    GitOperatorStatus, GitPollOutcome, GitWatchOutcome, GitWatchStopReason, LocalGitState,
+};
 use rey::workloads::{
     QualificationState, WorkloadActivationAdmission, WorkloadActivationExecution,
     WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
@@ -1242,6 +1244,269 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     assert!(clean.contains("Observed delta         UNCHANGED"));
     assert!(clean.contains("Retained transitions   1"));
     assert!(clean.contains("Pending transition     none"));
+}
+
+#[test]
+fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["config", "user.name", "Rey Test"],
+        vec!["config", "user.email", "rey@example.invalid"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "one\n").unwrap();
+    for args in [
+        vec!["add", "tracked"],
+        vec!["commit", "-q", "-m", "initial"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
+    let initialized = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "init",
+        "--format",
+        "json",
+    ]);
+    assert!(initialized.status.success());
+    let initialized: LocalGitState = serde_json::from_slice(&initialized.stdout).unwrap();
+    let initial_cursor = initialized.cursor.clone().unwrap();
+    let initial_snapshot = initialized.cursor_snapshot.clone().unwrap();
+
+    let quiet = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--max-iterations",
+        "2",
+        "--interval-ms",
+        "1",
+        "--max-elapsed-ms",
+        "1000",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        quiet.status.success(),
+        "{}",
+        String::from_utf8_lossy(&quiet.stderr)
+    );
+    assert!(quiet.stderr.is_empty());
+    let quiet: GitWatchOutcome = serde_json::from_slice(&quiet.stdout).unwrap();
+    quiet.verify().unwrap();
+    assert_eq!(quiet.stop_reason, GitWatchStopReason::IterationLimit);
+    assert_eq!(quiet.ticks.len(), 2);
+    assert_eq!(quiet.ticks[0].sequence, 1);
+    assert_eq!(quiet.ticks[1].sequence, 2);
+    assert!(quiet.ticks.iter().all(|tick| !tick.changed));
+    assert!(quiet.pending_transition_id.is_none());
+
+    let timed = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--max-iterations",
+        "2",
+        "--interval-ms",
+        "10",
+        "--max-elapsed-ms",
+        "1",
+        "--format",
+        "json",
+    ]);
+    assert!(timed.status.success());
+    let timed: GitWatchOutcome = serde_json::from_slice(&timed.stdout).unwrap();
+    assert_eq!(timed.stop_reason, GitWatchStopReason::TimeLimit);
+    assert_eq!(timed.ticks.len(), 1);
+    assert_eq!(timed.ticks[0].sequence, 3);
+
+    let human = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--max-iterations",
+        "1",
+        "--interval-ms",
+        "1",
+        "--max-elapsed-ms",
+        "1000",
+        "--format",
+        "table",
+    ]);
+    assert!(human.status.success());
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "GIT WATCH",
+        "1 iterations · 1 ms cadence · 1000 ms elapsed",
+        "#4 · NO CHANGE ·",
+        "Stop                   iteration_limit",
+        "another bounded watch must be explicit",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing watch evidence: {evidence}"
+        );
+    }
+
+    fs::write(workspace.path().join("tracked"), "two\n").unwrap();
+    for args in [vec!["add", "tracked"], vec!["commit", "-q", "-m", "second"]] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    let trigger = GitActivationTrigger {
+        schema: GIT_ACTIVATION_TRIGGER_SCHEMA.to_owned(),
+        trigger_id: "fixture.watch-fast-forward".to_owned(),
+        revision: 1,
+        repository_id: initial_snapshot.repository_id.clone(),
+        worktree_id: initial_snapshot.worktree_id.clone(),
+        event_classes: vec![GitActivationEventClass::RefFastForward],
+        require_complete: true,
+        workload_id: "fixture-workload".to_owned(),
+        graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
+        scenario_ids: vec!["fixture-scenario".to_owned()],
+        budget: GitActivationBudget::default(),
+    };
+    fs::write(
+        workspace.path().join("trigger.json"),
+        serde_json::to_vec_pretty(&trigger).unwrap(),
+    )
+    .unwrap();
+    let changed = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--trigger",
+        "trigger.json",
+        "--max-iterations",
+        "4",
+        "--interval-ms",
+        "1",
+        "--max-elapsed-ms",
+        "1000",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        changed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&changed.stderr)
+    );
+    let changed: GitWatchOutcome = serde_json::from_slice(&changed.stdout).unwrap();
+    changed.verify().unwrap();
+    assert_eq!(changed.stop_reason, GitWatchStopReason::PendingTransition);
+    assert_eq!(changed.ticks.len(), 1);
+    assert_eq!(changed.ticks[0].sequence, 5);
+    assert!(changed.ticks[0].changed);
+    assert_eq!(changed.ticks[0].activation_ids.len(), 1);
+    let transition_id = changed.pending_transition_id.clone().unwrap();
+
+    let status = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert!(status.status.success());
+    let status: GitOperatorStatus = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status.state.cursor, Some(initial_cursor));
+    assert_eq!(status.state.cadence_ticks.len(), 5);
+    assert_eq!(status.state.watch_receipts.len(), 4);
+    assert_eq!(
+        status.state.watch_receipts.last().unwrap().watch_id,
+        changed.watch_id
+    );
+    assert_eq!(
+        status
+            .state
+            .pending
+            .as_ref()
+            .map(|record| &record.transition.transition_id),
+        Some(&transition_id)
+    );
+
+    let pending = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--max-iterations",
+        "1",
+        "--interval-ms",
+        "1",
+        "--max-elapsed-ms",
+        "1000",
+    ]);
+    assert_eq!(pending.status.code(), Some(1));
+    assert!(pending.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&pending.stderr).contains("pending acknowledgement"));
+
+    let acknowledged = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "ack",
+        transition_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(acknowledged.status.success());
+    let state: LocalGitState =
+        serde_json::from_slice(&fs::read(workspace.path().join(".rey/git/state.json")).unwrap())
+            .unwrap();
+    assert!(state.pending.is_none());
+    assert_eq!(state.retained_polls.len(), 1);
+    assert_eq!(state.cadence_ticks.len(), 5);
+    assert_eq!(state.watch_receipts.len(), 4);
+
+    let state_path = workspace.path().join(".rey/git/state.json");
+    let mut tampered: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    tampered["cadence_ticks"][0]["sequence"] = Value::from(99);
+    fs::write(&state_path, serde_json::to_vec_pretty(&tampered).unwrap()).unwrap();
+    let rejected = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(rejected.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("semantically tampered"));
 }
 
 #[test]

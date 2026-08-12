@@ -10,7 +10,7 @@ use std::{
     net::IpAddr,
     path::{Path, PathBuf},
     process::ExitCode,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use chrono::{DateTime, Utc};
@@ -41,7 +41,9 @@ use rey::{
     },
     git::{
         GIT_ACKNOWLEDGEMENT_SCHEMA, GIT_POLL_OUTCOME_SCHEMA, GitAcknowledgement, GitOperatorStatus,
-        GitPollOutcome, GitPollRecord, LocalGitState, LocalGitStateError, LocalGitStore,
+        GitPollOutcome, GitPollRecord, GitWatchOutcome, GitWatchStopReason, LocalGitState,
+        LocalGitStateError, LocalGitStore, MAX_GIT_WATCH_ELAPSED_MS, MAX_GIT_WATCH_INTERVAL_MS,
+        MAX_GIT_WATCH_ITERATIONS,
     },
     inspect_environment, inspect_environment_with_mapping,
     journal::{
@@ -154,6 +156,8 @@ enum GitCommand {
     Init(GitOutputArgs),
     /// Observe and retain one exact pending transition without advancing its cursor.
     Poll(GitPollArgs),
+    /// Repeatedly observe under explicit cadence bounds, retaining every tick.
+    Watch(GitWatchArgs),
     /// Acknowledge retained transition evidence and advance the cursor exactly once.
     Ack(GitAckArgs),
 }
@@ -172,6 +176,29 @@ struct GitPollArgs {
     triggers: Vec<PathBuf>,
 
     /// Human transition evidence or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct GitWatchArgs {
+    /// Workspace-confined YAML or JSON typed activation trigger; repeatable.
+    #[arg(long = "trigger")]
+    triggers: Vec<PathBuf>,
+
+    /// Maximum retained observations before stopping.
+    #[arg(long, default_value_t = 32)]
+    max_iterations: u64,
+
+    /// Delay between retained observations in milliseconds.
+    #[arg(long, default_value_t = 1_000)]
+    interval_ms: u64,
+
+    /// Maximum elapsed cadence time checked between observations in milliseconds.
+    #[arg(long, default_value_t = 60_000)]
+    max_elapsed_ms: u64,
+
+    /// Human cadence evidence or typed JSON contract.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
@@ -1025,6 +1052,7 @@ fn git_command(args: GitArgs) -> Result<ExitCode, CliError> {
         GitCommand::Status(command) => git_status(&store, &inspector, command),
         GitCommand::Init(command) => git_init(&store, &inspector, command),
         GitCommand::Poll(command) => git_poll(&workspace, &store, &inspector, command),
+        GitCommand::Watch(command) => git_watch(&workspace, &store, &inspector, command),
         GitCommand::Ack(command) => git_ack(&store, command),
     }
 }
@@ -1101,6 +1129,82 @@ fn git_poll(
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &outcome)?,
         WorkloadOutputFormat::Table => write_git_poll(&mut stdout, &outcome)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn git_watch(
+    workspace: &Path,
+    store: &LocalGitStore,
+    inspector: &GitInspector,
+    args: GitWatchArgs,
+) -> Result<ExitCode, CliError> {
+    if args.max_iterations == 0
+        || args.max_iterations > MAX_GIT_WATCH_ITERATIONS
+        || args.interval_ms == 0
+        || args.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
+        || args.max_elapsed_ms == 0
+        || args.max_elapsed_ms > MAX_GIT_WATCH_ELAPSED_MS
+    {
+        return Err(CliError::InvalidLimit);
+    }
+    let initial = store.load()?;
+    if let Some(pending) = initial.pending {
+        return Err(LocalGitStateError::PendingPoll(pending.transition.transition_id).into());
+    }
+    initial
+        .cursor
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    let triggers = args
+        .triggers
+        .iter()
+        .map(|path| load_git_trigger(workspace, path))
+        .collect::<Result<Vec<_>, _>>()?;
+    let started = Instant::now();
+    let cadence = Duration::from_millis(args.interval_ms);
+    let elapsed_limit = Duration::from_millis(args.max_elapsed_ms);
+    let mut ticks = Vec::new();
+    let stop_reason = loop {
+        let state = store.load()?;
+        let cursor = state
+            .cursor
+            .as_ref()
+            .ok_or(LocalGitStateError::Uninitialized)?;
+        let (target, transition) = inspector
+            .inspect_transition(cursor)?
+            .ok_or(CliError::GitRepositoryAbsent)?;
+        let record = GitPollRecord::new(target, transition, triggers.clone())?;
+        let (_, tick) = store.retain_cadence_poll(record, args.interval_ms)?;
+        let changed = tick.changed;
+        ticks.push(tick);
+        if changed {
+            break GitWatchStopReason::PendingTransition;
+        }
+        if ticks.len() as u64 == args.max_iterations {
+            break GitWatchStopReason::IterationLimit;
+        }
+        if started.elapsed() >= elapsed_limit
+            || started.elapsed().saturating_add(cadence) > elapsed_limit
+        {
+            break GitWatchStopReason::TimeLimit;
+        }
+        std::thread::sleep(cadence);
+    };
+    let outcome = GitWatchOutcome::new(
+        args.max_iterations,
+        args.interval_ms,
+        args.max_elapsed_ms,
+        started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
+        ticks,
+        stop_reason,
+    )?;
+    store.retain_watch_outcome(&outcome)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &outcome)?,
+        WorkloadOutputFormat::Table => write_git_watch(&mut stdout, &outcome)?,
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
@@ -3801,6 +3905,47 @@ fn write_git_status(output: &mut impl Write, status: &GitOperatorStatus) -> Resu
         "Retained transitions",
         &status.state.retained_polls.len().to_string(),
     )?;
+    write_portfolio_field(
+        output,
+        "Retained cadence ticks",
+        &status.state.cadence_ticks.len().to_string(),
+    )?;
+    if let Some(tick) = status.state.cadence_ticks.last() {
+        write_portfolio_field(
+            output,
+            "Latest cadence",
+            &format!(
+                "#{} · {} · {}",
+                tick.sequence,
+                if tick.changed { "CHANGED" } else { "NO CHANGE" },
+                if tick.complete { "complete" } else { "partial" }
+            ),
+        )?;
+        write_portfolio_field(output, "Latest tick", tick.tick_id.as_str())?;
+    }
+    write_portfolio_field(
+        output,
+        "Retained watch receipts",
+        &status.state.watch_receipts.len().to_string(),
+    )?;
+    if let Some(receipt) = status.state.watch_receipts.last() {
+        write_portfolio_field(
+            output,
+            "Latest watch stop",
+            &format!("{} · {}", receipt.stop_reason.as_str(), receipt.watch_id),
+        )?;
+    }
+    let receipted_ticks = status
+        .state
+        .watch_receipts
+        .iter()
+        .map(|receipt| receipt.tick_ids.len())
+        .sum::<usize>();
+    write_portfolio_field(
+        output,
+        "Unreceipted ticks",
+        &(status.state.cadence_ticks.len() - receipted_ticks).to_string(),
+    )?;
     write_portfolio_field(output, "Repository authority", &status.repository_authority)?;
     write_portfolio_field(output, "Next", &status.next)?;
     Ok(())
@@ -3828,7 +3973,11 @@ fn write_git_initialized(output: &mut impl Write, state: &LocalGitState) -> Resu
         "Authority",
         "baseline only · no activation · no execution",
     )?;
-    write_portfolio_field(output, "Next", "rey git poll [--trigger FILE]")?;
+    write_portfolio_field(
+        output,
+        "Next",
+        "rey git poll [--trigger FILE] or rey git watch [--trigger FILE]",
+    )?;
     Ok(())
 }
 
@@ -3931,6 +4080,69 @@ fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(
             &format!("rey git ack {}", transition.transition_id),
         )?;
     }
+    Ok(())
+}
+
+fn write_git_watch(output: &mut impl Write, outcome: &GitWatchOutcome) -> Result<(), CliError> {
+    writeln!(output, "GIT WATCH")?;
+    write_portfolio_field(output, "Watch", outcome.watch_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Bounds",
+        &format!(
+            "{} iterations · {} ms cadence · {} ms elapsed",
+            outcome.max_iterations, outcome.interval_ms, outcome.max_elapsed_ms
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Observed elapsed",
+        &format!("{} ms", outcome.elapsed_ms),
+    )?;
+    write_portfolio_field(output, "Retained ticks", &outcome.ticks.len().to_string())?;
+    for tick in &outcome.ticks {
+        writeln!(
+            output,
+            "    #{} · {} · {} · {}",
+            tick.sequence,
+            if tick.changed { "CHANGED" } else { "NO CHANGE" },
+            if tick.complete { "complete" } else { "partial" },
+            tick.tick_id
+        )?;
+        writeln!(
+            output,
+            "      observed {} at unix-ms {}",
+            tick.observed_snapshot_id, tick.observed_at_unix_ms
+        )?;
+        if let Some(transition_id) = &tick.retained_transition_id {
+            writeln!(output, "      pending transition {transition_id}")?;
+        }
+        if !tick.activation_ids.is_empty() {
+            writeln!(
+                output,
+                "      {} activation proposal(s)",
+                tick.activation_ids.len()
+            )?;
+        }
+        for omission in &tick.omissions {
+            writeln!(output, "      omission: {omission}")?;
+        }
+    }
+    write_portfolio_field(output, "Stop", outcome.stop_reason.as_str())?;
+    write_portfolio_field(
+        output,
+        "Pending transition",
+        outcome
+            .pending_transition_id
+            .as_ref()
+            .map_or("none", SemanticDigest::as_str),
+    )?;
+    write_portfolio_field(output, "Authority", &outcome.authority)?;
+    let next = outcome.pending_transition_id.as_ref().map_or_else(
+        || "No transition is pending; another bounded watch must be explicit".to_owned(),
+        |transition_id| format!("rey git ack {transition_id}"),
+    );
+    write_portfolio_field(output, "Next", &next)?;
     Ok(())
 }
 

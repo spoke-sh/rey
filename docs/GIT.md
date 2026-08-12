@@ -15,13 +15,15 @@ from a verified retained cursor, classifies created, deleted, fast-forward,
 rewound, rewritten, and unknown movement, and matches typed triggers into
 deterministic proposal-only activations. The `rey git` CLI retains an exact
 baseline cursor, one pending transition with its triggers and proposals, and
-acknowledged transition history under `.rey/git`. Watched-ref frames beyond
-HEAD, reachable-set and path deltas, recurring polling and coalescing,
-remote synchronization, and complete index flag semantics
-remain future Git work. Workload packages can already bind exact HEAD or
-semantic-index revisions and derive attention from the acknowledged cursor
-snapshot without treating an ambient observation or activation proposal as
-authority. A separate workload command can admit a current acknowledged
+acknowledged transition history under `.rey/git`. The bounded `rey git watch`
+surface repeats that HEAD/index observation, retains every cadence tick and
+normal terminal receipt, and stops at the first changed transition without
+advancing the cursor. Watched-ref frames beyond HEAD, reachable-set and path
+deltas, cross-poll debounce, remote synchronization, and complete index flag
+semantics remain future Git work. Workload packages can already bind exact
+HEAD or semantic-index revisions and derive attention from the acknowledged
+cursor snapshot without treating an ambient observation or activation proposal
+as authority. A separate workload command can admit a current acknowledged
 proposal for scheduling without executing it.
 
 Git is not part of the `rey env` admission snapshot. That loop discovers the
@@ -219,6 +221,19 @@ idempotent and a different observation cannot overwrite pending evidence.
 Local cursors have local-file retention guarantees. Git remains the
 authoritative source of repository state.
 
+`rey git watch` is an explicitly invoked bounded recurrence over the same
+poll. Maximum iteration count, interval, and elapsed cadence time are positive
+bounded inputs. Before another observation can be scheduled, the current
+`rey.git-cadence-tick.v1` is verified and atomically retained. An unchanged
+tick cites the already retained cursor snapshot instead of copying it; a
+changed tick atomically retains the full pending poll record and then stops. A
+normally completed watch retains `rey.git-watch-receipt.v1`, binding its exact
+tick range, measured elapsed time, stop reason, pending transition when
+present, and `rey.git-watch-outcome.v1` identity. A crash after a tick but
+before its receipt leaves an explicit unreceipted gap visible in `git status`.
+Neither a tick nor a receipt advances the poll cursor or admits or executes an
+activation.
+
 The workload portfolio consumes only this acknowledged cursor snapshot.
 Declarations may select its exact HEAD (repository/worktree, optional symbolic
 ref, and algorithm-qualified object id or `unborn`) or semantic-index entry
@@ -249,8 +264,9 @@ The current library and CLI implement steps 1–8 for HEAD and the partial
 logical index. `rey workloads admit-activation` implements step 9, and
 `execute-activation` implements the scenario-selection form of step 10. It
 revalidates exact current Git, workload HEAD, graph, scenarios, capabilities,
-and budgets before executing; arbitrary graph-entry activation and recurring
-polling remain absent.
+and budgets before executing. The CLI can now repeat steps 1–7 through bounded
+`git watch`, but it deliberately stops before step 8; arbitrary graph-entry
+activation and autonomous recurring execution remain absent.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
 be recovered from the object graph within retention and traversal bounds, but
@@ -388,6 +404,9 @@ Rey.
   implementation must prove equivalent repository semantics.
 - Commit traversal, changed paths, untracked paths, object reads, rename
   detection, and output bytes are bounded.
+- Local watch iterations, interval, elapsed cadence scheduling, retained tick
+  count, retained receipt count, and state bytes are bounded; reaching one is
+  a stop or explicit error, never convergence.
 - Network fetch, pull, push, checkout, reset, clean, add, commit, and index
   mutation are separate explicit actions and never part of polling.
 - Commit content and repository configuration are untrusted input.
@@ -410,5 +429,6 @@ The first Git provider must cover:
 - corrupt/locked/unsupported index behavior;
 - bounded history and path overflow;
 - crash before and after cursor advancement with idempotent activation replay;
-  and
+- retained quiet cadence ticks, iteration/time stops, changed-stop atomicity,
+  interrupted receipt gaps, and cadence-state tampering; and
 - proof that polling executes no repository hooks or mutation commands.
