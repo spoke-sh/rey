@@ -16,6 +16,7 @@ use rey::{
         JournalAdmission, JournalAuthorKind, JournalEntryProposal, JournalLog, LocalJournalStore,
         MAX_JOURNAL_PROPOSAL_BYTES,
     },
+    observations::{DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore},
     workloads::LocalWorkloadStore,
 };
 use rey_core::SemanticDigest;
@@ -327,6 +328,7 @@ impl UiServer {
             "/api/v1/channels" => self.channels(),
             "/api/v1/environment" => self.environment(),
             "/api/v1/journal" => self.journal(),
+            "/api/v1/observations" => self.observations(),
             "/api/v1/workloads" => self.workloads(),
             path if path.starts_with("/api/") => json_error(
                 StatusCode(404),
@@ -412,6 +414,21 @@ impl UiServer {
             Err(error) => json_error(
                 StatusCode(500),
                 "channel_status_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn observations(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalObservationStore::new(self.config.channel_directory.clone());
+        match store
+            .load()
+            .and_then(|log| log.frontier(DEFAULT_OBSERVATION_FRONTIER_LIMIT))
+        {
+            Ok(frontier) => json_response(StatusCode(200), &frontier),
+            Err(error) => json_error(
+                StatusCode(500),
+                "observation_frontier_unavailable",
                 &error.to_string(),
             ),
         }
@@ -917,6 +934,15 @@ impl UiServer {
                     retention: "last_good_document".to_owned(),
                 },
                 UiCadenceSchedule {
+                    id: "ui.observations.passive-revalidation".to_owned(),
+                    label: "Observation frontier scan".to_owned(),
+                    source: "/api/v1/observations".to_owned(),
+                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
+                    activation: "application_or_feed_mounted".to_owned(),
+                    authority: "mounted_browser_projection".to_owned(),
+                    retention: "last_good_document".to_owned(),
+                },
+                UiCadenceSchedule {
                     id: "ui.cadence.passive-revalidation".to_owned(),
                     label: "Cadence scan".to_owned(),
                     source: "/api/v1/cadence".to_owned(),
@@ -1084,7 +1110,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(28)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(29)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1155,7 +1181,15 @@ mod tests {
         assert!(cadence.contains("\"repository_state\":null"));
         assert!(cadence.contains("ui.portfolio.passive-revalidation"));
         assert!(cadence.contains("ui.channels.passive-revalidation"));
+        assert!(cadence.contains("ui.observations.passive-revalidation"));
         assert!(cadence.contains("ui.cadence.passive-revalidation"));
+
+        let observations = request(&address, "GET /api/v1/observations HTTP/1.1");
+        assert!(observations.starts_with("HTTP/1.1 200"));
+        assert!(observations.contains("\"schema\":\"rey.observation-frontier.v1\""));
+        assert!(observations.contains("\"ordering\":\"observation_sequence_ascending\""));
+        assert!(observations.contains("\"limit\":64"));
+        assert!(observations.contains("\"rows\":[]"));
 
         let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
         assert!(journal.starts_with("HTTP/1.1 200"));
@@ -1252,7 +1286,7 @@ mod tests {
         assert!(application.contains("PROCESS SEEDS"));
         assert!(application.contains("assets/three-terrain.js"));
         assert!(application.contains("three-webgpu.js"));
-        assert!(application.contains("HISTORY / RUNTIME ATTENTION"));
+        assert!(application.contains("HISTORY / RUNTIME + COLLABORATION"));
         assert!(application.contains("Mailbox history"));
         assert!(application.contains("REY / AGENT / OPERATOR"));
         for asset in [

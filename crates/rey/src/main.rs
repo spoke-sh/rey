@@ -3626,7 +3626,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(

@@ -27,6 +27,11 @@ import {
   type JournalProjection,
   type RetainedJournalEntry,
 } from "./journal";
+import {
+  observationPosition,
+  type ObservationFrontier,
+  type ObservationFrontierRow,
+} from "./observations";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { feedStyles as styles } from "./stylex/feed.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -38,6 +43,7 @@ export const FEED_STREAM_LIMIT = 8;
 export type FeedStreamKind = "signals" | "admission" | "flow";
 export type FeedStreamFilter =
   | "all"
+  | "observation"
   | "journal"
   | "git"
   | "environment"
@@ -92,7 +98,7 @@ export const DEFAULT_FEED_STREAMS: FeedStreamSpec[] = [
 ];
 
 const FEED_STREAM_FILTERS: Record<FeedStreamKind, FeedStreamFilter[]> = {
-  signals: ["all", "journal", "git", "environment"],
+  signals: ["all", "observation", "journal", "git", "environment"],
   admission: ["all", "now", "watch", "bound"],
   flow: ["all", "attention", "failing", "qualified"],
 };
@@ -463,7 +469,7 @@ export interface InspectionRow {
 
 export interface FeedEvent {
   id: string;
-  stream: "GIT" | "JOURNAL" | "REY ENV";
+  stream: "GIT" | "JOURNAL" | "OBSERVATION" | "REY ENV";
   position: string;
   title: string;
   detail: string;
@@ -472,10 +478,11 @@ export interface FeedEvent {
   occurredAt: string | null;
   sortTime: number | null;
   sourceOrder: number;
-  href: string;
-  kind: "git" | "journal" | "environment";
+  href: string | null;
+  kind: "git" | "journal" | "observation" | "environment";
   repository: string | null;
   journalEntry: RetainedJournalEntry | null;
+  observation: ObservationFrontierRow | null;
   tick: CadenceTick | null;
 }
 
@@ -645,6 +652,7 @@ export function deriveInspectionQueue(
 export function deriveFeedEvents(
   cadence: CadenceProjection,
   journal: JournalProjection,
+  observations: ObservationFrontier,
 ): FeedEvent[] {
   const events: FeedEvent[] = [];
   let sourceOrder = 0;
@@ -665,6 +673,29 @@ export function deriveFeedEvents(
       kind: "journal",
       repository: null,
       journalEntry: entry,
+      observation: null,
+      tick: null,
+    });
+  }
+  for (const row of observations.rows) {
+    const observation = row.observation;
+    events.push({
+      id: `observation:${observation.observation_id}`,
+      stream: "OBSERVATION",
+      position: observationPosition(row),
+      title: observation.proposal.subject_locator,
+      detail: observation.proposal.body,
+      state:
+        `${observation.proposal.kind} · ${observation.proposal.completeness}`.toUpperCase(),
+      revision: observation.observation_id,
+      occurredAt: null,
+      sortTime: null,
+      sourceOrder: sourceOrder++,
+      href: null,
+      kind: "observation",
+      repository: null,
+      journalEntry: null,
+      observation: row,
       tick: null,
     });
   }
@@ -693,6 +724,7 @@ export function deriveFeedEvents(
         repository:
           tick.kind === "git_commit" ? cadence.source_repository : null,
         journalEntry: null,
+        observation: null,
         tick,
       });
     }
@@ -728,10 +760,14 @@ export function FeedPage({
     streams: readonly ResolvedFeedStream[],
   ) => Promise<FeedLayoutWriteOutcome>;
   portfolio: WorkloadList;
-  sources: Pick<FeedSources, "cadence" | "journal">;
+  sources: Pick<FeedSources, "cadence" | "journal" | "observations">;
 }) {
   const queue = deriveInspectionQueue(portfolio, sources.cadence);
-  const events = deriveFeedEvents(sources.cadence, sources.journal);
+  const events = deriveFeedEvents(
+    sources.cadence,
+    sources.journal,
+    sources.observations,
+  );
   const resolvedLayout =
     layout ?? detachedFeedLayout(configuration ?? parseFeedStreams(null));
   const [streams, setStreams] = useState<ResolvedFeedStream[]>(() =>
@@ -751,9 +787,14 @@ export function FeedPage({
   const [layoutWriteError, setLayoutWriteError] = useState<Error | null>(null);
   const sourceEventCount =
     sources.journal.log.entries.length +
+    sources.observations.rows.length +
     sources.cadence.lanes.reduce((count, lane) => count + lane.ticks.length, 0);
   const foldedEvents = Math.max(0, sourceEventCount - events.length);
-  const omissions = boundedOmissions(sources.cadence, foldedEvents);
+  const omissions = boundedOmissions(
+    sources.cadence,
+    sources.observations,
+    foldedEvents,
+  );
 
   useEffect(() => {
     setStreams(resolvedLayout.streams.map((stream) => ({ ...stream })));
@@ -1109,7 +1150,7 @@ function FeedStream({
   onTune: (index: number) => void;
   portfolio: WorkloadList;
   queue: InspectionRow[];
-  sources: Pick<FeedSources, "cadence" | "journal">;
+  sources: Pick<FeedSources, "cadence" | "journal" | "observations">;
   stream: ResolvedFeedStream;
   streamCount: number;
 }) {
@@ -1172,6 +1213,7 @@ function FeedStream({
               <SourceBoundaryPost
                 cadence={sources.cadence}
                 journal={sources.journal}
+                observations={sources.observations}
                 omissions={omissions}
                 portfolio={portfolio}
               />
@@ -1551,11 +1593,13 @@ function FlowPost({
 function SourceBoundaryPost({
   cadence,
   journal,
+  observations,
   omissions,
   portfolio,
 }: {
   cadence: CadenceProjection;
   journal: JournalProjection;
+  observations: ObservationFrontier;
   omissions: string[];
   portfolio: WorkloadList;
 }) {
@@ -1585,6 +1629,11 @@ function SourceBoundaryPost({
             identity={shortDigest(journal.log.log_id)}
             label="JOURNAL"
             state={`${journal.log.entries.length} ENTRIES`}
+          />
+          <SourceRecord
+            identity={shortDigest(observations.frontier_id)}
+            label="OBSERVATIONS"
+            state={`${observations.rows.length} OPEN / ${observations.omitted} OMITTED`}
           />
           <SourceRecord
             identity={cadence.ordering.toUpperCase()}
@@ -1799,9 +1848,13 @@ function FeedPost({ event }: { event: FeedEvent }) {
         <span className={sx(chrome.micro)}>
           {event.stream} / {event.position}
         </span>
-        <a className={sx(styles.postAction)} href={event.href}>
-          {postAction(event)} →
-        </a>
+        {event.href ? (
+          <a className={sx(styles.postAction)} href={event.href}>
+            {postAction(event)} →
+          </a>
+        ) : (
+          <span className={sx(chrome.micro)}>NO EFFECT AUTHORITY</span>
+        )}
       </footer>
     </article>
   );
@@ -1831,8 +1884,10 @@ function PostHeader({
 }
 
 function EventAvatar({ event }: { event: FeedEvent }) {
-  if (event.journalEntry) {
-    const author = event.journalEntry.author;
+  const author =
+    event.journalEntry?.author ??
+    event.observation?.observation.proposal.author;
+  if (author) {
     return (
       <Avatar
         label={
@@ -1884,8 +1939,90 @@ function Avatar({
 function EventAttachment({ event }: { event: FeedEvent }) {
   if (event.journalEntry)
     return <JournalAttachment entry={event.journalEntry} />;
+  if (event.observation)
+    return <ObservationAttachment row={event.observation} />;
   if (event.kind === "git") return <GitAttachment event={event} />;
   return <EnvironmentAttachment event={event} />;
+}
+
+function ObservationAttachment({ row }: { row: ObservationFrontierRow }) {
+  const observation = row.observation;
+  const proposal = observation.proposal;
+  return (
+    <details className={sx(styles.journalAttachment)}>
+      <summary className={sx(styles.attachmentLabel)}>
+        <span className={sx(chrome.micro)}>
+          OBSERVATION / {observationPosition(row)} / ORDER ONLY
+        </span>
+        <code title={observation.observation_id}>
+          {shortDigest(observation.observation_id)} ＋
+        </code>
+      </summary>
+      <div className={sx(styles.blockPreviews)}>
+        <div className={sx(styles.prosePreview)}>
+          <span className={sx(chrome.micro)}>EXACT SUBJECT</span>
+          <code>{proposal.subject_locator}</code>
+          {proposal.desired_delta ? (
+            <p>
+              <strong>Desired delta:</strong> {proposal.desired_delta}
+            </p>
+          ) : null}
+          <p>
+            {proposal.evidence.length} evidence bindings ·{" "}
+            {proposal.omissions.length} omissions · {row.channel_ids.length}{" "}
+            Channel admissions
+          </p>
+        </div>
+        <div className={sx(styles.sourceRecords)}>
+          <SourceRecord
+            identity={shortDigest(observation.source.content_digest)}
+            label="SOURCE"
+            state={observation.source.locator}
+          />
+          <SourceRecord
+            identity={proposal.completeness.toUpperCase()}
+            label="COVERAGE"
+            state={`${proposal.evidence.length}/${observation.limits.max_evidence_bindings} EVIDENCE BINDINGS`}
+          />
+          <SourceRecord
+            identity="HARD BOUNDS"
+            label="LIMITS"
+            state={`${observation.limits.max_body_bytes} BODY BYTES · ${observation.limits.max_evidence_bindings} EVIDENCE · ${observation.limits.max_omissions} OMISSIONS · ${observation.limits.max_broadcast_targets} TARGETS`}
+          />
+        </div>
+        {row.channel_ids.length > 0 ? (
+          <p>
+            <strong>Admitted Channels:</strong> {row.channel_ids.join(", ")}
+          </p>
+        ) : (
+          <p>UNBROADCAST / LOCAL OBSERVATION ONLY</p>
+        )}
+        {proposal.evidence.map((evidence) => (
+          <div
+            className={sx(styles.diffPreview)}
+            key={`${evidence.locator}:${evidence.source_revision}`}
+          >
+            <span className={sx(chrome.micro)}>BOUND EVIDENCE</span>
+            <code>{evidence.locator}</code>
+            <p>
+              {evidence.source_revision} · {evidence.content_digest}
+            </p>
+          </div>
+        ))}
+        {proposal.omissions.length > 0 ? (
+          <ul className={sx(styles.omissions)}>
+            {proposal.omissions.map((omission) => (
+              <li key={omission}>{omission}</li>
+            ))}
+          </ul>
+        ) : null}
+        <p className={sx(chrome.micro)}>
+          AUTHOR SELF-ASSERTED · UNRESOLVED · NO ASSIGNMENT, ACTION, OR PROOF
+          AUTHORITY
+        </p>
+      </div>
+    </details>
+  );
 }
 
 function JournalAttachment({ entry }: { entry: RetainedJournalEntry }) {
@@ -2089,12 +2226,15 @@ function SourceRecord({
 }
 
 function eventIdentity(event: FeedEvent): string {
-  const author = event.journalEntry?.author;
+  const author =
+    event.journalEntry?.author ??
+    event.observation?.observation.proposal.author;
   if (author) return `${author.kind} / ${author.id}`.toUpperCase();
   return event.kind === "git" ? "GIT / SOURCE REPOSITORY" : "REY / ENVIRONMENT";
 }
 
 function postAction(event: FeedEvent): string {
+  if (event.kind === "observation") return "UNRESOLVED";
   if (event.kind === "journal") return "OPEN ENTRY";
   if (event.kind === "git") return "INSPECT CADENCE";
   return "OPEN ENVIRONMENT";
@@ -2102,6 +2242,7 @@ function postAction(event: FeedEvent): string {
 
 function boundedOmissions(
   cadence: CadenceProjection,
+  observations: ObservationFrontier,
   foldedEvents: number,
 ): string[] {
   return [
@@ -2111,6 +2252,12 @@ function boundedOmissions(
       ...cadence.lanes.flatMap((lane) => lane.omissions),
       "workload test and run results have no retained Feed clock",
       "operator read and unread state is not retained",
+      "observation, Journal, Git, and environment source clocks have no proven total ordering",
+      ...(observations.complete
+        ? []
+        : [
+            `${observations.omitted} unresolved observations omitted by the ${observations.limit}-record frontier`,
+          ]),
       ...(foldedEvents > 0
         ? [
             `${foldedEvents} older signals folded by the ${FEED_EVENT_LIMIT}-record Feed window`,
@@ -2169,6 +2316,8 @@ function filterEvents(
   if (filter === "all") return events;
   if (filter === "journal")
     return events.filter((event) => event.kind === "journal");
+  if (filter === "observation")
+    return events.filter((event) => event.kind === "observation");
   if (filter === "git") return events.filter((event) => event.kind === "git");
   if (filter === "environment")
     return events.filter((event) => event.kind === "environment");
@@ -2215,7 +2364,8 @@ function streamTitle(stream: FeedStreamSpec): string {
 }
 
 function streamDescription(kind: FeedStreamKind): string {
-  if (kind === "signals") return "Journal, Git, and environment records";
+  if (kind === "signals")
+    return "Open observations, Journal, Git, and environment records";
   if (kind === "admission") return "Work proposed from current evidence";
   return "Admitted workloads and retained results";
 }

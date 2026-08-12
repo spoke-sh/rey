@@ -11,6 +11,7 @@ import type {
   JournalEntryProposal,
   JournalProjection,
 } from "./journal";
+import type { ObservationFrontier } from "./observations";
 
 export interface UiServerIdentity {
   source_repository: string | null;
@@ -28,6 +29,7 @@ export interface WorkloadApprovalRequest {
 }
 
 export type OperatorContext = WorkloadList & {
+  observations: ObservationFrontier;
   ui_server: UiServerIdentity;
 };
 
@@ -35,12 +37,14 @@ export interface FeedSources {
   cadence: CadenceProjection;
   channels: ChannelProjection;
   journal: JournalProjection;
+  observations: ObservationFrontier;
 }
 
 export async function loadPortfolio(): Promise<OperatorContext> {
-  const [portfolioResponse, healthResponse] = await Promise.all([
+  const [portfolioResponse, healthResponse, observations] = await Promise.all([
     fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
     fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
+    loadObservations(),
   ]);
   if (!portfolioResponse.ok) {
     const detail = await portfolioResponse.text();
@@ -58,7 +62,7 @@ export async function loadPortfolio(): Promise<OperatorContext> {
   const health = (await healthResponse.json()) as {
     server: UiServerIdentity;
   };
-  return Object.assign(portfolio, { ui_server: health.server });
+  return Object.assign(portfolio, { observations, ui_server: health.server });
 }
 
 export async function loadEnvironment(): Promise<EnvironmentStatus> {
@@ -117,12 +121,26 @@ export async function loadCadence(): Promise<CadenceProjection> {
 }
 
 export async function loadFeed(): Promise<FeedSources> {
-  const [cadence, channels, journal] = await Promise.all([
+  const [cadence, channels, journal, observations] = await Promise.all([
     loadCadence(),
     loadChannels(),
     loadJournal(),
+    loadObservations(),
   ]);
-  return { cadence, channels, journal };
+  return { cadence, channels, journal, observations };
+}
+
+export async function loadObservations(): Promise<ObservationFrontier> {
+  const response = await fetch("/api/v1/observations", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Observation frontier request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as ObservationFrontier;
 }
 
 export async function loadJournal(): Promise<JournalProjection> {

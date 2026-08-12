@@ -3,8 +3,7 @@
 Rey retains compact collaboration observations independently from Channel
 topology, transport messages, Journal documents, runtime observations, and the
 runtime frontier. This document defines the implemented local observation log,
-CLI surface, and authority boundary. Feed and mailbox projection remain the
-next active delivery slice.
+CLI/browser surfaces, and authority boundary.
 
 ## Ownership And Separation
 
@@ -96,5 +95,15 @@ bounded `broadcast_default` set; `--no-broadcast` retains the observation
 locally without admissions. Human rendering exposes exact identities, source,
 evidence, completeness, omissions, authority, per-target outcomes, frontier
 coverage, and closure state. JSON returns the same typed documents. `list` and
-`show` are read-only and do not create state. Feed and mailbox projection
-follows this CLI path; Journal seeding remains a later deliberate bridge.
+`show` are read-only and do not create state.
+
+The operator server exposes the same default 64-row frontier at read-only
+`GET|HEAD /api/v1/observations`. Feed renders each unresolved observation as an
+order-only `O@sequence` signal with its exact identity, source, subject,
+evidence, omissions, limits, completeness, self-asserted author, and Channel
+admission count. The footer mailbox renders observations in a separate source
+section beside runtime attention. It does not synthesize cross-source order,
+unread state, priority, assignment, action, or proof authority. Mounted
+portfolio and Feed state passively revalidate this endpoint while retaining
+the last good document on failure. Journal seeding remains a later deliberate
+bridge.

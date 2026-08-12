@@ -102,7 +102,9 @@ Rey organizes collaboration around two clients with one evidence plane:
   previews ahead of Channel WORKING, HEAD, and built-in layouts; adoption and
   stream movement remain explicit WORKING-only writes. Immutable observations,
   their local Channel-admission edges, partial broadcast receipts, and catch-up
-  frontier remain a separate bounded state plane.
+  frontier remain a separate bounded state plane; Feed and mailbox read that
+  unresolved frontier without adding unread, priority, assignment, action, or
+  proof state.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

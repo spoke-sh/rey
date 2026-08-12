@@ -895,7 +895,8 @@ operation's idempotency contract rather than one generic retry rule.
 operator projection started explicitly by the operator. It serves the embedded
 TanStack Router application plus `GET|HEAD /api/v1/health`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
-`GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its explicit writes
+`GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, and bounded read-only
+`GET|HEAD /api/v1/observations`. Its explicit writes
 are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
 `POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
 file snapshot before committing it with expected HEAD/WORKING preconditions,
@@ -968,12 +969,12 @@ coverage, mining and delta counts, attention, and retained evidence identities.
 It does not load the environment inventory, schedule work, infer an assigned
 agent, or claim live process telemetry.
 
-`/feed` composes those existing workload, Cadence, and Journal reads into a
-high-cadence inspection projection. It occupies the remaining application
+`/feed` composes those existing workload, observation-frontier, Cadence, and
+Journal reads into a high-cadence inspection projection. It occupies the remaining application
 viewport as independently scrolling vertical streams plus a Firehose control
 rail. The default composition is Signals, Admission, and Flow, but the Firehose
 can add, tune, reorder, repeat, or remove streams up to an eight-lane display
-bound. Signals filters are `all|journal|git|environment`; Admission filters are
+bound. Signals filters are `all|observation|journal|git|environment`; Admission filters are
 `all|now|watch|bound`; Flow filters are
 `all|attention|failing|qualified`. The ordered composition uses the query
 grammar `?streams=[{stable-id}=]{plane}.{filter}[~{percent-encoded-name}],...`,
@@ -1001,9 +1002,11 @@ exact resolved layout and exposes the failure. Tuning, renaming, adding, or
 removing first creates a detached URL preview so none of those view changes is
 silently admitted.
 
-Signals renders rich Git, environment, and Journal posts, including bounded
-Journal block previews and exact Git lineage. Evidence bodies are collapsed by
-default and expand in place. Admission ranks unresolved typed attention and
+Signals renders rich observation, Git, environment, and Journal posts,
+including exact observation source/evidence/limit bindings, bounded Journal
+block previews, and exact Git lineage. Observation records remain order-only
+within their own `O@sequence` clock and expose no effect authority. Evidence
+bodies are collapsed by default and expand in place. Admission ranks unresolved typed attention and
 repository/request/qualification posture without writing a new attention
 relation or exposing an effect control. Flow renders admitted workload
 qualification, scenario, run, mining, delta, and reasoning-surface posture; it
@@ -1012,7 +1015,7 @@ only, and order-only records follow the timestamped window. The recent Signals
 window renders at most 64 records and reports older folded source records;
 Admission retains its authoritative source bound. Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,
-causal-order claim, or additional HTTP endpoint.
+causal-order claim, or observation mutation endpoint.
 
 The implemented Channel interface provides
 `rey channels list|status|diff|apply|add|commit|log|message|relay|beacon`. It
@@ -1047,9 +1050,11 @@ labels, completeness/omissions/limits, one supersession or resolution closure,
 and a bounded oldest-open-first frontier. Its local broadcast associates one
 observation identity with a canonical explicit target set and retains exact
 graph/HEAD bindings plus typed partial outcomes without copying content or
-granting relay authority. `rey journal seed` and
-`/journal/new?observations=...` project selected exact observations into an
-unretained catch-up proposal; only normal Journal admission creates an entry.
+granting relay authority. The read-only observation endpoint returns that same
+default bounded frontier for Feed and mailbox projection. Planned `rey journal
+seed` and `/journal/new?observations=...` paths will project selected exact
+observations into an unretained catch-up proposal; only normal Journal
+admission will create an entry.
 Relay declarations do not enable transport until a provider contract is
 separately admitted.
 
@@ -1064,15 +1069,18 @@ modules into a layered atomic stylesheet, and browser responses carry
 restrictive security headers.
 
 The fixed footer is the live operator communications channel. Its mailbox
-count and bottom sheet derive from typed portfolio-attention rows and passive
-revalidation failures; an empty sheet states that no operator attention is
-requested. It never invents heartbeat messages. The mailbox button selects the
+count and bottom sheet derive from typed portfolio-attention rows, unresolved
+observation-frontier rows, and passive revalidation failures; an empty sheet
+states that no operator attention is requested. Attention and observation
+sections retain their own source order and never imply a cross-source clock,
+unread state, priority, assignment, action, or proof. It never invents
+heartbeat messages. The mailbox button selects the
 history axis; the center chevrons select a separate traditional conversation
 axis for operator ↔ Rey ↔ agent communication. Selecting the active axis
 closes the plane, selecting the other switches axes, and either Escape or a
 click on the background closes it.
-The history axis currently identifies itself as the current mounted projection,
-not a durable event store. The conversation axis exposes a transcript and
+The history axis identifies itself as a mounted projection over separately
+retained source records, not a new mailbox event store. The conversation axis exposes a transcript and
 composer but explicitly has no session or transport; sending is disabled and
 no UI-only messages are retained. The footer shortens the implementation revision only for
 presentation, and its GitHub link uses the complete 40- or 64-hex Git object

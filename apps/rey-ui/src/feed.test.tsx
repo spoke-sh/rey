@@ -19,6 +19,7 @@ import {
   serializeFeedStreams,
 } from "./feed";
 import type { JournalProjection } from "./journal";
+import type { ObservationFrontier } from "./observations";
 
 describe("high-cadence operator feed", () => {
   it("ranks current attention ahead of bounded repository state", () => {
@@ -63,11 +64,16 @@ describe("high-cadence operator feed", () => {
   });
 
   it("uses wall time only as display order and retains order-only signals", () => {
-    const events = deriveFeedEvents(cadenceProjection(), journalProjection());
+    const events = deriveFeedEvents(
+      cadenceProjection(),
+      journalProjection(),
+      observationProjection(),
+    );
 
     expect(events.map((event) => [event.stream, event.position])).toEqual([
       ["JOURNAL", "J@1"],
       ["GIT", "HEAD~0"],
+      ["OBSERVATION", "O@1"],
       ["REY ENV", "ENV@4"],
     ]);
     expect(events.at(-1)).toMatchObject({
@@ -90,7 +96,11 @@ describe("high-cadence operator feed", () => {
       }),
     );
 
-    const events = deriveFeedEvents(cadenceProjection(), journal);
+    const events = deriveFeedEvents(
+      cadenceProjection(),
+      journal,
+      emptyObservationProjection(),
+    );
 
     expect(events).toHaveLength(FEED_EVENT_LIMIT);
     expect(events[0]).toMatchObject({ position: `J@${FEED_EVENT_LIMIT + 10}` });
@@ -277,6 +287,7 @@ describe("high-cadence operator feed", () => {
         sources: {
           cadence: cadenceProjection(),
           journal: journalProjection(),
+          observations: observationProjection(),
         },
       }),
     );
@@ -296,6 +307,9 @@ describe("high-cadence operator feed", () => {
     expect(markup.match(/role="feed"/g)).toHaveLength(3);
     expect(markup).toContain("Share an observation…");
     expect(markup).toContain("JOURNAL / RICH DOCUMENT");
+    expect(markup).toContain("OBSERVATION / O@1 / ORDER ONLY");
+    expect(markup).toContain("AUTHOR SELF-ASSERTED");
+    expect(markup).toContain("NO ASSIGNMENT, ACTION, OR PROOF");
     expect(markup).toContain("DIRECTED DIFF / different");
     expect(markup).toContain("ADMISSION CONTROL");
     expect(markup).toContain("NO INCOMING FILE CHANGES");
@@ -668,5 +682,77 @@ function journalProjection(): JournalProjection {
         },
       ],
     },
+  };
+}
+
+function observationProjection(): ObservationFrontier {
+  const projection = emptyObservationProjection();
+  projection.frontier_id = "blake3:frontier-one";
+  projection.source_log_id = "blake3:observation-log-one";
+  projection.summary = {
+    ...projection.summary,
+    observations: 1,
+    unresolved: 1,
+  };
+  projection.rows = [
+    {
+      observation: {
+        schema: "rey.observation-admission.v1",
+        observation_id: "blake3:observation-one",
+        sequence: 1,
+        admitted_at_unix: 300,
+        source: {
+          locator: "workspace://notes/bearing.json",
+          content_digest: "blake3:source-one",
+        },
+        limits: {
+          max_body_bytes: 16_384,
+          max_evidence_bindings: 32,
+          max_omissions: 32,
+          max_broadcast_targets: 32,
+        },
+        proposal: {
+          schema: "rey.observation.v1",
+          kind: "finding",
+          author: { kind: "agent", id: "codex" },
+          subject_locator: "rey+local://workload/alpha?revision=2",
+          body: "A directed scenario delta remains unresolved.",
+          desired_delta: "Make the expected and observed frames equal.",
+          completeness: "partial",
+          omissions: ["remote provider evidence was not requested"],
+          evidence: [
+            {
+              locator: "rey+local://delta/alpha",
+              source_revision: "blake3:test-alpha",
+              content_digest: "blake3:delta-alpha",
+            },
+          ],
+          supersedes: null,
+        },
+      },
+      channel_ids: ["workspace"],
+    },
+  ];
+  return projection;
+}
+
+function emptyObservationProjection(): ObservationFrontier {
+  return {
+    schema: "rey.observation-frontier.v1",
+    frontier_id: "blake3:frontier-empty",
+    source_log_id: "blake3:observation-log-empty",
+    ordering: "observation_sequence_ascending",
+    limit: 64,
+    complete: true,
+    omitted: 0,
+    summary: {
+      observations: 0,
+      unresolved: 0,
+      superseded: 0,
+      resolved: 0,
+      withdrawn: 0,
+      unbroadcast: 0,
+    },
+    rows: [],
   };
 }
