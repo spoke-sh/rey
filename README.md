@@ -739,9 +739,12 @@ verification without moving observations into the topology index. Immutable
 HEAD/INDEX admission and browser persistence remain the next topology slices.
 
 The first read-first scene editor slice is executable. `rey editor generate
-terrain` is the only authoring entry point: it bootstraps the scene project,
-writes deterministic GeoJSON from explicit hyperparameters, and leaves the
-result in WORKING for an agent to fine-tune directly. `status`, `diff`, `add`,
+terrain` is the only authoring entry point: it bootstraps the Rey-owned project
+at `.rey/editor/project.json`, writes deterministic workspace-native GeoJSON
+from explicit hyperparameters, and leaves the result in WORKING for an agent
+to fine-tune directly. No `rey.scene.json` workspace manifest or project-path
+override exists. An uninitialized `status` is read-only and reports absent
+WORKING without creating `.rey`. `status`, `diff`, `add`,
 `commit`, and `log` then preserve the exact edited bytes through the same
 Git-shaped revision loop as the environment surface. `commit` validates only
 the frozen INDEX before retaining linear `SCENE@n` history, an immutable
@@ -752,12 +755,12 @@ work: no scene-admission workload exists, candidate requests report
 `admitted=false`, and `/explore` continues to consume only retained
 survey-workload topography.
 
-[Rey County](scenes/rey-county/README.md) is the first complete editor fixture
-authored from a fresh Rey environment commit and freshly executed workspace
-workloads. Its five OGC CRS84 native sources exercise boundary, terrain
-control, hydrology, feature, and marker roles. The retained source files are
-reviewable, while its immutable local package remains candidate-only and does
-not change `/explore`.
+[Rey County](scenes/rey-county/README.md) is the first complete native-source
+fixture authored from a fresh Rey environment commit and freshly executed
+workspace workloads. Its five OGC CRS84 sources exercise boundary, terrain
+control, hydrology, feature, and marker roles. The source files remain
+reviewable, while their historical local package remains candidate-only and
+does not change `/explore`; they are not an ambient default editor project.
 
 Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.

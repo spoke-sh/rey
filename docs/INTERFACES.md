@@ -1085,10 +1085,14 @@ rey editor diff [--staged]
 ```
 
 All editor commands accept `--format table|json` (and terminal-sensitive
-`auto`). The project defaults to workspace-relative `rey.scene.json`; all
-project/native inputs remain bounded, regular, non-symlinked, and contained by
-the workspace. `generate` creates the project when it is absent; `--scene-id`
-sets that initial identity and otherwise defaults to the generated source ID.
+`auto`). The selected editor state store owns the project declaration at
+`project.json` (`.rey/editor/project.json` by default); the CLI never reads or
+writes a workspace `rey.scene.json` and exposes no project-path override.
+Declared native inputs remain bounded, regular, non-symlinked, and contained
+by the workspace. `generate` creates the internal project when it is absent;
+`--scene-id` sets that initial identity and otherwise defaults to the generated
+source ID. Before initialization, `status` returns `rey.editor-status.v2` with
+`initialized=false` and no WORKING snapshot without creating local state.
 The agent then fine-tunes the generated native source directly in WORKING.
 `status` and `diff` compare `HEAD → INDEX → WORKING`. `add` is the only
 staging operation and freezes the exact agent-edited native bytes. `commit`

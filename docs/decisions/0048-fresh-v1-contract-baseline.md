@@ -2,6 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-08-11
+- Editor-status schema assignment superseded by: [ADR
+  0055](0055-editor-project-state-ownership.md)
 - Supersedes: every earlier Rey-owned public schema-version assignment and all
   pre-alpha compatibility or migration behavior
 - Extends: [ADR 0046](0046-read-first-scene-editor.md) and [ADR

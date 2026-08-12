@@ -2,6 +2,8 @@
 
 - Status: Complete
 - Decision: [ADR 0048](../docs/decisions/0048-fresh-v1-contract-baseline.md)
+- Editor storage and status contract superseded by: [ADR
+  0055](../docs/decisions/0055-editor-project-state-ownership.md)
 - Extends: [Plan 0021](0021-read-first-scene-editor.md) and [Plan
   0022](0022-semantic-spherical-atlas.md)
 
@@ -23,9 +25,9 @@ evidence, and `/explore`.
 - [x] Require timestamped complete v1 environment commits and reject other
       shapes.
 - [x] Record the destructive cut in ADR 0048 and current foundational docs.
-- [x] Prove no Rey-owned `.v2` or later public schema literal remains in
-      implementation, tests, workload packages, or current non-historical
-      documentation.
+- [x] At this checkpoint, prove no Rey-owned `.v2` or later public schema
+      literal remains. ADR 0055 later advances only `rey.editor-status` to v2
+      for explicit absent WORKING state.
 
 ### 2. Rebuild evidence through Rey
 
@@ -54,9 +56,10 @@ evidence, and `/explore`.
 
 ### 4. Exercise the editor contract
 
-- [x] Retain the checked project and exact agent-authored native sources as one
-      WORKING scene; new scene bootstrapping now belongs exclusively to `rey
-      editor generate` and agents fine-tune its output directly.
+- [x] At this checkpoint, retain the project and exact agent-authored native
+      sources as one WORKING scene. ADR 0055 later moves the declaration out of
+      the workspace and into `.rey/editor/project.json`; only the native source
+      fixture remains checked.
 - [x] Inspect WORKING, stage the exact snapshot, inspect the staged diff, and
       exercise commit-time validation through human CLI renderings.
 - [x] Commit only INDEX and inspect the exact immutable candidate package
@@ -99,8 +102,9 @@ retains the message `establish Rey County`, candidate package
 `blake3:3c683ad8675549b5dba753a8174d7382d865c2c3a7d313e969fbf079741c275d`,
 and request
 `blake3:4154e143175a8c9030164732825e485f3743252b4969e38ecb9bf15bd2b2c038`.
-`rey editor status` is clean and `rey editor log -p` resolves the exact commit,
-package, and parent-to-commit delta. The request still reports
+At this checkpoint, `rey editor status` was clean and `rey editor log -p`
+resolved the exact commit, package, and parent-to-commit delta. The request
+still reports
 `requires_workload`, `admitted=false`, and `/explore` unchanged; that is the
 intended authority boundary rather than an omitted implementation claim.
 

@@ -70,8 +70,10 @@ or make a workload runnable.
 WORKING is the fresh observation or authored file state at the explicit
 workspace boundary. Environment WORKING is discovered capability evidence;
 workload WORKING is the verified `sys/*/workload.yaml` catalog; editor WORKING
-is `rey.scene.json` plus its declared native sources. WORKING can continue to
-change while INDEX is reviewed.
+is the internal `.rey/editor/project.json` declaration plus its workspace-native
+sources. Before generation initializes that declaration, editor WORKING is
+absent and `status` reports that boundary without creating `.rey`. WORKING can
+continue to change while INDEX is reviewed.
 
 ### Standard Loop
 
@@ -171,7 +173,7 @@ discovery and successful human/table output is intentionally silent. Use
 ### `rey editor`
 
 ```text
-rey editor [--workspace PATH] [--state-dir PATH] [--project rey.scene.json]
+rey editor [--workspace PATH] [--state-dir PATH]
   generate terrain OUTPUT.geojson --id SOURCE --west N --south N --east N --north N [PARAMETERS]
 rey editor ... status
 rey editor ... add
@@ -181,8 +183,11 @@ rey editor ... log [-p] [-n COUNT]
 ```
 
 `generate terrain` deterministically creates or updates an owned native
-GeoJSON terrain-control source and bootstraps the project when absent. Its
-seed and hyperparameters are retained as generation lineage; use
+GeoJSON terrain-control source and bootstraps `.rey/editor/project.json` when
+absent. The selected `--state-dir` owns that project declaration; there is no
+workspace `rey.scene.json` input or output and no `--project` override. Native
+source paths remain workspace-relative, bounded, regular, and non-symlinked.
+Its seed and hyperparameters are retained as generation lineage; use
 `rey editor generate terrain --help` for the complete tunable set. Agents may
 then fine-tune the native WORKING files. `add` freezes exact objects, `commit`
 validates only the frozen INDEX, and the resulting `SCENE@n` package remains an

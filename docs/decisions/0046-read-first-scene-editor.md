@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-11
+- Extended by: [ADR 0055](0055-editor-project-state-ownership.md)
 - Extends: [ADR 0041](0041-continuous-coordinate-topography.md) and [ADR
   0044](0044-explorer-projection-engine.md)
 
@@ -94,10 +95,11 @@ rey editor log [-p] [-n <count>]
 rey editor diff [--staged]
 ```
 
-Every command has a human evidence rendering and structured JSON. Project and
-source inputs are workspace-contained bounded regular files; symlinks and path
-escapes are rejected. The local `.rey/editor` store is a content-addressed
-candidate/index cache and is never the sole copy of user-authored sources.
+Every command has a human evidence rendering and structured JSON. ADR 0055
+places the project declaration in the selected local editor store; native
+source inputs remain workspace-contained bounded regular files, and symlinks
+and path escapes are rejected. The `.rey/editor` store never replaces the
+user-authored native source files.
 The human `status` rendering follows the same Git-shaped operator grammar as
 `rey env status`: it identifies `SCENE@n`, separates changes staged for commit
 from changes still in WORKING, lists their semantic scene objects, and ends

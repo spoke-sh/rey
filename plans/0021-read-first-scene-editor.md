@@ -36,6 +36,10 @@ topography and projection contracts consumed by Explorer.
 - [x] Keep one authoring entry point: `rey editor generate terrain` bootstraps
       the project and emits tunable native WORKING artifacts; agents may then
       fine-tune those exact bytes directly.
+- [x] Keep the project declaration in the selected Rey state store
+      (`.rey/editor/project.json` by default), remove the ambient
+      `rey.scene.json`/`--project` contract, and make uninitialized `status` a
+      read-only successful observation with absent WORKING.
 - [x] Implement only the public revision loop `generate`, `status`, `diff`,
       `add`, `commit`, and `log` with human and structured output; remove the
       redundant public `init`, `import`, and `validate` surfaces.
@@ -140,8 +144,11 @@ topography and projection contracts consumed by Explorer.
 
 The first slice is intentionally incomplete enabling work. The `rey` crate now
 owns a dependency-light editor module and CLI. A JSON editor project declares
-bounded GeoJSON sources. `generate terrain` bootstraps the project and a
-deterministic native source, after which an agent may fine-tune WORKING bytes.
+bounded GeoJSON sources from `.rey/editor/project.json`; native authored
+sources remain workspace files. `generate terrain` bootstraps that internal
+project and a deterministic native source, after which an agent may fine-tune
+WORKING bytes. An untouched workspace reports an uninitialized editor without
+creating local state.
 Observation constructs a deterministic feature and POI index while retaining
 exact source bytes as native artifacts. `add`
 publishes those artifacts and the snapshot atomically under `.rey/editor`;
@@ -159,10 +166,10 @@ partial staging, and browser editing remain explicitly unsupported.
 
 Repository-wide evidence for this checkpoint:
 
-- `just check` passed UI formatting/typechecking, 75 UI tests, the production
+- `just check` passed UI formatting/typechecking, 79 UI tests, the production
   browser build, Rust formatting and workspace Clippy with warnings denied, and
   Nix flake evaluation on x86_64 Linux.
-- `just test` passed the same 75 UI tests, 185 Rust tests across 14 binaries,
+- `just test` passed the same 79 UI tests, 196 Rust tests across 14 binaries,
   and all workspace documentation tests.
 
 ## Acceptance Boundary

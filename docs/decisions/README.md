@@ -55,6 +55,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0051](0051-typed-workspace-ignore-file.md) | Accepted | Bounded typed `.reyignore` rules narrow WORKING while retaining exact omission policy and match evidence |
 | [0052](0052-provider-independent-foundation.md) | Accepted | Hard cut to Rey-owned local contracts with no privileged external platform or compatibility aliases |
 | [0054](0054-diff-directed-journal-broadsheet.md) | Accepted | Immutable live Journal revisions and a bounded 12-column broadsheet grammar |
+| [0055](0055-editor-project-state-ownership.md) | Accepted | Editor project metadata owned by `.rey`, read-only uninitialized status, and no ambient `rey.scene.json` |
 
 Normally, when a decision changes, add a superseding decision and link both
 documents. ADR 0052 records an explicit pre-alpha hard cut that removed the
