@@ -7,21 +7,6 @@ agents can inspect together. It inventories explicit local state, receives
 agent-authored workloads as reviewable files, mines bounded evidence, and
 projects admitted understanding into a continuous spatial interface.
 
-The browser is the human operator's primary surface. The CLI is the agent's
-primary interface. Both read the same typed evidence, revisions, omissions,
-limits, and lineage; neither gets a private version of reality.
-
-`/explore` is the landmark that makes this model tangible. A fresh project
-begins as an unmapped globe with exact workload beacons. The first beacon asks
-for consent to survey the project. Admitted survey evidence can then reveal a
-semantic world, unwrap into an atlas, and resolve into detailed terrain,
-counties, points of interest, natural features, and exact source evidence as
-the operator moves closer.
-
-The world is read-first. A beautiful projection cannot invent geography,
-distance, coverage, paths, activity, or authority. Unknown space remains
-unknown until a bounded workload produces evidence and a human admits it.
-
 ![Rey's consent-first Explorer projects exact agentic workload beacons onto an unmapped context globe.](docs/assets/explore.png)
 
 ## Mining As Applied Programming
