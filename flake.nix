@@ -108,6 +108,7 @@
       basePackages =
         [
           rustToolchain
+          pkgs.actionlint
           pkgs.cacert
           pkgs.curl
           pkgs.git
