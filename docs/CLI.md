@@ -229,7 +229,7 @@ unadmitted candidate. There is intentionally no separate `init`, `import`, or
 
 ```text
 rey workloads [--workspace PATH] [--state-dir PATH]
-  [--catalog workspace|conformance] [--catalog-dir sys] create ID [--title TITLE] [--intent INTENT]
+  [--catalog workspace|conformance] [--catalog-dir sys] create ID [--title TITLE] [--intent INTENT] [--attention-row ROW_ID]
 rey workloads ... list
 rey workloads ... status
 rey workloads ... add
@@ -242,8 +242,15 @@ rey workloads ... run ID [INPUTS AND LIMITS]
 
 The default workspace catalog reads request drafts and package proposals from
 `sys/<workload>/`. `create` writes a bounded coding-harness request; it does
-not invent a graph or invoke an agent. `list` reads admitted HEAD and retained
-results while carrying draft/revision posture separately. `status` observes
+not invent a graph or invoke an agent. With `--attention-row`, it recomputes
+the current portfolio runtime and accepts only the exact ready `CREATE` row
+selected into its frontier and reasoning surface. The human and JSON results
+retain the portfolio/environment, attention, frontier, scheduling, surface,
+permitted-action, current-package, delta, and limit bindings. The eventual
+`workload.yaml` must cite the exact retained request path and content digest.
+`list` reads admitted HEAD and retained results while carrying draft/revision
+posture separately. `status` labels the admission planes `AWAITING HARNESS`,
+`WORKING`, `INDEX UNQUALIFIED`, `INDEX QUALIFIED`, and `HEAD`; it observes
 the complete HEAD/INDEX/WORKING portfolio without executing it. `test
 --staged` runs the frozen scenario suite and retains directed expected-to-
 actual evidence. The human runner is diff-native: plain output opens only

@@ -20,7 +20,7 @@ generation:
     - scenario_suite
   inputs:
     - source: sys/context-anchor-survey/request.yaml
-      revision: blake3:ade2598ed7107f32b0be2c3dae4a0478d53fd57e38be786954de0d6694063d4a
+      revision: blake3:ae6225ab5d7809dd325de1df03e228b9051fbad1d0030e530e4417d9c1048f24
     - source: plans/0003-scene-to-explorer.md
       revision: sha256:c80f7168ca62fdc451b971e4ea80e8e10b983814f1811b8ba87d0d05849789dc
     - source: docs/decisions/README.md

@@ -47,10 +47,11 @@ use rey::{
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadAddResult,
         WorkloadCatalog, WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadChangeKind,
-        WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult, WorkloadDraft, WorkloadList,
-        WorkloadLog, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
-        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState,
-        derive_portfolio_snapshot, fresh_qualification,
+        WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult,
+        WorkloadCreationAttentionBinding, WorkloadDraft, WorkloadList, WorkloadLog,
+        WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView,
+        WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState, derive_portfolio_snapshot,
+        fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -562,6 +563,10 @@ struct WorkloadCreateArgs {
     /// Bounded objective the coding harness should mine and formalize.
     #[arg(long)]
     intent: Option<String>,
+
+    /// Exact selected CREATE attention row to bind into the immutable harness request.
+    #[arg(long)]
+    attention_row: Option<String>,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
@@ -1678,7 +1683,7 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
             if args.catalog != WorkloadCatalogSelection::Workspace {
                 return Err(CliError::CreateRequiresWorkspaceCatalog);
             }
-            workload_create(&workspace, &args.catalog_dir, command)
+            workload_create(&store, &workspace, &args.catalog_dir, command)
         }
         WorkloadsCommand::List(command) => {
             workload_list(&store, &workspace, &args.catalog_dir, args.catalog, command)
@@ -1741,16 +1746,33 @@ fn require_workspace_admission_catalog(catalog: WorkloadCatalogSelection) -> Res
 }
 
 fn workload_create(
+    store: &LocalWorkloadStore,
     workspace: &Path,
     catalog_dir: &Path,
     args: WorkloadCreateArgs,
 ) -> Result<ExitCode, CliError> {
+    let attention_binding = args
+        .attention_row
+        .as_deref()
+        .map(|row_id| {
+            let catalog = store.head_catalog()?;
+            let state = store.load()?;
+            let environment = retained_environment_snapshot(workspace)?;
+            let snapshot =
+                derive_portfolio_snapshot(&catalog.definitions(), &state, environment.as_ref())?;
+            let attention = WorkloadAttention::derive(&snapshot)?;
+            let runtime = orient_portfolio_attention(&snapshot, &attention)?;
+            WorkloadCreationAttentionBinding::from_runtime(&snapshot, &attention, &runtime, row_id)
+                .map_err(CliError::from)
+        })
+        .transpose()?;
     let result = WorkloadCatalog::create_workspace_request(
         workspace,
         catalog_dir,
         &args.workload_id,
         args.title.as_deref(),
         args.intent.as_deref(),
+        attention_binding,
     )?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
@@ -3210,12 +3232,70 @@ fn write_workload_create(
     writeln!(output, "{}", style.bold("WORKLOAD CREATION"))?;
     write_portfolio_field(output, "Workload", &result.draft.request.workload_id)?;
     write_portfolio_field(output, "Request", result.draft.request.request_id.as_str())?;
+    if let Some(attention) = &result.draft.request.attention {
+        write_portfolio_field(
+            output,
+            "Attention row",
+            &format!(
+                "{} · {} · {}",
+                attention.attention_row_id,
+                attention.reason.as_str(),
+                attention.subject_id,
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Portfolio",
+            attention.portfolio_snapshot_id.as_str(),
+        )?;
+        write_portfolio_field(
+            output,
+            "Environment",
+            attention.environment_snapshot_id.as_str(),
+        )?;
+        write_portfolio_field(output, "Frontier", attention.frontier_id.as_str())?;
+        write_portfolio_field(output, "Frontier row", attention.frontier_row_id.as_str())?;
+        write_portfolio_field(
+            output,
+            "Scheduling",
+            attention.scheduling_decision_id.as_str(),
+        )?;
+        write_portfolio_field(
+            output,
+            "Reasoning surface",
+            attention.reasoning_surface_id.as_str(),
+        )?;
+        write_portfolio_field(
+            output,
+            "Permitted action",
+            &attention.admissible_action_ids.join(", "),
+        )?;
+        write_portfolio_field(output, "Current package", "ABSENT · CREATE")?;
+        write_portfolio_field(
+            output,
+            "Failing delta refs",
+            if attention.delta_ids.is_empty() {
+                "0 · typed empty"
+            } else {
+                "present"
+            },
+        )?;
+        write_portfolio_field(
+            output,
+            "Surface bounds",
+            &format!(
+                "{} rows · {} delta refs · {} evidence refs · {} action refs · {} evidence bytes · {} retrieval iterations",
+                attention.surface_limits.max_rows,
+                attention.surface_limits.max_delta_refs,
+                attention.surface_limits.max_evidence_refs,
+                attention.surface_limits.max_action_refs,
+                attention.surface_limits.max_total_evidence_bytes,
+                attention.surface_limits.max_retrieval_iterations,
+            ),
+        )?;
+    }
     write_portfolio_field(output, "Created", &result.created_files.join(" · "))?;
-    write_portfolio_field(
-        output,
-        "Admission",
-        &style.yellow("AWAITING CODING HARNESS"),
-    )?;
+    write_portfolio_field(output, "Admission", &style.yellow("AWAITING HARNESS"))?;
     write_portfolio_field(output, "Graph", &style.dim("MISSING"))?;
     write_portfolio_field(output, "Scenario oracle", &style.dim("NOT ADMITTED"))?;
     writeln!(output)?;
@@ -3242,6 +3322,29 @@ fn write_workload_revision_status(
             |commit| format!("WORKLOAD@{}", commit.sequence)
         )
     )?;
+    if !status.drafts.is_empty() {
+        write_portfolio_field(output, "Admission state", "AWAITING HARNESS")?;
+    }
+    if status.unstaged.assessment == DeltaAssessment::Different {
+        write_portfolio_field(output, "Admission state", "WORKING")?;
+    }
+    if status.index.is_some() {
+        write_portfolio_field(
+            output,
+            "Admission state",
+            if status.commit_ready {
+                "INDEX QUALIFIED"
+            } else {
+                "INDEX UNQUALIFIED"
+            },
+        )?;
+    }
+    if status.state == WorkloadWorkingState::Clean
+        && status.drafts.is_empty()
+        && status.head.is_some()
+    {
+        write_portfolio_field(output, "Admission state", "HEAD")?;
+    }
     if let Some(ignore) = &status.working.ignore {
         writeln!(
             output,
@@ -3898,14 +4001,27 @@ fn write_workload_draft(
         "Request revision",
         draft.request.request_id.as_str(),
     )?;
+    if let Some(attention) = &draft.request.attention {
+        write_portfolio_field(
+            output,
+            "Attention row",
+            &format!(
+                "{} · {} · {}",
+                attention.attention_row_id,
+                attention.reason.as_str(),
+                attention.subject_id,
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Reasoning surface",
+            attention.reasoning_surface_id.as_str(),
+        )?;
+    }
     write_portfolio_field(output, "Source revision", draft.source_digest.as_str())?;
     write_portfolio_field(output, "Graph", &style.dim("MISSING"))?;
     write_portfolio_field(output, "Scenario oracle", &style.dim("NOT ADMITTED"))?;
-    write_portfolio_field(
-        output,
-        "Admission",
-        &style.yellow("AWAITING CODING HARNESS"),
-    )?;
+    write_portfolio_field(output, "Admission", &style.yellow("AWAITING HARNESS"))?;
     write_portfolio_field(
         output,
         "Next",

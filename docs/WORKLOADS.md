@@ -91,13 +91,25 @@ repeatable `--source` paths and retains one exact patch; `list` and
 
 ## Workload Creation Request
 
-`rey workloads create <id>` is the agentic entry point. It does not make the
-deterministic runtime call an LLM and it does not generate placeholder tests.
-It creates `sys/<id>/request.yaml` with schema
+`rey workloads create <id>` is the unbound agentic entry point.
+`--attention-row <row-id>` instead requires an exact currently selected,
+ready `CREATE` attention row and binds the verified portfolio snapshot,
+environment snapshot, attention, frontier row, scheduling decision, and
+reasoning surface into the request. Stale, unknown, ineligible, or unscheduled
+rows fail before the package directory is created. Neither form makes the
+deterministic runtime call an LLM or generates placeholder tests. The command
+creates `sys/<id>/request.yaml` with schema
 `rey.workload-creation-request.v1`, a semantic request identity, bounded intent,
 target package path, generation/admission requirements, and effective limits.
 The returned `rey.workload-create-result.v1` includes the exact created path,
 instructions for the external coding harness, and the required next action.
+
+The optional `rey.workload-creation-attention.v1` binding carries the selected
+action and reason, subject, evidence and dependency identities, typed failing
+delta references, permitted operation, and complete surface limits. A `CREATE`
+request explicitly records that the current package revision is absent; its
+failing-delta set may be typed empty because the gap is an unowned surface,
+not a failed package scenario. The request digest covers the complete binding.
 
 Creation is explicit local mutation. Rey confines the catalog root to a
 workspace-relative non-symlinked path, validates the id as a safe package name,
@@ -106,11 +118,16 @@ directory. It creates no `workload.yaml`; a harness must mine authoritative
 revisioned inputs and materialize that file.
 
 A request-only directory is a draft catalog entry. `workloads list`, `status`,
-and the admission Feed render its `HYDRATE` journey, missing graph, non-admitted oracle, exact
-request/source revisions, and `AWAITING CODING HARNESS` state. `test` and `run`
-reject it. Once `workload.yaml` appears, Rey verifies that its workload id
-matches the retained request and exposes it in WORKING. The request remains
-beside the package as creation lineage; materialization is not admission.
+and the admission Feed render its `HYDRATE` journey, missing graph,
+non-admitted oracle, exact request/source revisions, and `AWAITING HARNESS`
+state. `test` and `run` reject it. Once `workload.yaml` appears, Rey verifies
+that its workload id matches the retained request and that generation inputs
+cite the exact request path and content digest, then exposes the package in
+`WORKING`. A response copied from another or mutated request fails closed. The
+request remains beside the package as creation lineage; materialization is not
+admission. The explicit path remains `WORKING → INDEX UNQUALIFIED → INDEX
+QUALIFIED → HEAD`, and re-observation determines whether the source attention
+row resolved, changed identity, or remained open.
 
 ## Workspace Package Admission
 

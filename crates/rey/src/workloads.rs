@@ -33,6 +33,7 @@ pub const WORKLOAD_STATUS_BATCH_SCHEMA: &str = "rey.workload-status-batch.v1";
 pub const WORKLOAD_TEST_BATCH_SCHEMA: &str = "rey.workload-test-batch.v1";
 pub const WORKLOAD_PACKAGE_SCHEMA: &str = "rey.workload-package.v1";
 pub const WORKLOAD_CREATION_REQUEST_SCHEMA: &str = "rey.workload-creation-request.v1";
+pub const WORKLOAD_CREATION_ATTENTION_SCHEMA: &str = "rey.workload-creation-attention.v1";
 pub const WORKLOAD_CREATE_RESULT_SCHEMA: &str = "rey.workload-create-result.v1";
 pub const WORKLOAD_CATALOG_SCHEMA: &str = "rey.workload-catalog.v1";
 pub const WORKLOAD_RUN_VIEW_SCHEMA: &str = "rey.workload-run-view.v1";
@@ -211,8 +212,46 @@ pub struct WorkloadCreationRequest {
     pub proposer: WorkloadProposalKind,
     pub catalog_root: String,
     pub target_package: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attention: Option<WorkloadCreationAttentionBinding>,
     pub requirements: Vec<String>,
     pub limits: WorkloadCreationLimits,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadCreationAttentionBinding {
+    pub schema: String,
+    pub portfolio_snapshot_id: SemanticDigest,
+    pub environment_snapshot_id: SemanticDigest,
+    pub attention_id: SemanticDigest,
+    pub attention_row_id: SemanticDigest,
+    pub frontier_id: SemanticDigest,
+    pub frontier_row_id: SemanticDigest,
+    pub scheduling_decision_id: SemanticDigest,
+    pub reasoning_surface_id: SemanticDigest,
+    pub action: rey_runtime::AttentionAction,
+    pub reason: rey_runtime::AttentionReason,
+    pub subject_id: String,
+    pub current_package_revision: Option<SemanticDigest>,
+    pub evidence_ids: Vec<SemanticDigest>,
+    pub dependency_ids: Vec<String>,
+    pub delta_ids: Vec<SemanticDigest>,
+    pub admissible_action_ids: Vec<String>,
+    pub surface_limits: WorkloadCreationSurfaceLimits,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadCreationSurfaceLimits {
+    pub max_rows: u64,
+    pub max_delta_refs: u64,
+    pub max_evidence_refs: u64,
+    pub max_action_refs: u64,
+    pub max_omissions: u64,
+    pub max_total_evidence_bytes: u64,
+    pub max_string_bytes: u64,
+    pub max_retrieval_iterations: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -648,6 +687,7 @@ impl WorkloadCatalog {
                                 package: workload_id,
                             });
                         }
+                        validate_harness_response_lineage(&resolved, &draft)?;
                     }
                     if !ids.insert(workload_id.clone()) {
                         return Err(WorkloadCatalogError::DuplicateWorkload(workload_id));
@@ -780,6 +820,7 @@ impl WorkloadCatalog {
         workload_id: &str,
         title: Option<&str>,
         intent: Option<&str>,
+        attention: Option<WorkloadCreationAttentionBinding>,
     ) -> Result<WorkloadCreateResult, WorkloadCatalogError> {
         validate_relative_catalog_dir(catalog_dir)?;
         validate_workload_id(workload_id)?;
@@ -792,17 +833,19 @@ impl WorkloadCatalog {
         let catalog_root = catalog_dir.display().to_string();
         let package_dir = catalog_dir.join(workload_id);
         let target_package = package_dir.join(WORKLOAD_PACKAGE_FILE_NAME);
-        let requirements = workload_creation_requirements();
+        let requirements = workload_creation_requirements(attention.is_some());
         let limits = WorkloadCreationLimits::default();
-        let request_id = workload_creation_request_digest(
+        let target_package = target_package.display().to_string();
+        let request_id = workload_creation_request_digest(&WorkloadCreationDigestInput {
             workload_id,
             title,
             intent,
-            &catalog_root,
-            &target_package.display().to_string(),
-            &requirements,
-            &limits,
-        );
+            catalog_root: &catalog_root,
+            target_package: &target_package,
+            attention: attention.as_ref(),
+            requirements: &requirements,
+            limits: &limits,
+        });
         let request = WorkloadCreationRequest {
             schema: WORKLOAD_CREATION_REQUEST_SCHEMA.to_owned(),
             request_id,
@@ -811,7 +854,8 @@ impl WorkloadCatalog {
             intent: intent.map(str::to_owned),
             proposer: WorkloadProposalKind::CodingHarness,
             catalog_root,
-            target_package: target_package.display().to_string(),
+            target_package,
+            attention,
             requirements,
             limits,
         };
@@ -884,6 +928,141 @@ impl WorkloadCatalog {
     }
 }
 
+impl WorkloadCreationAttentionBinding {
+    pub fn from_runtime(
+        snapshot: &PortfolioSnapshot,
+        attention: &WorkloadAttention,
+        runtime: &PortfolioReasoningEvidence,
+        requested_row_id: &str,
+    ) -> Result<Self, WorkloadCatalogError> {
+        runtime.verify_against(snapshot, attention)?;
+        let attention_row = attention
+            .rows
+            .iter()
+            .find(|row| row.row_id.as_str() == requested_row_id)
+            .ok_or_else(|| {
+                WorkloadCatalogError::UnknownAttentionRow(requested_row_id.to_owned())
+            })?;
+        if attention_row.action != rey_runtime::AttentionAction::Create
+            || attention_row.subject_kind != rey_runtime::AttentionSubjectKind::Surface
+            || attention_row.readiness != rey_runtime::AttentionReadiness::Ready
+        {
+            return Err(WorkloadCatalogError::CreationAttentionRequired(
+                requested_row_id.to_owned(),
+            ));
+        }
+        let frontier_row = runtime
+            .frontier
+            .rows
+            .iter()
+            .find(|row| {
+                row.claim_ids.contains(&format!(
+                    "rey.workload-attention-row:{}",
+                    attention_row.row_id
+                ))
+            })
+            .ok_or_else(|| {
+                WorkloadCatalogError::UnscheduledAttentionRow(requested_row_id.to_owned())
+            })?;
+        if !runtime
+            .scheduling
+            .selected
+            .iter()
+            .any(|selected| selected.frontier_row_id == frontier_row.row_id)
+        {
+            return Err(WorkloadCatalogError::UnscheduledAttentionRow(
+                requested_row_id.to_owned(),
+            ));
+        }
+        let surface = runtime.surface.as_ref().ok_or_else(|| {
+            WorkloadCatalogError::UnscheduledAttentionRow(requested_row_id.to_owned())
+        })?;
+        let surface_row = surface
+            .rows
+            .iter()
+            .find(|row| row.frontier_row_id == frontier_row.row_id.as_str())
+            .ok_or_else(|| {
+                WorkloadCatalogError::UnscheduledAttentionRow(requested_row_id.to_owned())
+            })?;
+        let mut delta_ids = surface_row.transition_delta_ids.clone();
+        delta_ids.extend(surface_row.residual_delta_ids.clone());
+        delta_ids.sort();
+        delta_ids.dedup();
+        let limits = &surface.limits;
+        let binding = Self {
+            schema: WORKLOAD_CREATION_ATTENTION_SCHEMA.to_owned(),
+            portfolio_snapshot_id: snapshot.snapshot_id.clone(),
+            environment_snapshot_id: runtime.frontier.inputs.capability_snapshot_id.clone(),
+            attention_id: attention.attention_id.clone(),
+            attention_row_id: attention_row.row_id.clone(),
+            frontier_id: runtime.frontier.frontier_id.clone(),
+            frontier_row_id: frontier_row.row_id.clone(),
+            scheduling_decision_id: runtime.scheduling.decision_id.clone(),
+            reasoning_surface_id: surface.surface_id.clone(),
+            action: attention_row.action,
+            reason: attention_row.reason,
+            subject_id: attention_row.subject_id.clone(),
+            current_package_revision: None,
+            evidence_ids: attention_row.evidence_ids.clone(),
+            dependency_ids: attention_row.dependency_ids.clone(),
+            delta_ids,
+            admissible_action_ids: surface_row.admissible_action_ids.clone(),
+            surface_limits: WorkloadCreationSurfaceLimits {
+                max_rows: limits.max_rows,
+                max_delta_refs: limits.max_delta_refs,
+                max_evidence_refs: limits.max_evidence_refs,
+                max_action_refs: limits.max_action_refs,
+                max_omissions: limits.max_omissions,
+                max_total_evidence_bytes: limits.max_total_evidence_bytes,
+                max_string_bytes: limits.max_string_bytes,
+                max_retrieval_iterations: limits.max_retrieval_iterations,
+            },
+        };
+        binding.verify()?;
+        Ok(binding)
+    }
+
+    fn verify(&self) -> Result<(), WorkloadCatalogError> {
+        let digests = [
+            &self.portfolio_snapshot_id,
+            &self.environment_snapshot_id,
+            &self.attention_id,
+            &self.attention_row_id,
+            &self.frontier_id,
+            &self.frontier_row_id,
+            &self.scheduling_decision_id,
+            &self.reasoning_surface_id,
+        ];
+        if self.schema != WORKLOAD_CREATION_ATTENTION_SCHEMA
+            || self.action != rey_runtime::AttentionAction::Create
+            || self.subject_id.trim().is_empty()
+            || self.current_package_revision.is_some()
+            || self.admissible_action_ids != ["rey.action.create-workload"]
+            || digests.iter().any(|digest| !is_semantic_digest(digest))
+            || !is_canonical(&self.evidence_ids)
+            || !is_canonical(&self.dependency_ids)
+            || !is_canonical(&self.delta_ids)
+            || !is_canonical(&self.admissible_action_ids)
+            || [
+                self.surface_limits.max_rows,
+                self.surface_limits.max_delta_refs,
+                self.surface_limits.max_evidence_refs,
+                self.surface_limits.max_action_refs,
+                self.surface_limits.max_omissions,
+                self.surface_limits.max_total_evidence_bytes,
+                self.surface_limits.max_string_bytes,
+                self.surface_limits.max_retrieval_iterations,
+            ]
+            .contains(&0)
+        {
+            return Err(WorkloadCatalogError::InvalidAttentionBinding(
+                self.attention_row_id.to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl WorkloadCreationRequest {
     fn verify(&self) -> Result<(), WorkloadCatalogError> {
         if self.schema != WORKLOAD_CREATION_REQUEST_SCHEMA {
@@ -897,12 +1076,15 @@ impl WorkloadCreationRequest {
             validate_creation_text("intent", intent, MAX_WORKLOAD_INTENT_BYTES, false)?;
         }
         if self.proposer != WorkloadProposalKind::CodingHarness
-            || self.requirements != workload_creation_requirements()
+            || self.requirements != workload_creation_requirements(self.attention.is_some())
             || self.limits != WorkloadCreationLimits::default()
         {
             return Err(WorkloadCatalogError::InvalidCreationRequest(
                 self.workload_id.clone(),
             ));
+        }
+        if let Some(attention) = &self.attention {
+            attention.verify()?;
         }
         validate_relative_catalog_dir(Path::new(&self.catalog_root))?;
         let expected_target = Path::new(&self.catalog_root)
@@ -912,15 +1094,16 @@ impl WorkloadCreationRequest {
             .to_string();
         if self.target_package != expected_target
             || self.request_id
-                != workload_creation_request_digest(
-                    &self.workload_id,
-                    &self.title,
-                    self.intent.as_deref(),
-                    &self.catalog_root,
-                    &self.target_package,
-                    &self.requirements,
-                    &self.limits,
-                )
+                != workload_creation_request_digest(&WorkloadCreationDigestInput {
+                    workload_id: &self.workload_id,
+                    title: &self.title,
+                    intent: self.intent.as_deref(),
+                    catalog_root: &self.catalog_root,
+                    target_package: &self.target_package,
+                    attention: self.attention.as_ref(),
+                    requirements: &self.requirements,
+                    limits: &self.limits,
+                })
         {
             return Err(WorkloadCatalogError::InvalidCreationRequest(
                 self.workload_id.clone(),
@@ -1005,8 +1188,8 @@ fn load_workload_draft(
     })
 }
 
-fn workload_creation_requirements() -> Vec<String> {
-    vec![
+fn workload_creation_requirements(attention_bound: bool) -> Vec<String> {
+    let mut requirements = vec![
         "Mine exact authoritative workspace and environment sources; retain their revision references."
             .to_owned(),
         "Define a bounded typed compute graph using only admitted operation contracts."
@@ -1017,34 +1200,112 @@ fn workload_creation_requirements() -> Vec<String> {
             .to_owned(),
         "Materialize the target workload.yaml and preserve request.yaml as creation lineage."
             .to_owned(),
-    ]
+    ];
+    if attention_bound {
+        requirements.push(
+            "Treat the exact selected attention row and reasoning surface as immutable request preconditions; cite the complete request bytes in generation inputs."
+                .to_owned(),
+        );
+    }
+    requirements
 }
 
-fn workload_creation_request_digest(
-    workload_id: &str,
-    title: &str,
-    intent: Option<&str>,
-    catalog_root: &str,
-    target_package: &str,
-    requirements: &[String],
-    limits: &WorkloadCreationLimits,
-) -> SemanticDigest {
+struct WorkloadCreationDigestInput<'a> {
+    workload_id: &'a str,
+    title: &'a str,
+    intent: Option<&'a str>,
+    catalog_root: &'a str,
+    target_package: &'a str,
+    attention: Option<&'a WorkloadCreationAttentionBinding>,
+    requirements: &'a [String],
+    limits: &'a WorkloadCreationLimits,
+}
+
+fn workload_creation_request_digest(input: &WorkloadCreationDigestInput<'_>) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(WORKLOAD_CREATION_REQUEST_SCHEMA);
-    hasher.add_str(workload_id);
-    hasher.add_str(title);
-    hasher.add_optional_str(intent);
+    hasher.add_str(input.workload_id);
+    hasher.add_str(input.title);
+    hasher.add_optional_str(input.intent);
     hasher.add_str("coding_harness");
-    hasher.add_str(catalog_root);
-    hasher.add_str(target_package);
-    hasher.add_u64(requirements.len() as u64);
-    for requirement in requirements {
+    hasher.add_str(input.catalog_root);
+    hasher.add_str(input.target_package);
+    if let Some(attention) = input.attention {
+        hasher.add_str(WORKLOAD_CREATION_ATTENTION_SCHEMA);
+        for digest in [
+            &attention.portfolio_snapshot_id,
+            &attention.environment_snapshot_id,
+            &attention.attention_id,
+            &attention.attention_row_id,
+            &attention.frontier_id,
+            &attention.frontier_row_id,
+            &attention.scheduling_decision_id,
+            &attention.reasoning_surface_id,
+        ] {
+            hasher.add_str(digest.as_str());
+        }
+        hasher.add_str(attention.action.as_str());
+        hasher.add_str(attention.reason.as_str());
+        hasher.add_str(&attention.subject_id);
+        hasher.add_optional_str(
+            attention
+                .current_package_revision
+                .as_ref()
+                .map(SemanticDigest::as_str),
+        );
+        add_creation_digests(&mut hasher, &attention.evidence_ids);
+        add_creation_strings(&mut hasher, &attention.dependency_ids);
+        add_creation_digests(&mut hasher, &attention.delta_ids);
+        add_creation_strings(&mut hasher, &attention.admissible_action_ids);
+        for limit in [
+            attention.surface_limits.max_rows,
+            attention.surface_limits.max_delta_refs,
+            attention.surface_limits.max_evidence_refs,
+            attention.surface_limits.max_action_refs,
+            attention.surface_limits.max_omissions,
+            attention.surface_limits.max_total_evidence_bytes,
+            attention.surface_limits.max_string_bytes,
+            attention.surface_limits.max_retrieval_iterations,
+        ] {
+            hasher.add_u64(limit);
+        }
+    }
+    hasher.add_u64(input.requirements.len() as u64);
+    for requirement in input.requirements {
         hasher.add_str(requirement);
     }
-    hasher.add_u64(limits.max_package_bytes);
-    hasher.add_u64(limits.max_graph_nodes);
-    hasher.add_u64(limits.max_scenarios);
-    hasher.add_u64(limits.max_string_bytes);
+    hasher.add_u64(input.limits.max_package_bytes);
+    hasher.add_u64(input.limits.max_graph_nodes);
+    hasher.add_u64(input.limits.max_scenarios);
+    hasher.add_u64(input.limits.max_string_bytes);
     hasher.finish()
+}
+
+fn add_creation_digests(hasher: &mut SemanticHasher, values: &[SemanticDigest]) {
+    hasher.add_u64(values.len() as u64);
+    for value in values {
+        hasher.add_str(value.as_str());
+    }
+}
+
+fn add_creation_strings(hasher: &mut SemanticHasher, values: &[String]) {
+    hasher.add_u64(values.len() as u64);
+    for value in values {
+        hasher.add_str(value);
+    }
+}
+
+fn is_semantic_digest(digest: &SemanticDigest) -> bool {
+    let Some(value) = digest.as_str().strip_prefix("blake3:") else {
+        return false;
+    };
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn is_canonical<T: Ord>(values: &[T]) -> bool {
+    values.windows(2).all(|window| window[0] < window[1])
 }
 
 fn validate_workload_id(workload_id: &str) -> Result<(), WorkloadCatalogError> {
@@ -1426,6 +1687,28 @@ fn validate_generation(
     Ok(())
 }
 
+fn validate_harness_response_lineage(
+    workload: &ResolvedWorkload,
+    draft: &WorkloadDraft,
+) -> Result<(), WorkloadCatalogError> {
+    let lineage_error = || WorkloadCatalogError::HarnessResponseLineage {
+        workload: workload.definition.workload.id.clone(),
+        request_source: draft.source.clone(),
+        revision: draft.source_digest.clone(),
+    };
+    let generation = workload
+        .provenance
+        .generation
+        .as_ref()
+        .ok_or_else(lineage_error)?;
+    if !generation.inputs.iter().any(|input| {
+        input.source == draft.source && input.revision == draft.source_digest.to_string()
+    }) {
+        return Err(lineage_error());
+    }
+    Ok(())
+}
+
 fn validate_relative_catalog_dir(path: &Path) -> Result<(), WorkloadCatalogError> {
     if path.as_os_str().is_empty()
         || path
@@ -1472,6 +1755,22 @@ pub enum WorkloadCatalogError {
     RequestDirectoryIdentity { request: String, directory: String },
     #[error("workload creation request id {request} does not match admitted package {package}")]
     RequestIdentity { request: String, package: String },
+    #[error("unknown portfolio-attention row {0}")]
+    UnknownAttentionRow(String),
+    #[error("attention row {0} is not a ready CREATE surface row")]
+    CreationAttentionRequired(String),
+    #[error("attention row {0} was not selected into the current reasoning surface")]
+    UnscheduledAttentionRow(String),
+    #[error("workload creation attention binding {0} is invalid")]
+    InvalidAttentionBinding(String),
+    #[error(
+        "workload package {workload} does not cite the exact retained harness request bytes as {request_source}@{revision}"
+    )]
+    HarnessResponseLineage {
+        workload: String,
+        request_source: String,
+        revision: SemanticDigest,
+    },
     #[error("workload {0} already has a catalog directory; refusing to overwrite it")]
     WorkloadAlreadyExists(String),
     #[error("workload package {0} is not accepted with a frozen scenario oracle")]
@@ -1501,6 +1800,8 @@ pub enum WorkloadCatalogError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Workload(#[from] rey_runtime::WorkloadError),
+    #[error(transparent)]
+    Portfolio(#[from] rey_runtime::PortfolioError),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -3355,6 +3656,7 @@ mod tests {
             workload_id,
             Some("Context anchor survey"),
             Some("Survey admitted context anchors"),
+            None,
         )
         .unwrap();
         let request_path = workspace
@@ -3382,6 +3684,20 @@ mod tests {
             WORKSPACE_PACKAGE,
         )
         .unwrap();
+        assert!(matches!(
+            WorkloadCatalog::load_workspace(workspace.path(), catalog_dir),
+            Err(WorkloadCatalogError::HarnessResponseLineage { .. })
+        ));
+        let response = WORKSPACE_PACKAGE
+            .replace(
+                "sys/context-anchor-survey/request.yaml",
+                &created.draft.source,
+            )
+            .replace(
+                "blake3:ae6225ab5d7809dd325de1df03e228b9051fbad1d0030e530e4417d9c1048f24",
+                &created.draft.source_digest.to_string(),
+            );
+        fs::write(request_path.with_file_name("workload.yaml"), response).unwrap();
         let working_catalog =
             WorkloadCatalog::load_workspace(workspace.path(), catalog_dir).unwrap();
         assert_eq!(working_catalog.descriptor.workload_count, 1);

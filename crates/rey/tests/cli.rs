@@ -20,7 +20,7 @@ use rey::workloads::{
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
-    BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
+    AttentionAction, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus,
     ScenarioEvaluation, TestStatus,
 };
@@ -2504,7 +2504,7 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
         "Mode: APPLY",
         "CREATE REQUEST → AWAIT CODING HARNESS",
         "WORKLOAD CREATION",
-        "Admission              AWAITING CODING HARNESS",
+        "Admission              AWAITING HARNESS",
         "Graph                  MISSING",
         "Scenario oracle        NOT ADMITTED",
         "AGENT INSTRUCTIONS",
@@ -2610,6 +2610,268 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
         String::from_utf8_lossy(&immutable.stderr)
             .contains("built-in conformance workloads are immutable")
     );
+}
+
+#[test]
+fn selected_create_attention_binds_the_harness_response_through_human_admission() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("input.txt"), "unowned surface\n").unwrap();
+    fs::write(
+        workspace.path().join("rey.env.yaml"),
+        r#"schema: rey.env-map.v1
+nodes:
+  - id: input
+    kind: file
+    path: input.txt
+    required: true
+edges: []
+"#,
+    )
+    .unwrap();
+    assert!(
+        run_rey_workspace(&[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--map",
+            "rey.env.yaml",
+        ])
+        .status
+        .success()
+    );
+    assert!(
+        run_rey_workspace(&[
+            "env",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "admit input surface",
+        ])
+        .status
+        .success()
+    );
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    let create = listed
+        .attention
+        .rows
+        .iter()
+        .find(|row| row.action == AttentionAction::Create)
+        .unwrap();
+    let runtime = listed.runtime.as_ref().unwrap();
+    assert_eq!(runtime.scheduling.selected.len(), 1);
+    assert!(runtime.frontier.rows.iter().any(|row| {
+        row.row_id == runtime.scheduling.selected[0].frontier_row_id
+            && row
+                .claim_ids
+                .contains(&format!("rey.workload-attention-row:{}", create.row_id))
+    }));
+
+    let stale = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "create",
+        "stale-request",
+        "--attention-row",
+        "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+    ]);
+    assert_eq!(stale.status.code(), Some(1));
+    assert!(stale.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&stale.stderr).contains("unknown portfolio-attention row"));
+    assert!(!workspace.path().join("sys/stale-request").exists());
+
+    let created = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "create",
+        "input-surface",
+        "--attention-row",
+        create.row_id.as_str(),
+        "--format",
+        "table",
+    ]);
+    assert!(created.status.success());
+    assert!(created.stderr.is_empty());
+    let created = String::from_utf8(created.stdout).unwrap();
+    for needle in [
+        "Attention row          blake3:",
+        "unowned_surface · input.txt",
+        "Portfolio              blake3:",
+        "Environment            blake3:",
+        "Frontier               blake3:",
+        "Frontier row           blake3:",
+        "Scheduling             blake3:",
+        "Reasoning surface      blake3:",
+        "Permitted action       rey.action.create-workload",
+        "Current package        ABSENT · CREATE",
+        "Failing delta refs     0 · typed empty",
+        "Surface bounds",
+        "immutable request preconditions",
+        "Admission              AWAITING HARNESS",
+    ] {
+        assert!(
+            created.contains(needle),
+            "missing request binding: {needle}"
+        );
+    }
+
+    let draft_list = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(draft_list.status.success());
+    let draft_list: WorkloadList = serde_json::from_slice(&draft_list.stdout).unwrap();
+    let draft = &draft_list.drafts[0];
+    let binding = draft.request.attention.as_ref().unwrap();
+    assert_eq!(binding.attention_row_id, create.row_id);
+    assert_eq!(binding.frontier_id, runtime.frontier.frontier_id);
+    assert_eq!(
+        binding.scheduling_decision_id,
+        runtime.scheduling.decision_id
+    );
+    assert_eq!(
+        binding.reasoning_surface_id,
+        runtime.surface.as_ref().unwrap().surface_id
+    );
+    let awaiting = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(awaiting.status.success());
+    assert!(
+        String::from_utf8_lossy(&awaiting.stdout)
+            .contains("Admission state        AWAITING HARNESS")
+    );
+
+    let package_path = workspace.path().join("sys/input-surface/workload.yaml");
+    let fixture = include_str!("fixtures/workloads/agent-proposed-normalization.yaml")
+        .replace("rey.fixture.agent-proposed-normalization", "input-surface");
+    fs::write(&package_path, &fixture).unwrap();
+    let unbound = run_rey_workspace(&["workloads", "--workspace", workspace_path, "status"]);
+    assert_eq!(unbound.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&unbound.stderr)
+            .contains("does not cite the exact retained harness request bytes")
+    );
+
+    let response = fixture
+        .replace("source: AGENTS.md", &format!("source: {}", draft.source))
+        .replace(
+            "revision: fixture:agents-v1",
+            &format!("revision: {}", draft.source_digest),
+        );
+    fs::write(&package_path, response).unwrap();
+
+    let working = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(working.status.success());
+    let working = String::from_utf8(working.stdout).unwrap();
+    assert!(working.contains("Admission state        WORKING"));
+    assert!(working.contains("Changes not staged for workload admission"));
+    assert!(working.contains("new:       workload: input-surface"));
+
+    let added = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "add",
+        "--format",
+        "table",
+    ]);
+    assert!(added.status.success());
+    assert!(String::from_utf8_lossy(&added.stdout).contains("WORKLOAD INDEX"));
+
+    let unqualified = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(unqualified.status.success());
+    let unqualified = String::from_utf8_lossy(&unqualified.stdout);
+    assert!(unqualified.contains("Admission state        INDEX UNQUALIFIED"));
+    assert!(unqualified.contains("INDEX is not ready"));
+
+    let tested = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "test",
+        "--staged",
+        "input-surface",
+        "--format",
+        "table",
+        "-vv",
+    ]);
+    assert!(tested.status.success());
+    assert!(tested.stderr.is_empty());
+    assert!(String::from_utf8_lossy(&tested.stdout).contains("Result      QUALIFIED"));
+
+    let qualified = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(qualified.status.success());
+    let qualified = String::from_utf8_lossy(&qualified.stdout);
+    assert!(qualified.contains("Admission state        INDEX QUALIFIED"));
+    assert!(qualified.contains("INDEX is qualified and awaiting human approval"));
+
+    let committed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "admit input surface workload",
+        "--format",
+        "table",
+    ]);
+    assert!(committed.status.success());
+    let committed = String::from_utf8(committed.stdout).unwrap();
+    assert!(committed.contains("WORKLOAD@1"));
+
+    let head = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(head.status.success());
+    let head: WorkloadList = serde_json::from_slice(&head.stdout).unwrap();
+    assert_eq!(head.workloads.len(), 1);
+    assert_eq!(head.workloads[0].workload.id, "input-surface");
+    assert_eq!(head.catalog.admitted_count, 1);
+    assert!(head.attention.rows.iter().any(|row| {
+        row.action == AttentionAction::Create
+            && row.subject_id == "input.txt"
+            && row.readiness == rey_runtime::AttentionReadiness::Ready
+    }));
+
+    let admitted = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(admitted.status.success());
+    assert!(String::from_utf8_lossy(&admitted.stdout).contains("Admission state        HEAD"));
 }
 
 #[test]

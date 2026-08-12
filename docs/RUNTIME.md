@@ -6,14 +6,16 @@ through scheduling, canonical frontier/progress/selection contracts, and
 reasoning-surface validation/projection. One bounded source-mining workload
 retrieves through a built-in provider, derives and schedules a failure row, and
 projects a reasoning surface. The deterministic outer portfolio campaign also
-derives workload attention from retained inputs. Neither path executes a
-proposed revision action or runs a recurring agent loop.
+derives workload attention from retained inputs and can bind its one selected
+ready `CREATE` row into an immutable external-harness request. Rey verifies
+the returned WORKING package against the exact request lineage, but it neither
+executes the harness nor runs a recurring agent loop.
 
 Runtime v1 binds exact workload, graph, scenario-suite, and campaign identities.
 Product workloads arrive as bounded workspace packages with exact proposal
 provenance and frozen scenario admission. Rey does not invoke a coding harness;
-it deterministically receives and evaluates admitted packages. The generic
-attention-to-frontier and recurring loop remains
+it deterministically requests, receives, qualifies, and admits exact package
+bytes. Git-native activation and recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Nested Campaigns
@@ -273,8 +275,8 @@ The implemented crates deliberately contain no:
   fixture and portfolio-attention derivation; portfolio invalidation currently
   covers declared mapped-file revisions and required environment capabilities,
   not Git-native dependencies or arbitrary providers;
-- coding-harness proposal request/response campaign beyond the bounded
-  workspace package receiving contract;
+- automatic coding-harness transport or invocation beyond the immutable
+  selected-`CREATE` request and exact response-lineage contract;
 - recurring, fair, parallel, or multi-user scheduling;
 - external tool, query, parser, or index retrieval implementation;
 - general visualization specification beyond the source workload's terminal

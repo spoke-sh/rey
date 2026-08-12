@@ -21,18 +21,19 @@ retained catalog + results + environment + Git + coverage
 
 ## Current Boundary
 
-Rey already derives typed portfolio attention, canonical frontier/progress,
-deterministic scheduling, and reasoning surfaces. Workspace creation requests
-are visible and content-identified, but Rey does not invoke a harness or bind a
-harness response to one selected attention row. Workload-owned surfaces are
-not declared, retained environment/Git changes do not generally invalidate
-their owners, and no recurring scheduler or Git cursor drives the loop.
+Rey derives typed portfolio attention, a canonical frontier, deterministic
+scheduling, and bounded reasoning surfaces. Workloads declare bounded owned
+surfaces; retained mapped-file and capability changes derive owner attention.
+One selected ready `CREATE` row now crosses an immutable external-harness
+request/response and human admission cycle without Rey invoking a harness.
+Git-native dependency invalidation, retained activation cursors, and a bounded
+recurring scheduler remain open.
 
 ## Completion Checklist
 
 ### 1. Bind ownership and invalidation
 
-- [ ] Define bounded workload-owned surface declarations with exact workload,
+- [x] Define bounded workload-owned surface declarations with exact workload,
   graph, environment, and source revisions.
 - [ ] Derive changed-dependency and missing-capability facts from retained
   environment and Git evidence instead of fixture-only or empty live fields.
@@ -46,20 +47,20 @@ their owners, and no recurring scheduler or Git cursor drives the loop.
 - [x] Build one bounded reasoning surface that cites the exact attention row,
   dependent deltas, evidence, omissions, allowed graph operations, and total
   budget.
-- [ ] Preserve distinct attention, frontier, scheduling, progress, and proof
+- [x] Preserve distinct attention, frontier, scheduling, progress, and proof
   identities through CLI table and structured output.
 
 ### 3. Complete one harness request/response cycle
 
-- [ ] Bind one `CREATE` or `REFINE` row, its reasoning surface, current package
+- [x] Bind one `CREATE` or `REFINE` row, its reasoning surface, current package
   state, failing deltas, permitted operations, and limits into a creation
   request.
-- [ ] Accept one immutable external harness response as a verified WORKING
+- [x] Accept one immutable external harness response as a verified WORKING
   package; do not launch an ambient executable or fabricate graph/scenario
   content in Rey.
-- [ ] Stage exact bytes, execute the frozen scenarios, require human admission,
+- [x] Stage exact bytes, execute the frozen scenarios, require human admission,
   and re-mine whether the original row resolved, changed, or remained open.
-- [ ] Show `AWAITING HARNESS`, `WORKING`, `INDEX UNQUALIFIED`, `INDEX
+- [x] Show `AWAITING HARNESS`, `WORKING`, `INDEX UNQUALIFIED`, `INDEX
   QUALIFIED`, and `HEAD` distinctly through the human CLI.
 
 ### 4. Add activation and recurrence
@@ -74,7 +75,7 @@ their owners, and no recurring scheduler or Git cursor drives the loop.
 
 ### 5. Qualify the slice
 
-- [ ] Exercise the complete path through `rey workloads ... -vv`, including
+- [x] Exercise the complete path through `rey workloads ... -vv`, including
   stdout, stderr, JSON, exit behavior, stale preconditions, and re-observation.
 - [ ] Prove deterministic replay and equivalence with full bounded
   recomputation for the selected invalidation fixture.
