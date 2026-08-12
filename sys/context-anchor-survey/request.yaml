@@ -1,12 +1,12 @@
 {
   "schema": "rey.workload-creation-request.v1",
-  "request_id": "blake3:804efc6e211564ba019a4b0b20d048044728defced6622375735b2aa17ef0667",
+  "request_id": "blake3:ade2598ed7107f32b0be2c3dae4a0478d53fd57e38be786954de0d6694063d4a",
   "workload_id": "context-anchor-survey",
   "title": "Survey project context anchors",
   "intent": "Mine bounded AGENTS.md and README seeds for exact URI and reference anchors",
   "proposer": "coding_harness",
-  "catalog_root": "workloads",
-  "target_package": "workloads/context-anchor-survey/workload.yaml",
+  "catalog_root": "sys",
+  "target_package": "sys/context-anchor-survey/workload.yaml",
   "requirements": [
     "Mine exact authoritative workspace and environment sources; retain their revision references.",
     "Define a bounded typed compute graph using only admitted operation contracts.",

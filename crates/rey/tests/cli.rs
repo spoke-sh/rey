@@ -15,9 +15,9 @@ use rey::env::{
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
 };
 use rey::workloads::{
-    QualificationState, WorkloadCatalogKind, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
-    WorkloadChangeSet, WorkloadLog, WorkloadOrigin, WorkloadProposalKind, WorkloadRevisionStatus,
-    WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
+    QualificationState, WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult,
+    WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin, WorkloadProposalKind,
+    WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
@@ -1957,9 +1957,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
 #[test]
 fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
     let workspace = TempDir::new().unwrap();
-    let package_dir = workspace
-        .path()
-        .join("workloads/agent-proposed-normalization");
+    let package_dir = workspace.path().join("sys/agent-proposed-normalization");
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("workload.yaml"),
@@ -2056,18 +2054,15 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
     ]);
     assert!(committed.status.success());
 
-    let log = run_rey_workspace(&[
-        "workloads",
-        "--workspace",
-        workspace_path,
-        "log",
-        "--patch",
-    ]);
+    let log = run_rey_workspace(&["workloads", "--workspace", workspace_path, "log", "--patch"]);
     assert!(log.status.success());
     let log: WorkloadLog = serde_json::from_slice(&log.stdout).unwrap();
     assert_eq!(log.total_commits, 1);
     assert_eq!(log.commits[0].sequence, 1);
-    assert_eq!(log.commits[0].message, "Approve agent normalization fixture");
+    assert_eq!(
+        log.commits[0].message,
+        "Approve agent normalization fixture"
+    );
 
     let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
     assert!(listed.status.success());
@@ -2126,6 +2121,65 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
 }
 
 #[test]
+fn reyignore_filters_typed_workload_and_environment_working_objects() {
+    let workspace = TempDir::new().unwrap();
+    let package_dir = workspace.path().join("sys/context-anchor-survey");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("workload.yaml"),
+        include_str!("../../../sys/context-anchor-survey/workload.yaml"),
+    )
+    .unwrap();
+    fs::write(
+        workspace.path().join(".reyignore"),
+        "# local operator scope\nworkload: context-anchor-survey\nenvironment variable:*\n",
+    )
+    .unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let workload = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(workload.status.success());
+    let workload = String::from_utf8(workload.stdout).unwrap();
+    assert!(workload.contains("Ignore file    .reyignore · 1 rules · 1 working objects omitted"));
+    assert!(
+        workload.contains("ignored:      workload: context-anchor-survey · 1 matches · line 2")
+    );
+    assert!(!workload.contains("new:      workload: context-anchor-survey"));
+
+    let workload = run_rey_workspace(&["workloads", "--workspace", workspace_path, "status"]);
+    let workload: WorkloadRevisionStatus = serde_json::from_slice(&workload.stdout).unwrap();
+    assert!(workload.working.packages.is_empty());
+    assert_eq!(workload.working.ignore.as_ref().unwrap().ignored, 1);
+    assert_ne!(
+        workload.working.snapshot_revision,
+        rey_core::SemanticHasher::new("unrelated-empty").finish()
+    );
+
+    let environment = run_rey_workspace(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(environment.status.success());
+    let environment = String::from_utf8(environment.stdout).unwrap();
+    assert!(
+        environment.contains("Ignore file    .reyignore · 1 rules · 3 working objects omitted")
+    );
+    assert!(environment.contains("ignored:      environment variable: * · 3 matches · line 3"));
+    assert!(!environment.contains("environment variable: PATH"));
+}
+
+#[test]
 fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
@@ -2164,21 +2218,18 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
         );
     }
 
-    let request_path = workspace.path().join("workloads/api-drift/request.yaml");
+    let request_path = workspace.path().join("sys/api-drift/request.yaml");
     let request_before = fs::read(&request_path).unwrap();
     assert!(
         !workspace
             .path()
-            .join("workloads/api-drift/workload.yaml")
+            .join("sys/api-drift/workload.yaml")
             .exists()
     );
     let request: Value = serde_json::from_slice(&request_before).unwrap();
     assert_eq!(request["schema"], "rey.workload-creation-request.v1");
     assert_eq!(request["proposer"], "coding_harness");
-    assert_eq!(
-        request["target_package"],
-        "workloads/api-drift/workload.yaml"
-    );
+    assert_eq!(request["target_package"], "sys/api-drift/workload.yaml");
 
     let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
     assert!(listed.status.success());
@@ -2243,10 +2294,7 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
     let machine: WorkloadCreateResult = serde_json::from_slice(&machine.stdout).unwrap();
     assert_eq!(machine.draft.request.workload_id, "schema-mining");
     assert!(machine.action_required);
-    assert_eq!(
-        machine.created_files,
-        ["workloads/schema-mining/request.yaml"]
-    );
+    assert_eq!(machine.created_files, ["sys/schema-mining/request.yaml"]);
 
     let immutable = run_rey_workspace(&[
         "workloads",
@@ -2406,9 +2454,9 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Grammar                HIFI KINETIC · PRECISION",
         "Data plane             LIVE READS · JOURNAL WRITE · WORKLOAD APPROVAL",
         "Human entry            /feed?streams=admission.all",
-        "Workload approval      ENABLED · EXACT INDEX → HEAD",
+        "Workload admission     ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/commit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
@@ -3331,18 +3379,18 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
 }
 
 fn materialize_context_topography_fixture(workspace: &std::path::Path) {
-    fs::create_dir_all(workspace.join("workloads/context-anchor-survey")).unwrap();
+    fs::create_dir_all(workspace.join("sys/context-anchor-survey")).unwrap();
     fs::create_dir_all(workspace.join("docs")).unwrap();
     fs::create_dir_all(workspace.join("docs/decisions")).unwrap();
     fs::create_dir_all(workspace.join("plans")).unwrap();
     fs::write(
-        workspace.join("workloads/context-anchor-survey/workload.yaml"),
-        include_str!("../../../workloads/context-anchor-survey/workload.yaml"),
+        workspace.join("sys/context-anchor-survey/workload.yaml"),
+        include_str!("../../../sys/context-anchor-survey/workload.yaml"),
     )
     .unwrap();
     fs::write(
-        workspace.join("workloads/context-anchor-survey/request.yaml"),
-        include_str!("../../../workloads/context-anchor-survey/request.yaml"),
+        workspace.join("sys/context-anchor-survey/request.yaml"),
+        include_str!("../../../sys/context-anchor-survey/request.yaml"),
     )
     .unwrap();
     fs::write(

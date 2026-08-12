@@ -14,7 +14,8 @@ Implement ADR 0049 as the smallest end-to-end human/agent admission loop.
 - [x] Resolve `run` only from admitted HEAD and make `list` preserve plane
   boundaries.
 - [x] Enter the browser through the admission Feed, show INDEX/WORKING
-  candidates, and approve with exact HEAD/INDEX preconditions.
+  candidates, and approve with exact HEAD/INDEX preconditions. Superseded for
+  browser admission by Plan 0025's exact HEAD/WORKING file preconditions.
 - [x] Keep browser approval enabled for explicitly selected non-loopback binds
   and expose the unauthenticated authority in startup evidence.
 - [x] Remove `rey.portfolio.label-normalization` from the product catalog.
@@ -56,7 +57,8 @@ just test
 # 75 UI tests and 186 Rust tests passed; all workspace doc tests passed
 ```
 
-The server proof stages and qualifies a survey, posts an exact expected
-HEAD/INDEX approval to `/api/v1/workloads/commit`, and observes `WORKLOAD@1`.
+The original server proof staged and qualified a survey, posted an exact
+HEAD/INDEX approval, and observed `WORKLOAD@1`; Plan 0025 supersedes that
+browser flow with direct file-backed admission.
 The repository-local operator state is a separate candidate and remains
 uncommitted for human review.

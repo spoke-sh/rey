@@ -220,7 +220,8 @@ the same untrusted contract. Rey validates its operations, inputs, types,
 capabilities, effects, and bounds. The runtime executes the graph and computes
 scenario deltas; the proposer cannot declare its own graph qualified.
 
-The default catalog is the workspace's `workloads/` directory. Each
+The default catalog is the workspace's `sys/` directory. Each workload is a
+visible package directory such as `sys/context-anchor-survey/`. Its
 `rey.workload-package.v1` is an agent-authored WORKING proposal that binds a
 generated graph, a generated but frozen scenario oracle, exact harness
 provenance, and its package source revision. It cannot admit itself.
@@ -228,10 +229,29 @@ provenance, and its package source revision. It cannot admit itself.
 content-addressed `request.yaml` for an external coding harness and exposes the
 workload as a draft until that harness materializes a package. `add` freezes
 the package in INDEX, `test --staged` qualifies that exact snapshot, and a
-human workload commit advances HEAD. Rey does not fabricate a graph or
+human workload commit advances HEAD. The UI can perform that freeze,
+qualification, and commit directly from an exact reviewed WORKING file
+snapshot; `.rey` is retained admission state, never the source of an incoming
+proposal. Rey does not fabricate a graph or
 scenario oracle in the request step.
 Compiled fixtures are an explicit diagnostic surface selected with
 `--catalog conformance`; they are not presented as the user's portfolio.
+
+Workspace observation can be narrowed with a root `.reyignore` file. Rules use
+the same typed labels shown by status, followed by an exact or `*`/`?`
+wildcard pattern:
+
+```text
+workload: context-anchor-survey
+environment variable:*
+application: codex
+input: generated/*
+```
+
+Blank lines and `#` comments are allowed. Matching is case-sensitive. The
+bounded file, relevant rules, source digest, and match counts are retained in
+WORKING identity and rendered as explicit omissions; `.reyignore` never
+rewrites HEAD or INDEX.
 
 The product surface stays intentionally small:
 
@@ -313,7 +333,7 @@ just rey workloads diff --format table
 just rey workloads add --format table
 just rey workloads test --staged context-anchor-survey --format table -vv
 just rey workloads status --format table
-# Review and approve the exact qualified INDEX in the admission Feed:
+# Review and admit the exact visible file snapshot in the admission Feed:
 just rey ui
 just rey workloads list --format table
 just rey workloads --catalog conformance test rey.fixture.text-mismatch --format table -vv
@@ -431,9 +451,9 @@ admission contracts.
 The default catalog contains the checked-in, coding-harness-generated
 `context-anchor-survey` proposal. Its exact YAML graph and frozen scenario
 suite are visible at
-[`workloads/context-anchor-survey/workload.yaml`](workloads/context-anchor-survey/workload.yaml).
-Rey shows this package in WORKING until an agent stages and qualifies it and a
-human approves the exact INDEX. `workloads create` produces the strict request
+[`sys/context-anchor-survey/workload.yaml`](sys/context-anchor-survey/workload.yaml).
+Rey shows this package in WORKING until a human admits its exact file snapshot;
+the UI freezes and qualifies those bytes before advancing HEAD. `workloads create` produces the strict request
 side of the external harness handoff; automatic harness invocation remains a
 later boundary.
 

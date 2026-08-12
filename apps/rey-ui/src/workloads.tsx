@@ -455,9 +455,19 @@ const candidateColumns: readonly KineticDenseTableColumn<AdmissionCandidateRow>[
       width: "18%",
       render: (row) => (
         <div className={sx(styles.cellStack)}>
-          <strong>{row.ready ? "AWAITING HUMAN APPROVAL" : row.plane}</strong>
+          <strong>
+            {row.ready
+              ? "AWAITING HUMAN APPROVAL"
+              : row.plane === "WORKING"
+                ? "READY FOR FILE REVIEW"
+                : "INDEX"}
+          </strong>
           <span className={sx(chrome.micro)}>
-            {row.ready ? "QUALIFIED / FROZEN" : "NOT ADMITTED"}
+            {row.ready
+              ? "QUALIFIED / FROZEN"
+              : row.plane === "WORKING"
+                ? "QUALIFIES ON ADMISSION"
+                : "NOT ADMITTED"}
           </span>
           <span className={sx(styles.secondary)}>
             {row.package.generation.kind.replaceAll("_", " ")} /{" "}
@@ -516,7 +526,7 @@ export function WorkloadsPage({ portfolio }: { portfolio: WorkloadList }) {
         data-rey-section="01 / ADMISSION"
       >
         <WorkloadHeading
-          detail={`${candidates.length} incoming · ${portfolio.revision?.index?.packages.length ?? 0} staged · ${portfolio.revision?.commit_ready ? "approval ready" : "qualification required"}`}
+          detail={`${candidates.length} incoming · ${portfolio.revision?.index?.packages.length ?? 0} staged · ${portfolio.revision?.commit_ready ? "approval ready" : candidates.length > 0 ? "file review ready" : "quiet"}`}
           index="01"
           kicker="ADMISSION"
           title="Incoming workload revisions"
@@ -608,7 +618,11 @@ export function CandidateWorkloadDetail({
   const row: AdmissionCandidateRow = {
     package: candidate,
     plane: indexed ? "INDEX" : "WORKING",
-    ready: indexed === true && revision.commit_ready,
+    ready:
+      (indexed === true && revision.commit_ready) ||
+      (indexed === false &&
+        revision.head?.snapshot.snapshot_revision !==
+          revision.working.snapshot_revision),
   };
   return (
     <main className={sx(chrome.page, styles.page)}>
@@ -618,7 +632,7 @@ export function CandidateWorkloadDetail({
         data-rey-section="01 / ADMISSION POSTURE"
       >
         <WorkloadHeading
-          detail={`${row.plane} · ${row.ready ? "qualified and awaiting approval" : "not admitted"}`}
+          detail={`${row.plane} · ${row.ready ? (row.plane === "WORKING" ? "ready for exact file admission" : "qualified and awaiting approval") : "not admitted"}`}
           index="01"
           kicker="ADMISSION POSTURE"
           title={candidate.workload_id}

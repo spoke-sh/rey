@@ -19,8 +19,8 @@ generation:
     - compute_graph
     - scenario_suite
   inputs:
-    - source: workloads/context-anchor-survey/request.yaml
-      revision: blake3:71b970b1c12425ea90d5f932fe2d20ae4467751bd943e52ceb3666ee32c9b159
+    - source: sys/context-anchor-survey/request.yaml
+      revision: blake3:ade2598ed7107f32b0be2c3dae4a0478d53fd57e38be786954de0d6694063d4a
     - source: plans/0017-incremental-context-topography.md
       revision: git:f9e0a8c4daf2bc537f9e91d10bc8afd584878c6e
     - source: docs/decisions/0041-continuous-coordinate-topography.md

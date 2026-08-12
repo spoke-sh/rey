@@ -18,7 +18,7 @@ export interface UiServerIdentity {
 export interface WorkloadApprovalRequest {
   message: string;
   expected_head: string;
-  expected_index: string;
+  expected_working: string;
 }
 
 export type OperatorContext = WorkloadList & {
@@ -112,10 +112,10 @@ export async function admitJournalEntry(
   return (await response.json()) as JournalAdmission;
 }
 
-export async function approveWorkloadIndex(
+export async function admitWorkloadFiles(
   approval: WorkloadApprovalRequest,
 ): Promise<void> {
-  const response = await fetch("/api/v1/workloads/commit", {
+  const response = await fetch("/api/v1/workloads/admit", {
     body: JSON.stringify(approval),
     headers: {
       Accept: "application/json",

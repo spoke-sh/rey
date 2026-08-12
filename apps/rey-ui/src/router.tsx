@@ -567,6 +567,15 @@ function EnvironmentPage() {
               {status.staged_delta.changes.length} STAGED ·{" "}
               {status.unstaged_delta.changes.length} WORKING
             </span>
+            {status.ignored ? (
+              <span
+                className={sx(styles.micro, styles.toneWarning)}
+                title={`${status.ignored.source} · ${status.ignored.source_digest}`}
+              >
+                {status.ignored.source} · {status.ignored.rules.length} RULES ·{" "}
+                {status.ignored.ignored} OMITTED
+              </span>
+            ) : null}
           </div>
         </div>
         <div

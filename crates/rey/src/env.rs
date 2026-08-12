@@ -20,6 +20,8 @@ use rey_environment::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::ignore::{ReyIgnoreProjection, retained_environment_ignore};
+
 pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
 pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
@@ -885,6 +887,7 @@ pub struct EnvironmentStatus {
     pub operator: EnvironmentOperatorProjection,
     pub staged_delta: CapabilityDelta,
     pub unstaged_delta: CapabilityDelta,
+    pub ignored: Option<ReyIgnoreProjection>,
 }
 
 impl EnvironmentStatus {
@@ -968,7 +971,16 @@ impl EnvironmentStatus {
             operator,
             staged_delta,
             unstaged_delta,
+            ignored: None,
         })
+    }
+
+    pub fn apply_ignore_projection(
+        &mut self,
+        _workspace: &Path,
+    ) -> Result<(), LocalEnvironmentHistoryError> {
+        self.ignored = retained_environment_ignore(&self.working_snapshot)?;
+        Ok(())
     }
 }
 
@@ -1665,6 +1677,8 @@ pub enum LocalEnvironmentHistoryError {
     Discovery(#[from] DiscoveryError),
     #[error(transparent)]
     Delta(#[from] rey_diff::DeltaError),
+    #[error(transparent)]
+    Ignore(#[from] crate::ignore::ReyIgnoreError),
 }
 
 #[cfg(test)]

@@ -177,7 +177,7 @@ struct UiJournalProjection {
 struct UiWorkloadApproval {
     message: String,
     expected_head: String,
-    expected_index: String,
+    expected_working: String,
 }
 
 pub struct UiServer {
@@ -257,7 +257,7 @@ impl UiServer {
         if request.method() == &Method::Post && path == "/api/v1/journal" {
             return self.admit_journal(request);
         }
-        if request.method() == &Method::Post && path == "/api/v1/workloads/commit" {
+        if request.method() == &Method::Post && path == "/api/v1/workloads/admit" {
             return self.admit_workloads(request);
         }
         if request.method() != &Method::Get && !head {
@@ -370,10 +370,13 @@ impl UiServer {
             }
         };
         let store = LocalWorkloadStore::new(self.config.state_directory.clone());
-        match store.commit(
+        match super::admit_workload_files(
+            &store,
+            &self.config.workspace,
+            &self.config.catalog_directory,
             approval.message,
-            Some(&approval.expected_head),
-            Some(&approval.expected_index),
+            &approval.expected_head,
+            &approval.expected_working,
         ) {
             Ok(result) => json_response(StatusCode(201), &result),
             Err(error) => json_error(
@@ -846,42 +849,30 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use rey::workloads::LocalWorkloadStore;
-    use rey_core::SemanticHasher;
-    use rey_runtime::test_workload_with_observer_and_snapshot;
-
     use super::{UiServer, UiServerConfig};
+    use rey::workloads::LocalWorkloadStore;
 
     #[test]
     fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {
         let workspace = TempDir::new().unwrap();
-        let package_directory = workspace.path().join("workloads/context-anchor-survey");
+        let package_directory = workspace.path().join("sys/context-anchor-survey");
         fs::create_dir_all(&package_directory).unwrap();
         fs::write(
             package_directory.join("workload.yaml"),
-            include_str!("../../../workloads/context-anchor-survey/workload.yaml"),
+            include_str!("../../../sys/context-anchor-survey/workload.yaml"),
         )
         .unwrap();
         let workload_store = LocalWorkloadStore::default_for_workspace(workspace.path());
-        let added = workload_store
-            .add(workspace.path(), std::path::Path::new("workloads"))
-            .unwrap();
-        let staged_revision = added.snapshot.snapshot_revision.clone();
-        let staged_catalog = workload_store.index_catalog().unwrap();
-        let result = test_workload_with_observer_and_snapshot(
-            &staged_catalog.workloads[0].definition,
-            SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish(),
-            |_| {},
-        )
-        .unwrap();
-        let mut workload_state = workload_store.load().unwrap();
-        workload_state.retain_test(result);
-        workload_state.refresh_index_qualification(&staged_catalog.definitions());
-        workload_store.save(&workload_state).unwrap();
+        let working_revision = workload_store
+            .status(workspace.path(), std::path::Path::new("sys"))
+            .unwrap()
+            .working
+            .snapshot_revision;
+        assert!(!workload_store.path().exists());
         let server = UiServer::bind(UiServerConfig {
             workspace: workspace.path().to_owned(),
             state_directory: workspace.path().join(".rey/workloads"),
-            catalog_directory: "workloads".into(),
+            catalog_directory: "sys".into(),
             journal_directory: workspace.path().join(".rey/journal"),
             host: "127.0.0.1".parse().unwrap(),
             port: 0,
@@ -906,7 +897,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(21)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(23)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -916,23 +907,50 @@ mod tests {
         let workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(workloads.starts_with("HTTP/1.1 200"));
         assert!(workloads.contains("\"schema\":\"rey.workload-list.v1\""));
-        assert!(workloads.contains("\"commit_ready\":true"));
+        assert!(workloads.contains("\"state\":\"working\""));
+        assert!(workloads.contains("\"index\":null"));
 
         let approval = serde_json::json!({
             "message": "Approve exact context survey",
             "expected_head": "EMPTY",
-            "expected_index": staged_revision,
+            "expected_working": working_revision,
         })
         .to_string();
+        fs::write(
+            package_directory.join("workload.yaml"),
+            include_str!("../../../sys/context-anchor-survey/workload.yaml")
+                .replace("Survey project context anchors", "Changed after review"),
+        )
+        .unwrap();
+        let stale = request_with_body(
+            &address,
+            "POST /api/v1/workloads/admit HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &approval,
+        );
+        assert!(stale.starts_with("HTTP/1.1 409"));
+        assert!(stale.contains("WORKING file snapshot changed before admission"));
+        assert!(!workload_store.path().exists());
+        fs::write(
+            package_directory.join("workload.yaml"),
+            include_str!("../../../sys/context-anchor-survey/workload.yaml"),
+        )
+        .unwrap();
         let approved = request_with_body(
             &address,
-            "POST /api/v1/workloads/commit HTTP/1.1",
+            "POST /api/v1/workloads/admit HTTP/1.1",
             &[("Content-Type", "application/json")],
             &approval,
         );
         assert!(approved.starts_with("HTTP/1.1 201"));
         assert!(approved.contains("\"schema\":\"rey.workload-commit-result.v1\""));
         assert!(approved.contains("\"sequence\":1"));
+
+        let admitted = request(&address, "GET /api/v1/workloads HTTP/1.1");
+        assert!(admitted.starts_with("HTTP/1.1 200"));
+        assert!(admitted.contains("\"sequence\":1"));
+        assert!(admitted.contains("\"index\":null"));
+        assert!(admitted.contains("\"state\":\"clean\""));
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
@@ -1058,7 +1076,7 @@ mod tests {
         assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
         assert!(application.contains("ADMISSION CONTROL"));
-        assert!(application.contains("APPROVE EXACT INDEX"));
+        assert!(application.contains("ADMIT EXACT FILE SNAPSHOT"));
         assert!(application.contains("Display order is not causal order"));
         assert!(application.contains("data-kinetic-dense-table"));
         assert!(application.contains("Incoming workload revisions"));

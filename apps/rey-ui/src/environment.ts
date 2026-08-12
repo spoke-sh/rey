@@ -107,6 +107,19 @@ export interface EnvironmentStatus {
   operator: EnvironmentOperatorProjection;
   staged_delta: { changes: unknown[] };
   unstaged_delta: { changes: unknown[] };
+  ignored: ReyIgnoreProjection | null;
+}
+
+export interface ReyIgnoreProjection {
+  schema: "rey.ignore.v1";
+  source: string;
+  source_digest: string;
+  rules: { kind: string; pattern: string; source_line: number }[];
+  omissions: {
+    rule: { kind: string; pattern: string; source_line: number };
+    matched: number;
+  }[];
+  ignored: number;
 }
 
 export interface EnvironmentDiffLine {

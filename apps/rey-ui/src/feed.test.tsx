@@ -124,6 +124,39 @@ describe("high-cadence operator feed", () => {
 
   it("renders three calm, tunable streams with exact evidence links", () => {
     const portfolio = emptyPortfolio();
+    const ignoreRule = {
+      kind: "workload",
+      pattern: "context-anchor-survey",
+      source_line: 2,
+    };
+    portfolio.revision = {
+      schema: "rey.workload-revision-status.v1",
+      state: "working",
+      head: null,
+      index: null,
+      working: {
+        schema: "rey.workload-admission-snapshot.v1",
+        snapshot_revision: "blake3:working",
+        packages: [],
+        ignore: {
+          schema: "rey.ignore.v1",
+          source: ".reyignore",
+          source_digest: "blake3:ignore",
+          rules: [ignoreRule],
+          omissions: [{ rule: ignoreRule, matched: 1 }],
+          ignored: 1,
+        },
+      },
+      staged: equalChangeSet("HEAD", "INDEX"),
+      unstaged: {
+        ...equalChangeSet("INDEX", "WORKING"),
+        assessment: "different",
+      },
+      drafts: [],
+      commit_ready: false,
+      qualification_omissions: [],
+      admission_boundary: "Only an exact qualified INDEX may advance HEAD.",
+    };
     portfolio.attention.rows.push({
       row_id: "attention:alpha",
       action: "refine",
@@ -166,7 +199,8 @@ describe("high-cadence operator feed", () => {
     expect(markup).toContain("JOURNAL / RICH DOCUMENT");
     expect(markup).toContain("DIRECTED DIFF / different");
     expect(markup).toContain("ADMISSION CONTROL");
-    expect(markup).toContain("NO STAGED INDEX");
+    expect(markup).toContain("NO INCOMING FILE CHANGES");
+    expect(markup).toContain(".reyignore / 1 RULES / 1 OMITTED");
     expect(markup).toContain("REY / ATTENTION");
     expect(markup).toContain("LOCAL CONFORMANCE");
     expect(markup).toContain("Display order is not causal order");
@@ -187,6 +221,24 @@ describe("high-cadence operator feed", () => {
   });
 });
 
+function equalChangeSet(
+  source: string,
+  target: string,
+): import("./domain").WorkloadChangeSet {
+  return {
+    schema: "rey.workload-change-set.v1",
+    source_label: source,
+    target_label: target,
+    source_revision: null,
+    target_revision: null,
+    assessment: "equal",
+    inserted: 0,
+    deleted: 0,
+    modified: 0,
+    changes: [],
+  };
+}
+
 function emptyPortfolio(): WorkloadList {
   return {
     schema: "rey.workload-list.v1",
@@ -194,7 +246,7 @@ function emptyPortfolio(): WorkloadList {
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",
-      root: "workloads",
+      root: "sys",
       workload_count: 0,
       admitted_count: 0,
       draft_count: 0,

@@ -410,6 +410,7 @@ export interface WorkloadAdmissionSnapshot {
   schema: "rey.workload-admission-snapshot.v1";
   snapshot_revision: string;
   packages: WorkloadPackageSnapshot[];
+  ignore: import("./environment").ReyIgnoreProjection | null;
 }
 
 export interface WorkloadChange {

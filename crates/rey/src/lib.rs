@@ -3,6 +3,7 @@
 pub mod channels;
 pub mod editor;
 pub mod env;
+pub mod ignore;
 pub mod journal;
 pub mod workloads;
 
@@ -15,6 +16,7 @@ use rey_environment::{
 use thiserror::Error;
 
 use crate::env::{EnvironmentStatus, LocalEnvironmentStore};
+use crate::ignore::{ReyIgnoreFile, apply_environment_ignore};
 
 pub fn inspect_environment(
     workspace: &Path,
@@ -41,6 +43,9 @@ pub fn inspect_environment_with_mapping(
             snapshot.push(capability)?;
         }
     }
+    if let Some(ignore) = ReyIgnoreFile::load(workspace)? {
+        snapshot = apply_environment_ignore(snapshot, &ignore)?.0;
+    }
     Ok(snapshot)
 }
 
@@ -59,12 +64,9 @@ pub fn current_environment_status(
         map_path,
         EnvironmentMapLimits::default(),
     )?;
-    Ok(EnvironmentStatus::derive(
-        &history,
-        index,
-        snapshot,
-        max_changes,
-    )?)
+    let mut status = EnvironmentStatus::derive(&history, index, snapshot, max_changes)?;
+    status.apply_ignore_projection(workspace)?;
+    Ok(status)
 }
 
 #[derive(Debug, Error)]
@@ -75,6 +77,8 @@ pub enum ReyError {
     EnvironmentMap(#[from] EnvironmentMapError),
     #[error(transparent)]
     EnvironmentState(#[from] crate::env::LocalEnvironmentHistoryError),
+    #[error(transparent)]
+    Ignore(#[from] crate::ignore::ReyIgnoreError),
 }
 
 #[cfg(test)]
@@ -84,7 +88,7 @@ mod tests {
     use rey_environment::DiscoveryLimits;
     use tempfile::TempDir;
 
-    use super::inspect_environment;
+    use super::{inspect_environment, inspect_environment_with_mapping};
 
     #[test]
     fn inspection_succeeds_without_spoke_or_git_repository() {
@@ -144,5 +148,66 @@ mod tests {
                 .any(|row| row.capability_id == "tool.git.identity")
         );
         assert_eq!(before.semantic_digest, after.semantic_digest);
+    }
+
+    #[test]
+    fn environment_ignore_policy_is_retained_in_the_filtered_snapshot() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(
+            workspace.path().join(".reyignore"),
+            "environment variable:*\napplication: definitely-missing\n",
+        )
+        .unwrap();
+        let snapshot = inspect_environment_with_mapping(
+            workspace.path(),
+            DiscoveryLimits::default(),
+            None,
+            rey_environment::EnvironmentMapLimits::default(),
+        )
+        .unwrap();
+        assert!(
+            snapshot
+                .capabilities
+                .iter()
+                .all(|record| { record.capability_kind != "environment_seed" })
+        );
+        let policy = snapshot
+            .capabilities
+            .iter()
+            .find(|record| record.capability_kind == "ignore_policy")
+            .unwrap();
+        let projection: crate::ignore::ReyIgnoreProjection =
+            serde_json::from_str(policy.provenance.as_deref().unwrap()).unwrap();
+        assert_eq!(projection.rules.len(), 2);
+        assert_eq!(projection.omissions[0].matched, 3);
+        assert_eq!(projection.omissions[1].matched, 0);
+        assert_eq!(projection.ignored, 3);
+    }
+
+    #[test]
+    fn relevant_zero_match_environment_rule_is_retained_as_policy() {
+        let workspace = TempDir::new().unwrap();
+        fs::write(
+            workspace.path().join(".reyignore"),
+            "application: definitely-missing\n",
+        )
+        .unwrap();
+        let snapshot = inspect_environment_with_mapping(
+            workspace.path(),
+            DiscoveryLimits::default(),
+            None,
+            rey_environment::EnvironmentMapLimits::default(),
+        )
+        .unwrap();
+        let policy = snapshot
+            .capabilities
+            .iter()
+            .find(|record| record.capability_kind == "ignore_policy")
+            .unwrap();
+        let projection: crate::ignore::ReyIgnoreProjection =
+            serde_json::from_str(policy.provenance.as_deref().unwrap()).unwrap();
+        assert_eq!(projection.rules.len(), 1);
+        assert_eq!(projection.omissions[0].matched, 0);
+        assert_eq!(projection.ignored, 0);
     }
 }

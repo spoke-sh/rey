@@ -23,6 +23,8 @@ use rey_runtime::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::ignore::{ReyIgnoreError, ReyIgnoreFile, ReyIgnoreProjection};
+
 pub const LOCAL_WORKLOAD_STATE_SCHEMA: &str = "rey.local-workload-state.v1";
 pub const WORKLOAD_LIST_SCHEMA: &str = "rey.workload-list.v1";
 pub const WORKLOAD_STATUS_SCHEMA: &str = "rey.workload-status.v1";
@@ -251,6 +253,7 @@ pub struct WorkloadAdmissionSnapshot {
     pub schema: String,
     pub snapshot_revision: SemanticDigest,
     pub packages: Vec<WorkloadPackageSnapshot>,
+    pub ignore: Option<ReyIgnoreProjection>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -352,12 +355,16 @@ pub struct WorkloadLog {
 }
 
 impl WorkloadAdmissionSnapshot {
-    fn new(mut packages: Vec<WorkloadPackageSnapshot>) -> Result<Self, LocalWorkloadStateError> {
+    fn new(
+        mut packages: Vec<WorkloadPackageSnapshot>,
+        ignore: Option<ReyIgnoreProjection>,
+    ) -> Result<Self, LocalWorkloadStateError> {
         packages.sort_by(|left, right| left.workload_id.cmp(&right.workload_id));
         let mut snapshot = Self {
             schema: WORKLOAD_ADMISSION_SNAPSHOT_SCHEMA.to_owned(),
             snapshot_revision: workload_digest_placeholder(),
             packages,
+            ignore,
         };
         snapshot.snapshot_revision = workload_snapshot_identity(&snapshot);
         snapshot.verify()?;
@@ -460,7 +467,10 @@ impl WorkloadChangeSet {
             target_label: target_label.to_owned(),
             source_revision: source.map(|snapshot| snapshot.snapshot_revision.clone()),
             target_revision: target.map(|snapshot| snapshot.snapshot_revision.clone()),
-            assessment: if changes.is_empty() {
+            assessment: if changes.is_empty()
+                && source.map(|snapshot| &snapshot.snapshot_revision)
+                    == target.map(|snapshot| &snapshot.snapshot_revision)
+            {
                 DeltaAssessment::Equal
             } else {
                 DeltaAssessment::Different
@@ -1618,7 +1628,39 @@ impl LocalWorkloadStore {
         workspace: &Path,
         catalog_dir: &Path,
     ) -> Result<ObservedWorkloadAdmission, LocalWorkloadStateError> {
-        let catalog = WorkloadCatalog::load_workspace(workspace, catalog_dir)?;
+        let mut catalog = WorkloadCatalog::load_workspace(workspace, catalog_dir)?;
+        let ignore = ReyIgnoreFile::load(workspace)?;
+        let candidate_names = catalog
+            .workloads
+            .iter()
+            .map(|workload| workload.definition.workload.id.clone())
+            .chain(
+                catalog
+                    .drafts
+                    .iter()
+                    .map(|draft| draft.request.workload_id.clone()),
+            )
+            .collect::<Vec<_>>();
+        let candidates = candidate_names
+            .iter()
+            .map(|name| ("workload", name.as_str()))
+            .collect::<Vec<_>>();
+        let ignored = ignore.as_ref().and_then(|ignore| {
+            let projection = ignore.project(&candidates, &["workload"]);
+            if projection.rules.is_empty() {
+                return None;
+            }
+            catalog
+                .workloads
+                .retain(|workload| !ignore.matches("workload", &workload.definition.workload.id));
+            catalog
+                .drafts
+                .retain(|draft| !ignore.matches("workload", &draft.request.workload_id));
+            catalog.descriptor.workload_count =
+                catalog.workloads.len().saturating_add(catalog.drafts.len()) as u64;
+            catalog.descriptor.draft_count = catalog.drafts.len() as u64;
+            Some(projection)
+        });
         let mut artifacts = BTreeMap::new();
         let mut packages = Vec::with_capacity(catalog.workloads.len());
         for workload in &catalog.workloads {
@@ -1660,7 +1702,7 @@ impl LocalWorkloadStore {
         }
         Ok(ObservedWorkloadAdmission {
             catalog,
-            snapshot: WorkloadAdmissionSnapshot::new(packages)?,
+            snapshot: WorkloadAdmissionSnapshot::new(packages, ignored.clone())?,
             artifacts,
         })
     }
@@ -1739,7 +1781,7 @@ impl LocalWorkloadStore {
             drafts: observed.catalog.drafts,
             commit_ready,
             qualification_omissions,
-            admission_boundary: "only a human-approved workload commit advances HEAD; test and run never admit mutable WORKING bytes".to_owned(),
+            admission_boundary: "only a human admission advances HEAD; the browser freezes and qualifies an exact reviewed WORKING file snapshot, while CLI commit reads only an already-qualified INDEX".to_owned(),
         })
     }
 
@@ -1762,8 +1804,24 @@ impl LocalWorkloadStore {
         workspace: &Path,
         catalog_dir: &Path,
     ) -> Result<WorkloadAddResult, LocalWorkloadStateError> {
+        self.add_expected(workspace, catalog_dir, None)
+    }
+
+    pub fn add_expected(
+        &self,
+        workspace: &Path,
+        catalog_dir: &Path,
+        expected_working: Option<&str>,
+    ) -> Result<WorkloadAddResult, LocalWorkloadStateError> {
         self.with_lock(|| {
             let observed = self.observe(workspace, catalog_dir)?;
+            if expected_working
+                .is_some_and(|expected| expected != observed.snapshot.snapshot_revision.as_str())
+            {
+                return Err(LocalWorkloadStateError::ApprovalPrecondition(
+                    "WORKING file snapshot changed before admission".to_owned(),
+                ));
+            }
             let mut state = self.load()?;
             let head_snapshot = state.commits.last().map(|commit| &commit.snapshot);
             let delta =
@@ -1802,6 +1860,28 @@ impl LocalWorkloadStore {
             .as_ref()
             .ok_or(LocalWorkloadStateError::EmptyIndex)?;
         self.catalog_from_snapshot(snapshot, WorkloadAdmissionState::Proposed)
+    }
+
+    pub fn retain_index_tests(
+        &self,
+        expected_index: &SemanticDigest,
+        definitions: &[WorkloadDefinition],
+        results: Vec<WorkloadTestResult>,
+    ) -> Result<(), LocalWorkloadStateError> {
+        self.with_lock(|| {
+            let mut state = self.load()?;
+            if state.index.as_ref().map(|index| &index.snapshot_revision) != Some(expected_index) {
+                return Err(LocalWorkloadStateError::ApprovalPrecondition(
+                    "INDEX changed while the reviewed file snapshot was qualifying".to_owned(),
+                ));
+            }
+            for result in results {
+                state.retain_test(result);
+            }
+            state.refresh_index_qualification(definitions);
+            state.verify()?;
+            self.save(&state)
+        })
     }
 
     pub fn commit(
@@ -2730,6 +2810,28 @@ fn workload_snapshot_identity(snapshot: &WorkloadAdmissionSnapshot) -> SemanticD
         package.graph.add_semantics(&mut hasher);
         package.scenario_suite.add_semantics(&mut hasher);
     }
+    hasher.add_optional_str(
+        snapshot
+            .ignore
+            .as_ref()
+            .map(|ignore| ignore.source_digest.as_str()),
+    );
+    if let Some(ignore) = &snapshot.ignore {
+        hasher.add_u64(ignore.rules.len() as u64);
+        for rule in &ignore.rules {
+            hasher.add_str(&rule.kind);
+            hasher.add_str(&rule.pattern);
+            hasher.add_u64(rule.source_line);
+        }
+        hasher.add_u64(ignore.omissions.len() as u64);
+        for omission in &ignore.omissions {
+            hasher.add_str(&omission.rule.kind);
+            hasher.add_str(&omission.rule.pattern);
+            hasher.add_u64(omission.rule.source_line);
+            hasher.add_u64(omission.matched);
+        }
+        hasher.add_u64(ignore.ignored);
+    }
     hasher.finish()
 }
 
@@ -2938,6 +3040,8 @@ pub enum LocalWorkloadStateError {
     Yaml(#[from] serde_saphyr::Error),
     #[error(transparent)]
     Workload(#[from] rey_runtime::WorkloadError),
+    #[error(transparent)]
+    Ignore(#[from] ReyIgnoreError),
 }
 
 #[cfg(test)]
@@ -2958,7 +3062,7 @@ mod tests {
     };
 
     const WORKSPACE_PACKAGE: &str =
-        include_str!("../../../workloads/context-anchor-survey/workload.yaml");
+        include_str!("../../../sys/context-anchor-survey/workload.yaml");
 
     #[test]
     fn workspace_catalog_loads_exact_proposal_and_rejects_incomplete_provenance() {
@@ -3097,6 +3201,36 @@ mod tests {
         let status = store.status(workspace.path(), catalog_dir).unwrap();
         assert_eq!(status.state, super::WorkloadWorkingState::Working);
         assert_eq!(status.unstaged.modified, 1);
+    }
+
+    #[test]
+    fn workload_add_rejects_a_changed_expected_working_file_snapshot() {
+        let workspace = TempDir::new().unwrap();
+        let catalog_dir = std::path::Path::new("sys");
+        let package_dir = workspace.path().join("sys/context-anchor-survey");
+        fs::create_dir_all(&package_dir).unwrap();
+        let package_path = package_dir.join("workload.yaml");
+        fs::write(&package_path, WORKSPACE_PACKAGE).unwrap();
+        let store = LocalWorkloadStore::default_for_workspace(workspace.path());
+        let reviewed = store
+            .status(workspace.path(), catalog_dir)
+            .unwrap()
+            .working
+            .snapshot_revision;
+
+        fs::write(
+            package_path,
+            WORKSPACE_PACKAGE.replace("Survey project context anchors", "Changed after review"),
+        )
+        .unwrap();
+        let error = store
+            .add_expected(workspace.path(), catalog_dir, Some(reviewed.as_str()))
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            super::LocalWorkloadStateError::ApprovalPrecondition(_)
+        ));
+        assert!(store.load().unwrap().index.is_none());
     }
 
     #[test]

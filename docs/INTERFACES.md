@@ -84,9 +84,13 @@ rey env [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
 rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
 rey workloads [--workspace PATH] [--catalog-dir PATH] create <workload-id> [--title TITLE] [--intent INTENT]
 rey workloads [--workspace PATH] [--catalog-dir PATH] list
-rey workloads [--workspace PATH] [--catalog-dir PATH] test [<workload-id>] [-v|-vv]
+rey workloads [--workspace PATH] [--catalog-dir PATH] status
+rey workloads [--workspace PATH] [--catalog-dir PATH] diff [--staged]
+rey workloads [--workspace PATH] [--catalog-dir PATH] add
+rey workloads [--workspace PATH] [--catalog-dir PATH] test --staged [<workload-id>] [-v|-vv]
+rey workloads [--workspace PATH] [--catalog-dir PATH] commit -m MESSAGE
+rey workloads [--workspace PATH] [--catalog-dir PATH] log [-p] [-n COUNT]
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
-rey workloads [--workspace PATH] [--catalog-dir PATH] status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
 rey journal [--workspace PATH] [--state-dir PATH] add <proposal.yaml>
 rey journal [--workspace PATH] [--state-dir PATH] list
@@ -139,8 +143,8 @@ The implemented slice behaves as follows:
   without participating in workspace admission history.
 
 The default catalog resolves request-only drafts from
-`workloads/*/request.yaml` and WORKING proposals from
-`workloads/*/workload.yaml`. Creation requests bind a semantic request id,
+`sys/*/request.yaml` and WORKING proposals from
+`sys/*/workload.yaml`. Creation requests bind a semantic request id,
 bounded intent, target, requirements, and limits; they remain ineligible for
 qualification/run. V1 packages support only UTF-8 ports and exact
 `trim`/`uppercase` operation contracts; each package carries proposal kind,
@@ -164,7 +168,7 @@ table on a terminal and JSON when redirected. `--workspace` defaults to `.`;
 relative `--state-dir` values resolve below the canonical workspace and an
 absolute value selects an explicit separate local boundary. `--catalog`
 defaults to `workspace`; `--catalog-dir` defaults to the workspace-relative
-`workloads` directory.
+`sys` directory.
 
 The `create` table identifies the local mutation plane, request revision,
 created file, `AWAITING CODING HARNESS` admission state, absent graph/oracle,
@@ -182,6 +186,10 @@ coverage, evaluation counts, qualification, exact graph and operation
 identities, retained test/mining evidence and freshness, and last-run state.
 ANSI styling is enabled only for an interactive terminal and is never the sole
 carrier of meaning. Forced table output through a pipe remains ANSI-free.
+Environment and workload admission status share one positional color contract:
+green means a change retained in INDEX and awaiting commit, while red means
+WORKING drift that has not been staged. Inserted, deleted, and modified labels
+remain the authoritative change direction; color never overrides those labels.
 Portfolio aggregates are derived from authoritative per-workload counts.
 
 The `test` table is a diff-first runner document. It declares the selected
@@ -831,7 +839,7 @@ deltas, qualification records, runs, and indexes read by `workloads list` and
 `status`.
 
 The first standalone implementation uses a bounded workspace package catalog
-at `${workspace}/workloads`, with the compiled catalog available only by
+at `${workspace}/sys`, with the compiled catalog available only by
 explicit conformance selection. It uses a bounded
 `rey.local-workload-state.v1` result index at
 `${workspace}/.rey/workloads/state.json`, overridable by explicit
@@ -843,6 +851,29 @@ disposable cache. Connected mode uses
 public Spoke resources for stronger durability, query, compute, and lineage
 claims. A general manifest encoding, Spoke mapping, and stronger publication
 protocol remain undecided; ADRs 0016 and 0018 do not select an engine.
+
+## Workspace Ignore Surface
+
+`.reyignore` is an optional regular, non-symlinked UTF-8 file at the canonical
+workspace root. It is bounded to 64 KiB, 256 rules, and 4096 bytes per line.
+Blank lines and `#` comments are ignored. Every other line is:
+
+```text
+<typed kind>: <case-sensitive wildcard pattern>
+```
+
+V1 kinds are `workload`, `environment variable`, `application`, `input`, and
+`reference`. `*` matches zero or more bytes and `?` one byte; kinds are
+literal. Unknown kinds remain parseable but have no effect on a surface that
+does not own them or enter that surface's identity. Invalid UTF-8, malformed lines, unsafe file
+types, and exceeded bounds fail status/add/diff/UI reads closed.
+
+Rey validates candidate objects before applying rules. Relevant rules, the
+exact `.reyignore` digest, source line, and match count are part of the filtered
+WORKING identity and are exposed in structured and human status. This is an
+explicit omission policy, not deletion: it does not mutate source files,
+retroactively alter HEAD or INDEX, bypass validation, or grant execution
+authority.
 
 For the implemented capability claim, standalone Rey writes the
 [ADR 0011](decisions/0011-local-proof-bundle.md) manifest, snapshots, typed
@@ -896,8 +927,9 @@ TanStack Router application plus `GET|HEAD /api/v1/health`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`,
 `GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its explicit writes
 are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
-`POST /api/v1/workloads/commit`, which approves a qualified exact INDEX with
-expected HEAD/INDEX preconditions. Neither is authenticated or origin-gated on
+`POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
+file snapshot before committing it with expected HEAD/WORKING preconditions.
+Neither is authenticated or origin-gated on
 an explicitly configured listener. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/feed?streams=admission.all`. The application routes are `/feed`, coordinate-bound `/explore`

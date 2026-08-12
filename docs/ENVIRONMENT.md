@@ -286,9 +286,15 @@ truncated, unsupported, and failed outcomes rather than silently omitting
 binary, invalid, over-limit, malformed, or changed sources.
 
 This provider trusts the local process and is not a filesystem sandbox. It
-does not apply ignore files, generated-file policy, globs, regular expressions,
-case folding, arbitrary directory traversal, or `rg` semantics. Those
-capabilities require their own exact operation revision and parity fixtures.
+does not apply source-search ignore files, generated-file policy, regular
+expressions, case folding, arbitrary directory traversal, or `rg` semantics.
+The workspace-level `.reyignore` scope contract is separate: before an
+environment capability snapshot becomes WORKING, it may omit typed
+`environment variable`, `application`, `input`, and `reference` observations
+using bounded case-sensitive `*`/`?` patterns. Rey retains a synthetic
+`rey.ignore.environment` capability containing the relevant rules, exact file
+digest, and match counts, so the filtered snapshot cannot claim to be naturally
+complete. HEAD and INDEX retain the exact policy that shaped their snapshot.
 
 `rey.fixture.source-search` is the first admitted consumer. Scenario tests bind
 the checked-in corpus; `workloads run --source <relative-path>...` binds

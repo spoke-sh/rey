@@ -1,4 +1,4 @@
-import { approveWorkloadIndex, type FeedSources } from "./api";
+import { admitWorkloadFiles, type FeedSources } from "./api";
 import { useEffect, useState, type ReactNode } from "react";
 import type { CadenceProjection, CadenceTick } from "./cadence";
 import {
@@ -175,14 +175,14 @@ export function deriveInspectionQueue(
       id: `workload-working:${change.workload_id}:${revision?.working.snapshot_revision ?? "missing"}`,
       source: "WORKING",
       subject: change.workload_id,
-      signal: "STAGE",
-      detail: `${packageSnapshot?.title ?? change.workload_id} has agent-authored package changes that are not frozen for admission.`,
-      urgency: "WATCH",
+      signal: "REVIEW",
+      detail: `${packageSnapshot?.title ?? change.workload_id} is an incoming agent-authored file package awaiting human admission.`,
+      urgency: "NOW",
       priority: null,
       sortPriority: 25,
       basis: `${change.change_kind} · ${packageSnapshot?.source_digest ?? change.target_revision ?? "missing digest"}`,
       href: `/workloads/${encodeURIComponent(change.workload_id)}`,
-      location: "WORKLOAD",
+      location: "ADMISSION",
     });
   }
   rows.push(
@@ -632,16 +632,22 @@ function AdmissionControl({ portfolio }: { portfolio: WorkloadList }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const index = revision?.index;
-  const enabled = Boolean(revision?.commit_ready && index && message.trim());
+  const working = revision?.working;
+  const hasPendingFiles = Boolean(
+    working &&
+    working.packages.length > 0 &&
+    revision?.head?.snapshot.snapshot_revision !== working.snapshot_revision,
+  );
+  const enabled = Boolean(hasPendingFiles && message.trim());
   const approve = async () => {
-    if (!revision || !index || !enabled) return;
+    if (!revision || !working || !enabled) return;
     setSubmitting(true);
     setError(null);
     try {
-      await approveWorkloadIndex({
+      await admitWorkloadFiles({
         message: message.trim(),
         expected_head: revision.head?.commit_id ?? "EMPTY",
-        expected_index: index.snapshot_revision,
+        expected_working: working.snapshot_revision,
       });
       window.location.reload();
     } catch (cause) {
@@ -653,25 +659,30 @@ function AdmissionControl({ portfolio }: { portfolio: WorkloadList }) {
     <div className={sx(styles.admissionBoundary)}>
       <span className={sx(chrome.micro)}>ADMISSION CONTROL</span>
       <strong>
-        {revision?.commit_ready
-          ? `${index?.packages.length ?? 0} QUALIFIED / READY`
-          : index
-            ? "INDEX REQUIRES QUALIFICATION"
-            : "NO STAGED INDEX"}
+        {hasPendingFiles
+          ? `${working?.packages.length ?? 0} FILE PACKAGE${working?.packages.length === 1 ? "" : "S"} / READY FOR REVIEW`
+          : "NO INCOMING FILE CHANGES"}
       </strong>
       <p>
         {revision?.admission_boundary ??
           "No workload revision state is available."}
       </p>
-      {index ? (
+      {revision?.working.ignore ? (
+        <code title={revision.working.ignore.source_digest}>
+          {revision.working.ignore.source} /{" "}
+          {revision.working.ignore.rules.length} RULES /{" "}
+          {revision.working.ignore.ignored} OMITTED
+        </code>
+      ) : null}
+      {hasPendingFiles && working ? (
         <>
-          <code title={index.snapshot_revision}>
-            INDEX / {shortDigest(index.snapshot_revision)}
+          <code title={working.snapshot_revision}>
+            WORKING FILES / {shortDigest(working.snapshot_revision)}
           </code>
           <input
             aria-label="Workload approval message"
             className={sx(styles.admissionMessage)}
-            disabled={!revision?.commit_ready || submitting}
+            disabled={submitting}
             maxLength={4096}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="Why are you admitting this workload revision?"
@@ -683,7 +694,9 @@ function AdmissionControl({ portfolio }: { portfolio: WorkloadList }) {
             onClick={() => void approve()}
             type="button"
           >
-            {submitting ? "ADMITTING…" : "APPROVE EXACT INDEX"}
+            {submitting
+              ? "QUALIFYING & ADMITTING…"
+              : "ADMIT EXACT FILE SNAPSHOT"}
           </button>
         </>
       ) : null}

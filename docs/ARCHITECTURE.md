@@ -347,7 +347,7 @@ edges, exact operation contracts, capability/effect requirements, and limits.
 The initial graph is acyclic. An agent, rule, or human may propose a graph, but
 the runtime validates it and deterministic scenarios decide qualification.
 
-The product catalog observes `workloads/*/workload.yaml` as WORKING proposals.
+The product catalog observes `sys/*/workload.yaml` as WORKING proposals.
 A package binds the generated graph and frozen scenario suite plus proposal
 producer, revision, and inputs; it owns no admission decision. Exact source
 bytes and path participate in the proposal identity. `workloads add` freezes
@@ -357,7 +357,7 @@ workloads are explicitly selected conformance and system diagnostics, not
 default portfolio entries.
 
 `workloads create` precedes package admission with a content-addressed
-`workloads/*/request.yaml` contract. That request is an explicit handoff to an
+`sys/*/request.yaml` contract. That request is an explicit handoff to an
 external coding harness, not an LLM embedded in the runtime. Request-only
 entries remain visible drafts and cannot be tested or run. Rey imports the
 materialized package into WORKING only after its graph, suite, provenance,
@@ -366,7 +366,8 @@ invocation remains a later campaign boundary. See [ADR
 0023](decisions/0023-workspace-workload-packages.md) and [ADR
 0024](decisions/0024-workload-creation-requests.md). ADR
 [0049](decisions/0049-workload-admission-history.md) owns the subsequent
-HEAD/INDEX/WORKING admission loop.
+HEAD/INDEX/WORKING admission loop; [0050](decisions/0050-file-backed-workload-admission.md)
+makes exact WORKING files the browser admission input.
 
 A scenario executes that exact graph against fixture bindings and compares
 `EXPECTED` to `OBSERVED`. Conclusive mismatches retain typed deltas; missing or

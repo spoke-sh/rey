@@ -1809,7 +1809,7 @@ scenario, or oracle.
 ### Workload package
 
 An untrusted `rey.workload-package.v1` proposal at
-`workloads/*/workload.yaml` binding typed ports, compute graph, frozen scenario
+`sys/*/workload.yaml` binding typed ports, compute graph, frozen scenario
 suite, generator provenance, and source identity. It owns no admission
 decision.
 
@@ -1830,7 +1830,7 @@ remains active plan work.
 
 ### Workspace package catalog
 
-The default product catalog rooted at the workspace-relative `workloads/`
+The default product catalog rooted at the workspace-relative `sys/`
 directory. Immediate child directories contain either a creation request draft
 or a workload package proposal under strict path, symlink, count, and byte
 bounds. Admission is retained separately in workload history.
@@ -1840,6 +1840,14 @@ bounds. Admission is retained separately in workload history.
 The fresh bounded capability observation used as `WORKING` in the environment
 admission loop. It is observed by status, diff, or add and is not itself
 retained as HEAD until staged and committed.
+
+### Workspace ignore file
+
+The optional bounded `.reyignore` contract at the workspace root. Each
+`kind: pattern` rule narrows a typed WORKING observation with case-sensitive
+`*`/`?` matching. Relevant rules, source identity, and match counts are retained
+as explicit omissions in the resulting workload or environment snapshot; the
+file never mutates already-retained HEAD or INDEX state.
 
 ### Worktree
 

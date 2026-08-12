@@ -27,8 +27,8 @@ guide experiments but do not outrank the architecture until accepted.
 | [0020](0020-environment-mapping-graph.md) | Accepted | Human env diff, YAML variable/file/executable graph, safe observations, and removal of manual proof plumbing |
 | [0021](0021-environment-admission-index.md) | Accepted | Unified environment status, HEAD-bound admission index, staged diff, partial add, and index-only commit |
 | [0022](0022-portfolio-mining-and-workload-attention.md) | Accepted | Ongoing portfolio mining, typed workload attention, explicit coverage/blocker/exclusion evidence, and workload-centered CLI placement |
-| [0023](0023-workspace-workload-packages.md) | Accepted; self-declared admission superseded by 0049 | Workspace packages as the default product catalog, frozen generated scenarios, exact proposal provenance, and explicit built-in conformance catalog |
-| [0024](0024-workload-creation-requests.md) | Accepted | Explicit content-addressed workload creation requests, external coding-harness handoff, visible drafts, and strict admission gating |
+| [0023](0023-workspace-workload-packages.md) | Accepted; self-declared admission superseded by 0049 and default root by 0050 | Workspace packages as the default product catalog, frozen generated scenarios, exact proposal provenance, and explicit built-in conformance catalog |
+| [0024](0024-workload-creation-requests.md) | Accepted; default root superseded by 0050 | Explicit content-addressed workload creation requests, external coding-harness handoff, visible drafts, and strict admission gating |
 | [0025](0025-local-operator-ui.md) | Accepted; workload write boundary superseded by 0049 | Loopback-first HTTP, embedded TanStack Router application, and pinned Hifi Kinetic Precision grammar |
 | [0026](0026-context-topology-explorer.md) | Accepted | UI-first human operation, default context-topology Explorer, semantic zoom regimes, full-screen canvas, and passive revalidation |
 | [0027](0027-environment-operator-delta.md) | Accepted; application presentation superseded by 0031 and status projection by 0033 | Shared CLI/UI environment delta, bounded value capture, env-shaped variable diff, and found/not-found application evidence |
@@ -53,7 +53,9 @@ guide experiments but do not outrank the architecture until accepted.
 | [0046](0046-read-first-scene-editor.md) | Accepted | Read-first scene editor candidates, exact native GeoJSON objects, Git-shaped staging, immutable packages, and a separate workload admission boundary |
 | [0047](0047-semantic-spherical-atlas.md) | Accepted | Admission-revisioned synthetic semantic sphere, deterministic regional clustering, and World globe projection without an Earth-coordinate claim |
 | [0048](0048-fresh-v1-contract-baseline.md) | Accepted | Destructive fresh v1 public-contract baseline, no compatibility readers, and a Rey-evidence-authored county candidate |
-| [0049](0049-workload-admission-history.md) | Accepted | Git-shaped workload HEAD/INDEX/WORKING, exact staged qualification, human approval, and admission-first UI |
+| [0049](0049-workload-admission-history.md) | Accepted; browser pre-staged-INDEX requirement superseded by 0050 | Git-shaped workload HEAD/INDEX/WORKING, exact staged qualification, human approval, and admission-first UI |
+| [0050](0050-file-backed-workload-admission.md) | Accepted | Visible `sys/<workload>/` packages as WORKING and exact browser stage/qualification/admission from file state |
+| [0051](0051-typed-workspace-ignore-file.md) | Accepted | Bounded typed `.reyignore` rules narrow WORKING while retaining exact omission policy and match evidence |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

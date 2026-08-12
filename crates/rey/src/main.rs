@@ -396,7 +396,7 @@ struct UiArgs {
     journal_state_dir: Option<PathBuf>,
 
     /// Workspace-relative workload package root.
-    #[arg(long, default_value = "workloads")]
+    #[arg(long, default_value = "sys")]
     catalog_dir: PathBuf,
 
     /// IP address to bind; defaults to IPv4 loopback.
@@ -427,7 +427,7 @@ struct WorkloadsArgs {
     catalog: WorkloadCatalogSelection,
 
     /// Workspace-relative package root used by the workspace catalog.
-    #[arg(long, global = true, default_value = "workloads")]
+    #[arg(long, global = true, default_value = "sys")]
     catalog_dir: PathBuf,
 
     #[command(subcommand)]
@@ -1222,7 +1222,7 @@ fn env_command(args: EnvArgs) -> Result<ExitCode, CliError> {
     match args.command {
         EnvCommand::Status(command) => env_status(&store, &workspace, command),
         EnvCommand::Add(command) => env_add(&store, &workspace, command),
-        EnvCommand::Commit(command) => env_commit(&store, command),
+        EnvCommand::Commit(command) => env_commit(&store, &workspace, command),
         EnvCommand::Log(command) => env_log(&store, &workspace, command),
         EnvCommand::Diff(command) => env_diff(&store, &workspace, command),
     }
@@ -1426,7 +1426,9 @@ fn workload_revision_status(
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
-        WorkloadOutputFormat::Table => write_workload_revision_status(&mut stdout, &status)?,
+        WorkloadOutputFormat::Table => {
+            write_workload_revision_status(&mut stdout, &status, TerminalStyle::stdout())?
+        }
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
@@ -1532,19 +1534,7 @@ fn workload_test(
         .iter()
         .map(|workload| workload.definition.clone())
         .collect::<Vec<_>>();
-    let capability_snapshot_id = if definitions
-        .iter()
-        .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
-    {
-        inspect_environment(&source_fixture_root(), DiscoveryLimits::default())?.semantic_digest
-    } else if definitions
-        .iter()
-        .any(|workload| workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID)
-    {
-        SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish()
-    } else {
-        SemanticHasher::new("rey.no-mining-capability-snapshot.v1").finish()
-    };
+    let capability_snapshot_id = workload_test_capability_snapshot(&definitions)?;
     let mut results = Vec::with_capacity(definitions.len());
     match args.format.resolve() {
         WorkloadOutputFormat::Json => {
@@ -1634,6 +1624,76 @@ fn workload_test(
     let exit_code = test_batch_exit(&batch);
     write_json_line(&mut io::stdout().lock(), &batch)?;
     Ok(exit_code)
+}
+
+fn workload_test_capability_snapshot(
+    definitions: &[WorkloadDefinition],
+) -> Result<SemanticDigest, CliError> {
+    Ok(
+        if definitions
+            .iter()
+            .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
+        {
+            inspect_environment(&source_fixture_root(), DiscoveryLimits::default())?.semantic_digest
+        } else if definitions
+            .iter()
+            .any(|workload| workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID)
+        {
+            SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish()
+        } else {
+            SemanticHasher::new("rey.no-mining-capability-snapshot.v1").finish()
+        },
+    )
+}
+
+fn admit_workload_files(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    catalog_dir: &Path,
+    message: String,
+    expected_head: &str,
+    expected_working: &str,
+) -> Result<WorkloadCommitResult, CliError> {
+    let status = store.status(workspace, catalog_dir)?;
+    let head_matches = if expected_head == "EMPTY" {
+        status.head.is_none()
+    } else {
+        status.head.as_ref().map(|commit| commit.commit_id.as_str()) == Some(expected_head)
+    };
+    if !head_matches {
+        return Err(LocalWorkloadStateError::ApprovalPrecondition(
+            "HEAD changed before admission".to_owned(),
+        )
+        .into());
+    }
+    if status.working.snapshot_revision.as_str() != expected_working {
+        return Err(LocalWorkloadStateError::ApprovalPrecondition(
+            "WORKING file snapshot changed before admission".to_owned(),
+        )
+        .into());
+    }
+    let added = store.add_expected(workspace, catalog_dir, Some(expected_working))?;
+    let catalog = store.index_catalog()?;
+    let definitions = catalog.definitions();
+    if definitions.is_empty() {
+        return Err(CliError::EmptyWorkloadCatalog);
+    }
+    let capability_snapshot_id = workload_test_capability_snapshot(&definitions)?;
+    let mut results = Vec::with_capacity(definitions.len());
+    for workload in &definitions {
+        let result = test_workload_with_observer_and_snapshot(
+            workload,
+            capability_snapshot_id.clone(),
+            |_| {},
+        )?;
+        results.push(result);
+    }
+    store.retain_index_tests(&added.snapshot.snapshot_revision, &definitions, results)?;
+    Ok(store.commit(
+        message,
+        Some(expected_head),
+        Some(added.snapshot.snapshot_revision.as_str()),
+    )?)
 }
 
 fn workload_run(
@@ -1830,6 +1890,14 @@ impl TerminalStyle {
     fn dim(self, value: &str) -> String {
         self.paint("2", value)
     }
+
+    fn admission_change(self, value: &str, staged: bool) -> String {
+        if staged {
+            self.green(value)
+        } else {
+            self.red(value)
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1921,7 +1989,11 @@ fn write_ui_startup(
         "LIVE READS · JOURNAL WRITE · WORKLOAD APPROVAL",
     )?;
     write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
-    write_portfolio_field(output, "Workload approval", "ENABLED · EXACT INDEX → HEAD")?;
+    write_portfolio_field(
+        output,
+        "Workload admission",
+        "ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
+    )?;
     write_portfolio_field(
         output,
         "Revalidation",
@@ -1935,7 +2007,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/commit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(
@@ -2342,6 +2414,7 @@ fn write_workload_create(
 fn write_workload_revision_status(
     output: &mut impl Write,
     status: &WorkloadRevisionStatus,
+    style: TerminalStyle,
 ) -> Result<(), CliError> {
     writeln!(
         output,
@@ -2351,6 +2424,26 @@ fn write_workload_revision_status(
             |commit| format!("WORKLOAD@{}", commit.sequence)
         )
     )?;
+    if let Some(ignore) = &status.working.ignore {
+        writeln!(
+            output,
+            "Ignore file    {} · {} rules · {} working objects omitted · {}",
+            ignore.source,
+            ignore.rules.len(),
+            ignore.ignored,
+            ignore.source_digest,
+        )?;
+        for omission in &ignore.omissions {
+            writeln!(
+                output,
+                "  ignored:      {}: {} · {} matches · line {}",
+                omission.rule.kind,
+                omission.rule.pattern,
+                omission.matched,
+                omission.rule.source_line,
+            )?;
+        }
+    }
     if status.state == WorkloadWorkingState::Clean && status.drafts.is_empty() {
         writeln!(output)?;
         writeln!(output, "nothing to admit, working workload catalog clean")?;
@@ -2363,16 +2456,16 @@ fn write_workload_revision_status(
             output,
             "  (review with \"rey workloads diff --staged\"; approve in Rey UI or with \"rey workloads commit\")"
         )?;
-        write_workload_change_lines(output, &status.staged)?;
+        write_workload_change_lines(output, &status.staged, true, style)?;
     }
     if status.unstaged.assessment == DeltaAssessment::Different {
         writeln!(output)?;
         writeln!(output, "Changes not staged for workload admission:")?;
         writeln!(
             output,
-            "  (use \"rey workloads diff\" to review; \"rey workloads add\" to stage)"
+            "  (use \"rey workloads diff\" to review; admit the exact file snapshot in Rey UI, or use \"rey workloads add\" for CLI staging)"
         )?;
-        write_workload_change_lines(output, &status.unstaged)?;
+        write_workload_change_lines(output, &status.unstaged, false, style)?;
     }
     if !status.drafts.is_empty() {
         writeln!(output)?;
@@ -2402,7 +2495,7 @@ fn write_workload_revision_status(
     } else if status.unstaged.assessment == DeltaAssessment::Different {
         writeln!(
             output,
-            "no changes staged for workload admission (use `rey workloads add`)"
+            "incoming WORKING files are ready for human review in `rey ui`; use `rey workloads add` only for the explicit CLI staging path"
         )?;
     }
     Ok(())
@@ -2411,14 +2504,22 @@ fn write_workload_revision_status(
 fn write_workload_change_lines(
     output: &mut impl Write,
     changes: &WorkloadChangeSet,
+    staged: bool,
+    style: TerminalStyle,
 ) -> io::Result<()> {
     for change in &changes.changes {
         let label = match change.change_kind {
-            WorkloadChangeKind::Inserted => "new:     ",
-            WorkloadChangeKind::Deleted => "deleted: ",
+            WorkloadChangeKind::Inserted => "new:",
+            WorkloadChangeKind::Deleted => "deleted:",
             WorkloadChangeKind::Modified => "modified:",
         };
-        writeln!(output, "        {label} workload: {}", change.workload_id)?;
+        write_admission_status_entry(
+            output,
+            label,
+            &format!("workload: {}", change.workload_id),
+            staged,
+            style,
+        )?;
     }
     Ok(())
 }
@@ -4871,8 +4972,9 @@ fn env_add(
     if before.semantic_digest == working.semantic_digest {
         return Err(LocalEnvironmentHistoryError::NothingToAdd.into());
     }
-    let initial =
+    let mut initial =
         EnvironmentStatus::derive(&history, previous_index, working.clone(), args.max_changes)?;
+    initial.apply_ignore_projection(workspace)?;
     let (candidate, selected_count) = if args.patch {
         let selected = select_capability_changes(&initial.unstaged_delta, &initial.operator)?;
         (
@@ -4891,7 +4993,8 @@ fn env_add(
         store.save_index(&history, &index)?;
         Some(index)
     };
-    let status = EnvironmentStatus::derive(&history, index.clone(), working, args.max_changes)?;
+    let mut status = EnvironmentStatus::derive(&history, index.clone(), working, args.max_changes)?;
+    status.apply_ignore_projection(workspace)?;
     let result = EnvironmentAddResult::new(index, status, selected_count);
     let mut stdout = io::stdout().lock();
     match args.format {
@@ -4903,17 +5006,22 @@ fn env_add(
     Ok(ExitCode::SUCCESS)
 }
 
-fn env_commit(store: &LocalEnvironmentStore, args: EnvCommitArgs) -> Result<ExitCode, CliError> {
+fn env_commit(
+    store: &LocalEnvironmentStore,
+    workspace: &Path,
+    args: EnvCommitArgs,
+) -> Result<ExitCode, CliError> {
     let mut history = store.load()?;
     let index = store
         .load_index(&history)?
         .ok_or(LocalEnvironmentHistoryError::NothingStaged)?;
-    let status = EnvironmentStatus::derive(
+    let mut status = EnvironmentStatus::derive(
         &history,
         Some(index.clone()),
         index.snapshot.clone(),
         args.max_changes,
     )?;
+    status.apply_ignore_projection(workspace)?;
     let commit = history.commit(args.message, index.snapshot)?;
     store.save(&history)?;
     store.clear_index()?;
@@ -4946,7 +5054,8 @@ fn env_diff(
     } else {
         EnvironmentDiffMode::Unstaged
     };
-    let status = EnvironmentStatus::derive(&history, index, snapshot, args.max_changes)?;
+    let mut status = EnvironmentStatus::derive(&history, index, snapshot, args.max_changes)?;
+    status.apply_ignore_projection(workspace)?;
     let operator = status.operator.clone();
     let diff = EnvironmentDiff::from_status(status, mode);
     let mut stdout = io::stdout().lock();
@@ -5307,6 +5416,26 @@ fn write_env_status(
         |sequence| format!("ENV@{sequence}"),
     );
     writeln!(output, "On environment {head}")?;
+    if let Some(ignore) = &status.ignored {
+        writeln!(
+            output,
+            "Ignore file    {} · {} rules · {} working objects omitted · {}",
+            ignore.source,
+            ignore.rules.len(),
+            ignore.ignored,
+            ignore.source_digest,
+        )?;
+        for omission in &ignore.omissions {
+            writeln!(
+                output,
+                "  ignored:      {}: {} · {} matches · line {}",
+                omission.rule.kind,
+                omission.rule.pattern,
+                omission.matched,
+                omission.rule.source_line,
+            )?;
+        }
+    }
 
     write_environment_status_changes(
         output,
@@ -5544,16 +5673,24 @@ fn write_environment_status_entry(
     staged: bool,
     style: TerminalStyle,
 ) -> io::Result<()> {
-    let line = format!(
-        "{:<10} {description}",
-        environment_object_change_label(change)
-    );
-    let line = if staged {
-        style.green(&line)
-    } else {
-        style.red(&line)
-    };
-    writeln!(output, "        {line}")
+    write_admission_status_entry(
+        output,
+        environment_object_change_label(change),
+        description,
+        staged,
+        style,
+    )
+}
+
+fn write_admission_status_entry(
+    output: &mut impl Write,
+    change_label: &str,
+    description: &str,
+    staged: bool,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let line = format!("{change_label:<10} {description}");
+    writeln!(output, "        {}", style.admission_change(&line, staged))
 }
 
 const fn environment_object_change_label(change: EnvironmentObjectChange) -> &'static str {
@@ -7071,4 +7208,54 @@ enum CliError {
     Json(#[from] serde_json::Error),
     #[error("output failed: {0}")]
     Output(#[from] io::Error),
+}
+
+#[cfg(test)]
+mod terminal_style_tests {
+    use super::*;
+
+    #[test]
+    fn environment_and_workload_admission_rows_share_positional_colors() {
+        let style = TerminalStyle { enabled: true };
+        let changes = WorkloadChangeSet {
+            schema: "rey.workload-change-set.v1".to_owned(),
+            source_label: "INDEX".to_owned(),
+            target_label: "WORKING".to_owned(),
+            source_revision: None,
+            target_revision: None,
+            assessment: DeltaAssessment::Different,
+            inserted: 1,
+            deleted: 0,
+            modified: 0,
+            changes: vec![rey::workloads::WorkloadChange {
+                workload_id: "alpha".to_owned(),
+                change_kind: WorkloadChangeKind::Inserted,
+                source_revision: None,
+                target_revision: None,
+            }],
+        };
+
+        for (staged, color) in [(true, "32"), (false, "31")] {
+            let mut workload = Vec::new();
+            write_workload_change_lines(&mut workload, &changes, staged, style).unwrap();
+            assert_eq!(
+                String::from_utf8(workload).unwrap(),
+                format!("        \u{1b}[{color}mnew:       workload: alpha\u{1b}[0m\n")
+            );
+
+            let mut environment = Vec::new();
+            write_environment_status_entry(
+                &mut environment,
+                EnvironmentObjectChange::Inserted,
+                "environment variable: ALPHA",
+                staged,
+                style,
+            )
+            .unwrap();
+            assert_eq!(
+                String::from_utf8(environment).unwrap(),
+                format!("        \u{1b}[{color}mnew:       environment variable: ALPHA\u{1b}[0m\n")
+            );
+        }
+    }
 }

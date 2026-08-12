@@ -18,6 +18,8 @@ completion criteria.
 - [0021 — Read-first scene editor](0021-read-first-scene-editor.md) — active native survey artifact, scene candidate, marker, and workload admission bearing
 - [0022 — Semantic spherical atlas and World globe](0022-semantic-spherical-atlas.md) — active admission-revisioned regional clustering, spherical World, and wraparound Atlas bearing
 - [0024 — Workload admission history](0024-workload-admission-history.md) — active exact HEAD/INDEX/WORKING workload loop and admission-first operator bearing
+- [0025 — File-backed workload admission](0025-file-backed-workload-admission.md) — active visible `sys/<workload>/` packages and direct exact-file browser admission bearing
+- [0026 — Typed workspace ignore file](0026-typed-workspace-ignore-file.md) — active omission-visible `.reyignore` scope for workload and environment WORKING observations
 
 ## Completed
 
