@@ -10,7 +10,7 @@ document must say which is which.
 
 | Document | Purpose |
 | --- | --- |
-| [Project README](../README.md) | Product scope, current capabilities, examples, non-goals, and the repository-level guide. |
+| [Project README](../README.md) | Product landmark, installation, first bearing, runtime loop, admission grammar, and foundational bearings. |
 | [Constitution](../CONSTITUTION.md) | Durable values and invariants that outrank architecture, plans, and implementation details. |
 | [Contributor Instructions](../INSTRUCTIONS.md) | Required reading order, working loop, verification expectations, and repository conventions. |
 | [Architecture](ARCHITECTURE.md) | System ownership, planes, data flow, crate boundaries, security boundaries, and current implementation posture. |

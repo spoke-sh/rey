@@ -4,11 +4,12 @@ Shared guidance for AI agents working on Rey.
 
 ## Project Direction
 
-Rey is a diff-directed mining and compute runtime for agents. It inventories
-explicit context, mines bounded relational and source evidence, computes
-directed deltas, uses unresolved deltas to choose subsequent work, and emits
-scoped proof artifacts. Mining spans typed retrieval/grouping/traversal and
-text search/parsing/indexing/metrics/visualization without flattening native
+Rey is the client-oriented reasoning surface over a diff-directed mining and
+compute runtime for agents. It inventories explicit context, mines bounded
+relational and source evidence, computes directed deltas, uses unresolved
+deltas to choose subsequent work, and emits scoped proof artifacts. Mining
+spans typed retrieval/grouping/traversal and text
+search/parsing/indexing/metrics/visualization without flattening native
 artifacts into artificial tables.
 
 Rey first inventories its environment and remains useful from local evidence.
@@ -29,25 +30,11 @@ provider, adapter, scheduler loop, or action executor exists.
 2. `CONSTITUTION.md`
 3. `INSTRUCTIONS.md`
 4. `docs/README.md`
-5. `docs/ARCHITECTURE.md`
-6. `docs/GLOSSARY.md`
-7. `docs/CLI.md`
-8. `docs/EXPLORER.md`
-9. `docs/JOURNAL.md`
-10. `docs/MINING.md`
-11. `docs/WORKLOADS.md`
-12. `docs/RUNTIME.md`
-13. `docs/FRONTIER.md`
-14. `docs/ENVIRONMENT.md`
-15. `docs/LOCATORS.md`
-16. `docs/GIT.md`
-17. `docs/DIFFS.md`
-18. `docs/PROOFS.md`
-19. `docs/INTERFACES.md`
-20. `docs/DEVELOPMENT.md`
-21. `docs/RELEASES.md` before changing CI, distribution, tags, or publication
-22. `plans/README.md` and the active plans
-23. `docs/decisions/README.md`
+
+Use the documentation index to select the subject contracts, accepted
+decisions, and active plans relevant to the change. Read selected foundational
+documents completely before acting; do not infer implementation from titles or
+target-state prose.
 
 ## Core Principles
 
@@ -199,11 +186,9 @@ process. The workspace proves which crates and provider implementations exist.
 Resolve ambiguity in this order:
 
 1. `CONSTITUTION.md`
-2. `docs/ARCHITECTURE.md`, `docs/MINING.md`, `docs/WORKLOADS.md`,
-   `docs/RUNTIME.md`, `docs/FRONTIER.md`, `docs/ENVIRONMENT.md`, `docs/GIT.md`,
-   `docs/DIFFS.md`, `docs/PROOFS.md`, and `docs/INTERFACES.md`
-3. accepted ADRs
-4. active plans
+2. the relevant foundational contracts indexed by `docs/README.md`
+3. the relevant accepted decisions indexed there
+4. the relevant active plans indexed there
 5. code and tests
 6. external standards and libraries
 
