@@ -793,7 +793,8 @@ resource or silently widen access.
 The standalone capability path is implemented across `rey-core`,
 `rey-dataframe`, `rey-environment`, `rey-git`, `rey-diff`, `rey-proof`, and the
 `rey` composition/CLI crate. It includes bounded environment observation, a
-partial read-only Git observation, verified capability snapshot loading, an
+partial read-only Git observation plus verified cursor/transition and
+proposal-only activation contracts, verified capability snapshot loading, an
 exact capability comparator, typed structured and Arrow deltas, Tabular Diff
 projection, required-capability certificate evaluation and verification, and
 bounded content-addressed local proof bundles with explicit filesystem-only
@@ -837,8 +838,8 @@ continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
 deterministic reference paths. Render-graph extraction, transient-patch reuse,
 retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic
-dependency invalidation, recurring scheduling, policy proposals, and Git
-activation remain target architecture.
+Git-native dependency invalidation, persistent activation processing,
+recurring scheduling, and policy proposals remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.

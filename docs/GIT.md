@@ -10,8 +10,12 @@ the newest 24 commits currently reachable from `HEAD`, preserving exact OIDs,
 ordered parents, committer time, subject, object format, shallow state,
 truncation, and a semantic sequence identity. It now pairs that sequence with
 bounded porcelain-v2 working-tree counts and exact local-upstream publication
-state. Ref-frame history, movement classification, general graph traversal,
-polling, triggers, activations, remote synchronization, and complete index flag
+state. `rey-git` now also derives one bounded HEAD/semantic-index transition
+from a verified retained cursor, classifies created, deleted, fast-forward,
+rewound, rewritten, and unknown movement, and matches typed triggers into
+deterministic proposal-only activations. Persistent cursor storage, watched-ref
+frames beyond HEAD, reachable-set and path deltas, recurring polling,
+coalescing, runtime admission, remote synchronization, and complete index flag
 semantics remain future Git work.
 
 Git is not part of the `rey env` admission snapshot. That loop discovers the
@@ -194,6 +198,14 @@ required transition evidence reach their claimed retention boundary. A crash
 before cursor advancement can replay work. Consumers use activation identity
 and action idempotency; Rey does not claim exactly-once Git triggering.
 
+The implemented `rey.git-poll-cursor.v1` is a verified value contract rather
+than a durable cursor store. A baseline cursor can be constructed only with
+the exact retained snapshot identity. Its `advance` operation requires the
+exact derived `rey.git-poll-transition.v1` identity as retained evidence;
+passing a target snapshot id or another transition fails closed. Repeating a
+poll from the unchanged source cursor reproduces the same transition and
+activation identities.
+
 Local cursors have local-file retention guarantees. Git remains the
 authoritative source of repository state.
 
@@ -210,6 +222,11 @@ One bounded poll performs:
 6. match trigger predicates and create deterministic activation identities;
 7. admit and run selected workload test selections or graph entry points; and
 8. advance the cursor after transition evidence commits.
+
+The current library implements the read-only mechanism through step 6 for
+HEAD and the partial logical index. It returns the target snapshot and typed
+transition without retaining either or advancing the cursor. No CLI loop or
+runtime path performs steps 7–8 yet.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
 be recovered from the object graph within retention and traversal bounds, but
@@ -249,19 +266,25 @@ includes:
 - per-activation budgets and concurrency policy; and
 - replay and idempotency behavior.
 
-Initial Git event classes may include:
+The implemented event classes are:
 
 ```text
+head.ref_changed
 ref.created
 ref.deleted
 ref.fast_forward
 ref.rewound
 ref.rewritten
-head.changed
-commit.reachable_added
-commit.reachable_removed
+ref.unknown
 index.changed
 index.conflicted
+```
+
+Later source/path and recurrence work may add:
+
+```text
+commit.reachable_added
+commit.reachable_removed
 worktree.changed
 ```
 
@@ -270,6 +293,13 @@ selection or graph entry point. Its identity covers the trigger revision,
 source and target snapshot ids, matched delta subset, and exact
 workload/graph/scenario selection. It still passes normal runtime admission; a
 Git delta does not directly execute a tool or mutation.
+
+`rey.git-activation-trigger.v1` currently selects repository/worktree, event
+classes, completeness posture, exact workload/graph/scenarios, and an action,
+scenario, and evidence budget. Incomplete semantic-index transitions match
+only when a trigger explicitly permits incomplete evidence, and the proposal
+retains the omission. HEAD ancestry may remain complete even while unsupported
+index flags make the index axis partial.
 
 Workloads can therefore activate narrowly. An index delta touching Rust
 sources might select symbol and diagnostic scenarios, while a new commit on a

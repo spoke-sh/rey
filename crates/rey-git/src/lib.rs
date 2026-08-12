@@ -8,7 +8,7 @@ use std::{
 };
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use rey_core::{SemanticDigest, SemanticHasher};
+use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_environment::{
     Availability, CapabilityRecord, CommandError, CommandOutput, CommandRequest,
     LOCAL_PROVIDER_REVISION, TrustClass, run_bounded,
@@ -19,7 +19,13 @@ use thiserror::Error;
 pub const GIT_SNAPSHOT_SCHEMA: &str = "rey.git-repository.v1";
 pub const GIT_COMMIT_SEQUENCE_SCHEMA: &str = "rey.git-commit-sequence.v1";
 pub const GIT_REPOSITORY_STATUS_SCHEMA: &str = "rey.git-repository-status.v1";
+pub const GIT_POLL_CURSOR_SCHEMA: &str = "rey.git-poll-cursor.v1";
+pub const GIT_POLL_TRANSITION_SCHEMA: &str = "rey.git-poll-transition.v1";
+pub const GIT_ACTIVATION_TRIGGER_SCHEMA: &str = "rey.git-activation-trigger.v1";
+pub const GIT_ACTIVATION_PROPOSAL_SCHEMA: &str = "rey.git-activation-proposal.v1";
 pub const MAX_GIT_COMMIT_SEQUENCE: usize = 256;
+pub const MAX_GIT_ACTIVATION_TRIGGERS: usize = 256;
+pub const MAX_GIT_ACTIVATION_SCENARIOS: usize = 256;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitLimits {
@@ -74,6 +80,23 @@ impl PathIdentity {
         } else {
             hasher.add_str(&self.bytes);
         }
+    }
+
+    fn decoded_bytes(&self) -> Result<Vec<u8>, GitError> {
+        if self.encoding != "base64url" {
+            return Err(GitError::InvalidSnapshot);
+        }
+        URL_SAFE_NO_PAD
+            .decode(&self.bytes)
+            .map_err(|_| GitError::InvalidSnapshot)
+    }
+
+    fn verify(&self) -> Result<Vec<u8>, GitError> {
+        let bytes = self.decoded_bytes()?;
+        if bytes.is_empty() || self.display != String::from_utf8_lossy(&bytes) {
+            return Err(GitError::InvalidSnapshot);
+        }
+        Ok(bytes)
     }
 }
 
@@ -166,6 +189,47 @@ pub struct GitIndexEntry {
     pub path: PathIdentity,
 }
 
+impl GitIndexSummary {
+    fn verify(&self, object_format: &str) -> Result<(), GitError> {
+        if self.entry_count != self.entries.len() as u64
+            || self.complete != self.omitted_semantics.is_empty()
+            || !is_canonical(&self.omitted_semantics)
+        {
+            return Err(GitError::InvalidSnapshot);
+        }
+        let mut hasher = SemanticHasher::new("rey.git-index-entries.v1");
+        let mut previous_key: Option<(Vec<u8>, u8)> = None;
+        for entry in &self.entries {
+            let path = entry.path.verify()?;
+            if entry.object_format != object_format
+                || !valid_oid(&entry.object_oid, object_format)
+                || entry.stage > 3
+                || !entry.mode.bytes().all(|byte| byte.is_ascii_digit())
+            {
+                return Err(GitError::InvalidSnapshot);
+            }
+            let key = (path.clone(), entry.stage);
+            if previous_key
+                .as_ref()
+                .is_some_and(|previous| previous >= &key)
+            {
+                return Err(GitError::InvalidSnapshot);
+            }
+            previous_key = Some(key);
+            hasher.add_str(&entry.mode);
+            hasher.add_str(&entry.object_format);
+            hasher.add_str(&entry.object_oid);
+            hasher.add_str(&entry.stage.to_string());
+            hasher.add_bytes(&path);
+        }
+        hasher.add_u64(self.entry_count);
+        if self.entry_digest != hasher.finish() {
+            return Err(GitError::InvalidSnapshot);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GitSnapshot {
     pub schema: String,
@@ -186,6 +250,79 @@ pub struct GitSnapshot {
 }
 
 impl GitSnapshot {
+    pub fn verify(&self) -> Result<(), GitError> {
+        if self.schema != GIT_SNAPSHOT_SCHEMA
+            || !matches!(self.object_format.as_str(), "sha1" | "sha256")
+            || [
+                self.limits.total_timeout_ms,
+                self.limits.command_timeout_ms,
+                self.limits.max_capture_bytes,
+                self.limits.max_index_entries,
+            ]
+            .contains(&0)
+            || self.head.symbolic_ref.as_deref().is_some_and(str::is_empty)
+            || self
+                .head
+                .commit_oid
+                .as_deref()
+                .is_some_and(|oid| !valid_oid(oid, &self.object_format))
+        {
+            return Err(GitError::InvalidSnapshot);
+        }
+        self.workspace_root.verify()?;
+        self.common_directory.verify()?;
+        self.git_directory.verify()?;
+        if let Some(root) = &self.worktree_root {
+            root.verify()?;
+        }
+        let mut repository_hasher = SemanticHasher::new("rey.git-repository-id.v1");
+        self.common_directory.add_semantics(&mut repository_hasher);
+        repository_hasher.add_str(&self.object_format);
+        if self.repository_id != repository_hasher.finish() {
+            return Err(GitError::InvalidSnapshot);
+        }
+        let expected_worktree_id = self.worktree_root.as_ref().map(|root| {
+            let mut hasher = SemanticHasher::new("rey.git-worktree-id.v1");
+            root.add_semantics(&mut hasher);
+            self.git_directory.add_semantics(&mut hasher);
+            hasher.finish()
+        });
+        if self.worktree_id != expected_worktree_id
+            || self.bare != self.worktree_root.is_none()
+            || self.bare != self.index.is_none()
+        {
+            return Err(GitError::InvalidSnapshot);
+        }
+        if let Some(index) = &self.index {
+            index.verify(&self.object_format)?;
+        }
+        if self.complete != self.index.as_ref().is_none_or(|index| index.complete) {
+            return Err(GitError::InvalidSnapshot);
+        }
+        let mut snapshot_hasher = SemanticHasher::new("rey.git-snapshot.v1");
+        snapshot_hasher.add_str(self.repository_id.as_str());
+        snapshot_hasher.add_optional_str(self.worktree_id.as_ref().map(SemanticDigest::as_str));
+        snapshot_hasher.add_str(&self.object_format);
+        snapshot_hasher.add_bool(self.bare);
+        snapshot_hasher.add_bool(self.shallow);
+        snapshot_hasher.add_optional_str(self.head.symbolic_ref.as_deref());
+        snapshot_hasher.add_optional_str(self.head.commit_oid.as_deref());
+        snapshot_hasher.add_optional_str(
+            self.index
+                .as_ref()
+                .map(|summary| summary.entry_digest.as_str()),
+        );
+        snapshot_hasher.add_bool(self.complete);
+        snapshot_hasher.add_u64(self.limits.total_timeout_ms);
+        snapshot_hasher.add_u64(self.limits.command_timeout_ms);
+        snapshot_hasher.add_u64(self.limits.max_capture_bytes);
+        snapshot_hasher.add_u64(self.limits.max_index_entries);
+        if self.snapshot_id != snapshot_hasher.finish() {
+            return Err(GitError::InvalidSnapshot);
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub fn capability_record(&self) -> CapabilityRecord {
         CapabilityRecord {
@@ -225,6 +362,603 @@ impl GitSnapshot {
             error_detail: None,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GitRefMovement {
+    Unchanged,
+    Created,
+    Deleted,
+    FastForward,
+    Rewound,
+    Rewritten,
+    Unknown,
+}
+
+impl GitRefMovement {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unchanged => "unchanged",
+            Self::Created => "created",
+            Self::Deleted => "deleted",
+            Self::FastForward => "fast_forward",
+            Self::Rewound => "rewound",
+            Self::Rewritten => "rewritten",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GitActivationEventClass {
+    HeadRefChanged,
+    RefCreated,
+    RefDeleted,
+    RefFastForward,
+    RefRewound,
+    RefRewritten,
+    RefUnknown,
+    IndexChanged,
+    IndexConflicted,
+}
+
+impl GitActivationEventClass {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::HeadRefChanged => "head.ref_changed",
+            Self::RefCreated => "ref.created",
+            Self::RefDeleted => "ref.deleted",
+            Self::RefFastForward => "ref.fast_forward",
+            Self::RefRewound => "ref.rewound",
+            Self::RefRewritten => "ref.rewritten",
+            Self::RefUnknown => "ref.unknown",
+            Self::IndexChanged => "index.changed",
+            Self::IndexConflicted => "index.conflicted",
+        }
+    }
+
+    const fn needs_complete_head(self) -> bool {
+        matches!(
+            self,
+            Self::HeadRefChanged
+                | Self::RefCreated
+                | Self::RefDeleted
+                | Self::RefFastForward
+                | Self::RefRewound
+                | Self::RefRewritten
+                | Self::RefUnknown
+        )
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitPollCursor {
+    pub schema: String,
+    pub cursor_id: SemanticDigest,
+    pub repository_id: SemanticDigest,
+    pub worktree_id: Option<SemanticDigest>,
+    pub snapshot_id: SemanticDigest,
+    pub object_format: String,
+    pub shallow: bool,
+    pub head: GitHead,
+    pub index_digest: Option<SemanticDigest>,
+    pub index_complete: bool,
+    pub index_conflicted: bool,
+    pub provider_revision: u64,
+    pub retained_evidence_id: SemanticDigest,
+}
+
+impl GitPollCursor {
+    pub fn from_retained_snapshot(
+        snapshot: &GitSnapshot,
+        retained_evidence_id: SemanticDigest,
+    ) -> Result<Self, GitError> {
+        snapshot.verify()?;
+        if retained_evidence_id != snapshot.snapshot_id {
+            return Err(GitError::CursorRetentionMismatch);
+        }
+        let mut cursor = Self {
+            schema: GIT_POLL_CURSOR_SCHEMA.to_owned(),
+            cursor_id: SemanticHasher::new("rey.git-poll-cursor.pending.v1").finish(),
+            repository_id: snapshot.repository_id.clone(),
+            worktree_id: snapshot.worktree_id.clone(),
+            snapshot_id: snapshot.snapshot_id.clone(),
+            object_format: snapshot.object_format.clone(),
+            shallow: snapshot.shallow,
+            head: snapshot.head.clone(),
+            index_digest: snapshot
+                .index
+                .as_ref()
+                .map(|index| index.entry_digest.clone()),
+            index_complete: snapshot.index.as_ref().is_none_or(|index| index.complete),
+            index_conflicted: snapshot
+                .index
+                .as_ref()
+                .is_some_and(|index| index.entries.iter().any(|entry| entry.stage != 0)),
+            provider_revision: LOCAL_PROVIDER_REVISION,
+            retained_evidence_id,
+        };
+        cursor.cursor_id = git_cursor_digest(&cursor);
+        cursor.verify()?;
+        Ok(cursor)
+    }
+
+    pub fn advance(
+        &self,
+        transition: &GitPollTransition,
+        retained_evidence_id: SemanticDigest,
+    ) -> Result<Self, GitError> {
+        self.verify()?;
+        transition.verify()?;
+        if transition.source_cursor_id != self.cursor_id
+            || retained_evidence_id != transition.transition_id
+        {
+            return Err(GitError::CursorRetentionMismatch);
+        }
+        let mut cursor = Self {
+            schema: GIT_POLL_CURSOR_SCHEMA.to_owned(),
+            cursor_id: SemanticHasher::new("rey.git-poll-cursor.pending.v1").finish(),
+            repository_id: transition.repository_id.clone(),
+            worktree_id: transition.worktree_id.clone(),
+            snapshot_id: transition.target_snapshot_id.clone(),
+            object_format: transition.object_format.clone(),
+            shallow: transition.target_shallow,
+            head: transition.target_head.clone(),
+            index_digest: transition.target_index_digest.clone(),
+            index_complete: transition.target_index_complete,
+            index_conflicted: transition.target_index_conflicted,
+            provider_revision: LOCAL_PROVIDER_REVISION,
+            retained_evidence_id,
+        };
+        cursor.cursor_id = git_cursor_digest(&cursor);
+        cursor.verify()?;
+        Ok(cursor)
+    }
+
+    pub fn verify(&self) -> Result<(), GitError> {
+        if self.schema != GIT_POLL_CURSOR_SCHEMA
+            || self.provider_revision != LOCAL_PROVIDER_REVISION
+            || !is_semantic_digest(&self.cursor_id)
+            || !is_semantic_digest(&self.repository_id)
+            || self
+                .worktree_id
+                .as_ref()
+                .is_some_and(|digest| !is_semantic_digest(digest))
+            || !is_semantic_digest(&self.snapshot_id)
+            || !is_semantic_digest(&self.retained_evidence_id)
+            || !matches!(self.object_format.as_str(), "sha1" | "sha256")
+            || self.head.symbolic_ref.as_deref().is_some_and(str::is_empty)
+            || self
+                .index_digest
+                .as_ref()
+                .is_some_and(|digest| !is_semantic_digest(digest))
+            || self.index_digest.is_none() && (!self.index_complete || self.index_conflicted)
+            || self
+                .head
+                .commit_oid
+                .as_deref()
+                .is_some_and(|oid| !valid_oid(oid, &self.object_format))
+            || self.cursor_id != git_cursor_digest(self)
+        {
+            return Err(GitError::InvalidPollCursor);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitPollTransition {
+    pub schema: String,
+    pub transition_id: SemanticDigest,
+    pub source_cursor_id: SemanticDigest,
+    pub repository_id: SemanticDigest,
+    pub worktree_id: Option<SemanticDigest>,
+    pub object_format: String,
+    pub source_snapshot_id: SemanticDigest,
+    pub target_snapshot_id: SemanticDigest,
+    pub source_head: GitHead,
+    pub target_head: GitHead,
+    pub head_movement: GitRefMovement,
+    pub head_complete: bool,
+    pub source_index_digest: Option<SemanticDigest>,
+    pub target_index_digest: Option<SemanticDigest>,
+    pub source_index_complete: bool,
+    pub target_index_complete: bool,
+    pub source_index_conflicted: bool,
+    pub target_index_conflicted: bool,
+    pub source_shallow: bool,
+    pub target_shallow: bool,
+    pub events: Vec<GitActivationEventClass>,
+    pub omissions: Vec<String>,
+}
+
+impl GitPollTransition {
+    fn derive(
+        cursor: &GitPollCursor,
+        target: &GitSnapshot,
+        head_movement: GitRefMovement,
+    ) -> Result<Self, GitError> {
+        cursor.verify()?;
+        target.verify()?;
+        if cursor.repository_id != target.repository_id
+            || cursor.worktree_id != target.worktree_id
+            || cursor.object_format != target.object_format
+        {
+            return Err(GitError::RepositoryIdentityChanged);
+        }
+        let head_complete = head_movement != GitRefMovement::Unknown;
+        let target_index_digest = target
+            .index
+            .as_ref()
+            .map(|index| index.entry_digest.clone());
+        let target_index_complete = target.index.as_ref().is_none_or(|index| index.complete);
+        let target_index_conflicted = target
+            .index
+            .as_ref()
+            .is_some_and(|index| index.entries.iter().any(|entry| entry.stage != 0));
+        let mut events = Vec::new();
+        if cursor.head.symbolic_ref != target.head.symbolic_ref {
+            events.push(GitActivationEventClass::HeadRefChanged);
+        }
+        if cursor.head.commit_oid != target.head.commit_oid {
+            events.push(match head_movement {
+                GitRefMovement::Created => GitActivationEventClass::RefCreated,
+                GitRefMovement::Deleted => GitActivationEventClass::RefDeleted,
+                GitRefMovement::FastForward => GitActivationEventClass::RefFastForward,
+                GitRefMovement::Rewound => GitActivationEventClass::RefRewound,
+                GitRefMovement::Rewritten => GitActivationEventClass::RefRewritten,
+                GitRefMovement::Unknown => GitActivationEventClass::RefUnknown,
+                GitRefMovement::Unchanged => return Err(GitError::InvalidPollTransition),
+            });
+        } else if head_movement != GitRefMovement::Unchanged {
+            return Err(GitError::InvalidPollTransition);
+        }
+        if cursor.index_digest != target_index_digest {
+            events.push(GitActivationEventClass::IndexChanged);
+        }
+        if target_index_conflicted
+            && (!cursor.index_conflicted || cursor.index_digest != target_index_digest)
+        {
+            events.push(GitActivationEventClass::IndexConflicted);
+        }
+        events.sort();
+        events.dedup();
+        let mut omissions = Vec::new();
+        if !head_complete {
+            omissions.push(
+                "HEAD movement is unknown because bounded history cannot establish ancestry"
+                    .to_owned(),
+            );
+        }
+        if !cursor.index_complete || !target_index_complete {
+            omissions.push(
+                "semantic index comparison omits unsupported index flags or extensions".to_owned(),
+            );
+        }
+        let mut transition = Self {
+            schema: GIT_POLL_TRANSITION_SCHEMA.to_owned(),
+            transition_id: SemanticHasher::new("rey.git-poll-transition.pending.v1").finish(),
+            source_cursor_id: cursor.cursor_id.clone(),
+            repository_id: cursor.repository_id.clone(),
+            worktree_id: cursor.worktree_id.clone(),
+            object_format: cursor.object_format.clone(),
+            source_snapshot_id: cursor.snapshot_id.clone(),
+            target_snapshot_id: target.snapshot_id.clone(),
+            source_head: cursor.head.clone(),
+            target_head: target.head.clone(),
+            head_movement,
+            head_complete,
+            source_index_digest: cursor.index_digest.clone(),
+            target_index_digest,
+            source_index_complete: cursor.index_complete,
+            target_index_complete,
+            source_index_conflicted: cursor.index_conflicted,
+            target_index_conflicted,
+            source_shallow: cursor.shallow,
+            target_shallow: target.shallow,
+            events,
+            omissions,
+        };
+        transition.transition_id = git_transition_digest(&transition);
+        transition.verify()?;
+        Ok(transition)
+    }
+
+    pub fn verify(&self) -> Result<(), GitError> {
+        let mut canonical_events = self.events.clone();
+        canonical_events.sort();
+        canonical_events.dedup();
+        let expected_events = expected_transition_events(self)?;
+        let mut expected_omissions = Vec::new();
+        if !self.head_complete {
+            expected_omissions.push(
+                "HEAD movement is unknown because bounded history cannot establish ancestry"
+                    .to_owned(),
+            );
+        }
+        if !self.source_index_complete || !self.target_index_complete {
+            expected_omissions.push(
+                "semantic index comparison omits unsupported index flags or extensions".to_owned(),
+            );
+        }
+        if self.schema != GIT_POLL_TRANSITION_SCHEMA
+            || !is_semantic_digest(&self.transition_id)
+            || !is_semantic_digest(&self.source_cursor_id)
+            || !is_semantic_digest(&self.repository_id)
+            || !is_semantic_digest(&self.source_snapshot_id)
+            || !is_semantic_digest(&self.target_snapshot_id)
+            || !matches!(self.object_format.as_str(), "sha1" | "sha256")
+            || self
+                .source_head
+                .symbolic_ref
+                .as_deref()
+                .is_some_and(str::is_empty)
+            || self
+                .target_head
+                .symbolic_ref
+                .as_deref()
+                .is_some_and(str::is_empty)
+            || self
+                .worktree_id
+                .as_ref()
+                .is_some_and(|digest| !is_semantic_digest(digest))
+            || self
+                .source_index_digest
+                .as_ref()
+                .is_some_and(|digest| !is_semantic_digest(digest))
+            || self
+                .target_index_digest
+                .as_ref()
+                .is_some_and(|digest| !is_semantic_digest(digest))
+            || self
+                .source_head
+                .commit_oid
+                .as_deref()
+                .is_some_and(|oid| !valid_oid(oid, &self.object_format))
+            || self
+                .target_head
+                .commit_oid
+                .as_deref()
+                .is_some_and(|oid| !valid_oid(oid, &self.object_format))
+            || self.source_index_digest.is_none()
+                && (!self.source_index_complete || self.source_index_conflicted)
+            || self.target_index_digest.is_none()
+                && (!self.target_index_complete || self.target_index_conflicted)
+            || canonical_events != self.events
+            || expected_events != self.events
+            || expected_omissions != self.omissions
+            || self.head_complete != (self.head_movement != GitRefMovement::Unknown)
+            || (self.source_shallow || self.target_shallow)
+                && self.source_head.commit_oid != self.target_head.commit_oid
+                && self.source_head.commit_oid.is_some()
+                && self.target_head.commit_oid.is_some()
+                && self.head_movement != GitRefMovement::Unknown
+            || self.transition_id != git_transition_digest(self)
+        {
+            return Err(GitError::InvalidPollTransition);
+        }
+        Ok(())
+    }
+
+    fn event_complete(&self, event: GitActivationEventClass) -> bool {
+        if event.needs_complete_head() {
+            self.head_complete
+        } else {
+            self.source_index_complete && self.target_index_complete
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitActivationBudget {
+    pub max_scenarios: u64,
+    pub max_actions: u64,
+    pub max_evidence_bytes: u64,
+}
+
+impl Default for GitActivationBudget {
+    fn default() -> Self {
+        Self {
+            max_scenarios: 64,
+            max_actions: 1,
+            max_evidence_bytes: 4 * 1_024 * 1_024,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitActivationTrigger {
+    pub schema: String,
+    pub trigger_id: String,
+    pub revision: u64,
+    pub repository_id: SemanticDigest,
+    pub worktree_id: Option<SemanticDigest>,
+    pub event_classes: Vec<GitActivationEventClass>,
+    pub require_complete: bool,
+    pub workload_id: String,
+    pub graph: ContractIdentity,
+    pub scenario_ids: Vec<String>,
+    pub budget: GitActivationBudget,
+}
+
+impl GitActivationTrigger {
+    pub fn verify(&self) -> Result<(), GitError> {
+        if self.schema != GIT_ACTIVATION_TRIGGER_SCHEMA
+            || self.trigger_id.trim().is_empty()
+            || self.revision == 0
+            || !is_semantic_digest(&self.repository_id)
+            || self
+                .worktree_id
+                .as_ref()
+                .is_some_and(|digest| !is_semantic_digest(digest))
+            || self.event_classes.is_empty()
+            || !is_canonical(&self.event_classes)
+            || self.workload_id.trim().is_empty()
+            || self.graph.id.trim().is_empty()
+            || self.graph.revision == 0
+            || !is_semantic_digest(&self.graph.semantic_digest)
+            || !is_canonical(&self.scenario_ids)
+            || self
+                .scenario_ids
+                .iter()
+                .any(|scenario| scenario.trim().is_empty())
+            || self.scenario_ids.len() > MAX_GIT_ACTIVATION_SCENARIOS
+            || self.scenario_ids.len() as u64 > self.budget.max_scenarios
+            || self.budget.max_scenarios == 0
+            || self.budget.max_actions == 0
+            || self.budget.max_evidence_bytes == 0
+        {
+            return Err(GitError::InvalidActivationTrigger);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitActivationProposal {
+    pub schema: String,
+    pub activation_id: SemanticDigest,
+    pub trigger_id: String,
+    pub trigger_revision: u64,
+    pub transition_id: SemanticDigest,
+    pub source_snapshot_id: SemanticDigest,
+    pub target_snapshot_id: SemanticDigest,
+    pub matched_events: Vec<GitActivationEventClass>,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+    pub workload_id: String,
+    pub graph: ContractIdentity,
+    pub scenario_ids: Vec<String>,
+    pub budget: GitActivationBudget,
+    pub authority: String,
+}
+
+impl GitActivationProposal {
+    fn derive(
+        trigger: &GitActivationTrigger,
+        transition: &GitPollTransition,
+    ) -> Result<Option<Self>, GitError> {
+        trigger.verify()?;
+        transition.verify()?;
+        if trigger.repository_id != transition.repository_id
+            || trigger
+                .worktree_id
+                .as_ref()
+                .is_some_and(|worktree| Some(worktree) != transition.worktree_id.as_ref())
+        {
+            return Ok(None);
+        }
+        let matched_events = trigger
+            .event_classes
+            .iter()
+            .filter(|event| transition.events.contains(event))
+            .copied()
+            .collect::<Vec<_>>();
+        if matched_events.is_empty() {
+            return Ok(None);
+        }
+        let complete = matched_events
+            .iter()
+            .all(|event| transition.event_complete(*event));
+        if trigger.require_complete && !complete {
+            return Ok(None);
+        }
+        let omissions = if complete {
+            Vec::new()
+        } else {
+            transition.omissions.clone()
+        };
+        let mut proposal = Self {
+            schema: GIT_ACTIVATION_PROPOSAL_SCHEMA.to_owned(),
+            activation_id: SemanticHasher::new("rey.git-activation-proposal.pending.v1").finish(),
+            trigger_id: trigger.trigger_id.clone(),
+            trigger_revision: trigger.revision,
+            transition_id: transition.transition_id.clone(),
+            source_snapshot_id: transition.source_snapshot_id.clone(),
+            target_snapshot_id: transition.target_snapshot_id.clone(),
+            matched_events,
+            complete,
+            omissions,
+            workload_id: trigger.workload_id.clone(),
+            graph: trigger.graph.clone(),
+            scenario_ids: trigger.scenario_ids.clone(),
+            budget: trigger.budget.clone(),
+            authority:
+                "proposal_only; normal workload admission and runtime preconditions still apply"
+                    .to_owned(),
+        };
+        proposal.activation_id = git_activation_digest(&proposal);
+        proposal.verify()?;
+        Ok(Some(proposal))
+    }
+
+    pub fn verify(&self) -> Result<(), GitError> {
+        if self.schema != GIT_ACTIVATION_PROPOSAL_SCHEMA
+            || !is_semantic_digest(&self.activation_id)
+            || !is_semantic_digest(&self.transition_id)
+            || !is_semantic_digest(&self.source_snapshot_id)
+            || !is_semantic_digest(&self.target_snapshot_id)
+            || self.trigger_id.trim().is_empty()
+            || self.trigger_revision == 0
+            || self.matched_events.is_empty()
+            || !is_canonical(&self.matched_events)
+            || self.complete != self.omissions.is_empty()
+            || self.workload_id.trim().is_empty()
+            || self.graph.id.trim().is_empty()
+            || self.graph.revision == 0
+            || !is_semantic_digest(&self.graph.semantic_digest)
+            || !is_canonical(&self.scenario_ids)
+            || self
+                .scenario_ids
+                .iter()
+                .any(|scenario| scenario.trim().is_empty())
+            || self.scenario_ids.len() as u64 > self.budget.max_scenarios
+            || self.budget.max_scenarios == 0
+            || self.budget.max_actions == 0
+            || self.budget.max_evidence_bytes == 0
+            || self.authority
+                != "proposal_only; normal workload admission and runtime preconditions still apply"
+            || self.activation_id != git_activation_digest(self)
+        {
+            return Err(GitError::InvalidActivationProposal);
+        }
+        Ok(())
+    }
+}
+
+pub fn derive_activation_proposals(
+    transition: &GitPollTransition,
+    triggers: &[GitActivationTrigger],
+) -> Result<Vec<GitActivationProposal>, GitError> {
+    if triggers.len() > MAX_GIT_ACTIVATION_TRIGGERS {
+        return Err(GitError::ActivationTriggerLimit(
+            MAX_GIT_ACTIVATION_TRIGGERS,
+        ));
+    }
+    let mut proposals = triggers
+        .iter()
+        .map(|trigger| GitActivationProposal::derive(trigger, transition))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    proposals.sort_by(|left, right| left.activation_id.cmp(&right.activation_id));
+    if proposals
+        .windows(2)
+        .any(|window| window[0].activation_id == window[1].activation_id)
+    {
+        return Err(GitError::DuplicateActivationProposal);
+    }
+    Ok(proposals)
 }
 
 #[derive(Clone, Debug)]
@@ -344,7 +1078,7 @@ impl GitInspector {
         snapshot_hasher.add_u64(self.limits.max_capture_bytes);
         snapshot_hasher.add_u64(self.limits.max_index_entries);
 
-        Ok(Some(GitSnapshot {
+        let snapshot = GitSnapshot {
             schema: GIT_SNAPSHOT_SCHEMA.to_owned(),
             snapshot_id: snapshot_hasher.finish(),
             repository_id,
@@ -360,7 +1094,96 @@ impl GitInspector {
             index,
             complete,
             limits: self.limits.clone(),
-        }))
+        };
+        snapshot.verify()?;
+        Ok(Some(snapshot))
+    }
+
+    pub fn inspect_transition(
+        &self,
+        cursor: &GitPollCursor,
+    ) -> Result<Option<(GitSnapshot, GitPollTransition)>, GitError> {
+        cursor.verify()?;
+        let deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
+        let Some(target) = self.inspect_until(deadline)? else {
+            return Ok(None);
+        };
+        if cursor.repository_id != target.repository_id
+            || cursor.worktree_id != target.worktree_id
+            || cursor.object_format != target.object_format
+        {
+            return Err(GitError::RepositoryIdentityChanged);
+        }
+        let movement = self.classify_head_movement(cursor, &target, deadline)?;
+        let transition = GitPollTransition::derive(cursor, &target, movement)?;
+        Ok(Some((target, transition)))
+    }
+
+    fn classify_head_movement(
+        &self,
+        cursor: &GitPollCursor,
+        target: &GitSnapshot,
+        deadline: Instant,
+    ) -> Result<GitRefMovement, GitError> {
+        let (Some(source_oid), Some(target_oid)) = (
+            cursor.head.commit_oid.as_deref(),
+            target.head.commit_oid.as_deref(),
+        ) else {
+            return Ok(
+                match (
+                    cursor.head.commit_oid.is_some(),
+                    target.head.commit_oid.is_some(),
+                ) {
+                    (false, false) => GitRefMovement::Unchanged,
+                    (false, true) => GitRefMovement::Created,
+                    (true, false) => GitRefMovement::Deleted,
+                    (true, true) => unreachable!("both commit ids were destructured above"),
+                },
+            );
+        };
+        if source_oid == target_oid {
+            return Ok(GitRefMovement::Unchanged);
+        }
+        if cursor.shallow || target.shallow {
+            return Ok(GitRefMovement::Unknown);
+        }
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        match self.is_ancestor(&workspace, source_oid, target_oid, deadline)? {
+            Some(true) => Ok(GitRefMovement::FastForward),
+            None => Ok(GitRefMovement::Unknown),
+            Some(false) => match self.is_ancestor(&workspace, target_oid, source_oid, deadline)? {
+                Some(true) => Ok(GitRefMovement::Rewound),
+                Some(false) => Ok(GitRefMovement::Rewritten),
+                None => Ok(GitRefMovement::Unknown),
+            },
+        }
+    }
+
+    fn is_ancestor(
+        &self,
+        workspace: &Path,
+        ancestor: &str,
+        descendant: &str,
+        deadline: Instant,
+    ) -> Result<Option<bool>, GitError> {
+        let output = self.git(
+            workspace,
+            &["merge-base", "--is-ancestor", ancestor, descendant],
+            deadline,
+        )?;
+        match output.status.code() {
+            Some(0) => Ok(Some(true)),
+            Some(1) => Ok(Some(false)),
+            Some(128) => Ok(None),
+            status => Err(GitError::Command {
+                operation: "classify Git HEAD movement",
+                status,
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+            }),
+        }
     }
 
     pub fn inspect_recent_commits(
@@ -850,6 +1673,155 @@ fn parse_utf8_history_field(field: &[u8]) -> Result<&str, GitError> {
         .map_err(|_| GitError::MalformedHistory("commit metadata is not UTF-8"))
 }
 
+fn git_cursor_digest(cursor: &GitPollCursor) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(GIT_POLL_CURSOR_SCHEMA);
+    hasher.add_str(cursor.repository_id.as_str());
+    hasher.add_optional_str(cursor.worktree_id.as_ref().map(SemanticDigest::as_str));
+    hasher.add_str(cursor.snapshot_id.as_str());
+    hasher.add_str(&cursor.object_format);
+    hasher.add_bool(cursor.shallow);
+    add_git_head(&mut hasher, &cursor.head);
+    hasher.add_optional_str(cursor.index_digest.as_ref().map(SemanticDigest::as_str));
+    hasher.add_bool(cursor.index_complete);
+    hasher.add_bool(cursor.index_conflicted);
+    hasher.add_u64(cursor.provider_revision);
+    hasher.add_str(cursor.retained_evidence_id.as_str());
+    hasher.finish()
+}
+
+fn git_transition_digest(transition: &GitPollTransition) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(GIT_POLL_TRANSITION_SCHEMA);
+    hasher.add_str(transition.source_cursor_id.as_str());
+    hasher.add_str(transition.repository_id.as_str());
+    hasher.add_optional_str(transition.worktree_id.as_ref().map(SemanticDigest::as_str));
+    hasher.add_str(&transition.object_format);
+    hasher.add_str(transition.source_snapshot_id.as_str());
+    hasher.add_str(transition.target_snapshot_id.as_str());
+    add_git_head(&mut hasher, &transition.source_head);
+    add_git_head(&mut hasher, &transition.target_head);
+    hasher.add_str(transition.head_movement.as_str());
+    hasher.add_bool(transition.head_complete);
+    hasher.add_optional_str(
+        transition
+            .source_index_digest
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
+    hasher.add_optional_str(
+        transition
+            .target_index_digest
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
+    hasher.add_bool(transition.source_index_complete);
+    hasher.add_bool(transition.target_index_complete);
+    hasher.add_bool(transition.source_index_conflicted);
+    hasher.add_bool(transition.target_index_conflicted);
+    hasher.add_bool(transition.source_shallow);
+    hasher.add_bool(transition.target_shallow);
+    hasher.add_u64(transition.events.len() as u64);
+    for event in &transition.events {
+        hasher.add_str(event.as_str());
+    }
+    add_git_strings(&mut hasher, &transition.omissions);
+    hasher.finish()
+}
+
+fn expected_transition_events(
+    transition: &GitPollTransition,
+) -> Result<Vec<GitActivationEventClass>, GitError> {
+    let mut events = Vec::new();
+    if transition.source_head.symbolic_ref != transition.target_head.symbolic_ref {
+        events.push(GitActivationEventClass::HeadRefChanged);
+    }
+    match (
+        transition.source_head.commit_oid.as_ref(),
+        transition.target_head.commit_oid.as_ref(),
+        transition.head_movement,
+    ) {
+        (None, None, GitRefMovement::Unchanged) | (Some(_), Some(_), GitRefMovement::Unchanged)
+            if transition.source_head.commit_oid == transition.target_head.commit_oid => {}
+        (None, Some(_), GitRefMovement::Created) => {
+            events.push(GitActivationEventClass::RefCreated);
+        }
+        (Some(_), None, GitRefMovement::Deleted) => {
+            events.push(GitActivationEventClass::RefDeleted);
+        }
+        (Some(source), Some(target), movement) if source != target => {
+            events.push(match movement {
+                GitRefMovement::FastForward => GitActivationEventClass::RefFastForward,
+                GitRefMovement::Rewound => GitActivationEventClass::RefRewound,
+                GitRefMovement::Rewritten => GitActivationEventClass::RefRewritten,
+                GitRefMovement::Unknown => GitActivationEventClass::RefUnknown,
+                GitRefMovement::Unchanged | GitRefMovement::Created | GitRefMovement::Deleted => {
+                    return Err(GitError::InvalidPollTransition);
+                }
+            });
+        }
+        _ => return Err(GitError::InvalidPollTransition),
+    }
+    if transition.source_index_digest != transition.target_index_digest {
+        events.push(GitActivationEventClass::IndexChanged);
+    }
+    if transition.target_index_conflicted
+        && (!transition.source_index_conflicted
+            || transition.source_index_digest != transition.target_index_digest)
+    {
+        events.push(GitActivationEventClass::IndexConflicted);
+    }
+    events.sort();
+    events.dedup();
+    Ok(events)
+}
+
+fn git_activation_digest(proposal: &GitActivationProposal) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(GIT_ACTIVATION_PROPOSAL_SCHEMA);
+    hasher.add_str(&proposal.trigger_id);
+    hasher.add_u64(proposal.trigger_revision);
+    hasher.add_str(proposal.transition_id.as_str());
+    hasher.add_str(proposal.source_snapshot_id.as_str());
+    hasher.add_str(proposal.target_snapshot_id.as_str());
+    hasher.add_u64(proposal.matched_events.len() as u64);
+    for event in &proposal.matched_events {
+        hasher.add_str(event.as_str());
+    }
+    hasher.add_bool(proposal.complete);
+    add_git_strings(&mut hasher, &proposal.omissions);
+    hasher.add_str(&proposal.workload_id);
+    proposal.graph.add_semantics(&mut hasher);
+    add_git_strings(&mut hasher, &proposal.scenario_ids);
+    hasher.add_u64(proposal.budget.max_scenarios);
+    hasher.add_u64(proposal.budget.max_actions);
+    hasher.add_u64(proposal.budget.max_evidence_bytes);
+    hasher.add_str(&proposal.authority);
+    hasher.finish()
+}
+
+fn add_git_head(hasher: &mut SemanticHasher, head: &GitHead) {
+    hasher.add_optional_str(head.symbolic_ref.as_deref());
+    hasher.add_optional_str(head.commit_oid.as_deref());
+}
+
+fn add_git_strings(hasher: &mut SemanticHasher, values: &[String]) {
+    hasher.add_u64(values.len() as u64);
+    for value in values {
+        hasher.add_str(value);
+    }
+}
+
+fn is_semantic_digest(value: &SemanticDigest) -> bool {
+    value
+        .as_str()
+        .strip_prefix("blake3:")
+        .is_some_and(|digest| {
+            digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+}
+
+fn is_canonical<T: Ord>(values: &[T]) -> bool {
+    values.windows(2).all(|window| window[0] < window[1])
+}
+
 #[derive(Default)]
 struct ParsedRepositoryStatus {
     branch: Option<String>,
@@ -1102,6 +2074,24 @@ pub enum GitError {
     MalformedStatus(&'static str),
     #[error("Git repository does not expose a worktree status")]
     WorktreeUnavailable,
+    #[error("Git snapshot is invalid or semantically tampered")]
+    InvalidSnapshot,
+    #[error("Git poll cursor is invalid or semantically tampered")]
+    InvalidPollCursor,
+    #[error("Git poll transition is invalid or semantically tampered")]
+    InvalidPollTransition,
+    #[error("Git poll cursor can advance only after its exact transition evidence is retained")]
+    CursorRetentionMismatch,
+    #[error("Git repository or worktree identity changed across the poll cursor")]
+    RepositoryIdentityChanged,
+    #[error("Git activation trigger is invalid")]
+    InvalidActivationTrigger,
+    #[error("Git activation proposal is invalid or semantically tampered")]
+    InvalidActivationProposal,
+    #[error("Git activation trigger count exceeds {0}")]
+    ActivationTriggerLimit(usize),
+    #[error("duplicate Git activation proposals are not permitted")]
+    DuplicateActivationProposal,
 }
 
 #[cfg(test)]
@@ -1110,9 +2100,14 @@ mod tests {
 
     use tempfile::TempDir;
 
+    use rey_core::ContractIdentity;
     use rey_environment::resolve_executable;
 
-    use super::{GitInspector, GitLimits, parse_repository_status};
+    use super::{
+        GIT_ACTIVATION_TRIGGER_SCHEMA, GitActivationBudget, GitActivationEventClass,
+        GitActivationTrigger, GitError, GitInspector, GitLimits, GitPollCursor, GitRefMovement,
+        derive_activation_proposals, parse_repository_status,
+    };
 
     fn git(directory: &Path, args: &[&str]) {
         let status = Command::new("git")
@@ -1160,6 +2155,27 @@ mod tests {
             limits: GitLimits::default(),
         }
     }
+
+    fn trigger(
+        snapshot: &super::GitSnapshot,
+        event: GitActivationEventClass,
+        require_complete: bool,
+    ) -> GitActivationTrigger {
+        GitActivationTrigger {
+            schema: GIT_ACTIVATION_TRIGGER_SCHEMA.to_owned(),
+            trigger_id: format!("fixture.{}", event.as_str()),
+            revision: 1,
+            repository_id: snapshot.repository_id.clone(),
+            worktree_id: snapshot.worktree_id.clone(),
+            event_classes: vec![event],
+            require_complete,
+            workload_id: "fixture-workload".to_owned(),
+            graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
+            scenario_ids: vec!["fixture-scenario".to_owned()],
+            budget: GitActivationBudget::default(),
+        }
+    }
+
     #[test]
     fn non_repository_is_absent_not_an_error() {
         let directory = TempDir::new().unwrap();
@@ -1351,6 +2367,225 @@ mod tests {
             changed.index.as_ref().unwrap().entry_digest
         );
         assert!(!raw_before.is_empty());
+    }
+
+    #[test]
+    fn poll_classifies_fast_forward_and_replays_one_activation_identity() {
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let mut tampered_snapshot = initial.clone();
+        tampered_snapshot.head.symbolic_ref = Some("refs/heads/other".to_owned());
+        assert!(matches!(
+            GitPollCursor::from_retained_snapshot(
+                &tampered_snapshot,
+                tampered_snapshot.snapshot_id.clone()
+            ),
+            Err(GitError::InvalidSnapshot)
+        ));
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "second"]);
+
+        let (target, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(transition.head_movement, GitRefMovement::FastForward);
+        assert_eq!(
+            transition.events,
+            vec![
+                GitActivationEventClass::RefFastForward,
+                GitActivationEventClass::IndexChanged,
+            ]
+        );
+        assert!(transition.head_complete);
+        assert!(!transition.target_index_complete);
+
+        let trigger = trigger(&initial, GitActivationEventClass::RefFastForward, true);
+        let proposals =
+            derive_activation_proposals(&transition, std::slice::from_ref(&trigger)).unwrap();
+        assert_eq!(proposals.len(), 1);
+        assert!(proposals[0].complete);
+        assert!(proposals[0].omissions.is_empty());
+        assert_eq!(
+            proposals[0].authority,
+            "proposal_only; normal workload admission and runtime preconditions still apply"
+        );
+
+        let (_, replay) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        let replayed = derive_activation_proposals(&replay, &[trigger]).unwrap();
+        assert_eq!(transition, replay);
+        assert_eq!(proposals, replayed);
+
+        assert!(matches!(
+            cursor.advance(&transition, target.snapshot_id.clone()),
+            Err(GitError::CursorRetentionMismatch)
+        ));
+        let advanced = cursor
+            .advance(&transition, transition.transition_id.clone())
+            .unwrap();
+        let (_, unchanged) = inspect.inspect_transition(&advanced).unwrap().unwrap();
+        assert_eq!(unchanged.head_movement, GitRefMovement::Unchanged);
+        assert!(unchanged.events.is_empty());
+    }
+
+    #[test]
+    fn poll_distinguishes_rewind_from_rewrite() {
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let initial_oid = initial.head.commit_oid.clone().unwrap();
+
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "second"]);
+        let second = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&second, second.snapshot_id.clone()).unwrap();
+
+        git(directory.path(), &["reset", "--hard", "-q", &initial_oid]);
+        let (_, rewind) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(rewind.head_movement, GitRefMovement::Rewound);
+        assert_eq!(
+            rewind.events,
+            vec![
+                GitActivationEventClass::RefRewound,
+                GitActivationEventClass::IndexChanged,
+            ]
+        );
+
+        fs::write(directory.path().join("tracked"), "replacement\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "replacement"]);
+        let (_, rewrite) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(rewrite.head_movement, GitRefMovement::Rewritten);
+        assert_eq!(
+            rewrite.events,
+            vec![
+                GitActivationEventClass::RefRewritten,
+                GitActivationEventClass::IndexChanged,
+            ]
+        );
+    }
+
+    #[test]
+    fn poll_keeps_unborn_creation_and_ref_deletion_explicit() {
+        let directory = TempDir::new().unwrap();
+        git(directory.path(), &["init", "-q"]);
+        git(directory.path(), &["config", "user.name", "Rey Test"]);
+        git(
+            directory.path(),
+            &["config", "user.email", "rey@example.invalid"],
+        );
+        let inspect = inspector(directory.path());
+        let unborn = inspect.inspect().unwrap().unwrap();
+        let unborn_cursor =
+            GitPollCursor::from_retained_snapshot(&unborn, unborn.snapshot_id.clone()).unwrap();
+
+        fs::write(directory.path().join("tracked"), "one\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "initial"]);
+        let (created_snapshot, created) =
+            inspect.inspect_transition(&unborn_cursor).unwrap().unwrap();
+        assert_eq!(created.head_movement, GitRefMovement::Created);
+        assert!(
+            created
+                .events
+                .contains(&GitActivationEventClass::RefCreated)
+        );
+
+        let created_cursor = GitPollCursor::from_retained_snapshot(
+            &created_snapshot,
+            created_snapshot.snapshot_id.clone(),
+        )
+        .unwrap();
+        let selected_ref = created_snapshot.head.symbolic_ref.as_deref().unwrap();
+        git(directory.path(), &["update-ref", "-d", selected_ref]);
+        let (_, deleted) = inspect
+            .inspect_transition(&created_cursor)
+            .unwrap()
+            .unwrap();
+        assert_eq!(deleted.head_movement, GitRefMovement::Deleted);
+        assert!(
+            deleted
+                .events
+                .contains(&GitActivationEventClass::RefDeleted)
+        );
+    }
+
+    #[test]
+    fn partial_semantic_index_change_requires_an_explicit_partial_trigger() {
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+
+        git(directory.path(), &["update-index", "--refresh"]);
+        let (_, refresh) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert!(refresh.events.is_empty());
+        assert_eq!(refresh.source_snapshot_id, refresh.target_snapshot_id);
+
+        fs::write(directory.path().join("tracked"), "staged\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        let (_, changed) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        assert_eq!(changed.events, vec![GitActivationEventClass::IndexChanged]);
+        assert!(!changed.target_index_complete);
+
+        let complete_trigger = trigger(&initial, GitActivationEventClass::IndexChanged, true);
+        assert!(
+            derive_activation_proposals(&changed, &[complete_trigger])
+                .unwrap()
+                .is_empty()
+        );
+        let partial_trigger = trigger(&initial, GitActivationEventClass::IndexChanged, false);
+        let proposals = derive_activation_proposals(&changed, &[partial_trigger]).unwrap();
+        assert_eq!(proposals.len(), 1);
+        assert!(!proposals[0].complete);
+        assert!(!proposals[0].omissions.is_empty());
+    }
+
+    #[test]
+    fn poll_cursor_and_activation_tampering_fail_closed() {
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        let cursor =
+            GitPollCursor::from_retained_snapshot(&initial, initial.snapshot_id.clone()).unwrap();
+        let mut tampered_cursor = cursor.clone();
+        tampered_cursor.shallow = !tampered_cursor.shallow;
+        assert!(matches!(
+            tampered_cursor.verify(),
+            Err(GitError::InvalidPollCursor)
+        ));
+
+        fs::write(directory.path().join("tracked"), "two\n").unwrap();
+        git(directory.path(), &["add", "tracked"]);
+        git(directory.path(), &["commit", "-q", "-m", "second"]);
+        let (_, transition) = inspect.inspect_transition(&cursor).unwrap().unwrap();
+        let mut tampered_transition = transition.clone();
+        tampered_transition.head_movement = GitRefMovement::Rewound;
+        assert!(matches!(
+            tampered_transition.verify(),
+            Err(GitError::InvalidPollTransition)
+        ));
+        let proposal = derive_activation_proposals(
+            &transition,
+            &[trigger(
+                &initial,
+                GitActivationEventClass::RefFastForward,
+                true,
+            )],
+        )
+        .unwrap()
+        .remove(0);
+        let mut tampered_proposal = proposal;
+        tampered_proposal.scenario_ids = vec!["different".to_owned()];
+        assert!(matches!(
+            tampered_proposal.verify(),
+            Err(GitError::InvalidActivationProposal)
+        ));
     }
 
     #[cfg(unix)]
