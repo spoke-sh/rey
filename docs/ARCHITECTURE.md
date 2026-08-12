@@ -380,7 +380,7 @@ entries remain visible drafts and cannot be tested or run. Rey imports the
 materialized package into WORKING only after its graph, suite, provenance,
 frozen oracle, limits, and request/package identity match validate. Automatic harness
 invocation remains a later campaign boundary. See [Workloads](WORKLOADS.md),
-[CLI](CLI.md), and [Plan 0001](../plans/0001-runtime-loop.md).
+[CLI](CLI.md), and [Runtime](RUNTIME.md).
 
 A scenario executes that exact graph against fixture bindings and compares
 `EXPECTED` to `ACTUAL`; the retained structured artifact remains the observed
@@ -531,7 +531,7 @@ both mining instruments and mineable runtime context.
 ready rows feed the generic frontier; blocked and policy-excluded rows stay
 visible but ineligible. The scheduler does not invent attention reasons, and a
 policy cannot resolve its own row. See [Frontier, Progress, and
-Scheduling](FRONTIER.md) and [Plan 0001](../plans/0001-runtime-loop.md).
+Scheduling](FRONTIER.md) and [Runtime](RUNTIME.md).
 
 See [Mining Context Into Evidence](MINING.md).
 

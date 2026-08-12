@@ -52,8 +52,8 @@ conversation composer correctly remains disabled.
 - [ ] Require ordinary Journal validation and admission before retaining a
   seed; never duplicate an observation into the Journal automatically.
 - [ ] Derive unsuperseded action cells as explicit authored opportunities on a
-  reasoning surface, then use Plan 0001's normal workload/policy admission
-  boundary if an opportunity becomes runtime work.
+  reasoning surface, then use the delivered workload/policy admission boundary
+  if an opportunity becomes runtime work.
 - [ ] Execute one admitted read-only query separately and append its bounded
   frame/delta only as a superseding Journal entry.
 

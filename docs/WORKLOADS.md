@@ -220,11 +220,11 @@ generation:
   producer_revision: gpt-5
   generated: [compute_graph, scenario_suite]
   inputs:
-    - source: plans/0001-runtime-loop.md
+    - source: docs/RUNTIME.md
       revision: blake3:<exact-content-digest>
 ownership:
   surfaces:
-    - surface_id: plans/0001-runtime-loop.md
+    - surface_id: docs/RUNTIME.md
       source_revision: blake3:<exact-observed-content-digest>
       required_capabilities: [parser.rust]
   git_dependencies:

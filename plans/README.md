@@ -10,17 +10,14 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0001 — Close the runtime loop](0001-runtime-loop.md) | Complete pending retirement | Retire this completed plan after its final repository gates. | Implemented ownership/invalidation edge proofs, exact watched-ref, bounded reachability/path and complete supported semantic-index polling, attention/frontier and harness handoffs, bounded retry/cancellation/partial-failure Git cadence, exact activation admission/execution, compatible result reuse, and selected-versus-full recomputation proof. |
-| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, and runtime evidence. Plan 0001 only where an authored opportunity becomes runtime work. |
+| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, runtime evidence, and workload/policy admission boundary. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:
 
 ```text
-runtime ownership/invalidation ───────────────┐
-                                              ▼
-Channel or Journal proposal ────────→ admitted runtime work
+Channel or Journal proposal ────────→ delivered runtime admission gate
 
 editor candidate → scene admission → retained atlas delta
                  → World/Atlas/County projection → fidelity proof

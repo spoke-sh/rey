@@ -23,9 +23,10 @@ mining nor claim a discovered or constructed path.
 
 The implemented outer loop derives a canonical portfolio snapshot and
 workload-attention relation through a scenario-qualified conformance workload
-and workload CLI projections. Ownership declarations, live invalidation, and
-generic scheduler handoff remain [Plan 0001](../plans/0001-runtime-loop.md)
-work. Product proposal and admission use workload HEAD/INDEX/WORKING.
+and workload CLI projections. Ownership declarations, live invalidation, the
+generic scheduler handoff, and exact Git activation admission/execution are
+implemented. Product proposal and admission use workload HEAD/INDEX/WORKING;
+autonomous activation scheduling remains future work.
 
 ## Purpose
 
