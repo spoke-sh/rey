@@ -49,7 +49,7 @@ and full-recomputation equivalence remain open.
   graph, environment, and source revisions.
 - [x] Derive changed-dependency and missing-capability facts from retained
   environment and Git evidence instead of fixture-only or empty live fields.
-- [ ] Prove ownership collision, missing owner, changed owner, stale revision,
+- [x] Prove ownership collision, missing owner, changed owner, stale revision,
   policy exclusion, incomplete coverage, and typed-empty attention behavior.
 
 ### 2. Hand attention to runtime work

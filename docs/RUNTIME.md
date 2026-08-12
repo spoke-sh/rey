@@ -328,6 +328,11 @@ readiness/blockers, completeness-derived convergence, directional progress,
 incompatible inputs, deterministic priority/cost selection, stale scheduling
 preconditions, deferral, replay, Arrow metadata, and tampering.
 
+Portfolio fixtures cover colliding and dangling owners, owner-transfer
+identity, changed and stale revisions, policy exclusion, incomplete-only
+attention, missing environment evidence, unowned surfaces, and typed-empty
+convergence without letting blocked or excluded rows reach scheduling.
+
 Future runtime slices still need timeout, execution-budget, retry,
 action-precondition staleness, partial-failure, replay, and provider-specific
 retention fixtures around real effects.

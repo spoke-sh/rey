@@ -1462,7 +1462,7 @@ mod tests {
         changed.changed_dependency_ids = vec!["ENV@2".to_owned()];
         let snapshot = PortfolioSnapshot::new(
             SemanticHasher::new("catalog").finish(),
-            None,
+            Some(SemanticHasher::new("environment").finish()),
             vec![
                 blocked,
                 changed,
@@ -1514,9 +1514,78 @@ mod tests {
         assert_eq!(attention.summary.blocked, 2);
         assert_eq!(attention.summary.policy_excluded, 1);
         assert_eq!(attention.summary.unowned_surfaces, 1);
-        assert!(attention.rows.iter().any(|row| {
-            row.action == AttentionAction::Block && row.readiness == AttentionReadiness::Blocked
-        }));
+        let row = |subject: &str| {
+            attention
+                .rows
+                .iter()
+                .find(|row| row.subject_id == subject)
+                .unwrap()
+        };
+        assert_eq!(
+            (
+                row("blocked").action,
+                row("blocked").reason,
+                row("blocked").readiness
+            ),
+            (
+                AttentionAction::Block,
+                super::AttentionReason::RequiredCapabilityUnavailable,
+                AttentionReadiness::Blocked,
+            )
+        );
+        assert_eq!(row("blocked").dependency_ids, ["tool.parser"]);
+        assert_eq!(
+            (row("changed").action, row("changed").reason),
+            (
+                AttentionAction::Retest,
+                super::AttentionReason::DependencyChanged,
+            )
+        );
+        assert_eq!(row("changed").dependency_ids, ["ENV@2"]);
+        assert_eq!(
+            (row("stale").action, row("stale").reason),
+            (
+                AttentionAction::Retest,
+                super::AttentionReason::StaleEvidence,
+            )
+        );
+        assert_eq!(
+            (
+                row("inconclusive").action,
+                row("inconclusive").reason,
+                row("inconclusive").readiness,
+            ),
+            (
+                AttentionAction::Block,
+                super::AttentionReason::InconclusiveEvidence,
+                AttentionReadiness::Blocked,
+            )
+        );
+        assert_eq!(
+            (
+                row("excluded").action,
+                row("excluded").reason,
+                row("excluded").readiness,
+            ),
+            (
+                AttentionAction::PolicyExcluded,
+                super::AttentionReason::PolicyExcluded,
+                AttentionReadiness::Excluded,
+            )
+        );
+        assert_eq!(row("excluded").dependency_ids, ["fixture"]);
+        assert_eq!(
+            (
+                row("src/unowned.rs").action,
+                row("src/unowned.rs").reason,
+                row("src/unowned.rs").readiness,
+            ),
+            (
+                AttentionAction::Create,
+                super::AttentionReason::UnownedSurface,
+                AttentionReadiness::Ready,
+            )
+        );
         assert_eq!(attention.to_frame().unwrap().dataframe().height(), 8);
         attention.verify().unwrap();
     }
@@ -1525,7 +1594,7 @@ mod tests {
     fn qualified_covered_portfolio_has_no_attention_rows() {
         let snapshot = PortfolioSnapshot::new(
             SemanticHasher::new("catalog").finish(),
-            None,
+            Some(SemanticHasher::new("environment").finish()),
             vec![observation(
                 "clean",
                 PortfolioQualificationState::Qualified,
@@ -1546,6 +1615,16 @@ mod tests {
         let frame = attention.to_frame().unwrap();
         assert_eq!(frame.dataframe().height(), 0);
         assert_eq!(frame.dataframe().width(), 8);
+        assert_eq!(
+            frame.metadata().relation,
+            super::WORKLOAD_ATTENTION_RELATION
+        );
+        assert_eq!(
+            derive_portfolio_frontier(&snapshot, &attention)
+                .unwrap()
+                .assessment,
+            FrontierAssessment::Converged
+        );
         attention.verify().unwrap();
     }
 
@@ -1583,7 +1662,7 @@ mod tests {
             PortfolioSnapshot::new(
                 SemanticHasher::new("catalog").finish(),
                 None,
-                workloads,
+                workloads.clone(),
                 vec![PortfolioSurfaceObservation {
                     surface_id: "src/missing.rs".to_owned(),
                     source_revision: SemanticHasher::new("surface").finish(),
@@ -1594,6 +1673,42 @@ mod tests {
             ),
             Err(super::PortfolioError::UnknownOwner { .. })
         ));
+
+        let catalog_id = SemanticHasher::new("stable-catalog").finish();
+        let environment_id = Some(SemanticHasher::new("stable-environment").finish());
+        let source_revision = SemanticHasher::new("stable-surface").finish();
+        let left = PortfolioSnapshot::new(
+            catalog_id.clone(),
+            environment_id.clone(),
+            workloads.clone(),
+            vec![PortfolioSurfaceObservation {
+                surface_id: "src/transferred.rs".to_owned(),
+                source_revision: source_revision.clone(),
+                owners: vec!["left".to_owned()],
+                evidence_ids: Vec::new(),
+            }],
+            PortfolioLimits::default(),
+        )
+        .unwrap();
+        let right = PortfolioSnapshot::new(
+            catalog_id,
+            environment_id,
+            workloads,
+            vec![PortfolioSurfaceObservation {
+                surface_id: "src/transferred.rs".to_owned(),
+                source_revision,
+                owners: vec!["right".to_owned()],
+                evidence_ids: Vec::new(),
+            }],
+            PortfolioLimits::default(),
+        )
+        .unwrap();
+        assert_ne!(left.snapshot_id, right.snapshot_id);
+        let left_attention = WorkloadAttention::derive(&left).unwrap();
+        let right_attention = WorkloadAttention::derive(&right).unwrap();
+        assert!(left_attention.rows.is_empty());
+        assert!(right_attention.rows.is_empty());
+        assert_ne!(left_attention.attention_id, right_attention.attention_id);
     }
 
     #[test]
@@ -1744,12 +1859,16 @@ mod tests {
         )
         .unwrap();
         let blocked_attention = WorkloadAttention::derive(&blocked).unwrap();
+        let blocked_runtime = orient_portfolio_attention(&blocked, &blocked_attention).unwrap();
         assert_eq!(
-            derive_portfolio_frontier(&blocked, &blocked_attention)
-                .unwrap()
-                .assessment,
+            blocked_runtime.frontier.assessment,
             FrontierAssessment::Inconclusive
         );
+        assert_eq!(
+            blocked_runtime.scheduling.outcome,
+            ScheduleOutcome::FrontierInconclusive
+        );
+        assert!(blocked_runtime.surface.is_none());
 
         let no_environment = PortfolioSnapshot::new(
             SemanticHasher::new("catalog").finish(),
