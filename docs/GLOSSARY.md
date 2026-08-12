@@ -65,6 +65,9 @@ still passes normal runtime admission and is replay-safe rather than
 exactly-once. The implemented workload gate can retain an acknowledged
 activation as scheduling-eligible, then revalidate and evaluate its selected
 scenarios as replay-stable evidence without changing full-suite qualification.
+Compatible activations from one retained transition may preserve separate
+identities while citing the same directly evaluated result under the stricter
+receiving budget.
 See [Git](GIT.md).
 
 ### Admission

@@ -1631,6 +1631,8 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     let mut low_budget_trigger = good_trigger.clone();
     low_budget_trigger.trigger_id = "fixture.admit.low-budget".to_owned();
     low_budget_trigger.budget.max_evidence_bytes = 1;
+    let mut duplicate_trigger = good_trigger.clone();
+    duplicate_trigger.trigger_id = "fixture.admit.duplicate".to_owned();
     fs::write(
         workspace.path().join("good-trigger.json"),
         serde_json::to_vec_pretty(&good_trigger).unwrap(),
@@ -1646,6 +1648,11 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         serde_json::to_vec_pretty(&low_budget_trigger).unwrap(),
     )
     .unwrap();
+    fs::write(
+        workspace.path().join("duplicate-trigger.json"),
+        serde_json::to_vec_pretty(&duplicate_trigger).unwrap(),
+    )
+    .unwrap();
 
     let polled = run_rey_workspace(&[
         "git",
@@ -1658,6 +1665,8 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         "bad-trigger.json",
         "--trigger",
         "low-budget-trigger.json",
+        "--trigger",
+        "duplicate-trigger.json",
         "--format",
         "json",
     ]);
@@ -1680,6 +1689,12 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         .proposals
         .iter()
         .find(|proposal| proposal.trigger_id == "fixture.admit.low-budget")
+        .unwrap();
+    let duplicate = polled
+        .record
+        .proposals
+        .iter()
+        .find(|proposal| proposal.trigger_id == "fixture.admit.duplicate")
         .unwrap();
 
     let pending = run_rey_workspace(&[
@@ -1848,6 +1863,17 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         "activation_scenarios_evaluated; no Git mutation occurred"
     );
 
+    let over_budget_with_source = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "execute-activation",
+        low_budget_admission.admission_id.as_str(),
+    ]);
+    assert_eq!(over_budget_with_source.status.code(), Some(1));
+    assert!(over_budget_with_source.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&over_budget_with_source.stderr).contains("over budget"));
+
     let execution_replay = run_rey_workspace(&[
         "workloads",
         "--workspace",
@@ -1871,6 +1897,40 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         );
     }
 
+    let duplicate_admission = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "admit-activation",
+        duplicate.activation_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(duplicate_admission.status.success());
+    let duplicate_admission: WorkloadActivationAdmission =
+        serde_json::from_slice(&duplicate_admission.stdout).unwrap();
+    let coalesced = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "execute-activation",
+        duplicate_admission.admission_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(coalesced.status.success());
+    let coalesced: WorkloadActivationExecution = serde_json::from_slice(&coalesced.stdout).unwrap();
+    assert_eq!(
+        coalesced.source_execution_id.as_ref(),
+        Some(&executed.execution_id)
+    );
+    assert_eq!(coalesced.result, executed.result);
+    assert_eq!(coalesced.evidence_bytes, executed.evidence_bytes);
+    assert_eq!(
+        coalesced.authority,
+        "activation_coalesced_with_retained_execution; graph was not executed again"
+    );
+
     let listed = run_rey_workspace(&[
         "workloads",
         "--workspace",
@@ -1880,10 +1940,9 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         "json",
     ]);
     let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
-    assert_eq!(
-        listed.activation_executions.as_slice(),
-        std::slice::from_ref(&executed)
-    );
+    assert_eq!(listed.activation_executions.len(), 2);
+    assert!(listed.activation_executions.contains(&executed));
+    assert!(listed.activation_executions.contains(&coalesced));
     assert_eq!(
         listed.workloads[0].last_test_result_id,
         Some(original_test_id)
@@ -1899,9 +1958,12 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     ]);
     let human = String::from_utf8(human.stdout).unwrap();
     for evidence in [
-        "2 Git activations · 1 executed",
+        "3 Git activations · 2 executed",
         "EXECUTED",
+        "COALESCED",
         executed.execution_id.as_str(),
+        coalesced.execution_id.as_str(),
+        "graph not rerun",
         "qualification unchanged",
     ] {
         assert!(

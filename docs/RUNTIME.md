@@ -18,8 +18,11 @@ it deterministically requests, receives, qualifies, and admits exact package
 bytes. Exact workload Git dependencies now derive invalidation from the
 acknowledged cursor snapshot, and acknowledged activation proposals can cross
 an exact schedule-only workload admission gate, then execute their retained
-scenario selection under revalidated inputs and budget. Coalescing and
-recurrence remain [Plan 0001](../plans/0001-runtime-loop.md) work.
+scenario selection under revalidated inputs and budget. Cross-poll coalescing
+and recurrence remain [Plan 0001](../plans/0001-runtime-loop.md) work. Compatible
+same-transition admissions can reuse one directly evaluated retained scenario
+result under the stricter receiving evidence budget; cross-poll coalescing and
+recurrence remain absent.
 
 ## Nested Campaigns
 
@@ -281,8 +284,9 @@ The implemented crates deliberately contain no:
 - automatic coding-harness transport or invocation beyond the immutable
   selected-`CREATE` request and exact response-lineage contract;
 - recurring, fair, parallel, or multi-user scheduling;
-- recurring scheduling, coalescing of distinct activation evidence, or
-  consumption semantics beyond one replay-stable retained execution;
+- recurring scheduling, cross-poll activation debounce, or consumption
+  semantics beyond replay-stable retained execution and strict
+  same-transition result reuse;
 - external tool, query, parser, or index retrieval implementation;
 - general visualization specification beyond the source workload's terminal
   table/patch projection;

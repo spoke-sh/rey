@@ -326,7 +326,11 @@ their exact deltas and evidence separately from `last_test`, and returns exit
 executed admission returns the retained receipt without rerunning the graph.
 The human receipt exposes source/target Git evidence, scenario execution and
 delta identities, evidence consumption, omissions, authority, and the explicit
-boundary that full-suite qualification is unchanged.
+boundary that full-suite qualification is unchanged. A compatible admission
+from the same Git transition may reuse a directly evaluated retained result;
+JSON carries its `source_execution_id`, while human execution and list views
+label the result `COALESCED` and name the source. Exact inputs must match and
+the retained evidence must fit the new admission's budget.
 `commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.

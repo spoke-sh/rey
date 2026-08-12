@@ -34,7 +34,9 @@ invalidate work. An acknowledged proposal can now cross a separate exact
 workload admission gate and execute only its retained scenario selection after
 the Git cursor, workload HEAD, capabilities, and budget are revalidated. The
 result is replay-stable and cannot replace full-suite qualification. Activation
-coalescing and a bounded recurring scheduler remain open.
+executions from compatible proposals in the same transition can coalesce onto
+that exact retained result without erasing either activation identity. A
+bounded recurring scheduler and cross-poll debounce remain open.
 
 ## Completion Checklist
 
@@ -83,8 +85,11 @@ coalescing and a bounded recurring scheduler remain open.
   without rerunning the graph.
 - [ ] Extend activation evidence through watched refs, reachable/path deltas,
   and complete supported index semantics.
-- [ ] Coalesce distinct activations safely and advance recurrence state only
-  after required evidence reaches its claimed retention boundary.
+- [x] Coalesce compatible same-transition activations onto one exact retained
+  scenario result only when all frozen inputs match and the result fits the
+  stricter admission budget.
+- [ ] Advance recurrence state only after required evidence reaches its claimed
+  retention boundary; retain skipped/coalesced poll evidence explicitly.
 - [ ] Run the loop under explicit iteration, time, action, evidence, retry,
   cancellation, and partial-failure bounds; stop without claiming convergence
   when a bound or evidence gap is reached.

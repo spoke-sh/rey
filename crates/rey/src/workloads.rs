@@ -576,6 +576,8 @@ pub struct WorkloadActivationExecution {
     pub execution_id: SemanticDigest,
     pub admission_id: SemanticDigest,
     pub activation_id: SemanticDigest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_execution_id: Option<SemanticDigest>,
     pub result: WorkloadScenarioExecutionResult,
     pub evidence_bytes: u64,
     pub authority: String,
@@ -598,6 +600,7 @@ impl WorkloadActivationExecution {
                 .finish(),
             admission_id: admission.admission_id.clone(),
             activation_id: admission.activation.activation_id.clone(),
+            source_execution_id: None,
             result,
             evidence_bytes,
             authority: "activation_scenarios_evaluated; no Git mutation occurred".to_owned(),
@@ -605,6 +608,51 @@ impl WorkloadActivationExecution {
         execution.execution_id = workload_activation_execution_digest(&execution);
         execution.verify_for(admission)?;
         Ok(execution)
+    }
+
+    pub fn coalesce(
+        admission: &WorkloadActivationAdmission,
+        source_admission: &WorkloadActivationAdmission,
+        source: &Self,
+    ) -> Result<Option<Self>, LocalWorkloadStateError> {
+        admission.verify()?;
+        source.verify_for(source_admission)?;
+        if source.source_execution_id.is_some()
+            || admission.activation.transition_id != source_admission.activation.transition_id
+            || admission.activation.source_snapshot_id
+                != source_admission.activation.source_snapshot_id
+            || admission.activation.target_snapshot_id
+                != source_admission.activation.target_snapshot_id
+            || admission.workload_head_commit_id != source_admission.workload_head_commit_id
+            || admission.workload_head_snapshot_id != source_admission.workload_head_snapshot_id
+            || admission.workload != source_admission.workload
+            || admission.graph != source_admission.graph
+            || admission.scenario_suite != source_admission.scenario_suite
+            || admission.evaluator != source_admission.evaluator
+            || admission.declared_scenarios != source_admission.declared_scenarios
+            || admission.selected_scenario_ids != source_admission.selected_scenario_ids
+            || admission.capability_snapshot_id != source_admission.capability_snapshot_id
+            || source.evidence_bytes > admission.effective_budget.max_evidence_bytes
+        {
+            return Ok(None);
+        }
+        let mut execution = Self {
+            schema: WORKLOAD_ACTIVATION_EXECUTION_SCHEMA.to_owned(),
+            execution_id: SemanticHasher::new(
+                "rey.workload-activation-coalesced-execution.pending.v1",
+            )
+            .finish(),
+            admission_id: admission.admission_id.clone(),
+            activation_id: admission.activation.activation_id.clone(),
+            source_execution_id: Some(source.execution_id.clone()),
+            result: source.result.clone(),
+            evidence_bytes: source.evidence_bytes,
+            authority: "activation_coalesced_with_retained_execution; graph was not executed again"
+                .to_owned(),
+        };
+        execution.execution_id = workload_activation_execution_digest(&execution);
+        execution.verify_for(admission)?;
+        Ok(Some(execution))
     }
 
     pub fn verify_for(
@@ -630,6 +678,10 @@ impl WorkloadActivationExecution {
             || !is_semantic_digest(&self.execution_id)
             || self.admission_id != admission.admission_id
             || self.activation_id != admission.activation.activation_id
+            || self
+                .source_execution_id
+                .as_ref()
+                .is_some_and(|source| !is_semantic_digest(source))
             || self.result.workload != admission.workload
             || self.result.graph != admission.graph
             || self.result.scenario_suite != admission.scenario_suite
@@ -647,7 +699,15 @@ impl WorkloadActivationExecution {
             || self.evidence_bytes != evidence_bytes
             || self.evidence_bytes > admission.effective_budget.max_evidence_bytes
             || admission.effective_budget.max_actions != 1
-            || self.authority != "activation_scenarios_evaluated; no Git mutation occurred"
+            || match &self.source_execution_id {
+                None => {
+                    self.authority != "activation_scenarios_evaluated; no Git mutation occurred"
+                }
+                Some(_) => {
+                    self.authority
+                        != "activation_coalesced_with_retained_execution; graph was not executed again"
+                }
+            }
             || self.execution_id != workload_activation_execution_digest(self)
         {
             return Err(LocalWorkloadStateError::InvalidActivationExecution);
@@ -2207,6 +2267,24 @@ impl LocalWorkloadState {
                 .find(|admission| admission.admission_id == execution.admission_id)
                 .ok_or(LocalWorkloadStateError::InvalidActivationExecution)?;
             execution.verify_for(admission)?;
+            if let Some(source_execution_id) = &execution.source_execution_id {
+                let source = self
+                    .activation_executions
+                    .iter()
+                    .find(|source| &source.execution_id == source_execution_id)
+                    .ok_or(LocalWorkloadStateError::InvalidActivationExecution)?;
+                let source_admission = self
+                    .activation_admissions
+                    .iter()
+                    .find(|admission| admission.admission_id == source.admission_id)
+                    .ok_or(LocalWorkloadStateError::InvalidActivationExecution)?;
+                if WorkloadActivationExecution::coalesce(admission, source_admission, source)?
+                    .as_ref()
+                    != Some(execution)
+                {
+                    return Err(LocalWorkloadStateError::InvalidActivationExecution);
+                }
+            }
             if previous_execution
                 .is_some_and(|previous| previous >= execution.execution_id.as_str())
                 || !admission_ids.insert(execution.admission_id.clone())
@@ -3771,6 +3849,12 @@ fn workload_activation_execution_digest(execution: &WorkloadActivationExecution)
     let mut hasher = SemanticHasher::new(WORKLOAD_ACTIVATION_EXECUTION_SCHEMA);
     hasher.add_str(execution.admission_id.as_str());
     hasher.add_str(execution.activation_id.as_str());
+    hasher.add_optional_str(
+        execution
+            .source_execution_id
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
     hasher.add_str(execution.result.result_id.as_str());
     hasher.add_u64(execution.evidence_bytes);
     hasher.add_str(&execution.authority);

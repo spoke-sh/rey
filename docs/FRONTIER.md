@@ -256,7 +256,7 @@ turn exclusion into convergence.
 ## Deferred Behavior
 
 Later slices still own broader workload-specific derivation, graph-entry Git
-activation, coalescing, policy proposal parsing, action admission, retry,
+activation, cross-poll coalescing, policy proposal parsing, action admission, retry,
 transition persistence, and recurring scheduling. Exact acknowledged Git
 HEAD/index dependency invalidation and bounded portfolio reasoning-surface
 construction already consume these contracts. Future work must not introduce a

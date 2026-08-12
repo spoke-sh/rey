@@ -341,6 +341,15 @@ returns the exact retained result without rerunning the graph. This selected
 evidence cannot issue or replace full-suite qualification, and no Git mutation
 occurs.
 
+Distinct proposals from the same retained transition may safely coalesce at
+execution. Rey reuses only a directly evaluated result with identical Git
+source/target, workload HEAD, contracts, scenario selection, and capability
+snapshot, and only when its measured evidence fits the receiving admission's
+budget. The receiving execution retains its own activation/admission identity
+and the exact source execution id. Incompatible proposals and stricter budgets
+cannot inherit the result. This is deterministic same-transition work reuse,
+not cross-poll debounce or evidence loss.
+
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
 classes, completeness posture, exact workload/graph/scenarios, and an action,
 scenario, and evidence budget. Incomplete semantic-index transitions match

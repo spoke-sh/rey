@@ -11,7 +11,7 @@ attention an outer-loop input. Owned mapped surfaces and exact Git HEAD or
 semantic-index dependencies derive live invalidation from retained evidence;
 acknowledged Git activations can enter schedule-only workload admission, while
 selected-scenario activation execution is retained separately from full-suite
-qualification. Coalescing and bounded recurrence remain
+qualification. Cross-poll coalescing and bounded recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Public Unit
@@ -172,6 +172,18 @@ from `last_test`: even an all-passing subset cannot issue or replace exact
 full-suite qualification. Repeating the command returns the retained execution
 without rerunning the graph. Failure and inconclusive evidence remain visible
 through semantic exit codes and the human receipt. No path mutates Git.
+
+Before running a new graph, execution checks retained results from other
+admissions in the same Git transition. Reuse is permitted only when source and
+target Git snapshots, workload HEAD, workload/graph/suite/evaluator contracts,
+declared and selected scenarios, and capability snapshot are identical, and
+the retained evidence fits the new admission's possibly stricter byte budget.
+The new execution receipt preserves its own admission and activation ids and
+records the exact `source_execution_id`; the original result is not relabeled.
+Only a directly evaluated result may be a coalescing source, which prevents
+opaque reuse chains. Changed inputs or insufficient budget fall through to an
+independent execution and normal validation rather than silently widening the
+reuse boundary. Cross-poll debounce and recurring scheduling remain planned.
 
 ## Workspace Package Admission
 

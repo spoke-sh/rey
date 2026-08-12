@@ -2246,12 +2246,30 @@ fn workload_execute_activation(
         .into());
     }
 
-    let result = execute_workload_scenario_selection_with_snapshot(
-        &workload,
-        &admission.selected_scenario_ids,
-        environment.semantic_digest,
-    )?;
-    let execution = WorkloadActivationExecution::new(&admission, &workload, result)?;
+    let mut coalesced = None;
+    for source in &state.activation_executions {
+        let source_admission = state
+            .activation_admissions
+            .iter()
+            .find(|candidate| candidate.admission_id == source.admission_id)
+            .ok_or(LocalWorkloadStateError::InvalidActivationExecution)?;
+        if let Some(execution) =
+            WorkloadActivationExecution::coalesce(&admission, source_admission, source)?
+        {
+            coalesced = Some(execution);
+            break;
+        }
+    }
+    let execution = if let Some(execution) = coalesced {
+        execution
+    } else {
+        let result = execute_workload_scenario_selection_with_snapshot(
+            &workload,
+            &admission.selected_scenario_ids,
+            environment.semantic_digest,
+        )?;
+        WorkloadActivationExecution::new(&admission, &workload, result)?
+    };
     let execution = store.retain_activation_execution(execution)?;
     write_workload_activation_execution_output(
         &execution,
@@ -4043,18 +4061,20 @@ fn write_workload_activation_execution(
     replayed: bool,
 ) -> Result<(), CliError> {
     writeln!(output, "WORKLOAD ACTIVATION EXECUTION")?;
-    write_portfolio_field(
-        output,
-        "Receipt",
-        if replayed {
-            "retained result replayed · graph was not executed again"
-        } else {
-            "new execution retained"
-        },
-    )?;
+    let receipt = if replayed {
+        "retained result replayed · graph was not executed again".to_owned()
+    } else if let Some(source) = &execution.source_execution_id {
+        format!("coalesced with retained execution {source} · graph was not executed again")
+    } else {
+        "new execution retained".to_owned()
+    };
+    write_portfolio_field(output, "Receipt", &receipt)?;
     write_portfolio_field(output, "Execution", execution.execution_id.as_str())?;
     write_portfolio_field(output, "Admission", execution.admission_id.as_str())?;
     write_portfolio_field(output, "Activation", execution.activation_id.as_str())?;
+    if let Some(source) = &execution.source_execution_id {
+        write_portfolio_field(output, "Coalesced source", source.as_str())?;
+    }
     write_portfolio_field(
         output,
         "Git evidence",
@@ -5020,11 +5040,13 @@ fn write_activation_admissions(
             admission.admission_id,
             admission.workload.id,
             admission.selected_scenario_ids.len(),
-            if execution.is_some() {
-                "EXECUTED"
-            } else {
-                "ADMITTED"
-            },
+            execution.map_or("ADMITTED", |execution| {
+                if execution.source_execution_id.is_some() {
+                    "COALESCED"
+                } else {
+                    "EXECUTED"
+                }
+            }),
         )?;
         writeln!(
             output,
@@ -5039,6 +5061,9 @@ fn write_activation_admissions(
                 "    execution {} · {:?} · {} evidence bytes · qualification unchanged",
                 execution.execution_id, execution.result.status, execution.evidence_bytes,
             )?;
+            if let Some(source) = &execution.source_execution_id {
+                writeln!(output, "    reused execution {source} · graph not rerun")?;
+            }
         } else {
             writeln!(
                 output,

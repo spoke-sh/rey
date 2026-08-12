@@ -50,8 +50,10 @@ the generic attention/frontier handoff, and one immutable harness response
 cycle are also delivered. Acknowledged Git proposals now cross an exact
 workload admission and selected-scenario execution with exact evidence caps,
 idempotent retained replay, and no qualification substitution. Remaining work
-in this phase concerns coalescing, full-recomputation proof, recurring
-execution, and broader provider behavior.
+in this phase concerns cross-poll coalescing, full-recomputation proof, recurring
+execution, and broader provider behavior. Compatible proposals within one
+retained transition already reuse exact execution evidence under the stricter
+receiving budget; cross-poll debounce does not.
 
 - Fix the smallest workload declaration, graph, scenario, campaign,
   qualification, catalog, and result schemas.

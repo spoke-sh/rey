@@ -845,7 +845,9 @@ deterministic reference paths. Render-graph extraction, transient-patch reuse,
 retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
 activation, persistent recurring activation processing, coalescing, and policy
-proposals remain target architecture.
+proposals remain target architecture. Compatible admissions within one
+retained Git transition already reuse a directly evaluated scenario result
+under exact input equality and the receiving evidence budget.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.
@@ -877,7 +879,7 @@ admission cycle without Rey invoking the harness. An acknowledged Git
 activation can separately cross exact workload/runtime preconditions into a
 content-identified admission and replay-stable selected-scenario execution.
 
-Recurring scheduling, activation coalescing, admitted `rg` search,
+Recurring scheduling, cross-poll activation coalescing, admitted `rg` search,
 parser/index breadth, general structural delta, and a provider-specific agent
 loop remain unimplemented. Those require the same human-verifiable end-to-end
 boundary before they count as delivered.
