@@ -3186,23 +3186,15 @@ fn workload_test_table_is_incremental_and_opens_failure_diffs_by_default() {
     assert!(passing.status.success());
     assert!(passing.stderr.is_empty());
     let passing = String::from_utf8(passing.stdout).unwrap();
-    assert!(passing.starts_with("Execution path: LOCAL\nMode: READ-ONLY GRAPH"));
-    assert!(passing.contains("Stage: EXECUTE SCENARIOS → MINE EVIDENCE → DIFF EXPECTED"));
-    assert!(passing.contains("SCENARIOS · results render incrementally in declaration order"));
-    assert!(
-        passing.contains(
-            "PASS rey.fixture.text-normalize · 01/02 plain · 1/1 outputs equal · required"
-        )
-    );
-    assert!(passing.contains(
-        "PASS rey.fixture.text-normalize · 02/02 surrounded · 1/1 outputs equal · required"
-    ));
-    assert!(passing.contains("Workload result: QUALIFIED · 2/2 scenarios passing"));
-    assert!(passing.contains("PORTFOLIO CONFORMANCE"));
-    assert!(passing.contains("Deltas: 2 equal · 0 different · 0 inconclusive"));
-    assert!(!passing.contains("Evidence format:"));
-    assert!(!passing.contains("Evidence matches:"));
-    assert!(!passing.contains("Exact bindings:"));
+    assert!(passing.starts_with("WORKLOAD TEST · compiled catalog\n"));
+    assert!(passing.contains("Assertions  EXPECTED → ACTUAL"));
+    assert!(passing.contains("PASS 01/02 plain · 1/1 assertions satisfied · required"));
+    assert!(passing.contains("PASS 02/02 surrounded · 1/1 assertions satisfied · required"));
+    assert!(passing.contains("Result      QUALIFIED · 2/2 required scenarios passing"));
+    assert!(passing.contains("TEST SUMMARY"));
+    assert!(passing.contains("Output deltas        2 equal · 0 different · 0 inconclusive"));
+    assert!(!passing.contains("Assertions (EXPECTED → ACTUAL)"));
+    assert!(!passing.contains("Evidence (exact)"));
     assert!(!passing.contains("\u{1b}["));
 
     let failing = run_rey(&[
@@ -3218,18 +3210,17 @@ fn workload_test_table_is_incremental_and_opens_failure_diffs_by_default() {
     assert_eq!(failing.status.code(), Some(2));
     assert!(failing.stderr.is_empty());
     let failing = String::from_utf8(failing.stdout).unwrap();
-    assert!(failing.contains(
-        "FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · required"
-    ));
-    assert!(failing.contains("Evidence deltas:"));
-    assert!(failing.contains("Delta (output text):"));
-    assert!(failing.contains("@@ text · utf8 @@"));
+    assert!(failing.contains("FAIL 02/02 surrounded · 0/1 assertions satisfied · required"));
+    assert!(failing.contains("Assertions (EXPECTED → ACTUAL)"));
+    assert!(failing.contains("! output.text · DIFFERENT"));
+    assert!(failing.contains("EXPECTED \"REY\""));
+    assert!(failing.contains("ACTUAL   \" REY \""));
+    assert!(failing.contains("@@ -1,1 +1,1 @@"));
     assert!(failing.contains("- REY"));
     assert!(failing.contains("+  REY "));
-    assert!(failing.contains("Result: GAPS FOUND"));
-    assert!(failing.contains("Deltas: 1 equal · 1 different · 0 inconclusive"));
-    assert!(!failing.contains("Evidence format:"));
-    assert!(!failing.contains("Exact bindings:"));
+    assert!(failing.contains("Result               GAPS FOUND"));
+    assert!(failing.contains("Output deltas        1 equal · 1 different · 0 inconclusive"));
+    assert!(!failing.contains("Evidence (exact)"));
     assert!(!failing.contains("\u{1b}["));
 }
 
@@ -3250,15 +3241,14 @@ fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
     assert!(verbose.status.success());
     assert!(verbose.stderr.is_empty());
     let verbose = String::from_utf8(verbose.stdout).unwrap();
-    assert!(verbose.contains("Execution model: DETERMINISTIC SERIAL · 2 nodes"));
-    assert_eq!(verbose.matches("Evidence format:").count(), 2);
-    assert_eq!(verbose.matches("Evidence matches:").count(), 2);
-    assert!(verbose.contains("Match (output text):"));
-    assert!(verbose.contains("   \"ATLAS\""));
-    assert!(verbose.contains("Stop reason: qualified"));
-    assert!(verbose.contains("Qualification: issued"));
-    assert!(!verbose.contains("Workload binding:"));
-    assert!(!verbose.contains("Exact bindings:"));
+    assert!(verbose.contains("Graph       trim → uppercase · deterministic serial"));
+    assert_eq!(verbose.matches("Assertions (EXPECTED → ACTUAL)").count(), 2);
+    assert!(verbose.contains("= output.text · EQUAL"));
+    assert!(verbose.contains("EXPECTED \"ATLAS\""));
+    assert!(verbose.contains("ACTUAL   \"ATLAS\""));
+    assert!(verbose.contains("Qualification issued"));
+    assert!(!verbose.contains("Evidence (exact)"));
+    assert!(!verbose.contains("Workload    rey.fixture.text-normalize@1"));
 
     let very_verbose = run_rey(&[
         "workloads",
@@ -3274,18 +3264,17 @@ fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
     assert_eq!(very_verbose.status.code(), Some(2));
     assert!(very_verbose.stderr.is_empty());
     let very_verbose = String::from_utf8(very_verbose.stdout).unwrap();
-    assert!(very_verbose.contains("Execution model: DETERMINISTIC SERIAL · 1 node"));
-    assert!(very_verbose.contains("Workload binding: rey.fixture.text-mismatch@1 · blake3:"));
-    assert!(very_verbose.contains("Graph binding: rey.fixture.text-mismatch.graph@1 · blake3:"));
-    assert!(
-        very_verbose.contains("Scenario suite: rey.fixture.text-mismatch.scenarios@1 · blake3:")
-    );
-    assert!(very_verbose.contains("Evaluator: rey.scenario.utf8-exact@1 · blake3:"));
+    assert!(very_verbose.contains("Graph       uppercase · deterministic serial"));
+    assert!(very_verbose.contains("Workload    rey.fixture.text-mismatch@1 · blake3:"));
+    assert!(very_verbose.contains("Graph id    rey.fixture.text-mismatch.graph@1 · blake3:"));
+    assert!(very_verbose.contains("Suite       rey.fixture.text-mismatch.scenarios@1 · blake3:"));
+    assert!(very_verbose.contains("Evaluator   rey.scenario.utf8-exact@1 · blake3:"));
+    assert_eq!(very_verbose.matches("Evidence (exact)").count(), 2);
     assert_eq!(very_verbose.matches("Exact bindings:").count(), 2);
     assert!(very_verbose.contains("scenario    rey.fixture.text-mismatch.scenario.surrounded@1"));
     assert!(very_verbose.contains("execution   blake3:"));
     assert!(very_verbose.contains("delta       blake3:"));
-    assert!(very_verbose.contains("Test result: blake3:"));
+    assert!(very_verbose.contains("Test result   blake3:"));
     assert!(very_verbose.contains("- REY"));
     assert!(very_verbose.contains("+  REY "));
 
@@ -3307,7 +3296,8 @@ fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
     assert!(help.status.success());
     let help = String::from_utf8(help.stdout).unwrap();
     assert!(help.contains("-v, --verbose..."));
-    assert!(help.contains("repeat as -vv for exact identity bindings"));
+    assert!(help.contains("Render every EXPECTED → ACTUAL assertion"));
+    assert!(help.contains("repeat as -vv for exact evidence bindings"));
 }
 
 #[test]
@@ -3328,12 +3318,13 @@ fn source_mining_is_verifiable_across_test_list_status_and_run() {
     assert!(tested.stderr.is_empty());
     let tested = String::from_utf8(tested.stdout).unwrap();
     for needle in [
-        "Mining admission: VERIFIED",
-        "PASS rey.fixture.source-search · 01/04 empty",
-        "PASS rey.fixture.source-search · 02/04 exact",
-        "FAIL rey.fixture.source-search · 03/04 mismatch",
-        "INCONCLUSIVE rey.fixture.source-search · 04/04 truncated",
-        "rey.source-match-delta.v1 (typed relation)",
+        "Mining      VERIFIED",
+        "PASS 01/04 empty",
+        "PASS 02/04 exact",
+        "FAIL 03/04 mismatch",
+        "INCONCLUSIVE 04/04 truncated",
+        "source.matches · DIFFERENT",
+        "source.complete · INCONCLUSIVE",
         "Match relation: DIFFERENT",
         "OMISSION match_limit",
         "operation   rey.source-search.literal-utf8@1",
@@ -3483,7 +3474,9 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(tested.stderr.is_empty());
     let tested = String::from_utf8(tested.stdout).unwrap();
     for needle in [
-        "Topography admission: VERIFIED",
+        "Topography  VERIFIED",
+        "topography.complete · EQUAL",
+        "topography.complete · INCONCLUSIVE",
         "Topography patch:",
         "Coverage:",
         "Directed patch:",
@@ -3519,6 +3512,50 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         assert!(
             tested.contains(needle),
             "missing topography evidence: {needle}"
+        );
+    }
+
+    let compact = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "test",
+        "--staged",
+        "context-anchor-survey",
+        "--format",
+        "table",
+        "-v",
+    ]);
+    assert!(compact.status.success());
+    assert!(compact.stderr.is_empty());
+    let compact = String::from_utf8(compact.stdout).unwrap();
+    for needle in [
+        "context-anchor-survey · 3 scenarios · 6 assertions",
+        "INCONCLUSIVE 01/03 bounded · 1/2 assertions satisfied · optional",
+        "Assertions (EXPECTED → ACTUAL)",
+        "= output.text · EQUAL",
+        "EXPECTED 8 lines",
+        "ACTUAL   8 lines",
+        "? topography.complete · INCONCLUSIVE",
+        "ACTUAL   bounded · seeds 1/1",
+        "PASS 02/03 exact · 2/2 assertions satisfied · required",
+        "= topography.complete · EQUAL",
+    ] {
+        assert!(
+            compact.contains(needle),
+            "missing compact assertion: {needle}"
+        );
+    }
+    for folded in [
+        "Evidence (exact)",
+        "Projection packet:",
+        "         ANCHOR",
+        "         EDGE",
+        "         REGION",
+    ] {
+        assert!(
+            !compact.contains(folded),
+            "compact assertions leaked exact evidence: {folded}"
         );
     }
 
@@ -3779,14 +3816,14 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     assert!(tested.stderr.is_empty());
     let tested = String::from_utf8(tested.stdout).unwrap();
     for needle in [
-        "Portfolio mining: VERIFIED",
-        "PASS rey.portfolio.attention · 01/06 blocked",
-        "PASS rey.portfolio.attention · 02/06 clean",
-        "PASS rey.portfolio.attention · 03/06 create",
-        "PASS rey.portfolio.attention · 04/06 excluded",
-        "PASS rey.portfolio.attention · 05/06 refine",
-        "PASS rey.portfolio.attention · 06/06 retest",
-        "rey.workload-attention.v1 (typed relation)",
+        "Portfolio   VERIFIED",
+        "PASS 01/06 blocked",
+        "PASS 02/06 clean",
+        "PASS 03/06 create",
+        "PASS 04/06 excluded",
+        "PASS 05/06 refine",
+        "PASS 06/06 retest",
+        "Portfolio attention:",
         "required_capability_unavailable",
         "No unresolved portfolio attention",
         "dependency_changed",

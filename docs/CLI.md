@@ -246,7 +246,10 @@ not invent a graph or invoke an agent. `list` reads admitted HEAD and retained
 results while carrying draft/revision posture separately. `status` observes
 the complete HEAD/INDEX/WORKING portfolio without executing it. `test
 --staged` runs the frozen scenario suite and retains directed expected-to-
-observed evidence. `commit` requires fresh complete qualification for the
+actual evidence. The human runner is diff-native: plain output opens only
+unresolved assertions, `-v` shows every compact `EXPECTED → ACTUAL` assertion,
+and `-vv` adds exact evidence objects, identities, limits, and lineage.
+`commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.
 
@@ -343,8 +346,10 @@ does not advertise Arrow as a generic envelope format. Arrow remains typed
 interchange for genuinely relational artifacts inside the runtime.
 
 Human verbosity changes projection detail, not semantic results. In particular,
-`workloads test -v` opens evidence and `-vv` opens exact identity and lineage
-bindings; JSON retains the complete document independently of those flags.
+plain `workloads test` folds passing assertions and opens unresolved patches;
+`-v` exposes compact expected and actual assertions; and `-vv` additionally
+opens exact evidence, identity, limit, and lineage bindings. JSON retains the
+complete document independently of those flags.
 
 ANSI styling is enabled only on an interactive terminal when `NO_COLOR` is
 absent and `TERM` is not `dumb`. Redirected and structured output is ANSI-free.

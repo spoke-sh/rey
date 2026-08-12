@@ -383,8 +383,9 @@ invocation remains a later campaign boundary. See [Workloads](WORKLOADS.md),
 [CLI](CLI.md), and [Plan 0001](../plans/0001-runtime-loop.md).
 
 A scenario executes that exact graph against fixture bindings and compares
-`EXPECTED` to `OBSERVED`. Conclusive mismatches retain typed deltas; missing or
-incompatible evidence is inconclusive. All required scenarios must freshly
+`EXPECTED` to `ACTUAL`; the retained structured artifact remains the observed
+output. Conclusive mismatches retain typed deltas; missing or incompatible
+evidence is inconclusive. All required scenarios must freshly
 pass for every package in the exact staged INDEX before a human can admit that
 snapshot; `workloads run` resolves only the resulting HEAD.
 

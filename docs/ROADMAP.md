@@ -55,8 +55,8 @@ execution, and broader provider behavior.
   zero-agent fixture workload.
 - Validate a finite typed DAG and execute the same graph contract against test
   fixtures and admitted run inputs.
-- Retain `EXPECTED` to `OBSERVED` typed scenario deltas and derive a frontier
-  from unresolved mismatches and claims.
+- Retain `EXPECTED` to `ACTUAL` typed scenario deltas over observed artifacts
+  and derive a frontier from unresolved mismatches and claims.
 - Freeze provider-neutral relational/source mining operation, request, result,
   artifact, completeness, dependency, and visualization contracts.
 - Adapt one bounded source-search and exact-context provider, project matches

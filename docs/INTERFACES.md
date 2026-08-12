@@ -113,7 +113,7 @@ The implemented slice behaves as follows:
 - `add` freezes verified package bytes as one exact INDEX; it performs no test
   or admission;
 - `test --staged` executes a bounded deterministic graph/scenario pass,
-  retains `EXPECTED` to `OBSERVED` typed deltas plus mining evidence, and binds
+  retains `EXPECTED` to `ACTUAL` typed deltas plus mining evidence, and binds
   complete all-passing qualification to the exact INDEX snapshot;
 - `commit` verifies the frozen INDEX and qualification and advances HEAD
   without re-observing WORKING; `log` verifies and renders that history;
@@ -175,21 +175,22 @@ WORKING drift that has not been staged. Inserted, deleted, and modified labels
 remain the authoritative change direction; color never overrides those labels.
 Portfolio aggregates are derived from authoritative per-workload counts.
 
-The `test` table is a diff-first runner document. It declares the selected
-execution path, admission mode, comparison stage, and workload scope before
-executing scenarios, then renders each scenario as soon as the deterministic
-runtime completes it. Plain output keeps passing scenarios compact but always
-opens a failing or inconclusive scenario's directed `EXPECTED` to `OBSERVED`
-delta. `-v` also renders evidence formats and matching output evidence for
-passing scenarios. Mining scenarios add relation assessment, exact matches and
-context, completeness, omissions, consumption, and limits. `-vv` additionally
-exposes exact workload, graph, suite, evaluator, scenario, execution, result,
-delta, operation/provider/capability, corpus/request/result, native artifact,
-frontier, scheduling, and reasoning-surface identities. A final portfolio
-section keeps workload qualification, scenario conformance, evaluation
-coverage, delta assessment, and qualification counts separate. These
-verbosity flags affect only the human projection; redirected `auto` and
-explicit JSON retain the same `rey.workload-test-batch.v1` document.
+The `test` table is a diff-native assertion runner. It declares the selected
+read-only execution boundary, `EXPECTED → ACTUAL` direction, graph path, and
+workload scope before executing scenarios, then renders each result as soon as
+the deterministic runtime completes it. Plain output folds passing assertions
+but always opens failing or inconclusive comparisons. `-v` renders every
+compact expected and actual assertion, including typed-row counts,
+completeness, coverage, and structural patch summaries. `-vv` keeps that view
+and additionally exposes exact workload, graph, suite, evaluator, scenario,
+execution, result, delta, operation/provider/capability,
+corpus/request/result, native artifact, frontier, scheduling, limit,
+projection, and reasoning-surface identities. A final test summary keeps
+workload qualification, required-scenario conformance, evaluation coverage,
+output-delta assessment, and qualification counts separate. These verbosity
+flags affect only the human projection; redirected `auto` and explicit JSON
+retain the same `rey.workload-test-batch.v1` document and its existing
+`observed` field names.
 
 Portfolio-attention scenarios retain `rey.workload-attention.v1` beside the
 ordered UTF-8 output delta. `-v` exposes action/reason/readiness rows; `-vv`

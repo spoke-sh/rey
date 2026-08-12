@@ -82,9 +82,10 @@ portfolio. They are available only with `--catalog conformance`.
 The default workspace catalog contains the coding-harness-generated
 `context-anchor-survey` package. Its graph accepts declared seed names, runs
 the deterministic bounded survey operation, passes a typed topography patch to
-its renderer, and compares frozen human-readable evidence. `test -v|-vv`
-exposes progressively richer seed, resolution, anchor, edge, region, frontier,
-omission, limit, and lineage evidence. After explicit admission, `run` requires
+its renderer, and compares frozen human-readable evidence. `test -v` renders
+each typed assertion as `EXPECTED → ACTUAL`; `test -vv` additionally exposes
+the exact seed, resolution, anchor, edge, region, frontier, omission, limit,
+and lineage evidence behind those assertions. After explicit admission, `run` requires
 repeatable `--source` paths and retains one exact patch; `list` and
 `GET /api/v1/workloads` project HEAD and retained state without surveying again.
 
@@ -287,7 +288,9 @@ real target must be replaced by an explicit fixture provider or admitted to a
 declared isolated test target. Test mode never silently grants production
 authority.
 
-Each comparison is directed from `EXPECTED` to `OBSERVED`. A scenario may
+Each comparison is directed from `EXPECTED` to `ACTUAL`. `ACTUAL` is the human
+label for the retained observed artifact; structured schemas retain their
+existing `observed` field names. A scenario may
 produce several typed deltas when it evaluates several outputs. Its semantic
 evaluation is:
 
@@ -323,7 +326,7 @@ The campaign loop is:
 resolve workload and freeze capabilities
   -> validate or request candidate graph revision
   -> execute selected scenarios through that exact graph
-  -> compare EXPECTED to OBSERVED and retain typed deltas
+  -> compare EXPECTED to ACTUAL and retain typed deltas
   -> derive scenario progress and unresolved frontier
   -> if required scenarios pass: qualify graph revision
   -> otherwise mine/project bounded failing evidence
@@ -365,38 +368,49 @@ qualified graph.
 
 ### Human Test Runner
 
-The table projection is a running conformance document, not a stream of
-unstructured logs. It first fixes the execution path, read-only graph mode,
-`EXPECTED` to `OBSERVED` comparison direction, and workload scope. Scenario
-results then appear as soon as they complete, while preserving declaration
-order. Each line keeps scenario passing, evaluation, and required/optional
+The table projection is a diff-native assertion runner, not a stream of
+unstructured evidence logs. It fixes the read-only execution boundary and the
+comparison direction as `EXPECTED → ACTUAL`, names the graph path being
+executed, and renders scenario results as soon as they complete in declaration
+order. Each scenario line keeps passing, evaluation, and required/optional
 role explicit.
 
-Verbosity expands evidence without changing evaluation:
+Every evaluated claim is projected as an assertion. UTF-8 output assertions
+compare expected and actual artifacts; source-mining assertions separately
+compare typed rows and required completeness; topography assertions expose
+required completeness, actual coverage, and the directed structural patch.
+Large equal values collapse to line, byte, and content identity. Different
+values open their authoritative patch immediately. Incomplete evidence is an
+inconclusive assertion rather than a passing value accompanied by a prose
+warning.
 
-- plain output omits evidence for passing scenarios and always opens the
-  directed delta for failing or inconclusive scenarios;
-- `-v` adds the evidence format and matching output evidence for passing
-  scenarios, plus source matches, context, completeness, omissions, and
-  effective limits for mining scenarios; and
-- `-vv` also binds that evidence to exact workload, graph, suite, evaluator,
-  scenario, execution, result, delta, mining operation/provider/capability,
-  corpus/request/result, native source/match/context, frontier, scheduling, and
-  reasoning-surface identities.
+Verbosity changes only this human projection:
 
-For example, a failing plain scenario remains immediately actionable:
+- plain output folds passing assertions and opens only failing or inconclusive
+  `EXPECTED → ACTUAL` comparisons;
+- `-v` shows every compact assertion, including actual values, counts,
+  completeness, coverage, and patch summaries; and
+- `-vv` keeps the assertion view and additionally opens exact workload, graph,
+  suite, evaluator, scenario, execution, result, delta, mining
+  operation/provider/capability, corpus/request/result, native
+  source/match/context, frontier, scheduling, limits, projection, and lineage
+  evidence.
+
+For example, a failing assertion remains immediately actionable:
 
 ```text
-FAIL rey.fixture.text-mismatch · 02/02 surrounded · 0/1 outputs equal · required
-     Evidence deltas:
-         Delta (output text):
-         @@ text · utf8 @@
-         - REY
-         +  REY
+  FAIL 02/02 surrounded · 0/1 assertions satisfied · required
+    Assertions (EXPECTED → ACTUAL)
+      ! output.text · DIFFERENT
+        EXPECTED "REY"
+        ACTUAL   " REY "
+        @@ -1,1 +1,1 @@
+        - REY
+        +  REY␠
 ```
 
-The final portfolio summary reports workload qualification, scenario
-conformance, scenario evaluation, delta assessments, and issued
+The final test summary reports workload qualification, required-scenario
+conformance, evaluation coverage, output-delta assessments, and issued
 qualifications as separate dimensions. Verbosity is a human projection only:
 JSON always emits the same verified `rey.workload-test-batch.v1` envelope,
 including catalog and proposal provenance.

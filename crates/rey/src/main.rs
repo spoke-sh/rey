@@ -56,8 +56,8 @@ use rey::{
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::{
     CapabilityChange, CapabilityChangeKind, CapabilityDelta, CapabilitySemanticRecord,
-    DeltaAssessment, SCENARIO_OUTPUT_DELTA_SCHEMA, ScenarioOutputDelta, SourceMatchChangeKind,
-    TextLineKind, source_match_table_projection, text_patch_projection,
+    DeltaAssessment, ScenarioOutputDelta, SourceMatchChangeKind, TextLineKind,
+    source_match_table_projection, text_patch_projection,
 };
 use rey_environment::{
     Availability, CapabilitySnapshot, CommandRequest, DiscoveryLimits, EnvironmentMapLimits,
@@ -634,7 +634,7 @@ struct WorkloadTestArgs {
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 
-    /// Render matching evidence; repeat as -vv for exact identity bindings.
+    /// Render every EXPECTED → ACTUAL assertion; repeat as -vv for exact evidence bindings.
     #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
     verbose: u8,
 }
@@ -4173,40 +4173,23 @@ fn write_workload_test_plan(
     style: TerminalStyle,
 ) -> io::Result<()> {
     let scope = selected_workload.map_or_else(
-        || format!("ALL WORKLOADS ({})", workloads.len()),
-        str::to_owned,
+        || format!("all workloads · {}", workloads.len()),
+        |id| format!("{id} · 1 workload"),
     );
-    writeln!(output, "Execution path: {}", style.cyan_bold("LOCAL"))?;
     writeln!(
         output,
-        "Mode: {}",
-        style.cyan_bold("READ-ONLY GRAPH + PROBES · RETAIN LOCAL RESULTS")
+        "{} · {}",
+        style.bold("WORKLOAD TEST"),
+        style.bold(catalog.root.as_deref().unwrap_or("compiled catalog"))
     )?;
+    writeln!(output, "  Scope       {scope}")?;
     writeln!(
         output,
-        "Stage: {}",
-        style.bold("EXECUTE SCENARIOS → MINE EVIDENCE → DIFF EXPECTED")
+        "  Execution   {} · read-only graph + probes · retain local results",
+        style.cyan_bold("LOCAL")
     )?;
-    writeln!(output, "Scope: {}", style.bold(&scope))?;
-    writeln!(
-        output,
-        "Catalog: {} · {}",
-        style.bold(catalog.kind.label()),
-        catalog.root.as_deref().unwrap_or("compiled")
-    )?;
-    writeln!(output)?;
-    writeln!(
-        output,
-        "WORKLOAD CONFORMANCE EVALUATION · {}",
-        style.bold(&scope)
-    )?;
-    writeln!(output, "Status: {}", style.cyan_bold("RUNNING"))?;
-    writeln!(output, "Workloads queued: {}", workloads.len())?;
-    writeln!(output)?;
-    writeln!(
-        output,
-        "SCENARIOS · results render incrementally in declaration order"
-    )?;
+    writeln!(output, "  Assertions  {}", style.bold("EXPECTED → ACTUAL"))?;
+    writeln!(output, "  Catalog     {}", catalog.kind.label())?;
     Ok(())
 }
 
@@ -4217,117 +4200,134 @@ fn write_workload_test_start(
     style: TerminalStyle,
 ) -> io::Result<()> {
     let workload = &resolved.definition;
-    let output_count = workload
+    let assertion_count = workload
         .scenario_suite
         .scenarios
         .iter()
-        .map(|scenario| scenario.expected_outputs.len())
+        .map(|scenario| {
+            scenario.expected_outputs.len()
+                + usize::from(scenario.source_search.is_some()).saturating_mul(2)
+                + usize::from(scenario.topography_survey.is_some())
+        })
         .sum::<usize>();
+    let graph_path = workload
+        .graph
+        .nodes
+        .iter()
+        .map(|node| node.node_id.as_str())
+        .collect::<Vec<_>>()
+        .join(" → ");
     writeln!(output)?;
     writeln!(
         output,
-        "WORKLOAD {} · {} scenarios · {} outputs",
+        "{} · {} scenarios · {} assertions",
         style.bold(&workload.workload.id),
         workload.scenario_suite.scenarios.len(),
-        output_count,
+        assertion_count,
     )?;
     writeln!(
         output,
-        "Graph admission: {} · typed DAG {} · scenario oracle FROZEN",
-        style.cyan_bold(resolved.provenance.origin.label()),
-        style.green("VERIFIED")
+        "  Graph       {} · deterministic serial",
+        style.bold(&graph_path)
     )?;
-    if let Some(generation) = &resolved.provenance.generation {
+    writeln!(
+        output,
+        "  Source      {} · {}",
+        resolved.provenance.source,
+        resolved.provenance.origin.label(),
+    )?;
+    if verbosity >= 2 {
         writeln!(
             output,
-            "Generation: {} · {}@{} · graph + scenario suite",
+            "  Admission   typed DAG {} · scenario oracle FROZEN",
+            style.green("VERIFIED")
+        )?;
+    }
+    if verbosity >= 2
+        && let Some(generation) = &resolved.provenance.generation
+    {
+        writeln!(
+            output,
+            "  Generation  {} · {}@{} · graph + scenario suite",
             style.cyan_bold(generation.kind.label()),
             generation.producer,
             generation.producer_revision,
         )?;
-        writeln!(output, "Package: {}", resolved.provenance.source)?;
     }
-    if workload
-        .graph
-        .nodes
-        .iter()
-        .any(|node| node.operation.id.starts_with("rey.source-search."))
+    if verbosity >= 2
+        && workload
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation.id.starts_with("rey.source-search."))
     {
         writeln!(
             output,
-            "Mining admission: {} · explicit local corpus · bounded read-only probe",
+            "  Mining      {} · explicit local corpus · bounded read-only probe",
             style.green("VERIFIED")
         )?;
         writeln!(
             output,
-            "Mining operation: rey.source-search.literal-utf8@1 → rey.source-matches.v1 → ordered UTF-8 text"
+            "  Operation   rey.source-search.literal-utf8@1 → rey.source-matches.v1 → ordered UTF-8 text"
         )?;
     }
-    if workload
-        .graph
-        .nodes
-        .iter()
-        .any(|node| node.operation.id == "rey.context-anchor-survey.locate")
+    if verbosity >= 2
+        && workload
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation.id == "rey.context-anchor-survey.locate")
     {
         writeln!(
             output,
-            "Topography admission: {} · explicit local seeds · bounded read-only survey",
+            "  Topography  {} · explicit local seeds · bounded read-only survey",
             style.green("VERIFIED")
         )?;
         writeln!(
             output,
-            "Survey operation: rey.context-anchor-survey.locate@1 → rey.topography-patch.v1 → ordered UTF-8 evidence"
+            "  Operation   rey.context-anchor-survey.locate@1 → rey.topography-patch.v1 → ordered UTF-8 evidence"
         )?;
     }
-    if workload
-        .graph
-        .nodes
-        .iter()
-        .any(|node| node.operation.id == "rey.portfolio.attention.derive")
+    if verbosity >= 2
+        && workload
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation.id == "rey.portfolio.attention.derive")
     {
         writeln!(
             output,
-            "Portfolio mining: {} · retained catalog/environment inputs · bounded typed relation",
+            "  Portfolio   {} · retained catalog/environment inputs · bounded typed relation",
             style.green("VERIFIED")
         )?;
         writeln!(
             output,
-            "Attention operation: rey.portfolio.attention.derive@1 → rey.workload-attention.v1 → ordered UTF-8 text"
-        )?;
-    }
-    if verbosity >= 1 {
-        let node_count = workload.graph.nodes.len();
-        writeln!(
-            output,
-            "Execution model: {} · {} {}",
-            style.cyan_bold("DETERMINISTIC SERIAL"),
-            node_count,
-            if node_count == 1 { "node" } else { "nodes" }
+            "  Operation   rey.portfolio.attention.derive@1 → rey.workload-attention.v1 → ordered UTF-8 text"
         )?;
     }
     if verbosity >= 2 {
         writeln!(
             output,
-            "Workload binding: {}@{} · {}",
+            "  Workload    {}@{} · {}",
             workload.workload.id, workload.workload.revision, workload.workload.semantic_digest
         )?;
         writeln!(
             output,
-            "Graph binding: {}@{} · {}",
+            "  Graph id    {}@{} · {}",
             workload.graph.graph.id,
             workload.graph.graph.revision,
             workload.graph.graph.semantic_digest
         )?;
         writeln!(
             output,
-            "Scenario suite: {}@{} · {}",
+            "  Suite       {}@{} · {}",
             workload.scenario_suite.suite.id,
             workload.scenario_suite.suite.revision,
             workload.scenario_suite.suite.semantic_digest
         )?;
         writeln!(
             output,
-            "Evaluator: {}@{} · {}",
+            "  Evaluator   {}@{} · {}",
             workload.evaluator.id, workload.evaluator.revision, workload.evaluator.semantic_digest
         )?;
     }
@@ -4343,7 +4343,7 @@ fn write_workload_test_scenario(
     verbosity: u8,
     style: TerminalStyle,
 ) -> io::Result<()> {
-    let equal = scenario
+    let equal_outputs = scenario
         .deltas
         .iter()
         .filter(|delta| delta.assessment == DeltaAssessment::Equal)
@@ -4353,18 +4353,22 @@ fn write_workload_test_scenario(
         .iter()
         .filter(|evidence| evidence.relation_delta.assessment == DeltaAssessment::Equal)
         .count();
-    let evidence_total = scenario.deltas.len()
-        + scenario.mining.len()
-        + scenario.topography.len()
-        + scenario.attention.len();
-    let evidence_equal = equal
-        + equal_relations
-        + scenario
-            .topography
-            .iter()
-            .filter(|patch| patch.complete)
-            .count()
-        + scenario.attention.len();
+    let complete_mining = scenario
+        .mining
+        .iter()
+        .filter(|evidence| {
+            evidence.execution.evidence.result.completeness == MiningCompleteness::Complete
+        })
+        .count();
+    let complete_topography = scenario
+        .topography
+        .iter()
+        .filter(|patch| patch.complete)
+        .count();
+    let assertion_total =
+        scenario.deltas.len() + scenario.mining.len().saturating_mul(2) + scenario.topography.len();
+    let assertions_satisfied =
+        equal_outputs + equal_relations + complete_mining + complete_topography;
     let label = match scenario.evaluation {
         ScenarioEvaluation::Passed => style.green("PASS"),
         ScenarioEvaluation::Failed => style.red("FAIL"),
@@ -4378,78 +4382,308 @@ fn write_workload_test_scenario(
         .unwrap_or(&scenario.scenario.id);
     writeln!(
         output,
-        "{label} {} · {:02}/{:02} {} · {}/{} {} equal · {}",
-        workload.workload.id,
+        "  {label} {:02}/{:02} {} · {}/{} assertions satisfied · {}",
         index,
         total,
         scenario_id,
-        evidence_equal,
-        evidence_total,
-        if scenario.mining.is_empty()
-            && scenario.topography.is_empty()
-            && scenario.attention.is_empty()
-        {
-            "outputs"
-        } else {
-            "evidence branches"
-        },
+        assertions_satisfied,
+        assertion_total,
         if scenario.required {
             "required"
         } else {
             "optional"
         }
     )?;
-    if verbosity >= 1 {
-        if !scenario.topography.is_empty() {
-            writeln!(
-                output,
-                "     Evidence formats: {} (ordered utf8) · rey.topography-patch.v1 · rey.topography-patch-delta.v1",
-                SCENARIO_OUTPUT_DELTA_SCHEMA
-            )?;
-        } else if scenario.mining.is_empty() && scenario.attention.is_empty() {
-            writeln!(
-                output,
-                "     Evidence format: {} (utf8)",
-                SCENARIO_OUTPUT_DELTA_SCHEMA
-            )?;
-        } else if !scenario.mining.is_empty() {
-            writeln!(
-                output,
-                "     Evidence formats: {} (ordered utf8) · rey.source-match-delta.v1 (typed relation) · rey.mining-result.v1",
-                SCENARIO_OUTPUT_DELTA_SCHEMA
-            )?;
-        } else {
-            writeln!(
-                output,
-                "     Evidence formats: {} (ordered utf8) · rey.workload-attention.v1 (typed relation)",
-                SCENARIO_OUTPUT_DELTA_SCHEMA
-            )?;
-        }
-    }
     let passing = scenario.evaluation == ScenarioEvaluation::Passed;
     if passing && verbosity == 0 {
         return Ok(());
     }
-    writeln!(
-        output,
-        "     {}:",
-        if passing {
-            "Evidence matches"
-        } else {
-            "Evidence deltas"
-        }
-    )?;
+    writeln!(output, "    Assertions (EXPECTED → ACTUAL)")?;
     for delta in &scenario.deltas {
-        write_scenario_delta(output, workload, scenario, delta, verbosity, style)?;
+        if verbosity >= 1 || delta.assessment != DeltaAssessment::Equal {
+            write_scenario_assertion(output, delta, style)?;
+        }
     }
     for mining in &scenario.mining {
-        write_source_mining_evidence(output, mining, verbosity, style)?;
+        write_source_mining_assertions(output, mining, verbosity, style)?;
     }
     for patch in &scenario.topography {
-        write_topography_evidence(output, patch, verbosity, style)?;
+        write_topography_assertion(output, patch, verbosity, style)?;
     }
-    for attention in &scenario.attention {
-        write_portfolio_attention_evidence(output, attention, verbosity, style)?;
+    if verbosity >= 2 {
+        writeln!(output, "    Evidence (exact)")?;
+        for delta in &scenario.deltas {
+            write_scenario_delta(output, workload, scenario, delta, verbosity, style)?;
+        }
+        for mining in &scenario.mining {
+            write_source_mining_evidence(output, mining, verbosity, style)?;
+        }
+        for patch in &scenario.topography {
+            write_topography_evidence(output, patch, verbosity, style)?;
+        }
+        for attention in &scenario.attention {
+            write_portfolio_attention_evidence(output, attention, verbosity, style)?;
+        }
+    }
+    Ok(())
+}
+
+fn write_scenario_assertion(
+    output: &mut impl Write,
+    delta: &ScenarioOutputDelta,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    writeln!(
+        output,
+        "      {} output.{} · {}",
+        assertion_marker(delta.assessment, style),
+        delta.inputs.output_id,
+        assertion_assessment(delta.assessment, style),
+    )?;
+    writeln!(
+        output,
+        "        EXPECTED {}",
+        summarize_assertion_text(
+            &delta.expected,
+            delta.text_delta.source_line_count,
+            delta.text_delta.inputs.source_artifact_id.as_str(),
+        )
+    )?;
+    writeln!(
+        output,
+        "        ACTUAL   {}",
+        summarize_assertion_text(
+            &delta.observed,
+            delta.text_delta.target_line_count,
+            delta.text_delta.inputs.target_artifact_id.as_str(),
+        )
+    )?;
+    if delta.assessment == DeltaAssessment::Different {
+        write_text_delta_hunks(output, delta, style)?;
+    }
+    Ok(())
+}
+
+fn summarize_assertion_text(value: &str, lines: u64, artifact_id: &str) -> String {
+    if !value.contains('\n') && value.chars().count() <= 96 {
+        format!("{value:?}")
+    } else {
+        format!(
+            "{lines} {} · {} bytes · {}",
+            if lines == 1 { "line" } else { "lines" },
+            value.len(),
+            short_artifact_id(artifact_id),
+        )
+    }
+}
+
+fn short_artifact_id(value: &str) -> String {
+    let prefix_len = value.find(':').map_or(0, |index| index + 1);
+    let end = value.len().min(prefix_len.saturating_add(12));
+    if end < value.len() {
+        format!("{}…", &value[..end])
+    } else {
+        value.to_owned()
+    }
+}
+
+fn assertion_marker(assessment: DeltaAssessment, style: TerminalStyle) -> String {
+    match assessment {
+        DeltaAssessment::Equal => style.green("="),
+        DeltaAssessment::Different => style.red("!"),
+        DeltaAssessment::Inconclusive => style.yellow("?"),
+    }
+}
+
+fn assertion_assessment(assessment: DeltaAssessment, style: TerminalStyle) -> String {
+    match assessment {
+        DeltaAssessment::Equal => style.green("EQUAL"),
+        DeltaAssessment::Different => style.red("DIFFERENT"),
+        DeltaAssessment::Inconclusive => style.yellow("INCONCLUSIVE"),
+    }
+}
+
+fn write_text_delta_hunks(
+    output: &mut impl Write,
+    delta: &ScenarioOutputDelta,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    for hunk in &delta.text_delta.hunks {
+        writeln!(
+            output,
+            "        @@ -{},{} +{},{} @@",
+            hunk.source_start_line,
+            hunk.source_line_count,
+            hunk.target_start_line,
+            hunk.target_line_count
+        )?;
+        for line in &hunk.lines {
+            let text = line.text.strip_suffix('\n').unwrap_or(&line.text);
+            match line.kind {
+                TextLineKind::Context => writeln!(output, "         {text}")?,
+                TextLineKind::Delete => {
+                    writeln!(output, "        {}", style.red(&format!("- {text}")))?
+                }
+                TextLineKind::Insert => {
+                    writeln!(output, "        {}", style.green(&format!("+ {text}")))?
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_source_mining_assertions(
+    output: &mut impl Write,
+    mining: &rey_runtime::MiningScenarioEvidence,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let relation = &mining.relation_delta;
+    if verbosity >= 1 || relation.assessment != DeltaAssessment::Equal {
+        writeln!(
+            output,
+            "      {} source.matches · {}",
+            assertion_marker(relation.assessment, style),
+            assertion_assessment(relation.assessment, style),
+        )?;
+        writeln!(
+            output,
+            "        EXPECTED {} typed rows",
+            relation.summary.expected_rows
+        )?;
+        writeln!(
+            output,
+            "        ACTUAL   {} typed rows · +{} -{} ~{}",
+            relation.summary.observed_rows,
+            relation.summary.inserted,
+            relation.summary.deleted,
+            relation.summary.modified,
+        )?;
+        if relation.assessment != DeltaAssessment::Equal {
+            write_source_match_changes(output, relation, style)?;
+        }
+    }
+
+    let result = &mining.execution.evidence.result;
+    let complete = result.completeness == MiningCompleteness::Complete;
+    if verbosity >= 1 || !complete {
+        let (marker, assessment) = if complete {
+            (style.green("="), style.green("EQUAL"))
+        } else {
+            (style.yellow("?"), style.yellow("INCONCLUSIVE"))
+        };
+        writeln!(output, "      {marker} source.complete · {assessment}")?;
+        writeln!(output, "        EXPECTED complete")?;
+        writeln!(
+            output,
+            "        ACTUAL   {} · {} files · {} matches · {} bytes",
+            result.completeness.as_str(),
+            result.consumption.files,
+            result.consumption.matches,
+            result.consumption.bytes_read,
+        )?;
+        for omission in &result.omissions {
+            writeln!(
+                output,
+                "        ? {} · {} omitted · {}",
+                mining_omission_label(omission.kind),
+                omission.omitted_count,
+                omission.reason,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_source_match_changes(
+    output: &mut impl Write,
+    relation: &rey_diff::SourceMatchDelta,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    writeln!(
+        output,
+        "        @@ EXPECTED source matches → ACTUAL source matches @@"
+    )?;
+    for change in &relation.changes {
+        let path = change
+            .observed
+            .as_ref()
+            .map(|row| row.path_display.as_str())
+            .or_else(|| {
+                change
+                    .expected
+                    .as_ref()
+                    .map(|row| row.path.display.as_str())
+            })
+            .unwrap_or("<unknown>");
+        let line = change
+            .observed
+            .as_ref()
+            .map(|row| row.start_line)
+            .or_else(|| change.expected.as_ref().map(|row| row.start_line))
+            .unwrap_or(0);
+        writeln!(
+            output,
+            "        @@ {path}:{line} bytes {}-{} @@",
+            change.key.start_byte, change.key.end_byte,
+        )?;
+        if let Some(expected) = &change.expected {
+            writeln!(
+                output,
+                "        {}",
+                style.red(&format!("- {:?}", expected.matched_text))
+            )?;
+        }
+        if let Some(actual) = &change.observed {
+            writeln!(
+                output,
+                "        {}",
+                style.green(&format!("+ {:?}", actual.matched_text))
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn write_topography_assertion(
+    output: &mut impl Write,
+    patch: &TopographyPatch,
+    verbosity: u8,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    if verbosity == 0 && patch.complete {
+        return Ok(());
+    }
+    let (marker, assessment) = if patch.complete {
+        (style.green("="), style.green("EQUAL"))
+    } else {
+        (style.yellow("?"), style.yellow("INCONCLUSIVE"))
+    };
+    writeln!(output, "      {marker} topography.complete · {assessment}")?;
+    writeln!(output, "        EXPECTED complete")?;
+    writeln!(
+        output,
+        "        ACTUAL   {} · seeds {}/{} · candidates {}/{} resolved · patch +{} -{} ~{}",
+        if patch.complete {
+            "complete"
+        } else {
+            "bounded"
+        },
+        patch.coverage.surveyed_seeds,
+        patch.coverage.requested_seeds,
+        patch.coverage.resolved_candidates,
+        patch.coverage.unique_candidates,
+        patch.delta.inserted,
+        patch.delta.deleted,
+        patch.delta.modified,
+    )?;
+    for omission in &patch.omissions {
+        writeln!(
+            output,
+            "        ? {} · {} · {} omitted · {}",
+            omission.kind, omission.subject, omission.omitted_count, omission.reason,
+        )?;
     }
     Ok(())
 }
@@ -5371,17 +5605,16 @@ fn write_workload_test_result(
     };
     writeln!(
         output,
-        "     Workload result: {status} · {}/{} scenarios passing · {}/{} evaluated",
+        "  Result      {status} · {}/{} required scenarios passing · {}/{} evaluated",
         result.summary.passed,
         result.summary.required,
         result.summary.evaluated,
         result.summary.required
     )?;
     if verbosity >= 1 {
-        writeln!(output, "     Stop reason: {}", result.stop_reason)?;
         writeln!(
             output,
-            "     Qualification: {}",
+            "  Qualification {}",
             if result.qualification.is_some() {
                 "issued"
             } else {
@@ -5390,11 +5623,12 @@ fn write_workload_test_result(
         )?;
     }
     if verbosity >= 2 {
-        writeln!(output, "     Test result: {}", result.result_id)?;
+        writeln!(output, "  Stop reason   {}", result.stop_reason)?;
+        writeln!(output, "  Test result   {}", result.result_id)?;
         if let Some(qualification) = &result.qualification {
             writeln!(
                 output,
-                "     Qualification artifact: {}",
+                "  Qualification artifact {}",
                 qualification.qualification_id
             )?;
         }
@@ -5485,10 +5719,10 @@ fn write_workload_test_summary(
     let scenario_passing_percent = scenario_percent(passed, required);
     let scenario_evaluated_percent = scenario_percent(evaluated, required);
     writeln!(output)?;
-    writeln!(output, "{}", style.bold("PORTFOLIO CONFORMANCE"))?;
+    writeln!(output, "{}", style.bold("TEST SUMMARY"))?;
     writeln!(
         output,
-        "  {:<22} {}  {:>3}%  {}/{} qualified",
+        "  {:<20} {}  {:>3}%  {}/{} qualified",
         "Workloads",
         score_bar(workload_percent, 20),
         workload_percent,
@@ -5497,8 +5731,8 @@ fn write_workload_test_summary(
     )?;
     writeln!(
         output,
-        "  {:<22} {}  {:>3}%  {}/{} passing",
-        "Scenario conformance",
+        "  {:<20} {}  {:>3}%  {}/{} passing",
+        "Required scenarios",
         score_bar(scenario_passing_percent, 20),
         scenario_passing_percent,
         passed,
@@ -5506,31 +5740,29 @@ fn write_workload_test_summary(
     )?;
     writeln!(
         output,
-        "  {:<22} {}  {:>3}%  {}/{} evaluated",
-        "Scenario evaluation",
+        "  {:<20} {}  {:>3}%  {}/{} evaluated",
+        "Evaluation",
         score_bar(scenario_evaluated_percent, 20),
         scenario_evaluated_percent,
         evaluated,
         required
     )?;
-    writeln!(output)?;
-    writeln!(output, "{}", style.bold("WORKLOAD TEST SUMMARY"))?;
-    writeln!(output, "  Result: {result}")?;
+    writeln!(output, "  Result               {result}")?;
     writeln!(
         output,
-        "  Workloads: {qualified}/{workloads} qualified · {failed} with gaps · {inconclusive} inconclusive"
+        "  Workloads            {qualified}/{workloads} qualified · {failed} with gaps · {inconclusive} inconclusive"
     )?;
     writeln!(
         output,
-        "  Scenarios: {passed}/{required} passing · {evaluated}/{required} evaluated"
+        "  Required scenarios   {passed}/{required} passing · {evaluated}/{required} evaluated"
     )?;
     writeln!(
         output,
-        "  Deltas: {equal_deltas} equal · {different_deltas} different · {inconclusive_deltas} inconclusive"
+        "  Output deltas        {equal_deltas} equal · {different_deltas} different · {inconclusive_deltas} inconclusive"
     )?;
     writeln!(
         output,
-        "  Qualifications: {qualified} issued · results retained locally"
+        "  Qualifications       {qualified} issued · results retained locally"
     )?;
     Ok(())
 }
