@@ -421,7 +421,7 @@ impl LocalDiscovery {
         started: Instant,
     ) -> CapabilityRecord {
         let search_path_count = self.search_paths.len() as u64;
-        let Some(program) = resolve_executable(adapter.name, &self.search_paths) else {
+        let Some(program) = resolve_executable(adapter.executable, &self.search_paths) else {
             return unavailable_tool(
                 adapter,
                 search_path_count,
@@ -430,7 +430,14 @@ impl LocalDiscovery {
             );
         };
         let Some(identity_args) = adapter.identity_args else {
-            return available_tool(adapter, &program, None, search_path_count, false);
+            return available_tool(
+                adapter,
+                &program,
+                None,
+                Some(executable_digest(&program, self.limits.max_capture_bytes)),
+                search_path_count,
+                false,
+            );
         };
         let total = Duration::from_millis(self.limits.total_timeout_ms);
         let Some(remaining) = total.checked_sub(started.elapsed()) else {
@@ -477,9 +484,14 @@ impl LocalDiscovery {
                 ),
             ),
             Ok(output) => match parse_version(&output.stdout) {
-                Ok(version) => {
-                    available_tool(adapter, &program, Some(version), search_path_count, true)
-                }
+                Ok(version) => available_tool(
+                    adapter,
+                    &program,
+                    Some(version),
+                    Some(executable_digest(&program, self.limits.max_capture_bytes)),
+                    search_path_count,
+                    true,
+                ),
                 Err(detail) => error_tool(
                     adapter,
                     &program,
@@ -501,6 +513,7 @@ impl LocalDiscovery {
 
 struct ToolAdapter {
     name: &'static str,
+    executable: &'static str,
     capability_id: &'static str,
     purpose: &'static str,
     required: bool,
@@ -510,6 +523,7 @@ struct ToolAdapter {
 const TOOL_ADAPTERS: &[ToolAdapter] = &[
     ToolAdapter {
         name: "agy",
+        executable: "agy",
         capability_id: "agent.runtime.agy.identity",
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
@@ -517,6 +531,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "claude",
+        executable: "claude",
         capability_id: "agent.runtime.claude.identity",
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
@@ -524,6 +539,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "codex",
+        executable: "codex",
         capability_id: "agent.runtime.codex.identity",
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
@@ -531,6 +547,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "copilot",
+        executable: "copilot",
         capability_id: "agent.runtime.copilot.identity",
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
@@ -538,6 +555,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "droid",
+        executable: "droid",
         capability_id: "agent.runtime.droid.identity",
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
@@ -545,6 +563,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "git",
+        executable: "git",
         capability_id: "tool.git.identity",
         purpose: "Inspect repository identity and activation inputs",
         required: false,
@@ -552,6 +571,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "rg",
+        executable: "rg",
         capability_id: "tool.ripgrep.identity",
         purpose: "Extend bounded source mining with fast text search",
         required: false,
@@ -559,8 +579,65 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
     },
     ToolAdapter {
         name: "opencode",
+        executable: "opencode",
         capability_id: "agent.runtime.opencode.identity",
         purpose: "Potential agent runtime for bounded collaboration tasks",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "slack",
+        executable: "slack",
+        capability_id: "comms.application.slack.identity",
+        purpose: "Potential Slack communications client; discovery grants no relay authority",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "github",
+        executable: "gh",
+        capability_id: "comms.application.github.identity",
+        purpose: "Potential GitHub communications client; discovery grants no relay authority",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "telegram",
+        executable: "telegram-cli",
+        capability_id: "comms.application.telegram.identity",
+        purpose: "Potential Telegram communications client; discovery grants no relay authority",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "imessage",
+        executable: "imsg",
+        capability_id: "comms.application.imessage.identity",
+        purpose: "Potential iMessage communications client; discovery grants no relay authority",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "microsoft-teams",
+        executable: "m365",
+        capability_id: "comms.application.microsoft-teams.identity",
+        purpose: "Potential Microsoft 365 and Teams communications client; discovery grants no relay authority",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "signal",
+        executable: "signal-cli",
+        capability_id: "comms.application.signal.identity",
+        purpose: "Potential Signal communications client; discovery grants no relay authority",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
+        name: "discord",
+        executable: "discord",
+        capability_id: "comms.application.discord.identity",
+        purpose: "Potential Discord client identity; discovery grants no CLI or relay authority",
         required: false,
         identity_args: None,
     },
@@ -735,10 +812,11 @@ fn available_tool(
     adapter: &ToolAdapter,
     program: &Path,
     version: Option<String>,
+    content_digest: Option<String>,
     search_path_count: u64,
     identity_probe_executed: bool,
 ) -> CapabilityRecord {
-    let (operations, enforced_limits, unsupported_limits) = if identity_probe_executed {
+    let (operations, enforced_limits, mut unsupported_limits) = if identity_probe_executed {
         (
             vec!["inspect_identity".to_owned()],
             vec![
@@ -760,6 +838,14 @@ fn available_tool(
             vec!["version_identity".to_owned(), "task_execution".to_owned()],
         )
     };
+    if adapter.capability_id.starts_with("comms.application.") {
+        unsupported_limits.extend([
+            "message_admission".to_owned(),
+            "polling_beacon".to_owned(),
+            "relay_authority".to_owned(),
+            "transport_adapter".to_owned(),
+        ]);
+    }
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
         provider_revision: LOCAL_PROVIDER_REVISION,
@@ -768,7 +854,7 @@ fn available_tool(
         capability_kind: "identity_probe".to_owned(),
         resolved_location: Some(program.display().to_string()),
         version,
-        content_digest: None,
+        content_digest,
         provenance: Some(application_provenance(adapter, search_path_count)),
         availability: Availability::Available,
         trust_class: TrustClass::DiscoveredLocal,
@@ -822,7 +908,7 @@ fn failed_tool(
     code: &str,
     detail: &str,
 ) -> CapabilityRecord {
-    let (enforced_limits, unsupported_limits) = if adapter.identity_args.is_some() {
+    let (enforced_limits, mut unsupported_limits) = if adapter.identity_args.is_some() {
         (
             vec![
                 "capture_bytes".to_owned(),
@@ -842,6 +928,14 @@ fn failed_tool(
             vec!["version_identity".to_owned(), "task_execution".to_owned()],
         )
     };
+    if adapter.capability_id.starts_with("comms.application.") {
+        unsupported_limits.extend([
+            "message_admission".to_owned(),
+            "polling_beacon".to_owned(),
+            "relay_authority".to_owned(),
+            "transport_adapter".to_owned(),
+        ]);
+    }
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
         provider_revision: LOCAL_PROVIDER_REVISION,
@@ -874,6 +968,26 @@ fn parse_version(stdout: &[u8]) -> Result<String, &'static str> {
         Some(_) => Err("identity line exceeds 256 bytes"),
         None => Err("identity output has no non-empty line"),
     }
+}
+
+fn executable_digest(path: &Path, max_bytes: u64) -> String {
+    let mut hasher = SemanticHasher::new("rey.executable-identity.v1");
+    hasher.add_str(&path.display().to_string());
+    match fs::metadata(path) {
+        Ok(metadata) => {
+            hasher.add_u64(metadata.len());
+            if metadata.len() <= max_bytes {
+                match fs::read(path) {
+                    Ok(bytes) => hasher.add_bytes(&bytes),
+                    Err(error) => hasher.add_str(&format!("read-error:{:?}", error.kind())),
+                }
+            } else {
+                hasher.add_str("content-over-capture-bound");
+            }
+        }
+        Err(error) => hasher.add_str(&format!("metadata-error:{:?}", error.kind())),
+    }
+    hasher.finish().to_string()
 }
 
 #[must_use]
@@ -1105,7 +1219,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(snapshot.profile, "standalone");
-        assert_eq!(snapshot.capabilities.len(), 14);
+        assert_eq!(snapshot.capabilities.len(), 21);
         assert_eq!(
             snapshot
                 .capabilities
@@ -1114,7 +1228,7 @@ mod tests {
                 .count(),
             3
         );
-        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 14);
+        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 21);
         let source_search = snapshot
             .capabilities
             .iter()
@@ -1235,6 +1349,51 @@ mod tests {
                 .count()
                 == 6
         );
+    }
+
+    #[test]
+    fn process_owned_discovery_declares_communications_application_candidates() {
+        let workspace = TempDir::new().unwrap();
+        let snapshot = LocalDiscovery {
+            workspace: workspace.path().to_owned(),
+            search_paths: Vec::new(),
+            seed_values: BTreeMap::new(),
+            limits: DiscoveryLimits::default(),
+        }
+        .inspect()
+        .unwrap();
+
+        let applications = snapshot
+            .capabilities
+            .iter()
+            .filter(|row| row.capability_id.starts_with("comms.application."))
+            .map(|row| row.capability_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            applications,
+            [
+                "comms.application.discord.identity",
+                "comms.application.github.identity",
+                "comms.application.imessage.identity",
+                "comms.application.microsoft-teams.identity",
+                "comms.application.signal.identity",
+                "comms.application.slack.identity",
+                "comms.application.telegram.identity",
+            ]
+        );
+        for application in snapshot
+            .capabilities
+            .iter()
+            .filter(|row| row.capability_id.starts_with("comms.application."))
+        {
+            assert_eq!(application.availability, Availability::Unavailable);
+            assert!(application.operations.is_empty());
+            assert!(
+                application
+                    .unsupported_limits
+                    .contains(&"relay_authority".to_owned())
+            );
+        }
     }
 
     #[cfg(unix)]

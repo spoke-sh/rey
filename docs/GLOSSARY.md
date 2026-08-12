@@ -312,17 +312,19 @@ runtime frontier or make an observation schedulable work.
 ### Channel graph
 
 The bounded relation of channel definitions, subscriptions, Feed streams,
-ordered layouts, and relay declarations. `rey.channel-graph.v1`, the built-in
-default, typed snapshots/deltas, and Channel WORKING proposals are implemented.
+ordered layouts, admitted communications applications, relay declarations,
+and polling beacons. `rey.channel-graph.v1`, the built-in default, typed
+snapshots/deltas, and the local Channel revision loop are implemented.
 The graph provides addresses for separate observation-admission logs but does
 not contain their high-cadence history. Its local revision loop is separate
 from environment, workload, runtime, and proof identity.
 
 ### Channel index
 
-The staged channel-graph proposal between channel HEAD and WORKING. Planned
-`rey channels add [-p]` admits selected semantic changes to this index, and
-`rey channels commit` retains exactly the verified index.
+The staged channel-graph proposal between channel HEAD and WORKING. `rey
+channels add` stages the complete verified WORKING graph in this index, and
+`rey channels commit` retains exactly the verified index without rereading a
+graph file. Partial staging remains planned.
 
 ### Channel observation
 
@@ -1332,10 +1334,18 @@ relations, while authored and native artifacts remain in their natural forms.
 
 ### Relay
 
-A planned explicit provider-backed channel-graph edge that forwards admitted
-observations to another channel. A relay freezes source/target locators,
-filters, provider capability, authority, cursor, hop/idempotency bounds, and
-attempt/delivery lineage; defining a channel never enables transport.
+An explicit provider-backed channel-graph edge that forwards admitted messages
+to another channel. A relay freezes source/target locators, application,
+authority, and hop bounds; each effect retains exact environment, message,
+attempt, and delivery lineage. Defining a channel or discovering an executable
+never enables transport.
+
+### Polling beacon
+
+A versioned Channel-graph policy over one admitted communications application
+and a finite relay set. The implemented beacon command performs one bounded
+tick over admitted messages, suppresses already delivered pairs, and retains
+attempt evidence. It is not a daemon, heartbeat, or remote-inbox cursor.
 
 ### Relational mining
 

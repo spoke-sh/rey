@@ -4,11 +4,13 @@ mod ui;
 
 use std::{
     collections::BTreeMap,
+    ffi::OsString,
     fs::{self, File},
     io::{self, BufRead, IsTerminal, Read, Write},
     net::IpAddr,
     path::{Path, PathBuf},
     process::ExitCode,
+    time::Duration,
 };
 
 use chrono::{DateTime, Utc};
@@ -16,9 +18,12 @@ use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
     ReyError,
     channels::{
-        ChannelApplyResult, ChannelDiff, ChannelGraph, ChannelGraphChange, ChannelGraphError,
-        ChannelGraphSource, ChannelObjectKind, ChannelStatus, ChannelWorkingState,
-        LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
+        ChannelAddResult, ChannelApplyResult, ChannelCommitResult, ChannelDiff, ChannelGraph,
+        ChannelGraphChange, ChannelGraphError, ChannelGraphSource, ChannelLog, ChannelMessage,
+        ChannelMessageAdmission, ChannelMessageProposal, ChannelObjectKind, ChannelStatus,
+        ChannelWorkingState, LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
+        POLLING_BEACON_TICK_SCHEMA, PollingBeaconTick, RelayAttempt, RelayAttemptOutcome,
+        relay_output_digest,
     },
     editor::{
         EditorAddResult, EditorCommitResult, EditorError, EditorGenerateResult, EditorLog,
@@ -55,8 +60,8 @@ use rey_diff::{
     TextLineKind, source_match_table_projection, text_patch_projection,
 };
 use rey_environment::{
-    Availability, CapabilitySnapshot, DiscoveryLimits, EnvironmentMapLimits, SourceBindingLimits,
-    VariableCapture,
+    Availability, CapabilitySnapshot, CommandRequest, DiscoveryLimits, EnvironmentMapLimits,
+    SourceBindingLimits, VariableCapture, run_bounded,
 };
 use rey_locator::ResolutionLimits;
 use rey_mining::{
@@ -299,12 +304,31 @@ struct ChannelsArgs {
 enum ChannelsCommand {
     /// List the effective channels, subscriptions, and ordered Feed streams.
     List(ChannelListArgs),
-    /// Show whether Channel WORKING differs from the built-in graph.
+    /// Show Channel HEAD, INDEX, and WORKING state.
     Status(ChannelStatusArgs),
-    /// Display the semantic BUILT-IN to WORKING Channel graph delta.
+    /// Display INDEX to WORKING changes, or HEAD to INDEX with --staged.
     Diff(ChannelDiffArgs),
     /// Validate a workspace-contained YAML graph and write Channel WORKING.
     Apply(ChannelApplyArgs),
+    /// Stage the exact Channel WORKING graph in the admission INDEX.
+    Add(ChannelOutputArgs),
+    /// Commit exactly the staged Channel INDEX.
+    Commit(ChannelCommitArgs),
+    /// Show committed Channel revisions newest first.
+    Log(ChannelLogArgs),
+    /// Admit or inspect immutable channel messages.
+    Message(ChannelMessageArgs),
+    /// Relay one admitted message through one admitted application and relay.
+    Relay(ChannelRelayArgs),
+    /// Run one explicit bounded polling-beacon tick.
+    Beacon(ChannelBeaconArgs),
+}
+
+#[derive(Debug, Args)]
+struct ChannelOutputArgs {
+    /// Human evidence or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -323,7 +347,80 @@ struct ChannelStatusArgs {
 
 #[derive(Debug, Args)]
 struct ChannelDiffArgs {
+    /// Compare current Channel HEAD with the admission INDEX.
+    #[arg(long)]
+    staged: bool,
+
     /// Human semantic patch or typed JSON envelope.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelCommitArgs {
+    /// Commit message bound into the Channel revision identity.
+    #[arg(short = 'm', long = "message", required = true)]
+    message: String,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelLogArgs {
+    /// Render each retained semantic patch.
+    #[arg(short = 'p', long = "patch")]
+    patch: bool,
+
+    /// Maximum number of newest commits to show.
+    #[arg(short = 'n', long = "max-count", default_value_t = 32)]
+    max_count: usize,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelMessageArgs {
+    #[command(subcommand)]
+    command: ChannelMessageCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ChannelMessageCommand {
+    /// Admit a workspace-contained rey.channel-message.v1 YAML file.
+    Add(ChannelMessageAddArgs),
+    /// List admitted immutable messages.
+    List(ChannelOutputArgs),
+}
+
+#[derive(Debug, Args)]
+struct ChannelMessageAddArgs {
+    /// Workspace-relative rey.channel-message.v1 YAML file.
+    message: PathBuf,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelRelayArgs {
+    /// Exact admitted message digest.
+    message_id: String,
+
+    /// Exact relay id from Channel HEAD.
+    #[arg(long)]
+    relay: String,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelBeaconArgs {
+    /// Exact polling beacon id from Channel HEAD.
+    beacon_id: String,
+
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
@@ -921,6 +1018,12 @@ fn channels_command(args: ChannelsArgs) -> Result<ExitCode, CliError> {
         ChannelsCommand::Status(command) => channel_status(&store, command),
         ChannelsCommand::Diff(command) => channel_diff(&store, command),
         ChannelsCommand::Apply(command) => channel_apply(&store, &workspace, command),
+        ChannelsCommand::Add(command) => channel_add(&store, command),
+        ChannelsCommand::Commit(command) => channel_commit(&store, command),
+        ChannelsCommand::Log(command) => channel_log(&store, command),
+        ChannelsCommand::Message(command) => channel_message(&store, &workspace, command),
+        ChannelsCommand::Relay(command) => channel_relay(&store, &workspace, command),
+        ChannelsCommand::Beacon(command) => channel_beacon(&store, &workspace, command),
     }
 }
 
@@ -950,7 +1053,7 @@ fn channel_status(
 }
 
 fn channel_diff(store: &LocalChannelStore, args: ChannelDiffArgs) -> Result<ExitCode, CliError> {
-    let diff = store.diff()?;
+    let diff = store.diff(args.staged)?;
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &diff)?,
@@ -958,6 +1061,303 @@ fn channel_diff(store: &LocalChannelStore, args: ChannelDiffArgs) -> Result<Exit
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn channel_add(store: &LocalChannelStore, args: ChannelOutputArgs) -> Result<ExitCode, CliError> {
+    let result = store.add()?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_channel_add(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_commit(
+    store: &LocalChannelStore,
+    args: ChannelCommitArgs,
+) -> Result<ExitCode, CliError> {
+    let result = store.commit(args.message)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_channel_commit(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_log(store: &LocalChannelStore, args: ChannelLogArgs) -> Result<ExitCode, CliError> {
+    let log = store.log(args.max_count, args.patch)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &log)?,
+        WorkloadOutputFormat::Table => write_channel_log(&mut stdout, &log)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_message(
+    store: &LocalChannelStore,
+    workspace: &Path,
+    args: ChannelMessageArgs,
+) -> Result<ExitCode, CliError> {
+    let mut stdout = io::stdout().lock();
+    match args.command {
+        ChannelMessageCommand::Add(args) => {
+            let bytes = read_workspace_channel_input(
+                workspace,
+                &args.message,
+                MAX_CHANNEL_GRAPH_INPUT_BYTES,
+            )?;
+            let proposal: ChannelMessageProposal = serde_saphyr::from_slice(&bytes)?;
+            let result = store.admit_message(proposal)?;
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+                WorkloadOutputFormat::Table => {
+                    write_channel_message_admission(&mut stdout, &result)?
+                }
+                WorkloadOutputFormat::Auto => {
+                    unreachable!("auto output is resolved before rendering")
+                }
+            }
+        }
+        ChannelMessageCommand::List(args) => {
+            let messages = store.messages()?;
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &messages)?,
+                WorkloadOutputFormat::Table => write_channel_messages(&mut stdout, &messages)?,
+                WorkloadOutputFormat::Auto => {
+                    unreachable!("auto output is resolved before rendering")
+                }
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn channel_relay(
+    store: &LocalChannelStore,
+    workspace: &Path,
+    args: ChannelRelayArgs,
+) -> Result<ExitCode, CliError> {
+    let attempt = execute_channel_relay(store, workspace, &args.message_id, &args.relay)?;
+    let exit = if attempt.outcome != RelayAttemptOutcome::Failed {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(2)
+    };
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &attempt)?,
+        WorkloadOutputFormat::Table => write_channel_relay_attempt(&mut stdout, &attempt)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(exit)
+}
+
+fn channel_beacon(
+    store: &LocalChannelStore,
+    workspace: &Path,
+    args: ChannelBeaconArgs,
+) -> Result<ExitCode, CliError> {
+    let head = store.admitted_head()?;
+    let beacon = head
+        .snapshot
+        .graph
+        .beacons
+        .iter()
+        .find(|beacon| beacon.id == args.beacon_id)
+        .cloned()
+        .ok_or_else(|| CliError::UnknownBeacon(args.beacon_id.clone()))?;
+    let messages = store.messages()?;
+    let retained = store.relay_attempts()?;
+    let mut attempts = Vec::new();
+    let mut checked_messages = 0_u64;
+    for message in messages.iter().take(beacon.batch_limit as usize) {
+        checked_messages += 1;
+        for relay_id in &beacon.relay_ids {
+            if retained.iter().any(|attempt| {
+                attempt.message_id == message.message_id
+                    && attempt.relay_id == *relay_id
+                    && attempt.outcome == RelayAttemptOutcome::Delivered
+            }) {
+                continue;
+            }
+            attempts.push(execute_channel_relay(
+                store,
+                workspace,
+                message.message_id.as_str(),
+                relay_id,
+            )?);
+        }
+    }
+    let tick = PollingBeaconTick {
+        schema: POLLING_BEACON_TICK_SCHEMA.to_owned(),
+        beacon_id: beacon.id,
+        beacon_revision: beacon.revision,
+        checked_messages,
+        attempted: attempts.len() as u64,
+        delivered: attempts
+            .iter()
+            .filter(|attempt| attempt.outcome == RelayAttemptOutcome::Delivered)
+            .count() as u64,
+        failed: attempts
+            .iter()
+            .filter(|attempt| attempt.outcome == RelayAttemptOutcome::Failed)
+            .count() as u64,
+        skipped: attempts
+            .iter()
+            .filter(|attempt| attempt.outcome == RelayAttemptOutcome::SkippedAlreadyDelivered)
+            .count() as u64,
+        attempts,
+    };
+    let exit = if tick.failed == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(2)
+    };
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &tick)?,
+        WorkloadOutputFormat::Table => write_polling_beacon_tick(&mut stdout, &tick)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(exit)
+}
+
+fn execute_channel_relay(
+    store: &LocalChannelStore,
+    workspace: &Path,
+    message_id: &str,
+    relay_id: &str,
+) -> Result<RelayAttempt, CliError> {
+    let head = store.admitted_head()?;
+    let relay = head
+        .snapshot
+        .graph
+        .relays
+        .iter()
+        .find(|relay| relay.id == relay_id)
+        .ok_or_else(|| CliError::UnknownRelay(relay_id.to_owned()))?;
+    let application = head
+        .snapshot
+        .graph
+        .applications
+        .iter()
+        .find(|application| application.id == relay.provider_id)
+        .ok_or_else(|| CliError::UnknownChannelApplication(relay.provider_id.clone()))?;
+    let message = store
+        .messages()?
+        .into_iter()
+        .find(|message| message.message_id.as_str() == message_id)
+        .ok_or_else(|| CliError::UnknownChannelMessage(message_id.to_owned()))?;
+    if message.proposal.channel_id != relay.source_channel_id {
+        return Err(CliError::RelaySourceMismatch);
+    }
+    if let Some(previous) = store.relay_attempts()?.into_iter().find(|attempt| {
+        attempt.message_id == message.message_id
+            && attempt.relay_id == relay.id
+            && attempt.outcome == RelayAttemptOutcome::Delivered
+    }) {
+        let skipped = RelayAttempt::new(
+            head.commit_id.clone(),
+            head.snapshot.graph_id.clone(),
+            relay,
+            application,
+            previous.environment_commit_id,
+            message.message_id,
+            RelayAttemptOutcome::SkippedAlreadyDelivered,
+            None,
+            false,
+            None,
+            None,
+            format!("delivery already retained as {}", previous.attempt_id),
+        );
+        store.retain_relay_attempt(skipped.clone())?;
+        return Ok(skipped);
+    }
+
+    let environment_store = LocalEnvironmentStore::default_for_workspace(workspace);
+    let environment = environment_store.load()?;
+    let environment_head = environment.head().ok_or(CliError::NoEnvironmentHead)?;
+    let capability = environment_head
+        .snapshot
+        .capabilities
+        .iter()
+        .find(|capability| capability.capability_id == application.environment_capability_id)
+        .ok_or_else(|| {
+            CliError::UnadmittedChannelApplication(application.environment_capability_id.clone())
+        })?;
+    if capability.availability != Availability::Available
+        || capability.resolved_location.as_deref() != Some(application.executable_path.as_str())
+        || application
+            .executable_version
+            .as_deref()
+            .is_some_and(|version| capability.version.as_deref() != Some(version))
+        || capability.content_digest.as_deref() != Some(application.executable_digest.as_str())
+    {
+        return Err(CliError::ChannelApplicationDrift(application.id.clone()));
+    }
+    let executable = PathBuf::from(&application.executable_path);
+    let metadata =
+        fs::symlink_metadata(&executable).map_err(|source| CliError::RelayExecutable {
+            path: executable.clone(),
+            source,
+        })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::RelayExecutableType(executable));
+    }
+    let relay_args = application
+        .relay_argv
+        .iter()
+        .map(|argument| match argument.as_str() {
+            "{target}" => OsString::from(&relay.target_channel_locator),
+            "{message}" => OsString::from(message.relay_payload()),
+            _ => OsString::from(argument),
+        })
+        .collect();
+    let output = run_bounded(&CommandRequest {
+        program: PathBuf::from(&application.executable_path),
+        args: relay_args,
+        cwd: workspace.to_owned(),
+        timeout: Duration::from_millis(application.timeout_ms),
+        max_capture_bytes: application.max_output_bytes,
+        environment: Vec::new(),
+    })?;
+    let outcome = if output.status.success() && !output.timed_out && !output.overflowed {
+        RelayAttemptOutcome::Delivered
+    } else {
+        RelayAttemptOutcome::Failed
+    };
+    let detail = if output.timed_out {
+        "relay process exceeded its admitted timeout".to_owned()
+    } else if output.overflowed {
+        "relay process exceeded its admitted output limit".to_owned()
+    } else {
+        output.status.code().map_or_else(
+            || "relay process ended without an exit code".to_owned(),
+            |code| format!("relay process exited with {code}"),
+        )
+    };
+    let attempt = RelayAttempt::new(
+        head.commit_id,
+        head.snapshot.graph_id,
+        relay,
+        application,
+        environment_head.commit_id.clone(),
+        message.message_id,
+        outcome,
+        output.status.code(),
+        output.timed_out,
+        relay_output_digest("stdout", &output.stdout),
+        relay_output_digest("stderr", &output.stderr),
+        detail,
+    );
+    store.retain_relay_attempt(attempt.clone())?;
+    Ok(attempt)
 }
 
 fn channel_apply(
@@ -1016,6 +1416,52 @@ fn channel_apply(
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn read_workspace_channel_input(
+    workspace: &Path,
+    relative: &Path,
+    limit: u64,
+) -> Result<Vec<u8>, CliError> {
+    if relative_path_escapes(relative) || relative.is_absolute() {
+        return Err(CliError::ChannelInputEscape(relative.to_owned()));
+    }
+    let input_path = workspace.join(relative);
+    let metadata = fs::symlink_metadata(&input_path).map_err(|source| CliError::ChannelInput {
+        path: input_path.clone(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::ChannelInputType(input_path));
+    }
+    let canonical = input_path
+        .canonicalize()
+        .map_err(|source| CliError::ChannelInput {
+            path: input_path,
+            source,
+        })?;
+    if !canonical.starts_with(workspace) {
+        return Err(CliError::ChannelInputEscape(canonical));
+    }
+    if metadata.len() > limit {
+        return Err(CliError::ChannelInputLimit(limit));
+    }
+    let mut bytes = Vec::new();
+    File::open(&canonical)
+        .map_err(|source| CliError::ChannelInput {
+            path: canonical.clone(),
+            source,
+        })?
+        .take(limit.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|source| CliError::ChannelInput {
+            path: canonical,
+            source,
+        })?;
+    if bytes.len() as u64 > limit {
+        return Err(CliError::ChannelInputLimit(limit));
+    }
+    Ok(bytes)
 }
 
 fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
@@ -2026,11 +2472,13 @@ fn write_channel_list(output: &mut impl Write, status: &ChannelStatus) -> Result
         output,
         "Inventory",
         &format!(
-            "{} · {} · {} · {}",
+            "{} · {} · {} · {} · {} · {}",
             count_noun(graph.channels.len(), "channel"),
             count_noun(graph.subscriptions.len(), "subscription"),
             count_noun(graph.streams.len(), "stream"),
-            count_noun(graph.relays.len(), "relay")
+            count_noun(graph.applications.len(), "application"),
+            count_noun(graph.relays.len(), "relay"),
+            count_noun(graph.beacons.len(), "beacon")
         ),
     )?;
 
@@ -2104,7 +2552,25 @@ fn write_channel_list(output: &mut impl Write, status: &ChannelStatus) -> Result
     )?;
 
     writeln!(output)?;
-    writeln!(output, "04 / RELAYS")?;
+    writeln!(output, "04 / APPLICATIONS")?;
+    if graph.applications.is_empty() {
+        writeln!(output, "  none · no admitted communications application")?;
+    } else {
+        for application in &graph.applications {
+            writeln!(
+                output,
+                "  {}@{}  {} · {} · timeout {}ms",
+                application.id,
+                application.revision,
+                application.environment_capability_id,
+                application.executable_path,
+                application.timeout_ms,
+            )?;
+        }
+    }
+
+    writeln!(output)?;
+    writeln!(output, "05 / RELAYS")?;
     if graph.relays.is_empty() {
         writeln!(output, "  none · transport not configured")?;
     } else {
@@ -2121,32 +2587,317 @@ fn write_channel_list(output: &mut impl Write, status: &ChannelStatus) -> Result
             )?;
         }
     }
+    writeln!(output)?;
+    writeln!(output, "06 / POLLING BEACONS")?;
+    if graph.beacons.is_empty() {
+        writeln!(output, "  none · no relay polling configured")?;
+    } else {
+        for beacon in &graph.beacons {
+            writeln!(
+                output,
+                "  {}@{}  {} · every {}s · batch {} · relays [{}]",
+                beacon.id,
+                beacon.revision,
+                beacon.application_id,
+                beacon.interval_seconds,
+                beacon.batch_limit,
+                beacon.relay_ids.join(", "),
+            )?;
+        }
+    }
     Ok(())
 }
 
 fn write_channel_status(output: &mut impl Write, status: &ChannelStatus) -> Result<(), CliError> {
-    writeln!(output, "On channels built-in")?;
-    if status.state == ChannelWorkingState::Clean {
-        writeln!(output)?;
-        writeln!(output, "nothing to commit, channel working tree clean")?;
+    let head = status.head_commit.as_ref().map_or_else(
+        || "built-in (no commits yet)".to_owned(),
+        |commit| format!("CHANNEL@{}", commit.sequence),
+    );
+    writeln!(output, "On channels {head}")?;
+    write_channel_status_changes(
+        output,
+        &status.staged.changes,
+        "Changes to be committed:",
+        "  (use \"rey channels diff --staged\" to review)",
+        TerminalStyle::stdout(),
+        true,
+    )?;
+    write_channel_status_changes(
+        output,
+        &status.unstaged.changes,
+        "Changes not staged for channel commit:",
+        "  (use \"rey channels diff\" to review; \"rey channels add\" to stage)",
+        TerminalStyle::stdout(),
+        false,
+    )?;
+    writeln!(output)?;
+    match status.state {
+        ChannelWorkingState::Clean => {
+            writeln!(output, "nothing to commit, channel working tree clean")?
+        }
+        ChannelWorkingState::Working => writeln!(
+            output,
+            "no changes added to channel commit (use `rey channels add` to stage)"
+        )?,
+        ChannelWorkingState::Staged => {
+            writeln!(output, "changes staged in the channel admission index")?
+        }
+        ChannelWorkingState::Mixed => writeln!(
+            output,
+            "staged changes and unstaged channel changes are both present"
+        )?,
+    }
+    Ok(())
+}
+
+fn write_channel_status_changes(
+    output: &mut impl Write,
+    changes: &[ChannelGraphChange],
+    heading: &str,
+    hint: &str,
+    style: TerminalStyle,
+    staged: bool,
+) -> Result<(), CliError> {
+    if changes.is_empty() {
         return Ok(());
     }
-
     writeln!(output)?;
-    writeln!(output, "Changes in channel working tree:")?;
-    writeln!(output, "  (use \"rey channels diff\" to review)")?;
-    for change in &status.delta.changes {
-        writeln!(
-            output,
-            "        {:<11} {}: {} · {}",
+    writeln!(output, "{heading}")?;
+    writeln!(output, "{hint}")?;
+    for change in changes {
+        let line = format!(
+            "{:<11} {}: {} · {}",
             format!("{}:", change.kind.label()),
             change.object_kind.label(),
             change.object_id,
             change.detail
+        );
+        let line = if staged {
+            style.green(&line)
+        } else {
+            style.red(&line)
+        };
+        writeln!(output, "        {line}")?;
+    }
+    Ok(())
+}
+
+fn write_channel_add(output: &mut impl Write, result: &ChannelAddResult) -> Result<(), CliError> {
+    writeln!(output, "CHANNEL INDEX")?;
+    writeln!(output, "  Index                  {}", result.index.index_id)?;
+    writeln!(
+        output,
+        "  Graph                  {}",
+        result.index.snapshot.graph_id
+    )?;
+    writeln!(
+        output,
+        "  Selection              {} semantic changes staged",
+        result.staged.summary.total
+    )?;
+    writeln!(
+        output,
+        "  Direction              {} → {}",
+        result.staged.source_label, result.staged.target_label
+    )?;
+    Ok(())
+}
+
+fn write_channel_commit(
+    output: &mut impl Write,
+    result: &ChannelCommitResult,
+) -> Result<(), CliError> {
+    let commit = &result.commit;
+    writeln!(
+        output,
+        "[CHANNEL@{} {}] {}",
+        commit.sequence, commit.commit_id, commit.message
+    )?;
+    writeln!(
+        output,
+        " {} semantic changes · graph {}",
+        commit.delta.summary.total, commit.snapshot.graph_id
+    )?;
+    Ok(())
+}
+
+fn write_channel_log(output: &mut impl Write, log: &ChannelLog) -> Result<(), CliError> {
+    writeln!(output, "REY CHANNELS LOG")?;
+    writeln!(
+        output,
+        "  History                {} total · {} shown · newest first",
+        log.total_commits, log.selected_commits
+    )?;
+    if log.commits.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No channel commits.")?;
+        return Ok(());
+    }
+    for commit in &log.commits {
+        writeln!(output)?;
+        writeln!(
+            output,
+            "commit CHANNEL@{} {}{}",
+            commit.sequence,
+            commit.commit_id,
+            if log.head_commit_id.as_ref() == Some(&commit.commit_id) {
+                " (HEAD)"
+            } else {
+                ""
+            }
+        )?;
+        writeln!(
+            output,
+            "Date:   {}",
+            DateTime::<Utc>::from_timestamp(commit.committed_at_unix, 0).map_or_else(
+                || commit.committed_at_unix.to_string(),
+                |value| value.to_rfc3339()
+            )
+        )?;
+        writeln!(output)?;
+        writeln!(output, "    {}", commit.message)?;
+        writeln!(
+            output,
+            "    graph {} · {} semantic changes",
+            commit.snapshot.graph_id, commit.delta.summary.total
+        )?;
+        if log.patch {
+            let diff = ChannelDiff {
+                schema: "rey.channel-diff.v1".to_owned(),
+                source: commit.snapshot.clone(),
+                target: commit.snapshot.clone(),
+                delta: commit.delta.clone(),
+            };
+            for change in &diff.delta.changes {
+                writeln!(
+                    output,
+                    "    {}  {} {} · {}",
+                    channel_diff_marker(change.kind),
+                    change.object_kind.label(),
+                    change.object_id,
+                    change.detail
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn write_channel_message_admission(
+    output: &mut impl Write,
+    result: &ChannelMessageAdmission,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "{} channel message {}",
+        if result.admitted {
+            "Admitted"
+        } else {
+            "Already admitted"
+        },
+        result.message.message_id
+    )?;
+    writeln!(
+        output,
+        "  Sequence               {}",
+        result.message.sequence
+    )?;
+    writeln!(
+        output,
+        "  Channel                {}",
+        result.message.proposal.channel_id
+    )?;
+    writeln!(
+        output,
+        "  Kind                   {}",
+        result.message.proposal.kind.label()
+    )?;
+    writeln!(
+        output,
+        "  Channel graph          {}",
+        result.message.channel_graph_id
+    )?;
+    writeln!(
+        output,
+        "  Relay authority        none · relay remains an explicit command or beacon tick"
+    )?;
+    Ok(())
+}
+
+fn write_channel_messages(
+    output: &mut impl Write,
+    messages: &[ChannelMessage],
+) -> Result<(), CliError> {
+    writeln!(output, "ADMITTED CHANNEL MESSAGES")?;
+    writeln!(output, "  {}", count_noun(messages.len(), "message"))?;
+    for message in messages {
+        writeln!(
+            output,
+            "  {:>4}  {}  {} · {}",
+            message.sequence,
+            message.message_id,
+            message.proposal.channel_id,
+            message.proposal.kind.label()
         )?;
     }
-    writeln!(output)?;
-    writeln!(output, "channel working tree differs from built-in")?;
+    Ok(())
+}
+
+fn write_channel_relay_attempt(
+    output: &mut impl Write,
+    attempt: &RelayAttempt,
+) -> Result<(), CliError> {
+    writeln!(output, "CHANNEL RELAY ATTEMPT")?;
+    writeln!(output, "  Outcome                {:?}", attempt.outcome)?;
+    writeln!(output, "  Attempt                {}", attempt.attempt_id)?;
+    writeln!(output, "  Message                {}", attempt.message_id)?;
+    writeln!(
+        output,
+        "  Relay                  {}@{}",
+        attempt.relay_id, attempt.relay_revision
+    )?;
+    writeln!(
+        output,
+        "  Application            {} · {}",
+        attempt.application_id, attempt.environment_capability_id
+    )?;
+    writeln!(
+        output,
+        "  Environment            {}",
+        attempt.environment_commit_id
+    )?;
+    writeln!(
+        output,
+        "  Target                 {}",
+        attempt.target_channel_locator
+    )?;
+    writeln!(output, "  Process                {}", attempt.detail)?;
+    Ok(())
+}
+
+fn write_polling_beacon_tick(
+    output: &mut impl Write,
+    tick: &PollingBeaconTick,
+) -> Result<(), CliError> {
+    writeln!(output, "POLLING BEACON TICK")?;
+    writeln!(
+        output,
+        "  Beacon                 {}@{}",
+        tick.beacon_id, tick.beacon_revision
+    )?;
+    writeln!(output, "  Messages checked       {}", tick.checked_messages)?;
+    writeln!(
+        output,
+        "  Relay attempts         {} · {} delivered · {} failed · {} skipped",
+        tick.attempted, tick.delivered, tick.failed, tick.skipped
+    )?;
+    for attempt in &tick.attempts {
+        writeln!(
+            output,
+            "  {:?}  {} · {} → {}",
+            attempt.outcome, attempt.message_id, attempt.relay_id, attempt.target_channel_locator
+        )?;
+    }
     Ok(())
 }
 
@@ -2192,9 +2943,18 @@ fn write_channel_diff(output: &mut impl Write, diff: &ChannelDiff) -> Result<(),
             ChannelObjectKind::Stream | ChannelObjectKind::Layout
         )
     })?;
-    write_channel_diff_section(output, "04 / RELAYS", &diff.delta.changes, |change| {
+    write_channel_diff_section(output, "04 / APPLICATIONS", &diff.delta.changes, |change| {
+        change.object_kind == ChannelObjectKind::Application
+    })?;
+    write_channel_diff_section(output, "05 / RELAYS", &diff.delta.changes, |change| {
         change.object_kind == ChannelObjectKind::Relay
     })?;
+    write_channel_diff_section(
+        output,
+        "06 / POLLING BEACONS",
+        &diff.delta.changes,
+        |change| change.object_kind == ChannelObjectKind::Beacon,
+    )?;
     Ok(())
 }
 
@@ -2212,11 +2972,7 @@ fn write_channel_diff_section(
         writeln!(
             output,
             "  {}  {} {} · {}",
-            match change.kind {
-                rey::channels::ChannelChangeKind::Added => "+",
-                rey::channels::ChannelChangeKind::Removed => "-",
-                _ => "~",
-            },
+            channel_diff_marker(change.kind),
             change.object_kind.label(),
             change.object_id,
             change.detail
@@ -2226,6 +2982,14 @@ fn write_channel_diff_section(
         writeln!(output, "  no changes")?;
     }
     Ok(())
+}
+
+const fn channel_diff_marker(kind: rey::channels::ChannelChangeKind) -> &'static str {
+    match kind {
+        rey::channels::ChannelChangeKind::Added => "+",
+        rey::channels::ChannelChangeKind::Removed => "-",
+        _ => "~",
+    }
 }
 
 fn write_channel_apply(
@@ -7207,6 +7971,26 @@ enum CliError {
     ChannelInputEncoding(PathBuf),
     #[error("channel graph exceeds {0} bytes")]
     ChannelInputLimit(u64),
+    #[error("unknown admitted channel message {0}")]
+    UnknownChannelMessage(String),
+    #[error("unknown admitted relay {0}")]
+    UnknownRelay(String),
+    #[error("unknown admitted channel application {0}")]
+    UnknownChannelApplication(String),
+    #[error("unknown admitted polling beacon {0}")]
+    UnknownBeacon(String),
+    #[error("relay requires an admitted environment HEAD")]
+    NoEnvironmentHead,
+    #[error("environment HEAD does not admit communications capability {0}")]
+    UnadmittedChannelApplication(String),
+    #[error("admitted channel application {0} has drifted from environment HEAD")]
+    ChannelApplicationDrift(String),
+    #[error("admitted message channel does not match the relay source channel")]
+    RelaySourceMismatch,
+    #[error("relay executable {path} could not be inspected: {source}")]
+    RelayExecutable { path: PathBuf, source: io::Error },
+    #[error("relay executable must be a regular non-symlinked file: {0}")]
+    RelayExecutableType(PathBuf),
     #[error("journal proposal {path} could not be read: {source}")]
     JournalInput { path: PathBuf, source: io::Error },
     #[error("journal proposal must be a regular non-symlinked file: {0}")]
@@ -7223,6 +8007,8 @@ enum CliError {
     Rey(#[from] ReyError),
     #[error(transparent)]
     Discovery(#[from] rey_environment::DiscoveryError),
+    #[error(transparent)]
+    Command(#[from] rey_environment::CommandError),
     #[error(transparent)]
     Delta(#[from] rey_diff::DeltaError),
     #[error(transparent)]

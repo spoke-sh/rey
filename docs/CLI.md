@@ -111,19 +111,19 @@ already admitted in HEAD.
 | `env` | `ENV HEAD → INDEX → WORKING` | Commits capability observations, never execution authority. |
 | `workloads` | `WORKLOAD HEAD → INDEX → WORKING` plus staged qualification | Only qualified HEAD packages are runnable. |
 | `editor` | `SCENE HEAD → INDEX → WORKING` | Commits candidate packages; it does not admit `/explore` evidence. |
-| `channels` | `BUILT-IN → CHANNEL WORKING` | `apply` writes a proposal; Channel HEAD, INDEX, `add`, `commit`, and `log` remain planned. |
+| `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
 | `ui` | Explicit server process over the same typed state | Human projection with narrow Journal and workload-admission writes, not a second runtime. |
 
-Do not infer a missing revision loop. In particular, Channel proposals are not
-committed history, and Journal sequence is not HEAD/INDEX state.
+Channel message admission is append-only and independent of the topology
+INDEX. Journal sequence is not HEAD/INDEX state.
 
 ## Command Map
 
 The implemented top-level surface is:
 
 ```text
-rey channels   list | status | diff | apply
+rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
 rey env        status | add | diff | commit | log
 rey editor     generate | status | add | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | run
@@ -144,13 +144,36 @@ rey channels [--workspace PATH] [--state-dir PATH] list
 rey channels [--workspace PATH] [--state-dir PATH] status
 rey channels [--workspace PATH] [--state-dir PATH] diff
 rey channels [--workspace PATH] [--state-dir PATH] apply GRAPH.yaml
+rey channels [--workspace PATH] [--state-dir PATH] add
+rey channels [--workspace PATH] [--state-dir PATH] diff --staged
+rey channels [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
+rey channels [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
+rey channels [--workspace PATH] [--state-dir PATH] message add MESSAGE.yaml
+rey channels [--workspace PATH] [--state-dir PATH] message list
+rey channels [--workspace PATH] [--state-dir PATH] relay MESSAGE_ID --relay RELAY_ID
+rey channels [--workspace PATH] [--state-dir PATH] beacon BEACON_ID
 ```
 
-`list`, `status`, and `diff` compare the canonical built-in collaboration graph
-with an optional bounded WORKING proposal. `apply` validates a
-workspace-contained `rey.channel-graph.v1` YAML document and atomically writes
-only Channel WORKING. It does not relay messages, admit observations, or create
-Channel history.
+`apply` validates a workspace-contained `rey.channel-graph.v1` YAML document
+and atomically writes Channel WORKING. `add` freezes the exact WORKING graph in
+INDEX. `commit` validates and retains exactly INDEX without rereading a graph
+file, while `diff` and `diff --staged` preserve the INDEX-to-WORKING and
+HEAD-to-INDEX directions.
+
+`message add` admits an immutable `rey.channel-message.v1` file against an
+exact Channel HEAD; it does not send it. `relay` is an explicit effect boundary
+that requires the exact message, relay declaration, communications-application
+declaration, Channel HEAD, and environment HEAD to agree. The application
+declaration freezes an absolute executable, executable digest, optional
+version, separate direct argv placeholders, timeout, and output limit. Rey clears the child environment,
+does not invoke a shell, and retains only bounded process outcome and output
+digests. The CLI never infers send syntax or authority merely because a binary
+was discovered.
+
+`beacon` performs one explicit bounded polling tick over retained messages. It
+deduplicates already delivered message/relay pairs and invokes at most the
+beacon's admitted batch bound. It is not a resident daemon and it does not poll
+remote inboxes; scheduling and inbound cursors require a later runtime slice.
 
 ### `rey env`
 
@@ -169,6 +192,14 @@ bounded read-only identity probes for known adapters. `diff` shows
 INDEX-to-WORKING; `diff --staged` shows HEAD-to-INDEX. `commit` performs no
 discovery and successful human/table output is intentionally silent. Use
 `log -n 1` for readback or `--format json` for a commit receipt.
+
+The compiled identity-only application inventory includes the major agent
+runtimes plus Slack (`slack`), GitHub CLI (`gh`), Telegram CLI
+(`telegram-cli`), iMessage (`imsg`), Microsoft 365/Teams (`m365`), Signal
+(`signal-cli`), and Discord (`discord`) candidates. These names are bounded
+discovery candidates, not claims that each project offers an official or
+compatible messaging CLI. Their discovery records explicitly leave transport,
+message admission, polling-beacon, and relay authority unsupported.
 
 ### `rey editor`
 

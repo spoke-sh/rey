@@ -233,8 +233,8 @@ composer. The current read-only server has no admitted chat transport, so the
 composer is disabled and no UI-owned transcript is invented.
 
 [ADR 0040](decisions/0040-workspace-channels-and-operator-index.md) defines the
-next collaboration substrate without changing those implemented boundaries.
-A workspace-local Channel graph will address channels, subscriptions, Feed
+collaboration substrate without changing those boundaries. A workspace-local
+Channel graph addresses channels, subscriptions, Feed
 streams, ordered layouts, and explicit relay declarations through a separate
 Git-shaped operator index. Standalone immutable Channel observations and their
 channel-local admissions remain outside that topology index and form a bounded
@@ -242,11 +242,13 @@ collaboration-frontier projection. Journal remains the deliberate rich
 synthesis surface and may cite exact observations or begin from an unretained
 Journal seed. Feed, mailbox, conversation, observations, and Journal remain
 different interfaces; channel admission grants no action or transport
-authority. The first topology slice now implements the canonical built-in
-graph, bounded snapshots/deltas, symlink-safe Channel WORKING store, and
-`channels list/status/diff/apply`. Immutable HEAD/INDEX admission, the
-observation log, browser persistence, broadcast, Journal seeding, and relay
-provider remain planned behavior.
+authority. The local revision slice implements the canonical built-in graph,
+bounded snapshots/deltas, symlink-safe `CHANNEL HEAD → INDEX → WORKING` store,
+and `channels list/status/diff/apply/add/commit/log`. Immutable file-backed
+messages, explicit relay attempts, and bounded one-shot polling-beacon ticks
+are also implemented. The richer observation frontier, browser persistence,
+broadcast, Journal seeding, resident beacon scheduling, and remote inbound
+cursors remain planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

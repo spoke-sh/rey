@@ -46,7 +46,12 @@ The concepts remain distinct:
   channels; and
 - a **relay** is an explicit provider-backed edge that forwards admitted
   observations while retaining origin, hop, cursor, attempt, and delivery
-  lineage.
+  lineage; and
+- a **polling beacon** is a versioned bounded relay policy for one admitted
+  communications application. One explicit tick examines a finite admitted
+  message batch, suppresses retained successful deliveries, and emits exact
+  attempt evidence. It is not itself a resident scheduler or remote-inbox
+  cursor.
 
 Channel definitions, subscriptions, Feed streams, ordered layouts, and relay
 declarations form a bounded **channel graph**. Observation content and
@@ -180,19 +185,32 @@ uses observation origin plus destination and a hard hop bound. Remote
 documents and streams remain provider-owned; Rey records public bindings and realized
 lineage rather than implementing competing durable transport.
 
+Relay has four independent admission prerequisites: immutable message
+admission, Channel-HEAD relay and application declarations, and an exact
+environment HEAD capability. Application discovery remains identity-only. An
+application declaration freezes the environment capability id, exact absolute
+executable, executable digest, optional version, direct argv placeholders, timeout, and capture
+bound. Presence never selects command syntax or grants send authority.
+
+The first polling beacon is deliberately pull-driven: `rey channels beacon`
+performs one bounded tick and retains its attempt outcomes. A later scheduler
+may trigger the same typed operation, but cannot widen its batch, fabricate a
+remote cursor, or treat a quiet tick as observed remote activity.
+
 ## Implementation Status
 
-The first topology anchor implements `rey.channel-graph.v1`, canonical graph
-snapshots and semantic deltas, the no-write built-in workspace graph, and a
-symlink-safe, locked, atomically published `CHANNEL WORKING` proposal. Agents
-can inspect it through `rey channels list`, `status`, and `diff`, then apply a
-bounded workspace-contained YAML graph through `rey channels apply`. Human
-patches name semantic stream operations; structured output retains exact
-source, graph, limit, and delta identities.
+The local revision anchor implements `rey.channel-graph.v1`, canonical graph
+snapshots and semantic deltas, and a symlink-safe, locked, atomically published
+`CHANNEL HEAD → INDEX → WORKING` loop. Agents can inspect and move it through
+`list`, `status`, `diff`, `apply`, `add`, `commit`, and `log`. Human patches
+name semantic operations; structured output retains exact source, graph,
+limit, commit, and delta identities.
 
-`CHANNEL HEAD`, `CHANNEL INDEX`, `add`, `commit`, `log`, staged diff, browser
-layout persistence, standalone observations, channel-local admissions, Journal
-seeds, and relay execution are not implemented by that anchor.
+Immutable file-backed channel messages, explicit relay, and one-shot
+polling-beacon ticks are implemented with retained attempt evidence. Broadcast
+fan-out, browser writes, Journal seeds, resident scheduling, remote inbound
+polling, and provider-specific command generation remain outside this
+completed slice.
 
 ## Consequences
 

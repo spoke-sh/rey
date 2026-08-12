@@ -435,7 +435,7 @@ fn channels_topology_is_cli_first_semantic_and_restart_safe() {
     assert!(clean.stderr.is_empty());
     assert_eq!(
         String::from_utf8(clean.stdout).unwrap(),
-        "On channels built-in\n\nnothing to commit, channel working tree clean\n"
+        "On channels built-in (no commits yet)\n\nnothing to commit, channel working tree clean\n"
     );
     assert!(!workspace.path().join(".rey").exists());
 
@@ -452,7 +452,7 @@ fn channels_topology_is_cli_first_semantic_and_restart_safe() {
     let listed = String::from_utf8(listed.stdout).unwrap();
     for evidence in [
         "CHANNEL GRAPH",
-        "1 channel · 1 subscription · 3 streams · 0 relays",
+        "1 channel · 1 subscription · 3 streams · 0 applications · 0 relays · 0 beacons",
         "01 / CHANNELS",
         "workspace@1  Workspace",
         "finding · question · progress · blocker · handoff",
@@ -462,7 +462,9 @@ fn channels_topology_is_cli_first_semantic_and_restart_safe() {
         "02  Admission  admission@1",
         "03  Flow  flow@1",
         "signals → admission → flow",
-        "04 / RELAYS",
+        "04 / APPLICATIONS",
+        "05 / RELAYS",
+        "06 / POLLING BEACONS",
         "none · transport not configured",
     ] {
         assert!(
@@ -589,11 +591,11 @@ relays: []
     assert!(status.status.success());
     let status = String::from_utf8(status.stdout).unwrap();
     for evidence in [
-        "On channels built-in",
-        "Changes in channel working tree:",
+        "On channels built-in (no commits yet)",
+        "Changes not staged for channel commit:",
         "renamed:    stream: admission · name \"Admission\" → \"Review\"",
         "moved:      stream: admission · position 2 → 1",
-        "channel working tree differs from built-in",
+        "no changes added to channel commit",
     ] {
         assert!(
             status.contains(evidence),
@@ -615,13 +617,13 @@ relays: []
     assert!(diff.stderr.is_empty());
     let diff = String::from_utf8(diff.stdout).unwrap();
     for evidence in [
-        "REY CHANNELS DIFF · BUILT-IN → WORKING",
+        "REY CHANNELS DIFF · INDEX → WORKING",
         "01 / CHANNELS",
         "02 / SUBSCRIPTIONS",
         "03 / FEED STREAMS",
         "~  stream admission · name \"Admission\" → \"Review\"",
         "~  stream admission · position 2 → 1",
-        "04 / RELAYS",
+        "05 / RELAYS",
     ] {
         assert!(diff.contains(evidence), "missing diff evidence: {evidence}");
     }
@@ -639,6 +641,83 @@ relays: []
     assert_eq!(diff_json.schema, "rey.channel-diff.v1");
     assert_eq!(diff_json.delta.summary.renamed, 1);
     assert_eq!(diff_json.delta.summary.moved, 2);
+
+    let added = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "add",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+    let added: rey::channels::ChannelAddResult = serde_json::from_slice(&added.stdout).unwrap();
+    assert_eq!(added.schema, "rey.channel-add-result.v1");
+    assert_eq!(added.staged.summary.renamed, 1);
+
+    let staged_status = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    let staged_status = String::from_utf8(staged_status.stdout).unwrap();
+    assert!(staged_status.contains("Changes to be committed:"));
+    assert!(staged_status.contains("changes staged in the channel admission index"));
+
+    let committed = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "Arrange local attention",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&committed.stderr)
+    );
+    let committed: rey::channels::ChannelCommitResult =
+        serde_json::from_slice(&committed.stdout).unwrap();
+    assert_eq!(committed.commit.sequence, 1);
+    assert_eq!(committed.commit.message, "Arrange local attention");
+
+    let clean_after_commit = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert_eq!(
+        String::from_utf8(clean_after_commit.stdout).unwrap(),
+        "On channels CHANNEL@1\n\nnothing to commit, channel working tree clean\n"
+    );
+
+    let log = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "log",
+        "-n",
+        "1",
+        "-p",
+        "--format",
+        "table",
+    ]);
+    let log = String::from_utf8(log.stdout).unwrap();
+    assert!(log.contains("commit CHANNEL@1"));
+    assert!(log.contains("Arrange local attention"));
 
     let restarted = run_rey(&[
         "channels",
@@ -683,15 +762,10 @@ relays: []
     let help = run_rey(&["channels", "--help"]);
     assert!(help.status.success());
     let help = String::from_utf8(help.stdout).unwrap();
-    for command in ["list", "status", "diff", "apply"] {
+    for command in [
+        "list", "status", "diff", "apply", "add", "commit", "log", "message", "relay", "beacon",
+    ] {
         assert!(help.contains(command));
-    }
-    for unavailable in ["add", "commit", "log"] {
-        assert!(
-            !help
-                .lines()
-                .any(|line| line.trim_start().starts_with(unavailable))
-        );
     }
 }
 
@@ -723,6 +797,245 @@ fn channels_apply_rejects_symlinked_graph_input() {
             .contains("channel graph must be a regular non-symlinked file")
     );
     assert!(!workspace.path().join(".rey").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn admitted_channel_message_relays_once_through_admitted_application_and_beacon() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    let bin = workspace.path().join("bin");
+    fs::create_dir(&bin).unwrap();
+    let slack = bin.join("slack");
+    let delivery = workspace.path().join("delivery.txt");
+    fs::write(
+        &slack,
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'slack 1.0'; exit 0; fi\nprintf '%s\\n' \"$*\" >> '{}'\n",
+            delivery.display()
+        ),
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&slack).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&slack, permissions).unwrap();
+
+    let env_added = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--format",
+            "json",
+        ],
+        &[("PATH", bin.to_str().unwrap())],
+    );
+    assert!(
+        env_added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&env_added.stderr)
+    );
+    let env_committed = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "Admit communications application",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        env_committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&env_committed.stderr)
+    );
+
+    let env_commit: EnvironmentCommitResult =
+        serde_json::from_slice(&env_committed.stdout).unwrap();
+    let slack_digest = env_commit
+        .commit
+        .snapshot
+        .capabilities
+        .iter()
+        .find(|capability| capability.capability_id == "comms.application.slack.identity")
+        .and_then(|capability| capability.content_digest.as_deref())
+        .expect("admitted Slack executable digest");
+    let graph = format!(
+        r#"schema: rey.channel-graph.v1
+channels:
+  - id: workspace
+    revision: 1
+    name: Workspace
+    scope: workspace_local
+    accepted_observation_kinds: [finding, question, progress, blocker, handoff]
+    broadcast_default: true
+subscriptions:
+  - id: workspace
+    revision: 1
+    channel_ids: [workspace]
+    observation_kinds: [finding, question, progress, blocker, handoff]
+    filters: {{}}
+    limit: 64
+streams:
+  - id: signals
+    revision: 1
+    name: Signals
+    subscription_id: workspace
+    lens: signals
+  - id: admission
+    revision: 1
+    name: Admission
+    subscription_id: workspace
+    lens: admission
+  - id: flow
+    revision: 1
+    name: Flow
+    subscription_id: workspace
+    lens: flow
+layout:
+  id: feed
+  revision: 1
+  stream_ids: [signals, admission, flow]
+applications:
+  - id: slack
+    revision: 1
+    environment_capability_id: comms.application.slack.identity
+    executable_path: "{}"
+    executable_version: null
+    executable_digest: "{}"
+    relay_argv: [send, --channel, "{{target}}", --message, "{{message}}"]
+    timeout_ms: 1000
+    max_output_bytes: 4096
+relays:
+  - id: workspace-to-slack
+    revision: 1
+    source_channel_id: workspace
+    target_channel_locator: "slack://channel/C123"
+    provider_id: slack
+    hop_limit: 1
+beacons:
+  - id: slack-poll
+    revision: 1
+    application_id: slack
+    relay_ids: [workspace-to-slack]
+    interval_seconds: 60
+    batch_limit: 8
+"#,
+        slack.display(),
+        slack_digest,
+    );
+    fs::write(workspace.path().join("channels.yaml"), graph).unwrap();
+    for args in [
+        vec![
+            "channels",
+            "--workspace",
+            workspace_path,
+            "apply",
+            "channels.yaml",
+            "--format",
+            "json",
+        ],
+        vec![
+            "channels",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--format",
+            "json",
+        ],
+        vec![
+            "channels",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "Admit Slack relay",
+            "--format",
+            "json",
+        ],
+    ] {
+        let output = run_rey(&args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fs::write(
+        workspace.path().join("message.yaml"),
+        "schema: rey.channel-message.v1\nchannel_id: workspace\nkind: progress\nbody: Relay only admitted messages.\nevidence_locators: []\n",
+    )
+    .unwrap();
+    let admitted = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "message",
+        "add",
+        "message.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        admitted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&admitted.stderr)
+    );
+    let admitted: rey::channels::ChannelMessageAdmission =
+        serde_json::from_slice(&admitted.stdout).unwrap();
+
+    let relayed = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "relay",
+        admitted.message.message_id.as_str(),
+        "--relay",
+        "workspace-to-slack",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        relayed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&relayed.stderr)
+    );
+    let attempt: rey::channels::RelayAttempt = serde_json::from_slice(&relayed.stdout).unwrap();
+    assert_eq!(
+        attempt.outcome,
+        rey::channels::RelayAttemptOutcome::Delivered
+    );
+    assert_eq!(
+        fs::read_to_string(&delivery).unwrap(),
+        "send --channel slack://channel/C123 --message Relay only admitted messages.\n"
+    );
+
+    let tick = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "beacon",
+        "slack-poll",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        tick.status.success(),
+        "{}",
+        String::from_utf8_lossy(&tick.stderr)
+    );
+    let tick: rey::channels::PollingBeaconTick = serde_json::from_slice(&tick.stdout).unwrap();
+    assert_eq!(tick.checked_messages, 1);
+    assert_eq!(tick.attempted, 0);
+    assert_eq!(
+        fs::read_to_string(&delivery).unwrap(),
+        "send --channel slack://channel/C123 --message Relay only admitted messages.\n"
+    );
 }
 
 #[test]
@@ -945,12 +1258,12 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     for evidence in [
         "REY ENV DIFF · INDEX → WORKING",
         "View                   UNSTAGED",
-        "Evidence               DIFFERENT · 9 authoritative capability changes",
+        "Evidence               DIFFERENT · 16 authoritative capability changes",
         "01 / DIRECTED TEXT",
         "Environment variables · 3 tracked · 1 changed",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 8 searched",
-        "8 changed",
+        "APPLICATIONS · 15 searched",
+        "15 changed",
         "REFERENCE PLANE",
         "Inputs and topology",
     ] {
@@ -973,7 +1286,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(added.status.success());
     let added = String::from_utf8(added.stdout).unwrap();
     assert!(added.contains("ENVIRONMENT ADMISSION"));
-    assert!(added.contains("9 capability changes admitted"));
+    assert!(added.contains("16 capability changes admitted"));
     assert!(added.contains("0 changes remain unstaged · EQUAL"));
 
     let staged_diff = run_rey(&[
@@ -989,7 +1302,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert_eq!(staged_diff.mode, EnvironmentDiffMode::Staged);
     assert_eq!(staged_diff.delta.source_label, "ENV@1");
     assert_eq!(staged_diff.delta.target_label, "INDEX");
-    assert_eq!(staged_diff.delta.summary.modified, 9);
+    assert_eq!(staged_diff.delta.summary.modified, 16);
 
     let second = run_rey(&[
         "env",
@@ -1024,9 +1337,9 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "commit ENV@2 ",
         "Parent: ENV@1 ",
         "Date:   ",
-        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 9 authoritative capability changes",
-        "Environment            3 variables · 8 applications · 0 inputs · 0 references · complete",
-        "Changes                1 variable · 8 applications · 0 inputs · 0 references",
+        "Evidence               ENV@1 → ENV@2 · DIFFERENT · 16 authoritative capability changes",
+        "Environment            3 variables · 15 applications · 0 inputs · 0 references · complete",
+        "Changes                1 variable · 15 applications · 0 inputs · 0 references",
         "    stage fixture",
     ] {
         assert!(log.contains(evidence), "missing log evidence: {evidence}");
@@ -1481,7 +1794,7 @@ edges:
         "+ REY_MODE=production-mode-value",
         "  REY_SECRET=<present:redacted>",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 10 searched",
+        "APPLICATIONS · 17 searched",
         "0 errors · 0 changed",
         "rey-map-probe",
         "rey-definitely-missing",
@@ -1613,7 +1926,7 @@ edges:
         "Parent: ENV@1 ",
         "Date:   ",
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
-        "Environment            5 variables · 10 applications · 1 input · 2 references · complete",
+        "Environment            5 variables · 17 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
         "Reasoning map          rey.env.yaml · rey.env-map.v1",
         "    update mapped environment",
@@ -1649,7 +1962,7 @@ edges:
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 10 searched",
+        "APPLICATIONS · 17 searched",
         "0 errors · 0 changed",
         "REFERENCE PLANE",
         "INPUTS · 1 tracked · 1 changed",

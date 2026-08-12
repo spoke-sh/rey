@@ -32,7 +32,7 @@ catching up. Relay execution remains a separately gated provider bearing.
   revisions without moving observation history into the topology index.
 - [x] Implement `rey channels list`, `status`, `diff`, and `apply` with compact
   human output and machine-clean structured output.
-- [ ] Implement `rey channels add`, `commit`, and `log` plus staged diff with
+- [x] Implement `rey channels add`, `commit`, and `log` plus staged diff with
   the complete Git-shaped admission loop.
 - [ ] Implement the separate low-latency `rey observations add`, `list`, and
   `show` surface over an immutable local observation/admission log; adding an
@@ -57,10 +57,11 @@ catching up. Relay execution remains a separately gated provider bearing.
   admission.
 - [ ] Project channel admissions into Feed, mailbox, and conversation surfaces
   without conflating their interaction or order semantics.
-- [ ] Define relay declarations, delivery attempts, cursor/hop/idempotency
-  lineage, loop prevention, provider authority, and explicit non-guarantees;
-  do not implement remote transport in this plan without a separate accepted
-  provider decision.
+- [x] Define admitted communications applications, relay declarations,
+  retained attempts, successful-delivery deduplication, environment drift
+  checks, and bounded one-shot polling beacons. Actual provider syntax remains
+  agent-authored admitted configuration; resident scheduling and remote inbox
+  cursors remain future work.
 - [ ] Update foundational docs, glossary, examples, UI grammar, and plan proof
   with public behavior as each slice lands.
 
@@ -179,13 +180,14 @@ mailbox revalidation surface the admitted observation through their
 subscriptions. Then project selected observations into one unretained Journal
 seed and prove that normal Journal admission alone creates the entry.
 
-### 6. Relay boundary only
+### 6. Relay and polling-beacon boundary
 
 Specify, validate, and render relay declarations and retained attempt evidence.
-Do not start a remote client, poll a remote cursor, or claim delivery in this
-plan. A later provider slice must prove one exact local-to-provider path,
-deduplication, restart, cursor replay, loop prevention, capability drift, and
-honest delivery guarantees.
+The first implementation executes only exact admitted direct argv through an
+exact environment-HEAD application, with a cleared environment, bounded time
+and capture, no shell, restart-safe successful-delivery suppression, and an
+explicit one-shot beacon tick. It does not infer provider syntax, schedule a
+daemon, poll a remote inbox/cursor, or broaden authentication authority.
 
 ## Proof Matrix
 

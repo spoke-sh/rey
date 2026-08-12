@@ -363,6 +363,13 @@ nix run path:$PWD -- channels list --format table
 nix run path:$PWD -- channels status --format table
 nix run path:$PWD -- channels diff --format table
 nix run path:$PWD -- channels apply path/to/channel-graph.yaml --format table
+nix run path:$PWD -- channels add --format table
+nix run path:$PWD -- channels diff --staged --format table
+nix run path:$PWD -- channels commit -m "Admit channel topology" --format table
+nix run path:$PWD -- channels log -n 3 -p --format table
+nix run path:$PWD -- channels message add path/to/message.yaml --format table
+nix run path:$PWD -- channels relay MESSAGE_ID --relay RELAY_ID --format table
+nix run path:$PWD -- channels beacon BEACON_ID --format table
 nix run path:$PWD -- env status
 nix run path:$PWD -- env diff
 nix run path:$PWD -- env add -p
