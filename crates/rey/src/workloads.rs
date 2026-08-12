@@ -9,18 +9,17 @@ use chrono::{DateTime, Utc};
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
 use rey_environment::{Availability, CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
-use rey_frontier::Frontier;
 use rey_mining::{ProjectionPacket, SemanticAtlas, TopographyCoverage, TopographyPatch};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
     CONTEXT_ANCHOR_SURVEY_OPERATION_ID, ComputeGraph, GraphLimits, GraphNode, GraphOutput,
-    PortfolioError, PortfolioLimits, PortfolioQualificationState, PortfolioSnapshot,
-    PortfolioSurfaceObservation, PortfolioWorkloadObservation, QualificationRecord,
-    RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite, TestStatus,
-    TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
-    WorkloadDefinitionParts, WorkloadLimits, WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult,
-    WorkloadTestResult, WorkloadValue, built_in_operation_contract, built_in_workloads,
-    utf8_exact_comparator_contract,
+    PortfolioError, PortfolioLimits, PortfolioQualificationState, PortfolioReasoningEvidence,
+    PortfolioSnapshot, PortfolioSurfaceObservation, PortfolioWorkloadObservation,
+    QualificationRecord, RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite,
+    TestStatus, TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention,
+    WorkloadDefinition, WorkloadDefinitionParts, WorkloadLimits, WorkloadOwnedSurface,
+    WorkloadPort, WorkloadRunResult, WorkloadTestResult, WorkloadValue,
+    built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -2554,7 +2553,7 @@ pub struct WorkloadList {
     pub drafts: Vec<WorkloadDraft>,
     pub attention: WorkloadAttention,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frontier: Option<Frontier>,
+    pub runtime: Option<PortfolioReasoningEvidence>,
     pub semantic_atlas: Option<SemanticAtlas>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<WorkloadRevisionStatus>,
@@ -2567,7 +2566,7 @@ impl WorkloadList {
         workloads: Vec<WorkloadSummary>,
         drafts: Vec<WorkloadDraft>,
         attention: WorkloadAttention,
-        frontier: Option<Frontier>,
+        runtime: Option<PortfolioReasoningEvidence>,
         revision: Option<WorkloadRevisionStatus>,
     ) -> Self {
         let semantic_atlas =
@@ -2584,7 +2583,7 @@ impl WorkloadList {
             workloads,
             drafts,
             attention,
-            frontier,
+            runtime,
             semantic_atlas,
             revision,
         }
@@ -2608,7 +2607,7 @@ pub struct WorkloadStatusBatch {
     pub drafts: Vec<WorkloadDraft>,
     pub attention: WorkloadAttention,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frontier: Option<Frontier>,
+    pub runtime: Option<PortfolioReasoningEvidence>,
 }
 
 impl WorkloadStatusBatch {
@@ -2618,7 +2617,7 @@ impl WorkloadStatusBatch {
         statuses: Vec<WorkloadStatusView>,
         drafts: Vec<WorkloadDraft>,
         attention: WorkloadAttention,
-        frontier: Option<Frontier>,
+        runtime: Option<PortfolioReasoningEvidence>,
     ) -> Self {
         Self {
             schema: WORKLOAD_STATUS_BATCH_SCHEMA.to_owned(),
@@ -2626,7 +2625,7 @@ impl WorkloadStatusBatch {
             statuses,
             drafts,
             attention,
-            frontier,
+            runtime,
         }
     }
 }

@@ -258,7 +258,12 @@ retained environment snapshot, the same document includes a distinct runtime
 frontier identity, its source attention trace and portfolio/environment
 bindings, and each admitted ready row. Without that snapshot the human view
 states that the runtime frontier is unavailable; it does not mint an identity
-for absent capability evidence.
+for absent capability evidence. The runtime section also renders the distinct
+scheduler decision and selected cost budget, then the reasoning-surface
+identity, completeness, evidence/action counts, and surface limits when one
+row is selected. Progress and proof remain explicitly absent until a prior
+frontier and evaluated transition exist. JSON retains the full verified
+frontier/scheduling/surface envelope rather than the human summary.
 `commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.

@@ -236,6 +236,15 @@ maps the admitted action without copying the portfolio snapshot. Its frontier
 inputs retain distinct portfolio-snapshot, environment-snapshot, attention,
 campaign, derivation, and prioritization identities.
 
+The implemented portfolio orientation step schedules at most one ready row
+under a five-cost-unit total bound. A selected row produces one verified
+`rey.reasoning-surface.v1` document. The surface reproduces the scheduled
+frontier row and cites the complete portfolio snapshot, attention relation,
+retained evidence identities, admitted action, source environment, scheduler
+decision, and effective row/evidence/retrieval budgets. It performs no provider
+retrieval, so its retrieval-iteration count is zero. No selection produces no
+surface; it does not fabricate an empty policy context.
+
 Blocked and excluded rows remain visible portfolio evidence and must not be
 silently filtered from human or machine summaries. When no ready row exists,
 an empty attention relation converges while a nonempty relation containing only

@@ -5,7 +5,12 @@ use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_dataframe::{Frame, FrameError, FrameMetadata};
 use rey_frontier::{
     Frontier, FrontierCoverage, FrontierError, FrontierInputs, FrontierLimits, FrontierRowInput,
-    Readiness, RequiredClaims,
+    Readiness, RequiredClaims, ScheduleOutcome, SchedulerLimits, SchedulingDecision,
+    SchedulingPreconditions, schedule,
+};
+use rey_policy::{
+    EvidenceReference, ReasoningSurface, ReasoningSurfaceError, ReasoningSurfaceInputs,
+    ReasoningSurfaceLimits, ReasoningSurfaceRow, SurfaceCompleteness,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -291,6 +296,27 @@ pub struct WorkloadAttention {
     pub summary: WorkloadAttentionSummary,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PortfolioReasoningEvidence {
+    pub frontier: Frontier,
+    pub scheduling: SchedulingDecision,
+    pub surface: Option<ReasoningSurface>,
+}
+
+impl PortfolioReasoningEvidence {
+    pub fn verify_against(
+        &self,
+        snapshot: &PortfolioSnapshot,
+        attention: &WorkloadAttention,
+    ) -> Result<(), PortfolioError> {
+        let expected = orient_portfolio_attention(snapshot, attention)?;
+        if self != &expected {
+            return Err(PortfolioError::ReasoningDerivationMismatch);
+        }
+        Ok(())
+    }
+}
+
 impl WorkloadAttention {
     pub fn derive(snapshot: &PortfolioSnapshot) -> Result<Self, PortfolioError> {
         snapshot.verify()?;
@@ -500,16 +526,22 @@ pub fn derive_portfolio_frontier(
             let action = portfolio_frontier_action(row.action).ok_or_else(|| {
                 PortfolioError::InvalidReadyAction(row.action.as_str().to_owned())
             })?;
+            let mut claim_ids = vec![
+                format!("rey.workload-attention-row:{}", row.row_id),
+                format!("rey.workload-attention-reason:{}", row.reason.as_str()),
+            ];
+            claim_ids.extend(
+                row.dependency_ids
+                    .iter()
+                    .map(|dependency| format!("rey.workload-attention-dependency:{dependency}")),
+            );
             Ok(FrontierRowInput {
                 work_id: format!("portfolio-attention:{}", row.row_id),
                 entity_kind: row.subject_kind.as_str().to_owned(),
                 entity_id: row.subject_id.clone(),
                 transition_delta_ids: Vec::new(),
                 residual_delta_ids: Vec::new(),
-                claim_ids: vec![
-                    format!("rey.workload-attention-row:{}", row.row_id),
-                    format!("rey.workload-attention-reason:{}", row.reason.as_str()),
-                ],
+                claim_ids,
                 dependent_lens_ids: vec![WORKLOAD_ATTENTION_SCHEMA.to_owned()],
                 admissible_action_ids: vec![action.id],
                 readiness: Readiness::Ready,
@@ -580,6 +612,163 @@ pub fn verify_portfolio_frontier(
         return Err(PortfolioError::FrontierDerivationMismatch);
     }
     Ok(())
+}
+
+pub fn orient_portfolio_attention(
+    snapshot: &PortfolioSnapshot,
+    attention: &WorkloadAttention,
+) -> Result<PortfolioReasoningEvidence, PortfolioError> {
+    let frontier = derive_portfolio_frontier(snapshot, attention)?;
+    let scheduling = schedule(
+        &frontier,
+        SchedulingPreconditions {
+            expected_committed_record_id: frontier.inputs.committed_record_id.clone(),
+            expected_frontier_id: frontier.frontier_id.clone(),
+            expected_capability_snapshot_id: frontier.inputs.capability_snapshot_id.clone(),
+        },
+        SchedulerLimits {
+            max_work_units: 1,
+            max_total_cost_units: 5,
+            ..SchedulerLimits::default()
+        },
+    )?;
+    let surface = if scheduling.outcome == ScheduleOutcome::Selected {
+        Some(build_portfolio_reasoning_surface(
+            snapshot,
+            attention,
+            &frontier,
+            &scheduling,
+        )?)
+    } else {
+        None
+    };
+    Ok(PortfolioReasoningEvidence {
+        frontier,
+        scheduling,
+        surface,
+    })
+}
+
+fn build_portfolio_reasoning_surface(
+    snapshot: &PortfolioSnapshot,
+    attention: &WorkloadAttention,
+    frontier: &Frontier,
+    scheduling: &SchedulingDecision,
+) -> Result<ReasoningSurface, PortfolioError> {
+    let snapshot_bytes = serde_json::to_vec(snapshot)?;
+    let attention_bytes = serde_json::to_vec(attention)?;
+    let provider = ContractIdentity::new(
+        "rey.portfolio.evidence",
+        1,
+        "project verified portfolio snapshots, attention relations, and retained evidence identities without claiming provider bytes",
+    );
+    let mut evidence = vec![
+        EvidenceReference {
+            evidence_id: format!("portfolio-snapshot:{}", snapshot.snapshot_id),
+            provider: provider.clone(),
+            source_id: format!("rey-portfolio://snapshot/{}", snapshot.snapshot_id),
+            source_revision: snapshot.snapshot_id.to_string(),
+            semantic_digest: snapshot.snapshot_id.clone(),
+            media_type: "application/vnd.rey.portfolio-snapshot+json".to_owned(),
+            byte_length: snapshot_bytes.len() as u64,
+        },
+        EvidenceReference {
+            evidence_id: format!("workload-attention:{}", attention.attention_id),
+            provider: provider.clone(),
+            source_id: format!("rey-portfolio://attention/{}", attention.attention_id),
+            source_revision: attention.attention_id.to_string(),
+            semantic_digest: attention.attention_id.clone(),
+            media_type: "application/vnd.rey.workload-attention+json".to_owned(),
+            byte_length: attention_bytes.len() as u64,
+        },
+    ];
+    let mut rows = Vec::with_capacity(scheduling.selected.len());
+    let mut admissible_actions = Vec::new();
+    for selected in &scheduling.selected {
+        let frontier_row = frontier
+            .rows
+            .iter()
+            .find(|row| row.row_id == selected.frontier_row_id)
+            .ok_or(PortfolioError::SelectedFrontierRowMissing)?;
+        let attention_row = attention
+            .rows
+            .iter()
+            .find(|row| {
+                frontier_row
+                    .claim_ids
+                    .contains(&format!("rey.workload-attention-row:{}", row.row_id))
+            })
+            .ok_or(PortfolioError::SelectedAttentionRowMissing)?;
+        for evidence_id in &attention_row.evidence_ids {
+            evidence.push(EvidenceReference {
+                evidence_id: format!("retained-evidence:{evidence_id}"),
+                provider: provider.clone(),
+                source_id: format!("rey-evidence://{evidence_id}"),
+                source_revision: evidence_id.to_string(),
+                semantic_digest: evidence_id.clone(),
+                media_type: "application/vnd.rey.evidence-reference+json".to_owned(),
+                byte_length: 0,
+            });
+        }
+        let action = portfolio_frontier_action(attention_row.action).ok_or_else(|| {
+            PortfolioError::InvalidReadyAction(attention_row.action.as_str().to_owned())
+        })?;
+        admissible_actions.push(action);
+        rows.push(ReasoningSurfaceRow {
+            frontier_row_id: frontier_row.row_id.to_string(),
+            entity_kind: frontier_row.entity_kind.clone(),
+            entity_id: frontier_row.entity_id.clone(),
+            transition_delta_ids: frontier_row.transition_delta_ids.clone(),
+            residual_delta_ids: frontier_row.residual_delta_ids.clone(),
+            claim_ids: frontier_row.claim_ids.clone(),
+            evidence_ids: std::iter::once(format!("portfolio-snapshot:{}", snapshot.snapshot_id))
+                .chain(std::iter::once(format!(
+                    "workload-attention:{}",
+                    attention.attention_id
+                )))
+                .chain(
+                    attention_row
+                        .evidence_ids
+                        .iter()
+                        .map(|evidence_id| format!("retained-evidence:{evidence_id}")),
+                )
+                .collect(),
+            admissible_action_ids: frontier_row.admissible_action_ids.clone(),
+        });
+    }
+    let mut transition = SemanticHasher::new("rey.portfolio-orientation-transition.v1");
+    transition.add_str(snapshot.snapshot_id.as_str());
+    transition.add_str(attention.attention_id.as_str());
+    transition.add_str(frontier.frontier_id.as_str());
+    transition.add_str(scheduling.decision_id.as_str());
+    ReasoningSurface::new(
+        ReasoningSurfaceInputs {
+            workload: frontier.inputs.workload.clone(),
+            graph: frontier.inputs.graph.clone(),
+            scenario_suite: frontier.inputs.scenario_suite.clone(),
+            campaign_id: frontier.inputs.campaign_id.clone(),
+            space: frontier.inputs.space.clone(),
+            trace_id: frontier.inputs.trace_id.clone(),
+            committed_transition_id: frontier.inputs.committed_record_id.clone(),
+            transition_id: transition.finish(),
+            scheduling_decision_id: scheduling.decision_id.clone(),
+            frontier_frame_id: frontier.frontier_id.clone(),
+            capability_snapshot_id: frontier.inputs.capability_snapshot_id.clone(),
+            projection: ContractIdentity::new(
+                "rey.reasoning-surface.portfolio-attention",
+                1,
+                "project one scheduled attention row with exact portfolio, attention, retained evidence, reason, action, and budget lineage",
+            ),
+        },
+        ReasoningSurfaceLimits::default(),
+        0,
+        SurfaceCompleteness::Complete,
+        rows,
+        evidence,
+        admissible_actions,
+        Vec::new(),
+    )
+    .map_err(PortfolioError::from)
 }
 
 fn portfolio_frontier_action(action: AttentionAction) -> Option<ContractIdentity> {
@@ -1171,6 +1360,12 @@ pub enum PortfolioError {
     InvalidReadyAction(String),
     #[error("portfolio frontier does not match deterministic attention projection")]
     FrontierDerivationMismatch,
+    #[error("portfolio reasoning evidence does not match deterministic orientation")]
+    ReasoningDerivationMismatch,
+    #[error("scheduled portfolio frontier row is missing")]
+    SelectedFrontierRowMissing,
+    #[error("scheduled portfolio attention row is missing")]
+    SelectedAttentionRowMissing,
     #[error("portfolio relation is not in canonical order")]
     NonCanonical,
     #[error("duplicate portfolio identity {0}")]
@@ -1210,6 +1405,10 @@ pub enum PortfolioError {
     Polars(#[from] polars::error::PolarsError),
     #[error(transparent)]
     Frontier(#[from] FrontierError),
+    #[error(transparent)]
+    ReasoningSurface(#[from] ReasoningSurfaceError),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 }
 
 #[cfg(test)]
@@ -1223,7 +1422,7 @@ mod tests {
         AttentionAction, AttentionPolicy, AttentionReadiness, PortfolioLimits,
         PortfolioQualificationState, PortfolioSnapshot, PortfolioSurfaceObservation,
         PortfolioWorkloadObservation, WorkloadAttention, derive_portfolio_frontier,
-        verify_portfolio_frontier,
+        orient_portfolio_attention, verify_portfolio_frontier,
     };
 
     fn contract(id: &str) -> ContractIdentity {
@@ -1405,11 +1604,18 @@ mod tests {
             AttentionPolicy::Track,
         );
         blocked.missing_capability_ids = vec!["parser.rust".to_owned()];
+        let mut changed = observation(
+            "changed",
+            PortfolioQualificationState::Qualified,
+            AttentionPolicy::Track,
+        );
+        changed.changed_dependency_ids = vec!["surface:src/lib.rs@changed".to_owned()];
         let snapshot = PortfolioSnapshot::new(
             SemanticHasher::new("catalog").finish(),
             Some(SemanticHasher::new("environment").finish()),
             vec![
                 blocked,
+                changed,
                 observation(
                     "excluded",
                     PortfolioQualificationState::Failing,
@@ -1438,8 +1644,8 @@ mod tests {
         let attention = WorkloadAttention::derive(&snapshot).unwrap();
         let frontier = derive_portfolio_frontier(&snapshot, &attention).unwrap();
 
-        assert_eq!(attention.rows.len(), 5);
-        assert_eq!(frontier.rows.len(), 3);
+        assert_eq!(attention.rows.len(), 6);
+        assert_eq!(frontier.rows.len(), 4);
         assert_eq!(frontier.assessment, FrontierAssessment::Open);
         assert!(frontier.rows.iter().all(|row| {
             let source = attention
@@ -1457,6 +1663,12 @@ mod tests {
                     source.reason.as_str()
                 ))
         }));
+        assert!(frontier.rows.iter().any(|row| {
+            row.entity_id == "changed"
+                && row.claim_ids.contains(
+                    &"rey.workload-attention-dependency:surface:src/lib.rs@changed".to_owned(),
+                )
+        }));
         verify_portfolio_frontier(&frontier, &snapshot, &attention).unwrap();
         let scheduling = schedule(
             &frontier,
@@ -1469,7 +1681,22 @@ mod tests {
         )
         .unwrap();
         assert_eq!(scheduling.outcome, ScheduleOutcome::Selected);
-        assert_eq!(scheduling.selected.len(), 3);
+        assert_eq!(scheduling.selected.len(), 4);
+
+        let orientation = orient_portfolio_attention(&snapshot, &attention).unwrap();
+        assert_eq!(orientation.scheduling.outcome, ScheduleOutcome::Selected);
+        assert_eq!(orientation.scheduling.selected.len(), 1);
+        let surface = orientation.surface.as_ref().unwrap();
+        assert_eq!(surface.rows.len(), 1);
+        assert_eq!(surface.evidence.len(), 2);
+        assert_eq!(surface.admissible_actions.len(), 1);
+        assert_eq!(
+            surface.rows[0].frontier_row_id,
+            orientation.scheduling.selected[0]
+                .frontier_row_id
+                .to_string()
+        );
+        orientation.verify_against(&snapshot, &attention).unwrap();
 
         let mut tampered = frontier;
         tampered.rows[0].priority += 1;
@@ -1496,6 +1723,12 @@ mod tests {
                 .unwrap()
                 .assessment,
             FrontierAssessment::Converged
+        );
+        assert!(
+            orient_portfolio_attention(&clean, &clean_attention)
+                .unwrap()
+                .surface
+                .is_none()
         );
 
         let blocked = PortfolioSnapshot::new(

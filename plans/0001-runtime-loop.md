@@ -43,7 +43,7 @@ their owners, and no recurring scheduler or Git cursor drives the loop.
 
 - [x] Project admitted ready attention rows into the generic frontier without
   copying the portfolio or allowing the scheduler to invent reasons.
-- [ ] Build one bounded reasoning surface that cites the exact attention row,
+- [x] Build one bounded reasoning surface that cites the exact attention row,
   dependent deltas, evidence, omissions, allowed graph operations, and total
   budget.
 - [ ] Preserve distinct attention, frontier, scheduling, progress, and proof

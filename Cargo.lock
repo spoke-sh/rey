@@ -2474,7 +2474,6 @@ dependencies = [
  "rey-core",
  "rey-diff",
  "rey-environment",
- "rey-frontier",
  "rey-git",
  "rey-locator",
  "rey-mining",

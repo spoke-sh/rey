@@ -69,11 +69,11 @@ use rey_mining::{
 };
 use rey_runtime::{
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
-    CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, RunStatus, ScenarioEvaluation, ScenarioResult,
-    SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention, WorkloadDefinition,
-    WorkloadRunResult, WorkloadTestResult, WorkloadValue, derive_portfolio_frontier, run_workload,
-    run_workload_with_source, run_workload_with_topography, source_fixture_root,
-    test_workload_with_observer_and_snapshot,
+    CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, PortfolioReasoningEvidence, RunStatus, ScenarioEvaluation,
+    ScenarioResult, SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention,
+    WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue,
+    orient_portfolio_attention, run_workload, run_workload_with_source,
+    run_workload_with_topography, source_fixture_root, test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -1789,16 +1789,16 @@ fn current_workload_list(
     let environment = retained_environment_snapshot(workspace)?;
     let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
     let attention = WorkloadAttention::derive(&snapshot)?;
-    let frontier = environment
+    let runtime = environment
         .as_ref()
-        .map(|_| derive_portfolio_frontier(&snapshot, &attention))
+        .map(|_| orient_portfolio_attention(&snapshot, &attention))
         .transpose()?;
     let list = WorkloadList::new(
         catalog.descriptor.clone(),
         summaries,
         revision.drafts.clone(),
         attention,
-        frontier,
+        runtime,
         Some(revision),
     );
     Ok(list)
@@ -1832,16 +1832,16 @@ fn workload_list(
             let environment = retained_environment_snapshot(workspace)?;
             let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
             let attention = WorkloadAttention::derive(&snapshot)?;
-            let frontier = environment
+            let runtime = environment
                 .as_ref()
-                .map(|_| derive_portfolio_frontier(&snapshot, &attention))
+                .map(|_| orient_portfolio_attention(&snapshot, &attention))
                 .transpose()?;
             WorkloadList::new(
                 catalog.descriptor.clone(),
                 summaries,
                 catalog.drafts.clone(),
                 attention,
-                frontier,
+                runtime,
                 None,
             )
         }
@@ -1894,16 +1894,16 @@ fn workload_conformance_status(
     let environment = retained_environment_snapshot(workspace)?;
     let snapshot = derive_portfolio_snapshot(&definitions, &state, environment.as_ref())?;
     let attention = WorkloadAttention::derive(&snapshot)?;
-    let frontier = environment
+    let runtime = environment
         .as_ref()
-        .map(|_| derive_portfolio_frontier(&snapshot, &attention))
+        .map(|_| orient_portfolio_attention(&snapshot, &attention))
         .transpose()?;
     let batch = WorkloadStatusBatch::new(
         catalog.descriptor.clone(),
         statuses,
         Vec::new(),
         attention,
-        frontier,
+        runtime,
     );
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
@@ -3670,7 +3670,7 @@ fn write_workload_list(
         ),
     )?;
     write_attention_frontier(output, &list.attention, style)?;
-    write_runtime_frontier(output, list.frontier.as_ref(), style)?;
+    write_runtime_frontier(output, list.runtime.as_ref(), style)?;
     if list.workloads.is_empty() && list.drafts.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
@@ -3999,12 +3999,12 @@ fn write_attention_frontier(
 
 fn write_runtime_frontier(
     output: &mut impl Write,
-    frontier: Option<&rey_frontier::Frontier>,
+    runtime: Option<&PortfolioReasoningEvidence>,
     style: TerminalStyle,
 ) -> Result<(), CliError> {
     writeln!(output)?;
     writeln!(output, "{}", style.bold("RUNTIME FRONTIER"))?;
-    let Some(frontier) = frontier else {
+    let Some(runtime) = runtime else {
         writeln!(
             output,
             "  {}",
@@ -4012,6 +4012,7 @@ fn write_runtime_frontier(
         )?;
         return Ok(());
     };
+    let frontier = &runtime.frontier;
     write_portfolio_field(
         output,
         "Frontier",
@@ -4044,6 +4045,58 @@ fn write_runtime_frontier(
             writeln!(output, "  {:<22} {claim}", "Attention claim")?;
         }
     }
+    write_portfolio_field(
+        output,
+        "Scheduling",
+        &format!(
+            "{} · {:?} · {} selected · cost {}/{}",
+            runtime.scheduling.decision_id,
+            runtime.scheduling.outcome,
+            runtime.scheduling.selected.len(),
+            runtime.scheduling.selected_cost_units,
+            runtime.scheduling.limits.max_total_cost_units,
+        ),
+    )?;
+    if let Some(surface) = &runtime.surface {
+        write_portfolio_field(
+            output,
+            "Reasoning surface",
+            &format!(
+                "{} · {:?} · {} rows · {} evidence · {} actions",
+                surface.surface_id,
+                surface.completeness,
+                surface.rows.len(),
+                surface.evidence.len(),
+                surface.admissible_actions.len(),
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Surface budget",
+            &format!(
+                "{} rows · {} evidence bytes · {} retrieval iterations",
+                surface.limits.max_rows,
+                surface.limits.max_total_evidence_bytes,
+                surface.limits.max_retrieval_iterations,
+            ),
+        )?;
+    } else {
+        write_portfolio_field(
+            output,
+            "Reasoning surface",
+            "not produced · no work selected",
+        )?;
+    }
+    write_portfolio_field(
+        output,
+        "Progress",
+        "not derived · no prior runtime frontier",
+    )?;
+    write_portfolio_field(
+        output,
+        "Proof",
+        "not derived · no evaluated runtime transition",
+    )?;
     Ok(())
 }
 
@@ -4272,7 +4325,7 @@ fn write_workload_status(
     }
     writeln!(output)?;
     write_attention_frontier(output, &batch.attention, TerminalStyle::stdout())?;
-    write_runtime_frontier(output, batch.frontier.as_ref(), TerminalStyle::stdout())?;
+    write_runtime_frontier(output, batch.runtime.as_ref(), TerminalStyle::stdout())?;
     Ok(())
 }
 
