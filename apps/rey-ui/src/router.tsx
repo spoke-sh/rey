@@ -68,8 +68,8 @@ export type CommunicationAxis = "mailbox" | "conversation";
 export const PRIMARY_NAV_ITEMS = [
   { label: "Feed", to: "/feed", prefixes: ["/feed"] },
   { label: "Explore", to: "/explore", prefixes: ["/explore"] },
-  { label: "Cadence", to: "/cadence", prefixes: ["/cadence"] },
   { label: "Agents", to: "/agents", prefixes: ["/agents", "/journal"] },
+  { label: "Cadence", to: "/cadence", prefixes: ["/cadence"] },
   { label: "Workloads", to: "/workloads", prefixes: ["/workloads"] },
   { label: "Environment", to: "/environment", prefixes: ["/environment"] },
 ] as const;
