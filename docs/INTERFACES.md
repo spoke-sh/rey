@@ -443,10 +443,10 @@ resource. The implemented `rey.projection-packet.v1` carries:
 packet identity + source evidence identities
 coordinate/embedding basis + implementation revision + parameters
 bounded source scene objects + scalar/vector/mask channel descriptors
-exact typed field pyramid + surveyed-validity masks + world bounds
-per-level regimes/strides/allocations + total pyramid allocation
+typed procedural terrain program + surveyed-validity rules + world bounds
+frequency bands + transient working-set sampling/cell/byte limits
 scene/field/simulation/material revisions
-effective object/level/cell/byte/resource limits
+effective object/band/working-set/resource limits
 completeness + degradation + omissions + lineage
 ```
 
@@ -458,10 +458,10 @@ receiving authority to reinterpret source evidence.
 
 `rey workloads test --staged context-anchor-survey -vv` exposes the implemented packet
 identity, exact patch binding, synthetic anchor-orientation basis, scene
-compiler, extent, exact overview 31×21, regional 61×41, and local 121×81
-levels, their 12,953-cell/712,415-byte total allocation, regime bindings,
-field descriptors, validity regions, layers, effective limits, degradation,
-omissions, and lineage.
+compiler, extent, terrain evaluator and seed, macro/meso/micro band parameters,
+absolute-coordinate and validity rules, 255×255 / 65,025-cell / 3,576,375-byte
+maximum transient working set, field descriptors, validity regions, layers,
+effective limits, degradation, omissions, and lineage.
 `rey.workload-list.v1` carries the same packet beside its exact patch, and
 Explorer fails closed to the portfolio fallback unless both identities match.
 When a semantic atlas is present, Explorer also binds the atlas and layout
@@ -477,11 +477,13 @@ scene must separately bind its exact editor package, native-to-semantic region
 transform, county-local tangent transform, terrain and feature layers,
 validity/no-data semantics, limits, omissions, and admission lineage before it
 can become Atlas or County fabric. See [ADR
-0056](decisions/0056-continuous-globe-mercator-county-grammar.md).
-The browser rejects a compiled level or pyramid whose dimensions, nesting,
-cells, or byte allocation diverges from that packet. It selects overview for
-World, regional for Atlas/Landscape, and local for Neighborhood/Object/Evidence
-while retaining one exact world extent. Smooth LOD blending, retained
+0056](decisions/0056-continuous-globe-mercator-county-grammar.md) and [ADR
+0057](decisions/0057-procedural-terrain-program.md).
+The browser rejects a working set whose shape, channels, cells, or byte
+allocation diverges from that packet. It snaps the visible envelope to
+absolute scene coordinates and selects only frequency bands supported by the
+current sample spacing while retaining one exact source extent. Clipmap reuse,
+smooth LOD blending, retained
 renderer/fallback captures, viewport evidence, and performance evidence remain
 incomplete Plan 0020 work. Structured output preserves typed values rather than
 serializing GPU state.
@@ -913,7 +915,7 @@ file snapshot before committing it with expected HEAD/WORKING preconditions.
 Neither is authenticated or origin-gated on
 an explicitly configured listener. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
-`/feed?streams=admission.all`. The application routes are `/feed`, coordinate-bound `/explore`
+`/explore`. The application routes are `/feed`, coordinate-bound `/explore`
 query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
@@ -936,6 +938,17 @@ requests expose request posture and exact coding-harness bindings as two
 relations. The Feed starts with admission rows and an exact-index approval
 control. That control advances HEAD through the same local commit contract as
 the CLI; it never edits WORKING or bypasses qualification.
+
+`/explore` is the initial human bearing. With no admitted topography it renders
+an abstract orientation globe rather than the legacy portfolio-card graph.
+Exact request, WORKING, INDEX, and admitted-but-unrun workload revisions appear
+as workload beacons sourced from `rey.workload-list.v1`. Each beacon exposes
+its file, digest, producer, admission plane, and next consent step. Beacon
+coordinates are stable presentation geometry only; the orientation document is
+not `rey.semantic-atlas.v1`, supplies no semantic-distance claim, and cannot
+execute or admit a workload. The review action enters the exact workload
+record; the consent action enters `/feed?streams=admission.all`, where the
+existing combined qualification and human approval gate remains authoritative.
 
 The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact

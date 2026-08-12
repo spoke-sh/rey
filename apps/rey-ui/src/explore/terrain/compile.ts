@@ -1,4 +1,4 @@
-import type { ProjectionFieldLevel, ProjectionPacket } from "../../domain";
+import type { ProjectionPacket, ProjectionTerrainBand } from "../../domain";
 import {
   TERRAIN_FIELD_SCHEMA,
   createFieldGrid,
@@ -11,18 +11,32 @@ import {
   type ScalarField2D,
   type VectorField2D,
 } from "../engine/fields";
-import type { LensRegime } from "../engine/camera";
 import { deriveAnchorElevation, type TerrainAnchorSample } from "./elevation";
 import { deriveHydrology, type TerrainAtmosphereSample } from "./hydrology";
 import { deriveTerrainMaterial } from "./materials";
 import { deriveTerrainNormals } from "./normals";
 
+export const COMPILED_TERRAIN_PROGRAM_SCHEMA =
+  "rey.compiled-terrain-program.v1" as const;
+
+export interface TerrainProgram {
+  schema: typeof COMPILED_TERRAIN_PROGRAM_SCHEMA;
+  program_id: string;
+  source_id: string;
+  source_revision: string;
+  bounds: FieldBounds;
+  anchors: readonly TerrainAnchorSample[];
+  atmosphere: readonly TerrainAtmosphereSample[];
+  unresolved_pressure: number;
+  projection: ProjectionPacket;
+}
+
 export interface TerrainFieldSet {
   schema: typeof TERRAIN_FIELD_SCHEMA;
   field_set_id: string;
-  level_id: string;
-  sample_stride: number;
-  regimes: readonly LensRegime[];
+  program_id: string;
+  working_set_id: string;
+  active_band_ids: readonly string[];
   detail_authority: string;
   source_revision: string;
   grid: FieldGrid;
@@ -40,31 +54,7 @@ export interface TerrainFieldSet {
   field_bytes: number;
 }
 
-export const TERRAIN_FIELD_PYRAMID_SCHEMA =
-  "rey.terrain-field-pyramid.v1" as const;
-
-export interface TerrainFieldPyramid {
-  schema: typeof TERRAIN_FIELD_PYRAMID_SCHEMA;
-  pyramid_id: string;
-  source_revision: string;
-  levels: readonly TerrainFieldSet[];
-  total_cells: number;
-  total_bytes: number;
-  stable_coordinate_rule: string;
-}
-
-export interface TerrainFieldCompilation {
-  source_id: string;
-  source_revision: string;
-  level: ProjectionFieldLevel;
-  grid: FieldGrid;
-  anchors: readonly TerrainAnchorSample[];
-  atmosphere: readonly TerrainAtmosphereSample[];
-  unresolved_pressure: number;
-  projection: ProjectionPacket;
-}
-
-export interface TerrainFieldPyramidCompilation {
+export interface TerrainProgramCompilation {
   source_id: string;
   source_revision: string;
   bounds: FieldBounds;
@@ -74,105 +64,195 @@ export interface TerrainFieldPyramidCompilation {
   projection: ProjectionPacket;
 }
 
-export function compileTerrainFieldPyramid(
-  input: TerrainFieldPyramidCompilation,
-): TerrainFieldPyramid {
-  if (input.projection.field_pyramid.schema !== TERRAIN_FIELD_PYRAMID_SCHEMA)
-    throw new Error("unsupported terrain field pyramid schema");
-  if (input.source_revision !== input.projection.source_topography_revision)
-    throw new Error("terrain field pyramid source revision is not bound");
-  const levels = input.projection.field_pyramid.levels.map((level) =>
-    compileTerrainFields({
-      ...input,
-      level,
-      grid: createFieldGrid(level.columns, level.rows, input.bounds),
-    }),
+export interface TerrainWorkingSetRequest {
+  working_set_id: string;
+  bounds: FieldBounds;
+  columns: number;
+  rows: number;
+  detail_authority: string;
+}
+
+export interface TerrainCameraView {
+  world_width: number;
+  world_height: number;
+  viewport_width: number;
+  viewport_height: number;
+  rendered_scale: number;
+  pan_x: number;
+  pan_y: number;
+}
+
+export function terrainWorkingSetForView(
+  program: TerrainProgram,
+  view: TerrainCameraView,
+): TerrainWorkingSetRequest {
+  const working = program.projection.terrain_program.working_set;
+  const scale = Math.max(0.000_001, view.rendered_scale);
+  const targetSpacing = working.target_sample_spacing_pixels / scale;
+  const centerX = view.world_width / 2 - view.pan_x / scale;
+  const centerY = view.world_height / 2 - view.pan_y / scale;
+  const overscan = targetSpacing * working.overscan_samples;
+  const requested = {
+    x: centerX - view.viewport_width / scale / 2 - overscan,
+    y: centerY - view.viewport_height / scale / 2 - overscan,
+    width: view.viewport_width / scale + overscan * 2,
+    height: view.viewport_height / scale + overscan * 2,
+  };
+  const left = Math.max(
+    program.bounds.x,
+    Math.floor(requested.x / targetSpacing) * targetSpacing,
   );
-  const pyramid = Object.freeze({
-    schema: TERRAIN_FIELD_PYRAMID_SCHEMA,
-    pyramid_id: [
-      TERRAIN_FIELD_PYRAMID_SCHEMA,
+  const top = Math.max(
+    program.bounds.y,
+    Math.floor(requested.y / targetSpacing) * targetSpacing,
+  );
+  const right = Math.min(
+    program.bounds.x + program.bounds.width,
+    Math.ceil((requested.x + requested.width) / targetSpacing) * targetSpacing,
+  );
+  const bottom = Math.min(
+    program.bounds.y + program.bounds.height,
+    Math.ceil((requested.y + requested.height) / targetSpacing) * targetSpacing,
+  );
+  const bounds =
+    right > left && bottom > top
+      ? { x: left, y: top, width: right - left, height: bottom - top }
+      : { ...program.bounds };
+  let columns = Math.min(
+    working.max_columns,
+    Math.max(2, Math.ceil(bounds.width / targetSpacing) + 1),
+  );
+  let rows = Math.min(
+    working.max_rows,
+    Math.max(2, Math.ceil(bounds.height / targetSpacing) + 1),
+  );
+  if (columns * rows > working.max_cells) {
+    const reduction = Math.sqrt(working.max_cells / (columns * rows));
+    columns = Math.max(2, Math.floor(columns * reduction));
+    rows = Math.max(2, Math.floor(rows * reduction));
+  }
+  return {
+    working_set_id: [
+      "camera",
+      bounds.x.toFixed(4),
+      bounds.y.toFixed(4),
+      bounds.width.toFixed(4),
+      bounds.height.toFixed(4),
+      `${columns}x${rows}`,
+    ].join(":"),
+    bounds,
+    columns,
+    rows,
+    detail_authority:
+      "transient camera-relative evaluation of the admitted terrain program",
+  };
+}
+
+export function compileTerrainProgram(
+  input: TerrainProgramCompilation,
+): TerrainProgram {
+  const declared = input.projection.terrain_program;
+  if (declared.schema !== "rey.terrain-program.v1")
+    throw new Error("unsupported terrain program schema");
+  if (input.source_revision !== input.projection.source_topography_revision)
+    throw new Error("terrain program source revision is not bound");
+  if (
+    input.bounds.width <= 0 ||
+    input.bounds.height <= 0 ||
+    declared.bands.length === 0 ||
+    declared.bands.length > input.projection.limits.max_terrain_bands
+  )
+    throw new Error("terrain program shape or limits are invalid");
+  const program = Object.freeze({
+    schema: COMPILED_TERRAIN_PROGRAM_SCHEMA,
+    program_id: [
+      COMPILED_TERRAIN_PROGRAM_SCHEMA,
       input.projection.packet_id,
       input.source_id,
       input.source_revision,
-      ...levels.map((level) => level.field_set_id),
+      declared.evaluator.semantic_digest,
+      declared.seed,
+      `${input.bounds.x},${input.bounds.y},${input.bounds.width},${input.bounds.height}`,
     ].join("|"),
+    source_id: input.source_id,
     source_revision: input.source_revision,
-    levels: Object.freeze(levels),
-    total_cells: levels.reduce((total, level) => total + level.field_cells, 0),
-    total_bytes: levels.reduce((total, level) => total + level.field_bytes, 0),
-    stable_coordinate_rule:
-      input.projection.field_pyramid.stable_coordinate_rule,
+    bounds: Object.freeze({ ...input.bounds }),
+    anchors: Object.freeze(
+      input.anchors.map((anchor) => Object.freeze({ ...anchor })),
+    ),
+    atmosphere: Object.freeze(
+      input.atmosphere.map((sample) => Object.freeze({ ...sample })),
+    ),
+    unresolved_pressure: input.unresolved_pressure,
+    projection: input.projection,
   });
-  verifyTerrainFieldPyramid(pyramid, input.projection);
-  return pyramid;
+  return program;
 }
 
-export function terrainFieldForRegime(
-  pyramid: TerrainFieldPyramid,
-  regime: LensRegime,
+export function materializeTerrainWorkingSet(
+  program: TerrainProgram,
+  request: TerrainWorkingSetRequest,
 ): TerrainFieldSet {
-  const level = pyramid.levels.find((candidate) =>
-    candidate.regimes.includes(regime),
-  );
-  if (!level)
-    throw new Error(`terrain field pyramid has no level for ${regime}`);
-  return level;
-}
-
-export function compileTerrainFields(
-  input: TerrainFieldCompilation,
-): TerrainFieldSet {
-  const cells = fieldCellCount(input.grid);
-  const declaredLevel = input.projection.field_pyramid.levels.find(
-    (level) => level.level_id === input.level.level_id,
-  );
+  const declared = program.projection.terrain_program;
+  const working = declared.working_set;
   if (
-    !declaredLevel ||
-    declaredLevel.columns !== input.level.columns ||
-    declaredLevel.rows !== input.level.rows ||
-    declaredLevel.cells !== input.level.cells ||
-    declaredLevel.bytes_per_cell !== input.level.bytes_per_cell ||
-    declaredLevel.total_bytes !== input.level.total_bytes ||
-    declaredLevel.sample_stride !== input.level.sample_stride ||
-    declaredLevel.regimes.join("|") !== input.level.regimes.join("|") ||
-    declaredLevel.detail_authority !== input.level.detail_authority ||
-    input.grid.columns !== input.level.columns ||
-    input.grid.rows !== input.level.rows ||
-    cells !== input.level.cells
+    !Number.isInteger(request.columns) ||
+    !Number.isInteger(request.rows) ||
+    request.columns < 2 ||
+    request.rows < 2 ||
+    request.columns > working.max_columns ||
+    request.rows > working.max_rows
   )
-    throw new Error(
-      `terrain field level ${input.level.level_id} does not match its projection packet layout`,
-    );
+    throw new Error("terrain working-set dimensions are invalid");
+  const grid = createFieldGrid(request.columns, request.rows, request.bounds);
+  const cells = fieldCellCount(grid);
+  const expectedBytes = cells * working.bytes_per_cell;
+  if (
+    cells > working.max_cells ||
+    cells > program.projection.limits.max_working_set_cells ||
+    expectedBytes > working.max_bytes ||
+    expectedBytes > program.projection.limits.max_working_set_bytes
+  )
+    throw new Error("terrain working-set allocation exceeds its packet limits");
+
   const elevationScaleRatio = Number(
-    input.projection.projection_basis.parameters.elevation_scale_ratio,
+    program.projection.projection_basis.parameters.elevation_scale_ratio,
   );
   if (!Number.isFinite(elevationScaleRatio) || elevationScaleRatio <= 0)
     throw new Error("projection packet has no valid elevation scale ratio");
   const elevationScale =
-    Math.min(input.grid.bounds.width, input.grid.bounds.height) *
-    elevationScaleRatio;
-  if (cells > input.projection.limits.max_field_cells)
-    throw new Error(
-      `terrain field cell limit ${input.projection.limits.max_field_cells} exceeded by ${cells}`,
-    );
+    Math.min(program.bounds.width, program.bounds.height) * elevationScaleRatio;
   const revision = (channel: string) => {
-    const field = input.projection.field_channels.find(
+    const field = program.projection.field_channels.find(
       (candidate) => candidate.id === channel,
     );
     if (!field) throw new Error(`projection packet omits ${channel} channel`);
     return field.implementation.semantic_digest;
   };
-  const anchor = deriveAnchorElevation(input.grid, input.anchors, {
-    validity: revision("validity"),
-    elevation: revision("elevation"),
-  });
+  const spacing = Math.max(
+    request.bounds.width / Math.max(1, request.columns - 1),
+    request.bounds.height / Math.max(1, request.rows - 1),
+  );
+  const activeBands = declared.bands.filter(
+    (band) =>
+      band.wavelength_scene_units / spacing >=
+      band.minimum_samples_per_wavelength,
+  );
+  const anchor = deriveAnchorElevation(
+    grid,
+    program.anchors,
+    { validity: revision("validity"), elevation: revision("elevation") },
+    {
+      seed: declared.seed,
+      bands: activeBands,
+    },
+  );
   const hydrology = deriveHydrology(
-    input.source_id,
+    program.source_id,
     anchor.elevation,
     anchor.validity,
-    input.atmosphere,
-    input.unresolved_pressure,
+    program.atmosphere,
+    program.unresolved_pressure,
     {
       rainfall: revision("rainfall"),
       flow_direction: revision("flow_direction"),
@@ -185,10 +265,7 @@ export function compileTerrainFields(
     hydrology.elevation,
     anchor.validity,
     elevationScale,
-    {
-      normal: revision("normal"),
-      curvature: revision("curvature"),
-    },
+    { normal: revision("normal"), curvature: revision("curvature") },
   );
   const material = deriveTerrainMaterial(
     hydrology.elevation,
@@ -213,36 +290,29 @@ export function compileTerrainFields(
     (total, field) => total + fieldByteLength(field),
     0,
   );
-  if (fields.length > input.projection.limits.max_field_channels)
+  if (fields.length > program.projection.limits.max_field_channels)
+    throw new Error("terrain channel limit exceeded");
+  if (fieldBytes !== expectedBytes)
     throw new Error(
-      `terrain channel limit ${input.projection.limits.max_field_channels} exceeded by ${fields.length}`,
+      `terrain working-set allocation ${fieldBytes} does not match declared ${expectedBytes}`,
     );
-  if (fieldBytes > input.projection.limits.max_field_bytes)
-    throw new Error(
-      `terrain byte limit ${input.projection.limits.max_field_bytes} exceeded by ${fieldBytes}`,
-    );
-  if (fieldBytes !== input.level.total_bytes)
-    throw new Error(
-      `terrain field allocation ${fieldBytes} does not match level allocation ${input.level.total_bytes}`,
-    );
-  const fieldSet = Object.freeze({
+  const result = Object.freeze({
     schema: TERRAIN_FIELD_SCHEMA,
     field_set_id: [
       TERRAIN_FIELD_SCHEMA,
-      input.source_id,
-      input.source_revision,
-      input.level.level_id,
-      `${input.grid.columns}x${input.grid.rows}`,
-      `${input.grid.bounds.x},${input.grid.bounds.y},${input.grid.bounds.width},${input.grid.bounds.height}`,
-      `elevation-scale:${elevationScale}`,
+      program.program_id,
+      request.working_set_id,
+      `${grid.columns}x${grid.rows}`,
+      `${grid.bounds.x},${grid.bounds.y},${grid.bounds.width},${grid.bounds.height}`,
+      ...activeBands.map((band) => band.band_id),
       ...fields.map((field) => field.implementation_revision),
     ].join("|"),
-    level_id: input.level.level_id,
-    sample_stride: input.level.sample_stride,
-    regimes: Object.freeze([...input.level.regimes]),
-    detail_authority: input.level.detail_authority,
-    source_revision: input.source_revision,
-    grid: input.grid,
+    program_id: program.program_id,
+    working_set_id: request.working_set_id,
+    active_band_ids: Object.freeze(activeBands.map((band) => band.band_id)),
+    detail_authority: request.detail_authority,
+    source_revision: program.source_revision,
+    grid,
     elevation_scale: elevationScale,
     validity: anchor.validity,
     elevation: hydrology.elevation,
@@ -256,33 +326,24 @@ export function compileTerrainFields(
     field_cells: cells,
     field_bytes: fieldBytes,
   });
-  verifyTerrainFields(fieldSet, input.projection);
-  return fieldSet;
+  verifyTerrainWorkingSet(result, program);
+  return result;
 }
 
-export function verifyTerrainFields(
+export function verifyTerrainWorkingSet(
   fields: TerrainFieldSet,
-  projection: ProjectionPacket,
+  program: TerrainProgram,
 ): void {
-  if (fields.schema !== TERRAIN_FIELD_SCHEMA)
-    throw new Error("unsupported terrain field schema");
-  const level = projection.field_pyramid.levels.find(
-    (candidate) => candidate.level_id === fields.level_id,
-  );
+  const working = program.projection.terrain_program.working_set;
   if (
-    !level ||
+    fields.schema !== TERRAIN_FIELD_SCHEMA ||
+    fields.program_id !== program.program_id ||
+    fields.source_revision !== program.source_revision ||
     fields.field_cells !== fieldCellCount(fields.grid) ||
-    fields.field_cells !== level.cells ||
-    fields.grid.columns !== level.columns ||
-    fields.grid.rows !== level.rows ||
-    fields.field_bytes !== level.total_bytes ||
-    fields.sample_stride !== level.sample_stride ||
-    fields.detail_authority !== level.detail_authority ||
-    fields.regimes.join("|") !== level.regimes.join("|") ||
-    fields.field_cells > projection.limits.max_field_cells ||
-    fields.field_bytes > projection.limits.max_field_bytes
+    fields.field_cells > working.max_cells ||
+    fields.field_bytes > working.max_bytes
   )
-    throw new Error("terrain field limits or shape are invalid");
+    throw new Error("terrain working-set identity or limits are invalid");
   const sameGrid = [
     fields.validity,
     fields.elevation,
@@ -305,65 +366,13 @@ export function verifyTerrainFields(
   if (!sameGrid) throw new Error("terrain fields do not share one exact grid");
 }
 
-export function verifyTerrainFieldPyramid(
-  pyramid: TerrainFieldPyramid,
-  projection: ProjectionPacket,
-): void {
-  if (
-    pyramid.schema !== TERRAIN_FIELD_PYRAMID_SCHEMA ||
-    pyramid.levels.length !== projection.field_pyramid.levels.length ||
-    pyramid.levels.length > projection.limits.max_field_levels ||
-    pyramid.total_cells !== projection.field_pyramid.total_cells ||
-    pyramid.total_bytes !== projection.field_pyramid.total_bytes ||
-    pyramid.total_cells > projection.limits.max_total_field_cells ||
-    pyramid.total_bytes > projection.limits.max_total_field_bytes ||
-    pyramid.stable_coordinate_rule !==
-      projection.field_pyramid.stable_coordinate_rule
-  )
-    throw new Error("terrain field pyramid limits or identity are invalid");
-  const finest = pyramid.levels.find((level) => level.sample_stride === 1);
-  if (!finest) throw new Error("terrain field pyramid has no finest level");
-  const levelIds = new Set<string>();
-  const sampleStrides = new Set<number>();
-  const regimes = new Set<LensRegime>();
-  for (const level of pyramid.levels) {
-    verifyTerrainFields(level, projection);
-    if (levelIds.has(level.level_id))
-      throw new Error("terrain field pyramid repeats a level identity");
-    levelIds.add(level.level_id);
-    if (sampleStrides.has(level.sample_stride))
-      throw new Error("terrain field pyramid repeats a sample stride");
-    sampleStrides.add(level.sample_stride);
-    for (const regime of level.regimes) {
-      if (regimes.has(regime))
-        throw new Error("terrain field pyramid repeats a semantic regime");
-      regimes.add(regime);
-    }
-    if (
-      (finest.grid.columns - 1) / level.sample_stride + 1 !==
-        level.grid.columns ||
-      (finest.grid.rows - 1) / level.sample_stride + 1 !== level.grid.rows ||
-      level.grid.bounds.x !== finest.grid.bounds.x ||
-      level.grid.bounds.y !== finest.grid.bounds.y ||
-      level.grid.bounds.width !== finest.grid.bounds.width ||
-      level.grid.bounds.height !== finest.grid.bounds.height
-    )
-      throw new Error(
-        "terrain field pyramid levels do not share nested coordinates",
-      );
-  }
-  if (
-    [...regimes].sort().join("|") !==
-    [
-      "atlas",
-      "evidence",
-      "landscape",
-      "neighborhoods",
-      "objects",
-      "world",
-    ].join("|")
-  )
-    throw new Error(
-      "terrain field pyramid does not cover every semantic regime",
-    );
+export function terrainBandsForSpacing(
+  bands: readonly ProjectionTerrainBand[],
+  sampleSpacing: number,
+): readonly ProjectionTerrainBand[] {
+  return bands.filter(
+    (band) =>
+      band.wavelength_scene_units / sampleSpacing >=
+      band.minimum_samples_per_wavelength,
+  );
 }

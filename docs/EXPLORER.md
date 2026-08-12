@@ -58,7 +58,7 @@ Context topography = topology + scale + surveyed coverage + frontier +
 Projection packet  = exact evidence + projection basis + fields + validity +
                      revisions + limits + omissions
 Scene snapshot     = immutable stably ordered engine scene
-Terrain field      = bounded multiresolution scalar/vector channels + validity
+Terrain working set = bounded transient scalar/vector channels + validity
 Canvas             = spatial view over one bounded topography projection
 Camera             = center + continuous scale + viewport
 Lens               = semantic projection(topography, focus, camera)
@@ -68,6 +68,10 @@ Editor project      = mutable workspace declaration of native candidate inputs
 Scene package       = immutable candidate + native objects; never admission
 World              = far projection of admitted charts, survey weather, and
                      unresolved survey horizons
+Orientation globe  = pre-survey presentation sphere carrying exact workload
+                     beacons; never an admitted atlas or semantic-distance claim
+Workload beacon    = exact request, WORKING, INDEX, or admitted-but-unrun
+                     workload revision asking for operator attention
 Sector             = revision-bound synthetic atlas partition; never a source
                      boundary or an inferred relationship
 County             = one admitted detailed regional scene with a stable
@@ -113,6 +117,29 @@ materials and passes become pixels. React owns the route, controls,
 accessibility, evidence panels, and lifecycle around that surface. None may
 take over another layer's semantic authority.
 
+Before admitted evidence exists, Explorer has a separate consent-first
+orientation flow:
+
+```text
+file-backed request or WORKING package
+  → exact workload beacon on an unmapped orientation globe
+  → operator inspects source, digest, producer, graph, and scenario oracle
+  → operator explicitly qualifies and admits the exact workload revision
+  → agent may run the admitted survey only over explicitly chosen seeds
+  → retained topography patch + projection packet
+  → admitted semantic atlas and generated terrain
+```
+
+The orientation globe is the default `/explore` posture for a fresh `.rey`
+state and remains the only Explorer grammar until an admitted topography patch
+exists. Its stable beacon placement is presentation-only: it is neither
+`rey.semantic-atlas.v1` nor evidence of similarity, distance, geography, or a
+surveyed project boundary. A beacon may draw attention to exact file state but
+cannot execute, qualify, or admit itself. The initial
+`context-anchor-survey` beacon is the proposed first mapping step; selecting it
+opens exact workload inspection and an explicit route to the Feed admission
+control. Only consent followed by a bounded agent run can reveal terrain.
+
 The upstream editor pipeline is deliberately outside this render flow:
 
 ```text
@@ -140,16 +167,17 @@ synthetic orientation layout rather than a language-space embedding.
 The current implementation remains incomplete but now crosses the live renderer
 and semantic-LOD boundaries. The admitted-survey adapter, camera transforms,
 immutable scene wrapper, typed terrain-field modules, SVG/DOM reference
-renderer, and pinned Three.js `0.185.1` WebGPU adapter are separated. The field
-compiler produces three nested, exact-bounds levels with explicit validity,
-elevation, rainfall, flow, erosion, normal, curvature, and presentation-only
-material buffers. World selects the overview level, Atlas and Landscape select
-regional, and Neighborhood through Evidence select local. Coarser samples share
-coordinate-identical local sample positions; resampling adds no semantic
-evidence and never fills invalid support. A TSL node material consumes the
-active buffers as one continuous relief mesh in `/explore`; React retains the
-controls, accessible overlays, exact evidence links, active LOD/backend status,
-and full pyramid allocation. `topology.ts` still combines portfolio adaptation,
+renderer, and pinned Three.js `0.185.1` WebGPU adapter are separated. The
+projection packet now retains a deterministic terrain evaluator, seed,
+macro/meso/micro bands, absolute-coordinate and validity rules, and a bounded
+transient working set. The browser evaluates an exact camera window with
+validity, elevation, rainfall, flow, erosion, normal, curvature, and
+presentation-only material buffers. Its frequency-band selection may add
+visual detail as sample spacing tightens but never adds semantic evidence or
+fills invalid support. A TSL node material consumes the active buffers as one
+continuous relief mesh in `/explore`; React retains the controls, accessible
+overlays, exact evidence links, active band/backend status, and current/maximum
+working-set allocation. `topology.ts` still combines portfolio adaptation,
 scene assembly, contour extraction, and lens data. Plan 0020 owns smooth
 geometric LOD transitions, the remaining render-graph extraction, device-loss
 qualification, and retained visual and performance proof.
@@ -176,8 +204,8 @@ validity/background
   → evidence and accessibility overlays
 ```
 
-The base surface must read before contours or POIs are added. A field uses
-bounded multiresolution tiles or an equivalent data structure, explicit
+The base surface must read before contours or POIs are added. A field uses a
+bounded procedural program and camera-relative transient working set, explicit
 channel revisions, and a per-cell validity mask. Unknown, surveyed-empty,
 omitted, stale, unsupported, truncated, and frontier cells do not acquire
 height through blur, interpolation, erosion, or shading. Visual feathering may
@@ -201,6 +229,10 @@ preserves scene semantics and visible degradation when acceleration is
 unavailable. `?renderer=webgpu`, `?renderer=webgl2`, and
 `?renderer=reference` are view-envelope qualification controls; they do not
 change evidence or execute a probe.
+The production build emits stable lazy chunk names for the globe, terrain,
+WebGPU adapter, and pinned Three.js module, and the `rey ui` server embeds and
+serves each chunk. Starting the documented CLI surface therefore reaches the
+same accelerated path as a direct Vite build.
 
 ## Semantic Lens
 
@@ -344,6 +376,10 @@ scrollable documents.
 - The map is composed only from admitted topography patches. Empty space must
   distinguish surveyed-empty from unexplored, omitted, stale, unsupported, and
   frontier regions; visual interpolation is not evidence.
+- Before that map exists, the orientation globe may show exact file-backed
+  workload beacons. It must label itself unmapped, disclose its
+  presentation-only coordinate authority, and never render those beacons as
+  terrain, regions, paths, inferred activity, or an admitted semantic atlas.
 - Panning, zooming, selecting, or opening a deep link may retrieve and project
   retained evidence. None of those gestures may run a locator, execute a
   survey workload, admit a patch, or silently broaden authority.
@@ -499,10 +535,13 @@ because no transport, agent session, message admission, or retention contract
 exists yet.
 
 The implemented Explorer topology is derived from `rey.workload-list.v1`:
-exact workload packages, drafts, graph/scenario/mining counts, portfolio
+exact workload packages, HEAD/INDEX/WORKING revision state, drafts,
+graph/scenario/mining counts, portfolio
 attention, retained `rey.topography-patch.v1` artifacts, and their exact
 `rey.projection-packet.v1` envelopes. It also consumes the deterministic
-`rey.semantic-atlas.v1` projection of admitted regional patches. At World the
+`rey.semantic-atlas.v1` projection of admitted regional patches. With a fresh
+`.rey`, it projects incoming workload file state as an unmapped orientation
+globe and directs the operator toward consensual survey admission. At World the
 reference backend renders an accessible orthographic sphere and the Three.js
 backend renders a lit WebGPU-first globe; both bind the same atlas revision and
 admitted regional POIs. Atlas and closer lenses retain local relief. Survey
@@ -530,8 +569,8 @@ keyboard, and full-screen state while using framework-independent camera math.
 `ReferenceRenderer` renders accessible overlays and the deterministic fallback;
 it refuses graph edges on terrain even if one is supplied accidentally.
 `AcceleratedTerrainSurface` lazily mounts the Three.js adapter and TSL relief
-mesh, reports its selected backend, active terrain level, bounded
-field/triangle counts, and total retained pyramid allocation, and retains the
+mesh, reports its selected backend, active terrain bands, bounded
+field/triangle counts, and transient working-set allocation, and retains the
 reference terrain through initialization or failure. At World it materializes
 the semantic globe rather than the local terrain mesh, while the reference
 overlay preserves region labels and accessibility.

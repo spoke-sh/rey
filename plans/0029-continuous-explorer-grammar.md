@@ -1,8 +1,10 @@
 # Plan 0029: Continuous Explorer Projection Grammar
 
 - Status: In progress
-- Decision: [ADR
-  0056](../docs/decisions/0056-continuous-globe-mercator-county-grammar.md)
+- Decisions: [ADR
+  0056](../docs/decisions/0056-continuous-globe-mercator-county-grammar.md),
+  [ADR 0057](../docs/decisions/0057-procedural-terrain-program.md), and [ADR
+  0058](../docs/decisions/0058-consent-first-explorer-orientation.md)
 - Extends: [Plan 0020](0020-high-fidelity-projection-engine.md), [Plan
   0021](0021-read-first-scene-editor.md), [Plan
   0022](0022-semantic-spherical-atlas.md), and [Plan
@@ -23,9 +25,20 @@ closer regimes use a flat local relief layout rather than a qualified Mercator
 chart, and there are no stable sector polygons or globe-to-chart morph. The
 editor produces candidate-only CRS84 GeoJSON; no scene-admission workload can
 turn a package into an admitted county. The accelerated terrain proves typed
-multiresolution fields and a TSL material boundary, but sparse generated fields
-do not supply the source resolution, tiled geometry, cartographic layers, or
-isometric county scene needed for the reference fidelity.
+fields and a TSL material boundary. Projection packets now carry procedural
+frequency bands and a bounded camera working-set contract instead of stored
+terrain levels, but evaluation remains CPU-bound and still lacks reusable
+clipmap geometry, cartographic layers, or the isometric county scene needed for
+the reference fidelity.
+
+The fresh-user bearing now has a separate implemented pre-survey posture:
+`/explore` renders an unmapped orientation globe from exact request,
+HEAD/INDEX/WORKING workload file state. Workload beacons direct the operator
+to exact inspection and consensual qualification/admission without claiming an
+atlas, terrain, semantic distance, or active agent work. The initial
+`context-anchor-survey` beacon closes the visual handoff into the existing Feed
+admission control. Running the admitted survey and advancing from retained
+topography to an admitted semantic atlas remain explicit later steps.
 
 ## Completion Checklist
 
@@ -46,8 +59,15 @@ isometric county scene needed for the reference fidelity.
 
 ### 2. Close the CLI evidence path first
 
+- [x] Make `/explore` the `rey ui` human entry and replace the clean-state
+      portfolio-card fallback with an unmapped orientation globe whose exact
+      workload beacons retain request/WORKING/INDEX/admitted state, source,
+      digest, producer, mapping role, and next consent step.
+- [x] Keep orientation coordinates presentation-only, keep all pre-survey lens
+      levels on that World posture, and route inspection and consent to the
+      exact workload record and Feed admission control without executing work.
 - [ ] Extend the existing workload human/JSON projection to inspect the exact
-      atlas, sector, scene-admission, projection-grammar, terrain-pyramid,
+      atlas, sector, scene-admission, projection-grammar, terrain-program,
       layer, LOD, validity, limit, omission, and lineage identities.
 - [ ] Add a named multi-region fixture with a staged editor county, a rejected
       package, an admitted package, polar-cap content, an antimeridian sector,
@@ -107,9 +127,14 @@ isometric county scene needed for the reference fidelity.
 - [ ] Define and implement the Rey-native abstract-scene manifest so semantic
       longitude/latitude and county-local coordinates do not misuse RFC 7946
       CRS84 positions.
-- [ ] Admit standard vector/container formats behind explicit adapters and add
-      a bounded multiresolution height/validity terrain format such as
-      GeoTIFF/COG plus a Rey-native pyramid manifest; preserve native files.
+- [x] Hard-cut survey projection packets to a bounded
+      `rey.terrain-program.v1` with deterministic evaluator, frequency bands,
+      absolute-coordinate and validity rules, and a transient working-set
+      budget.
+- [ ] Admit standard vector/container formats behind explicit adapters and
+      treat GeoTIFF/COG/DEM as optional native sources that a bounded adapter
+      can compile into terrain controls; preserve native files without making
+      persistent tiles Rey's terrain model.
 - [ ] Project only admitted regional scenes into Atlas and County. Candidate
       preview, if added, must use a separate persistently marked surface.
 - [ ] Prove editor WORKING → INDEX → SCENE@n → staged workload → qualified
@@ -117,9 +142,20 @@ isometric county scene needed for the reference fidelity.
 
 ### 7. Reach Google-class terrain legibility
 
-- [ ] Compile crack-free multiresolution geometry from admitted height and
-      validity tiles with skirts or edge stitching, geomorphing, screen-space
-      error selection, residency, fetch, decode, GPU, and byte budgets.
+- [x] Derive a bounded camera-relative field window from the admitted terrain
+      program, snap it to absolute scene coordinates, select representable
+      macro/meso/micro bands, and expose its exact current and maximum
+      cell/byte allocations.
+- [x] Keep the accelerated canvas in viewport space and drive its
+      orthographic terrain camera from Explorer pan, scale, viewport, and
+      pointer-centered zoom instead of scaling a pre-rendered scene canvas.
+- [ ] Replace whole-window CPU rebuilds with crack-free camera-centered
+      geometry clipmaps or equivalent transient patches, including snapped
+      recentering, transition fixups/geomorphing, an explicit hydrology halo,
+      invalid support, GPU and byte budgets, and disposable cache keys.
+- [ ] Port absolute-coordinate height, normal, and material evaluation into
+      the pinned WebGPU/TSL graph while retaining deterministic CPU reference
+      samples and backend tolerance qualification.
 - [ ] Separate and qualify height, normal, slope, aspect, curvature, roughness,
       tint, wetness, occlusion, material, contour, and validity channels.
 - [ ] Compose multidirectional hillshade, ridge/valley legibility, qualified
@@ -157,8 +193,9 @@ isometric county scene needed for the reference fidelity.
 - [ ] Define bounded agent authoring primitives for placing and revising typed
       scene artifacts in WORKING; do not let them write admitted Explorer
       state.
-- [ ] Make status, diff, add, commit, and log render terrain-tile, vector-layer,
-      road/lot, and placed-artifact changes with exact native-object identity.
+- [ ] Make status, diff, add, commit, and log render terrain-program,
+      vector-layer, road/lot, and placed-artifact changes with exact
+      native-object identity.
 - [ ] Regenerate and fine-tune Rey County through that surface, then admit it
       through the scene workload instead of wiring a fixture into the UI.
 
@@ -170,8 +207,9 @@ isometric county scene needed for the reference fidelity.
       behavior, hover/focus lift, collision selection, terrain geomorphing,
       unknown masks, label LOD, context/device loss, last-good scene, and exact
       evidence links.
-- [ ] Record field compilation, tile residency, decode/upload, draw call,
-      triangle, label, memory, frame-time, and interaction-latency budgets on a
+- [ ] Record program compilation, transient working-set residency,
+      evaluation/upload, draw call, triangle, label, memory, frame-time, and
+      interaction-latency budgets on a
       named reference machine before making a 60 Hz or fidelity claim.
 - [ ] Compare the retained county capture with the 2026-08-11 Google Maps
       terrain reference for landform legibility, scale coherence, feature

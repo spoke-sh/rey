@@ -37,6 +37,14 @@ const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
 const APP_JAVASCRIPT: &[u8] = include_bytes!("../../../apps/rey-ui/dist/assets/app.js");
 const APP_CSS: &[u8] = include_bytes!("../../../apps/rey-ui/dist/assets/app.css");
+const THREE_GLOBE_JAVASCRIPT: &[u8] =
+    include_bytes!("../../../apps/rey-ui/dist/assets/three-globe.js");
+const THREE_TERRAIN_JAVASCRIPT: &[u8] =
+    include_bytes!("../../../apps/rey-ui/dist/assets/three-terrain.js");
+const THREE_WEBGPU_ADAPTER_JAVASCRIPT: &[u8] =
+    include_bytes!("../../../apps/rey-ui/dist/assets/three-webgpu.js");
+const THREE_WEBGPU_JAVASCRIPT: &[u8] =
+    include_bytes!("../../../apps/rey-ui/dist/assets/three.webgpu.js");
 
 #[derive(Clone, Debug)]
 pub struct UiServerConfig {
@@ -209,7 +217,7 @@ impl UiServer {
             grammar: "kinetic".to_owned(),
             theme: "precision".to_owned(),
             grammar_revision: HIFI_GRAMMAR_REVISION.to_owned(),
-            entry_route: "/feed?streams=admission.all".to_owned(),
+            entry_route: "/explore".to_owned(),
             live_refresh_interval_ms: LIVE_REFRESH_INTERVAL_MS,
             source_repository: None,
             implementation_revision: REY_IMPLEMENTATION_REVISION.to_owned(),
@@ -272,7 +280,7 @@ impl UiServer {
         }
 
         let response = match path {
-            "/" => redirect_response("/feed?streams=admission.all"),
+            "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/environment" => self.environment(),
@@ -285,6 +293,19 @@ impl UiServer {
             ),
             "/assets/app.js" => static_response(APP_JAVASCRIPT, "text/javascript; charset=utf-8"),
             "/assets/app.css" => static_response(APP_CSS, "text/css; charset=utf-8"),
+            "/assets/three-globe.js" => {
+                static_response(THREE_GLOBE_JAVASCRIPT, "text/javascript; charset=utf-8")
+            }
+            "/assets/three-terrain.js" => {
+                static_response(THREE_TERRAIN_JAVASCRIPT, "text/javascript; charset=utf-8")
+            }
+            "/assets/three-webgpu.js" => static_response(
+                THREE_WEBGPU_ADAPTER_JAVASCRIPT,
+                "text/javascript; charset=utf-8",
+            ),
+            "/assets/three.webgpu.js" => {
+                static_response(THREE_WEBGPU_JAVASCRIPT, "text/javascript; charset=utf-8")
+            }
             _ => index_response(),
         };
         if head {
@@ -890,7 +911,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(23)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(27)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1055,9 +1076,21 @@ mod tests {
         assert!(application.contains("DESIRED INVENTORY"));
         assert!(application.contains("SEARCH RECORD"));
         assert!(application.contains("PROCESS SEEDS"));
+        assert!(application.contains("assets/three-terrain.js"));
+        assert!(application.contains("three-webgpu.js"));
         assert!(application.contains("HISTORY / RUNTIME ATTENTION"));
         assert!(application.contains("Mailbox history"));
         assert!(application.contains("REY / AGENT / OPERATOR"));
+        for asset in [
+            "/assets/three-globe.js",
+            "/assets/three-terrain.js",
+            "/assets/three-webgpu.js",
+            "/assets/three.webgpu.js",
+        ] {
+            let response = request(&address, &format!("GET {asset} HTTP/1.1"));
+            assert!(response.starts_with("HTTP/1.1 200"), "{asset}");
+            assert!(response.contains("text/javascript"), "{asset}");
+        }
         assert!(application.contains("data-communication-backdrop"));
         assert!(application.contains("No Rey or agent session is connected"));
         assert!(application.contains("NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY"));
@@ -1102,7 +1135,7 @@ mod tests {
 
         let root = request(&address, "GET / HTTP/1.1");
         assert!(root.starts_with("HTTP/1.1 307"));
-        assert!(root.contains("Location: /feed?streams=admission.all"));
+        assert!(root.contains("Location: /explore"));
 
         let explore = request(&address, "GET /explore HTTP/1.1");
         assert!(explore.starts_with("HTTP/1.1 200"));

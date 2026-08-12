@@ -3,19 +3,24 @@ import type { RendererStatus } from "../engine/renderer";
 import type { SceneSnapshot } from "../engine/scene";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
+import {
+  materializeTerrainWorkingSet,
+  terrainWorkingSetForView,
+  type TerrainCameraView,
+} from "../terrain/compile";
 
 export type RendererPreference = "auto" | "webgpu" | "webgl2" | "reference";
 
 export interface AcceleratedTerrainReport {
   status: RendererStatus;
   preference: RendererPreference;
-  active_level_ids: readonly string[];
+  active_band_ids: readonly string[];
   field_sets: number;
   field_cells: number;
   field_bytes: number;
-  pyramid_levels: number;
-  pyramid_cells: number;
-  pyramid_bytes: number;
+  program_count: number;
+  working_set_limit_cells: number;
+  working_set_limit_bytes: number;
   triangles: number;
 }
 
@@ -29,13 +34,13 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
       detail: "the deterministic reference terrain is active",
     },
     preference: "auto",
-    active_level_ids: Object.freeze([]),
+    active_band_ids: Object.freeze([]),
     field_sets: 0,
     field_cells: 0,
     field_bytes: 0,
-    pyramid_levels: 0,
-    pyramid_cells: 0,
-    pyramid_bytes: 0,
+    program_count: 0,
+    working_set_limit_cells: 0,
+    working_set_limit_bytes: 0,
     triangles: 0,
   } satisfies AcceleratedTerrainReport,
 );
@@ -54,49 +59,72 @@ export function rendererPreference(search: string): RendererPreference {
 export function AcceleratedTerrainSurface({
   onReport,
   snapshot,
+  view,
   visible,
 }: {
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
+  view: TerrainCameraView;
   visible: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const adapterRef = useRef<
+    import("./three-webgpu").ThreeWebGpuRendererAdapter | undefined
+  >(undefined);
+  const bundleRef = useRef<
+    import("./three-terrain").ThreeTerrainBundle | undefined
+  >(undefined);
   const [ready, setReady] = useState(false);
+  const semanticGlobe =
+    snapshot.scene.regime === "world" ? snapshot.scene.globe : null;
+  const workingSetRequests = semanticGlobe
+    ? []
+    : snapshot.scene.terrain_programs.map((program) =>
+        terrainWorkingSetForView(program, view),
+      );
+  const workingSetRevision = workingSetRequests
+    .map((request) => request.working_set_id)
+    .join("|");
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const semanticGlobe =
-      snapshot.scene.regime === "world" ? snapshot.scene.globe : null;
     if (
       !canvas ||
-      (snapshot.scene.terrain_fields.length === 0 && semanticGlobe === null)
+      (snapshot.scene.terrain_programs.length === 0 && semanticGlobe === null)
     ) {
       setReady(false);
       onReport(REFERENCE_TERRAIN_REPORT);
       return;
     }
-    const activeLevelIds = Object.freeze(
+    const runtimeFields = snapshot.scene.terrain_programs.flatMap(
+      (program, index) =>
+        semanticGlobe
+          ? []
+          : [materializeTerrainWorkingSet(program, workingSetRequests[index]!)],
+    );
+    const activeBandIds = Object.freeze(
       [
         ...(semanticGlobe ? ["semantic_globe"] : []),
-        ...new Set(
-          snapshot.scene.terrain_fields.map((fields) => fields.level_id),
-        ),
+        ...new Set(runtimeFields.flatMap((fields) => fields.active_band_ids)),
       ].sort((left, right) => left.localeCompare(right)),
     );
-    const totals = snapshot.scene.terrain_fields.reduce(
+    const totals = runtimeFields.reduce(
       (result, fields) => ({
         field_cells: result.field_cells + fields.field_cells,
         field_bytes: result.field_bytes + fields.field_bytes,
       }),
       { field_cells: 0, field_bytes: 0 },
     );
-    const pyramidTotals = snapshot.scene.terrain_pyramids.reduce(
-      (result, pyramid) => ({
-        levels: result.levels + pyramid.levels.length,
-        cells: result.cells + pyramid.total_cells,
-        bytes: result.bytes + pyramid.total_bytes,
+    const programTotals = snapshot.scene.terrain_programs.reduce(
+      (result, program) => ({
+        cells:
+          result.cells +
+          program.projection.terrain_program.working_set.max_cells,
+        bytes:
+          result.bytes +
+          program.projection.terrain_program.working_set.max_bytes,
       }),
-      { levels: 0, cells: 0, bytes: 0 },
+      { cells: 0, bytes: 0 },
     );
     const preference = rendererPreference(window.location.search);
     if (preference === "reference") {
@@ -109,13 +137,13 @@ export function AcceleratedTerrainSurface({
           lifecycle: "ready",
           detail: "the reference renderer was selected by the view envelope",
         },
-        active_level_ids: activeLevelIds,
-        field_sets: snapshot.scene.terrain_fields.length,
+        active_band_ids: activeBandIds,
+        field_sets: runtimeFields.length,
         field_cells: totals.field_cells,
         field_bytes: totals.field_bytes,
-        pyramid_levels: pyramidTotals.levels,
-        pyramid_cells: pyramidTotals.cells,
-        pyramid_bytes: pyramidTotals.bytes,
+        program_count: snapshot.scene.terrain_programs.length,
+        working_set_limit_cells: programTotals.cells,
+        working_set_limit_bytes: programTotals.bytes,
       });
       return;
     }
@@ -132,14 +160,13 @@ export function AcceleratedTerrainSurface({
       onReport({
         status,
         preference,
-        active_level_ids: activeLevelIds,
-        field_sets:
-          statistics?.field_sets ?? snapshot.scene.terrain_fields.length,
+        active_band_ids: activeBandIds,
+        field_sets: statistics?.field_sets ?? runtimeFields.length,
         field_cells: totals.field_cells,
         field_bytes: totals.field_bytes,
-        pyramid_levels: pyramidTotals.levels,
-        pyramid_cells: pyramidTotals.cells,
-        pyramid_bytes: pyramidTotals.bytes,
+        program_count: snapshot.scene.terrain_programs.length,
+        working_set_limit_cells: programTotals.cells,
+        working_set_limit_bytes: programTotals.bytes,
         triangles: statistics?.triangles ?? 0,
       });
     };
@@ -169,9 +196,14 @@ export function AcceleratedTerrainSurface({
         const rendererModule = await import("./three-webgpu");
         if (cancelled) return;
         adapter = new rendererModule.ThreeWebGpuRendererAdapter();
+        adapterRef.current = adapter;
         adapter.resize({
-          width: snapshot.scene.world.width,
-          height: snapshot.scene.world.height,
+          width: semanticGlobe
+            ? snapshot.scene.world.width
+            : view.viewport_width,
+          height: semanticGlobe
+            ? snapshot.scene.world.height
+            : view.viewport_height,
           device_pixel_ratio: window.devicePixelRatio,
         });
         const status = await adapter.initialize(
@@ -185,19 +217,21 @@ export function AcceleratedTerrainSurface({
           return;
         }
         bundle = semanticGlobe
-          ? (await import("./three-globe")).createSemanticGlobeBundle(
+          ? (await import("./three-globe")).createContextGlobeBundle(
               semanticGlobe,
               snapshot.scene.world,
             )
           : (await import("./three-terrain")).createContinuousReliefBundle(
-              snapshot.scene.terrain_fields,
+              runtimeFields,
               snapshot.scene.world,
+              view,
             );
+        bundleRef.current = bundle;
         adapter.render(bundle.scene, bundle.camera, {
           snapshot_id: snapshot.snapshot_id,
           camera_revision: semanticGlobe
             ? `perspective-globe:${snapshot.scene.world.width}x${snapshot.scene.world.height}`
-            : `orthographic:${snapshot.scene.world.width}x${snapshot.scene.world.height}`,
+            : `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
           material_revision: bundle.material_revision,
         });
         setReady(true);
@@ -219,8 +253,35 @@ export function AcceleratedTerrainSurface({
       canvas.removeEventListener("webglcontextlost", handleContextLoss);
       bundle?.dispose();
       adapter?.dispose();
+      if (bundleRef.current === bundle) bundleRef.current = undefined;
+      if (adapterRef.current === adapter) adapterRef.current = undefined;
     };
-  }, [onReport, snapshot.snapshot_id]);
+  }, [onReport, snapshot.snapshot_id, workingSetRevision]);
+
+  useEffect(() => {
+    const adapter = adapterRef.current;
+    const bundle = bundleRef.current;
+    if (!adapter || !bundle || semanticGlobe) return;
+    adapter.resize({
+      width: view.viewport_width,
+      height: view.viewport_height,
+      device_pixel_ratio: window.devicePixelRatio,
+    });
+    bundle.updateView?.(view);
+    adapter.render(bundle.scene, bundle.camera, {
+      snapshot_id: snapshot.snapshot_id,
+      camera_revision: `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
+      material_revision: bundle.material_revision,
+    });
+  }, [
+    semanticGlobe,
+    snapshot.snapshot_id,
+    view.pan_x,
+    view.pan_y,
+    view.rendered_scale,
+    view.viewport_height,
+    view.viewport_width,
+  ]);
 
   return (
     <canvas

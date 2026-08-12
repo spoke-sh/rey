@@ -4762,13 +4762,29 @@ fn write_projection_packet_evidence(
             ),
         ),
         (
-            "field pyramid",
+            "terrain program",
             format!(
-                "{} levels · {} cells · {} bytes allocated · {}",
-                packet.field_pyramid.levels.len(),
-                packet.field_pyramid.total_cells,
-                packet.field_pyramid.total_bytes,
-                packet.field_pyramid.stable_coordinate_rule,
+                "{}@{} · seed {} · {} bands · {}",
+                packet.terrain_program.evaluator.id,
+                packet.terrain_program.evaluator.revision,
+                packet.terrain_program.seed,
+                packet.terrain_program.bands.len(),
+                packet.terrain_program.detail_rule,
+            ),
+        ),
+        (
+            "working set",
+            format!(
+                "≤{}×{} · ≤{} cells · ≤{} bytes · target {} px/sample · {}",
+                packet.terrain_program.working_set.max_columns,
+                packet.terrain_program.working_set.max_rows,
+                packet.terrain_program.working_set.max_cells,
+                packet.terrain_program.working_set.max_bytes,
+                packet
+                    .terrain_program
+                    .working_set
+                    .target_sample_spacing_pixels,
+                packet.terrain_program.working_set.recenter_rule,
             ),
         ),
         (
@@ -4779,15 +4795,13 @@ fn write_projection_packet_evidence(
         (
             "limits",
             format!(
-                "anchors={} frontier={} validity={} levels={} cells/level={} bytes/level={} total_cells={} total_field_bytes={} contours={} features={} labels={}",
+                "anchors={} frontier={} validity={} terrain_bands={} working_set_cells={} working_set_bytes={} contours={} features={} labels={}",
                 packet.limits.max_anchor_objects,
                 packet.limits.max_frontier_objects,
                 packet.limits.max_validity_regions,
-                packet.limits.max_field_levels,
-                packet.limits.max_field_cells,
-                packet.limits.max_field_bytes,
-                packet.limits.max_total_field_cells,
-                packet.limits.max_total_field_bytes,
+                packet.limits.max_terrain_bands,
+                packet.limits.max_working_set_cells,
+                packet.limits.max_working_set_bytes,
                 packet.limits.max_contours,
                 packet.limits.max_natural_features,
                 packet.limits.max_labels,
@@ -4796,20 +4810,18 @@ fn write_projection_packet_evidence(
     ] {
         write_test_binding(output, label, &value)?;
     }
-    for level in &packet.field_pyramid.levels {
+    for band in &packet.terrain_program.bands {
         write_test_binding(
             output,
-            "field level",
+            "terrain band",
             &format!(
-                "{} · {}×{} · stride {} · {} cells · {} bytes · {} · {}",
-                level.level_id,
-                level.columns,
-                level.rows,
-                level.sample_stride,
-                level.cells,
-                level.total_bytes,
-                level.regimes.join("/"),
-                level.detail_authority,
+                "{} · wavelength {} · amplitude {:.3} · {} octave(s) · ≥{} samples/wavelength · {}",
+                band.band_id,
+                band.wavelength_scene_units,
+                band.amplitude_microunits as f64 / 1_000_000.0,
+                band.octaves,
+                band.minimum_samples_per_wavelength,
+                band.detail_authority,
             ),
         )?;
     }

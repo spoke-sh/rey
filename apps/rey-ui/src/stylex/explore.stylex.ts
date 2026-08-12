@@ -4,6 +4,11 @@ const mono = 'var(--mono, "SFMono-Regular", Consolas, monospace)';
 const display =
   'var(--display, "Arial Narrow", "Roboto Condensed", sans-serif)';
 
+const beaconPulse = stylex.keyframes({
+  "0%, 100%": { opacity: 0.3, transform: "scale(0.84)" },
+  "50%": { opacity: 0.78, transform: "scale(1.12)" },
+});
+
 export const exploreStyles = stylex.create({
   explorePage: {
     display: "flex",
@@ -265,6 +270,61 @@ export const exploreStyles = stylex.create({
     paintOrder: "stroke",
     pointerEvents: "none",
     stroke: "color-mix(in srgb, #263c40 88%, transparent)",
+    strokeWidth: "calc(4px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeBeacon: {
+    cursor: "pointer",
+    outline: {
+      default: "none",
+      ":focus-visible": "2px solid var(--rey-accent)",
+    },
+    textDecoration: "none",
+  },
+  semanticGlobeSurveyBeacon: {
+    filter:
+      "drop-shadow(0 0 10px color-mix(in srgb, #f2a94d 72%, transparent))",
+  },
+  semanticGlobeBeaconHalo: {
+    animationDuration: "2.4s",
+    animationIterationCount: "infinite",
+    animationName: {
+      default: beaconPulse,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    fill: "color-mix(in srgb, #f2a94d 22%, transparent)",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #f2a94d 68%, transparent)",
+    strokeWidth: "calc(1.2px * var(--rey-terrain-counter-scale))",
+    transformBox: "fill-box",
+    transformOrigin: "center",
+  },
+  semanticGlobeBeaconPoint: {
+    fill: "#f2a94d",
+    filter: "drop-shadow(0 0 8px color-mix(in srgb, #f2a94d 88%, transparent))",
+    stroke: "#fff4cc",
+    strokeWidth: "calc(2px * var(--rey-terrain-counter-scale))",
+  },
+  semanticGlobeBeaconLabel: {
+    fill: "color-mix(in srgb, #fff7dc 94%, var(--rey-foreground))",
+    fontFamily: display,
+    fontSize: "calc(18px * var(--rey-terrain-counter-scale))",
+    fontWeight: 900,
+    letterSpacing: "0.01em",
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #263c40 92%, transparent)",
+    strokeWidth: "calc(5px * var(--rey-terrain-counter-scale))",
+    textTransform: "uppercase",
+  },
+  semanticGlobeBeaconState: {
+    fill: "color-mix(in srgb, #f2c466 88%, white)",
+    fontFamily: mono,
+    fontSize: "calc(10px * var(--rey-terrain-counter-scale))",
+    fontWeight: 800,
+    letterSpacing: "0.09em",
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #263c40 94%, transparent)",
     strokeWidth: "calc(4px * var(--rey-terrain-counter-scale))",
   },
   semanticGlobeCaption: {
@@ -795,6 +855,44 @@ export const exploreStyles = stylex.create({
     color: "var(--muted)",
     fontSize: "0.43rem",
     lineHeight: 1.35,
+  },
+  orientationGuide: {
+    backgroundColor: "color-mix(in srgb, #273c3d 93%, var(--rey-background))",
+    borderColor: "color-mix(in srgb, #f2a94d 52%, var(--line))",
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow: "0 12px 30px color-mix(in srgb, black 24%, transparent)",
+    color: "#f7f2df",
+    display: "grid",
+    fontFamily: mono,
+    gap: 7,
+    paddingBlock: 12,
+    paddingInline: 14,
+    textAlign: "left",
+    textTransform: "uppercase",
+  },
+  orientationActions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 3,
+  },
+  orientationAction: {
+    borderColor: "color-mix(in srgb, #f2a94d 55%, transparent)",
+    borderStyle: "solid",
+    borderWidth: 1,
+    color: "#f4c86f",
+    fontSize: "0.45rem",
+    fontWeight: 850,
+    letterSpacing: "0.07em",
+    paddingBlock: 7,
+    paddingInline: 9,
+    pointerEvents: "auto",
+    textDecoration: "none",
+  },
+  consentAction: {
+    backgroundColor: "#f2a94d",
+    color: "#253637",
   },
   mapKey: {
     alignItems: "center",

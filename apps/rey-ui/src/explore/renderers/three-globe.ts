@@ -21,13 +21,13 @@ export const SEMANTIC_GLOBE_MATERIAL_REVISION =
 
 const GLOBE_RADIUS = 1.72;
 
-export function createSemanticGlobeBundle(
+export function createContextGlobeBundle(
   globe: TopologyGlobe,
   world: { width: number; height: number },
 ): ThreeTerrainBundle {
   const scene = new Scene();
   const globeGroup = new Group();
-  globeGroup.name = `semantic-globe:${globe.atlas_revision}`;
+  globeGroup.name = `context-globe:${globe.source_revision}`;
   scene.add(globeGroup);
 
   const geometries: BufferGeometry[] = [];
@@ -92,6 +92,36 @@ export function createSemanticGlobeBundle(
     globeGroup.add(marker);
   }
 
+  for (const beacon of globe.beacons) {
+    const radius = beacon.mapping_role === "survey" ? 0.072 : 0.052;
+    const geometry = new SphereGeometry(radius, 24, 16);
+    const material = new MeshStandardNodeMaterial();
+    material.color.set(
+      beacon.state === "admitted"
+        ? 0xb7d7a8
+        : beacon.state === "index"
+          ? 0xe9d278
+          : beacon.state === "request"
+            ? 0xb5c8d2
+            : 0xf2a94d,
+    );
+    material.emissive.set(beacon.state === "admitted" ? 0x24472f : 0x6f3d0c);
+    material.emissiveIntensity = beacon.mapping_role === "survey" ? 0.72 : 0.4;
+    material.roughness = 0.58;
+    const marker = new Mesh(geometry, material);
+    marker.name = `workload-beacon:${beacon.workload_id}`;
+    marker.position.set(
+      ...sphericalPoint(
+        beacon.longitude_degrees,
+        beacon.latitude_degrees,
+        GLOBE_RADIUS + radius * 0.72,
+      ),
+    );
+    geometries.push(geometry);
+    materials.push(material);
+    globeGroup.add(marker);
+  }
+
   scene.add(new AmbientLight(0xdde4da, 1.25));
   const keyLight = new DirectionalLight(0xfff2ce, 3.1);
   keyLight.position.set(-3.8, 4.6, 5.8);
@@ -111,7 +141,8 @@ export function createSemanticGlobeBundle(
   camera.updateProjectionMatrix();
 
   const sphereTriangles = 128 * 64 * 2;
-  const markerTriangles = globe.regions.length * 20 * 12 * 2;
+  const markerTriangles =
+    globe.regions.length * 20 * 12 * 2 + globe.beacons.length * 24 * 16 * 2;
   return {
     scene,
     camera,

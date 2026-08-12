@@ -33,7 +33,7 @@ document must say which is which.
 
 | Document | Purpose |
 | --- | --- |
-| [Explorer](EXPLORER.md) | The read-first operator Feed and high-fidelity context-topography engine: World globe, semantic Mercator Atlas, isometric county surface, LOD, rendering, and scene-admission boundary. |
+| [Explorer](EXPLORER.md) | The read-first operator Feed and high-fidelity context-topography engine: consent-first orientation globe, workload beacons, semantic World/Atlas/County grammar, LOD, rendering, and scene-admission boundary. |
 | [Locators](LOCATORS.md) | Canonical candidate addresses, bounded resolution outcomes, and the distinction between locating and reading. |
 | [Git](GIT.md) | Repository identity, refs, commits, semantic index state, polling cursors, ref movement, and workload activation. |
 | [Journal](JOURNAL.md) | Retained human/agent synthesis, typed notebook blocks, exact browser addresses, admission, and its deliberately narrow authority. |

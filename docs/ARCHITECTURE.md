@@ -156,6 +156,8 @@ poll cursors, and delta-triggered workloads.
 | Semantic atlas      | Content-identified bounded layout over admitted regional evidence with stable sector/region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, and lineage                    | Deterministic workload-list projection today; target retained admission revision, sector polygons, and directed movement delta |
 | Admitted regional scene | Qualified result binding one exact editor package to native-to-semantic and county-local transforms, normalized terrain/feature layers, validity/no-data, limits, omissions, and lineage                  | Workload result and Explorer input; candidate packages remain outside this boundary                              |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
+| Terrain program     | Deterministic evaluator, seed, absolute-coordinate and validity rules, multiscale bands, and bounded camera-working-set policy compiled from one exact projection packet                         | Pure projection input; authored controls and admitted sources remain authoritative, while evaluated buffers are disposable |
+| Terrain working set | Camera-relative scalar/vector/mask buffers and geometry sampled from one exact terrain program under declared cell/byte limits                                                                   | Browser/GPU working state and optional bounded proof capture; never an admitted tile or sole source copy          |
 | Scene snapshot      | Immutable, stably ordered engine scene compiled from one projection packet; semantic identity excludes camera motion and measured frame time                                                           | Browser working state and optional bounded proof artifact; never authoritative source evidence                  |
 | Portfolio snapshot  | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation                                                                | Rey runtime evidence; derived from catalog/result/environment providers                                         |
 | Workload attention  | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost                                                           | Rey runtime working evidence                                                                                   |
@@ -180,7 +182,14 @@ requirements demand it.
 `rey ui` embeds a TanStack Router single-page application and serves the live
 bounded workload-list document used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
-deeper diagnostic plane. The Explorer projects admitted topography patches
+deeper diagnostic plane. Before any workload HEAD or admitted topography
+exists, Explorer projects exact request/WORKING/INDEX workload file state as
+attention beacons on a presentation-only orientation globe. That globe is an
+unmapped consent surface, not `rey.semantic-atlas.v1`; it claims no semantic
+distance, terrain, project boundary, or agent activity. Inspection and consent
+descend into the exact workload record and Feed approval control. Only an
+explicitly admitted survey followed by a bounded run may replace it with
+mapped evidence. The Explorer projects admitted topography patches
 and, once the qualifying workload exists, admitted regional scenes through one
 persistent semantic scene. World places admitted regions on the synthetic,
 revision-bound sphere from `rey.semantic-atlas.v1`; its longitude/latitude axes
@@ -295,7 +304,7 @@ it to a React visualization component. The target boundary has five layers:
    future high-dimensional provider artifacts into one versioned bounded
    projection packet. They own semantic interpretation and validity.
 2. **Scene and field compilation** creates stable scene identities,
-   data-oriented scalar/vector grids, multiresolution tiles, validity masks,
+   data-oriented scalar/vector working sets, procedural frequency bands, validity masks,
    natural-feature derivations, omissions, and invalidation dependencies.
 3. **Engine mechanism** owns camera transforms, semantic and geometric LOD,
    culling, picking, label budgets, scene retention, and dirty-set scheduling.
@@ -308,6 +317,9 @@ it to a React visualization component. The target boundary has five layers:
 The flow is one-way:
 
 ```text
+request/WORKING/INDEX → orientation beacon → human consent
+                                              │
+                                              ▼ admitted survey + explicit run
 editor WORKING → INDEX → immutable candidate package
                                   │
                                   ▼ explicit qualified admission workload

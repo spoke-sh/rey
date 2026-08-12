@@ -2777,7 +2777,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
         "Data plane             LIVE READS · JOURNAL WRITE · WORKLOAD APPROVAL",
-        "Human entry            /feed?streams=admission.all",
+        "Human entry            /explore",
         "Workload admission     ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
         "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
@@ -2834,7 +2834,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert_eq!(descriptor["application"], "tanstack_router");
     assert_eq!(descriptor["grammar"], "kinetic");
     assert_eq!(descriptor["theme"], "precision");
-    assert_eq!(descriptor["entry_route"], "/feed?streams=admission.all");
+    assert_eq!(descriptor["entry_route"], "/explore");
     assert_eq!(descriptor["live_refresh_interval_ms"], 5_000);
     assert!(descriptor["source_repository"].is_null());
     assert!(descriptor["implementation_revision"].is_string());
@@ -3506,9 +3506,10 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "OMISSION candidate_limit",
         "Exact topography bindings:",
         "Exact projection bindings:",
-        "field pyramid 3 levels · 12953 cells · 712415 bytes allocated",
-        "field level overview · 31×21 · stride 4 · 651 cells · 35805 bytes · world",
-        "field level local · 121×81 · stride 1 · 9801 cells · 539055 bytes · neighborhoods/objects/evidence",
+        "terrain program rey.projection.procedural-terrain@1",
+        "working set ≤255×255 · ≤65025 cells · ≤3576375 bytes",
+        "terrain band macro · wavelength 420 · amplitude 0.210 · 2 octave(s)",
+        "terrain band micro · wavelength 24 · amplitude 0.018 · 2 octave(s)",
         "elevation · scalar",
         "projection omission",
         "operation   rey.context-anchor-survey.locate@1",
@@ -3613,9 +3614,10 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     projection.verify_for(patch).unwrap();
     assert_eq!(projection.schema, "rey.projection-packet.v1");
     assert_eq!(projection.source_patch_id, patch.patch_id);
-    assert_eq!(projection.field_pyramid.levels.len(), 3);
-    assert_eq!(projection.field_pyramid.total_cells, 12_953);
-    assert_eq!(projection.field_pyramid.total_bytes, 712_415);
+    assert_eq!(projection.terrain_program.schema, "rey.terrain-program.v1");
+    assert_eq!(projection.terrain_program.bands.len(), 3);
+    assert_eq!(projection.terrain_program.working_set.max_cells, 65_025);
+    assert_eq!(projection.terrain_program.working_set.max_bytes, 3_576_375);
     assert_eq!(
         projection.excluded_source_relationships,
         patch.edges.len() as u64

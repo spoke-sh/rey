@@ -111,18 +111,12 @@ export interface TopographyCoverage {
 export type ProjectionObjectKind = "anchor" | "frontier";
 export type ProjectionFieldKind = "scalar" | "vector" | "mask";
 export type ProjectionLayerAuthority = "evidence" | "derived" | "presentation";
-export type ProjectionTerrainRegime =
-  "world" | "atlas" | "landscape" | "neighborhoods" | "objects" | "evidence";
-
-export interface ProjectionFieldLevel {
-  level_id: string;
-  columns: number;
-  rows: number;
-  cells: number;
-  bytes_per_cell: number;
-  total_bytes: number;
-  sample_stride: number;
-  regimes: ProjectionTerrainRegime[];
+export interface ProjectionTerrainBand {
+  band_id: string;
+  wavelength_scene_units: number;
+  amplitude_microunits: number;
+  octaves: number;
+  minimum_samples_per_wavelength: number;
   detail_authority: string;
 }
 
@@ -145,12 +139,24 @@ export interface ProjectionPacket {
   };
   scene_compiler: ContractIdentity;
   extent: { width: number; height: number; unit: string };
-  field_pyramid: {
-    schema: "rey.terrain-field-pyramid.v1";
-    levels: ProjectionFieldLevel[];
-    total_cells: number;
-    total_bytes: number;
-    stable_coordinate_rule: string;
+  terrain_program: {
+    schema: "rey.terrain-program.v1";
+    evaluator: ContractIdentity;
+    seed: number;
+    bands: ProjectionTerrainBand[];
+    working_set: {
+      max_columns: number;
+      max_rows: number;
+      max_cells: number;
+      bytes_per_cell: number;
+      max_bytes: number;
+      target_sample_spacing_pixels: number;
+      overscan_samples: number;
+      recenter_rule: string;
+    };
+    coordinate_rule: string;
+    validity_rule: string;
+    detail_rule: string;
   };
   objects: Array<{
     object_id: string;
@@ -191,13 +197,11 @@ export interface ProjectionPacket {
     max_frontier_objects: number;
     max_validity_regions: number;
     max_field_channels: number;
-    max_field_levels: number;
+    max_terrain_bands: number;
     max_layers: number;
     max_omissions: number;
-    max_field_cells: number;
-    max_field_bytes: number;
-    max_total_field_cells: number;
-    max_total_field_bytes: number;
+    max_working_set_cells: number;
+    max_working_set_bytes: number;
     max_contours: number;
     max_natural_features: number;
     max_labels: number;

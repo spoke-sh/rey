@@ -23,6 +23,7 @@ import {
   MIN_LENS_ZOOM,
   NEIGHBORHOOD_LENS_ZOOM,
   OBJECT_LENS_ZOOM,
+  WORLD_LENS_ZOOM,
   clampLensZoom,
   fitScaleForViewport,
   lensRegimeForZoom,
@@ -33,6 +34,7 @@ import {
   type LensRegime,
 } from "./explore/engine/camera";
 import { compileSceneSnapshot } from "./explore/engine/scene";
+import { admittedTopographies } from "./explore/projection/topography-projector";
 import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
@@ -86,11 +88,16 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     | { pointerId: number; origin: Point; pan: Point; distance: number }
     | undefined
   >(undefined);
+  const initialZoom =
+    admittedTopographies(portfolio).length === 0
+      ? WORLD_LENS_ZOOM
+      : DEFAULT_LENS_ZOOM;
   const [zoom, setZoom] = useState(
-    coordinate ? coordinate.view.scale : DEFAULT_LENS_ZOOM,
+    coordinate ? coordinate.view.scale : initialZoom,
   );
   const [pan, setPan] = useState<Point>(zeroPoint);
   const [fitScale, setFitScale] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
   const [focusId, setFocusId] = useState(
     coordinate?.focus_id ?? "cluster:portfolio",
   );
@@ -137,6 +144,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     if (!viewport) return;
     const measure = () => {
       const { width, height } = viewport.getBoundingClientRect();
+      setViewportSize({ width, height });
       const next = fitScaleForViewport({ width, height }, scene.fit_world);
       setFitScale(next);
     };
@@ -171,6 +179,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
 
   const focusNode = (node: FocusableTopologyObject) => {
     if (dragRef.current?.distance && dragRef.current.distance > 4) return;
+    if (node.focus_id.startsWith("beacon:")) {
+      setFocusId(node.focus_id);
+      return;
+    }
     let nextZoom = zoom;
     if (scene.regime === "world") nextZoom = DEFAULT_LENS_ZOOM;
     else if (scene.regime === "atlas") nextZoom = LANDSCAPE_LENS_ZOOM;
@@ -231,7 +243,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   };
 
   const resetView = () => {
-    setZoom(DEFAULT_LENS_ZOOM);
+    setZoom(
+      scene.globe?.posture === "orientation"
+        ? WORLD_LENS_ZOOM
+        : DEFAULT_LENS_ZOOM,
+    );
     setPan(zeroPoint);
     setFocusId("cluster:portfolio");
   };
@@ -257,7 +273,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   };
 
   const sceneStyle = {
-    "--rey-terrain-counter-scale": scene.terrain ? DEFAULT_LENS_ZOOM / zoom : 1,
+    "--rey-terrain-counter-scale": scene.terrain
+      ? (scene.regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM) / zoom
+      : 1,
     height: scene.world.height,
     transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${renderedScale})`,
     width: scene.world.width,
@@ -301,14 +319,39 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         role="application"
         tabIndex={0}
       >
+        {scene.terrain && scene.globe === null ? (
+          <AcceleratedTerrainSurface
+            onReport={setTerrainRenderer}
+            snapshot={snapshot}
+            view={{
+              world_width: scene.world.width,
+              world_height: scene.world.height,
+              viewport_width: viewportSize.width,
+              viewport_height: viewportSize.height,
+              rendered_scale: renderedScale,
+              pan_x: pan.x,
+              pan_y: pan.y,
+            }}
+            visible={layers.relief}
+          />
+        ) : null}
         <div
           className={sx(styles.scene, isDragging && styles.sceneDragging)}
           style={sceneStyle}
         >
-          {scene.terrain ? (
+          {scene.globe ? (
             <AcceleratedTerrainSurface
               onReport={setTerrainRenderer}
               snapshot={snapshot}
+              view={{
+                world_width: scene.world.width,
+                world_height: scene.world.height,
+                viewport_width: viewportSize.width,
+                viewport_height: viewportSize.height,
+                rendered_scale: renderedScale,
+                pan_x: pan.x,
+                pan_y: pan.y,
+              }}
               visible={layers.relief}
             />
           ) : null}
@@ -333,10 +376,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           {terrainRenderer.field_cells > 0 ? (
             <>
               <span
-                data-terrain-lod={terrainRenderer.active_level_ids.join(",")}
+                data-terrain-lod={terrainRenderer.active_band_ids.join(",")}
               >
                 LOD /{" "}
-                {terrainRenderer.active_level_ids.join(" + ").toUpperCase()}
+                {terrainRenderer.active_band_ids.join(" + ").toUpperCase()}
               </span>
               <span>
                 FIELD / {terrainRenderer.field_cells} CELLS /{" "}
@@ -344,9 +387,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 {terrainRenderer.triangles} TRI
               </span>
               <span>
-                PYRAMID / {terrainRenderer.pyramid_levels} LEVELS /{" "}
-                {terrainRenderer.pyramid_cells} CELLS /{" "}
-                {Math.ceil(terrainRenderer.pyramid_bytes / 1024)} KIB
+                PROGRAM / {terrainRenderer.program_count} / WORKING LIMIT /{" "}
+                {terrainRenderer.working_set_limit_cells} CELLS /{" "}
+                {Math.ceil(terrainRenderer.working_set_limit_bytes / 1024)} KIB
               </span>
             </>
           ) : null}

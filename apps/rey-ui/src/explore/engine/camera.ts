@@ -120,7 +120,11 @@ export function renderedSceneScale(
   zoom: number,
   regime: LensRegime,
 ): number {
-  if (terrain) return fitScale * (zoom / DEFAULT_LENS_ZOOM);
+  if (terrain)
+    return (
+      fitScale *
+      (zoom / (regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM))
+    );
   const regimeBase = {
     world: WORLD_LENS_ZOOM,
     atlas: DEFAULT_LENS_ZOOM,

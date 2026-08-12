@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { TopologyScene } from "../../topology";
-import { ReferenceRenderer } from "./reference";
+import { ReferenceMapReading, ReferenceRenderer } from "./reference";
 
 const terrainScene = {
   regime: "world",
@@ -74,7 +74,7 @@ const terrainScene = {
   fit_world: { width: 1500, height: 1000 },
   terrain: true,
   terrain_fields: [],
-  terrain_pyramids: [],
+  terrain_programs: [],
   globe: null,
 } satisfies TopologyScene;
 
@@ -101,8 +101,9 @@ describe("reference renderer", () => {
       ...terrainScene,
       globe: {
         schema: "rey.semantic-globe-scene.v1",
-        atlas_id: "atlas:1",
-        atlas_revision: "atlas:1",
+        posture: "semantic_atlas",
+        globe_id: "atlas:1",
+        source_revision: "atlas:1",
         compiler_revision: "compiler:1",
         coordinate_authority: "synthetic semantic sphere; not Earth CRS84",
         clusters: [
@@ -115,6 +116,7 @@ describe("reference renderer", () => {
             dominant_feature: "file",
           },
         ],
+        beacons: [],
         regions: [
           {
             id: "region:1",
@@ -144,5 +146,69 @@ describe("reference renderer", () => {
     expect(markup).toContain("Synthetic semantic longitude and latitude");
     expect(markup).not.toContain('data-world-geometry="charted"');
     expect(markup).not.toContain('data-natural-feature="stream"');
+  });
+
+  it("renders a pre-survey workload as a consent beacon rather than terrain", () => {
+    const orientationScene: TopologyScene = {
+      ...terrainScene,
+      label: "PROJECT ORIENTATION",
+      focus_id: "beacon:context-anchor-survey",
+      globe: {
+        schema: "rey.explore-orientation-globe.v1",
+        posture: "orientation",
+        globe_id: "orientation:working",
+        source_revision: "blake3:working",
+        compiler_revision: "rey.explore.orientation-globe@1",
+        coordinate_authority: "presentation only",
+        clusters: [],
+        regions: [],
+        beacons: [
+          {
+            id: "workload-beacon:context-anchor-survey",
+            focus_id: "beacon:context-anchor-survey",
+            workload_id: "context-anchor-survey",
+            label: "Survey project context anchors",
+            detail: "WORKING / exact file",
+            source: "sys/context-anchor-survey/workload.yaml",
+            source_revision: "blake3:package",
+            producer: "coding harness / codex@gpt-5",
+            state: "working",
+            mapping_role: "survey",
+            next_step: "review the exact file and consent",
+            longitude_degrees: 12,
+            latitude_degrees: 8,
+            tone: "attention",
+          },
+        ],
+      },
+      bearing: {
+        status: "consent_required",
+        label: "SURVEY CONSENT REQUIRED",
+        detail: "review the exact file",
+        sampled_conditions: 0,
+        unresolved_boundaries: 1,
+      },
+      landforms: [],
+      contours: [],
+      natural_features: [],
+    };
+    const markup = renderToStaticMarkup(
+      <>
+        <ReferenceRenderer
+          layers={{ relief: true, water: true, weather: true, probes: true }}
+          onFocus={() => undefined}
+          scene={orientationScene}
+        />
+        <ReferenceMapReading scene={orientationScene} />
+      </>,
+    );
+
+    expect(markup).toContain('data-globe-posture="orientation"');
+    expect(markup).toContain('data-workload-beacon="context-anchor-survey"');
+    expect(markup).toContain("FIRST MAPPING STEP");
+    expect(markup).toContain("INSPECT EXACT WORKLOAD");
+    expect(markup).toContain("REVIEW &amp; CONSENT");
+    expect(markup).toContain("NO SURVEY CLAIM");
+    expect(markup).not.toContain('data-world-geometry="charted"');
   });
 });

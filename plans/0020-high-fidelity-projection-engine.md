@@ -5,6 +5,9 @@
   [ADR 0045](../docs/decisions/0045-threejs-webgpu-renderer.md)
 - Continued by: [Plan 0029](0029-continuous-explorer-grammar.md), which owns
   globe-to-semantic-Mercator morphing and the bounded isometric County posture
+- Terrain representation extended by: [ADR
+  0057](../docs/decisions/0057-procedural-terrain-program.md), which hard-cuts
+  the retained field pyramid to a procedural program and transient working set
 - Extends: [Plan 0017](0017-incremental-context-topography.md) and [Plan
   0019](0019-emergent-context-features.md)
 
@@ -232,6 +235,32 @@ geomorphing or Google-class terrain fidelity. Retained World → Neighborhood
 captures must still prove that a regime transition does not visibly pop, and
 the local level remains a deterministic projection of sparse admitted survey
 evidence rather than newly mined terrain.
+
+## Implementation Checkpoint: 2026-08-11 Procedural Camera Working Set
+
+- `rey.projection-packet.v1` now carries one `rey.terrain-program.v1`, not
+  three stored terrain grids. It binds a deterministic evaluator and seed,
+  macro/meso/micro bands, stable absolute-coordinate and validity rules, and a
+  maximum 255×255 / 65,025-cell / 3,576,375-byte transient working set.
+- The workload CLI exposes the evaluator, seed, bands, sampling authority,
+  recenter rule, and current limits. Structured output retains the same exact
+  program.
+- `/explore` compiles immutable terrain programs from admitted survey
+  evidence, snaps a camera-relative working set to absolute scene coordinates,
+  selects only frequency bands supported by its sample spacing, and renders
+  the resulting disposable buffers.
+- Atlas and County terrain canvases now live in viewport space and receive
+  Explorer pan, scale, and viewport state as a real Three.js camera envelope.
+  CSS still positions the reference SVG/DOM layer, but no longer scales the
+  accelerated terrain canvas.
+- Vite now emits stable lazy-renderer chunk names and the embedded `rey ui`
+  server serves all four chunks explicitly, closing the former gap where the
+  production CLI served `app.js` but returned the application shell for a
+  dynamic Three.js import.
+
+This proves the corrected artifact-to-engine direction. It does not yet prove
+incremental clipmap reuse, GPU field evaluation, isometric county geometry, or
+Google-class terrain fidelity.
 
 ## Acceptance Boundary
 

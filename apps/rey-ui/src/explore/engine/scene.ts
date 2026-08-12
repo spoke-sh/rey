@@ -5,7 +5,7 @@ import {
   type TopologyScene,
 } from "../../topology";
 import { admittedTopographies } from "../projection/topography-projector";
-import type { TerrainFieldPyramid, TerrainFieldSet } from "../terrain/compile";
+import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 
 export interface SceneSnapshot {
   readonly schema: "rey.reference-scene-snapshot.v1";
@@ -35,9 +35,17 @@ export function compileSceneSnapshot(
       : [
           portfolio.catalog.schema,
           portfolio.attention.attention_id,
+          ...(portfolio.revision
+            ? [
+                portfolio.revision.working.snapshot_revision,
+                portfolio.revision.index?.snapshot_revision ?? "index:empty",
+                portfolio.revision.head?.commit_id ?? "head:empty",
+              ]
+            : []),
           ...portfolio.workloads.map(
             ({ workload }) => workload.semantic_digest,
           ),
+          ...portfolio.drafts.map(({ source_digest }) => source_digest),
         ].sort((left, right) => left.localeCompare(right));
   if (portfolio.semantic_atlas)
     sourceRevisions.push(portfolio.semantic_atlas.atlas_revision);
@@ -82,9 +90,9 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
     terrain_fields: Object.freeze([
       ...scene.terrain_fields,
     ]) as TerrainFieldSet[],
-    terrain_pyramids: Object.freeze([
-      ...scene.terrain_pyramids,
-    ]) as TerrainFieldPyramid[],
+    terrain_programs: Object.freeze([
+      ...scene.terrain_programs,
+    ]) as TerrainProgram[],
     globe: scene.globe
       ? Object.freeze({
           ...scene.globe,

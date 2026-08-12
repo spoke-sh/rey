@@ -279,6 +279,11 @@ rey ui [--workspace PATH] [--state-dir PATH]
 
 `ui` starts the browser operator projection over the same workload,
 environment, cadence, Journal, and Explorer evidence. It defaults to loopback.
+Its human entry route is `/explore`. A fresh workload state opens on an
+unmapped orientation globe whose beacons are exact file-backed workload
+candidates; inspection and consent descend into the existing workload and
+Feed admission surfaces. The globe does not execute a survey or imply that the
+project has already been mapped.
 An explicit non-loopback listener exposes unauthenticated Journal admission
 and exact workload approval to reachable clients; Rey reports that boundary
 and the surrounding deployment must protect it when required.

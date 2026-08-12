@@ -28,6 +28,7 @@ export default defineConfig({
             ? "assets/app.css"
             : "assets/[name][extname]",
         entryFileNames: "assets/app.js",
+        chunkFileNames: "assets/[name].js",
       },
     },
   },

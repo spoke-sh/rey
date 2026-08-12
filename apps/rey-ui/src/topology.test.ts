@@ -101,6 +101,155 @@ const portfolio: WorkloadList = {
 };
 
 describe("context topology lens", () => {
+  it("orients a fresh user on exact workload beacons until survey terrain is admitted", () => {
+    const generated = {
+      workload_id: "context-anchor-survey",
+      workload_revision: 1,
+      title: "Survey project context anchors",
+      source: "sys/context-anchor-survey/workload.yaml",
+      source_digest: "blake3:survey-package",
+      object_path: "objects/survey-package.yaml",
+      bytes: 5_103,
+      generation: {
+        kind: "coding_harness" as const,
+        producer: "codex",
+        producer_revision: "gpt-5",
+      },
+      workload: {
+        id: "context-anchor-survey",
+        revision: 1,
+        semantic_digest: "blake3:survey-workload",
+      },
+      graph: {
+        id: "context-anchor-survey.graph",
+        revision: 1,
+        semantic_digest: "blake3:survey-graph",
+      },
+      scenario_suite: {
+        id: "context-anchor-survey.scenarios",
+        revision: 1,
+        semantic_digest: "blake3:survey-scenarios",
+      },
+    };
+    const fresh: WorkloadList = {
+      ...portfolio,
+      catalog: { ...portfolio.catalog, admitted_count: 0 },
+      workloads: [],
+      revision: {
+        schema: "rey.workload-revision-status.v1",
+        state: "working",
+        head: null,
+        index: null,
+        working: {
+          schema: "rey.workload-admission-snapshot.v1",
+          snapshot_revision: "blake3:fresh-working",
+          packages: [generated],
+          ignore: null,
+        },
+        staged: {
+          schema: "rey.workload-change-set.v1",
+          source_label: "HEAD",
+          target_label: "INDEX",
+          source_revision: null,
+          target_revision: null,
+          assessment: "equal",
+          inserted: 0,
+          deleted: 0,
+          modified: 0,
+          changes: [],
+        },
+        unstaged: {
+          schema: "rey.workload-change-set.v1",
+          source_label: "INDEX",
+          target_label: "WORKING",
+          source_revision: null,
+          target_revision: "blake3:fresh-working",
+          assessment: "different",
+          inserted: 1,
+          deleted: 0,
+          modified: 0,
+          changes: [
+            {
+              workload_id: "context-anchor-survey",
+              change_kind: "inserted",
+              source_revision: null,
+              target_revision: "blake3:survey-package",
+            },
+          ],
+        },
+        drafts: [],
+        commit_ready: false,
+        qualification_omissions: [],
+        admission_boundary: "human approval required",
+      },
+    };
+
+    for (const zoom of [
+      WORLD_LENS_ZOOM,
+      DEFAULT_LENS_ZOOM,
+      LANDSCAPE_LENS_ZOOM,
+      OBJECT_LENS_ZOOM,
+    ]) {
+      const scene = buildTopologyScene(fresh, zoom);
+      expect(scene.regime).toBe("world");
+      expect(scene.nodes).toHaveLength(0);
+      expect(scene.globe).toMatchObject({
+        schema: "rey.explore-orientation-globe.v1",
+        posture: "orientation",
+        source_revision: "blake3:fresh-working",
+      });
+    }
+    expect(buildTopologyScene(fresh, WORLD_LENS_ZOOM).globe?.beacons).toEqual([
+      expect.objectContaining({
+        workload_id: "context-anchor-survey",
+        state: "working",
+        mapping_role: "survey",
+        source: "sys/context-anchor-survey/workload.yaml",
+        source_revision: "blake3:survey-package",
+      }),
+    ]);
+
+    const admittedButUnrun: WorkloadList = {
+      ...fresh,
+      catalog: { ...fresh.catalog, admitted_count: 1 },
+      workloads: [
+        {
+          ...workload("context-anchor-survey"),
+          title: "Survey project context anchors",
+          qualification: "qualified",
+          failed: 0,
+          passed: 3,
+        },
+      ],
+      revision: {
+        ...fresh.revision!,
+        state: "clean",
+        head: {
+          schema: "rey.workload-commit.v1",
+          commit_id: "blake3:head",
+          sequence: 1,
+          parent_commit_id: null,
+          committed_at_unix: 1,
+          message: "Admit survey",
+          snapshot: fresh.revision!.working,
+          qualification_ids: ["blake3:qualification"],
+        },
+        index: null,
+        staged: fresh.revision!.staged,
+        unstaged: fresh.revision!.staged,
+      },
+    };
+    const unrun = buildTopologyScene(admittedButUnrun, OBJECT_LENS_ZOOM);
+    expect(unrun.regime).toBe("world");
+    expect(unrun.bearing.label).toBe("SURVEY RUN REQUIRED");
+    expect(unrun.globe?.beacons).toContainEqual(
+      expect.objectContaining({
+        workload_id: "context-anchor-survey",
+        state: "admitted",
+      }),
+    );
+  });
+
   it("moves through every semantic regime without a control step skipping one", () => {
     expect(lensRegimeForZoom(WORLD_LENS_ZOOM)).toBe("world");
     expect(lensRegimeForZoom(DEFAULT_LENS_ZOOM)).toBe("atlas");
@@ -230,12 +379,13 @@ describe("context topology lens", () => {
     expect(objects.world).toEqual(atlas.world);
     expect(evidence.world).toEqual(atlas.world);
     expect(world.terrain_fields[0]).toMatchObject({
-      level_id: "overview",
-      field_cells: 651,
+      working_set_id: "reference:world",
+      field_cells: 2501,
     });
     expect(world.globe).toMatchObject({
       schema: "rey.semantic-globe-scene.v1",
-      atlas_revision: "atlas:1",
+      posture: "semantic_atlas",
+      source_revision: "atlas:1",
     });
     expect(world.globe?.regions[0]).toMatchObject({
       workload_id: "rey.example",
@@ -244,20 +394,25 @@ describe("context topology lens", () => {
     });
     expect(atlas.globe).toBeNull();
     expect(atlas.terrain_fields[0]).toMatchObject({
-      level_id: "regional",
+      working_set_id: "reference:atlas",
       field_cells: 2501,
     });
-    expect(landscape.terrain_fields[0]?.level_id).toBe("regional");
-    expect(neighborhoods.terrain_fields[0]).toMatchObject({
-      level_id: "local",
-      field_cells: 9801,
-    });
-    expect(objects.terrain_fields[0]?.level_id).toBe("local");
-    expect(evidence.terrain_fields[0]?.level_id).toBe("local");
-    expect(atlas.terrain_pyramids[0]).toMatchObject({
-      total_cells: 12953,
-      total_bytes: 712415,
-    });
+    expect(landscape.terrain_fields[0]?.working_set_id).toBe(
+      "reference:landscape",
+    );
+    expect(neighborhoods.terrain_fields[0]?.working_set_id).toBe(
+      "reference:neighborhoods",
+    );
+    expect(objects.terrain_fields[0]?.working_set_id).toBe("reference:objects");
+    expect(evidence.terrain_fields[0]?.working_set_id).toBe(
+      "reference:evidence",
+    );
+    expect(atlas.terrain_programs[0]?.projection.terrain_program).toMatchObject(
+      {
+        schema: "rey.terrain-program.v1",
+        working_set: { max_cells: 65025, max_bytes: 3576375 },
+      },
+    );
     expect(world.terrain_fields[0]?.grid.bounds).toEqual(
       neighborhoods.terrain_fields[0]?.grid.bounds,
     );
@@ -819,9 +974,8 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
       parameters: {
         terrain_width: "1500",
         terrain_height: "1000",
-        grid_columns: "120",
-        grid_rows: "80",
         elevation_scale_ratio: "0.085",
+        terrain_evaluation: "absolute_coordinate_procedural",
       },
       normalization: "per-chart relative anchor prominence",
       random_seed: null,
@@ -833,46 +987,49 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
     },
     scene_compiler: contract("rey.projection.topography-scene"),
     extent: { width: 1500, height: 1000, unit: "synthetic_scene_unit" },
-    field_pyramid: {
-      schema: "rey.terrain-field-pyramid.v1",
-      levels: [
+    terrain_program: {
+      schema: "rey.terrain-program.v1",
+      evaluator: contract("rey.projection.procedural-terrain"),
+      seed: 42,
+      bands: [
         {
-          level_id: "overview",
-          columns: 31,
-          rows: 21,
-          cells: 651,
-          bytes_per_cell: 55,
-          total_bytes: 35805,
-          sample_stride: 4,
-          regimes: ["world"],
-          detail_authority: "coarse anchor resampling",
+          band_id: "macro",
+          wavelength_scene_units: 420,
+          amplitude_microunits: 210000,
+          octaves: 2,
+          minimum_samples_per_wavelength: 8,
+          detail_authority: "derived macro fixture",
         },
         {
-          level_id: "regional",
-          columns: 61,
-          rows: 41,
-          cells: 2501,
-          bytes_per_cell: 55,
-          total_bytes: 137555,
-          sample_stride: 2,
-          regimes: ["atlas", "landscape"],
-          detail_authority: "regional anchor resampling",
+          band_id: "meso",
+          wavelength_scene_units: 105,
+          amplitude_microunits: 72000,
+          octaves: 3,
+          minimum_samples_per_wavelength: 7,
+          detail_authority: "derived meso fixture",
         },
         {
-          level_id: "local",
-          columns: 121,
-          rows: 81,
-          cells: 9801,
-          bytes_per_cell: 55,
-          total_bytes: 539055,
-          sample_stride: 1,
-          regimes: ["neighborhoods", "objects", "evidence"],
-          detail_authority: "local anchor resampling",
+          band_id: "micro",
+          wavelength_scene_units: 24,
+          amplitude_microunits: 18000,
+          octaves: 2,
+          minimum_samples_per_wavelength: 6,
+          detail_authority: "presentation-only micro fixture",
         },
       ],
-      total_cells: 12953,
-      total_bytes: 712415,
-      stable_coordinate_rule: "nested fixture coordinates",
+      working_set: {
+        max_columns: 255,
+        max_rows: 255,
+        max_cells: 65025,
+        bytes_per_cell: 55,
+        max_bytes: 3576375,
+        target_sample_spacing_pixels: 4,
+        overscan_samples: 3,
+        recenter_rule: "camera-relative fixture",
+      },
+      coordinate_rule: "absolute fixture coordinates",
+      validity_rule: "fixture support only",
+      detail_rule: "camera selects fixture bands without changing evidence",
     },
     objects: [
       ...orderedAnchors.slice(0, 64).map((anchor) => ({
@@ -944,13 +1101,11 @@ function projectionFor(patch: TopographyPatch): ProjectionPacket {
       max_frontier_objects: 6,
       max_validity_regions: 256,
       max_field_channels: 12,
-      max_field_levels: 3,
+      max_terrain_bands: 8,
       max_layers: 8,
       max_omissions: 1032,
-      max_field_cells: 9801,
-      max_field_bytes: 627264,
-      max_total_field_cells: 12953,
-      max_total_field_bytes: 828992,
+      max_working_set_cells: 65025,
+      max_working_set_bytes: 3576375,
       max_contours: 7,
       max_natural_features: 96,
       max_labels: 70,

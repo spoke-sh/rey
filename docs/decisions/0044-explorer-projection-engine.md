@@ -134,7 +134,7 @@ under ADR 0043 rather than discovered paths or retained natural facts.
 continuous multiscale composition, not copying Google data, colors, labels, or
 proprietary algorithms. The target render graph supports:
 
-1. bounded multiresolution height and validity tiles;
+1. bounded multiresolution height and validity evaluation;
 2. stable normals derived from the height field;
 3. multidirectional hillshade rather than one hard light direction;
 4. local ambient, ridge, valley, and curvature shading;
@@ -151,8 +151,8 @@ unbounded scene, or missing validity information.
 
 ### Runtime and renderer boundaries
 
-The engine uses an immutable scene snapshot plus data-oriented field and tile
-buffers. A generic entity-component system is deferred until a concrete dynamic
+The engine uses an immutable scene snapshot plus data-oriented field and
+transient geometry buffers. A generic entity-component system is deferred until a concrete dynamic
 entity workload requires it. Render passes form an explicit directed graph so
 dependencies, invalidation, ordering, and budgets are testable.
 

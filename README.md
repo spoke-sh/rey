@@ -82,7 +82,8 @@ fine-tune those artifacts, freezes exact objects in INDEX, and commits
 `SCENE@n` history with immutable admission packages.
 Those packages remain candidate-only and cannot affect `/explore` until a
 separate qualified workload admits them. The first implemented adapter accepts
-RFC 7946 GeoJSON features and marker POIs in OGC CRS84; detailed raster terrain,
+RFC 7946 GeoJSON features and marker POIs in OGC CRS84; procedural terrain
+programs are the native runtime form, while detailed raster terrain,
 GeoPackage, GeoTIFF/COG, Arrow, and provider-qualified semantic charts remain
 planned adapters. See [ADR
 0046](docs/decisions/0046-read-first-scene-editor.md) and [Plan
@@ -362,7 +363,11 @@ just rey ui --host 0.0.0.0 --port 5714
 
 `rey ui` opens the human operator's primary collaboration surface. `/`
 redirects to `/explore`, a full-screen-capable context-topology canvas whose
-semantic lens moves from bounded world geometry and anchor relief, through workload and attention
+fresh-state orientation globe binds exact workload beacons to request,
+WORKING, INDEX, and admitted-but-unrun file state. It guides the operator from
+exact inspection and consent to an explicit bounded project survey without
+claiming that the project is already mapped. Once admitted survey evidence
+exists, the semantic lens moves from bounded world geometry and anchor relief, through workload and attention
 neighborhoods, into exact graph, scenario, evidence, dependency, and directed-
 delta objects. Exact locations separate a provider-qualified semantic
 coordinate such as

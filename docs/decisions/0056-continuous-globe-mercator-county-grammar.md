@@ -7,6 +7,9 @@
   0047](0047-semantic-spherical-atlas.md)
 - Supersedes: ADR 0044's restriction of the first target to one top-down 2.5D
   camera and ADR 0047's unspecified Atlas-chart transform
+- Extended by: [ADR 0057](0057-procedural-terrain-program.md), which replaces
+  native terrain tiles with procedural programs and transient camera working
+  sets
 
 ## Context
 
@@ -156,8 +159,8 @@ hysteresis and screen-space error budgets:
   under explicit LOD rules.
 - Atlas-to-County requires exactly one admitted county footprint under the
   focus or an explicit selection. It expands that county's local tangent frame,
-  introduces the isometric camera, and replaces aggregate tiles with finer
-  retained levels from the same admitted scene.
+  introduces the isometric camera, and evaluates finer procedural bands and
+  feature layers from the same admitted scene.
 - If no admitted county is available, zoom stops at Atlas detail and exposes
   the missing admission. It does not generate terrain, execute a survey, or
   choose an unrelated county.
@@ -184,7 +187,7 @@ editor WORKING → INDEX → SCENE@n candidate package
                          admitted regional scene
                                   │
                                   ├─ atlas sector/county footprint
-                                  ├─ multiresolution terrain fields
+                                  ├─ procedural terrain program and controls
                                   ├─ natural and constructed feature layers
                                   └─ exact source/admission lineage
 ```
@@ -205,8 +208,8 @@ coherence using Rey-owned or admitted inputs, not copied data, style, or
 algorithms. A detailed county needs more than a shader over sparse control
 points. The admitted scene contract must support:
 
-- a bounded multiresolution height/validity tile pyramid with crack-free LOD
-  transitions and explicit no-data semantics;
+- a bounded procedural height/validity program with crack-free transient
+  working-set transitions and explicit no-data semantics;
 - independently revisioned normal, slope, aspect, curvature, occlusion,
   roughness, tint, wetness, and material channels where the source warrants
   them;
@@ -215,8 +218,8 @@ points. The admitted scene contract must support:
   perspective;
 - ordered hydrology, land-cover, boundary, road, lot, structure, POI, label,
   selection, validity, and accessibility layers;
-- screen-space-error terrain selection, tile residency and byte budgets,
-  seam stitching, label collision, picking, and visible degradation; and
+- screen-space terrain sampling, transient residency and byte budgets, seam
+  stitching, label collision, picking, and visible degradation; and
 - exact source, compiler, material, renderer, viewport, device, limits,
   omissions, and performance evidence for every fidelity claim.
 
@@ -252,7 +255,7 @@ do not write scene state.
 COBE establishes a useful quality and interaction reference: a compact,
 responsive lit globe, smooth rotation, dense sampled surface, markers, and DOM
 label binding. It is not the selected Rey renderer. Its official implementation
-is a standalone WebGL globe and does not provide Rey's terrain tile pyramid,
+is a standalone WebGL globe and does not provide Rey's terrain program,
 semantic scene, TSL material graph, county surface, or WebGPU-first lifecycle.
 
 Rey retains the pinned Three.js `WebGPURenderer` and TSL boundary from ADR
@@ -268,7 +271,7 @@ The repository currently implements a lit World sphere with region markers, a
 synthetic semantic atlas, a flat local relief mesh, and a candidate-only
 GeoJSON scene editor. It does not yet implement interactive globe rotation,
 semantic Mercator unwrapping, sector polygons and hover lift, scene admission,
-raster/multiresolution editor terrain, Atlas-to-County morphing, an isometric
+procedural editor terrain, Atlas-to-County morphing, an isometric
 county camera, or admitted road/lot/artifact layers. This ADR formalizes the
 target grammar; [Plan 0029](../../plans/0029-continuous-explorer-grammar.md)
 owns its implementation and proof.

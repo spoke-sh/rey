@@ -226,20 +226,32 @@ function SemanticGlobeLayer({
   const projectedClusters = globe.clusters
     .map((cluster) => ({ cluster, ...projectGlobe(cluster, center, radius) }))
     .filter(({ visible }) => visible);
+  const projectedBeacons = globe.beacons
+    .map((beacon) => ({ beacon, ...projectGlobe(beacon, center, radius) }))
+    .filter(({ visible }) => visible)
+    .sort((left, right) => left.depth - right.depth);
   const focus = (focus_id: string, x: number, y: number) =>
     onFocus({ focus_id, x, y });
   return (
     <svg
-      aria-label={`${globe.regions.length} admitted semantic world regions on a synthetic globe`}
+      aria-label={
+        globe.posture === "orientation"
+          ? `${globe.beacons.length} exact workload beacons on an unmapped project globe`
+          : `${globe.regions.length} admitted semantic world regions on a synthetic globe`
+      }
       className={sx(styles.worldGeometryLayer, styles.semanticGlobeLayer)}
-      data-atlas-revision={globe.atlas_revision}
+      data-atlas-revision={
+        globe.posture === "semantic_atlas" ? globe.source_revision : undefined
+      }
+      data-globe-posture={globe.posture}
+      data-globe-revision={globe.source_revision}
       role="group"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <title>
-        Synthetic semantic longitude and latitude place admitted survey regions
-        on a spherical world. They are not Earth coordinates, and zoom never
-        reclusters this atlas revision.
+        {globe.posture === "orientation"
+          ? "This unmapped globe orients exact file-backed workload candidates. Beacon positions are stable presentation geometry, not admitted semantic coordinates or distance claims."
+          : "Synthetic semantic longitude and latitude place admitted survey regions on a spherical world. They are not Earth coordinates, and zoom never reclusters this atlas revision."}
       </title>
       <defs>
         <radialGradient id="rey-semantic-globe-fill" cx="34%" cy="26%" r="76%">
@@ -345,13 +357,67 @@ function SemanticGlobeLayer({
           </g>
         ))}
       </g>
+      <g aria-label={`${projectedBeacons.length} visible workload beacons`}>
+        {projectedBeacons.map(({ beacon, x, y, depth }) => (
+          <g
+            aria-label={`${beacon.mapping_role === "survey" ? "Survey" : "Workload"} beacon: ${beacon.label}. ${beacon.next_step}`}
+            className={sx(
+              styles.semanticGlobeBeacon,
+              beacon.mapping_role === "survey" &&
+                styles.semanticGlobeSurveyBeacon,
+              toneStyle(beacon.tone, "node"),
+            )}
+            data-beacon-state={beacon.state}
+            data-workload-beacon={beacon.workload_id}
+            key={beacon.id}
+            onClick={() => focus(beacon.focus_id, x, y)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                focus(beacon.focus_id, x, y);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <circle
+              className={sx(styles.semanticGlobeBeaconHalo)}
+              cx={x}
+              cy={y}
+              r={18 + depth * 8}
+            />
+            <circle
+              className={sx(styles.semanticGlobeBeaconPoint)}
+              cx={x}
+              cy={y}
+              r={beacon.mapping_role === "survey" ? 10 : 7}
+            />
+            <text
+              className={sx(styles.semanticGlobeBeaconLabel)}
+              x={x + 17}
+              y={y - 13}
+            >
+              {beacon.workload_id}
+            </text>
+            <text
+              className={sx(styles.semanticGlobeBeaconState)}
+              x={x + 17}
+              y={y + 3}
+            >
+              {beacon.state.toUpperCase()} / {beacon.mapping_role.toUpperCase()}
+            </text>
+            <title>{`${beacon.label} / ${beacon.detail} / ${beacon.next_step}`}</title>
+          </g>
+        ))}
+      </g>
       <text
         className={sx(styles.semanticGlobeCaption)}
         x={center.x - radius}
         y={center.y + radius + 34}
       >
-        SEMANTIC SPHERE / {globe.regions.length} ADMITTED REGIONS / REV{" "}
-        {globe.atlas_revision.slice(0, 12)}
+        {globe.posture === "orientation"
+          ? `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`
+          : `SEMANTIC SPHERE / ${globe.regions.length} ADMITTED REGIONS / REV ${globe.source_revision.slice(0, 12)}`}
       </text>
     </svg>
   );
@@ -704,6 +770,14 @@ function TopologyObject({
 
 export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
   if (!scene.terrain) return null;
+  const orientation = scene.globe?.posture === "orientation";
+  const selectedBeacon = orientation
+    ? (scene.globe?.beacons.find(
+        (beacon) => beacon.focus_id === scene.focus_id,
+      ) ??
+      scene.globe?.beacons.find((beacon) => beacon.mapping_role === "survey") ??
+      scene.globe?.beacons[0])
+    : undefined;
   const waterSystems = scene.natural_features.filter(
     (feature) => feature.kind === "stream" || feature.kind === "river",
   );
@@ -724,26 +798,72 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
           {scene.bearing.detail}
         </small>
       </div>
-      <div className={sx(styles.mapKey)} aria-hidden="true">
-        <span>
-          <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
-        </span>
-        <span>
-          <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
-        </span>
-        <span>
-          <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
-        </span>
-        <span>
-          <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
-        </span>
-      </div>
+      {selectedBeacon ? (
+        <div
+          className={sx(styles.orientationGuide)}
+          data-selected-workload-beacon={selectedBeacon.workload_id}
+        >
+          <span className={sx(styles.bearingEyebrow)}>
+            {selectedBeacon.mapping_role === "survey"
+              ? "FIRST MAPPING STEP"
+              : "AGENTIC WORKLOAD"}
+          </span>
+          <strong className={sx(styles.bearingTitle)}>
+            {selectedBeacon.label}
+          </strong>
+          <code title={selectedBeacon.source_revision}>
+            {selectedBeacon.state.toUpperCase()} / {selectedBeacon.source}
+          </code>
+          <small className={sx(styles.bearingDetail)}>
+            {selectedBeacon.next_step}
+          </small>
+          <span className={sx(styles.orientationActions)}>
+            <a
+              className={sx(styles.orientationAction)}
+              href={`/workloads/${encodeURIComponent(selectedBeacon.workload_id)}`}
+            >
+              INSPECT EXACT WORKLOAD →
+            </a>
+            {selectedBeacon.state === "working" ||
+            selectedBeacon.state === "index" ? (
+              <a
+                className={sx(styles.orientationAction, styles.consentAction)}
+                href="/feed?streams=admission.all"
+              >
+                REVIEW & CONSENT →
+              </a>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
+      {orientation ? (
+        <div className={sx(styles.mapKey)} aria-hidden="true">
+          <span>● WORKLOAD BEACON</span>
+          <span>○ UNMAPPED PROJECT</span>
+          <span>SELECT / REVIEW</span>
+        </div>
+      ) : (
+        <div className={sx(styles.mapKey)} aria-hidden="true">
+          <span>
+            <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
+          </span>
+          <span>
+            <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
+          </span>
+          <span>
+            <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
+          </span>
+          <span>
+            <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
+          </span>
+        </div>
+      )}
       <div className={sx(styles.mapScale)} aria-hidden="true">
         <i className={sx(styles.mapScaleBar)} />
         <span>
-          {waterSystems.length} PROJECTED WATER SYSTEMS · {weatherFronts.length}{" "}
-          WEATHER FRONTS · {probes.length} PROBES · NO PATH CLAIM · LOD{" "}
-          {scene.regime.toUpperCase()}
+          {orientation
+            ? `${scene.globe?.beacons.length ?? 0} EXACT FILE-BACKED SIGNALS · NO SURVEY CLAIM · NO DISTANCE CLAIM`
+            : `${waterSystems.length} PROJECTED WATER SYSTEMS · ${weatherFronts.length} WEATHER FRONTS · ${probes.length} PROBES · NO PATH CLAIM · LOD ${scene.regime.toUpperCase()}`}
         </span>
       </div>
     </aside>

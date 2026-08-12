@@ -1378,6 +1378,14 @@ and a finite relay set. The implemented beacon command performs one bounded
 tick over admitted messages, suppresses already delivered pairs, and retains
 attempt evidence. It is not a daemon, heartbeat, or remote-inbox cursor.
 
+### Workload beacon
+
+A presentation-only signal on Explorer's pre-survey orientation globe that
+binds one exact workload request, WORKING package, INDEX package, or
+admitted-but-unrun revision. It directs the operator to inspection, consent,
+or an explicit next run; it is not a polling beacon, live activity, semantic
+coordinate, admitted atlas region, or execution authority.
+
 ### Relational mining
 
 Mining over typed collections using operations such as retrieve, select,
@@ -1717,6 +1725,21 @@ A bounded multiresolution scalar/vector field with explicit channel semantics,
 normalization, surveyed-validity mask, revision, limits, and omissions. Height,
 rainfall, flow, erosion, normals, curvature, and material channels remain
 distinct; smoothing and shading do not turn unknown cells into evidence.
+
+### Terrain program
+
+A deterministic, revision-bound projection description containing an
+evaluator and seed, absolute-coordinate and validity rules, multiscale detail
+bands, and a maximum transient camera-working-set budget. It is compiled from
+exact admitted evidence and controls; it contains neither camera state nor
+pre-rendered terrain tiles.
+
+### Terrain working set
+
+Disposable field buffers and geometry evaluated from one terrain program for
+a snapped camera envelope and sample spacing. It may be cached or regenerated,
+but cannot expand validity, become semantic authority, or be the only copy of
+authored or observed data.
 
 ### Topography patch
 

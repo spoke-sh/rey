@@ -273,6 +273,14 @@
     border-color: #b57417b3;
   }
 
+  .x1vuunbi {
+    border-color: color-mix(in srgb,#f2a94d 52%,var(--line));
+  }
+
+  .x1vroxhf {
+    border-color: #f2a94d8c;
+  }
+
   .xan7979 {
     border-color: color-mix(in srgb,var(--line) 78%,transparent);
   }
@@ -813,8 +821,16 @@
     animation-duration: .9s;
   }
 
+  .xius3t {
+    animation-duration: 2.4s;
+  }
+
   .xa4qsjk {
     animation-iteration-count: infinite;
+  }
+
+  .x1hy9cxb {
+    animation-name: x186tm-B;
   }
 
   .xpedhrg {
@@ -881,8 +897,16 @@
     background-color: #d8d9d4;
   }
 
+  .xzmy5qs {
+    background-color: #f2a94d;
+  }
+
   .xtl4qay {
     background-color: #2370471a;
+  }
+
+  .x1c3iuc {
+    background-color: color-mix(in srgb,#273c3d 93%,var(--rey-background));
   }
 
   .xarkdic {
@@ -1065,6 +1089,10 @@
     box-shadow: 0 0 0 3px #b5741733;
   }
 
+  .x1abiqav {
+    box-shadow: 0 12px 30px #0000003d;
+  }
+
   .xckuu0 {
     box-shadow: 0 18px 48px color-mix(in srgb,var(--rey-foreground) 12%,transparent);
   }
@@ -1099,6 +1127,10 @@
 
   .x8e5rsw {
     color: #237047;
+  }
+
+  .x1fl4m3b {
+    color: #253637;
   }
 
   .x1hxpnyv {
@@ -1139,6 +1171,14 @@
 
   .x5dnihl {
     color: #f1f0e8;
+  }
+
+  .xdl0pe {
+    color: #f4c86f;
+  }
+
+  .x1i3mnf6 {
+    color: #f7f2df;
   }
 
   .xozlh4g {
@@ -1201,6 +1241,10 @@
     display: inline-flex;
   }
 
+  .xb1565v {
+    fill: #f2a94d;
+  }
+
   .x1cxaj65 {
     fill: #78959b0d;
   }
@@ -1217,8 +1261,20 @@
     fill: color-mix(in srgb,#eef3db 76%,var(--rey-accent));
   }
 
+  .x1w58h05 {
+    fill: #f2a94d38;
+  }
+
+  .x1am5zi4 {
+    fill: #f4cb78;
+  }
+
   .x47i34s {
     fill: color-mix(in srgb,#f5f6e9 90%,var(--rey-foreground));
+  }
+
+  .x161wtpg {
+    fill: color-mix(in srgb,#fff7dc 94%,var(--rey-foreground));
   }
 
   .xbh8q5q {
@@ -1235,6 +1291,14 @@
 
   .x10yt96j {
     fill: var(--rey-foreground);
+  }
+
+  .x1jgnj0e {
+    filter: drop-shadow(0 0 10px #f2a94db8);
+  }
+
+  .x1wpg32p {
+    filter: drop-shadow(0 0 8px #f2a94de0);
   }
 
   .x13ryam3 {
@@ -1457,12 +1521,20 @@
     font-size: 9px;
   }
 
+  .xhbi7q9 {
+    font-size: calc(10px * var(--rey-terrain-counter-scale));
+  }
+
   .x2yisib {
     font-size: calc(13px * var(--rey-terrain-counter-scale));
   }
 
   .x1gpcp85 {
     font-size: calc(16px * var(--rey-terrain-counter-scale));
+  }
+
+  .xtwqv6k {
+    font-size: calc(18px * var(--rey-terrain-counter-scale));
   }
 
   .xkl16fq {
@@ -1759,6 +1831,10 @@
 
   .x9pfba7 {
     letter-spacing: .08em;
+  }
+
+  .x1g5djsm {
+    letter-spacing: .09em;
   }
 
   .x1kdsg29 {
@@ -2061,8 +2137,20 @@
     stroke-width: calc(1px * var(--rey-terrain-counter-scale));
   }
 
+  .x1567b89 {
+    stroke-width: calc(2px * var(--rey-terrain-counter-scale));
+  }
+
   .xtvnem9 {
     stroke-width: calc(4px * var(--rey-terrain-counter-scale));
+  }
+
+  .x19g2z0z {
+    stroke-width: calc(5px * var(--rey-terrain-counter-scale));
+  }
+
+  .x1fcz11x {
+    stroke: #fff4cc;
   }
 
   .x1wayjx2 {
@@ -2071,6 +2159,14 @@
 
   .x1uqemsi {
     stroke: #263c40e0;
+  }
+
+  .x8fl4nc {
+    stroke: #263c40eb;
+  }
+
+  .x1pw8tng {
+    stroke: #263c40f0;
   }
 
   .x1bvf89m {
@@ -2117,6 +2213,10 @@
     stroke: #e1c36a94;
   }
 
+  .x247e73 {
+    stroke: #f2a94dad;
+  }
+
   .x41wegq {
     stroke: color-mix(in srgb,var(--rey-foreground) 38%,transparent);
   }
@@ -2161,7 +2261,11 @@
     touch-action: none;
   }
 
-  .x1jpgh95 {
+  .x1764fhq {
+    transform-box: fill-box;
+  }
+
+  .x1jpgh95, .x1g0ag68 {
     transform-origin: center;
   }
 
@@ -2988,6 +3092,10 @@
     margin-top: 38px;
   }
 
+  .x7r5mf7 {
+    margin-top: 3px;
+  }
+
   .x1ajfak3 {
     margin-top: 42px;
   }
@@ -3536,6 +3644,18 @@
 
   .xpslbdi:before {
     width: 6px;
+  }
+}
+
+@keyframes x186tm-B {
+  0%, 100% {
+    opacity: .3;
+    transform: scale(.84);
+  }
+
+  50% {
+    opacity: .78;
+    transform: scale(1.12);
   }
 }
 

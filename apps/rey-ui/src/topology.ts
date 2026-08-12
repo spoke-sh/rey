@@ -25,10 +25,10 @@ import {
   type ScalarField2D,
 } from "./explore/engine/fields";
 import {
-  compileTerrainFieldPyramid,
-  terrainFieldForRegime,
-  type TerrainFieldPyramid,
+  compileTerrainProgram,
+  materializeTerrainWorkingSet,
   type TerrainFieldSet,
+  type TerrainProgram,
 } from "./explore/terrain/compile";
 
 export {
@@ -76,6 +76,26 @@ export interface TopologyGlobeRegion {
   tone: TopologyTone;
 }
 
+export type TopologyGlobeBeaconState =
+  "request" | "working" | "index" | "admitted";
+
+export interface TopologyGlobeBeacon {
+  id: string;
+  focus_id: string;
+  workload_id: string;
+  label: string;
+  detail: string;
+  source: string;
+  source_revision: string;
+  producer: string;
+  state: TopologyGlobeBeaconState;
+  mapping_role: "survey" | "workload";
+  next_step: string;
+  longitude_degrees: number;
+  latitude_degrees: number;
+  tone: TopologyTone;
+}
+
 export interface TopologyGlobeCluster {
   id: string;
   longitude_degrees: number;
@@ -86,13 +106,15 @@ export interface TopologyGlobeCluster {
 }
 
 export interface TopologyGlobe {
-  schema: "rey.semantic-globe-scene.v1";
-  atlas_id: string;
-  atlas_revision: string;
+  schema: "rey.explore-orientation-globe.v1" | "rey.semantic-globe-scene.v1";
+  posture: "orientation" | "semantic_atlas";
+  globe_id: string;
+  source_revision: string;
   compiler_revision: string;
   coordinate_authority: string;
   regions: TopologyGlobeRegion[];
   clusters: TopologyGlobeCluster[];
+  beacons: TopologyGlobeBeacon[];
 }
 
 interface TopologyPosition {
@@ -140,7 +162,8 @@ export interface TopologyNaturalFeature {
 }
 
 export interface TopologyBearing {
-  status: "world" | "charted" | "probe_required" | "isolated";
+  status:
+    "world" | "charted" | "probe_required" | "consent_required" | "isolated";
   label: string;
   detail: string;
   sampled_conditions: number;
@@ -204,7 +227,7 @@ export interface TopologyScene {
   fit_world: TopologyWorld;
   terrain: boolean;
   terrain_fields: TerrainFieldSet[];
-  terrain_pyramids: TerrainFieldPyramid[];
+  terrain_programs: TerrainProgram[];
   globe: TopologyGlobe | null;
 }
 
@@ -220,7 +243,9 @@ export function buildTopologyScene(
 ): TopologyScene {
   const regime = retainedRegime ?? lensRegimeForZoom(zoom);
   let projection: TopologyProjection;
-  if (regime === "world") projection = buildWorld(portfolio, focusId);
+  if (isFreshProjectOrientation(portfolio))
+    projection = buildOrientationWorld(portfolio, focusId);
+  else if (regime === "world") projection = buildWorld(portfolio, focusId);
   else if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
   else if (regime === "landscape")
     projection = buildLandscape(portfolio, focusId);
@@ -243,12 +268,24 @@ export function buildTopologyScene(
     },
     terrain: projection.terrain ?? false,
     terrain_fields: projection.terrain_fields ?? [],
-    terrain_pyramids: projection.terrain_pyramids ?? [],
+    terrain_programs: projection.terrain_programs ?? [],
     globe: projection.globe ?? null,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
   };
+}
+
+function isFreshProjectOrientation(portfolio: WorkloadList): boolean {
+  return (
+    portfolio.revision !== undefined &&
+    admittedTopographies(portfolio).length === 0 &&
+    ((portfolio.catalog.admitted_count === 0 &&
+      portfolio.workloads.length === 0) ||
+      portfolio.workloads.some(
+        (workload) => workload.workload.id === "context-anchor-survey",
+      ))
+  );
 }
 
 type TopologyProjection = Omit<
@@ -262,7 +299,7 @@ type TopologyProjection = Omit<
   | "points"
   | "terrain"
   | "terrain_fields"
-  | "terrain_pyramids"
+  | "terrain_programs"
   | "world"
 > & {
   bearing?: TopologyBearing;
@@ -272,7 +309,7 @@ type TopologyProjection = Omit<
   points?: TopologyPointOfInterest[];
   terrain?: boolean;
   terrain_fields?: TerrainFieldSet[];
-  terrain_pyramids?: TerrainFieldPyramid[];
+  terrain_programs?: TerrainProgram[];
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
   globe?: TopologyGlobe | null;
@@ -290,16 +327,197 @@ function buildWorld(
       "world",
       portfolio.semantic_atlas ?? null,
     );
-  const fallback = buildAtlas(portfolio, focusId);
+  return buildOrientationWorld(portfolio, focusId);
+}
+
+export function workloadOrientationBeacons(
+  portfolio: WorkloadList,
+): TopologyGlobeBeacon[] {
+  const beacons = new Map<string, TopologyGlobeBeacon>();
+  const revision = portfolio.revision;
+  const headPackages = new Map(
+    (revision?.head?.snapshot.packages ?? []).map((item) => [
+      item.workload_id,
+      item,
+    ]),
+  );
+  const indexPackages = new Map(
+    (revision?.index?.packages ?? []).map((item) => [item.workload_id, item]),
+  );
+  for (const candidate of revision?.working.packages ?? []) {
+    if (
+      headPackages.get(candidate.workload_id)?.source_digest ===
+      candidate.source_digest
+    )
+      continue;
+    const indexed =
+      indexPackages.get(candidate.workload_id)?.source_digest ===
+      candidate.source_digest;
+    beacons.set(
+      candidate.workload_id,
+      workloadBeacon(
+        candidate.workload_id,
+        candidate.title,
+        candidate.source,
+        candidate.source_digest,
+        `${candidate.generation.kind.replaceAll("_", " ")} / ${candidate.generation.producer}@${candidate.generation.producer_revision}`,
+        indexed ? "index" : "working",
+      ),
+    );
+  }
+  for (const workload of portfolio.workloads) {
+    if (beacons.has(workload.workload.id) || workload.topography_patch)
+      continue;
+    const source = workload.provenance?.source ?? "admitted workload HEAD";
+    const sourceRevision =
+      workload.provenance?.source_digest ?? workload.workload.semantic_digest;
+    const generation = workload.provenance?.generation;
+    beacons.set(
+      workload.workload.id,
+      workloadBeacon(
+        workload.workload.id,
+        workload.title,
+        source,
+        sourceRevision,
+        generation
+          ? `${generation.kind.replaceAll("_", " ")} / ${generation.producer}@${generation.producer_revision}`
+          : "admitted workload",
+        "admitted",
+      ),
+    );
+  }
+  for (const draft of portfolio.drafts) {
+    if (beacons.has(draft.request.workload_id)) continue;
+    beacons.set(
+      draft.request.workload_id,
+      workloadBeacon(
+        draft.request.workload_id,
+        draft.request.title,
+        draft.source,
+        draft.source_digest,
+        "coding harness request",
+        "request",
+      ),
+    );
+  }
+  return [...beacons.values()].sort(
+    (left, right) =>
+      Number(right.mapping_role === "survey") -
+        Number(left.mapping_role === "survey") ||
+      left.workload_id.localeCompare(right.workload_id),
+  );
+}
+
+function workloadBeacon(
+  workloadId: string,
+  title: string,
+  source: string,
+  sourceRevision: string,
+  producer: string,
+  state: TopologyGlobeBeaconState,
+): TopologyGlobeBeacon {
+  const mappingRole =
+    workloadId === "context-anchor-survey" ? "survey" : "workload";
+  const hash = stableHash(workloadId);
+  const longitude = -58 + (hash % 117);
+  const latitude = -38 + (Math.floor(hash / 117) % 77);
+  const nextStep =
+    state === "request"
+      ? "an agent must materialize and fine-tune the requested workload package"
+      : state === "working"
+        ? "review the exact file and consent to qualification and admission"
+        : state === "index"
+          ? "review retained qualification and approve the frozen index"
+          : mappingRole === "survey"
+            ? "an agent may now run a bounded survey over explicitly chosen project seeds"
+            : "an agent may now use this admitted workload through its declared interface";
   return {
-    ...fallback,
+    id: `workload-beacon:${workloadId}`,
+    focus_id: `beacon:${workloadId}`,
+    workload_id: workloadId,
+    label: title,
+    detail: `${state.toUpperCase()} / ${source} / ${shortCoordinate(sourceRevision)}`,
+    source,
+    source_revision: sourceRevision,
+    producer,
+    state,
+    mapping_role: mappingRole,
+    next_step: nextStep,
+    longitude_degrees: longitude,
+    latitude_degrees: latitude,
+    tone:
+      state === "admitted"
+        ? "healthy"
+        : state === "index"
+          ? "accent"
+          : state === "request"
+            ? "frontier"
+            : "attention",
+  };
+}
+
+function buildOrientationWorld(
+  portfolio: WorkloadList,
+  focusId: string,
+): TopologyProjection {
+  const beacons = workloadOrientationBeacons(portfolio);
+  const incoming = beacons.filter((beacon) => beacon.state !== "admitted");
+  const survey = beacons.find((beacon) => beacon.mapping_role === "survey");
+  const orientationRevision =
+    portfolio.revision?.working.snapshot_revision ??
+    portfolio.attention.source_snapshot_id;
+  return {
     regime: "world",
-    label: "UNCHARTED CONTEXT WORLD",
-    detail: "no admitted survey boundary or world geometry",
+    label: incoming.length > 0 ? "PROJECT ORIENTATION" : "UNMAPPED PROJECT",
+    detail:
+      incoming.length > 0
+        ? `${incoming.length} exact workload ${incoming.length === 1 ? "beacon" : "beacons"} awaiting review · no project survey has been admitted`
+        : survey?.state === "admitted"
+          ? "the survey workload is admitted and awaits an explicit bounded run"
+          : "no survey workload candidate is available for review",
+    focus_id: focusId,
+    regions: [],
+    landforms: [],
+    contours: [],
+    natural_features: [],
+    points: [],
+    nodes: [],
+    edges: [],
     omissions: [
-      "world geometry is unavailable until a survey workload patch is admitted",
-      ...fallback.omissions,
+      "the orientation globe is presentation geometry and makes no semantic-distance claim",
+      "project terrain remains unexplored until a consented survey produces admitted topography",
     ],
+    bearing: {
+      status: beacons.length > 0 ? "consent_required" : "isolated",
+      label:
+        incoming.length > 0
+          ? "SURVEY CONSENT REQUIRED"
+          : survey?.state === "admitted"
+            ? "SURVEY RUN REQUIRED"
+            : "SURVEY PROPOSAL REQUIRED",
+      detail:
+        survey?.next_step ??
+        "an agent must create a file-backed context survey workload before Rey can request consent",
+      sampled_conditions: 0,
+      unresolved_boundaries: beacons.length,
+    },
+    world: TOPOLOGY_WORLD,
+    fit_world: TOPOLOGY_WORLD,
+    terrain: true,
+    terrain_fields: [],
+    terrain_programs: [],
+    globe: {
+      schema: "rey.explore-orientation-globe.v1",
+      posture: "orientation",
+      globe_id: `orientation:${orientationRevision}`,
+      source_revision: orientationRevision,
+      compiler_revision: "rey.explore.orientation-globe@1",
+      coordinate_authority:
+        "stable presentation-only workload placement; not an admitted semantic atlas or distance claim",
+      regions: [],
+      clusters: [],
+      beacons,
+    },
   };
 }
 
@@ -1272,7 +1490,7 @@ interface SurveyTerrainLayout {
   points: TopologyPointOfInterest[];
   regions: TopologyRegion[];
   terrain_fields: TerrainFieldSet[];
-  terrain_pyramids: TerrainFieldPyramid[];
+  terrain_programs: TerrainProgram[];
   world: TopologyWorld;
 }
 
@@ -1387,7 +1605,7 @@ function buildSurveyTerrain(
         },
     terrain: true,
     terrain_fields: layout.terrain_fields,
-    terrain_pyramids: layout.terrain_pyramids,
+    terrain_programs: layout.terrain_programs,
     globe,
   };
 }
@@ -1405,8 +1623,9 @@ function buildSemanticGlobe(
   );
   return {
     schema: "rey.semantic-globe-scene.v1",
-    atlas_id: atlas.atlas_id,
-    atlas_revision: atlas.atlas_revision,
+    posture: "semantic_atlas",
+    globe_id: atlas.atlas_id,
+    source_revision: atlas.atlas_revision,
     compiler_revision: atlas.compiler.semantic_digest,
     coordinate_authority: atlas.coordinate_system.authority,
     clusters: atlas.clusters.map((cluster) => ({
@@ -1436,6 +1655,7 @@ function buildSemanticGlobe(
             ? "healthy"
             : "omitted",
     })),
+    beacons: [],
   };
 }
 
@@ -1464,7 +1684,7 @@ function layoutSurveyTerrain(
   const points: TopologyPointOfInterest[] = [];
   const regions: TopologyRegion[] = [];
   const terrainFields: TerrainFieldSet[] = [];
-  const terrainPyramids: TerrainFieldPyramid[] = [];
+  const terrainPrograms: TerrainProgram[] = [];
 
   const ordered = [...topographies].sort((left, right) =>
     left.workload.workload.id.localeCompare(right.workload.workload.id),
@@ -1681,7 +1901,7 @@ function layoutSurveyTerrain(
     );
     contours.push(...terrainField.contours);
     terrainFields.push(terrainField.fields);
-    terrainPyramids.push(terrainField.pyramid);
+    terrainPrograms.push(terrainField.program);
     const boundedFeatures = terrainField.natural_features.slice(
       0,
       projection.limits.max_natural_features,
@@ -1711,7 +1931,7 @@ function layoutSurveyTerrain(
     points,
     regions,
     terrain_fields: terrainFields,
-    terrain_pyramids: terrainPyramids,
+    terrain_programs: terrainPrograms,
     world,
   };
 }
@@ -1869,7 +2089,7 @@ function buildSurveyTerrainDetails(
 interface TerrainFieldResult {
   contours: TopologyContour[];
   fields: TerrainFieldSet;
-  pyramid: TerrainFieldPyramid;
+  program: TerrainProgram;
   natural_features: TopologyNaturalFeature[];
 }
 
@@ -1892,7 +2112,7 @@ function buildTerrainField(
       ) *
         0.03,
   );
-  const pyramid = compileTerrainFieldPyramid({
+  const program = compileTerrainProgram({
     source_id: id,
     source_revision: patch.topography_revision,
     bounds,
@@ -1906,7 +2126,14 @@ function buildTerrainField(
     unresolved_pressure: unresolvedPressure,
     projection,
   });
-  const fields = terrainFieldForRegime(pyramid, regime);
+  const fields = materializeTerrainWorkingSet(program, {
+    working_set_id: `reference:${regime}`,
+    bounds,
+    columns: 61,
+    rows: 41,
+    detail_authority:
+      "bounded deterministic reference projection; accelerated detail is camera-relative",
+  });
   const grid = fields.grid;
   const contours = TERRAIN_LEVELS.flatMap((ratio, index) => {
     const threshold = fields.elevation.maximum * ratio;
@@ -1995,7 +2222,7 @@ function buildTerrainField(
       workload_id: id,
     });
   });
-  return { contours, fields, pyramid, natural_features: naturalFeatures };
+  return { contours, fields, program, natural_features: naturalFeatures };
 }
 
 function envelopePath(

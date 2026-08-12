@@ -1,90 +1,36 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectionPacket } from "../../domain";
-import { createFieldGrid } from "../engine/fields";
-import { compileTerrainFields } from "../terrain/compile";
+import {
+  compileTerrainProgram,
+  materializeTerrainWorkingSet,
+} from "../terrain/compile";
+import { proceduralProjection } from "../terrain/compile.test";
 import {
   buildTerrainMeshData,
   createContinuousReliefBundle,
   createContinuousReliefMaterial,
 } from "./three-terrain";
 
-const channelIds = [
-  "validity",
-  "elevation",
-  "rainfall",
-  "flow_direction",
-  "flow_accumulation",
-  "erosion",
-  "normal",
-  "curvature",
-  "material",
-] as const;
-
-const projection = {
-  projection_basis: {
-    parameters: { elevation_scale_ratio: "0.085" },
-  },
-  field_pyramid: {
-    levels: [
-      {
-        level_id: "local",
-        columns: 13,
-        rows: 9,
-        cells: 117,
-        bytes_per_cell: 55,
-        total_bytes: 6435,
-        sample_stride: 1,
-        regimes: ["neighborhoods", "objects", "evidence"],
-        detail_authority: "fixture local detail",
-      },
-    ],
-  },
-  field_channels: channelIds.map((id) => ({
-    id,
-    kind:
-      id === "validity"
-        ? ("mask" as const)
-        : id === "normal" || id === "flow_direction" || id === "material"
-          ? ("vector" as const)
-          : ("scalar" as const),
-    semantics: id,
-    units: "relative",
-    normalization: "fixture",
-    source_revision: "topography:one",
-    implementation: {
-      id: `rey.projection.${id}`,
-      revision: 1,
-      semantic_digest: `implementation:${id}`,
-    },
-  })),
-  limits: {
-    max_field_channels: 12,
-    max_field_cells: 2501,
-    max_field_bytes: 160064,
-  },
-} as unknown as ProjectionPacket;
-
 function fields() {
-  const level = projection.field_pyramid.levels[0]!;
-  return compileTerrainFields({
+  const program = compileTerrainProgram({
     source_id: "survey:one",
     source_revision: "topography:one",
-    level,
-    grid: createFieldGrid(13, 9, {
-      x: 100,
-      y: 80,
-      width: 1300,
-      height: 840,
-    }),
+    bounds: { x: 100, y: 80, width: 1300, height: 840 },
     anchors: [{ id: "workspace", x: 750, y: 500, prominence: 4 }],
     atmosphere: [],
     unresolved_pressure: 0,
-    projection,
+    projection: proceduralProjection,
+  });
+  return materializeTerrainWorkingSet(program, {
+    working_set_id: "renderer:fixture",
+    bounds: program.bounds,
+    columns: 61,
+    rows: 41,
+    detail_authority: "renderer fixture",
   });
 }
 
 describe("Three.js continuous terrain", () => {
-  it("builds triangles only from valid field support", () => {
+  it("builds triangles only from valid procedural working-set support", () => {
     const fieldSet = fields();
     const mesh = buildTerrainMeshData(fieldSet);
     expect(mesh.positions).toHaveLength(fieldSet.field_cells * 3);

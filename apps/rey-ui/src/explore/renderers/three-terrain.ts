@@ -26,6 +26,7 @@ import {
 } from "three/tsl";
 import { fieldPoint } from "../engine/fields";
 import type { TerrainFieldSet } from "../terrain/compile";
+import type { TerrainCameraView } from "../terrain/compile";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
@@ -40,6 +41,7 @@ export interface ThreeTerrainBundle {
     triangles: number;
     field_bytes: number;
   };
+  updateView?(view: TerrainCameraView): void;
   dispose(): void;
 }
 
@@ -110,6 +112,7 @@ export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
 export function createContinuousReliefBundle(
   fields: readonly TerrainFieldSet[],
   world: { width: number; height: number },
+  view?: TerrainCameraView,
 ): ThreeTerrainBundle {
   const scene = new Scene();
   const terrain = new Group();
@@ -168,22 +171,14 @@ export function createContinuousReliefBundle(
   scene.add(fillLight);
 
   const maximumDimension = Math.max(world.width, world.height);
-  const camera = new OrthographicCamera(
-    -world.width / 2,
-    world.width / 2,
-    world.height / 2,
-    -world.height / 2,
-    0.1,
-    maximumDimension * 4,
-  );
+  const camera = new OrthographicCamera();
   camera.position.set(
     world.width / 2,
     maximumDimension * 1.75,
     world.height / 2,
   );
   camera.up.set(0, 0, -1);
-  camera.lookAt(world.width / 2, 0, world.height / 2);
-  camera.updateProjectionMatrix();
+  updateTerrainCamera(camera, world, view);
 
   return {
     scene,
@@ -195,12 +190,41 @@ export function createContinuousReliefBundle(
       triangles,
       field_bytes: fieldBytes,
     }),
+    updateView(nextView) {
+      updateTerrainCamera(camera, world, nextView);
+    },
     dispose() {
       for (const geometry of geometries) geometry.dispose();
       material.dispose();
       scene.clear();
     },
   };
+}
+
+export function updateTerrainCamera(
+  camera: OrthographicCamera,
+  world: { width: number; height: number },
+  view?: TerrainCameraView,
+): void {
+  const scale = Math.max(0.000_001, view?.rendered_scale ?? 1);
+  const viewportWidth = view?.viewport_width ?? world.width;
+  const viewportHeight = view?.viewport_height ?? world.height;
+  const centerX = world.width / 2 - (view?.pan_x ?? 0) / scale;
+  const centerY = world.height / 2 - (view?.pan_y ?? 0) / scale;
+  camera.left = -viewportWidth / scale / 2;
+  camera.right = viewportWidth / scale / 2;
+  camera.top = viewportHeight / scale / 2;
+  camera.bottom = -viewportHeight / scale / 2;
+  camera.near = 0.1;
+  camera.far = Math.max(world.width, world.height) * 4;
+  camera.position.set(
+    centerX,
+    Math.max(world.width, world.height) * 1.75,
+    centerY,
+  );
+  camera.up.set(0, 0, -1);
+  camera.lookAt(centerX, 0, centerY);
+  camera.updateProjectionMatrix();
 }
 
 export function createContinuousReliefMaterial(): MeshStandardNodeMaterial {
