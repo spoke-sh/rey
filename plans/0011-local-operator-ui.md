@@ -10,10 +10,12 @@
   [ADR 0036](../docs/decisions/0036-cadence-repository-state-and-publication.md),
   [ADR 0037](../docs/decisions/0037-explore-bound-collaboration-journal.md),
   [ADR 0038](../docs/decisions/0038-unauthenticated-hyperlinkable-journal.md),
+  [ADR 0054](../docs/decisions/0054-diff-directed-journal-broadsheet.md),
   [ADR 0039](../docs/decisions/0039-bounded-operator-feed.md),
   [ADR 0041](../docs/decisions/0041-continuous-coordinate-topography.md),
   [ADR 0044](../docs/decisions/0044-explorer-projection-engine.md)
-- Extended by: [Plan 0020](0020-high-fidelity-projection-engine.md)
+- Extended by: [Plan 0020](0020-high-fidelity-projection-engine.md) and
+  [Plan 0028](0028-journal-broadsheet.md)
 
 ## Outcome
 
@@ -130,7 +132,8 @@ stream lenses through a bounded, deep-linkable URL grammar.
   when the Journal is quiet.
 - [x] Retire the initial matrix-style Explorer coordinate grammar through ADR
   0041; use revision-bound `rey+local://...` coordinates and a separate numeric
-  scale in `/explore?coordinate=...&scale=...`, Journal v1, and route tests.
+  scale in `/explore?coordinate=...&scale=...`, the current Journal contract,
+  and route tests.
 - [x] Keep the coordinate rail fixed beneath the header and advance its exact
   numbered section coordinate as the operator scrolls through a route.
 - [x] Make the global footer a fixed live communications channel with a typed
@@ -153,6 +156,8 @@ stream lenses through a bounded, deep-linkable URL grammar.
 - [x] Route creation through `/journal/new`, selection through an exact
   identity-bearing `/journal/{slug}`, and every typed block through a stable
   fragment permalink.
+- [x] Replace the separate composer and retained viewer with one live bounded
+  broadsheet editor; append retained edits as exact superseding entries.
 - [ ] Add exact scenario/delta routes and preserve CLI `-v`/`-vv` evidence
   layering in the visual projection.
 
@@ -294,7 +299,7 @@ Rust tests, every documentation test, Clippy with warnings denied, and flake
 evaluation.
 
 The hyperlinkable Journal extension on 2026-08-10 advances the UI envelopes to
-`rey.ui-server.v1` and `rey.ui-journal.v1`. The retained index now enters exact
+the then-current `rey.ui-server.v1` and `rey.ui-journal.v1`. The retained index now enters exact
 identity-bearing document routes, `/journal/new` redirects after admission,
 and every typed block exposes a fragment permalink. A real `0.0.0.0`
 listener admitted a human proposal with no credentials or `Origin`; startup

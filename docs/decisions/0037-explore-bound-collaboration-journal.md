@@ -7,6 +7,8 @@
 - Extended: [ADR 0041](0041-continuous-coordinate-topography.md) hard-cuts the
   matrix binding and v1 Journal schemas to semantic coordinate, numeric scale,
   and Journal v2 contracts
+- Extended: [ADR 0054](0054-diff-directed-journal-broadsheet.md) hard-cuts the
+  sequential layout and split viewer/composer to the Journal v2 broadsheet
 
 ## Context
 

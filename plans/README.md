@@ -19,6 +19,7 @@ completion criteria.
 - [0025 — File-backed workload admission](0025-file-backed-workload-admission.md) — active visible `sys/<workload>/` packages and direct exact-file browser admission bearing
 - [0026 — Typed workspace ignore file](0026-typed-workspace-ignore-file.md) — active omission-visible `.reyignore` scope for workload and environment WORKING observations
 - [0027 — Provider-independent foundation](0027-provider-independent-foundation.md) — active hard cut from privileged external-platform assumptions to Rey-owned local contracts
+- [0028 — Diff-directed Journal broadsheet](0028-journal-broadsheet.md) — active immutable live-document and authored-opportunity bearing
 
 ## Completed
 

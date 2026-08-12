@@ -2314,7 +2314,7 @@ fn journal_cli_admits_agent_entries_without_executing_typed_blocks() {
     let proposal = workspace.path().join("entry.yaml");
     fs::write(
         &proposal,
-        r#"schema: rey.journal-entry-proposal.v1
+        r#"schema: rey.journal-entry-proposal.v2
 title: Inspect source coverage
 author:
   kind: agent
@@ -2323,6 +2323,16 @@ binding:
   coordinate: rey+local://workload/source-mining?revision=blake3%3Aabc
   scale: 1.46
   source_revision: blake3:abc
+layout:
+  kind: broadsheet
+  columns: 12
+  bands:
+    - id: evidence
+      cells:
+        - block_id: context
+          span: 8
+        - block_id: coverage-query
+          span: 4
 blocks:
   - kind: prose
     id: context
@@ -2352,7 +2362,7 @@ blocks:
     assert!(admitted.status.success());
     assert!(admitted.stderr.is_empty());
     let admitted: Value = serde_json::from_slice(&admitted.stdout).unwrap();
-    assert_eq!(admitted["schema"], "rey.journal-admission.v1");
+    assert_eq!(admitted["schema"], "rey.journal-admission.v2");
     assert_eq!(admitted["admitted"], true);
     assert_eq!(admitted["entry"]["sequence"], 1);
     assert_eq!(admitted["entry"]["author"]["kind"], "agent");
@@ -2373,6 +2383,8 @@ blocks:
     assert!(repeated.contains("JOURNAL ENTRY ALREADY ADMITTED"));
     assert!(repeated.contains("agent / codex"));
     assert!(repeated.contains("rey+local://workload/source-mining"));
+    assert!(repeated.contains("Broadsheet"));
+    assert!(repeated.contains("12 columns · 1 band"));
     assert!(repeated.contains("/journal/j1-inspect-source-coverage--blake3-"));
 
     let listed = run_rey_workspace(&[
@@ -2385,9 +2397,22 @@ blocks:
     ]);
     assert!(listed.status.success());
     let listed: Value = serde_json::from_slice(&listed.stdout).unwrap();
-    assert_eq!(listed["schema"], "rey.journal-log.v1");
+    assert_eq!(listed["schema"], "rey.journal-log.v2");
     assert_eq!(listed["entries"].as_array().unwrap().len(), 1);
     assert!(workspace.path().join(".rey/journal/journal.json").is_file());
+
+    let listed_table = run_rey_workspace(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(listed_table.status.success());
+    let listed_table = String::from_utf8(listed_table.stdout).unwrap();
+    assert!(listed_table.contains("2 cells / 1 band"));
+    assert!(listed_table.contains("[evidence] context:prose 8/12 | coverage-query:query 4/12"));
 
     let human_proposal = fs::read_to_string(&proposal)
         .unwrap()
@@ -2519,13 +2544,21 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
 
     let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
     let proposal = serde_json::json!({
-        "schema": "rey.journal-entry-proposal.v1",
+        "schema": "rey.journal-entry-proposal.v2",
         "title": "Write through the network listener",
         "author": { "kind": "human", "id": "operator" },
         "binding": {
             "coordinate": "rey+local://portfolio/current?revision=blake3%3Anetwork",
             "scale": 0.68,
             "source_revision": "blake3:network"
+        },
+        "layout": {
+            "kind": "broadsheet",
+            "columns": 12,
+            "bands": [{
+                "id": "lead",
+                "cells": [{ "block_id": "context", "span": 12 }]
+            }]
         },
         "blocks": [{
             "kind": "prose",

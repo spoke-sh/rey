@@ -11,12 +11,20 @@
     inset: 0;
   }
 
+  .xkdpibf {
+    margin: -1px;
+  }
+
   .x1ghz6dp {
     margin: 0;
   }
 
   .xqetvdz {
     margin: 22px;
+  }
+
+  .xv67hb1 {
+    padding: 0 24px 18px;
   }
 
   .x1bvtm7s {
@@ -155,12 +163,28 @@
     padding: 48px;
   }
 
+  .x17o4o38 {
+    padding: 5px 20px 5px 7px;
+  }
+
+  .x8lhhth {
+    padding: 5px 8px;
+  }
+
+  .x14odnwx {
+    padding: 5px;
+  }
+
   .x1unr71x {
     padding: 60px;
   }
 
   .x1qmqqgu {
     padding: 7px 9px;
+  }
+
+  .x1ib1h6n {
+    padding: 8px 0;
   }
 
   .x1160tuk {
@@ -712,6 +736,10 @@
 
     .x1vw8ubp.x1vw8ubp {
       grid-column: 1 / -1;
+    }
+
+    .x8euihh.x8euihh {
+      grid-column: 1 !important;
     }
 
     .x1tabp5x.x1tabp5x {
@@ -1305,6 +1333,10 @@
     font-size: .56rem;
   }
 
+  .xtmms5e {
+    font-size: .57rem;
+  }
+
   .x1gy93pe {
     font-size: .58rem;
   }
@@ -1315,6 +1347,10 @@
 
   .x6phcfz {
     font-size: .5rem;
+  }
+
+  .xqor5mh {
+    font-size: .61rem;
   }
 
   .x9cxo5s {
@@ -1367,6 +1403,10 @@
 
   .xzwx8i7 {
     font-size: .86rem;
+  }
+
+  .x7oktz0 {
+    font-size: .92rem;
   }
 
   .x1nrrp6k {
@@ -1427,6 +1467,10 @@
 
   .xkl16fq {
     font-size: calc(8px * var(--rey-terrain-counter-scale));
+  }
+
+  .x1thc2e7 {
+    font-size: clamp(1.55rem, 4vw, 2.75rem);
   }
 
   .xr1vojy {
@@ -1605,6 +1649,10 @@
     grid-template-columns: none;
   }
 
+  .x7lthxy {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
   .x1p9eum2 {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -1631,6 +1679,10 @@
 
   .x7v6yn8 {
     justify-content: end;
+  }
+
+  .x13a6bvl {
+    justify-content: flex-end;
   }
 
   .x1nhvcw1 {
@@ -1731,6 +1783,10 @@
 
   .x11avn7m {
     line-height: .8;
+  }
+
+  .x1wltjb0 {
+    line-height: .94;
   }
 
   .xe8mmo7 {
@@ -2422,6 +2478,12 @@
     }
   }
 
+  @media (width <= 680px) {
+    .x2s4wb2.x2s4wb2 {
+      grid-template-columns: 1fr;
+    }
+  }
+
   @media (width <= 700px) {
     .xx3cr9d.xx3cr9d {
       grid-template-columns: 1fr;
@@ -2473,6 +2535,12 @@
   @media (width <= 700px) {
     .xa6q810.xa6q810 {
       grid-template-columns: 62px minmax(0, 1fr);
+    }
+  }
+
+  @media (width <= 760px) {
+    .x185wt85.x185wt85 {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -2880,6 +2948,10 @@
     margin-right: 5px;
   }
 
+  .xack27t {
+    margin-right: auto;
+  }
+
   .xey3puj {
     margin-top: .46em;
   }
@@ -3020,6 +3092,14 @@
     min-height: 126px;
   }
 
+  .xvv2zd5 {
+    min-height: 130px;
+  }
+
+  .x1db3i3o {
+    min-height: 160px;
+  }
+
   .x1shn012 {
     min-height: 180px;
   }
@@ -3118,6 +3198,10 @@
 
   .x1drip2q {
     min-width: 42px;
+  }
+
+  .x6c5l4p {
+    min-width: 80px;
   }
 
   .xd5yu7s {
@@ -3258,6 +3342,10 @@
 
   .x1xp8n7a {
     width: 18px;
+  }
+
+  .x1i1rx1s {
+    width: 1px;
   }
 
   .xw4jnvo {

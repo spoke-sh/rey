@@ -398,9 +398,10 @@ Admission does not move work into Flow until a later explicit validated browser
 contract exists. `/agents` is the shared Journal index:
 retained human and agent notebook entries sit beside
 current derived system recommendations without being confused for assignments
-or execution. New entries use `/journal/new`; selecting or admitting an entry
-enters its exact `/journal/{slug}` document, and each typed block has a stable
-fragment permalink. Its second section is an observed-work ledger over retained
+or execution. New entries use `/journal/new`; it and each exact
+`/journal/{slug}` route share one live 12-column broadsheet editor. Recording a
+retained edit appends an exact superseding entry, and each typed block has a
+stable fragment permalink. Its second section is an observed-work ledger over retained
 portfolio evidence. Agent applications remain on `/environment`.
 `/cadence` presents Git reachability, Rey environment admissions, and
 mounted passive scans as separate partially ordered tick lanes rather than a
@@ -795,11 +796,11 @@ surface. `/feed` is the bounded high-cadence inspection plane and `/explore`
 remains the default context-topology map with semantic zoom,
 pan, selection-driven focus, full screen, visible bounds, passive revalidation,
 coordinate/scale deep links, a shared typed Journal, an observed-work ledger, and a
-partially ordered cadence view. Humans can author retained Explore-bound prose
-and read-only query cells at `/journal/new` without authentication; exact entry
-routes and block fragments make the retained notebook deeply hyperlinkable.
-Agents admit the same bounded format through `rey journal add`, including
-frame, diff, and action cells. Explorer now derives World, Atlas, Landscape,
+partially ordered cadence view. Humans can author and supersede retained
+Explore-bound prose, query, diff, and action cells in the same live broadsheet
+surface without authentication; exact entry routes and block fragments make
+the retained notebook deeply hyperlinkable. Agents admit the same bounded v2
+format through `rey journal add`, including frame cells. Explorer now derives World, Atlas, Landscape,
 Neighborhood, Object, and Evidence projections from retained survey patches;
 exact patch-anchor routes remain read-only and execute no locator. The next
 concrete anchor is a separate query-execution handshake that can turn one

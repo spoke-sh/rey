@@ -871,8 +871,17 @@ admission orders and retains them but executes no block. See
 ### Journal entry
 
 An ordered, content-identified typed collaboration document bound to one exact
-Explorer coordinate. It has a stable identity-bearing route, may supersede an
-earlier entry without rewriting it, and grants no compute or proof authority.
+Explorer coordinate. Its typed blocks have one deterministic 12-column
+broadsheet reading order. It has a stable identity-bearing route, may supersede
+an earlier entry without rewriting it, and grants no compute or proof
+authority.
+
+### Journal broadsheet
+
+The bounded layout grammar for a Journal entry: exactly 12 columns and 1–32
+ordered bands whose cells place every typed block exactly once in semantic
+reading order. Layout can juxtapose evidence and direction but cannot mint a
+relationship, assessment, omission, or authority.
 
 ### Journal block
 

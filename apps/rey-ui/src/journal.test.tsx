@@ -4,10 +4,16 @@ import { describe, expect, it } from "vitest";
 import type { WorkloadList } from "./domain";
 import {
   defaultJournalBinding,
+  formatJournalProse,
   journalBlockFragment,
+  journalDraftDelta,
   journalEntrySlug,
+  JournalDocumentPage,
   JournalEntries,
+  JournalNewPage,
+  parseJournalProse,
   resolveJournalEntry,
+  type JournalEntryProposal,
   type RetainedJournalEntry,
 } from "./journal";
 
@@ -45,6 +51,115 @@ describe("collaboration Journal", () => {
     expect(markup).toContain(
       'href="/explore?coordinate=rey%2Blocal%3A%2F%2Fportfolio%2Fcurrent%3Frevision%3Dblake3%253Asource&amp;scale=0.68"',
     );
+    expect(markup).toContain('data-journal-layout="broadsheet"');
+    expect(markup).toContain("grid-column:span 8");
+  });
+
+  it("parses the bounded prose shorthand deterministically", () => {
+    const source =
+      "# Bearing\n\nA paragraph.\n\n- Mine context\n\n> Verify it\n\n```\nselect 1\n```";
+    const document = parseJournalProse(source);
+    expect(document.map((node) => node.kind)).toEqual([
+      "heading",
+      "paragraph",
+      "bullet",
+      "quote",
+      "code",
+    ]);
+    expect(formatJournalProse(document)).toBe(source);
+  });
+
+  it("directs a working revision from exact retained content", () => {
+    const retained = entry();
+    const proposal: JournalEntryProposal = {
+      schema: "rey.journal-entry-proposal.v2",
+      title: retained.title,
+      author: retained.author,
+      binding: retained.binding,
+      supersedes: retained.entry_id,
+      layout: retained.layout,
+      blocks: retained.blocks,
+    };
+    expect(journalDraftDelta(retained, proposal)).toMatchObject({
+      changed: false,
+      inserted: 0,
+      modified: 0,
+      removed: 0,
+    });
+    proposal.blocks = proposal.blocks.map((block) =>
+      block.id === "action" && block.kind === "action"
+        ? { ...block, desired_delta: "Mine and verify the remaining rows." }
+        : block,
+    );
+    expect(journalDraftDelta(retained, proposal)).toMatchObject({
+      changed: true,
+      inserted: 0,
+      modified: 1,
+      removed: 0,
+    });
+  });
+
+  it("uses one live broadsheet surface for new and retained routes", () => {
+    const onAdmit = async () => entry();
+    const onClose = () => undefined;
+    const newMarkup = renderToStaticMarkup(
+      createElement(JournalNewPage, {
+        binding: defaultJournalBinding(portfolio()),
+        onAdmit,
+        onClose,
+      }),
+    );
+    const retainedMarkup = renderToStaticMarkup(
+      createElement(JournalDocumentPage, {
+        entry: entry(),
+        log: {
+          schema: "rey.journal-log.v2",
+          log_id: "blake3:log",
+          entries: [entry()],
+        },
+        onAdmit,
+        onClose,
+      }),
+    );
+    for (const markup of [newMarkup, retainedMarkup]) {
+      expect(markup).toContain('data-journal-surface="broadsheet"');
+      expect(markup).toContain("Reason on the context map");
+      expect(markup).toContain("WORKING Δ");
+      expect(markup).toContain("+ ADD TYPED CELL");
+    }
+  });
+
+  it("links immutable supersession edges on the retained plane", () => {
+    const root = entry();
+    const revision: RetainedJournalEntry = {
+      ...entry(),
+      entry_id: "blake3:revision",
+      sequence: 2,
+      title: "Verify the remaining surface",
+      supersedes: root.entry_id,
+    };
+    const log = {
+      schema: "rey.journal-log.v2" as const,
+      log_id: "blake3:log",
+      entries: [root, revision],
+    };
+    const props = {
+      log,
+      onAdmit: async () => revision,
+      onClose: () => undefined,
+    };
+    const rootMarkup = renderToStaticMarkup(
+      createElement(JournalDocumentPage, { ...props, entry: root }),
+    );
+    const revisionMarkup = renderToStaticMarkup(
+      createElement(JournalDocumentPage, { ...props, entry: revision }),
+    );
+    expect(rootMarkup).toContain(
+      `href="/journal/${journalEntrySlug(revision)}"`,
+    );
+    expect(revisionMarkup).toContain(
+      `href="/journal/${journalEntrySlug(root)}"`,
+    );
   });
 
   it("gives retained entries exact slugs and block-level deep links", () => {
@@ -54,7 +169,7 @@ describe("collaboration Journal", () => {
     expect(
       resolveJournalEntry(
         {
-          schema: "rey.journal-log.v1",
+          schema: "rey.journal-log.v2",
           log_id: "blake3:log",
           entries: [retained],
         },
@@ -74,7 +189,7 @@ describe("collaboration Journal", () => {
 function entry(): RetainedJournalEntry {
   const coordinate = "rey+local://portfolio/current?revision=blake3%3Asource";
   return {
-    schema: "rey.journal-entry.v1",
+    schema: "rey.journal-entry.v2",
     entry_id: "blake3:entry",
     sequence: 1,
     admitted_at: "2026-08-10T21:00:00Z",
@@ -82,6 +197,33 @@ function entry(): RetainedJournalEntry {
     author: { kind: "agent", id: "codex" },
     binding: { coordinate, scale: 0.68, source_revision: "blake3:source" },
     supersedes: null,
+    layout: {
+      kind: "broadsheet",
+      columns: 12,
+      bands: [
+        {
+          id: "lead",
+          cells: [
+            { block_id: "context", span: 8 },
+            { block_id: "map", span: 4 },
+          ],
+        },
+        {
+          id: "evidence",
+          cells: [
+            { block_id: "query", span: 6 },
+            { block_id: "frame", span: 6 },
+          ],
+        },
+        {
+          id: "bearing",
+          cells: [
+            { block_id: "diff", span: 8 },
+            { block_id: "action", span: 4 },
+          ],
+        },
+      ],
+    },
     blocks: [
       {
         kind: "prose",

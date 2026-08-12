@@ -1061,10 +1061,31 @@ function JournalNewRoutePage() {
 
 function JournalEntryRoutePage() {
   const initialJournal = journalEntryRoute.useLoaderData();
-  const { document: journal } = usePassiveDocument(initialJournal, loadJournal);
+  const { document: journal, publish } = usePassiveDocument(
+    initialJournal,
+    loadJournal,
+  );
+  const navigate = journalEntryRoute.useNavigate();
   const { slug } = journalEntryRoute.useParams();
   const entry = resolveJournalEntry(journal.log, slug);
-  return entry ? <JournalDocumentPage entry={entry} /> : <NotFoundPage />;
+  return entry ? (
+    <JournalDocumentPage
+      entry={entry}
+      log={journal.log}
+      onAdmit={async (proposal) => {
+        const admission = await admitJournalEntry(proposal);
+        publish({ ...journal, log: admission.log });
+        await navigate({
+          params: { slug: journalEntrySlug(admission.entry) },
+          to: "/journal/$slug",
+        });
+        return admission.entry;
+      }}
+      onClose={() => void navigate({ to: "/agents" })}
+    />
+  ) : (
+    <NotFoundPage />
+  );
 }
 
 const rootRoute = createRootRoute({

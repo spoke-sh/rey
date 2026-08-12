@@ -931,15 +931,17 @@ endpoint does not poll refs, activate a workload, or retain browser reads.
 `/agents` combines two sources without conflating them. Its current
 system-authored rows derive from creation requests and non-excluded attention
 in the workload-list document. Its authored entries come from the ordered
-`rey.journal-log.v1` returned by the Journal endpoint. The human block composer
-at `/journal/new` admits prose, an exact Explorer map binding, and an optional
-read-only query declaration, then enters the exact retained `/journal/{slug}`
-document. Journal blocks expose stable `#block-{block-id}` permalinks. Agent
-YAML admitted by `rey journal add` may additionally carry
-bounded frame, directed diff, and proposed-action blocks. Admission is
+`rey.journal-log.v2` returned by the Journal endpoint. `/journal/new` and exact
+`/journal/{slug}` routes use one live 12-column broadsheet editor for prose,
+exact Explorer, read-only query, directed diff, and proposed-action cells.
+Recording a retained edit appends a human-authored superseding entry and enters
+its new exact route. Journal blocks expose stable `#block-{block-id}`
+permalinks. Agent YAML admitted by `rey journal add` may additionally carry
+bounded frame cells. Admission is
 content-identified and idempotent; it retains no arbitrary HTML and executes
 no block. The same canonical-coordinate, revision-consistency, block, and byte
-limits govern both paths. Its work ledger
+layout, canonical-coordinate, revision-consistency, block, and byte limits
+govern both paths. Its work ledger
 projects only exact current revisions, qualification/run summaries, scenario
 coverage, mining and delta counts, attention, and retained evidence identities.
 It does not load the environment inventory, schedule work, infer an assigned
@@ -1044,7 +1046,7 @@ or action authority. Implemented local semantic coordinates have the shape
 `role` query dimension for agents. Exact browser views use
 `/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}`.
 Canonical coordinates order `revision`, `role`; stale bindings remain visible.
-The matrix path and parser are absent from the v1 implementation. Journal v1
+The matrix path and parser are absent from the v1 implementation. Journal v2
 retains semantic coordinate and numeric scale separately; documents outside
 the complete v1 contract are rejected.
 
