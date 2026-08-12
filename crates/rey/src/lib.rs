@@ -10,6 +10,7 @@ pub mod journal_opportunities;
 pub mod journal_queries;
 pub mod journal_seed;
 pub mod observations;
+pub mod workload_evidence;
 pub mod workloads;
 
 use std::path::Path;

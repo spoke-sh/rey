@@ -26,6 +26,8 @@ import {
   loadJournal,
   loadJournalSeed,
   loadPortfolio,
+  loadWorkloadDeltaEvidence,
+  loadWorkloadScenarioEvidence,
   writeChannelWorking,
   type OperatorContext,
 } from "./api";
@@ -68,6 +70,7 @@ import {
   DraftWorkloadDetail,
   WorkloadsPage,
 } from "./workloads";
+import { DeltaEvidencePage, ScenarioEvidencePage } from "./workload-evidence";
 
 const precision = kineticThemeMaterials.precision;
 const PortfolioContext = createContext<OperatorContext | null>(null);
@@ -1009,7 +1012,20 @@ function WorkloadDetailRoutePage() {
   if (draft) return <DraftWorkloadDetail draft={draft} />;
 
   if (!workload) return <NotFoundPage />;
-  return <AdmittedWorkloadDetail workload={workload} />;
+  const evidence = portfolio.workload_evidence.workloads.find(
+    (candidate) => candidate.workload_id === workloadId,
+  );
+  return <AdmittedWorkloadDetail evidence={evidence} workload={workload} />;
+}
+
+function WorkloadScenarioRoutePage() {
+  return (
+    <ScenarioEvidencePage evidence={workloadScenarioRoute.useLoaderData()} />
+  );
+}
+
+function WorkloadDeltaRoutePage() {
+  return <DeltaEvidencePage evidence={workloadDeltaRoute.useLoaderData()} />;
 }
 
 function ImplementationLink({
@@ -1328,6 +1344,22 @@ const workloadDetailRoute = createRoute({
   component: WorkloadDetailRoutePage,
 });
 
+const workloadScenarioRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "workloads/$workloadId/scenarios/$executionId",
+  loader: ({ params }) =>
+    loadWorkloadScenarioEvidence(params.workloadId, params.executionId),
+  component: WorkloadScenarioRoutePage,
+});
+
+const workloadDeltaRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "workloads/$workloadId/deltas/$deltaId",
+  loader: ({ params }) =>
+    loadWorkloadDeltaEvidence(params.workloadId, params.deltaId),
+  component: WorkloadDeltaRoutePage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   feedRoute,
@@ -1340,6 +1372,8 @@ const routeTree = rootRoute.addChildren([
   environmentRoute,
   workloadsRoute,
   workloadDetailRoute,
+  workloadScenarioRoute,
+  workloadDeltaRoute,
 ]);
 
 export const router = createRouter({

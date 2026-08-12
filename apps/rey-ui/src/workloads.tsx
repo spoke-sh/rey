@@ -13,6 +13,10 @@ import {
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 import { workloadsStyles as styles } from "./stylex/workloads.stylex";
+import {
+  WorkloadEvidenceIndexSection,
+  type WorkloadEvidenceIndex,
+} from "./workload-evidence";
 
 const admittedColumns: readonly KineticDenseTableColumn<WorkloadSummary>[] = [
   {
@@ -652,8 +656,10 @@ export function CandidateWorkloadDetail({
 }
 
 export function AdmittedWorkloadDetail({
+  evidence,
   workload,
 }: {
+  evidence?: WorkloadEvidenceIndex;
   workload: WorkloadSummary;
 }) {
   const bindings: BindingRow[] = [
@@ -753,6 +759,7 @@ export function AdmittedWorkloadDetail({
           theme="precision"
         />
       </section>
+      {evidence ? <WorkloadEvidenceIndexSection evidence={evidence} /> : null}
     </main>
   );
 }

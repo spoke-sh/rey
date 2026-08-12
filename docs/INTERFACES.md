@@ -902,7 +902,10 @@ TanStack Router application plus `GET|HEAD /api/v1/health`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
 `GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, bounded read-only
 `GET|HEAD /api/v1/journal/seed?observations=id[,id]`, and
-`GET|HEAD /api/v1/observations`. Its explicit writes
+`GET|HEAD /api/v1/observations`. Workload evidence additionally exposes
+`GET|HEAD /api/v1/workloads/evidence`, exact
+`GET|HEAD /api/v1/workloads/{workload-id}/scenarios/{execution-id}`, and exact
+`GET|HEAD /api/v1/workloads/{workload-id}/deltas/{delta-id}`. Its explicit writes
 are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
 `POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
 file snapshot before committing it with expected HEAD/WORKING preconditions,
@@ -913,7 +916,9 @@ an explicitly configured listener. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/explore`. The application routes are `/feed`, coordinate-bound `/explore`
 query views, `/cadence`, `/channels`, `/agents`, `/journal/new`, `/journal/{slug}`,
-`/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
+`/environment`, `/workloads`, `/workloads/$workloadId`,
+`/workloads/$workloadId/scenarios/$executionId`, and
+`/workloads/$workloadId/deltas/$deltaId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
@@ -934,6 +939,29 @@ requests expose request posture and exact coding-harness bindings as two
 relations. The Feed starts with admission rows and an exact-index approval
 control. That control advances HEAD through the same local commit contract as
 the CLI; it never edits WORKING or bypasses qualification.
+
+The exact evidence index is `rey.ui-workload-evidence-catalog.v1`. An admitted
+workload detail adds its bounded scenario relation only when a retained result
+exists. Scenario references carry the declared scenario contract, required or
+optional role, stored evaluation, exact execution identity, and every retained
+output-text, source-match, and topography delta identity. Scenario pages render
+plain outcome and unresolved assertions, the complete compact `-v`
+EXPECTED-to-ACTUAL layer, and the `-vv` result, campaign, workload, graph,
+suite, evaluator, source, execution, provider, capability, corpus, request,
+limit, omission, native context, frontier, and lineage bindings. Delta pages
+retain the same three layers while opening exactly one stored directed delta.
+`rey-local-source://...#bytes=...` context references remain exact links.
+Semantic revisions are not presented as Git commits; any contractually Git
+commit value still follows the repository-bound commit-link invariant.
+
+These endpoints load the admitted HEAD catalog and verified local result state.
+They perform no scenario execution, assessment, qualification, mutation,
+admission, scheduling, action, or proof. A stale result remains available by
+its retained identities with `current_source_not_bound_to_retained_result`;
+unknown workload, execution, or delta identities return `404` and never fall
+back to a mutable latest record. Output is bounded by the workload, scenario,
+mining, topography, and retained-state limits already verified by the result
+provider.
 
 `/explore` is the initial human bearing. With no admitted topography it renders
 an abstract orientation globe rather than the legacy portfolio-card graph.

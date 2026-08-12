@@ -20,6 +20,10 @@ use rey::{
     journal_queries::LocalJournalQueryStore,
     journal_seed::JournalSeed,
     observations::{DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore},
+    workload_evidence::{
+        WorkloadEvidenceError, workload_delta_evidence, workload_evidence_catalog,
+        workload_scenario_evidence,
+    },
     workloads::LocalWorkloadStore,
 };
 use rey_core::SemanticDigest;
@@ -339,6 +343,8 @@ impl UiServer {
             "/api/v1/journal/seed" => self.journal_seed(query),
             "/api/v1/observations" => self.observations(),
             "/api/v1/workloads" => self.workloads(),
+            "/api/v1/workloads/evidence" => self.workload_evidence(),
+            path if path.starts_with("/api/v1/workloads/") => self.exact_workload_evidence(path),
             path if path.starts_with("/api/") => json_error(
                 StatusCode(404),
                 "api_route_not_found",
@@ -392,6 +398,119 @@ impl UiServer {
         match result {
             Ok(list) => json_response(StatusCode(200), &list),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
+        }
+    }
+
+    fn workload_evidence(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalWorkloadStore::new(self.config.state_directory.clone());
+        let catalog = match store.head_catalog() {
+            Ok(catalog) => catalog,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "workload_evidence_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let state = match store.load() {
+            Ok(state) => state,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "workload_evidence_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let result = workload_evidence_catalog(&catalog, &state);
+        match result {
+            Ok(evidence) => json_response(StatusCode(200), &evidence),
+            Err(error) => json_error(
+                StatusCode(500),
+                "workload_evidence_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn exact_workload_evidence(&self, path: &str) -> Response<Cursor<Vec<u8>>> {
+        let Some(tail) = path.strip_prefix("/api/v1/workloads/") else {
+            return json_error(
+                StatusCode(404),
+                "workload_evidence_route_not_found",
+                "no exact workload evidence route matches this target",
+            );
+        };
+        let segments = match tail
+            .split('/')
+            .map(decode_path_segment)
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(segments) => segments,
+            Err(detail) => {
+                return json_error(StatusCode(400), "workload_evidence_route_invalid", detail);
+            }
+        };
+        let store = LocalWorkloadStore::new(self.config.state_directory.clone());
+        let catalog = match store.head_catalog() {
+            Ok(catalog) => catalog,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "workload_evidence_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let state = match store.load() {
+            Ok(state) => state,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "workload_evidence_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let result = match segments.as_slice() {
+            [workload_id, kind, execution_id]
+                if kind == "scenarios" && !workload_id.is_empty() && !execution_id.is_empty() =>
+            {
+                workload_scenario_evidence(&catalog, &state, workload_id, execution_id)
+                    .map(|evidence| json_response(StatusCode(200), &evidence))
+            }
+            [workload_id, kind, delta_id]
+                if kind == "deltas" && !workload_id.is_empty() && !delta_id.is_empty() =>
+            {
+                workload_delta_evidence(&catalog, &state, workload_id, delta_id)
+                    .map(|evidence| json_response(StatusCode(200), &evidence))
+            }
+            _ => {
+                return json_error(
+                    StatusCode(404),
+                    "workload_evidence_route_not_found",
+                    "expected /api/v1/workloads/{workload-id}/scenarios/{execution-id} or /api/v1/workloads/{workload-id}/deltas/{delta-id}",
+                );
+            }
+        };
+        match result {
+            Ok(response) => response,
+            Err(
+                error @ (WorkloadEvidenceError::UnknownWorkload(_)
+                | WorkloadEvidenceError::EvidenceUnavailable(_)
+                | WorkloadEvidenceError::UnknownScenario { .. }
+                | WorkloadEvidenceError::UnknownDelta { .. }),
+            ) => json_error(
+                StatusCode(404),
+                "workload_evidence_not_found",
+                &error.to_string(),
+            ),
+            Err(error @ WorkloadEvidenceError::InvalidRetainedResult(_)) => json_error(
+                StatusCode(500),
+                "workload_evidence_invalid",
+                &error.to_string(),
+            ),
         }
     }
 
@@ -1031,6 +1150,43 @@ impl UiServer {
     }
 }
 
+fn decode_path_segment(value: &str) -> Result<String, &'static str> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err("exact workload evidence paths contain a truncated percent escape");
+            }
+            let high = hex_digit(bytes[index + 1])
+                .ok_or("exact workload evidence paths contain an invalid percent escape")?;
+            let low = hex_digit(bytes[index + 2])
+                .ok_or("exact workload evidence paths contain an invalid percent escape")?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    let decoded = String::from_utf8(decoded)
+        .map_err(|_| "exact workload evidence path segments must be UTF-8")?;
+    if decoded.is_empty() || decoded.contains(['/', '\0']) {
+        return Err("exact workload evidence path segments must be non-empty resource identities");
+    }
+    Ok(decoded)
+}
+
+const fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 fn index_response() -> Response<Cursor<Vec<u8>>> {
     let response = static_response(INDEX_HTML, "text/html; charset=utf-8");
     with_header(
@@ -1272,7 +1428,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(34)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(42)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1326,6 +1482,87 @@ mod tests {
         assert!(admitted.contains("\"sequence\":1"));
         assert!(admitted.contains("\"index\":null"));
         assert!(admitted.contains("\"state\":\"clean\""));
+
+        let evidence = request(&address, "GET /api/v1/workloads/evidence HTTP/1.1");
+        assert!(evidence.starts_with("HTTP/1.1 200"));
+        let evidence_json: serde_json::Value =
+            serde_json::from_str(response_body(&evidence)).unwrap();
+        assert_eq!(
+            evidence_json["schema"],
+            "rey.ui-workload-evidence-catalog.v1"
+        );
+        assert_eq!(evidence_json["workloads"][0]["freshness"], "fresh");
+        let workload_id = evidence_json["workloads"][0]["workload_id"]
+            .as_str()
+            .unwrap();
+        let execution_id = evidence_json["workloads"][0]["scenarios"][0]["execution_id"]
+            .as_str()
+            .unwrap();
+        let delta_id = evidence_json["workloads"][0]["scenarios"][0]["deltas"][0]["delta_id"]
+            .as_str()
+            .unwrap();
+        let encoded_execution = execution_id.replace(':', "%3A");
+        let encoded_delta = delta_id.replace(':', "%3A");
+        let scenario = request(
+            &address,
+            &format!("GET /api/v1/workloads/{workload_id}/scenarios/{encoded_execution} HTTP/1.1"),
+        );
+        assert!(scenario.starts_with("HTTP/1.1 200"));
+        assert!(scenario.contains("\"schema\":\"rey.ui-workload-scenario-evidence.v1\""));
+        assert!(scenario.contains("\"authority\":\"verified_retained_result_projection"));
+        assert!(scenario.contains(execution_id));
+        let scenario_head = request(
+            &address,
+            &format!("HEAD /api/v1/workloads/{workload_id}/scenarios/{encoded_execution} HTTP/1.1"),
+        );
+        assert!(scenario_head.starts_with("HTTP/1.1 200"));
+        assert!(!scenario_head.contains(execution_id));
+        let delta = request(
+            &address,
+            &format!("GET /api/v1/workloads/{workload_id}/deltas/{encoded_delta} HTTP/1.1"),
+        );
+        assert!(delta.starts_with("HTTP/1.1 200"));
+        assert!(delta.contains("\"schema\":\"rey.ui-workload-delta-evidence.v1\""));
+        assert!(delta.contains("\"kind\":\"scenario_output\""));
+        assert!(delta.contains(delta_id));
+        let topography_delta_id = evidence_json["workloads"][0]["scenarios"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|scenario| scenario["deltas"].as_array().unwrap())
+            .find(|delta| delta["kind"] == "topography_patch")
+            .and_then(|delta| delta["delta_id"].as_str())
+            .unwrap();
+        let encoded_topography_delta = topography_delta_id.replace(':', "%3A");
+        let topography_delta = request(
+            &address,
+            &format!(
+                "GET /api/v1/workloads/{workload_id}/deltas/{encoded_topography_delta} HTTP/1.1"
+            ),
+        );
+        assert!(topography_delta.starts_with("HTTP/1.1 200"));
+        assert!(topography_delta.contains("\"kind\":\"topography_patch\""));
+        assert!(topography_delta.contains(topography_delta_id));
+        let unknown = request(
+            &address,
+            &format!(
+                "GET /api/v1/workloads/{workload_id}/deltas/blake3%3Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa HTTP/1.1"
+            ),
+        );
+        assert!(unknown.starts_with("HTTP/1.1 404"));
+        assert!(unknown.contains("workload_evidence_not_found"));
+        let scenario_route = request(
+            &address,
+            &format!("GET /workloads/{workload_id}/scenarios/{encoded_execution} HTTP/1.1"),
+        );
+        assert!(scenario_route.starts_with("HTTP/1.1 200"));
+        assert!(scenario_route.contains("<title>Rey / Explore</title>"));
+        let delta_route = request(
+            &address,
+            &format!("GET /workloads/{workload_id}/deltas/{encoded_delta} HTTP/1.1"),
+        );
+        assert!(delta_route.starts_with("HTTP/1.1 200"));
+        assert!(delta_route.contains("<title>Rey / Explore</title>"));
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));

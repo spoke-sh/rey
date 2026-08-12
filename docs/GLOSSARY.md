@@ -706,6 +706,16 @@ A reference that includes the strongest immutable identity and revision
 available, rather than only a mutable name or display path. Exact bindings are
 required for reproducible evidence, actions, and proofs.
 
+### Exact evidence route
+
+A browser and read-only API address whose resource segment contains the
+retained semantic identity it resolves. Implemented workload scenario routes
+use the scenario execution digest and directed-delta routes use the delta
+digest. The resolver reverifies retained evidence, returns not found for an
+unknown identity, and never treats a mutable latest result as an equivalent
+address. Route rendering does not add execution, assessment, admission,
+action, qualification, or proof authority.
+
 ### Exact retrieval
 
 A read of already identified immutable evidence through the provider that owns

@@ -482,6 +482,20 @@ it checks expected HEAD and WORKING identities, freezes the reviewed files in
 INDEX, runs the full suite, and commits only the exact qualified result. It
 does not bypass the three-plane contract.
 
+Admitted workload detail pages also read the bounded
+`rey.ui-workload-evidence-catalog.v1` index. Each retained scenario links by
+its exact execution identity to
+`/workloads/{workload-id}/scenarios/{execution-id}`; every output-text,
+source-match, and topography directed delta links by its exact delta identity
+to `/workloads/{workload-id}/deltas/{delta-id}`. Scenario and delta pages keep
+the CLI projection order as plain outcome, `-v` assertions or source-to-target
+changes, and `-vv` identity/source/limit/omission/lineage evidence. They read
+and reverify retained results only. They do not execute a scenario, recompute
+an assessment, qualify a graph, admit a workload, or grant action or proof
+authority. A retained stale result remains exact but labels the current source
+as unbound; an unknown identity returns not found rather than selecting the
+latest result.
+
 ## Read And Mutation Posture
 
 | Command family | Posture |

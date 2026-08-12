@@ -109,7 +109,10 @@ Rey organizes collaboration around two clients with one evidence plane:
   Current action cells project as authored-only opportunities. One narrow
   retained-observation query can cross separate read-only admission and
   execution, but its bounded frame/delta enters the Journal only through an
-  ordinary superseding entry.
+  ordinary superseding entry. Workload inspection descends from the retained
+  scenario index into content-addressed scenario-execution and directed-delta
+  routes; those browser views preserve the CLI's plain, `-v`, and `-vv`
+  evidence layers without reevaluating a result or granting runtime authority.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

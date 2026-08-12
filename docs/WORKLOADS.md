@@ -554,6 +554,19 @@ qualifications as separate dimensions. Verbosity is a human projection only:
 JSON always emits the same verified `rey.workload-test-batch.v1` envelope,
 including catalog and proposal provenance.
 
+The browser preserves this layering through exact retained-evidence routes.
+`GET|HEAD /api/v1/workloads/evidence` indexes current admitted workload
+results without executing them. Scenario routes are keyed by the retained
+scenario execution digest; directed-delta routes are keyed by the exact
+`rey.scenario-output-delta.v1`, `rey.source-match-delta.v1`, or
+`rey.topography-patch-delta.v1` identity. Their human pages render the same
+plain → `-v` → `-vv` progression and retain exact native source-context links,
+semantic coordinates, revisions, omissions, limits, and lineage. The server
+verifies the retained result before projection and never substitutes a mutable
+latest name for an unknown content identity. Freshness remains derived: stale
+evidence is inspectable, but the current package source is explicitly not
+claimed as that result's source binding.
+
 ## Running A Workload
 
 `rey workloads run` resolves one exact workload revision and its current fresh

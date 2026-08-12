@@ -23,7 +23,7 @@ is which.
 | --- | --- |
 | [Environment](ENVIRONMENT.md) | Process-owned discovery, reasoning maps, providers, capability snapshots, environment admission history, trust, and limits. |
 | [Mining](MINING.md) | Relational and source mining families, request/result lineage, native artifacts, visualization, and provider boundaries. |
-| [Workloads](WORKLOADS.md) | The public unit of computation: workspace packages, graphs, scenarios, qualification, admission, execution, and retained results. |
+| [Workloads](WORKLOADS.md) | The public unit of computation: workspace packages, graphs, scenarios, qualification, admission, execution, retained results, and exact scenario/delta inspection. |
 | [Runtime](RUNTIME.md) | Deterministic transition state, nested campaigns, reasoning surfaces, stop guards, and semantic convergence. |
 | [Frontier](FRONTIER.md) | Unresolved work, directional progress, readiness, deterministic scheduling, and workload attention placement. |
 | [Diffs](DIFFS.md) | Authoritative typed relational, text, and structural deltas, direction, normalization, invalidation, and portable projections. |
@@ -43,7 +43,7 @@ is which.
 
 | Document | Purpose |
 | --- | --- |
-| [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, persistence, HTTP/UI APIs, and error/limit semantics. |
+| [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, persistence, exact evidence HTTP/UI routes, and error/limit semantics. |
 | [Development](DEVELOPMENT.md) | Pinned Nix/Rust/TypeScript environment, root `just` tasks, build outputs, dependency updates, and qualification commands. |
 | [Releases](RELEASES.md) | GitHub Actions quality gates, cargo-dist artifact planning, version tags, release permissions, and operator procedure. |
 | [Roadmap](ROADMAP.md) | Delivery sequence from local environment evidence through workloads, topography, admitted mutation, and policy. |

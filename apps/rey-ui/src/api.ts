@@ -14,6 +14,11 @@ import type {
   JournalSeed,
 } from "./journal";
 import type { ObservationFrontier } from "./observations";
+import type {
+  WorkloadDeltaEvidence,
+  WorkloadEvidenceCatalog,
+  WorkloadScenarioEvidence,
+} from "./workload-evidence";
 
 export interface UiServerIdentity {
   source_repository: string | null;
@@ -32,6 +37,7 @@ export interface WorkloadApprovalRequest {
 
 export type OperatorContext = WorkloadList & {
   observations: ObservationFrontier;
+  workload_evidence: WorkloadEvidenceCatalog;
   ui_server: UiServerIdentity;
 };
 
@@ -48,11 +54,13 @@ export interface AgentJournalDocument {
 }
 
 export async function loadPortfolio(): Promise<OperatorContext> {
-  const [portfolioResponse, healthResponse, observations] = await Promise.all([
-    fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
-    fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
-    loadObservations(),
-  ]);
+  const [portfolioResponse, healthResponse, observations, workloadEvidence] =
+    await Promise.all([
+      fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
+      fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
+      loadObservations(),
+      loadWorkloadEvidence(),
+    ]);
   if (!portfolioResponse.ok) {
     const detail = await portfolioResponse.text();
     throw new Error(
@@ -69,7 +77,58 @@ export async function loadPortfolio(): Promise<OperatorContext> {
   const health = (await healthResponse.json()) as {
     server: UiServerIdentity;
   };
-  return Object.assign(portfolio, { observations, ui_server: health.server });
+  return Object.assign(portfolio, {
+    observations,
+    ui_server: health.server,
+    workload_evidence: workloadEvidence,
+  });
+}
+
+export async function loadWorkloadEvidence(): Promise<WorkloadEvidenceCatalog> {
+  const response = await fetch("/api/v1/workloads/evidence", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Workload evidence request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as WorkloadEvidenceCatalog;
+}
+
+export async function loadWorkloadScenarioEvidence(
+  workloadId: string,
+  executionId: string,
+): Promise<WorkloadScenarioEvidence> {
+  const response = await fetch(
+    `/api/v1/workloads/${encodeURIComponent(workloadId)}/scenarios/${encodeURIComponent(executionId)}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Scenario evidence request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as WorkloadScenarioEvidence;
+}
+
+export async function loadWorkloadDeltaEvidence(
+  workloadId: string,
+  deltaId: string,
+): Promise<WorkloadDeltaEvidence> {
+  const response = await fetch(
+    `/api/v1/workloads/${encodeURIComponent(workloadId)}/deltas/${encodeURIComponent(deltaId)}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Directed delta request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as WorkloadDeltaEvidence;
 }
 
 export async function loadEnvironment(): Promise<EnvironmentStatus> {

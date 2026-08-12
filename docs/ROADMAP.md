@@ -52,7 +52,9 @@ workload admission and selected-scenario execution with exact evidence caps,
 idempotent retained replay, no qualification substitution, and an exact
 selected-versus-full recomputation proof. Bounded Git cadence retains every
 successful or failed attempt plus explicit retry, cancellation,
-partial-failure, and stop receipts. Remaining work in this phase concerns
+partial-failure, and stop receipts. Content-addressed browser scenario and
+directed-delta routes now retain the CLI's plain/`-v`/`-vv` evidence layering
+over verified results. Remaining work in this phase concerns
 autonomous effectful provider behavior. Compatible proposals
 within one retained transition reuse exact execution evidence under the
 stricter receiving budget; cross-poll debounce does not.
@@ -170,6 +172,9 @@ and the conversation boundary.
 - Preserve the narrow retained-observation query as a separately admitted
   read-only projection: execution retains bounded frame/delta evidence and
   normal Journal admission alone may append its superseding document.
+- Preserve exact scenario-execution and directed-delta browser routes as
+  read-only projections over verified retained results; never replace an
+  unknown content identity with a mutable latest result.
 - Extend the implemented exact direct relay only after remote provider, cursor,
   hop, idempotency, loop-prevention, delivery, and omission contracts are
   accepted and proved.

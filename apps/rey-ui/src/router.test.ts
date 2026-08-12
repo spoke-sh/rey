@@ -93,7 +93,7 @@ describe("operator routes", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("matches feed, cadence, channels, agents, Journal documents, and coordinate views", () => {
+  it("matches feed, cadence, channels, agents, Journal documents, exact workload evidence, and coordinate views", () => {
     expect(router.matchRoutes("/feed").at(-1)?.routeId).toBe("/feed");
     expect(router.matchRoutes("/cadence").at(-1)?.routeId).toBe("/cadence");
     expect(router.matchRoutes("/channels").at(-1)?.routeId).toBe("/channels");
@@ -107,6 +107,24 @@ describe("operator routes", () => {
     expect(journal?.routeId).toBe("/journal/$slug");
     expect(journal?.params).toMatchObject({
       slug: "j1-context--blake3-entry",
+    });
+    const scenario = router
+      .matchRoutes("/workloads/rey.example/scenarios/blake3:scenario-execution")
+      .at(-1);
+    expect(scenario?.routeId).toBe(
+      "/workloads/$workloadId/scenarios/$executionId",
+    );
+    expect(scenario?.params).toMatchObject({
+      workloadId: "rey.example",
+      executionId: "blake3:scenario-execution",
+    });
+    const delta = router
+      .matchRoutes("/workloads/rey.example/deltas/blake3:directed-delta")
+      .at(-1);
+    expect(delta?.routeId).toBe("/workloads/$workloadId/deltas/$deltaId");
+    expect(delta?.params).toMatchObject({
+      workloadId: "rey.example",
+      deltaId: "blake3:directed-delta",
     });
     const coordinate = router.matchRoutes("/explore").at(-1);
     expect(coordinate?.routeId).toBe("/explore");
