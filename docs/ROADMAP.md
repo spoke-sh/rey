@@ -47,9 +47,10 @@ workload attention, the `rey.portfolio.attention` system workload, and
 list/test/run/status projections over retained catalog/result/environment
 inputs. Bounded mapped-surface and acknowledged-Git dependency invalidation,
 the generic attention/frontier handoff, and one immutable harness response
-cycle are also delivered. Remaining work in this phase concerns activation
-admission, full-recomputation proof, recurring execution, and broader provider
-behavior.
+cycle are also delivered. Acknowledged Git proposals now cross an exact
+schedule-only workload admission. Remaining work in this phase concerns
+activation execution, full-recomputation proof, recurring execution, and
+broader provider behavior.
 
 - Fix the smallest workload declaration, graph, scenario, campaign,
   qualification, catalog, and result schemas.

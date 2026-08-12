@@ -15,9 +15,10 @@ use rey::env::{
 };
 use rey::git::{GitOperatorStatus, GitPollOutcome};
 use rey::workloads::{
-    QualificationState, WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult,
-    WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin, WorkloadProposalKind,
-    WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
+    QualificationState, WorkloadActivationAdmission, WorkloadCatalogKind, WorkloadChangeSet,
+    WorkloadCreateResult, WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin,
+    WorkloadProposalKind, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
+    WorkloadTestBatch,
 };
 use rey_core::ContractIdentity;
 use rey_git::{
@@ -1474,6 +1475,311 @@ fn workload_git_dependencies_follow_only_the_acknowledged_cursor() {
             "missing Git dependency evidence: {evidence}"
         );
     }
+}
+
+#[test]
+fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["config", "user.name", "Rey Test"],
+        vec!["config", "user.email", "rey@example.invalid"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "one\n").unwrap();
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "tracked"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "commit", "-q", "-m", "initial"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    for args in [
+        vec!["env", "--workspace", workspace_path, "add"],
+        vec![
+            "env",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "retain activation capabilities",
+        ],
+    ] {
+        let output = run_rey_workspace(&args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let package_dir = workspace.path().join("sys/activation-normalization");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(
+        package_dir.join("workload.yaml"),
+        include_str!("fixtures/workloads/agent-proposed-normalization.yaml").replace(
+            "rey.fixture.agent-proposed-normalization",
+            "rey.fixture.activation-normalization",
+        ),
+    )
+    .unwrap();
+    for args in [
+        vec!["workloads", "--workspace", workspace_path, "add"],
+        vec![
+            "workloads",
+            "--workspace",
+            workspace_path,
+            "test",
+            "--staged",
+            "rey.fixture.activation-normalization",
+        ],
+        vec![
+            "workloads",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "admit activation fixture",
+        ],
+    ] {
+        let output = run_rey_workspace(&args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let before = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let before: WorkloadList = serde_json::from_slice(&before.stdout).unwrap();
+    let workload = &before.workloads[0];
+    let original_test_id = workload.last_test_result_id.clone().unwrap();
+
+    let initialized = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "init",
+        "--format",
+        "json",
+    ]);
+    assert!(initialized.status.success());
+    fs::write(workspace.path().join("tracked"), "two\n").unwrap();
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "tracked"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "commit", "-q", "-m", "second"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let observed = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let observed: GitOperatorStatus = serde_json::from_slice(&observed.stdout).unwrap();
+    let snapshot = observed.observed_snapshot;
+    let good_trigger = GitActivationTrigger {
+        schema: GIT_ACTIVATION_TRIGGER_SCHEMA.to_owned(),
+        trigger_id: "fixture.admit.good".to_owned(),
+        revision: 1,
+        repository_id: snapshot.repository_id.clone(),
+        worktree_id: snapshot.worktree_id.clone(),
+        event_classes: vec![GitActivationEventClass::RefFastForward],
+        require_complete: true,
+        workload_id: workload.workload.id.clone(),
+        graph: workload.candidate_graph.clone(),
+        scenario_ids: Vec::new(),
+        budget: GitActivationBudget::default(),
+    };
+    let mut bad_trigger = good_trigger.clone();
+    bad_trigger.trigger_id = "fixture.admit.bad-graph".to_owned();
+    bad_trigger.graph = ContractIdentity::new("fixture.wrong.graph", 1, "wrong graph");
+    fs::write(
+        workspace.path().join("good-trigger.json"),
+        serde_json::to_vec_pretty(&good_trigger).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.path().join("bad-trigger.json"),
+        serde_json::to_vec_pretty(&bad_trigger).unwrap(),
+    )
+    .unwrap();
+
+    let polled = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--trigger",
+        "good-trigger.json",
+        "--trigger",
+        "bad-trigger.json",
+        "--format",
+        "json",
+    ]);
+    assert!(polled.status.success());
+    let polled: GitPollOutcome = serde_json::from_slice(&polled.stdout).unwrap();
+    let good = polled
+        .record
+        .proposals
+        .iter()
+        .find(|proposal| proposal.graph == workload.candidate_graph)
+        .unwrap();
+    let bad = polled
+        .record
+        .proposals
+        .iter()
+        .find(|proposal| proposal.graph != workload.candidate_graph)
+        .unwrap();
+
+    let pending = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "admit-activation",
+        good.activation_id.as_str(),
+    ]);
+    assert_eq!(pending.status.code(), Some(1));
+    assert!(pending.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&pending.stderr).contains("must be acknowledged"));
+
+    let transition_id = polled.record.transition.transition_id.to_string();
+    let acknowledged =
+        run_rey_workspace(&["git", "--workspace", workspace_path, "ack", &transition_id]);
+    assert!(acknowledged.status.success());
+
+    let wrong_graph = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "admit-activation",
+        bad.activation_id.as_str(),
+    ]);
+    assert_eq!(wrong_graph.status.code(), Some(1));
+    assert!(wrong_graph.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&wrong_graph.stderr).contains("exact admitted workload HEAD"));
+
+    let admitted = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "admit-activation",
+        good.activation_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(
+        admitted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&admitted.stderr)
+    );
+    let admitted: WorkloadActivationAdmission = serde_json::from_slice(&admitted.stdout).unwrap();
+    assert_eq!(admitted.activation, *good);
+    assert_eq!(admitted.selected_scenario_ids.len(), 2);
+    assert_eq!(admitted.effective_budget.max_actions, 1);
+    assert_eq!(
+        admitted.authority,
+        "admitted_for_runtime_scheduling; no workload or Git execution has occurred"
+    );
+
+    let replay = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "admit-activation",
+        good.activation_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    let replay: WorkloadActivationAdmission = serde_json::from_slice(&replay.stdout).unwrap();
+    assert_eq!(replay, admitted);
+
+    let listed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(
+        listed.activation_admissions.as_slice(),
+        std::slice::from_ref(&admitted)
+    );
+    assert_eq!(
+        listed.workloads[0].last_test_result_id,
+        Some(original_test_id)
+    );
+
+    let human = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(human.status.success());
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "Runtime admissions",
+        "1 Git activation · no execution implied",
+        "RUNTIME ADMISSIONS",
+        "ADMITTED",
+        "revalidate before scheduling",
+        admitted.admission_id.as_str(),
+        good.activation_id.as_str(),
+        "no execution",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing runtime admission evidence: {evidence}"
+        );
+    }
+
+    let state_path = workspace.path().join(".rey/workloads/state.json");
+    let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state["activation_admissions"][0]["authority"] = "tampered".into();
+    fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+    let tampered = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert_eq!(tampered.status.code(), Some(1));
+    assert!(tampered.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&tampered.stderr).contains("tampered"));
 }
 
 #[test]

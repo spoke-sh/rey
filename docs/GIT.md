@@ -17,11 +17,12 @@ deterministic proposal-only activations. The `rey git` CLI retains an exact
 baseline cursor, one pending transition with its triggers and proposals, and
 acknowledged transition history under `.rey/git`. Watched-ref frames beyond
 HEAD, reachable-set and path deltas, recurring polling and coalescing,
-runtime admission, remote synchronization, and complete index flag semantics
+activation execution, remote synchronization, and complete index flag semantics
 remain future Git work. Workload packages can already bind exact HEAD or
 semantic-index revisions and derive attention from the acknowledged cursor
 snapshot without treating an ambient observation or activation proposal as
-authority.
+authority. A separate workload command can admit a current acknowledged
+proposal for scheduling without executing it.
 
 Git is not part of the `rey env` admission snapshot. That loop discovers the
 `git` executable as an application, while this provider owns repository HEAD,
@@ -238,13 +239,17 @@ One bounded poll performs:
 4. traverse only the bounded commit graph needed to classify ref movement;
 5. materialize typed Git deltas;
 6. match trigger predicates and create deterministic activation identities;
-7. admit and run selected workload test selections or graph entry points; and
-8. advance the cursor after transition evidence commits.
+7. retain the transition and proposal evidence;
+8. acknowledge that exact evidence and advance the cursor;
+9. separately admit an eligible proposal into ordinary workload scheduling;
+   and
+10. schedule and execute the selected workload scenarios or graph entry point.
 
-The current library implements the read-only mechanism through step 6 for
-HEAD and the partial logical index. The CLI retains that output and implements
-step 8 only as an explicit exact-evidence acknowledgement. No path yet performs
-step 7, admits a proposal into the workload runtime, or polls recurrently.
+The current library and CLI implement steps 1–8 for HEAD and the partial
+logical index. `rey workloads admit-activation` implements step 9 only: it
+revalidates exact current Git, workload HEAD, graph, scenario, capability, and
+budget preconditions, then retains schedule-only admission. No path yet
+performs step 10 or polls recurrently.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
 be recovered from the object graph within retention and traversal bounds, but
@@ -311,6 +316,16 @@ selection or graph entry point. Its identity covers the trigger revision,
 source and target snapshot ids, matched delta subset, and exact
 workload/graph/scenario selection. It still passes normal runtime admission; a
 Git delta does not directly execute a tool or mutation.
+
+The implemented admission accepts only an activation in acknowledged history
+whose target snapshot and transition still define the current cursor. It binds
+the exact workload HEAD commit and snapshot, matching workload/graph contracts,
+resolved scenario ids, retained capability snapshot, proposal completeness,
+and narrowed effective budget into
+`rey.workload-activation-admission.v1`. Repeating the same admission is
+identity-stable. A pending proposal, stale cursor, changed graph, unknown
+scenario, or missing capability snapshot fails closed. The admission says only
+`admitted_for_runtime_scheduling`; no graph has run and no progress is implied.
 
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
 classes, completeness posture, exact workload/graph/scenarios, and an action,

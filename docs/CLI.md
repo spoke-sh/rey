@@ -128,7 +128,7 @@ rey channels   list | status | diff | apply | add | commit | log | message | rel
 rey env        status | add | diff | commit | log
 rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
-rey workloads  create | list | status | add | diff | test | commit | log | run
+rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | run
 rey journal    add | list
 rey ui
 ```
@@ -256,6 +256,10 @@ The human view exposes source and target snapshots, movement completeness,
 events, semantic-index posture, omissions, proposals, authority, and next
 acknowledgement. JSON retains the same typed documents.
 
+After acknowledgement, `rey workloads admit-activation` is the separate
+ordinary workload gate. It never changes Git and does not run as part of
+`poll` or `ack`.
+
 ### `rey workloads`
 
 ```text
@@ -268,6 +272,7 @@ rey workloads ... diff [--staged]
 rey workloads ... test --staged [ID] [-v|-vv]
 rey workloads ... commit -m MESSAGE
 rey workloads ... log [-p] [-n COUNT]
+rey workloads ... admit-activation ACTIVATION_ID
 rey workloads ... run ID [INPUTS AND LIMITS]
 ```
 
@@ -306,6 +311,12 @@ identity, completeness, evidence/action counts, and surface limits when one
 row is selected. Progress and proof remain explicitly absent until a prior
 frontier and evaluated transition exist. JSON retains the full verified
 frontier/scheduling/surface envelope rather than the human summary.
+`admit-activation` resolves only a proposal retained in acknowledged Git
+history and requires it to match the current cursor, admitted workload HEAD,
+graph, scenario selection, capability snapshot, and effective bounds. It
+retains a content-identified, idempotent scheduling admission. The human
+receipt and `list` runtime-admissions section expose every binding and state
+plainly that no execution occurred; JSON carries the complete typed contract.
 `commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.
@@ -363,6 +374,7 @@ does not bypass the three-plane contract.
 | `env add`, `editor add`, `workloads add` | Mutate only the corresponding INDEX. |
 | `env commit`, `editor commit`, `workloads commit` | Verify and advance only from INDEX; never absorb later WORKING state. |
 | `workloads test --staged` | Executes bounded scenario probes and retains qualification evidence; never advances HEAD. |
+| `workloads admit-activation` | Retains exact scheduling eligibility for one acknowledged Git proposal after ordinary workload precondition checks; executes nothing. |
 | `workloads run` | Executes an admitted graph and retains results under declared provider/effect contracts. |
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
 | `channels apply` | Writes only the Channel WORKING proposal. |

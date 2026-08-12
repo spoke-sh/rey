@@ -16,7 +16,8 @@ Product workloads arrive as bounded workspace packages with exact proposal
 provenance and frozen scenario admission. Rey does not invoke a coding harness;
 it deterministically requests, receives, qualifies, and admits exact package
 bytes. Exact workload Git dependencies now derive invalidation from the
-acknowledged cursor snapshot; activation admission and recurrence remain
+acknowledged cursor snapshot, and acknowledged activation proposals can cross
+an exact schedule-only workload admission gate. Activation execution and recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Nested Campaigns
@@ -279,6 +280,7 @@ The implemented crates deliberately contain no:
 - automatic coding-harness transport or invocation beyond the immutable
   selected-`CREATE` request and exact response-lineage contract;
 - recurring, fair, parallel, or multi-user scheduling;
+- execution or consumption of retained Git activation admissions;
 - external tool, query, parser, or index retrieval implementation;
 - general visualization specification beyond the source workload's terminal
   table/patch projection;

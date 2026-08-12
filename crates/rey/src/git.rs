@@ -220,6 +220,34 @@ impl LocalGitState {
         }
         Ok(())
     }
+
+    pub fn acknowledged_activation(
+        &self,
+        activation_id: &str,
+    ) -> Result<GitActivationProposal, LocalGitStateError> {
+        self.verify()?;
+        if let Some(proposal) = self
+            .retained_polls
+            .iter()
+            .flat_map(|poll| &poll.proposals)
+            .find(|proposal| proposal.activation_id.as_str() == activation_id)
+        {
+            return Ok(proposal.clone());
+        }
+        if self.pending.as_ref().is_some_and(|pending| {
+            pending
+                .proposals
+                .iter()
+                .any(|proposal| proposal.activation_id.as_str() == activation_id)
+        }) {
+            return Err(LocalGitStateError::ActivationNotAcknowledged(
+                activation_id.to_owned(),
+            ));
+        }
+        Err(LocalGitStateError::UnknownActivation(
+            activation_id.to_owned(),
+        ))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -489,6 +517,10 @@ pub enum LocalGitStateError {
     },
     #[error("retained Git transition history exceeds {0}")]
     TransitionLimit(usize),
+    #[error("Git activation {0} is pending and must be acknowledged before workload admission")]
+    ActivationNotAcknowledged(String),
+    #[error("unknown acknowledged Git activation {0}")]
+    UnknownActivation(String),
 }
 
 #[cfg(test)]

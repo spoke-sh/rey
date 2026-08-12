@@ -30,8 +30,10 @@ A manual bounded Git poll now retains cursor, pending transition, and
 proposal-only activation evidence. Workloads can declare exact Git HEAD or
 semantic-index dependencies; portfolio attention compares them only with the
 acknowledged cursor snapshot, so ambient repository movement cannot silently
-invalidate work. Activation runtime admission, coalescing, and a bounded
-recurring scheduler remain open.
+invalidate work. An acknowledged proposal can now cross a separate exact
+workload admission gate into retained scheduling eligibility without executing
+its graph. Activation execution, coalescing, and a bounded recurring scheduler
+remain open.
 
 ## Completion Checklist
 
@@ -72,8 +74,11 @@ recurring scheduler remain open.
 - [x] Poll bounded Git HEAD and partial semantic-index observations into
   classified movement, a retained cursor, and idempotent proposal-only
   activations with an exact evidence acknowledgement.
+- [x] Admit one acknowledged activation against the current Git cursor,
+  workload HEAD, graph, scenario selection, capability snapshot, and effective
+  budget without executing it.
 - [ ] Extend activation evidence through watched refs, reachable/path deltas,
-  complete supported index semantics, and ordinary workload runtime admission.
+  and complete supported index semantics.
 - [ ] Coalesce replay safely and advance a cursor only after required evidence
   reaches its claimed retention boundary.
 - [ ] Run the loop under explicit iteration, time, action, evidence, retry,

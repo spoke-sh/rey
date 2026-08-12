@@ -49,9 +49,9 @@ use rey::{
         JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
     workloads::{
-        LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadAddResult,
-        WorkloadCatalog, WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadChangeKind,
-        WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult,
+        LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadActivationAdmission,
+        WorkloadAddResult, WorkloadCatalog, WorkloadCatalogDescriptor, WorkloadCatalogError,
+        WorkloadChangeKind, WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult,
         WorkloadCreationAttentionBinding, WorkloadDraft, WorkloadList, WorkloadLog,
         WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView,
         WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState, derive_portfolio_snapshot,
@@ -626,6 +626,8 @@ enum WorkloadsCommand {
     Test(WorkloadTestArgs),
     /// Execute an exactly qualified graph admitted in HEAD.
     Run(WorkloadRunArgs),
+    /// Admit one acknowledged Git activation into workload runtime scheduling.
+    AdmitActivation(WorkloadAdmitActivationArgs),
 }
 
 #[derive(Debug, Args)]
@@ -720,6 +722,16 @@ struct WorkloadTestArgs {
     /// Render every EXPECTED → ACTUAL assertion; repeat as -vv for exact evidence bindings.
     #[arg(short = 'v', long = "verbose", action = ArgAction::Count)]
     verbose: u8,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadAdmitActivationArgs {
+    /// Exact acknowledged Git activation proposal identity.
+    activation_id: String,
+
+    /// Human admission receipt or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -2014,6 +2026,10 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
             };
             workload_run(&store, &workspace, &catalog, command)
         }
+        WorkloadsCommand::AdmitActivation(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_admit_activation(&store, &workspace, command)
+        }
     }
 }
 
@@ -2068,6 +2084,57 @@ fn workload_create(
     Ok(ExitCode::SUCCESS)
 }
 
+fn workload_admit_activation(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    args: WorkloadAdmitActivationArgs,
+) -> Result<ExitCode, CliError> {
+    let git_state = LocalGitStore::default_for_workspace(workspace).load()?;
+    let activation = git_state.acknowledged_activation(&args.activation_id)?;
+    let cursor = git_state
+        .cursor
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    if cursor.snapshot_id != activation.target_snapshot_id
+        || cursor.retained_evidence_id != activation.transition_id
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "activation target is not the current acknowledged Git cursor".to_owned(),
+        )
+        .into());
+    }
+    let workload_state = store.load()?;
+    let workload_head = workload_state.commits.last().ok_or_else(|| {
+        LocalWorkloadStateError::ActivationPrecondition(
+            "workload HEAD is empty; activation cannot bind an unadmitted package".to_owned(),
+        )
+    })?;
+    let catalog = store.head_catalog()?;
+    let resolved = catalog
+        .select(Some(&activation.workload_id))?
+        .into_iter()
+        .next()
+        .ok_or(CliError::EmptyWorkloadCatalog)?;
+    let environment =
+        retained_environment_snapshot(workspace)?.ok_or(CliError::ActivationEnvironmentRequired)?;
+    let admission = WorkloadActivationAdmission::new(
+        activation,
+        workload_head,
+        &resolved.definition,
+        environment.semantic_digest,
+    )?;
+    let admission = store.admit_activation(admission)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &admission)?,
+        WorkloadOutputFormat::Table => {
+            write_workload_activation_admission(&mut stdout, &admission)?
+        }
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 fn current_workload_list(
     store: &LocalWorkloadStore,
     workspace: &Path,
@@ -2106,6 +2173,7 @@ fn current_workload_list(
         catalog.descriptor.clone(),
         summaries,
         revision.drafts.clone(),
+        state.activation_admissions.clone(),
         attention,
         runtime,
         Some(revision),
@@ -2155,6 +2223,7 @@ fn workload_list(
                 catalog.descriptor.clone(),
                 summaries,
                 catalog.drafts.clone(),
+                Vec::new(),
                 attention,
                 runtime,
                 None,
@@ -3715,6 +3784,94 @@ fn write_git_acknowledgement(
     Ok(())
 }
 
+fn write_workload_activation_admission(
+    output: &mut impl Write,
+    admission: &WorkloadActivationAdmission,
+) -> Result<(), CliError> {
+    writeln!(output, "WORKLOAD ACTIVATION ADMITTED")?;
+    write_portfolio_field(output, "Admission", admission.admission_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Activation",
+        admission.activation.activation_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Git transition",
+        admission.activation.transition_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Git target",
+        admission.activation.target_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Workload HEAD",
+        &format!(
+            "{} · snapshot {}",
+            admission.workload_head_commit_id, admission.workload_head_snapshot_id
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Workload",
+        &format!("{}@{}", admission.workload.id, admission.workload.revision),
+    )?;
+    write_portfolio_field(
+        output,
+        "Graph",
+        &format!("{}@{}", admission.graph.id, admission.graph.revision),
+    )?;
+    write_portfolio_field(
+        output,
+        "Scenario suite",
+        &format!(
+            "{}@{} · {} selected",
+            admission.scenario_suite.id,
+            admission.scenario_suite.revision,
+            admission.selected_scenario_ids.len()
+        ),
+    )?;
+    for scenario_id in &admission.selected_scenario_ids {
+        writeln!(output, "    {scenario_id}")?;
+    }
+    write_portfolio_field(
+        output,
+        "Capabilities",
+        admission.capability_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Completeness",
+        if admission.activation.complete {
+            "complete"
+        } else {
+            "partial · see omissions"
+        },
+    )?;
+    for omission in &admission.activation.omissions {
+        writeln!(output, "    omission: {omission}")?;
+    }
+    write_portfolio_field(
+        output,
+        "Runtime budget",
+        &format!(
+            "{} scenarios · {} action · {} evidence bytes",
+            admission.effective_budget.max_scenarios,
+            admission.effective_budget.max_actions,
+            admission.effective_budget.max_evidence_bytes,
+        ),
+    )?;
+    write_portfolio_field(output, "Authority", &admission.authority)?;
+    write_portfolio_field(
+        output,
+        "Next",
+        "runtime scheduling must revalidate these preconditions; no execution has occurred",
+    )?;
+    Ok(())
+}
+
 fn write_git_snapshot_fields(
     output: &mut impl Write,
     snapshot: &rey_git::GitSnapshot,
@@ -4171,6 +4328,19 @@ fn write_workload_list(
     )?;
     write_portfolio_field(
         output,
+        "Runtime admissions",
+        &format!(
+            "{} Git activation{} · no execution implied",
+            list.activation_admissions.len(),
+            if list.activation_admissions.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+        ),
+    )?;
+    write_portfolio_field(
+        output,
         "Qualification",
         &format!(
             "{}/{} qualified · {} failing · {} inconclusive · {} stale",
@@ -4307,6 +4477,7 @@ fn write_workload_list(
     )?;
     write_attention_frontier(output, &list.attention, style)?;
     write_runtime_frontier(output, list.runtime.as_ref(), style)?;
+    write_activation_admissions(output, &list.activation_admissions, style)?;
     if list.workloads.is_empty() && list.drafts.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
@@ -4508,6 +4679,41 @@ fn write_workload_list(
                 style.dim("  ────────────────────────────────────────────────────────────")
             )?;
         }
+    }
+    Ok(())
+}
+
+fn write_activation_admissions(
+    output: &mut impl Write,
+    admissions: &[WorkloadActivationAdmission],
+    style: TerminalStyle,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("RUNTIME ADMISSIONS"))?;
+    if admissions.is_empty() {
+        writeln!(output, "  {}", style.dim("No admitted Git activations"))?;
+        return Ok(());
+    }
+    for admission in admissions {
+        writeln!(
+            output,
+            "  {} · {} · {} scenarios · ADMITTED",
+            admission.admission_id,
+            admission.workload.id,
+            admission.selected_scenario_ids.len(),
+        )?;
+        writeln!(
+            output,
+            "    activation {} · transition {} · Git {}",
+            admission.activation.activation_id,
+            admission.activation.transition_id,
+            admission.activation.target_snapshot_id,
+        )?;
+        writeln!(
+            output,
+            "    workload HEAD {} · capabilities {} · revalidate before scheduling · no execution",
+            admission.workload_head_commit_id, admission.capability_snapshot_id,
+        )?;
     }
     Ok(())
 }
@@ -9069,6 +9275,8 @@ enum CliError {
     GitTriggerInputEscape(PathBuf),
     #[error("Git activation trigger exceeds {0} bytes")]
     GitTriggerInputLimit(u64),
+    #[error("workload activation admission requires an exact retained environment snapshot")]
+    ActivationEnvironmentRequired,
     #[error("channel graph {path} could not be read: {source}")]
     ChannelInput { path: PathBuf, source: io::Error },
     #[error("channel graph must be a regular non-symlinked file: {0}")]

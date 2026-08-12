@@ -198,7 +198,9 @@ does not grant a tool, workload, agent, or scene permission to act.
 Repository activation uses a separate explicit evidence loop: `rey git init`
 retains a baseline, `poll` retains one typed transition and proposal set, and
 `ack` advances the cursor only from that exact evidence. These commands never
-mutate Git or execute a proposed workload.
+mutate Git or execute a proposed workload. `rey workloads admit-activation`
+then applies the ordinary workload preconditions and retains scheduling
+eligibility only; execution remains a later bounded runtime action.
 
 A workload is Rey's public unit of computation: one versioned graph, scenario
 suite, policy boundary, qualification contract, and total budget. Agents,

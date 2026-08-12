@@ -844,7 +844,7 @@ continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
 deterministic reference paths. Render-graph extraction, transient-patch reuse,
 retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic
-activation admission, persistent activation processing, recurring scheduling,
+activation execution, persistent activation processing, recurring scheduling,
 and policy proposals remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
@@ -873,9 +873,11 @@ Git HEAD/index dependencies. List/status derive live invalidation from retained
 environment evidence and the acknowledged Git cursor, then hand ready rows to
 the generic frontier and one bounded reasoning surface. One selected `CREATE`
 row can cross an immutable harness request/response and exact human workload
-admission cycle without Rey invoking the harness.
+admission cycle without Rey invoking the harness. An acknowledged Git
+activation can separately cross exact workload/runtime preconditions into a
+content-identified schedule-only admission.
 
-Recurring scheduling, Git activation admission, admitted `rg` search,
+Recurring scheduling, Git activation execution, admitted `rg` search,
 parser/index breadth, general structural delta, and a provider-specific agent
 loop remain unimplemented. Those require the same human-verifiable end-to-end
 boundary before they count as delivered.
