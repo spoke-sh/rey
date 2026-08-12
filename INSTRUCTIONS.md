@@ -86,8 +86,10 @@ evidence-backed system recommendations and summarizes retained work results;
 agent-runtime discovery remains on `/environment`. Generator provenance remains
 workload evidence, not the definition of an available or assigned agent. The
 UI starts from the CLI, passively revalidates the same workload-list
-derivation, defaults to loopback, and is neither a mutation plane nor a public
-Rey service. Its fixed footer is a two-axis communication plane: the mailbox
+derivation, defaults to loopback, and is not a general mutation plane or public
+Rey service. Its explicit Channel editor writes only validated WORKING state
+against expected snapshots and grants no INDEX, HEAD, relay, or execution
+authority. Its fixed footer is a two-axis communication plane: the mailbox
 shows the current typed-attention history projection, while chevrons open an
 operator/Rey/agent chat shell whose composer remains disabled until a
 conversation transport is admitted. Workspace packages retain coding-harness provenance and

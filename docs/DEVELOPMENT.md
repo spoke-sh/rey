@@ -182,10 +182,11 @@ as Git porcelain v2 and renderer backend capability names are not Rey document
 versions.
 
 The composition binary uses `tiny_http` 0.12 for a narrow synchronous local
-operator listener. Its bounded Journal POST and exact workload-admission POST
-are intentionally unauthenticated and have no origin check on every explicitly
-configured listener. This adds no async runtime, TLS, authenticated identity,
-background scheduler, or general persistence/service topology.
+operator listener. Its bounded Journal POST, expected-snapshot Channel WORKING
+POST, and exact workload-admission POST are intentionally unauthenticated and
+have no origin check on every explicitly configured listener. This adds no
+async runtime, TLS, authenticated identity, background scheduler, or general
+persistence/service topology.
 The TypeScript application uses locked React, TanStack Router, TypeScript,
 Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic

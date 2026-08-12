@@ -625,6 +625,10 @@ struct UiArgs {
     #[arg(long)]
     journal_state_dir: Option<PathBuf>,
 
+    /// Explicit local Channel-state directory; relative paths resolve below the workspace.
+    #[arg(long)]
+    channel_state_dir: Option<PathBuf>,
+
     /// Workspace-relative workload package root.
     #[arg(long, default_value = "sys")]
     catalog_dir: PathBuf,
@@ -2127,11 +2131,20 @@ fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
         Some(path) => workspace.join(path),
         None => workspace.join(".rey").join("journal"),
     };
+    let channel_directory = match args.channel_state_dir {
+        Some(path) if path.is_absolute() => path,
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey").join("channels"),
+    };
     let server = ui::UiServer::bind(ui::UiServerConfig {
         workspace,
         state_directory,
         catalog_directory: args.catalog_dir,
         journal_directory,
+        channel_directory,
         host: args.host,
         port: args.port,
     })?;
@@ -2145,7 +2158,7 @@ fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
     stdout.flush()?;
     if !descriptor.loopback_only {
         eprintln!(
-            "rey: warning: UI is listening beyond loopback with unauthenticated Journal writes and exact workload approval enabled; protect access externally"
+            "rey: warning: UI is listening beyond loopback with unauthenticated Journal and Channel WORKING writes plus exact workload approval enabled; protect access externally"
         );
     }
     server.serve()?;
@@ -3407,13 +3420,18 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "Data plane",
-        "LIVE READS · JOURNAL WRITE · WORKLOAD APPROVAL",
+        "LIVE READS · JOURNAL WRITE · CHANNEL WORKING WRITE · WORKLOAD APPROVAL",
     )?;
     write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
     write_portfolio_field(
         output,
         "Workload admission",
         "ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
+    )?;
+    write_portfolio_field(
+        output,
+        "Channel write",
+        "ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
     )?;
     write_portfolio_field(
         output,
@@ -3425,10 +3443,11 @@ fn write_ui_startup(
     )?;
     write_portfolio_field(output, "Workspace", &descriptor.workspace)?;
     write_portfolio_field(output, "Catalog", &descriptor.catalog_root)?;
+    write_portfolio_field(output, "Channels", &descriptor.channel_root)?;
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(

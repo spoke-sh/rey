@@ -1417,22 +1417,58 @@ impl LocalChannelStore {
         let target = ChannelGraphSnapshot::new(graph, source)?;
         self.with_lock(|| {
             let status = self.status()?;
-            validate_revision_progress(&status.working.graph, &target.graph)?;
-            let delta = ChannelGraphDelta::derive("WORKING", &status.working, "PROPOSAL", &target)?;
-            let applied = delta.assessment == DeltaAssessment::Different;
-            if applied {
-                self.save_working(&ChannelWorkingDocument {
-                    schema: CHANNEL_WORKING_SCHEMA.to_owned(),
-                    base_graph_id: status.head.graph_id,
-                    snapshot: target.clone(),
-                })?;
+            self.apply_from_status(status, target)
+        })
+    }
+
+    pub fn apply_if_current(
+        &self,
+        graph: ChannelGraph,
+        source: ChannelGraphSource,
+        expected_head_snapshot_id: &SemanticDigest,
+        expected_working_snapshot_id: &SemanticDigest,
+    ) -> Result<ChannelApplyResult, ChannelGraphError> {
+        let target = ChannelGraphSnapshot::new(graph, source)?;
+        self.with_lock(|| {
+            let status = self.status()?;
+            if &status.head.snapshot_id != expected_head_snapshot_id {
+                return Err(ChannelGraphError::WritePrecondition {
+                    plane: "HEAD",
+                    expected: expected_head_snapshot_id.clone(),
+                    actual: status.head.snapshot_id,
+                });
             }
-            Ok(ChannelApplyResult {
-                schema: CHANNEL_APPLY_RESULT_SCHEMA.to_owned(),
-                applied,
-                snapshot: target,
-                delta,
-            })
+            if &status.working.snapshot_id != expected_working_snapshot_id {
+                return Err(ChannelGraphError::WritePrecondition {
+                    plane: "WORKING",
+                    expected: expected_working_snapshot_id.clone(),
+                    actual: status.working.snapshot_id,
+                });
+            }
+            self.apply_from_status(status, target)
+        })
+    }
+
+    fn apply_from_status(
+        &self,
+        status: ChannelStatus,
+        target: ChannelGraphSnapshot,
+    ) -> Result<ChannelApplyResult, ChannelGraphError> {
+        validate_revision_progress(&status.working.graph, &target.graph)?;
+        let delta = ChannelGraphDelta::derive("WORKING", &status.working, "PROPOSAL", &target)?;
+        let applied = delta.assessment == DeltaAssessment::Different;
+        if applied {
+            self.save_working(&ChannelWorkingDocument {
+                schema: CHANNEL_WORKING_SCHEMA.to_owned(),
+                base_graph_id: status.head.graph_id,
+                snapshot: target.clone(),
+            })?;
+        }
+        Ok(ChannelApplyResult {
+            schema: CHANNEL_APPLY_RESULT_SCHEMA.to_owned(),
+            applied,
+            snapshot: target,
+            delta,
         })
     }
 
@@ -2906,6 +2942,14 @@ pub enum ChannelGraphError {
         actual: SemanticDigest,
     },
     #[error(
+        "channel {plane} changed before the WORKING write: expected {expected}, found {actual}"
+    )]
+    WritePrecondition {
+        plane: &'static str,
+        expected: SemanticDigest,
+        actual: SemanticDigest,
+    },
+    #[error(
         "{kind} {id} changed without advancing its revision beyond {previous}; proposed {proposed}"
     )]
     RevisionNotAdvanced {
@@ -3141,6 +3185,50 @@ mod tests {
             replayed.working.graph.stream("flow").unwrap().name,
             "Outcomes"
         );
+    }
+
+    #[test]
+    fn expected_snapshot_write_rejects_stale_operator_state() {
+        let root = TempDir::new().unwrap();
+        let store = LocalChannelStore::default_for_workspace(root.path());
+        let initial = store.status().unwrap();
+        let mut graph = initial.working.graph.clone();
+        let signals = graph
+            .streams
+            .iter_mut()
+            .find(|stream| stream.id == "signals")
+            .unwrap();
+        signals.name = "Signal desk".to_owned();
+        signals.revision = 2;
+        let result = store
+            .apply_if_current(
+                graph,
+                ChannelGraphSource::worktree("ui:///channels/working".to_owned(), b"operator"),
+                &initial.head.snapshot_id,
+                &initial.working.snapshot_id,
+            )
+            .unwrap();
+        assert!(result.applied);
+
+        let current = store.status().unwrap();
+        assert_eq!(
+            current.working.graph.stream("signals").unwrap().name,
+            "Signal desk"
+        );
+        let stale = store.apply_if_current(
+            current.working.graph.clone(),
+            ChannelGraphSource::worktree("ui:///channels/working".to_owned(), b"stale"),
+            &current.head.snapshot_id,
+            &initial.working.snapshot_id,
+        );
+        assert!(matches!(
+            stale,
+            Err(ChannelGraphError::WritePrecondition {
+                plane: "WORKING",
+                ..
+            })
+        ));
+        assert_eq!(store.status().unwrap(), current);
     }
 
     #[test]

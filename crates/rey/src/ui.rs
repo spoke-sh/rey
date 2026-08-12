@@ -6,6 +6,10 @@ use std::{
 };
 
 use rey::{
+    channels::{
+        ChannelGraph, ChannelGraphSource, ChannelStatus, LocalChannelStore,
+        MAX_CHANNEL_GRAPH_INPUT_BYTES,
+    },
     current_environment_status,
     env::LocalEnvironmentStore,
     journal::{
@@ -14,6 +18,7 @@ use rey::{
     },
     workloads::LocalWorkloadStore,
 };
+use rey_core::SemanticDigest;
 use rey_environment::{DiscoveryLimits, resolve_executable};
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
 use serde::{Deserialize, Serialize};
@@ -26,6 +31,8 @@ const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
+const UI_CHANNELS_SCHEMA: &str = "rey.ui-channels.v1";
+const UI_CHANNEL_WORKING_WRITE_SCHEMA: &str = "rey.ui-channel-working-write.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
@@ -52,6 +59,7 @@ pub struct UiServerConfig {
     pub state_directory: PathBuf,
     pub catalog_directory: PathBuf,
     pub journal_directory: PathBuf,
+    pub channel_directory: PathBuf,
     pub host: IpAddr,
     pub port: u16,
 }
@@ -67,8 +75,10 @@ pub struct UiServerDescriptor {
     pub read_only: bool,
     pub journal_write_enabled: bool,
     pub workload_admission_enabled: bool,
+    pub channel_write_enabled: bool,
     pub workspace: String,
     pub catalog_root: String,
+    pub channel_root: String,
     pub application: String,
     pub grammar: String,
     pub theme: String,
@@ -179,6 +189,32 @@ struct UiJournalProjection {
     log: JournalLog,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiChannelListener {
+    address: String,
+    loopback_only: bool,
+    authentication: String,
+    warning: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiChannelProjection {
+    schema: String,
+    write_enabled: bool,
+    authority: String,
+    listener: UiChannelListener,
+    status: ChannelStatus,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UiChannelWorkingWrite {
+    schema: String,
+    expected_head_snapshot_id: SemanticDigest,
+    expected_working_snapshot_id: SemanticDigest,
+    graph: ChannelGraph,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct UiWorkloadApproval {
@@ -211,8 +247,10 @@ impl UiServer {
             read_only: false,
             journal_write_enabled: true,
             workload_admission_enabled: true,
+            channel_write_enabled: true,
             workspace: config.workspace.display().to_string(),
             catalog_root: config.catalog_directory.display().to_string(),
+            channel_root: config.channel_directory.display().to_string(),
             application: "tanstack_router".to_owned(),
             grammar: "kinetic".to_owned(),
             theme: "precision".to_owned(),
@@ -267,6 +305,9 @@ impl UiServer {
         if request.method() == &Method::Post && path == "/api/v1/workloads/admit" {
             return self.admit_workloads(request);
         }
+        if request.method() == &Method::Post && path == "/api/v1/channels/working" {
+            return self.write_channel_working(request);
+        }
         if request.method() != &Method::Get && !head {
             return with_header(
                 json_error(
@@ -283,6 +324,7 @@ impl UiServer {
             "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
             "/api/v1/cadence" => self.cadence(),
+            "/api/v1/channels" => self.channels(),
             "/api/v1/environment" => self.environment(),
             "/api/v1/journal" => self.journal(),
             "/api/v1/workloads" => self.workloads(),
@@ -339,6 +381,126 @@ impl UiServer {
         match result {
             Ok(list) => json_response(StatusCode(200), &list),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
+        }
+    }
+
+    fn channels(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalChannelStore::new(self.config.channel_directory.clone());
+        match store.status() {
+            Ok(status) => json_response(
+                StatusCode(200),
+                &UiChannelProjection {
+                    schema: UI_CHANNELS_SCHEMA.to_owned(),
+                    write_enabled: self.descriptor.channel_write_enabled,
+                    authority: "unauthenticated_channel_working_write; no INDEX, HEAD, relay, or execution authority"
+                        .to_owned(),
+                    listener: UiChannelListener {
+                        address: self.descriptor.address.clone(),
+                        loopback_only: self.descriptor.loopback_only,
+                        authentication: "none".to_owned(),
+                        warning: if self.descriptor.loopback_only {
+                            "any local client that can reach this listener may replace Channel WORKING"
+                                .to_owned()
+                        } else {
+                            "any network client that can reach this listener may replace Channel WORKING without authentication"
+                                .to_owned()
+                        },
+                    },
+                    status,
+                },
+            ),
+            Err(error) => json_error(
+                StatusCode(500),
+                "channel_status_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn write_channel_working(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        if request_header(request, "Content-Type") != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "channel_working_content_type",
+                "Channel WORKING writes require Content-Type: application/json",
+            );
+        }
+        if request
+            .body_length()
+            .is_some_and(|length| length as u64 > MAX_CHANNEL_GRAPH_INPUT_BYTES)
+        {
+            return json_error(
+                StatusCode(413),
+                "channel_working_body_limit",
+                "Channel WORKING write exceeds the 1048576-byte limit",
+            );
+        }
+        let mut bytes = Vec::new();
+        if let Err(error) = request
+            .as_reader()
+            .take(MAX_CHANNEL_GRAPH_INPUT_BYTES.saturating_add(1))
+            .read_to_end(&mut bytes)
+        {
+            return json_error(
+                StatusCode(400),
+                "channel_working_body_unreadable",
+                &error.to_string(),
+            );
+        }
+        if bytes.len() as u64 > MAX_CHANNEL_GRAPH_INPUT_BYTES {
+            return json_error(
+                StatusCode(413),
+                "channel_working_body_limit",
+                "Channel WORKING write exceeds the 1048576-byte limit",
+            );
+        }
+        let write: UiChannelWorkingWrite = match serde_json::from_slice(&bytes) {
+            Ok(write) => write,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "channel_working_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        if write.schema != UI_CHANNEL_WORKING_WRITE_SCHEMA {
+            return json_error(
+                StatusCode(400),
+                "channel_working_schema",
+                "expected schema rey.ui-channel-working-write.v1",
+            );
+        }
+        let graph_bytes = match serde_json::to_vec(&write.graph) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "channel_working_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        let store = LocalChannelStore::new(self.config.channel_directory.clone());
+        match store.apply_if_current(
+            write.graph,
+            ChannelGraphSource::worktree("ui:///channels/working".to_owned(), &graph_bytes),
+            &write.expected_head_snapshot_id,
+            &write.expected_working_snapshot_id,
+        ) {
+            Ok(result) => json_response(
+                if result.applied {
+                    StatusCode(201)
+                } else {
+                    StatusCode(200)
+                },
+                &result,
+            ),
+            Err(error) => json_error(
+                StatusCode(409),
+                "channel_working_rejected",
+                &error.to_string(),
+            ),
         }
     }
 
@@ -746,6 +908,15 @@ impl UiServer {
                     retention: "last_good_document".to_owned(),
                 },
                 UiCadenceSchedule {
+                    id: "ui.channels.passive-revalidation".to_owned(),
+                    label: "Channel topology scan".to_owned(),
+                    source: "/api/v1/channels".to_owned(),
+                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
+                    activation: "channels_route_mounted".to_owned(),
+                    authority: "mounted_browser_projection".to_owned(),
+                    retention: "last_good_document".to_owned(),
+                },
+                UiCadenceSchedule {
                     id: "ui.cadence.passive-revalidation".to_owned(),
                     label: "Cadence scan".to_owned(),
                     source: "/api/v1/cadence".to_owned(),
@@ -891,6 +1062,7 @@ mod tests {
             state_directory: workspace.path().join(".rey/workloads"),
             catalog_directory: "sys".into(),
             journal_directory: workspace.path().join(".rey/journal"),
+            channel_directory: workspace.path().join(".rey/channels"),
             host: "127.0.0.1".parse().unwrap(),
             port: 0,
         })
@@ -901,6 +1073,7 @@ mod tests {
         assert!(!descriptor.read_only);
         assert!(descriptor.journal_write_enabled);
         assert!(descriptor.workload_admission_enabled);
+        assert!(descriptor.channel_write_enabled);
         assert_eq!(descriptor.grammar, "kinetic");
         assert_eq!(descriptor.theme, "precision");
         assert_eq!(descriptor.source_repository, None);
@@ -911,7 +1084,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(27)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(28)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -981,6 +1154,7 @@ mod tests {
         assert!(cadence.contains("\"source_repository\":null"));
         assert!(cadence.contains("\"repository_state\":null"));
         assert!(cadence.contains("ui.portfolio.passive-revalidation"));
+        assert!(cadence.contains("ui.channels.passive-revalidation"));
         assert!(cadence.contains("ui.cadence.passive-revalidation"));
 
         let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
@@ -1109,6 +1283,9 @@ mod tests {
         assert!(application.contains("ADD STREAM"));
         assert!(application.contains("APPLY LENS"));
         assert!(application.contains("Rename stream"));
+        assert!(application.contains("Channel operator index"));
+        assert!(application.contains("WRITE CHANNEL WORKING"));
+        assert!(application.contains("NO INDEX · NO HEAD · NO RELAY · NO EXECUTION"));
         assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
         assert!(application.contains("ADMISSION CONTROL"));
@@ -1154,6 +1331,10 @@ mod tests {
         assert!(cadence.starts_with("HTTP/1.1 200"));
         assert!(cadence.contains("<title>Rey / Explore</title>"));
 
+        let channels = request(&address, "GET /channels HTTP/1.1");
+        assert!(channels.starts_with("HTTP/1.1 200"));
+        assert!(channels.contains("<title>Rey / Explore</title>"));
+
         let agents = request(&address, "GET /agents HTTP/1.1");
         assert!(agents.starts_with("HTTP/1.1 200"));
         assert!(agents.contains("<title>Rey / Explore</title>"));
@@ -1179,8 +1360,109 @@ mod tests {
         handle.join().unwrap();
     }
 
+    #[test]
+    fn server_projects_and_conditionally_writes_channel_working() {
+        let workspace = TempDir::new().unwrap();
+        let channel_directory = workspace.path().join(".rey/channels");
+        let server = UiServer::bind(UiServerConfig {
+            workspace: workspace.path().to_owned(),
+            state_directory: workspace.path().join(".rey/workloads"),
+            catalog_directory: "sys".into(),
+            journal_directory: workspace.path().join(".rey/journal"),
+            channel_directory: channel_directory.clone(),
+            host: "127.0.0.1".parse().unwrap(),
+            port: 0,
+        })
+        .unwrap();
+        let address = server.descriptor().address;
+        let handle = thread::spawn(move || server.serve_bounded(Some(6)).unwrap());
+
+        let initial = request(&address, "GET /api/v1/channels HTTP/1.1");
+        assert!(initial.starts_with("HTTP/1.1 200"));
+        assert!(!channel_directory.exists());
+        let initial: serde_json::Value = serde_json::from_str(response_body(&initial)).unwrap();
+        assert_eq!(initial["schema"], "rey.ui-channels.v1");
+        assert_eq!(initial["write_enabled"], true);
+        assert_eq!(initial["listener"]["loopback_only"], true);
+        assert_eq!(initial["listener"]["authentication"], "none");
+        assert_eq!(initial["status"]["state"], "clean");
+        let expected_head = initial["status"]["head"]["snapshot_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let expected_working = initial["status"]["working"]["snapshot_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let mut graph = initial["status"]["working"]["graph"].clone();
+        let signals = graph["streams"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|stream| stream["id"] == "signals")
+            .unwrap();
+        signals["name"] = "Signal desk".into();
+        signals["revision"] = 2.into();
+        let write = serde_json::json!({
+            "schema": "rey.ui-channel-working-write.v1",
+            "expected_head_snapshot_id": expected_head,
+            "expected_working_snapshot_id": expected_working,
+            "graph": graph,
+        })
+        .to_string();
+
+        let wrong_type = request_with_body(
+            &address,
+            "POST /api/v1/channels/working HTTP/1.1",
+            &[],
+            &write,
+        );
+        assert!(wrong_type.starts_with("HTTP/1.1 415"));
+        assert!(!channel_directory.exists());
+
+        let applied = request_with_body(
+            &address,
+            "POST /api/v1/channels/working HTTP/1.1",
+            &[
+                ("Content-Type", "application/json"),
+                ("Origin", "http://not-rey.invalid"),
+            ],
+            &write,
+        );
+        assert!(applied.starts_with("HTTP/1.1 201"));
+        assert!(applied.contains("\"schema\":\"rey.channel-apply-result.v1\""));
+        assert!(applied.contains("\"applied\":true"));
+
+        let current = request(&address, "GET /api/v1/channels HTTP/1.1");
+        assert!(current.starts_with("HTTP/1.1 200"));
+        assert!(current.contains("\"state\":\"working\""));
+        assert!(current.contains("Signal desk"));
+        assert!(current.contains("ui:///channels/working"));
+
+        let stale = request_with_body(
+            &address,
+            "POST /api/v1/channels/working HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &write,
+        );
+        assert!(stale.starts_with("HTTP/1.1 409"));
+        assert!(stale.contains("channel WORKING changed before the WORKING write"));
+
+        let retained = request(&address, "GET /api/v1/channels HTTP/1.1");
+        assert!(retained.starts_with("HTTP/1.1 200"));
+        assert!(retained.contains("Signal desk"));
+        handle.join().unwrap();
+    }
+
     fn request(address: &str, request_line: &str) -> String {
         request_with_body(address, request_line, &[], "")
+    }
+
+    fn response_body(response: &str) -> &str {
+        response
+            .split_once("\r\n\r\n")
+            .map(|(_, body)| body)
+            .unwrap()
     }
 
     fn request_with_body(

@@ -13,12 +13,13 @@ import {
 } from "./router";
 
 describe("operator routes", () => {
-  it("places Agents before Cadence while keeping Feed first and Environment last", () => {
+  it("keeps Channel collaboration visible while preserving the primary order", () => {
     expect(PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Feed",
       "Explore",
       "Agents",
       "Cadence",
+      "Channels",
       "Workloads",
       "Environment",
     ]);
@@ -72,9 +73,10 @@ describe("operator routes", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("matches feed, cadence, agents, Journal documents, and coordinate views", () => {
+  it("matches feed, cadence, channels, agents, Journal documents, and coordinate views", () => {
     expect(router.matchRoutes("/feed").at(-1)?.routeId).toBe("/feed");
     expect(router.matchRoutes("/cadence").at(-1)?.routeId).toBe("/cadence");
+    expect(router.matchRoutes("/channels").at(-1)?.routeId).toBe("/channels");
     expect(router.matchRoutes("/agents").at(-1)?.routeId).toBe("/agents");
     expect(router.matchRoutes("/journal/new").at(-1)?.routeId).toBe(
       "/journal/new",

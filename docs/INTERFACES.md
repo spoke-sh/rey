@@ -77,7 +77,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input 
 rey workloads --catalog conformance list|test|run|status ...
 rey journal [--workspace PATH] [--state-dir PATH] add <proposal.yaml>
 rey journal [--workspace PATH] [--state-dir PATH] list
-rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
+rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 `channels` exposes bounded collaboration topology through a complete local
@@ -99,8 +99,9 @@ reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 `127.0.0.1:5714` unless configured otherwise, reports exact exposure and
 provenance, `/explore` human entry, and passive revalidation interval. It
 serves read-only workload, environment, cadence, and Explorer projections and
-admits bounded human Journal documents without authentication. An explicit
-non-loopback bind exposes that narrow write to reachable clients and emits a
+admits bounded human Journal documents, conditionally replaces Channel WORKING,
+and approves exact workload files without authentication. An explicit
+non-loopback bind exposes those narrow writes to reachable clients and emits a
 warning.
 
 The implemented slice behaves as follows:
@@ -893,16 +894,18 @@ operation's idempotency contract rather than one generic retry rule.
 `rey ui` is the implemented exception to a CLI-only topology: a bounded HTTP
 operator projection started explicitly by the operator. It serves the embedded
 TanStack Router application plus `GET|HEAD /api/v1/health`,
-`GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`,
+`GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
 `GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its explicit writes
 are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
 `POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
-file snapshot before committing it with expected HEAD/WORKING preconditions.
-Neither is authenticated or origin-gated on
+file snapshot before committing it with expected HEAD/WORKING preconditions,
+plus `POST /api/v1/channels/working`, which validates a complete graph and
+replaces only Channel WORKING under exact expected HEAD/WORKING snapshot ids.
+None is authenticated or origin-gated on
 an explicitly configured listener. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/explore`. The application routes are `/feed`, coordinate-bound `/explore`
-query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
+query views, `/cadence`, `/channels`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
@@ -1015,8 +1018,13 @@ The separate `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING` revision loop 
 complete for full-graph staging. Immutable file-backed messages can be admitted
 only against Channel HEAD, and explicit `relay` or one-shot `beacon` commands
 require an exact environment-HEAD application plus admitted graph declarations.
-Remote inbound polling, resident scheduling, browser drag/reorder persistence,
-and the richer `rey observations add|list|show` frontier remain planned.
+`/channels` projects the same exact status, limits, sources, stream order, and
+directed deltas. Its bounded unauthenticated editor calls the same graph
+validator/store, rejects stale expected HEAD or WORKING snapshots, and can
+write WORKING only; INDEX, HEAD, relay, and execution remain CLI/runtime
+boundaries. Feed layout resolution/adoption, remote inbound polling, resident
+scheduling, browser drag/reorder persistence, and the richer
+`rey observations add|list|show` frontier remain planned.
 Planned observation broadcast associates one observation identity with explicit
 local channels. `rey journal seed` and
 `/journal/new?observations=...` project selected exact observations into an

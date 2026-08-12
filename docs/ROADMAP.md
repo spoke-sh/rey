@@ -145,8 +145,10 @@ fidelity proof.
 
 The Channel graph and `HEAD → INDEX → WORKING` loop, immutable messages,
 explicit admitted relay, and one-shot polling beacons are delivered through the
-CLI. [Plan 0002](../plans/0002-collaboration-loop.md) owns browser projection,
-standalone observations, Journal seeding, and the conversation boundary.
+CLI. The browser now projects bounded Channel status and conditionally replaces
+WORKING under exact preconditions. [Plan 0002](../plans/0002-collaboration-loop.md)
+owns Feed layout adoption, standalone observations, Journal seeding, and the
+conversation boundary.
 
 - Define stable channels, standalone Channel observations, observation
   admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and

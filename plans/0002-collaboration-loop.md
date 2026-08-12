@@ -17,8 +17,11 @@ The Channel CLI implements a complete topology `HEAD → INDEX → WORKING` loop
 immutable file-backed messages, explicit direct relay through an admitted
 environment application, and bounded one-shot polling beacons. Feed is a
 read-only URL-composed projection. Journal v2 retains immutable broadsheet
-documents and superseding revisions. The browser does not yet read or write
-Channel topology, no standalone observation/frontier contract exists, Journal
+documents and superseding revisions. `/channels` now projects the exact bounded
+Channel status and conditionally replaces WORKING through the shared validator
+and store; it exposes exact listener/authentication authority and grants no
+INDEX, HEAD, relay, or execution authority. Feed does not yet resolve or adopt
+that topology. No standalone observation/frontier contract exists, Journal
 action cells are inert, exact scenario/delta routes are absent, and the footer
 conversation composer correctly remains disabled.
 
@@ -26,7 +29,7 @@ conversation composer correctly remains disabled.
 
 ### 1. Project current Channel state
 
-- [ ] Add bounded UI reads and explicit WORKING writes over the same Channel
+- [x] Add bounded UI reads and explicit WORKING writes over the same Channel
   validator/store, with exact listener exposure and unauthenticated-write
   warnings.
 - [ ] Resolve Feed layouts in `URL preview → WORKING → HEAD → built-in`

@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, runtime evidence, and workload/policy admission boundary. |
+| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Resolve Feed layouts through URL preview, Channel WORKING, Channel HEAD, and built-in state, then make adoption and movement explicit. | Implemented Channel CLI and operator status/WORKING projection, Journal, Feed, runtime evidence, and workload/policy admission boundary. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their

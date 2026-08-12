@@ -114,7 +114,7 @@ already admitted in HEAD.
 | `editor` | `SCENE HEAD → INDEX → WORKING` | Commits candidate packages; it does not admit `/explore` evidence. |
 | `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
-| `ui` | Explicit server process over the same typed state | Human projection with narrow Journal and workload-admission writes, not a second runtime. |
+| `ui` | Explicit server process over the same typed state | Human projection with narrow Journal, Channel WORKING, and workload-admission writes, not a second runtime. |
 
 Channel message admission is append-only and independent of the topology
 INDEX. Journal sequence is not HEAD/INDEX state.
@@ -402,7 +402,7 @@ admission order, including exact revision, band, cell-kind, and span structure.
 
 ```text
 rey ui [--workspace PATH] [--state-dir PATH]
-  [--journal-state-dir PATH] [--catalog-dir sys]
+  [--journal-state-dir PATH] [--channel-state-dir PATH] [--catalog-dir sys]
   [--host 127.0.0.1] [--port 5714]
 ```
 
@@ -414,8 +414,12 @@ candidates; inspection and consent descend into the existing workload and
 Feed admission surfaces. The globe does not execute a survey or imply that the
 project has already been mapped.
 An explicit non-loopback listener exposes unauthenticated Journal admission
-and exact workload approval to reachable clients; Rey reports that boundary
-and the surrounding deployment must protect it when required.
+and Channel WORKING replacement plus exact workload approval to reachable
+clients; Rey reports that boundary and the surrounding deployment must protect
+it when required. `/channels` reads the same exact Channel status as the CLI.
+Its editor requires the displayed HEAD and WORKING snapshot identities, passes
+the complete graph through the existing validator/store, and writes WORKING
+only. It cannot stage, commit, relay, or execute anything.
 
 Browser workload approval is a combined human action over visible file state:
 it checks expected HEAD and WORKING identities, freezes the reviewed files in
@@ -439,7 +443,7 @@ does not bypass the three-plane contract.
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
 | `channels apply` | Writes only the Channel WORKING proposal. |
 | `journal add` | Retains a document only; notebook blocks remain inert. |
-| `ui` | Starts a server; its two narrow write paths are Journal admission and qualified workload approval. |
+| `ui` | Starts a server; its narrow writes are Journal admission, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
 
 Process success and semantic convergence remain separate. A successful status
 may report differences, an unready INDEX, omissions, or unresolved work.

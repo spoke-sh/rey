@@ -724,7 +724,9 @@ selects a source plane and filter, such as `signals.journal`, `admission.now`,
 or `flow.failing`, plus an optional human name. Its title is editable inline and
 currently autosaves into the deep-linkable URL coordinate. The implemented
 Channel graph now gives the built-in Signals, Admission, and Flow streams stable
-topology identities, but the browser is not yet bound to Channel WORKING.
+topology identities. The `/channels` operator surface reads that graph and may
+replace its complete WORKING proposal under exact snapshot preconditions. Feed
+still uses URL preview state until later layout resolution/adoption work.
 Repeating, naming, ordering, tuning, or removing a stream changes the human
 projection only; it does not copy, admit, schedule, or mutate source records.
 

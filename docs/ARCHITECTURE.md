@@ -55,9 +55,10 @@ Rey separates ten responsibilities:
 These are responsibility boundaries, not requirements for separate processes.
 The first topology is a local Rey process. `rey ui` attaches an operator
 projection to that process. Its explicit browser writes are bounded
-unauthenticated Journal admission and exact workload file qualification/
-admission on any explicitly configured listener. It is not a separate runtime
-or scheduler; neither write grants general compute or proof authority.
+unauthenticated Journal admission, conditional Channel WORKING replacement,
+and exact workload file qualification/admission on any explicitly configured
+listener. It is not a separate runtime or scheduler; none of those writes
+grants general compute or proof authority.
 
 ## System Graph
 
@@ -250,7 +251,7 @@ passive-revalidation health. A quiet mailbox means no operator attention is
 requested; it is not filled with synthetic heartbeat activity. The mailbox
 control selects the history axis. The center chevrons select a separate
 operator/Rey/agent conversation axis with a conventional transcript and
-composer. The current read-only server has no admitted chat transport, so the
+composer. The current operator server has no admitted chat transport, so the
 composer is disabled and no UI-owned transcript is invented.
 
 The collaboration substrate preserves those boundaries. A workspace-local
@@ -266,9 +267,11 @@ authority. The local revision slice implements the canonical built-in graph,
 bounded snapshots/deltas, symlink-safe `CHANNEL HEAD → INDEX → WORKING` store,
 and `channels list/status/diff/apply/add/commit/log`. Immutable file-backed
 messages, explicit relay attempts, and bounded one-shot polling-beacon ticks
-are also implemented. The richer observation frontier, browser persistence,
-broadcast, Journal seeding, resident beacon scheduling, and remote inbound
-cursors remain planned behavior.
+are also implemented. `/channels` reads the same bounded status and can replace
+WORKING only through the same validator/store under exact expected HEAD and
+WORKING snapshot preconditions. The richer observation frontier, Feed-layout
+adoption, broadcast, Journal seeding, resident beacon scheduling, and remote
+inbound cursors remain planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
@@ -277,10 +280,11 @@ typed Kinetic material values remain runtime data; Rey's typed documents
 remain authoritative.
 
 The listener defaults to loopback and carries no authentication, multi-user,
-or remote-service guarantee. Its explicit writes are bounded Journal admission
-and qualified exact workload-INDEX approval. An explicit non-loopback bind
-exposes both writes to every client that can reach the listener and therefore
-emits a warning; no bind grants workload execution or proof authority. See
+or remote-service guarantee. Its explicit writes are bounded Journal
+admission, conditional Channel WORKING replacement, and qualified exact
+workload-INDEX approval. An explicit non-loopback bind exposes all three writes
+to every client that can reach the listener and therefore emits a warning; no
+bind grants Channel INDEX/HEAD, relay, workload execution, or proof authority. See
 [Context Topology Explorer](EXPLORER.md), [Collaboration Journal](JOURNAL.md),
 [Git Context and Activation](GIT.md), and
 [Plan 0002](../plans/0002-collaboration-loop.md).

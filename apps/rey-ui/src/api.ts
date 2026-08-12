@@ -1,5 +1,10 @@
 import type { WorkloadList } from "./domain";
 import type { CadenceProjection } from "./cadence";
+import type {
+  ChannelApplyResult,
+  ChannelProjection,
+  ChannelWorkingWriteRequest,
+} from "./channels";
 import type { EnvironmentStatus } from "./environment";
 import type {
   JournalAdmission,
@@ -12,6 +17,7 @@ export interface UiServerIdentity {
   implementation_revision: string;
   journal_write_enabled: boolean;
   workload_admission_enabled: boolean;
+  channel_write_enabled: boolean;
   read_only: boolean;
 }
 
@@ -65,6 +71,37 @@ export async function loadEnvironment(): Promise<EnvironmentStatus> {
     );
   }
   return (await response.json()) as EnvironmentStatus;
+}
+
+export async function loadChannels(): Promise<ChannelProjection> {
+  const response = await fetch("/api/v1/channels", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Channel request failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as ChannelProjection;
+}
+
+export async function writeChannelWorking(
+  write: ChannelWorkingWriteRequest,
+): Promise<ChannelApplyResult> {
+  const response = await fetch("/api/v1/channels/working", {
+    body: JSON.stringify(write),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Channel WORKING write failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as ChannelApplyResult;
 }
 
 export async function loadCadence(): Promise<CadenceProjection> {
