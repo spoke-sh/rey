@@ -3,6 +3,8 @@
 - Status: In progress
 - Decisions: [ADR 0044](../docs/decisions/0044-explorer-projection-engine.md),
   [ADR 0045](../docs/decisions/0045-threejs-webgpu-renderer.md)
+- Continued by: [Plan 0029](0029-continuous-explorer-grammar.md), which owns
+  globe-to-semantic-Mercator morphing and the bounded isometric County posture
 - Extends: [Plan 0017](0017-incremental-context-topography.md) and [Plan
   0019](0019-emergent-context-features.md)
 
@@ -10,9 +12,11 @@
 
 Turn the current Explorer read model into a logically separated,
 evidence-bound projection engine and raise terrain rendering from SVG contour
-linework to a continuous, Google-class 2.5D relief surface. Preserve semantic
-identity, surveyed validity, omissions, deep evidence links, and read-only
-navigation through every fidelity improvement.
+linework to a continuous, Google-class relief surface. Prove the terrain stack
+in the implemented planar posture and keep it reusable by ADR 0056's bounded
+isometric County posture. Preserve semantic identity, surveyed validity,
+omissions, deep evidence links, and read-only navigation through every
+fidelity improvement.
 
 ## Observed Gap
 
@@ -75,7 +79,9 @@ dynamic-entity requirement.
 ### 1. Freeze contracts and current behavior
 
 - [x] Accept ADR 0044 and establish the projection-engine identity, evidence
-      boundary, 2.5D scope, and terrain-fidelity target.
+      boundary, original top-down terrain scope, and terrain-fidelity target;
+      ADR 0056 later extends the camera grammar without changing this engine
+      boundary.
 - [x] Define `rey.projection-packet.v1` as a browser/CLI typed
       contract binding evidence, projection basis, fields, validity, layers,
       revisions, limits, completeness, omissions, and lineage.
@@ -244,7 +250,9 @@ This plan is complete only when:
 
 ## Explicit Deferrals
 
-- free-orbit 3D, pitch, volumetric rendering, physics, and multiplayer state;
+- unrestricted free-orbit 3D, operator-controlled camera pitch, volumetric
+  rendering, physics, and multiplayer state; ADR 0056's bounded isometric
+  County camera is no longer deferred;
 - a generic ECS, asset marketplace, scripting runtime, or plugin API; scene
   candidate editing and admission are separately owned by [Plan
   0021](0021-read-first-scene-editor.md);

@@ -2,6 +2,10 @@
 
 - Status: Accepted
 - Date: 2026-08-11
+- Extended by: [ADR
+  0056](0056-continuous-globe-mercator-county-grammar.md), which supersedes the
+  single top-down 2.5D camera restriction with bounded globe, Mercator, and
+  isometric-county postures
 - Extends: [ADR 0041](0041-continuous-coordinate-topography.md) and [ADR
   0043](0043-emergent-natural-features-and-separate-paths.md)
 - Extended by: [ADR 0045](0045-threejs-webgpu-renderer.md), which selects
@@ -45,9 +49,11 @@ resolver, scheduler, or mutation plane. The engine projects admitted evidence;
 it cannot promote a shader result, visual proximity, simulated feature, picked
 object, or camera gesture into source truth or authority.
 
-The first fidelity target remains a top-down **2.5D semantic terrain**. Free
-camera pitch, orbit, volumetric worlds, physics, and a general entity-component
-system are not part of this decision.
+The first fidelity target in this decision was a top-down **2.5D semantic
+terrain**. ADR 0056 supersedes that camera restriction with bounded globe,
+semantic-Mercator, and isometric-county postures while continuing to defer
+unrestricted free camera pitch/orbit, volumetric worlds, physics, and a general
+entity-component system.
 
 ### Engine pipeline
 

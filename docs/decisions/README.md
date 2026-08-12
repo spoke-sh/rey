@@ -45,10 +45,10 @@ guide experiments but do not outrank the architecture until accepted.
 | [0041](0041-continuous-coordinate-topography.md) | Accepted; workload admission path superseded by 0049 | Hard-cut semantic coordinate/scale links, continuous lens, admitted survey voyages, and incremental evidence-backed context topography |
 | [0042](0042-world-geometry-and-probe-navigation.md) | Accepted; transport/path projection superseded by 0043 | Six-level World projection and probe horizons |
 | [0043](0043-emergent-natural-features-and-separate-paths.md) | Accepted | Anchor-field relief, unresolved weather, runoff hydrology and erosion, and separate discovered/constructed path evidence |
-| [0044](0044-explorer-projection-engine.md) | Accepted | High-fidelity spatial game engine for evidence-bound high-dimensional projection, 2.5D terrain fidelity, immutable scenes, field/LOD/render-graph boundaries, and renderer qualification |
+| [0044](0044-explorer-projection-engine.md) | Accepted; single-camera scope superseded by 0054 | High-fidelity spatial game engine for evidence-bound high-dimensional projection, terrain fidelity, immutable scenes, field/LOD/render-graph boundaries, and renderer qualification |
 | [0045](0045-threejs-webgpu-renderer.md) | Accepted | Three.js WebGPURenderer and TSL production boundary with WebGPU-first, WebGL2 compatibility, and deterministic reference paths |
 | [0046](0046-read-first-scene-editor.md) | Accepted | Read-first scene editor candidates, exact native GeoJSON objects, Git-shaped staging, immutable packages, and a separate workload admission boundary |
-| [0047](0047-semantic-spherical-atlas.md) | Accepted | Admission-revisioned synthetic semantic sphere, deterministic regional clustering, and World globe projection without an Earth-coordinate claim |
+| [0047](0047-semantic-spherical-atlas.md) | Accepted; chart grammar extended by 0056 | Admission-revisioned synthetic semantic sphere, deterministic regional clustering, and World globe projection without an Earth-coordinate claim |
 | [0048](0048-fresh-v1-contract-baseline.md) | Accepted | Destructive fresh v1 public-contract baseline, no compatibility readers, and a Rey-evidence-authored county candidate |
 | [0049](0049-workload-admission-history.md) | Accepted; browser pre-staged-INDEX requirement superseded by 0050 | Git-shaped workload HEAD/INDEX/WORKING, exact staged qualification, human approval, and admission-first UI |
 | [0050](0050-file-backed-workload-admission.md) | Accepted | Visible `sys/<workload>/` packages as WORKING and exact browser stage/qualification/admission from file state |
@@ -57,6 +57,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0053](0053-github-ci-and-cargo-dist-releases.md) | Accepted | Nix-backed GitHub CI and cargo-dist releases gated by matching semantic-version tags |
 | [0054](0054-diff-directed-journal-broadsheet.md) | Accepted | Immutable live Journal revisions and a bounded 12-column broadsheet grammar |
 | [0055](0055-editor-project-state-ownership.md) | Accepted | Editor project metadata owned by `.rey`, read-only uninitialized status, and no ambient `rey.scene.json` |
+| [0056](0056-continuous-globe-mercator-county-grammar.md) | Accepted | Continuous World globe, synthetic semantic Mercator Atlas, and admitted isometric county grammar with stable identity across projection changes |
 
 Normally, when a decision changes, add a superseding decision and link both
 documents. ADR 0052 records an explicit pre-alpha hard cut that removed the

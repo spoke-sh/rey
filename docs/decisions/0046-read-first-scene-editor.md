@@ -5,6 +5,9 @@
 - Extended by: [ADR 0055](0055-editor-project-state-ownership.md)
 - Extends: [ADR 0041](0041-continuous-coordinate-topography.md) and [ADR
   0044](0044-explorer-projection-engine.md)
+- Extended by: [ADR
+  0056](0056-continuous-globe-mercator-county-grammar.md), which makes admitted
+  editor scenes the primary semantic-Mercator and isometric-County fabric
 
 ## Context
 

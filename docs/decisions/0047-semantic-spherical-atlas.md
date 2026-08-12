@@ -4,6 +4,10 @@
 - Date: 2026-08-11
 - Extends: [ADR 0044](0044-explorer-projection-engine.md) and [ADR
   0046](0046-read-first-scene-editor.md)
+- Extended by: [ADR
+  0056](0056-continuous-globe-mercator-county-grammar.md), which selects the
+  exact synthetic semantic-Mercator Atlas grammar and local isometric County
+  posture
 - Supersedes: the non-spherical standalone World placement in [ADR
   0042](0042-world-geometry-and-probe-navigation.md)
 
@@ -77,8 +81,8 @@ The semantic lens gains a projection hierarchy:
 | Lens | Projection posture | Current/target geometry |
 | --- | --- | --- |
 | World | Understand regions and global topology | 3D semantic globe with major clusters and admitted region POIs |
-| Atlas | Navigate a wraparound chart | Target spherical-to-chart projection with antimeridian handling and scale-qualified labels |
-| Landscape and Neighborhood | Read and curate local terrain | Local tangent relief, natural features, validity, frontier, and POIs |
+| Atlas | Navigate a wraparound chart | Target spherical Mercator transform over synthetic coordinates with explicit antimeridian, pole, distortion, and scale-qualified label behavior |
+| Landscape and Neighborhood | Read and curate local terrain | Local tangent relief under a bounded isometric camera, natural and constructed feature layers, validity, frontier, and POIs |
 | Object and Evidence | Inspect exact basis | Native semantic coordinates, source objects, bounds, omissions, and lineage |
 
 The WebGPU renderer materializes the World sphere and markers through the same
@@ -115,9 +119,10 @@ continue to use the existing local relief projection.
 
 This checkpoint recomputes the atlas as a deterministic projection of retained
 admission state. Retaining prior atlas revisions and their directed movement
-deltas at the admission transition, interactive globe rotation, an
-antimeridian-safe Atlas chart, editor scene admission, and typed route/economic
-overlays remain Plan 0022 work.
+deltas at the admission transition, interactive globe rotation, sector
+identity, editor scene admission, and typed route/economic overlays remain
+Plan 0022 work. ADR 0056 and Plan 0029 own the exact semantic-Mercator unwrap,
+sector interaction, and admitted isometric county grammar.
 
 ## Consequences
 

@@ -468,6 +468,16 @@ When a semantic atlas is present, Explorer also binds the atlas and layout
 compiler revisions into its immutable World scene. This adds a spherical
 layout authority; it does not change the native coordinate or evidence
 authority inside any regional packet.
+The target `rey.explore-grammar.v1` additionally binds the renderer-independent
+World-globe, semantic-Mercator, and local-isometric posture bands; hysteresis;
+geometry-morph and inverse-picking policy; polar/antimeridian behavior; and
+semantic/geometric LOD budgets. It is presentation mechanism and therefore
+does not contain admission authority or camera instances. An admitted regional
+scene must separately bind its exact editor package, native-to-semantic region
+transform, county-local tangent transform, terrain and feature layers,
+validity/no-data semantics, limits, omissions, and admission lineage before it
+can become Atlas or County fabric. See [ADR
+0056](decisions/0056-continuous-globe-mercator-county-grammar.md).
 The browser rejects a compiled level or pyramid whose dimensions, nesting,
 cells, or byte allocation diverges from that packet. It selects overview for
 World, regional for Atlas/Landscape, and local for Neighborhood/Object/Evidence

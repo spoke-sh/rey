@@ -153,7 +153,8 @@ poll cursors, and delta-triggered workloads.
 | Scene generation recipe | Generator revision, source identity, seed, bounds, and complete effective geometry/effect hyperparameters embedded in its native output                                                            | Workspace source lineage; deterministic authoring, never evidence authority                                     |
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
 | Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
-| Semantic atlas      | Content-identified bounded layout over admitted regional evidence with stable region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, and lineage                           | Deterministic workload-list projection today; target retained admission revision and directed movement delta    |
+| Semantic atlas      | Content-identified bounded layout over admitted regional evidence with stable sector/region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, and lineage                    | Deterministic workload-list projection today; target retained admission revision, sector polygons, and directed movement delta |
+| Admitted regional scene | Qualified result binding one exact editor package to native-to-semantic and county-local transforms, normalized terrain/feature layers, validity/no-data, limits, omissions, and lineage                  | Workload result and Explorer input; candidate packages remain outside this boundary                              |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Scene snapshot      | Immutable, stably ordered engine scene compiled from one projection packet; semantic identity excludes camera motion and measured frame time                                                           | Browser working state and optional bounded proof artifact; never authoritative source evidence                  |
 | Portfolio snapshot  | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation                                                                | Rey runtime evidence; derived from catalog/result/environment providers                                         |
@@ -180,20 +181,30 @@ requirements demand it.
 bounded workload-list document used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. The Explorer projects admitted topography patches
-through one persistent semantic scene. World places admitted regional patches
-on the synthetic, revision-bound sphere from `rey.semantic-atlas.v1`; its
-longitude/latitude axes have no Earth CRS or physical-distance claim. The
-World globe shows regional POIs and clusters while local charted envelopes,
-unresolved probe horizons, and boundary weather remain available in closer
-lenses.
+and, once the qualifying workload exists, admitted regional scenes through one
+persistent semantic scene. World places admitted regions on the synthetic,
+revision-bound sphere from `rey.semantic-atlas.v1`; its longitude/latitude axes
+have no Earth CRS or physical-distance claim. The World globe shows sectors,
+regional POIs, and clusters while local charted envelopes, unresolved probe
+horizons, and boundary weather remain available in closer lenses.
+
+As the lens enters Atlas, that same synthetic sphere unwraps through a
+horizontally wrapping spherical-Mercator transform with explicit pole,
+antimeridian, and distortion behavior. This **semantic Mercator** chart is not
+EPSG:3857 and does not relabel native CRS84 scene sources. Sector polygons and
+admitted county footprints are separate identities; focus may raise a sector
+as transient presentation without changing its evidence or height.
+
 Atlas derives terrain-style contour isolines from bounded anchor-sample
-influence, projects accumulated runoff, and lets projected erosion reshape the
-displayed field while retaining anchors as stable map POIs. Exact survey edges
-remain deep inspection evidence rather than relief or path geometry.
-Landscape, Neighborhood, Object, and Evidence progressively add labels, survey zones, relationships, inspection objects, and
-exact basis without replacing the map. Identity, relationship classification,
-bounds, and omissions survive those visual transitions. Semantic coordinates
-are provider-qualified addresses;
+influence and will use admitted scene packages as the primary detailed map
+fabric once the scene-admission workload exists. Entering one admitted county
+expands its revision-bound local tangent frame under a stylized isometric
+camera. Landscape, Neighborhood, Object, and Evidence progressively add
+terrain, watersheds, admitted highways/roads/lots/structures/artifacts, labels,
+relationships, inspection objects, and exact basis without replacing the map.
+Exact survey edges remain deep inspection evidence rather than relief, roads,
+or path geometry. Identity, relationship classification, bounds, and omissions
+survive every visual transition. Semantic coordinates are provider-qualified addresses;
 camera center, continuous scale, viewport, and lens remain separate view state.
 The current hard-cut interface uses `rey+local://...` semantic coordinates and
 the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths are not

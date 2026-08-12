@@ -68,6 +68,10 @@ Editor project      = mutable workspace declaration of native candidate inputs
 Scene package       = immutable candidate + native objects; never admission
 World              = far projection of admitted charts, survey weather, and
                      unresolved survey horizons
+Sector             = revision-bound synthetic atlas partition; never a source
+                     boundary or an inferred relationship
+County             = one admitted detailed regional scene with a stable
+                     footprint and local tangent coordinate frame
 Neighborhood       = bounded objects around one meaningful coordinate
 Focus              = selected coordinate retained while changing scale
 Omission           = evidence that the current projection folded or excluded
@@ -180,8 +184,12 @@ height through blur, interpolation, erosion, or shading. Visual feathering may
 blend a known boundary into the application background while the exact mask
 and disclosure remain available.
 
-The first target remains a top-down 2.5D semantic map with continuous zoom.
-Free-orbit 3D, pitch, volumetric space, physics, and a general ECS are deferred.
+The continuous grammar now couples a lit 3D World sphere, a flat semantic
+Mercator Atlas, and a stylized isometric County surface. This supersedes the
+former single top-down 2.5D target while retaining bounded cameras rather than
+unrestricted free orbit. Volumetric space, physics, and a general ECS remain
+deferred. World and County camera posture is presentation state; neither can
+change semantic coordinates, height authority, or admission.
 The production path uses the Three.js `WebGPURenderer` and TSL boundary selected
 by ADR 0045. WebGPU is preferred and Three.js's WebGL2 backend is the
 compatibility path. The implemented adapter awaits asynchronous initialization,
@@ -199,14 +207,55 @@ change evidence or execute a probe.
 Zoom is a semantic operation, not only a CSS transform. The target lens owns a
 continuous camera scale and projects six deterministic levels of detail:
 
-| Level                     | Operator posture                                                        | Target object grammar                                                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| World / projection        | Understand admitted regions and global topology                         | Semantic sphere, regional clusters, major admitted POIs, atlas revision, and boundedness                                                         |
-| Atlas / topographic       | Read anchor-shaped relief and see more admitted scenes                  | Anchor-derived contour isolines, major points of interest, survey boundaries, frontier, and unexplored regions                                    |
-| Landscape / telescope     | Survey a bounded region and find concentrations or unresolved direction | Persistent relief, anchor POIs, corpora, workloads, evidence, requests, portfolio, and attention aggregates                                       |
-| Neighborhood / mesoscopic | Compare local structures around one coordinate                          | Persistent relief and POIs plus exact anchors, admitted workloads, creation requests, surface-attention rows, and classified relationships        |
-| Object / microscope       | Inspect the machinery within a selected coordinate                      | Files, documents, symbols, package/context bindings, graphs, scenarios, artifacts, dependencies, and directed deltas                              |
-| Evidence / specimen       | Inspect the exact basis of an object or relation                        | Source spans, rows, graph nodes, diff hunks, omissions, bounds, and lineage                                                                       |
+| Level                     | Projection posture | Operator posture                                                        | Target object grammar                                                                                                                             |
+| ------------------------- | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| World / projection        | World globe        | Understand admitted regions and global topology                         | Semantic sphere, sectors, regional clusters, major admitted POIs, atlas revision, boundedness, and global omissions                              |
+| Atlas / topographic       | Mercator chart     | Choose a sector or admitted county                                      | Sector polygons, county footprints, coarse scene terrain, major natural/constructed systems, survey boundaries, frontier, and unexplored regions |
+| Landscape / telescope     | County isometric   | Survey one county and find concentrations or unresolved direction       | Continuous relief, boundary, watersheds, highways, districts, major roads, landmarks, workloads, and attention aggregates                       |
+| Neighborhood / mesoscopic | County isometric   | Compare local structures around one coordinate                          | Relief plus exact anchors, local roads, lots, structures, utilities, admitted beacons/construction, requests, attention, and relationships       |
+| Object / microscope       | County isometric   | Inspect the machinery within a selected coordinate                      | One parcel, feature, artifact, file, document, symbol, package/context binding, graph, scenario, dependency, or directed delta                    |
+| Evidence / specimen       | County + overlay   | Inspect the exact basis of an object or relation                        | Native source/tile, span, row, graph node, diff hunk, admission result, validity, omission, bound, and lineage                                    |
+
+Projection posture and semantic detail are orthogonal contracts. Geometry can
+morph at a posture boundary while semantic LOD cross-fades its own admitted
+layers. The current six named levels remain the public evidence ladder.
+
+### Globe, Mercator, and county transforms
+
+World presents `rey.semantic-atlas.v1` as a high-fidelity lit sphere. Drag
+rotates that sphere and zoom preserves the semantic focus under the pointer.
+As World approaches Atlas, the same sector and region vertices unwrap into a
+horizontally wrapping spherical-Mercator chart. Rey calls it **semantic
+Mercator** because its inputs are synthetic semantic longitude/latitude rather
+than Earth coordinates. It is not Web Mercator, EPSG:3857, OGC CRS84, physical
+distance, or geographic area.
+
+Semantic Mercator clamps at approximately `±85.05112878°`; World retains the
+polar caps and Atlas discloses clipped cap contents instead of silently
+dropping them. Antimeridian-crossing polygons may split into draw fragments
+while retaining one identity. Native GeoJSON/CRS84 coordinates remain native
+geographic evidence and require a qualified native-to-semantic region
+transform before admission.
+
+Atlas partitions the abstract sphere into revision-bound **sectors** and shows
+the footprints of admitted **county** scenes within them. Hover or keyboard
+focus may raise one sector as transient presentation and expose the exact
+admitted measure behind its interest. That lift cannot alter terrain, atlas
+layout, or evidence. Entering one selected admitted county expands its local
+east/north/up tangent frame and blends into a stylized isometric camera. If no
+admitted county exists under focus, the lens stops at Atlas and says so.
+
+Detailed county fabric comes from exact editor packages only after a qualified
+scene-admission workload. Its multiresolution terrain, boundary, hydrology,
+roads, highways, lots, structures, utilities, beacons, construction, labels,
+and markers remain separate typed layers. Source graph edges never become
+roads. Cross-county highways require compatible admitted connector identities;
+a beacon does not imply a running poller or relay; construction does not imply
+observed work. Candidate packages remain absent from `/explore`.
+
+The projection grammar and implementation course are fixed by [ADR
+0056](decisions/0056-continuous-globe-mercator-county-grammar.md) and [Plan
+0029](../plans/0029-continuous-explorer-grammar.md).
 
 The implementation covers all six levels over one persistent spatial scene.
 World aggregates admitted regional topographies on the semantic sphere. Atlas
@@ -218,9 +267,11 @@ coordinate identity remain available at deep inspection levels, but do not
 appear as roads, rivers, passages, probe trails, or curation paths.
 World now consumes `rey.semantic-atlas.v1`: admitted regional identity remains
 separate from synthetic semantic longitude/latitude on a revision-bound sphere.
-Those axes have no Earth CRS, physical-distance meaning, or Web Mercator
-claim. Zoom selects retained LOD and never reclusters; only a changed admitted
-source set or source topography revision changes the atlas layout. Atlas
+Those axes have no Earth CRS or physical-distance meaning. Atlas's target
+semantic-Mercator transform gives them a familiar wrapping chart without an
+EPSG:3857 or Earth claim. Zoom selects retained LOD and never reclusters; only
+a changed admitted source set or source topography revision changes the atlas
+layout. Atlas
 extracts nested contour isolines from a scalar field whose
 only height inputs are admitted anchor samples. A deterministic rainfall and
 eight-neighbor descent pass accumulates runoff, classifies projected streams
@@ -510,9 +561,11 @@ into the browser without adding an independent assessment.
 
 Plan 0022 owns the next global projection slice: retain prior atlas revisions
 and movement deltas at admission, rotate rather than pan the World globe,
-flatten it through an antimeridian-safe wraparound Atlas, and connect admitted
-editor regions. Travel, trade, and economic layers require their own typed
-qualified evidence and are not inferred from survey edges or visual proximity.
+and add sector identity. Plan 0029 owns the complete grammar: flatten World
+through semantic Mercator, connect admitted editor regions, enter a local
+isometric county, and qualify its detailed terrain and typed constructed
+layers. Travel, trade, and economic layers require their own typed qualified
+evidence and are not inferred from survey edges or visual proximity.
 
 Browser mutation, workload campaign controls, authentication, multi-user
 scope, remote deployment, and remote streams remain separate decisions.

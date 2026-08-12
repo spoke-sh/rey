@@ -138,6 +138,13 @@ revision lineage must survive every rendering backend and visual lens. The
 engine should degrade visibly when fidelity or acceleration is unavailable
 without changing the underlying assessment.
 
+The world may change geometric posture as scale changes—from a synthetic
+semantic globe, through a wrapping planar chart, into a detailed local scene—
+only when those transforms are explicit and reversible over one admitted
+identity. Projection posture and semantic detail remain separate. Native
+geographic coordinates, synthetic semantic coordinates, local scene
+coordinates, camera state, and transient interaction must never be conflated.
+
 ### 17. Author Worlds As Candidates, Admit Them As Evidence
 
 Explorer is the read-first projection of an admitted scene, not its level
@@ -153,6 +160,11 @@ be relabeled as semantic embeddings, vector lines cannot silently become
 relationships or paths, and bounded indexes cannot replace the source
 artifact. Editor staging and packaging make candidates reviewable and
 reproducible; they grant no read, probe, action, or admission authority.
+
+Detailed terrain, roads, lots, structures, beacons, construction, and other
+world features must retain typed source and admission lineage. Their familiar
+real-world appearance cannot stand in for an observation, relationship,
+running process, or action authority.
 
 ## Frame And Delta Invariants
 

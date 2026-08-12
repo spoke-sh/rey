@@ -93,6 +93,15 @@ execution, and broader provider behavior.
 - Extend Explorer's continuous lens from World geometry and Atlas terrain
   through Landscape, Neighborhood, Object, and exact Evidence while retaining
   coordinate focus.
+- Couple that semantic detail ladder to one continuous projection grammar:
+  rotate a high-fidelity synthetic World globe, unwrap it into a horizontally
+  wrapping semantic Mercator Atlas with explicit pole and distortion behavior,
+  then enter one admitted region through a local tangent frame and stylized
+  isometric county camera without changing semantic identity.
+- Make admitted editor scenes the primary Atlas and county fabric. Keep sector
+  partitions, county footprints, native CRS84 sources, synthetic semantic
+  longitude/latitude, Mercator chart positions, and county-local coordinates
+  distinct through exact transforms and admission lineage.
 - Formalize Explorer as a high-fidelity spatial game engine for evidence-bound
   projections of high-dimensional context:
   typed projection packets, immutable scenes, data-oriented fields, camera,
@@ -102,6 +111,9 @@ execution, and broader provider behavior.
   terrain, normals, multidirectional hillshade, ambient ridge/valley shading,
   evidence-aware tint, LOD-aware contours, and coherent overlays under named
   visual and performance proof.
+- Extend detailed county scenes with independently admitted highway, road, lot,
+  structure, beacon, construction, and connector layers. Never infer those
+  systems from source edges, visual proximity, or browser interaction.
 - Keep exact containment/reference and shared-coordinate evidence in deep
   inspection rather than drawing it as terrain transport. Derive bounded
   anchor-only relief, unresolved weather, projected runoff and erosion, and

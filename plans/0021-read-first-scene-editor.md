@@ -2,6 +2,9 @@
 
 - Status: In progress
 - Decision: [ADR 0046](../docs/decisions/0046-read-first-scene-editor.md)
+- Continued by: [Plan 0029](0029-continuous-explorer-grammar.md) for admitted
+  regional-scene transforms, detailed county formats, and county-scale
+  generation/authoring primitives
 - Extends: [Plan 0017](0017-incremental-context-topography.md) and [Plan
   0020](0020-high-fidelity-projection-engine.md)
 

@@ -2,6 +2,8 @@
 
 - Status: In progress
 - Decision: [ADR 0047](../docs/decisions/0047-semantic-spherical-atlas.md)
+- Continued by: [Plan 0029](0029-continuous-explorer-grammar.md) for the exact
+  globe-to-semantic-Mercator-to-isometric-county grammar
 - Extends: [Plan 0017](0017-incremental-context-topography.md), [Plan
   0020](0020-high-fidelity-projection-engine.md), and [Plan
   0021](0021-read-first-scene-editor.md)
@@ -56,11 +58,11 @@ separate authorities.
 - [ ] Add front/back hemisphere label culling, collision budgets, selection
       recentering, and smooth globe-to-chart transition evidence.
 
-### 4. Project World into a wraparound Atlas
+### 4. Project World into a wraparound semantic-Mercator Atlas
 
-- [ ] Add an antimeridian-safe spherical-to-chart projection with explicit
-      distortion and pole behavior; do not label it Web Mercator unless that
-      exact transform is implemented and qualified.
+- [ ] Add ADR 0056's antimeridian-safe spherical Mercator transform with
+      explicit distortion, polar cutoff/disclosure, horizontal wrap, and the
+      strict absence of an Earth/Web-Mercator CRS claim.
 - [ ] Place regional relief scenes in local tangent frames derived from their
       admitted atlas positions while preserving all native POI identities.
 - [ ] Make Atlas pan wrap horizontally and transition continuously into the

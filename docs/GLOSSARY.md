@@ -83,6 +83,14 @@ A versioned action contract the current reasoning surface permits policy to
 propose. Being listed as admissible does not mean the action has been selected,
 admitted, or executed.
 
+### Admitted regional scene
+
+A qualified workload result binding one exact editor package to a stable
+semantic region, native-to-semantic and county-local coordinate transforms,
+normalized terrain and feature layers, validity/no-data behavior, limits,
+omissions, and lineage. It may become Explorer fabric; its candidate package
+alone may not.
+
 ### Agent
 
 One possible policy source that can propose a compute-graph revision or action
@@ -220,9 +228,17 @@ scheduling.
 
 ### Camera
 
-Explorer presentation state consisting of a center, continuous scale, and
-viewport. The camera determines what the semantic lens projects but is not part
-of coordinate or source identity.
+Explorer presentation state consisting of center, continuous scale, viewport,
+and projection-qualified orientation such as globe rotation or isometric
+heading/pitch. The camera determines what the semantic lens projects but is not
+part of coordinate, atlas, region, or source identity.
+
+### County
+
+One admitted detailed regional scene in Explorer. A county has a stable
+semantic identity and footprint plus a revision-bound local east/north/up
+frame. Its isometric camera is presentation. “County” is Rey's world-building
+grammar and does not imply an Earth government boundary.
 
 ### Campaign
 
@@ -959,6 +975,14 @@ coordinate binding or a typed unresolved outcome. See
 
 ## M
 
+### Mercator, semantic
+
+Explorer's horizontally wrapping spherical-Mercator chart over synthetic
+semantic longitude/latitude. It declares its approximately ±85.05112878°
+cutoff, polar omissions or insets, antimeridian splitting, distortion, inverse
+picking, and revision. It is not Web Mercator, EPSG:3857, Earth geography, or a
+physical-distance claim.
+
 ### Mailbox
 
 The history axis of the UI communication plane, populated by typed attention
@@ -1193,6 +1217,13 @@ context into immutable scenes, bounded scalar/vector fields, semantic LOD,
 render passes, picking, and browser pixels. It borrows real-time game and map
 engine architecture but is not an evidence store, resolver, scheduler, or
 mutation plane.
+
+### Projection posture
+
+One geometric presentation of Explorer's continuous lens: World globe,
+semantic-Mercator Atlas, or local isometric County. Posture changes may morph
+geometry and camera behavior but cannot change source identity, admission,
+validity, or the independent semantic detail regime.
 
 ### Projection packet
 
@@ -1509,6 +1540,13 @@ A content-identified `rey.scene-admission-request.v1` handoff naming one exact
 scene package and the operation required to validate it. The implemented
 request says `requires_workload` and `admitted=false`; it is not itself a
 workload result, action admission, or proof.
+
+### Sector
+
+A stable revision-bound partition polygon on the synthetic semantic atlas. It
+organizes admitted regions and may expose a named admitted interest measure.
+Its boundary, area, hover lift, and visual proximity are projection geometry,
+not source topology, terrain height, authority, or an inferred relationship.
 
 ### Search record
 

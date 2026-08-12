@@ -20,6 +20,7 @@ completion criteria.
 - [0026 — Typed workspace ignore file](0026-typed-workspace-ignore-file.md) — active omission-visible `.reyignore` scope for workload and environment WORKING observations
 - [0027 — Provider-independent foundation](0027-provider-independent-foundation.md) — active hard cut from privileged external-platform assumptions to Rey-owned local contracts
 - [0028 — Diff-directed Journal broadsheet](0028-journal-broadsheet.md) — active immutable live-document and authored-opportunity bearing
+- [0029 — Continuous Explorer projection grammar](0029-continuous-explorer-grammar.md) — active World-globe, semantic-Mercator, admitted-county, and Google-class terrain bearing
 
 ## Completed
 

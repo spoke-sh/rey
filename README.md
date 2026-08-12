@@ -44,7 +44,10 @@ meaning.
 projections of high-dimensional context. Its immutable scene, coordinate
 transforms, camera, semantic level of detail, bounded field simulation,
 materials, ordered render passes, labels, picking, and incremental invalidation
-turn admitted context into a world a human can navigate.
+turn admitted context into a world a human can navigate. Its continuous
+spatial grammar moves from a synthetic semantic globe, through a wrapping
+semantic-Mercator Atlas, into a selected admitted county under a bounded
+isometric camera.
 
 The engine is dimension-agnostic but cannot invent a dimensional meaning. A
 high-dimensional provider must bind its exact input, projection or embedding
@@ -53,18 +56,24 @@ validity, limits, and omissions before Rey may present distance or terrain as
 semantic evidence. The current standalone anchor layout remains a synthetic
 orientation projection with explicitly narrower claims.
 
-The fidelity target is a continuous Google-class 2.5D terrain surface: sampled
-height and validity fields, multiscale detail, normals, multidirectional
-hillshade, ridge and valley shading, restrained terrain tint, contours,
-hydrology, weather, POIs, labels, and evidence overlays composed coherently
-across zoom. “Google-class” describes perceptual terrain legibility, not use of
-Google data, styling, or proprietary algorithms.
+The projection target is one continuous World-globe → semantic-Mercator Atlas
+→ isometric County grammar. The abstract atlas uses synthetic semantic
+longitude/latitude without an Earth CRS, while native CRS84 sources retain
+their own geographic semantics. The terrain target is a continuous
+Google-class surface: sampled height and validity fields, multiscale detail,
+normals, multidirectional hillshade, ridge and valley shading, restrained
+terrain tint, contours, hydrology, weather, admitted roads/lots/artifacts,
+POIs, labels, and evidence overlays composed coherently across zoom.
+“Google-class” describes perceptual terrain legibility, not use of Google data,
+styling, or proprietary algorithms.
 
 Rendering remains subordinate to evidence. Shading, erosion, weather, water,
 visual proximity, and animation are projections; they cannot create a source
 relationship, path, assessment, read authority, or surveyed claim. See [ADR
-0044](docs/decisions/0044-explorer-projection-engine.md) and [Plan
-0020](plans/0020-high-fidelity-projection-engine.md).
+0044](docs/decisions/0044-explorer-projection-engine.md), [ADR
+0056](docs/decisions/0056-continuous-globe-mercator-county-grammar.md), [Plan
+0020](plans/0020-high-fidelity-projection-engine.md), and [Plan
+0029](plans/0029-continuous-explorer-grammar.md).
 
 Explorer is the read-first projection side of a level-editor architecture. The
 agent-facing `rey editor` CLI generates a bounded native WORKING baseline from
