@@ -13,10 +13,16 @@ use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
 };
+use rey::git::{GitOperatorStatus, GitPollOutcome};
 use rey::workloads::{
     QualificationState, WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult,
     WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin, WorkloadProposalKind,
     WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
+};
+use rey_core::ContractIdentity;
+use rey_git::{
+    GIT_ACTIVATION_TRIGGER_SCHEMA, GitActivationBudget, GitActivationEventClass,
+    GitActivationTrigger,
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
@@ -1036,6 +1042,205 @@ beacons:
         fs::read_to_string(&delivery).unwrap(),
         "send --channel slack://channel/C123 --message Relay only admitted messages.\n"
     );
+}
+
+#[test]
+fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["config", "user.name", "Rey Test"],
+        vec!["config", "user.email", "rey@example.invalid"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "one\n").unwrap();
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "tracked"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "commit", "-q", "-m", "initial"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let uninitialized = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(uninitialized.status.success());
+    assert!(uninitialized.stderr.is_empty());
+    let uninitialized = String::from_utf8(uninitialized.stdout).unwrap();
+    assert!(uninitialized.contains("GIT ACTIVATION STATUS"));
+    assert!(uninitialized.contains("Cursor                 UNINITIALIZED"));
+    assert!(!workspace.path().join(".rey").exists());
+
+    let initialized = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "init",
+        "--format",
+        "table",
+    ]);
+    assert!(initialized.status.success());
+    let initialized = String::from_utf8(initialized.stdout).unwrap();
+    assert!(initialized.contains("GIT CURSOR INITIALIZED"));
+    assert!(initialized.contains("baseline only · no activation · no execution"));
+
+    let baseline = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert!(baseline.status.success());
+    let baseline: GitOperatorStatus = serde_json::from_slice(&baseline.stdout).unwrap();
+    assert_eq!(baseline.changed_since_cursor, Some(false));
+
+    fs::write(workspace.path().join("tracked"), "two\n").unwrap();
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "add", "tracked"])
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        Command::new("git")
+            .args(["-C", workspace_path, "commit", "-q", "-m", "second"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let observed = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let observed: GitOperatorStatus = serde_json::from_slice(&observed.stdout).unwrap();
+    assert_eq!(observed.changed_since_cursor, Some(true));
+    let snapshot = &observed.observed_snapshot;
+    let trigger = GitActivationTrigger {
+        schema: GIT_ACTIVATION_TRIGGER_SCHEMA.to_owned(),
+        trigger_id: "fixture.fast-forward".to_owned(),
+        revision: 1,
+        repository_id: snapshot.repository_id.clone(),
+        worktree_id: snapshot.worktree_id.clone(),
+        event_classes: vec![GitActivationEventClass::RefFastForward],
+        require_complete: true,
+        workload_id: "fixture-workload".to_owned(),
+        graph: ContractIdentity::new("fixture.graph", 1, "fixture graph"),
+        scenario_ids: vec!["fixture-scenario".to_owned()],
+        budget: GitActivationBudget::default(),
+    };
+    fs::write(
+        workspace.path().join("trigger.json"),
+        serde_json::to_vec_pretty(&trigger).unwrap(),
+    )
+    .unwrap();
+
+    let polled = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--trigger",
+        "trigger.json",
+        "--format",
+        "table",
+    ]);
+    assert!(
+        polled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&polled.stderr)
+    );
+    let polled = String::from_utf8(polled.stdout).unwrap();
+    assert!(polled.contains("GIT POLL TRANSITION"));
+    assert!(polled.contains("HEAD movement          fast_forward · complete"));
+    assert!(polled.contains("ref.fast_forward"));
+    assert!(polled.contains("Activation proposals   1"));
+    assert!(polled.contains("AWAITING EVIDENCE ACK"));
+
+    let replay = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "--trigger",
+        "trigger.json",
+        "--format",
+        "json",
+    ]);
+    assert!(replay.status.success());
+    let replay: GitPollOutcome = serde_json::from_slice(&replay.stdout).unwrap();
+    assert!(replay.changed);
+    assert!(replay.retained);
+    assert_eq!(replay.record.proposals.len(), 1);
+
+    let stale = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "ack",
+        "blake3:0000000000000000000000000000000000000000000000000000000000000000",
+    ]);
+    assert_eq!(stale.status.code(), Some(1));
+    assert!(stale.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&stale.stderr).contains("acknowledgement expected"));
+
+    let acknowledged = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "ack",
+        replay.record.transition.transition_id.as_str(),
+        "--format",
+        "table",
+    ]);
+    assert!(acknowledged.status.success());
+    let acknowledged = String::from_utf8(acknowledged.stdout).unwrap();
+    assert!(acknowledged.contains("GIT CURSOR ADVANCED"));
+    assert!(acknowledged.contains("no Git mutation or workload execution"));
+
+    let clean = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    assert!(clean.status.success());
+    let clean = String::from_utf8(clean.stdout).unwrap();
+    assert!(clean.contains("Observed delta         UNCHANGED"));
+    assert!(clean.contains("Retained transitions   1"));
+    assert!(clean.contains("Pending transition     none"));
 }
 
 #[test]

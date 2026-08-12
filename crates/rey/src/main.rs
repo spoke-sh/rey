@@ -39,6 +39,10 @@ use rey::{
         LocalEnvironmentHistory, LocalEnvironmentHistoryError, LocalEnvironmentStore,
         effective_index_snapshot, stage_selected_capabilities,
     },
+    git::{
+        GIT_ACKNOWLEDGEMENT_SCHEMA, GIT_POLL_OUTCOME_SCHEMA, GitAcknowledgement, GitOperatorStatus,
+        GitPollOutcome, GitPollRecord, LocalGitState, LocalGitStateError, LocalGitStore,
+    },
     inspect_environment, inspect_environment_with_mapping,
     journal::{
         JournalAdmission, JournalAuthorKind, JournalBlock, JournalEntryProposal, JournalError,
@@ -62,8 +66,9 @@ use rey_diff::{
 };
 use rey_environment::{
     Availability, CapabilitySnapshot, CommandRequest, DiscoveryLimits, EnvironmentMapLimits,
-    SourceBindingLimits, VariableCapture, run_bounded,
+    SourceBindingLimits, VariableCapture, resolve_executable, run_bounded,
 };
+use rey_git::{GitActivationTrigger, GitInspector, GitLimits};
 use rey_locator::ResolutionLimits;
 use rey_mining::{
     MiningCompleteness, MiningLimits, ProjectionPacket, TopographyLimits, TopographyPatch,
@@ -98,6 +103,8 @@ enum Command {
     Channels(ChannelsArgs),
     /// Track bounded compute environment revisions.
     Env(EnvArgs),
+    /// Observe Git transitions and retain proposal-only activation evidence.
+    Git(GitArgs),
     /// Track and generate read-first scene revisions for explicit Rey admission.
     Editor(EditorArgs),
     /// Inspect, test, qualify, and execute bounded compute graphs.
@@ -106,6 +113,76 @@ enum Command {
     Journal(JournalArgs),
     /// Serve the Rey operator interface.
     Ui(UiArgs),
+}
+
+#[derive(Debug, Args)]
+struct GitArgs {
+    /// Explicit workspace root; repository discovery cannot cross it.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local Git-activation state directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
+    /// Total bounded Git observation deadline in milliseconds.
+    #[arg(long, global = true, default_value_t = 5_000)]
+    total_timeout_ms: u64,
+
+    /// Per-command Git observation deadline in milliseconds.
+    #[arg(long, global = true, default_value_t = 2_000)]
+    command_timeout_ms: u64,
+
+    /// Maximum captured Git output bytes per command.
+    #[arg(long, global = true, default_value_t = 4 * 1_024 * 1_024)]
+    max_capture_bytes: u64,
+
+    /// Maximum logical Git index entries.
+    #[arg(long, global = true, default_value_t = 10_000)]
+    max_index_entries: u64,
+
+    #[command(subcommand)]
+    command: GitCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum GitCommand {
+    /// Observe current repository and retained cursor state without changing either.
+    Status(GitOutputArgs),
+    /// Retain the exact current repository snapshot as the initial poll cursor.
+    Init(GitOutputArgs),
+    /// Observe and retain one exact pending transition without advancing its cursor.
+    Poll(GitPollArgs),
+    /// Acknowledge retained transition evidence and advance the cursor exactly once.
+    Ack(GitAckArgs),
+}
+
+#[derive(Debug, Args)]
+struct GitOutputArgs {
+    /// Human evidence or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct GitPollArgs {
+    /// Workspace-confined YAML or JSON typed activation trigger; repeatable.
+    #[arg(long = "trigger")]
+    triggers: Vec<PathBuf>,
+
+    /// Human transition evidence or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct GitAckArgs {
+    /// Exact retained transition identity to acknowledge.
+    transition_id: String,
+
+    /// Human receipt or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -863,11 +940,214 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
         Command::Channels(args) => channels_command(args),
         Command::Env(args) => env_command(args),
+        Command::Git(args) => git_command(args),
         Command::Editor(args) => editor_command(args),
         Command::Workloads(args) => workloads(args),
         Command::Journal(args) => journal_command(args),
         Command::Ui(args) => ui_command(args),
     }
+}
+
+impl GitArgs {
+    fn limits(&self) -> Result<GitLimits, CliError> {
+        if self.total_timeout_ms == 0
+            || self.command_timeout_ms == 0
+            || self.max_capture_bytes == 0
+            || self.max_index_entries == 0
+        {
+            return Err(CliError::InvalidLimit);
+        }
+        Ok(GitLimits {
+            total_timeout_ms: self.total_timeout_ms,
+            command_timeout_ms: self.command_timeout_ms,
+            max_capture_bytes: self.max_capture_bytes,
+            max_index_entries: self.max_index_entries,
+        })
+    }
+}
+
+fn git_command(args: GitArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let limits = args.limits()?;
+    let state_dir = match args.state_dir {
+        Some(path) if path.is_absolute() => path,
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey/git"),
+    };
+    let paths = std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let git_program = resolve_executable("git", &paths).ok_or(CliError::GitUnavailable)?;
+    let inspector = GitInspector {
+        git_program,
+        workspace: workspace.clone(),
+        limits,
+    };
+    let store = LocalGitStore::new(state_dir);
+    match args.command {
+        GitCommand::Status(command) => git_status(&store, &inspector, command),
+        GitCommand::Init(command) => git_init(&store, &inspector, command),
+        GitCommand::Poll(command) => git_poll(&workspace, &store, &inspector, command),
+        GitCommand::Ack(command) => git_ack(&store, command),
+    }
+}
+
+fn git_snapshot(inspector: &GitInspector) -> Result<rey_git::GitSnapshot, CliError> {
+    inspector.inspect()?.ok_or(CliError::GitRepositoryAbsent)
+}
+
+fn git_status(
+    store: &LocalGitStore,
+    inspector: &GitInspector,
+    args: GitOutputArgs,
+) -> Result<ExitCode, CliError> {
+    let status = GitOperatorStatus::new(git_snapshot(inspector)?, store.load()?)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
+        WorkloadOutputFormat::Table => write_git_status(&mut stdout, &status)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn git_init(
+    store: &LocalGitStore,
+    inspector: &GitInspector,
+    args: GitOutputArgs,
+) -> Result<ExitCode, CliError> {
+    let state = store.initialize(git_snapshot(inspector)?)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &state)?,
+        WorkloadOutputFormat::Table => write_git_initialized(&mut stdout, &state)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn git_poll(
+    workspace: &Path,
+    store: &LocalGitStore,
+    inspector: &GitInspector,
+    args: GitPollArgs,
+) -> Result<ExitCode, CliError> {
+    let state = store.load()?;
+    let cursor = state
+        .cursor
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    let (target, transition) = inspector
+        .inspect_transition(cursor)?
+        .ok_or(CliError::GitRepositoryAbsent)?;
+    let triggers = args
+        .triggers
+        .iter()
+        .map(|path| load_git_trigger(workspace, path))
+        .collect::<Result<Vec<_>, _>>()?;
+    let record = GitPollRecord::new(target, transition, triggers)?;
+    let changed = record.transition.source_snapshot_id != record.transition.target_snapshot_id
+        || !record.transition.events.is_empty();
+    let retained = if changed {
+        store.retain_poll(record.clone())?;
+        true
+    } else {
+        false
+    };
+    let outcome = GitPollOutcome {
+        schema: GIT_POLL_OUTCOME_SCHEMA.to_owned(),
+        changed,
+        retained,
+        record,
+    };
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &outcome)?,
+        WorkloadOutputFormat::Table => write_git_poll(&mut stdout, &outcome)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn git_ack(store: &LocalGitStore, args: GitAckArgs) -> Result<ExitCode, CliError> {
+    let state = store.acknowledge(&args.transition_id)?;
+    let cursor = state
+        .cursor
+        .clone()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    let result = GitAcknowledgement {
+        schema: GIT_ACKNOWLEDGEMENT_SCHEMA.to_owned(),
+        acknowledged_transition_id: cursor.retained_evidence_id.clone(),
+        cursor,
+        retained_transition_count: state.retained_polls.len() as u64,
+        authority: "cursor advanced from retained evidence; no Git mutation or workload execution"
+            .to_owned(),
+    };
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_git_acknowledgement(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn load_git_trigger(workspace: &Path, requested: &Path) -> Result<GitActivationTrigger, CliError> {
+    const MAX_TRIGGER_BYTES: u64 = 1_024 * 1_024;
+    let path = if requested.is_absolute() {
+        requested.to_owned()
+    } else {
+        workspace.join(requested)
+    };
+    let metadata = fs::symlink_metadata(&path).map_err(|source| CliError::GitTriggerInput {
+        path: path.clone(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::GitTriggerInputType(path));
+    }
+    let canonical = path
+        .canonicalize()
+        .map_err(|source| CliError::GitTriggerInput {
+            path: path.clone(),
+            source,
+        })?;
+    if !canonical.starts_with(workspace) {
+        return Err(CliError::GitTriggerInputEscape(canonical));
+    }
+    if metadata.len() > MAX_TRIGGER_BYTES {
+        return Err(CliError::GitTriggerInputLimit(MAX_TRIGGER_BYTES));
+    }
+    let mut bytes = Vec::new();
+    File::open(&canonical)
+        .map_err(|source| CliError::GitTriggerInput {
+            path: canonical.clone(),
+            source,
+        })?
+        .take(MAX_TRIGGER_BYTES.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|source| CliError::GitTriggerInput {
+            path: canonical.clone(),
+            source,
+        })?;
+    if bytes.len() as u64 > MAX_TRIGGER_BYTES {
+        return Err(CliError::GitTriggerInputLimit(MAX_TRIGGER_BYTES));
+    }
+    let trigger: GitActivationTrigger = serde_saphyr::from_slice(&bytes)?;
+    trigger.verify()?;
+    Ok(trigger)
 }
 
 fn editor_command(args: EditorArgs) -> Result<ExitCode, CliError> {
@@ -3214,6 +3494,236 @@ fn journal_author_kind(kind: JournalAuthorKind) -> &'static str {
         JournalAuthorKind::Agent => "agent",
         JournalAuthorKind::System => "system",
     }
+}
+
+fn write_git_status(output: &mut impl Write, status: &GitOperatorStatus) -> Result<(), CliError> {
+    writeln!(output, "GIT ACTIVATION STATUS")?;
+    write_git_snapshot_fields(output, &status.observed_snapshot)?;
+    match &status.state.cursor {
+        Some(cursor) => {
+            write_portfolio_field(output, "Cursor", cursor.cursor_id.as_str())?;
+            write_portfolio_field(output, "Cursor snapshot", cursor.snapshot_id.as_str())?;
+            write_portfolio_field(
+                output,
+                "Observed delta",
+                if status.changed_since_cursor == Some(true) {
+                    "CHANGED · poll required"
+                } else {
+                    "UNCHANGED"
+                },
+            )?;
+        }
+        None => {
+            write_portfolio_field(output, "Cursor", "UNINITIALIZED")?;
+            write_portfolio_field(output, "Observed delta", "UNKNOWN · no retained baseline")?;
+        }
+    }
+    if let Some(pending) = &status.state.pending {
+        write_portfolio_field(
+            output,
+            "Pending transition",
+            pending.transition.transition_id.as_str(),
+        )?;
+        write_portfolio_field(output, "Pending state", "AWAITING EVIDENCE ACK")?;
+        write_portfolio_field(
+            output,
+            "Activation proposals",
+            &pending.proposals.len().to_string(),
+        )?;
+    } else {
+        write_portfolio_field(output, "Pending transition", "none")?;
+    }
+    write_portfolio_field(
+        output,
+        "Retained transitions",
+        &status.state.retained_polls.len().to_string(),
+    )?;
+    write_portfolio_field(output, "Repository authority", &status.repository_authority)?;
+    write_portfolio_field(output, "Next", &status.next)?;
+    Ok(())
+}
+
+fn write_git_initialized(output: &mut impl Write, state: &LocalGitState) -> Result<(), CliError> {
+    let cursor = state
+        .cursor
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    let snapshot = state
+        .cursor_snapshot
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    writeln!(output, "GIT CURSOR INITIALIZED")?;
+    write_git_snapshot_fields(output, snapshot)?;
+    write_portfolio_field(output, "Cursor", cursor.cursor_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Retained evidence",
+        cursor.retained_evidence_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Authority",
+        "baseline only · no activation · no execution",
+    )?;
+    write_portfolio_field(output, "Next", "rey git poll [--trigger FILE]")?;
+    Ok(())
+}
+
+fn write_git_poll(output: &mut impl Write, outcome: &GitPollOutcome) -> Result<(), CliError> {
+    let transition = &outcome.record.transition;
+    writeln!(output, "GIT POLL TRANSITION")?;
+    write_portfolio_field(output, "Transition", transition.transition_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Source snapshot",
+        transition.source_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Target snapshot",
+        transition.target_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "HEAD movement",
+        &format!(
+            "{} · {}",
+            transition.head_movement.as_str(),
+            if transition.head_complete {
+                "complete"
+            } else {
+                "incomplete"
+            }
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Events",
+        if transition.events.is_empty() {
+            "typed empty"
+        } else {
+            "see below"
+        },
+    )?;
+    for event in &transition.events {
+        writeln!(output, "    {}", event.as_str())?;
+    }
+    write_portfolio_field(
+        output,
+        "Semantic index",
+        &format!(
+            "{} → {} · {}",
+            transition
+                .source_index_digest
+                .as_ref()
+                .map_or("ABSENT", SemanticDigest::as_str),
+            transition
+                .target_index_digest
+                .as_ref()
+                .map_or("ABSENT", SemanticDigest::as_str),
+            if transition.source_index_complete && transition.target_index_complete {
+                "complete"
+            } else {
+                "partial"
+            }
+        ),
+    )?;
+    for omission in &transition.omissions {
+        writeln!(output, "    omission: {omission}")?;
+    }
+    write_portfolio_field(
+        output,
+        "Triggers",
+        &outcome.record.triggers.len().to_string(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Activation proposals",
+        &outcome.record.proposals.len().to_string(),
+    )?;
+    for proposal in &outcome.record.proposals {
+        writeln!(
+            output,
+            "    {} · {}@{} · {} scenario selections",
+            proposal.activation_id,
+            proposal.workload_id,
+            proposal.graph.revision,
+            proposal.scenario_ids.len()
+        )?;
+        writeln!(output, "      authority: {}", proposal.authority)?;
+    }
+    write_portfolio_field(
+        output,
+        "Poll state",
+        if outcome.retained {
+            "AWAITING EVIDENCE ACK"
+        } else {
+            "NO CHANGE · cursor unchanged"
+        },
+    )?;
+    if outcome.retained {
+        write_portfolio_field(
+            output,
+            "Next",
+            &format!("rey git ack {}", transition.transition_id),
+        )?;
+    }
+    Ok(())
+}
+
+fn write_git_acknowledgement(
+    output: &mut impl Write,
+    result: &GitAcknowledgement,
+) -> Result<(), CliError> {
+    writeln!(output, "GIT CURSOR ADVANCED")?;
+    write_portfolio_field(
+        output,
+        "Transition",
+        result.acknowledged_transition_id.as_str(),
+    )?;
+    write_portfolio_field(output, "Cursor", result.cursor.cursor_id.as_str())?;
+    write_portfolio_field(output, "Snapshot", result.cursor.snapshot_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Retained transitions",
+        &result.retained_transition_count.to_string(),
+    )?;
+    write_portfolio_field(output, "Authority", &result.authority)?;
+    Ok(())
+}
+
+fn write_git_snapshot_fields(
+    output: &mut impl Write,
+    snapshot: &rey_git::GitSnapshot,
+) -> Result<(), CliError> {
+    write_portfolio_field(output, "Repository", snapshot.repository_id.as_str())?;
+    write_portfolio_field(output, "Snapshot", snapshot.snapshot_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "HEAD",
+        &format!(
+            "{} · {}",
+            snapshot.head.symbolic_ref.as_deref().unwrap_or("DETACHED"),
+            snapshot.head.commit_oid.as_deref().unwrap_or("UNBORN")
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Index",
+        snapshot.index.as_ref().map_or("ABSENT · bare", |index| {
+            if index.complete {
+                "PRESENT · complete"
+            } else {
+                "PRESENT · partial"
+            }
+        }),
+    )?;
+    write_portfolio_field(
+        output,
+        "Repository read",
+        "bounded direct argv · no hooks · no optional locks · no network",
+    )?;
+    Ok(())
 }
 
 fn write_workload_create(
@@ -8485,6 +8995,18 @@ enum CliError {
     WorkspaceDirectory(PathBuf),
     #[error("relative state directory {0} escapes the workspace boundary")]
     StateDirectoryEscape(PathBuf),
+    #[error("Git executable is unavailable on the process-owned PATH")]
+    GitUnavailable,
+    #[error("explicit workspace contains no Git repository")]
+    GitRepositoryAbsent,
+    #[error("Git activation trigger {path} could not be read: {source}")]
+    GitTriggerInput { path: PathBuf, source: io::Error },
+    #[error("Git activation trigger must be a regular non-symlinked file: {0}")]
+    GitTriggerInputType(PathBuf),
+    #[error("Git activation trigger resolves outside the workspace: {0}")]
+    GitTriggerInputEscape(PathBuf),
+    #[error("Git activation trigger exceeds {0} bytes")]
+    GitTriggerInputLimit(u64),
     #[error("channel graph {path} could not be read: {source}")]
     ChannelInput { path: PathBuf, source: io::Error },
     #[error("channel graph must be a regular non-symlinked file: {0}")]
@@ -8539,6 +9061,10 @@ enum CliError {
     Workload(#[from] rey_runtime::WorkloadError),
     #[error(transparent)]
     Portfolio(#[from] rey_runtime::PortfolioError),
+    #[error(transparent)]
+    Git(#[from] rey_git::GitError),
+    #[error(transparent)]
+    GitState(#[from] LocalGitStateError),
     #[error(transparent)]
     WorkloadState(#[from] LocalWorkloadStateError),
     #[error(transparent)]

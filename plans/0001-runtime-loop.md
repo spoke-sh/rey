@@ -26,8 +26,10 @@ scheduling, and bounded reasoning surfaces. Workloads declare bounded owned
 surfaces; retained mapped-file and capability changes derive owner attention.
 One selected ready `CREATE` row now crosses an immutable external-harness
 request/response and human admission cycle without Rey invoking a harness.
-Git-native dependency invalidation, retained activation cursors, and a bounded
-recurring scheduler remain open.
+A manual bounded Git poll now retains cursor, pending transition, and
+proposal-only activation evidence. Git-native workload dependency
+invalidation, runtime admission, coalescing, and a bounded recurring scheduler
+remain open.
 
 ## Completion Checklist
 
@@ -65,8 +67,11 @@ recurring scheduler remain open.
 
 ### 4. Add activation and recurrence
 
-- [ ] Complete bounded Git commit/ref/index observation, movement
-  classification, retained cursors, and idempotent activation proposals.
+- [x] Poll bounded Git HEAD and partial semantic-index observations into
+  classified movement, a retained cursor, and idempotent proposal-only
+  activations with an exact evidence acknowledgement.
+- [ ] Extend activation evidence through watched refs, reachable/path deltas,
+  complete supported index semantics, and ordinary workload runtime admission.
 - [ ] Coalesce replay safely and advance a cursor only after required evidence
   reaches its claimed retention boundary.
 - [ ] Run the loop under explicit iteration, time, action, evidence, retry,

@@ -109,6 +109,7 @@ already admitted in HEAD.
 | Surface | Implemented state model | Important boundary |
 | --- | --- | --- |
 | `env` | `ENV HEAD → INDEX → WORKING` | Commits capability observations, never execution authority. |
+| `git` | Retained cursor → pending transition → acknowledged cursor | Reads the repository only; activation outputs are proposals and acknowledgement executes nothing. |
 | `workloads` | `WORKLOAD HEAD → INDEX → WORKING` plus staged qualification | Only qualified HEAD packages are runnable. |
 | `editor` | `SCENE HEAD → INDEX → WORKING` | Commits candidate packages; it does not admit `/explore` evidence. |
 | `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
@@ -125,6 +126,7 @@ The implemented top-level surface is:
 ```text
 rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
 rey env        status | add | diff | commit | log
+rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | run
 rey journal    add | list
@@ -225,6 +227,35 @@ validates only the frozen INDEX, and the resulting `SCENE@n` package remains an
 unadmitted candidate. There is intentionally no separate `init`, `import`, or
 `validate` command.
 
+### `rey git`
+
+```text
+rey git [--workspace PATH] [--state-dir PATH] status
+rey git ... init
+rey git ... poll [--trigger TRIGGER.yaml]...
+rey git ... ack TRANSITION_ID
+```
+
+`status` performs a bounded read-only repository observation and compares its
+exact snapshot identity with the retained cursor without creating `.rey`
+state. `init` explicitly retains that snapshot as the first cursor. `poll`
+revalidates the repository/worktree identity, classifies HEAD movement,
+compares the partial semantic index, and retains one changed transition plus
+its exact triggers and deterministic proposal-only activations. Repeating the
+same poll is identity-stable and does not duplicate pending evidence; a
+different transition cannot replace an unacknowledged one.
+
+`ack` requires the exact pending transition identity, retains it in local
+history, and advances the cursor from that evidence. A snapshot id, stale
+transition, or tampered state fails closed. It does not execute a workload,
+mutate Git, contact a remote, or turn a trigger into authority. Trigger inputs
+are bounded workspace-contained regular YAML or JSON documents under
+`rey.git-activation-trigger.v1`; they bind repository/worktree, event and
+completeness selection, exact workload/graph/scenarios, and activation budget.
+The human view exposes source and target snapshots, movement completeness,
+events, semantic-index posture, omissions, proposals, authority, and next
+acknowledgement. JSON retains the same typed documents.
+
 ### `rey workloads`
 
 ```text
@@ -323,6 +354,8 @@ does not bypass the three-plane contract.
 | Command family | Posture |
 | --- | --- |
 | `status`, `list`, `diff`, `log` | Read-only with respect to Rey admission state. A status/diff may perform its documented bounded fresh observation. |
+| `git status` | Read-only Git and Rey-state observation; it creates no cursor. |
+| `git init`, `git poll`, `git ack` | Retain a baseline, pending transition evidence, or exact cursor advancement respectively; none mutates Git or executes a workload. |
 | `env add`, `editor add`, `workloads add` | Mutate only the corresponding INDEX. |
 | `env commit`, `editor commit`, `workloads commit` | Verify and advance only from INDEX; never absorb later WORKING state. |
 | `workloads test --staged` | Executes bounded scenario probes and retains qualification evidence; never advances HEAD. |
@@ -420,6 +453,7 @@ By default Rey keeps local state under the selected workspace:
 
 ```text
 .rey/env/         environment history and admission index
+.rey/git/         Git cursor, pending activation evidence, and transition history
 .rey/workloads/   workload objects, qualification results, and history
 .rey/editor/      scene INDEX objects, packages, and history
 .rey/channels/    Channel WORKING proposal

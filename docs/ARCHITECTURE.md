@@ -793,8 +793,9 @@ resource or silently widen access.
 The standalone capability path is implemented across `rey-core`,
 `rey-dataframe`, `rey-environment`, `rey-git`, `rey-diff`, `rey-proof`, and the
 `rey` composition/CLI crate. It includes bounded environment observation, a
-partial read-only Git observation plus verified cursor/transition and
-proposal-only activation contracts, verified capability snapshot loading, an
+partial read-only Git observation plus verified local cursor, pending
+transition/history, and proposal-only activation contracts, verified
+capability snapshot loading, an
 exact capability comparator, typed structured and Arrow deltas, Tabular Diff
 projection, required-capability certificate evaluation and verification, and
 bounded content-addressed local proof bundles with explicit filesystem-only

@@ -13,8 +13,10 @@ bounded porcelain-v2 working-tree counts and exact local-upstream publication
 state. `rey-git` now also derives one bounded HEAD/semantic-index transition
 from a verified retained cursor, classifies created, deleted, fast-forward,
 rewound, rewritten, and unknown movement, and matches typed triggers into
-deterministic proposal-only activations. Persistent cursor storage, watched-ref
-frames beyond HEAD, reachable-set and path deltas, recurring polling,
+deterministic proposal-only activations. The `rey git` CLI retains an exact
+baseline cursor, one pending transition with its triggers and proposals, and
+acknowledged transition history under `.rey/git`. Watched-ref frames beyond
+HEAD, reachable-set and path deltas, recurring polling and coalescing,
 coalescing, runtime admission, remote synchronization, and complete index flag
 semantics remain future Git work.
 
@@ -198,14 +200,18 @@ required transition evidence reach their claimed retention boundary. A crash
 before cursor advancement can replay work. Consumers use activation identity
 and action idempotency; Rey does not claim exactly-once Git triggering.
 
-The implemented `rey.git-poll-cursor.v1` is a verified value contract rather
-than a durable cursor store. A baseline cursor can be constructed only with
+The implemented `rey.git-poll-cursor.v1` is a verified value contract retained
+by the local `.rey/git` store. A baseline cursor can be constructed only with
 the exact retained snapshot identity. Its `advance` operation requires the
 exact derived `rey.git-poll-transition.v1` identity as retained evidence;
 passing a target snapshot id or another transition fails closed. Repeating a
 poll from the unchanged source cursor reproduces the same transition and
 activation identities.
 
+`rey git status` is read-only. `init` retains the baseline; `poll` retains one
+changed transition without moving the cursor; `ack` requires that exact
+transition identity, retains it in history, then advances. A repeated poll is
+idempotent and a different observation cannot overwrite pending evidence.
 Local cursors have local-file retention guarantees. Git remains the
 authoritative source of repository state.
 
@@ -224,9 +230,9 @@ One bounded poll performs:
 8. advance the cursor after transition evidence commits.
 
 The current library implements the read-only mechanism through step 6 for
-HEAD and the partial logical index. It returns the target snapshot and typed
-transition without retaining either or advancing the cursor. No CLI loop or
-runtime path performs steps 7–8 yet.
+HEAD and the partial logical index. The CLI retains that output and implements
+step 8 only as an explicit exact-evidence acknowledgement. No path yet performs
+step 7, admits a proposal into the workload runtime, or polls recurrently.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
 be recovered from the object graph within retention and traversal bounds, but

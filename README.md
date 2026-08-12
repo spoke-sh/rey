@@ -74,6 +74,7 @@ The corresponding agent-side bearing is:
 
 ```sh
 rey env status
+rey git status
 rey workloads status
 rey workloads diff
 ```
@@ -193,6 +194,11 @@ HEAD → INDEX → WORKING
 changes INDEX. `commit` records only the already reviewed and verified INDEX;
 it does not re-observe ambient state. History admission records evidence. It
 does not grant a tool, workload, agent, or scene permission to act.
+
+Repository activation uses a separate explicit evidence loop: `rey git init`
+retains a baseline, `poll` retains one typed transition and proposal set, and
+`ack` advances the cursor only from that exact evidence. These commands never
+mutate Git or execute a proposed workload.
 
 A workload is Rey's public unit of computation: one versioned graph, scenario
 suite, policy boundary, qualification contract, and total budget. Agents,
