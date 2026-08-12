@@ -12,7 +12,9 @@ semantic-index dependencies derive live invalidation from retained evidence;
 acknowledged Git activations can enter schedule-only workload admission, while
 selected-scenario activation execution is retained separately from full-suite
 qualification. Compatible same-transition executions can reuse exact retained
-evidence, and bounded Git cadence observation retains every tick. Cross-poll
+evidence, and a separate bounded full recomputation proves whether selected
+execution evidence is exactly equivalent. Bounded Git cadence observation
+retains every tick. Cross-poll
 debounce and autonomous recurring scheduling remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
@@ -42,6 +44,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] log [-p] [-n COUNT]
 rey workloads [--workspace PATH] [--catalog-dir PATH] list
 rey workloads [--workspace PATH] [--catalog-dir PATH] admit-activation <activation-id>
 rey workloads [--workspace PATH] [--catalog-dir PATH] execute-activation <admission-id>
+rey workloads [--workspace PATH] [--catalog-dir PATH] verify-activation <execution-id> [--max-evidence-bytes <bytes>]
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--catalog-dir PATH] run context-anchor-survey --source <path> [--source <path>...]
 rey workloads --catalog conformance list|test|run|status ...
@@ -174,6 +177,17 @@ from `last_test`: even an all-passing subset cannot issue or replace exact
 full-suite qualification. Repeating the command returns the retained execution
 without rerunning the graph. Failure and inconclusive evidence remain visible
 through semantic exit codes and the human receipt. No path mutates Git.
+
+`workloads verify-activation <execution-id>` revalidates the execution's exact
+acknowledged Git cursor, workload HEAD, workload/graph/suite/scenario
+contracts, and retained capability snapshot. It then executes the complete
+declared scenario suite, retains the bounded full result, and compares each
+originally selected scenario result exactly with its counterpart. The
+content-identified `rey.workload-activation-recomputation.v1` records
+`EQUIVALENT` or `DIFFERENT`, both result identities, per-scenario execution
+identities, evidence consumption, and comparison-only authority. It never
+updates `last_test` or qualification, never mutates Git, and replays an
+existing proof without executing scenarios again.
 
 Before running a new graph, execution checks retained results from other
 admissions in the same Git transition. Reuse is permitted only when source and
@@ -679,10 +693,13 @@ identities and dependency facts, never toggled manually.
 | `workloads list` | Project admitted HEAD and retained result state while separately carrying drafts and HEAD/INDEX/WORKING revision posture. It performs no graph execution. |
 | `workloads admit-activation id` | Revalidate one proposal from acknowledged Git history against the current cursor, workload HEAD, graph, scenarios, capabilities, and effective budget; retain schedule-only admission without executing it. |
 | `workloads execute-activation id` | Revalidate one retained admission, execute only its selected scenarios under the exact evidence cap, and retain replay-stable non-qualifying deltas and evidence without mutating Git. |
+| `workloads verify-activation id` | Revalidate one retained execution, fully recompute its declared suite under an explicit evidence cap, compare selected scenario evidence exactly, and retain a replay-stable non-qualifying proof. |
 | `workloads run id` | Execute only an exact current fresh qualified graph admitted in HEAD against explicit inputs through declared providers; retain outputs and exact mining lineage. |
 
 `list` and `status` return success when inspection succeeds even if workloads
-are failing. `test` and `run` use semantic exit categories: `0` for qualified
+are failing. `verify-activation` returns `0` for exact equivalence and `2` for
+a conclusive difference. `test` and `run` use semantic exit categories: `0`
+for qualified
 or passed, `2` for conclusive failure, `3` for inconclusive or blocked, `4` for
 stale, and `1` for invalid input or runtime failure. Argument-parser errors
 retain the CLI framework's behavior.

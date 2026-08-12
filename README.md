@@ -208,7 +208,10 @@ only the admitted scenarios under the retained evidence budget, and records a
 replay-stable result without mutating Git or replacing full-suite
 qualification. Compatible proposals from the same retained Git transition can
 cite that exact result without rerunning the graph; stricter budgets and
-changed inputs never coalesce.
+changed inputs never coalesce. `rey workloads verify-activation` separately
+recomputes the complete declared suite under the same frozen capability
+snapshot, compares the selected evidence exactly, and retains a bounded proof
+without changing qualification.
 
 A workload is Rey's public unit of computation: one versioned graph, scenario
 suite, policy boundary, qualification contract, and total budget. Agents,

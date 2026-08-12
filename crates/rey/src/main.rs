@@ -51,13 +51,15 @@ use rey::{
         JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
     workloads::{
-        LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadActivationAdmission,
-        WorkloadActivationExecution, WorkloadAddResult, WorkloadCatalog, WorkloadCatalogDescriptor,
-        WorkloadCatalogError, WorkloadChangeKind, WorkloadChangeSet, WorkloadCommitResult,
-        WorkloadCreateResult, WorkloadCreationAttentionBinding, WorkloadDraft, WorkloadList,
-        WorkloadLog, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
-        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState,
-        derive_portfolio_snapshot, fresh_qualification,
+        LocalWorkloadStateError, LocalWorkloadStore, MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES,
+        ResolvedWorkload, WorkloadActivationAdmission, WorkloadActivationExecution,
+        WorkloadActivationRecomputation, WorkloadAddResult, WorkloadCatalog,
+        WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadChangeKind, WorkloadChangeSet,
+        WorkloadCommitResult, WorkloadCreateResult, WorkloadCreationAttentionBinding,
+        WorkloadDraft, WorkloadList, WorkloadLog, WorkloadRecomputationAssessment,
+        WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView,
+        WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState, derive_portfolio_snapshot,
+        fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -658,6 +660,8 @@ enum WorkloadsCommand {
     AdmitActivation(WorkloadAdmitActivationArgs),
     /// Execute the exact selected scenarios for one retained activation admission.
     ExecuteActivation(WorkloadExecuteActivationArgs),
+    /// Fully recompute and compare one retained activation execution.
+    VerifyActivation(WorkloadVerifyActivationArgs),
 }
 
 #[derive(Debug, Args)]
@@ -770,6 +774,20 @@ struct WorkloadExecuteActivationArgs {
     admission_id: String,
 
     /// Human execution receipt or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadVerifyActivationArgs {
+    /// Exact retained workload activation execution identity.
+    execution_id: String,
+
+    /// Maximum serialized bytes retained for the full recomputation result.
+    #[arg(long, default_value_t = MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES)]
+    max_evidence_bytes: u64,
+
+    /// Human comparison receipt or typed JSON proof.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
@@ -2151,6 +2169,10 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
             require_workspace_admission_catalog(args.catalog)?;
             workload_execute_activation(&store, &workspace, command)
         }
+        WorkloadsCommand::VerifyActivation(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_verify_activation(&store, &workspace, command)
+        }
     }
 }
 
@@ -2409,6 +2431,173 @@ fn workload_activation_execution_exit(execution: &WorkloadActivationExecution) -
     }
 }
 
+fn workload_verify_activation(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    args: WorkloadVerifyActivationArgs,
+) -> Result<ExitCode, CliError> {
+    if args.max_evidence_bytes == 0
+        || args.max_evidence_bytes > MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES
+    {
+        return Err(CliError::InvalidRecomputationLimit {
+            actual: args.max_evidence_bytes,
+            max: MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES,
+        });
+    }
+    let state = store.load()?;
+    let execution = state
+        .activation_executions
+        .iter()
+        .find(|execution| execution.execution_id.as_str() == args.execution_id)
+        .cloned()
+        .ok_or_else(|| {
+            LocalWorkloadStateError::ActivationPrecondition(format!(
+                "unknown retained activation execution {}",
+                args.execution_id
+            ))
+        })?;
+    let admission = state
+        .activation_admissions
+        .iter()
+        .find(|admission| admission.admission_id == execution.admission_id)
+        .cloned()
+        .ok_or(LocalWorkloadStateError::InvalidActivationExecution)?;
+    if let Some(recomputation) = state
+        .activation_recomputations
+        .iter()
+        .find(|recomputation| recomputation.execution_id == execution.execution_id)
+    {
+        write_workload_activation_recomputation_output(
+            recomputation,
+            &execution,
+            &admission,
+            true,
+            args.format.resolve(),
+        )?;
+        return Ok(workload_activation_recomputation_exit(recomputation));
+    }
+
+    let git_state = LocalGitStore::default_for_workspace(workspace).load()?;
+    let activation =
+        git_state.acknowledged_activation(admission.activation.activation_id.as_str())?;
+    let cursor = git_state
+        .cursor
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    if activation != admission.activation
+        || cursor.snapshot_id != admission.activation.target_snapshot_id
+        || cursor.retained_evidence_id != admission.activation.transition_id
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "activation Git evidence is no longer the exact current acknowledged cursor".to_owned(),
+        )
+        .into());
+    }
+
+    let workload_head = state.commits.last().ok_or_else(|| {
+        LocalWorkloadStateError::ActivationPrecondition(
+            "workload HEAD is empty; full activation recomputation cannot proceed".to_owned(),
+        )
+    })?;
+    if workload_head.commit_id != admission.workload_head_commit_id
+        || workload_head.snapshot.snapshot_revision != admission.workload_head_snapshot_id
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "workload HEAD changed after activation admission".to_owned(),
+        )
+        .into());
+    }
+    let catalog = store.head_catalog()?;
+    let workload = catalog
+        .select(Some(&admission.workload.id))?
+        .into_iter()
+        .next()
+        .ok_or(CliError::EmptyWorkloadCatalog)?
+        .definition;
+    let declared_scenarios = workload
+        .scenario_suite
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.scenario.clone())
+        .collect::<Vec<_>>();
+    if workload.workload != admission.workload
+        || workload.graph.graph != admission.graph
+        || workload.scenario_suite.suite != admission.scenario_suite
+        || workload.evaluator != admission.evaluator
+        || declared_scenarios != admission.declared_scenarios
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "activation admission no longer matches the exact workload package".to_owned(),
+        )
+        .into());
+    }
+    let environment =
+        retained_environment_snapshot(workspace)?.ok_or(CliError::ActivationEnvironmentRequired)?;
+    if environment.semantic_digest != admission.capability_snapshot_id {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "retained capability snapshot changed after activation admission".to_owned(),
+        )
+        .into());
+    }
+
+    let all_scenario_ids = admission
+        .declared_scenarios
+        .iter()
+        .map(|scenario| scenario.id.clone())
+        .collect::<Vec<_>>();
+    let full_result = execute_workload_scenario_selection_with_snapshot(
+        &workload,
+        &all_scenario_ids,
+        environment.semantic_digest,
+    )?;
+    let recomputation = WorkloadActivationRecomputation::new(
+        &execution,
+        &admission,
+        full_result,
+        args.max_evidence_bytes,
+    )?;
+    let recomputation = store.retain_activation_recomputation(recomputation)?;
+    write_workload_activation_recomputation_output(
+        &recomputation,
+        &execution,
+        &admission,
+        false,
+        args.format.resolve(),
+    )?;
+    Ok(workload_activation_recomputation_exit(&recomputation))
+}
+
+fn write_workload_activation_recomputation_output(
+    recomputation: &WorkloadActivationRecomputation,
+    execution: &WorkloadActivationExecution,
+    admission: &WorkloadActivationAdmission,
+    replayed: bool,
+    format: WorkloadOutputFormat,
+) -> Result<(), CliError> {
+    let mut stdout = io::stdout().lock();
+    match format {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, recomputation)?,
+        WorkloadOutputFormat::Table => write_workload_activation_recomputation(
+            &mut stdout,
+            recomputation,
+            execution,
+            admission,
+            replayed,
+        )?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(())
+}
+
+fn workload_activation_recomputation_exit(
+    recomputation: &WorkloadActivationRecomputation,
+) -> ExitCode {
+    match recomputation.assessment {
+        WorkloadRecomputationAssessment::Equivalent => ExitCode::SUCCESS,
+        WorkloadRecomputationAssessment::Different => ExitCode::from(2),
+    }
+}
+
 fn current_workload_list(
     store: &LocalWorkloadStore,
     workspace: &Path,
@@ -2452,6 +2641,7 @@ fn current_workload_list(
         attention,
         runtime,
     )
+    .with_activation_recomputations(state.activation_recomputations.clone())
     .with_revision(revision);
     Ok(list)
 }
@@ -4413,6 +4603,124 @@ fn write_workload_activation_execution(
     Ok(())
 }
 
+fn write_workload_activation_recomputation(
+    output: &mut impl Write,
+    recomputation: &WorkloadActivationRecomputation,
+    execution: &WorkloadActivationExecution,
+    admission: &WorkloadActivationAdmission,
+    replayed: bool,
+) -> Result<(), CliError> {
+    writeln!(output, "WORKLOAD ACTIVATION FULL RECOMPUTATION")?;
+    write_portfolio_field(
+        output,
+        "Receipt",
+        if replayed {
+            "retained proof replayed · scenarios were not executed again"
+        } else {
+            "new full recomputation proof retained"
+        },
+    )?;
+    write_portfolio_field(
+        output,
+        "Assessment",
+        match recomputation.assessment {
+            WorkloadRecomputationAssessment::Equivalent => "EQUIVALENT",
+            WorkloadRecomputationAssessment::Different => "DIFFERENT",
+        },
+    )?;
+    write_portfolio_field(
+        output,
+        "Recomputation",
+        recomputation.recomputation_id.as_str(),
+    )?;
+    write_portfolio_field(output, "Execution", recomputation.execution_id.as_str())?;
+    write_portfolio_field(output, "Admission", recomputation.admission_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Results",
+        &format!(
+            "selected {} · full {}",
+            recomputation.selected_result_id, recomputation.full_result.result_id
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Git evidence",
+        &format!(
+            "{} → {} · transition {}",
+            admission.activation.source_snapshot_id,
+            admission.activation.target_snapshot_id,
+            admission.activation.transition_id
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Workload",
+        &format!(
+            "{}@{} · graph {}@{}",
+            execution.result.workload.id,
+            execution.result.workload.revision,
+            execution.result.graph.id,
+            execution.result.graph.revision
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Scenario scope",
+        &format!(
+            "{} selected compared · {} fully recomputed",
+            recomputation.comparisons.len(),
+            recomputation.full_result.scenarios.len()
+        ),
+    )?;
+    for comparison in &recomputation.comparisons {
+        writeln!(
+            output,
+            "    {} · {}",
+            comparison.scenario_id,
+            if comparison.equivalent {
+                "EQUIVALENT"
+            } else {
+                "DIFFERENT"
+            }
+        )?;
+        writeln!(
+            output,
+            "      selected execution {} · full execution {}",
+            comparison.selected_execution_id, comparison.full_execution_id
+        )?;
+    }
+    write_portfolio_field(
+        output,
+        "Full status",
+        match recomputation.full_result.status {
+            TestStatus::Passed => "PASSED",
+            TestStatus::Failed => "FAILED",
+            TestStatus::Inconclusive => "INCONCLUSIVE",
+        },
+    )?;
+    write_portfolio_field(
+        output,
+        "Evidence budget",
+        &format!(
+            "{} / {} bytes",
+            recomputation.full_evidence_bytes, recomputation.max_evidence_bytes
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Capabilities",
+        recomputation.full_result.capability_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(output, "Authority", &recomputation.authority)?;
+    write_portfolio_field(
+        output,
+        "Qualification",
+        "qualification unchanged · full recomputation is comparison evidence only",
+    )?;
+    Ok(())
+}
+
 fn write_git_snapshot_fields(
     output: &mut impl Write,
     snapshot: &rey_git::GitSnapshot,
@@ -4871,7 +5179,7 @@ fn write_workload_list(
         output,
         "Runtime admissions",
         &format!(
-            "{} Git activation{} · {} executed",
+            "{} Git activation{} · {} executed · {} full recomputation proof{}",
             list.activation_admissions.len(),
             if list.activation_admissions.len() == 1 {
                 ""
@@ -4879,6 +5187,12 @@ fn write_workload_list(
                 "s"
             },
             list.activation_executions.len(),
+            list.activation_recomputations.len(),
+            if list.activation_recomputations.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
         ),
     )?;
     write_portfolio_field(
@@ -5023,6 +5337,7 @@ fn write_workload_list(
         output,
         &list.activation_admissions,
         &list.activation_executions,
+        &list.activation_recomputations,
         style,
     )?;
     if list.workloads.is_empty() && list.drafts.is_empty() {
@@ -5234,6 +5549,7 @@ fn write_activation_admissions(
     output: &mut impl Write,
     admissions: &[WorkloadActivationAdmission],
     executions: &[WorkloadActivationExecution],
+    recomputations: &[WorkloadActivationRecomputation],
     style: TerminalStyle,
 ) -> Result<(), CliError> {
     writeln!(output)?;
@@ -5246,6 +5562,11 @@ fn write_activation_admissions(
         let execution = executions
             .iter()
             .find(|execution| execution.admission_id == admission.admission_id);
+        let recomputation = execution.and_then(|execution| {
+            recomputations
+                .iter()
+                .find(|recomputation| recomputation.execution_id == execution.execution_id)
+        });
         writeln!(
             output,
             "  {} · {} · {} scenarios · {}",
@@ -5275,6 +5596,15 @@ fn write_activation_admissions(
             )?;
             if let Some(source) = &execution.source_execution_id {
                 writeln!(output, "    reused execution {source} · graph not rerun")?;
+            }
+            if let Some(recomputation) = recomputation {
+                writeln!(
+                    output,
+                    "    FULL {} · proof {} · {} fully recomputed · qualification unchanged",
+                    recomputation.assessment.as_str().to_uppercase(),
+                    recomputation.recomputation_id,
+                    recomputation.full_result.scenarios.len(),
+                )?;
             }
         } else {
             writeln!(
@@ -9808,6 +10138,10 @@ enum CliError {
     WorkspaceStatusIsPortfolio,
     #[error("limits must be greater than zero")]
     InvalidLimit,
+    #[error(
+        "full recomputation evidence limit {actual} is outside the supported range 1..={max} bytes"
+    )]
+    InvalidRecomputationLimit { actual: u64, max: u64 },
     #[error("source-mining runs require at least one workspace-relative --source path")]
     MissingSourceFiles,
     #[error("context-anchor-survey runs require at least one workspace-relative --source seed")]

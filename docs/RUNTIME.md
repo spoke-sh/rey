@@ -20,7 +20,10 @@ acknowledged cursor snapshot, and acknowledged activation proposals can cross
 an exact schedule-only workload admission gate, then execute their retained
 scenario selection under revalidated inputs and budget. Compatible
 same-transition admissions can reuse one directly evaluated retained scenario
-result under the stricter receiving evidence budget. Bounded Git cadence now
+result under the stricter receiving evidence budget. A separate bounded
+diagnostic fully recomputes the declared suite under those frozen inputs,
+compares the selected scenario evidence exactly, and retains the result without
+changing qualification. Bounded Git cadence now
 retains each observation and stop receipt without entering this runtime
 machine. Cross-poll debounce and autonomous runtime recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
@@ -286,8 +289,8 @@ The implemented crates deliberately contain no:
   selected-`CREATE` request and exact response-lineage contract;
 - recurring, fair, parallel, or multi-user scheduling;
 - recurring scheduling, cross-poll activation debounce, or consumption
-  semantics beyond replay-stable retained execution and strict
-  same-transition result reuse;
+  semantics beyond replay-stable retained execution, strict same-transition
+  result reuse, and explicit selected-versus-full recomputation proof;
 - external tool, query, parser, or index retrieval implementation;
 - general visualization specification beyond the source workload's terminal
   table/patch projection;

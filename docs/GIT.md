@@ -264,8 +264,11 @@ The current library and CLI implement steps 1–8 for HEAD and the partial
 logical index. `rey workloads admit-activation` implements step 9, and
 `execute-activation` implements the scenario-selection form of step 10. It
 revalidates exact current Git, workload HEAD, graph, scenarios, capabilities,
-and budgets before executing. The CLI can now repeat steps 1–7 through bounded
-`git watch`, but it deliberately stops before step 8; arbitrary graph-entry
+and budgets before executing. `rey workloads verify-activation` can then
+recompute the complete declared suite and retain an exact selected-versus-full
+comparison without changing qualification. The CLI can now repeat steps 1–7
+through bounded `git watch`, but it deliberately stops before step 8;
+arbitrary graph-entry
 activation and autonomous recurring execution remain absent.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
@@ -356,6 +359,15 @@ over the admitted cap is rejected before retention. Repeating the command
 returns the exact retained result without rerunning the graph. This selected
 evidence cannot issue or replace full-suite qualification, and no Git mutation
 occurs.
+
+`rey workloads verify-activation <execution-id>` independently revalidates the
+same frozen Git, workload, contract, and capability inputs before executing
+the complete declared scenario suite. Its bounded retained proof compares
+each selected scenario result exactly with the full result counterpart. An
+equivalent proof establishes deterministic parity for that frozen activation
+fixture; a different proof remains conclusive evidence rather than being
+collapsed into runtime failure. Neither assessment qualifies the workload or
+mutates Git, and proof replay does not execute scenarios again.
 
 Distinct proposals from the same retained transition may safely coalesce at
 execution. Rey reuses only a directly evaluated result with identical Git

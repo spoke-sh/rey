@@ -36,10 +36,13 @@ workload admission gate and execute only its retained scenario selection after
 the Git cursor, workload HEAD, capabilities, and budget are revalidated. The
 result is replay-stable and cannot replace full-suite qualification. Activation
 executions from compatible proposals in the same transition can coalesce onto
-that exact retained result without erasing either activation identity. Watch
+that exact retained result without erasing either activation identity. An
+explicit bounded diagnostic now fully recomputes the declared suite under the
+same frozen inputs, proves exact selected-result equivalence, and retains the
+comparison without changing qualification. Watch
 stops honestly at iteration/time bounds or the first changed transition and
 never acknowledges or executes it. Autonomous scheduling, cross-poll debounce,
-and full-recomputation equivalence remain open.
+and the remaining recurrence failure bounds remain open.
 
 ## Completion Checklist
 
@@ -104,9 +107,9 @@ and full-recomputation equivalence remain open.
 
 - [x] Exercise the complete path through `rey workloads ... -vv`, including
   stdout, stderr, JSON, exit behavior, stale preconditions, and re-observation.
-- [ ] Prove deterministic replay and equivalence with full bounded
+- [x] Prove deterministic replay and equivalence with full bounded
   recomputation for the selected invalidation fixture.
-- [ ] Pass focused tests, `just check`, `just test`, the packaged Nix path, and
+- [x] Pass focused tests, `just check`, `just test`, the packaged Nix path, and
   repository link/truth review.
 
 ## Deferred

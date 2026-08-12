@@ -48,6 +48,8 @@ pub const WORKLOAD_COMMIT_RESULT_SCHEMA: &str = "rey.workload-commit-result.v1";
 pub const WORKLOAD_LOG_SCHEMA: &str = "rey.workload-log.v1";
 pub const WORKLOAD_ACTIVATION_ADMISSION_SCHEMA: &str = "rey.workload-activation-admission.v1";
 pub const WORKLOAD_ACTIVATION_EXECUTION_SCHEMA: &str = "rey.workload-activation-execution.v1";
+pub const WORKLOAD_ACTIVATION_RECOMPUTATION_SCHEMA: &str =
+    "rey.workload-activation-recomputation.v1";
 
 const STATE_FILE_NAME: &str = "state.json";
 const LOCK_FILE_NAME: &str = "workloads.lock";
@@ -65,6 +67,8 @@ const MAX_COMMIT_MESSAGE_BYTES: usize = 4_096;
 const MAX_WORKLOAD_ACTIVATION_ADMISSIONS: usize = 256;
 const MAX_WORKLOAD_ACTIVATION_EXECUTIONS: usize = 256;
 const MAX_WORKLOAD_ACTIVATION_EVIDENCE_BYTES: u64 = 4 * 1_024 * 1_024;
+const MAX_WORKLOAD_ACTIVATION_RECOMPUTATIONS: usize = 256;
+pub const MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES: u64 = 4 * 1_024 * 1_024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -714,6 +718,181 @@ impl WorkloadActivationExecution {
         }
         Ok(())
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkloadRecomputationAssessment {
+    Equivalent,
+    Different,
+}
+
+impl WorkloadRecomputationAssessment {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Equivalent => "equivalent",
+            Self::Different => "different",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadScenarioRecomputationComparison {
+    pub scenario_id: String,
+    pub selected_execution_id: SemanticDigest,
+    pub full_execution_id: SemanticDigest,
+    pub equivalent: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadActivationRecomputation {
+    pub schema: String,
+    pub recomputation_id: SemanticDigest,
+    pub execution_id: SemanticDigest,
+    pub admission_id: SemanticDigest,
+    pub selected_result_id: SemanticDigest,
+    pub full_result: WorkloadScenarioExecutionResult,
+    pub full_evidence_bytes: u64,
+    pub max_evidence_bytes: u64,
+    pub comparisons: Vec<WorkloadScenarioRecomputationComparison>,
+    pub assessment: WorkloadRecomputationAssessment,
+    pub authority: String,
+}
+
+impl WorkloadActivationRecomputation {
+    pub fn new(
+        execution: &WorkloadActivationExecution,
+        admission: &WorkloadActivationAdmission,
+        full_result: WorkloadScenarioExecutionResult,
+        max_evidence_bytes: u64,
+    ) -> Result<Self, LocalWorkloadStateError> {
+        execution.verify_for(admission)?;
+        full_result.verify()?;
+        let full_evidence_bytes = serde_json::to_vec(&full_result)
+            .map_err(|_| LocalWorkloadStateError::InvalidActivationRecomputation)?
+            .len() as u64;
+        if max_evidence_bytes == 0
+            || max_evidence_bytes > MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES
+            || full_evidence_bytes > max_evidence_bytes
+        {
+            return Err(LocalWorkloadStateError::ActivationRecomputationBudget {
+                observed: full_evidence_bytes,
+                limit: max_evidence_bytes,
+            });
+        }
+        let comparisons = recomputation_comparisons(execution, &full_result)?;
+        let assessment = if comparisons.iter().all(|comparison| comparison.equivalent) {
+            WorkloadRecomputationAssessment::Equivalent
+        } else {
+            WorkloadRecomputationAssessment::Different
+        };
+        let mut recomputation = Self {
+            schema: WORKLOAD_ACTIVATION_RECOMPUTATION_SCHEMA.to_owned(),
+            recomputation_id: SemanticHasher::new(
+                "rey.workload-activation-recomputation.pending.v1",
+            )
+            .finish(),
+            execution_id: execution.execution_id.clone(),
+            admission_id: admission.admission_id.clone(),
+            selected_result_id: execution.result.result_id.clone(),
+            full_result,
+            full_evidence_bytes,
+            max_evidence_bytes,
+            comparisons,
+            assessment,
+            authority:
+                "comparison_evidence_only; recomputation does not qualify the workload or execute Git"
+                    .to_owned(),
+        };
+        recomputation.recomputation_id = workload_activation_recomputation_digest(&recomputation);
+        recomputation.verify_for(execution, admission)?;
+        Ok(recomputation)
+    }
+
+    pub fn verify_for(
+        &self,
+        execution: &WorkloadActivationExecution,
+        admission: &WorkloadActivationAdmission,
+    ) -> Result<(), LocalWorkloadStateError> {
+        execution.verify_for(admission)?;
+        self.full_result.verify()?;
+        let full_evidence_bytes = serde_json::to_vec(&self.full_result)
+            .map_err(|_| LocalWorkloadStateError::InvalidActivationRecomputation)?
+            .len() as u64;
+        let declared_scenario_ids = admission
+            .declared_scenarios
+            .iter()
+            .map(|scenario| scenario.id.clone())
+            .collect::<Vec<_>>();
+        let declared_scenarios_match = self
+            .full_result
+            .scenarios
+            .iter()
+            .zip(&admission.declared_scenarios)
+            .all(|(result, declared)| result.scenario == *declared);
+        let comparisons = recomputation_comparisons(execution, &self.full_result)?;
+        let assessment = if comparisons.iter().all(|comparison| comparison.equivalent) {
+            WorkloadRecomputationAssessment::Equivalent
+        } else {
+            WorkloadRecomputationAssessment::Different
+        };
+        if self.schema != WORKLOAD_ACTIVATION_RECOMPUTATION_SCHEMA
+            || !is_semantic_digest(&self.recomputation_id)
+            || self.execution_id != execution.execution_id
+            || self.admission_id != admission.admission_id
+            || self.selected_result_id != execution.result.result_id
+            || self.full_result.workload != admission.workload
+            || self.full_result.graph != admission.graph
+            || self.full_result.scenario_suite != admission.scenario_suite
+            || self.full_result.evaluator != admission.evaluator
+            || self.full_result.capability_snapshot_id != admission.capability_snapshot_id
+            || self.full_result.selected_scenario_ids != declared_scenario_ids
+            || self.full_result.scenarios.len() != admission.declared_scenarios.len()
+            || !declared_scenarios_match
+            || self.full_evidence_bytes == 0
+            || self.full_evidence_bytes != full_evidence_bytes
+            || self.max_evidence_bytes == 0
+            || self.max_evidence_bytes > MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES
+            || self.full_evidence_bytes > self.max_evidence_bytes
+            || self.comparisons != comparisons
+            || self.assessment != assessment
+            || self.authority
+                != "comparison_evidence_only; recomputation does not qualify the workload or execute Git"
+            || self.recomputation_id != workload_activation_recomputation_digest(self)
+        {
+            return Err(LocalWorkloadStateError::InvalidActivationRecomputation);
+        }
+        Ok(())
+    }
+}
+
+fn recomputation_comparisons(
+    execution: &WorkloadActivationExecution,
+    full_result: &WorkloadScenarioExecutionResult,
+) -> Result<Vec<WorkloadScenarioRecomputationComparison>, LocalWorkloadStateError> {
+    execution.result.verify()?;
+    full_result.verify()?;
+    execution
+        .result
+        .scenarios
+        .iter()
+        .map(|selected| {
+            let full = full_result
+                .scenarios
+                .iter()
+                .find(|candidate| candidate.scenario.id == selected.scenario.id)
+                .ok_or(LocalWorkloadStateError::InvalidActivationRecomputation)?;
+            Ok(WorkloadScenarioRecomputationComparison {
+                scenario_id: selected.scenario.id.clone(),
+                selected_execution_id: selected.execution_id.clone(),
+                full_execution_id: full.execution_id.clone(),
+                equivalent: selected == full,
+            })
+        })
+        .collect()
 }
 
 impl WorkloadAdmissionSnapshot {
@@ -2158,6 +2337,8 @@ pub struct LocalWorkloadState {
     pub activation_admissions: Vec<WorkloadActivationAdmission>,
     #[serde(default)]
     pub activation_executions: Vec<WorkloadActivationExecution>,
+    #[serde(default)]
+    pub activation_recomputations: Vec<WorkloadActivationRecomputation>,
 }
 
 impl Default for LocalWorkloadState {
@@ -2170,6 +2351,7 @@ impl Default for LocalWorkloadState {
             records: BTreeMap::new(),
             activation_admissions: Vec::new(),
             activation_executions: Vec::new(),
+            activation_recomputations: Vec::new(),
         }
     }
 }
@@ -2194,6 +2376,11 @@ impl LocalWorkloadState {
         if self.activation_executions.len() > MAX_WORKLOAD_ACTIVATION_EXECUTIONS {
             return Err(LocalWorkloadStateError::ActivationExecutionLimit(
                 MAX_WORKLOAD_ACTIVATION_EXECUTIONS,
+            ));
+        }
+        if self.activation_recomputations.len() > MAX_WORKLOAD_ACTIVATION_RECOMPUTATIONS {
+            return Err(LocalWorkloadStateError::ActivationRecomputationLimit(
+                MAX_WORKLOAD_ACTIVATION_RECOMPUTATIONS,
             ));
         }
         verify_workload_commit_history(&self.commits)?;
@@ -2292,6 +2479,28 @@ impl LocalWorkloadState {
                 return Err(LocalWorkloadStateError::InvalidActivationExecution);
             }
             previous_execution = Some(execution.execution_id.as_str());
+        }
+        let mut previous_recomputation = None;
+        let mut recomputed_execution_ids = BTreeSet::new();
+        for recomputation in &self.activation_recomputations {
+            let execution = self
+                .activation_executions
+                .iter()
+                .find(|execution| execution.execution_id == recomputation.execution_id)
+                .ok_or(LocalWorkloadStateError::InvalidActivationRecomputation)?;
+            let admission = self
+                .activation_admissions
+                .iter()
+                .find(|admission| admission.admission_id == recomputation.admission_id)
+                .ok_or(LocalWorkloadStateError::InvalidActivationRecomputation)?;
+            recomputation.verify_for(execution, admission)?;
+            if previous_recomputation
+                .is_some_and(|previous| previous >= recomputation.recomputation_id.as_str())
+                || !recomputed_execution_ids.insert(recomputation.execution_id.clone())
+            {
+                return Err(LocalWorkloadStateError::InvalidActivationRecomputation);
+            }
+            previous_recomputation = Some(recomputation.recomputation_id.as_str());
         }
         Ok(())
     }
@@ -2672,6 +2881,66 @@ impl LocalWorkloadStore {
                 .sort_by(|left, right| left.execution_id.cmp(&right.execution_id));
             self.save(&state)?;
             Ok(execution)
+        })
+    }
+
+    pub fn retain_activation_recomputation(
+        &self,
+        recomputation: WorkloadActivationRecomputation,
+    ) -> Result<WorkloadActivationRecomputation, LocalWorkloadStateError> {
+        self.with_lock(|| {
+            let mut state = self.load()?;
+            let execution = state
+                .activation_executions
+                .iter()
+                .find(|execution| execution.execution_id == recomputation.execution_id)
+                .ok_or_else(|| {
+                    LocalWorkloadStateError::UnknownActivationExecution(
+                        recomputation.execution_id.clone(),
+                    )
+                })?;
+            let admission = state
+                .activation_admissions
+                .iter()
+                .find(|admission| admission.admission_id == recomputation.admission_id)
+                .ok_or_else(|| {
+                    LocalWorkloadStateError::UnknownActivationAdmission(
+                        recomputation.admission_id.clone(),
+                    )
+                })?;
+            recomputation.verify_for(execution, admission)?;
+            if state.commits.last().is_none_or(|head| {
+                head.commit_id != admission.workload_head_commit_id
+                    || head.snapshot.snapshot_revision != admission.workload_head_snapshot_id
+            }) {
+                return Err(LocalWorkloadStateError::ActivationPrecondition(
+                    "workload HEAD changed before full recomputation retention".to_owned(),
+                ));
+            }
+            if let Some(existing) = state
+                .activation_recomputations
+                .iter()
+                .find(|existing| existing.execution_id == recomputation.execution_id)
+            {
+                if existing == &recomputation {
+                    return Ok(existing.clone());
+                }
+                return Err(LocalWorkloadStateError::ActivationAlreadyRecomputed {
+                    execution_id: recomputation.execution_id.clone(),
+                    recomputation_id: existing.recomputation_id.clone(),
+                });
+            }
+            if state.activation_recomputations.len() >= MAX_WORKLOAD_ACTIVATION_RECOMPUTATIONS {
+                return Err(LocalWorkloadStateError::ActivationRecomputationLimit(
+                    MAX_WORKLOAD_ACTIVATION_RECOMPUTATIONS,
+                ));
+            }
+            state.activation_recomputations.push(recomputation.clone());
+            state
+                .activation_recomputations
+                .sort_by(|left, right| left.recomputation_id.cmp(&right.recomputation_id));
+            self.save(&state)?;
+            Ok(recomputation)
         })
     }
 
@@ -3341,6 +3610,8 @@ pub struct WorkloadList {
     pub activation_admissions: Vec<WorkloadActivationAdmission>,
     #[serde(default)]
     pub activation_executions: Vec<WorkloadActivationExecution>,
+    #[serde(default)]
+    pub activation_recomputations: Vec<WorkloadActivationRecomputation>,
     pub attention: WorkloadAttention,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<PortfolioReasoningEvidence>,
@@ -3375,6 +3646,7 @@ impl WorkloadList {
             drafts,
             activation_admissions,
             activation_executions,
+            activation_recomputations: Vec::new(),
             attention,
             runtime,
             semantic_atlas,
@@ -3385,6 +3657,15 @@ impl WorkloadList {
     #[must_use]
     pub fn with_revision(mut self, revision: WorkloadRevisionStatus) -> Self {
         self.revision = Some(revision);
+        self
+    }
+
+    #[must_use]
+    pub fn with_activation_recomputations(
+        mut self,
+        recomputations: Vec<WorkloadActivationRecomputation>,
+    ) -> Self {
+        self.activation_recomputations = recomputations;
         self
     }
 }
@@ -3861,6 +4142,28 @@ fn workload_activation_execution_digest(execution: &WorkloadActivationExecution)
     hasher.finish()
 }
 
+fn workload_activation_recomputation_digest(
+    recomputation: &WorkloadActivationRecomputation,
+) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(WORKLOAD_ACTIVATION_RECOMPUTATION_SCHEMA);
+    hasher.add_str(recomputation.execution_id.as_str());
+    hasher.add_str(recomputation.admission_id.as_str());
+    hasher.add_str(recomputation.selected_result_id.as_str());
+    hasher.add_str(recomputation.full_result.result_id.as_str());
+    hasher.add_u64(recomputation.full_evidence_bytes);
+    hasher.add_u64(recomputation.max_evidence_bytes);
+    hasher.add_u64(recomputation.comparisons.len() as u64);
+    for comparison in &recomputation.comparisons {
+        hasher.add_str(&comparison.scenario_id);
+        hasher.add_str(comparison.selected_execution_id.as_str());
+        hasher.add_str(comparison.full_execution_id.as_str());
+        hasher.add_bool(comparison.equivalent);
+    }
+    hasher.add_str(recomputation.assessment.as_str());
+    hasher.add_str(&recomputation.authority);
+    hasher.finish()
+}
+
 fn normalize_workload_commit_message(message: String) -> Result<String, LocalWorkloadStateError> {
     let normalized = message.trim().to_owned();
     if normalized.is_empty()
@@ -3980,6 +4283,8 @@ pub enum LocalWorkloadStateError {
     InvalidActivationAdmission,
     #[error("workload activation execution is invalid, over budget, or has been tampered with")]
     InvalidActivationExecution,
+    #[error("workload activation full recomputation is invalid or has been tampered with")]
+    InvalidActivationRecomputation,
     #[error("workload activation admission precondition failed: {0}")]
     ActivationPrecondition(String),
     #[error("local workload state exceeds {0} activation admissions")]
@@ -3995,11 +4300,26 @@ pub enum LocalWorkloadStateError {
     UnknownActivationAdmission(SemanticDigest),
     #[error("local workload state exceeds {0} activation executions")]
     ActivationExecutionLimit(usize),
+    #[error("unknown workload activation execution {0}")]
+    UnknownActivationExecution(SemanticDigest),
     #[error("workload activation admission {admission_id} already executed as {execution_id}")]
     ActivationAlreadyExecuted {
         admission_id: SemanticDigest,
         execution_id: SemanticDigest,
     },
+    #[error("local workload state exceeds {0} activation full recomputations")]
+    ActivationRecomputationLimit(usize),
+    #[error(
+        "workload activation execution {execution_id} already has full recomputation proof {recomputation_id}"
+    )]
+    ActivationAlreadyRecomputed {
+        execution_id: SemanticDigest,
+        recomputation_id: SemanticDigest,
+    },
+    #[error(
+        "workload activation full recomputation evidence uses {observed} bytes, exceeding the {limit}-byte limit"
+    )]
+    ActivationRecomputationBudget { observed: u64, limit: u64 },
     #[error("state record key {key} does not match artifact workload {artifact}")]
     RecordIdentity { key: String, artifact: String },
     #[error("unsupported workload admission snapshot schema {0}")]

@@ -49,9 +49,10 @@ inputs. Bounded mapped-surface and acknowledged-Git dependency invalidation,
 the generic attention/frontier handoff, and one immutable harness response
 cycle are also delivered. Acknowledged Git proposals now cross an exact
 workload admission and selected-scenario execution with exact evidence caps,
-idempotent retained replay, and no qualification substitution. Remaining work
-in this phase concerns full-recomputation proof, retry/cancellation-aware
-recurring execution, and broader provider behavior. Bounded Git cadence now
+idempotent retained replay, no qualification substitution, and an exact
+selected-versus-full recomputation proof. Remaining work in this phase concerns
+retry/cancellation-aware recurring execution and broader provider behavior.
+Bounded Git cadence now
 retains every observation and explicit stop receipt, and compatible proposals
 within one retained transition reuse exact execution evidence under the
 stricter receiving budget; cross-poll debounce does not.

@@ -18,9 +18,10 @@ use rey::git::{
 };
 use rey::workloads::{
     QualificationState, WorkloadActivationAdmission, WorkloadActivationExecution,
-    WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
-    WorkloadLog, WorkloadOrigin, WorkloadProposalKind, WorkloadRevisionStatus, WorkloadRunView,
-    WorkloadStatusBatch, WorkloadTestBatch,
+    WorkloadActivationRecomputation, WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult,
+    WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin, WorkloadProposalKind,
+    WorkloadRecomputationAssessment, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
+    WorkloadTestBatch,
 };
 use rey_core::ContractIdentity;
 use rey_git::{
@@ -2162,6 +2163,83 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         );
     }
 
+    let recomputation_over_budget = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "verify-activation",
+        executed.execution_id.as_str(),
+        "--max-evidence-bytes",
+        "1",
+    ]);
+    assert_eq!(recomputation_over_budget.status.code(), Some(1));
+    assert!(recomputation_over_budget.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&recomputation_over_budget.stderr)
+            .contains("full recomputation evidence uses")
+    );
+
+    let recomputed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "verify-activation",
+        executed.execution_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(
+        recomputed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&recomputed.stderr)
+    );
+    let recomputed: WorkloadActivationRecomputation =
+        serde_json::from_slice(&recomputed.stdout).unwrap();
+    assert_eq!(
+        recomputed.assessment,
+        WorkloadRecomputationAssessment::Equivalent
+    );
+    assert_eq!(recomputed.execution_id, executed.execution_id);
+    assert_eq!(recomputed.admission_id, admitted.admission_id);
+    assert_eq!(recomputed.selected_result_id, executed.result.result_id);
+    assert_eq!(recomputed.comparisons.len(), 1);
+    assert!(recomputed.comparisons[0].equivalent);
+    assert_eq!(recomputed.full_result.selected_scenario_ids.len(), 2);
+    assert_eq!(recomputed.full_result.scenarios.len(), 2);
+    assert_eq!(
+        recomputed.full_result.capability_snapshot_id,
+        admitted.capability_snapshot_id
+    );
+    assert_eq!(
+        recomputed.authority,
+        "comparison_evidence_only; recomputation does not qualify the workload or execute Git"
+    );
+
+    let recomputation_replay = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "verify-activation",
+        executed.execution_id.as_str(),
+        "--format",
+        "table",
+    ]);
+    assert!(recomputation_replay.status.success());
+    let recomputation_replay = String::from_utf8(recomputation_replay.stdout).unwrap();
+    for evidence in [
+        "WORKLOAD ACTIVATION FULL RECOMPUTATION",
+        "EQUIVALENT",
+        "retained proof replayed · scenarios were not executed again",
+        recomputed.recomputation_id.as_str(),
+        "1 selected compared · 2 fully recomputed",
+        "qualification unchanged",
+    ] {
+        assert!(
+            recomputation_replay.contains(evidence),
+            "missing activation recomputation evidence: {evidence}"
+        );
+    }
+
     let duplicate_admission = run_rey_workspace(&[
         "workloads",
         "--workspace",
@@ -2209,6 +2287,10 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     assert!(listed.activation_executions.contains(&executed));
     assert!(listed.activation_executions.contains(&coalesced));
     assert_eq!(
+        listed.activation_recomputations.as_slice(),
+        std::slice::from_ref(&recomputed)
+    );
+    assert_eq!(
         listed.workloads[0].last_test_result_id,
         Some(original_test_id)
     );
@@ -2223,12 +2305,14 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     ]);
     let human = String::from_utf8(human.stdout).unwrap();
     for evidence in [
-        "3 Git activations · 2 executed",
+        "3 Git activations · 2 executed · 1 full recomputation proof",
         "EXECUTED",
         "COALESCED",
         executed.execution_id.as_str(),
         coalesced.execution_id.as_str(),
         "graph not rerun",
+        "FULL EQUIVALENT",
+        recomputed.recomputation_id.as_str(),
         "qualification unchanged",
     ] {
         assert!(
@@ -2247,9 +2331,18 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     assert!(tampered.stdout.is_empty());
     assert!(String::from_utf8_lossy(&tampered.stderr).contains("tampered"));
 
-    fs::write(&state_path, original_state).unwrap();
+    fs::write(&state_path, &original_state).unwrap();
     let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
     state["activation_executions"][0]["evidence_bytes"] = 1.into();
+    fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+    let tampered = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert_eq!(tampered.status.code(), Some(1));
+    assert!(tampered.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&tampered.stderr).contains("tampered"));
+
+    fs::write(&state_path, &original_state).unwrap();
+    let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state["activation_recomputations"][0]["authority"] = "tampered".into();
     fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
     let tampered = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
     assert_eq!(tampered.status.code(), Some(1));
