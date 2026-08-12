@@ -272,9 +272,12 @@ WORKING only through the same validator/store under exact expected HEAD and
 WORKING snapshot preconditions. Feed selects detached URL preview, WORKING,
 HEAD, then built-in layout state; deliberate adoption and stable
 pointer/keyboard movement use that same conditional WORKING write and retain
-typed deltas or rollback failures. The richer observation frontier, broadcast,
-Journal seeding, resident beacon scheduling, and remote inbound cursors remain
-planned behavior.
+typed deltas or rollback failures. A separate tamper-detecting observation log
+now owns immutable statements, exact source/evidence bindings, Channel
+admission edges, retained partial broadcast receipts, single supersession or
+resolution closure, and the bounded collaboration frontier. Its CLI and browser
+projections, Journal seeding, resident beacon scheduling, and remote inbound
+cursors remain planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Define immutable standalone observations, channel admissions, resolution/supersession, and a bounded collaboration frontier without folding them into Channel INDEX or Journal. | Implemented Channel CLI and operator status/WORKING projection, Feed layout adoption/movement, Journal, runtime evidence, and workload/policy admission boundary. |
+| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Expose the immutable observation/frontier store through high-fidelity CLI add/list/show/resolve paths and explicit bounded local broadcast. | Implemented Channel CLI and operator status/WORKING projection, Feed layout adoption/movement, observation contracts/store, Journal, runtime evidence, and workload/policy admission boundary. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their

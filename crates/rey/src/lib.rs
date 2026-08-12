@@ -6,6 +6,7 @@ pub mod env;
 pub mod git;
 pub mod ignore;
 pub mod journal;
+pub mod observations;
 pub mod workloads;
 
 use std::path::Path;

@@ -149,8 +149,9 @@ CLI. The browser now projects bounded Channel status and conditionally replaces
 WORKING under exact preconditions. Feed layout precedence, deliberate adoption,
 stable pointer/keyboard movement, semantic-delta reporting, and failed-write
 rollback are delivered over that boundary.
-[Plan 0002](../plans/0002-collaboration-loop.md) owns standalone observations,
-Journal seeding, exact evidence routes, and the conversation boundary.
+[Plan 0002](../plans/0002-collaboration-loop.md) owns observation CLI/browser
+projection, Journal seeding, exact evidence routes, and the conversation
+boundary.
 
 - Define stable channels, standalone Channel observations, observation
   admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and
@@ -158,10 +159,9 @@ Journal seeding, exact evidence routes, and the conversation boundary.
 - Preserve the delivered Feed composition and pointer/keyboard stream movement
   through the same typed working state while retaining URL layouts as detached
   previews.
-- Admit compact observations independently of the Channel topology index,
-  derive the unresolved collaboration frontier, and broadcast one observation
-  identity to the visible bounded local default channel set without granting
-  execution authority.
+- Project the delivered immutable observation/admission/resolution/frontier
+  store through high-fidelity CLI and browser paths; preserve its retained
+  partial broadcast outcomes without granting execution authority.
 - Project selected exact observations into an unretained Journal seed for
   catch-up; require normal Journal admission before it becomes a retained entry.
 - Extend the implemented exact direct relay only after remote provider, cursor,

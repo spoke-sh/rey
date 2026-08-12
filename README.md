@@ -100,7 +100,9 @@ Rey organizes collaboration around two clients with one evidence plane:
   addressable human/agent synthesis; Channels exposes the exact collaboration
   topology and a bounded WORKING-only editor. Feed resolves detached URL
   previews ahead of Channel WORKING, HEAD, and built-in layouts; adoption and
-  stream movement remain explicit WORKING-only writes.
+  stream movement remain explicit WORKING-only writes. Immutable observations,
+  their local Channel-admission edges, partial broadcast receipts, and catch-up
+  frontier remain a separate bounded state plane.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

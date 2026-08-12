@@ -21,11 +21,14 @@ the shared validator and store. Feed resolves URL preview, WORKING, HEAD, and
 built-in layouts in order; URL edits remain detached until explicit adoption,
 while stable pointer or keyboard movement conditionally writes WORKING, reports
 the semantic delta, and rolls back on rejection. Neither browser path grants
-INDEX, HEAD, relay, or execution authority. Journal v2 retains immutable
-broadsheet documents and superseding revisions. No standalone
-observation/frontier contract exists, Journal action cells are inert, exact
-scenario/delta routes are absent, and the footer conversation composer
-correctly remains disabled.
+INDEX, HEAD, relay, or execution authority. A separate bounded local store now
+retains immutable observations, exact evidence/source and limit bindings,
+Channel admission edges, idempotent partial broadcast receipts, single
+supersession or resolution closure, and the unresolved collaboration frontier;
+its CLI and browser projections remain to be delivered. Journal v2 retains
+immutable broadsheet documents and superseding revisions. Journal action cells
+are inert, exact scenario/delta routes are absent, and the footer conversation
+composer correctly remains disabled.
 
 ## Completion Checklist
 
@@ -41,7 +44,7 @@ correctly remains disabled.
 
 ### 2. Admit one collaboration observation
 
-- [ ] Define immutable observation, channel-admission, resolution,
+- [x] Define immutable observation, channel-admission, resolution,
   supersession, and bounded frontier contracts separately from Channel graph
   INDEX and from Journal documents.
 - [ ] Implement high-fidelity CLI add/list/show paths, exact evidence/source

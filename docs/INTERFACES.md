@@ -1039,9 +1039,15 @@ write WORKING only; INDEX, HEAD, relay, and execution remain CLI/runtime
 boundaries. Feed layout resolution, deliberate adoption, and stable
 pointer/keyboard reorder persistence are implemented through that boundary.
 Remote inbound polling, resident scheduling, and the richer
-`rey observations add|list|show` frontier remain planned.
-Planned observation broadcast associates one observation identity with explicit
-local channels. `rey journal seed` and
+`rey observations add|list|show|resolve` rendering remain planned. The
+underlying observation store now retains immutable content-derived
+observations separately from Channel topology and Journal, exact
+locator/revision/digest evidence plus source-file bindings, self-asserted author
+labels, completeness/omissions/limits, one supersession or resolution closure,
+and a bounded oldest-open-first frontier. Its local broadcast associates one
+observation identity with a canonical explicit target set and retains exact
+graph/HEAD bindings plus typed partial outcomes without copying content or
+granting relay authority. `rey journal seed` and
 `/journal/new?observations=...` project selected exact observations into an
 unretained catch-up proposal; only normal Journal admission creates an entry.
 Relay declarations do not enable transport until a provider contract is

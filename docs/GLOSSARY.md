@@ -212,10 +212,12 @@ progress.
 
 ### Broadcast
 
-Planned channel admission of one immutable Channel-observation identity to an
-explicit bounded set of channels. Broadcast retains channel-local admission
-edges rather than copying observation content, and it grants no action,
-assignment, proof, relay, or remote-delivery authority.
+Channel admission of one immutable Channel-observation identity to an explicit
+bounded set of local channels. The implemented observation store retains the
+exact request and typed per-target `admitted`, `already_admitted`,
+`unknown_channel`, or `rejected_kind` outcomes. Broadcast retains channel-local
+admission edges rather than copying observation content, and it grants no
+action, assignment, proof, relay, or remote-delivery authority.
 
 ### Budget
 
@@ -311,24 +313,26 @@ retention-neutral.
 ### Channel
 
 A stable addressable workspace collaboration boundary. The implemented
-built-in graph defines one workspace-local channel; later admission logs will
-associate observations with exact channel revisions. A channel owns admission
-and subscription scope, not observation or Journal content, runtime action, or
-a universal event clock. Feed streams may subscribe to channels but are not
-channels themselves.
+built-in graph defines one workspace-local channel; the separate observation
+log associates observations with exact graph and optional HEAD revisions. A
+channel owns admission and subscription scope, not observation or Journal
+content, runtime action, or a universal event clock. Feed streams may subscribe
+to channels but are not channels themselves.
 
 ### Channel admission
 
-The planned association of one exact Channel observation with one exact channel
-at a channel-local sequence position. It preserves observation identity and
-bounds; admission does not authenticate the author or grant compute/effect
-authority.
+The implemented association of one exact Channel observation with one exact
+local channel at a log sequence position. It preserves observation identity,
+Channel graph/HEAD binding, and bounds; admission does not authenticate the
+author or grant compute/effect authority.
 
 ### Channel frontier
 
-The planned bounded deterministic projection of retained Channel observations
-that have not been resolved or superseded by exact later observation relations.
-It represents the collaboration catch-up surface and does not replace Rey's
+The implemented bounded deterministic projection of retained Channel
+observations that have not been resolved or superseded by exact later
+observation relations. It reports completeness, omissions, status counts,
+exact records, and local Channel admissions in observation-sequence order. It
+represents the collaboration catch-up surface and does not replace Rey's
 runtime frontier or make an observation schedulable work.
 
 ### Channel graph
@@ -350,11 +354,12 @@ graph file. Partial staging remains planned.
 
 ### Channel observation
 
-A planned compact immutable collaboration statement retained independently
-from the Journal. It binds an exact subject locator, bounded kind and statement,
-desired delta or frontier relation, evidence locators, source revision, author
-label, completeness/limits, and exact resolution or supersession relations.
-Findings, questions, progress, blockers, and handoffs are common kinds.
+An implemented compact immutable collaboration statement retained
+independently from Channel topology and the Journal. It binds an exact subject
+locator, bounded kind and statement, optional desired delta, exact evidence
+locators/revisions/digests, source file identity, self-asserted author label,
+completeness/omissions/limits, and exact resolution or supersession relations.
+Findings, questions, progress, blockers, and handoffs are the admitted kinds.
 
 ### Claim
 

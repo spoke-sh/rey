@@ -37,6 +37,7 @@ is which.
 | [Locators](LOCATORS.md) | Canonical candidate addresses, bounded resolution outcomes, and the distinction between locating and reading. |
 | [Git](GIT.md) | Repository identity, refs, commits, semantic index state, polling cursors, ref movement, and workload activation. |
 | [Journal](JOURNAL.md) | Retained human/agent synthesis, typed notebook blocks, exact browser addresses, admission, and its deliberately narrow authority. |
+| [Observations](OBSERVATIONS.md) | Immutable collaboration statements, exact evidence/source bindings, Channel-admission edges, retained partial broadcast outcomes, resolution/supersession, and the bounded catch-up frontier. |
 
 ## Interfaces And Delivery
 
