@@ -47,12 +47,13 @@ The default shell contains:
 - `rust-analyzer`;
 - `cargo-nextest`;
 - Node.js 24 and pnpm for the embedded operator UI;
+- `actionlint` for GitHub Actions workflow validation;
 - `just`, Git, curl, jq, and certificate roots;
 - `mold` on Linux; and
 - Alejandra as the Nix formatter.
 
-The CI shell omits `rust-analyzer` but keeps the compiler, formatter, linter,
-test runner, Nix formatter, and basic command-line tools.
+The CI shell omits `rust-analyzer` but keeps the compiler, formatter, Clippy,
+Actionlint, test runner, Nix formatter, and basic command-line tools.
 
 ## Cache And Temporary Directories
 
@@ -83,10 +84,10 @@ checks.dev-wrapper      proves the development wrapper
 formatter               Alejandra
 ```
 
-The development wrapper includes Rust, Cargo, Just, Nix, Alejandra, nextest,
-and the base command-line tools in its runtime closure, so `nix run .#dev --
-setup` works without first entering `nix develop`. It deliberately omits
-editor-only rust-analyzer.
+The development wrapper includes Rust, Cargo, Just, Nix, Alejandra, Actionlint,
+nextest, and the base command-line tools in its runtime closure, so `nix run
+.#dev -- setup` works without first entering `nix develop`. It deliberately
+omits editor-only rust-analyzer.
 
 ## Canonical Tasks
 
