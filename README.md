@@ -104,7 +104,8 @@ Rey organizes collaboration around two clients with one evidence plane:
   their local Channel-admission edges, partial broadcast receipts, and catch-up
   frontier remain a separate bounded state plane; Feed and mailbox read that
   unresolved frontier without adding unread, priority, assignment, action, or
-  proof state.
+  proof state. Selected exact unresolved observations can seed a deterministic
+  unretained Journal proposal; only ordinary Journal admission retains it.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

@@ -199,17 +199,28 @@ carry no execution authority.
 
 Journal remains separate from Channel topology and immutable Channel messages.
 The implemented `rey channels message|relay|beacon` paths do not create or
-revise Journal documents. The planned richer observation contract is a
-standalone frontier statement with exact evidence and source bindings; a
-Journal is deliberate notebook synthesis that may cite several observations.
-A broadcast will retain one observation and associate its identity with one or
-more explicit local channels without creating or duplicating a Journal entry.
-`rey journal seed <observation-id>...` and
-`/journal/new?observations=...` will create deterministic, unretained catch-up
-proposals that preserve exact observation citations. Only ordinary Journal
-admission creates an entry. This observation and seed boundary is owned by
-[Plan 0002](../plans/0002-collaboration-loop.md) and is not part of the current
-Journal commands or HTTP endpoint.
+revise Journal documents. The standalone observation frontier retains exact
+evidence and source bindings; a Journal is deliberate notebook synthesis that
+may cite several observations. A broadcast associates one retained observation
+identity with explicit local channels without creating or duplicating a
+Journal entry.
+
+`rey journal seed <observation-id>... --author <agent-id>` and
+`/journal/new?observations=<id>[,<id>]` use the same deterministic
+`rey.journal-seed.v1` projection. It accepts 1–16 unique exact unresolved
+identities, canonicalizes them by local observation sequence, binds the exact
+observation-log revision, and emits one valid broadsheet proposal containing
+exact observation/source/evidence citations within the ordinary 1 MiB proposal
+bound. Seed identity covers that source log,
+canonical selection, author, and complete proposal. The CLI accepts an agent
+author label; the browser derives the self-asserted human `operator` label and
+opens the same live editor for review.
+
+Seeding is read-only and creates no Journal state. A closed, unknown,
+duplicate, malformed, or over-limit selection is rejected. Only ordinary
+`rey journal add` or browser `POST /api/v1/journal` validation and admission
+can retain the proposal. This observation and seed boundary is owned by
+[Plan 0002](../plans/0002-collaboration-loop.md).
 
 ## Example Agent Proposal
 

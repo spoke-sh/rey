@@ -23,6 +23,7 @@ import {
   loadEnvironment,
   loadFeed,
   loadJournal,
+  loadJournalSeed,
   loadPortfolio,
   writeChannelWorking,
   type OperatorContext,
@@ -107,6 +108,27 @@ export function normalizeExplorerSearch(search: Record<string, unknown>): {
       : {}),
     ...(typeof scale === "string" && scale.length <= 64 ? { scale } : {}),
   };
+}
+
+export function journalSeedObservationIds(value: unknown): string[] {
+  if (typeof value !== "string" || value.length > 1_200) return [];
+  const ids = value.split(",");
+  if (
+    ids.length === 0 ||
+    ids.length > 16 ||
+    new Set(ids).size !== ids.length ||
+    ids.some((id) => !/^blake3:[0-9a-f]{64}$/.test(id))
+  ) {
+    return [];
+  }
+  return ids;
+}
+
+export function normalizeJournalNewSearch(search: Record<string, unknown>): {
+  observations?: string;
+} {
+  const ids = journalSeedObservationIds(search.observations);
+  return ids.length > 0 ? { observations: ids.join(",") } : {};
 }
 
 export function activateCommunicationAxis(
@@ -1150,15 +1172,16 @@ function AgentsRoutePage() {
 }
 
 function JournalNewRoutePage() {
-  const initialJournal = journalNewRoute.useLoaderData();
+  const initial = journalNewRoute.useLoaderData();
   const { document: journal, publish } = usePassiveDocument(
-    initialJournal,
+    initial.journal,
     loadJournal,
   );
   const navigate = journalNewRoute.useNavigate();
   return (
     <JournalNewPage
       binding={defaultJournalBinding(usePortfolio())}
+      seed={initial.seed}
       onAdmit={async (proposal) => {
         const admission = await admitJournalEntry(proposal);
         publish({ ...journal, log: admission.log });
@@ -1257,7 +1280,18 @@ const agentsRoute = createRoute({
 const journalNewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "journal/new",
-  loader: loadJournal,
+  validateSearch: normalizeJournalNewSearch,
+  loaderDeps: ({ search }) => ({ observations: search.observations }),
+  loader: async ({ deps }) => {
+    const observationIds = journalSeedObservationIds(deps.observations);
+    const [journal, seed] = await Promise.all([
+      loadJournal(),
+      observationIds.length > 0
+        ? loadJournalSeed(observationIds)
+        : Promise.resolve(null),
+    ]);
+    return { journal, seed };
+  },
   component: JournalNewRoutePage,
 });
 

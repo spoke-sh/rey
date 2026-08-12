@@ -159,11 +159,11 @@ boundary.
 - Preserve the delivered Feed composition and pointer/keyboard stream movement
   through the same typed working state while retaining URL layouts as detached
   previews.
-- Project the delivered immutable observation/admission/resolution/frontier
-  CLI through Feed and mailbox; preserve its retained partial broadcast
-  outcomes without granting execution authority.
-- Project selected exact observations into an unretained Journal seed for
-  catch-up; require normal Journal admission before it becomes a retained entry.
+- Preserve the delivered immutable observation/admission/resolution/frontier
+  CLI and Feed/mailbox projection, including retained partial broadcast
+  outcomes, without granting execution authority.
+- Preserve the delivered exact-observation Journal seeds as unretained catch-up
+  proposals; require normal Journal admission before one becomes an entry.
 - Extend the implemented exact direct relay only after remote provider, cursor,
   hop, idempotency, loop-prevention, delivery, and omission contracts are
   accepted and proved.

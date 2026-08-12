@@ -691,7 +691,7 @@ export function deriveFeedEvents(
       occurredAt: null,
       sortTime: null,
       sourceOrder: sourceOrder++,
-      href: null,
+      href: `/journal/new?observations=${encodeURIComponent(observation.observation_id)}`,
       kind: "observation",
       repository: null,
       journalEntry: null,
@@ -2234,7 +2234,7 @@ function eventIdentity(event: FeedEvent): string {
 }
 
 function postAction(event: FeedEvent): string {
-  if (event.kind === "observation") return "UNRESOLVED";
+  if (event.kind === "observation") return "SYNTHESIZE IN JOURNAL";
   if (event.kind === "journal") return "OPEN ENTRY";
   if (event.kind === "git") return "INSPECT CADENCE";
   return "OPEN ENVIRONMENT";

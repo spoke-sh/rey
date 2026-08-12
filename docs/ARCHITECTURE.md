@@ -276,8 +276,9 @@ typed deltas or rollback failures. A separate tamper-detecting observation log
 now owns immutable statements, exact source/evidence bindings, Channel
 admission edges, retained partial broadcast receipts, single supersession or
 resolution closure, and the bounded collaboration frontier. Its CLI exposes
-add/list/show/resolve and exact partial broadcast receipts. Browser projection,
-Journal seeding, resident beacon scheduling, and remote inbound cursors remain
+add/list/show/resolve and exact partial broadcast receipts. Browser Feed and
+mailbox projection plus deterministic unretained Journal seeding are
+implemented. Resident beacon scheduling and remote inbound cursors remain
 planned behavior.
 
 Hifi's

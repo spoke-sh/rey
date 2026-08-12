@@ -10,6 +10,7 @@ import type {
   JournalAdmission,
   JournalEntryProposal,
   JournalProjection,
+  JournalSeed,
 } from "./journal";
 import type { ObservationFrontier } from "./observations";
 
@@ -152,6 +153,24 @@ export async function loadJournal(): Promise<JournalProjection> {
     throw new Error(`Journal request failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as JournalProjection;
+}
+
+export async function loadJournalSeed(
+  observationIds: string[],
+): Promise<JournalSeed> {
+  const query = new URLSearchParams({
+    observations: observationIds.join(","),
+  });
+  const response = await fetch(`/api/v1/journal/seed?${query}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Journal seed request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as JournalSeed;
 }
 
 export async function admitJournalEntry(

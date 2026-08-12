@@ -1099,6 +1099,51 @@ fn observations_cli_admits_broadcasts_projects_and_resolves_exact_state() {
     assert_eq!(frontier.summary.unresolved, 1);
     assert_eq!(frontier.rows[0].channel_ids, ["workspace"]);
 
+    let seeded = run_rey(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "seed",
+        admitted.observation.observation_id.as_str(),
+        "--author",
+        "codex",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        seeded.status.success(),
+        "{}",
+        String::from_utf8_lossy(&seeded.stderr)
+    );
+    let seed: rey::journal_seed::JournalSeed = serde_json::from_slice(&seeded.stdout).unwrap();
+    assert_eq!(
+        seed.observation_ids.as_slice(),
+        std::slice::from_ref(&admitted.observation.observation_id)
+    );
+    assert_eq!(
+        seed.proposal.author.kind,
+        rey::journal::JournalAuthorKind::Agent
+    );
+    assert_eq!(seed.proposal.blocks.len(), 2);
+    assert!(!workspace.path().join(".rey/journal/journal.json").exists());
+    let seed_table = run_rey(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "seed",
+        admitted.observation.observation_id.as_str(),
+        "--author",
+        "codex",
+        "--format",
+        "table",
+    ]);
+    assert!(seed_table.status.success());
+    let seed_table = String::from_utf8(seed_table.stdout).unwrap();
+    assert!(seed_table.contains("JOURNAL SEED · UNRETAINED"));
+    assert!(seed_table.contains(seed.seed_id.as_str()));
+    assert!(seed_table.contains("ordinary journal add/admission required"));
+    assert!(!workspace.path().join(".rey/journal/journal.json").exists());
+
     let shown = run_rey(&[
         "observations",
         "--workspace",
@@ -1142,6 +1187,18 @@ fn observations_cli_admits_broadcasts_projects_and_resolves_exact_state() {
         rey::observations::ObservationState::Resolved
     );
     assert_eq!(resolved.frontier.summary.unresolved, 0);
+    let closed_seed = run_rey(&[
+        "journal",
+        "--workspace",
+        workspace_path,
+        "seed",
+        admitted.observation.observation_id.as_str(),
+        "--author",
+        "codex",
+    ]);
+    assert_eq!(closed_seed.status.code(), Some(1));
+    assert!(closed_seed.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&closed_seed.stderr).contains("resolved, not unresolved"));
 }
 
 #[test]
@@ -4992,7 +5049,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Workload admission     ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
         "Channel write          ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         UNBOUND · ",
     ] {

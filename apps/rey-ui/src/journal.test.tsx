@@ -14,6 +14,7 @@ import {
   parseJournalProse,
   resolveJournalEntry,
   type JournalEntryProposal,
+  type JournalSeed,
   type RetainedJournalEntry,
 } from "./journal";
 
@@ -127,6 +128,26 @@ describe("collaboration Journal", () => {
       expect(markup).toContain("WORKING Δ");
       expect(markup).toContain("+ ADD TYPED CELL");
     }
+  });
+
+  it("opens an exact observation seed as an unretained editable proposal", () => {
+    const seeded = seed();
+    const markup = renderToStaticMarkup(
+      createElement(JournalNewPage, {
+        binding: defaultJournalBinding(portfolio()),
+        seed: seeded,
+        onAdmit: async () => entry(),
+        onClose: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain("1 EXACT OBSERVATIONS · UNRETAINED SEED");
+    expect(markup).toContain("SEED / seed");
+    expect(markup).toContain("PROPOSAL ONLY · REVIEW BEFORE RECORDING");
+    expect(markup).toContain("Catch up on 1 unresolved observation");
+    expect(markup).toContain("A retained delta remains unresolved.");
+    expect(markup).toContain('value="operator"');
+    expect(markup).toContain("RECORD ENTRY");
   });
 
   it("links immutable supersession edges on the retained plane", () => {
@@ -308,6 +329,58 @@ function portfolio(): WorkloadList {
         owned_surfaces: 0,
         unowned_surfaces: 0,
       },
+    },
+  };
+}
+
+function seed(): JournalSeed {
+  const coordinate =
+    "rey+local://document/observation-frontier?revision=blake3%3Alog";
+  return {
+    schema: "rey.journal-seed.v1",
+    seed_id: "blake3:seed",
+    source_log_id: "blake3:log",
+    observation_ids: ["blake3:observation"],
+    proposal: {
+      schema: "rey.journal-entry-proposal.v2",
+      title: "Catch up on 1 unresolved observation",
+      author: { kind: "human", id: "operator" },
+      binding: { coordinate, scale: 1, source_revision: "blake3:log" },
+      supersedes: null,
+      layout: {
+        kind: "broadsheet",
+        columns: 12,
+        bands: [
+          {
+            id: "observation-1",
+            cells: [
+              { block_id: "observation-1-context", span: 8 },
+              { block_id: "observation-1-source", span: 4 },
+            ],
+          },
+        ],
+      },
+      blocks: [
+        {
+          kind: "prose",
+          id: "observation-1-context",
+          document: [
+            {
+              kind: "paragraph",
+              text: "A retained delta remains unresolved.",
+            },
+          ],
+        },
+        {
+          kind: "explore",
+          id: "observation-1-source",
+          coordinate:
+            "rey+local://document/observation-blake3%3Aobservation?revision=blake3%3Aobservation",
+          scale: 1,
+          source_revision: "blake3:observation",
+          caption: "Exact observation",
+        },
+      ],
     },
   };
 }

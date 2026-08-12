@@ -389,6 +389,9 @@ operation; `rey workloads run --help` is the exact flag reference.
 ```text
 rey journal [--workspace PATH] [--state-dir PATH] add PROPOSAL.yaml
 rey journal [--workspace PATH] [--state-dir PATH] list
+rey journal [--workspace PATH] [--state-dir PATH]
+  [--observation-state-dir PATH] seed OBSERVATION_ID...
+  --author AGENT_ID [--format table|json]
 ```
 
 `add` validates and idempotently retains one workspace-contained
@@ -397,6 +400,10 @@ block in the bounded 12-column broadsheet, but admission executes none of them.
 Humans author or supersede entries through the same live document surface at
 `/journal/new` and `/journal/{slug}`. `list` exposes retained entries in
 admission order, including exact revision, band, cell-kind, and span structure.
+`seed` selects 1–16 unique exact unresolved observations, canonicalizes them by
+observation sequence, and emits a content-identified valid broadsheet proposal.
+It is read-only and unretained; normal `journal add` validation and admission
+are still required to create a Journal entry.
 
 ### `rey observations`
 

@@ -52,9 +52,10 @@ use rey::{
     },
     inspect_environment, inspect_environment_with_mapping,
     journal::{
-        JournalAdmission, JournalAuthorKind, JournalBlock, JournalEntryProposal, JournalError,
-        JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
+        JournalAdmission, JournalAuthor, JournalAuthorKind, JournalBlock, JournalEntryProposal,
+        JournalError, JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
+    journal_seed::{JournalSeed, JournalSeedError},
     observations::{
         DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore, MAX_OBSERVATION_INPUT_BYTES,
         ObservationBroadcast, ObservationDetail, ObservationError, ObservationFrontier,
@@ -661,6 +662,10 @@ struct JournalArgs {
     #[arg(long, global = true)]
     state_dir: Option<PathBuf>,
 
+    /// Explicit local observation-state directory used by seed; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    observation_state_dir: Option<PathBuf>,
+
     #[command(subcommand)]
     command: JournalCommand,
 }
@@ -671,6 +676,8 @@ enum JournalCommand {
     Add(JournalAddArgs),
     /// List retained journal entries in admission order.
     List(JournalListArgs),
+    /// Project exact unresolved observations into a deterministic unretained proposal.
+    Seed(JournalSeedArgs),
 }
 
 #[derive(Debug, Args)]
@@ -685,6 +692,21 @@ struct JournalAddArgs {
 
 #[derive(Debug, Args)]
 struct JournalListArgs {
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct JournalSeedArgs {
+    /// Exact unresolved observation digest; repeat positionally to compose a bounded seed.
+    #[arg(required = true, num_args = 1..)]
+    observation_ids: Vec<String>,
+
+    /// Self-asserted agent author label for the unretained proposal.
+    #[arg(long, required = true)]
+    author: String,
+
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
@@ -2210,10 +2232,41 @@ fn journal_command(args: JournalArgs) -> Result<ExitCode, CliError> {
         Some(path) => LocalJournalStore::new(workspace.join(path)),
         None => LocalJournalStore::default_for_workspace(&workspace),
     };
+    let observation_store = match args.observation_state_dir {
+        Some(path) if path.is_absolute() => LocalObservationStore::new(path),
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => LocalObservationStore::new(workspace.join(path)),
+        None => LocalObservationStore::default_for_workspace(&workspace),
+    };
     match args.command {
         JournalCommand::Add(command) => journal_add(&store, &workspace, command),
         JournalCommand::List(command) => journal_list(&store, command),
+        JournalCommand::Seed(command) => journal_seed(&observation_store, command),
     }
+}
+
+fn journal_seed(
+    observation_store: &LocalObservationStore,
+    args: JournalSeedArgs,
+) -> Result<ExitCode, CliError> {
+    let log = observation_store.load()?;
+    let seed = JournalSeed::from_log(
+        &log,
+        &args.observation_ids,
+        JournalAuthor {
+            kind: JournalAuthorKind::Agent,
+            id: args.author,
+        },
+    )?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &seed)?,
+        WorkloadOutputFormat::Table => write_journal_seed(&mut stdout, &seed)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn journal_add(
@@ -3626,7 +3679,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/admit",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(
@@ -4472,6 +4525,56 @@ fn write_journal_admission(
             .map_or("root", |identity| identity.as_str()),
     )?;
     write_portfolio_field(output, "Identity", entry.entry_id.as_str())?;
+    writeln!(output)?;
+    Ok(())
+}
+
+fn write_journal_seed(output: &mut impl Write, seed: &JournalSeed) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "JOURNAL SEED · UNRETAINED")?;
+    write_portfolio_field(output, "Identity", seed.seed_id.as_str())?;
+    write_portfolio_field(output, "Observation log", seed.source_log_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Selected",
+        &format!(
+            "{} exact unresolved observations",
+            seed.observation_ids.len()
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Author",
+        &format!(
+            "{} / {} · self-asserted",
+            journal_author_kind(seed.proposal.author.kind),
+            seed.proposal.author.id
+        ),
+    )?;
+    write_portfolio_field(output, "Title", &seed.proposal.title)?;
+    write_portfolio_field(output, "Coordinate", &seed.proposal.binding.coordinate)?;
+    write_portfolio_field(
+        output,
+        "Broadsheet",
+        &format!(
+            "{} columns · {} · {}",
+            seed.proposal.layout.columns,
+            count_noun(seed.proposal.layout.bands.len(), "band"),
+            count_noun(seed.proposal.blocks.len(), "cell")
+        ),
+    )?;
+    for (index, observation_id) in seed.observation_ids.iter().enumerate() {
+        write_portfolio_field(
+            output,
+            &format!("Observation {}", index + 1),
+            observation_id.as_str(),
+        )?;
+    }
+    write_portfolio_field(
+        output,
+        "Authority",
+        "PROPOSAL ONLY · ordinary journal add/admission required · no automatic retention or execution",
+    )?;
     writeln!(output)?;
     Ok(())
 }
@@ -10936,6 +11039,8 @@ enum CliError {
     EnvironmentState(#[from] LocalEnvironmentHistoryError),
     #[error(transparent)]
     Journal(#[from] JournalError),
+    #[error(transparent)]
+    JournalSeed(#[from] JournalSeedError),
     #[error(transparent)]
     ChannelGraph(#[from] ChannelGraphError),
     #[error(transparent)]

@@ -105,5 +105,10 @@ admission count. The footer mailbox renders observations in a separate source
 section beside runtime attention. It does not synthesize cross-source order,
 unread state, priority, assignment, action, or proof authority. Mounted
 portfolio and Feed state passively revalidate this endpoint while retaining
-the last good document on failure. Journal seeding remains a later deliberate
-bridge.
+the last good document on failure.
+
+Selected exact unresolved identities can enter the deterministic unretained
+Journal-seed projection through `rey journal seed` or
+`/journal/new?observations=...`. The seed cites this log and its exact records;
+it does not resolve, copy, mutate, or automatically retain an observation.
+Ordinary Journal validation and admission remain the only retention boundary.

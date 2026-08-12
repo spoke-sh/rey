@@ -13,9 +13,10 @@ use rey::{
     current_environment_status,
     env::LocalEnvironmentStore,
     journal::{
-        JournalAdmission, JournalAuthorKind, JournalEntryProposal, JournalLog, LocalJournalStore,
-        MAX_JOURNAL_PROPOSAL_BYTES,
+        JournalAdmission, JournalAuthor, JournalAuthorKind, JournalEntryProposal, JournalLog,
+        LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
+    journal_seed::JournalSeed,
     observations::{DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore},
     workloads::LocalWorkloadStore,
 };
@@ -298,7 +299,10 @@ impl UiServer {
                 "request target exceeds the 4096-byte limit",
             );
         }
-        let path = request.url().split('?').next().unwrap_or("/");
+        let (path, query) = request
+            .url()
+            .split_once('?')
+            .map_or((request.url(), None), |(path, query)| (path, Some(query)));
         let head = request.method() == &Method::Head;
         if request.method() == &Method::Post && path == "/api/v1/journal" {
             return self.admit_journal(request);
@@ -328,6 +332,7 @@ impl UiServer {
             "/api/v1/channels" => self.channels(),
             "/api/v1/environment" => self.environment(),
             "/api/v1/journal" => self.journal(),
+            "/api/v1/journal/seed" => self.journal_seed(query),
             "/api/v1/observations" => self.observations(),
             "/api/v1/workloads" => self.workloads(),
             path if path.starts_with("/api/") => json_error(
@@ -431,6 +436,37 @@ impl UiServer {
                 "observation_frontier_unavailable",
                 &error.to_string(),
             ),
+        }
+    }
+
+    fn journal_seed(&self, query: Option<&str>) -> Response<Cursor<Vec<u8>>> {
+        let observation_ids = match journal_seed_observation_ids(query) {
+            Ok(observation_ids) => observation_ids,
+            Err(detail) => {
+                return json_error(StatusCode(400), "journal_seed_query_invalid", &detail);
+            }
+        };
+        let store = LocalObservationStore::new(self.config.channel_directory.clone());
+        let log = match store.load() {
+            Ok(log) => log,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "observation_frontier_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        match JournalSeed::from_log(
+            &log,
+            &observation_ids,
+            JournalAuthor {
+                kind: JournalAuthorKind::Human,
+                id: "operator".to_owned(),
+            },
+        ) {
+            Ok(seed) => json_response(StatusCode(200), &seed),
+            Err(error) => json_error(StatusCode(422), "journal_seed_rejected", &error.to_string()),
         }
     }
 
@@ -1000,6 +1036,60 @@ fn journal_admission_response(admission: &JournalAdmission) -> Response<Cursor<V
     )
 }
 
+fn journal_seed_observation_ids(query: Option<&str>) -> Result<Vec<String>, String> {
+    let query = query.ok_or_else(|| "journal seed requires ?observations=id[,id]".to_owned())?;
+    let mut value = None;
+    for pair in query.split('&') {
+        let (name, encoded) = pair
+            .split_once('=')
+            .ok_or_else(|| "journal seed query parameters require names and values".to_owned())?;
+        if name != "observations" || value.is_some() {
+            return Err("journal seed accepts exactly one observations parameter".to_owned());
+        }
+        value = Some(percent_decode_query(encoded)?);
+    }
+    let ids = value
+        .ok_or_else(|| "journal seed requires an observations parameter".to_owned())?
+        .split(',')
+        .map(str::trim)
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    if ids.is_empty() || ids.iter().any(String::is_empty) {
+        return Err("journal seed observation identities cannot be empty".to_owned());
+    }
+    Ok(ids)
+}
+
+fn percent_decode_query(value: &str) -> Result<String, String> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err("journal seed query has invalid percent encoding".to_owned());
+            }
+            let high = query_hex(bytes[index + 1])?;
+            let low = query_hex(bytes[index + 2])?;
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).map_err(|_| "journal seed query must decode to UTF-8".to_owned())
+}
+
+fn query_hex(value: u8) -> Result<u8, String> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        b'A'..=b'F' => Ok(value - b'A' + 10),
+        _ => Err("journal seed query has invalid percent encoding".to_owned()),
+    }
+}
+
 fn request_header<'a>(request: &'a Request, name: &'static str) -> Option<&'a str> {
     request
         .headers()
@@ -1064,11 +1154,45 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{UiServer, UiServerConfig};
-    use rey::workloads::LocalWorkloadStore;
+    use rey::{
+        channels::LocalChannelStore,
+        observations::{LocalObservationStore, ObservationProposal, ObservationSource},
+        workloads::LocalWorkloadStore,
+    };
 
     #[test]
     fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {
         let workspace = TempDir::new().unwrap();
+        let channel_directory = workspace.path().join(".rey/channels");
+        let channel_store = LocalChannelStore::new(channel_directory.clone());
+        let observation_store = LocalObservationStore::new(channel_directory);
+        let observation_proposal: ObservationProposal = serde_json::from_value(serde_json::json!({
+            "schema": "rey.observation.v1",
+            "kind": "finding",
+            "author": { "kind": "agent", "id": "codex" },
+            "subject_locator": "rey+local://workload/context-anchor-survey?revision=1",
+            "body": "The exact survey bearing remains unresolved.",
+            "desired_delta": "Admit one bounded Journal synthesis.",
+            "completeness": "complete",
+            "omissions": [],
+            "evidence": [],
+            "supersedes": null
+        }))
+        .unwrap();
+        let observation = observation_store
+            .admit_and_broadcast(
+                observation_proposal,
+                ObservationSource::workspace_file(
+                    "workspace://observation.yaml".to_owned(),
+                    b"ui-observation",
+                ),
+                Vec::new(),
+                None,
+                &channel_store.status().unwrap().working,
+                1,
+            )
+            .unwrap()
+            .observation;
         let package_directory = workspace.path().join("sys/context-anchor-survey");
         fs::create_dir_all(&package_directory).unwrap();
         fs::write(
@@ -1110,7 +1234,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(29)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(30)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1189,7 +1313,20 @@ mod tests {
         assert!(observations.contains("\"schema\":\"rey.observation-frontier.v1\""));
         assert!(observations.contains("\"ordering\":\"observation_sequence_ascending\""));
         assert!(observations.contains("\"limit\":64"));
-        assert!(observations.contains("\"rows\":[]"));
+        assert!(observations.contains(observation.observation_id.as_str()));
+
+        let seed = request(
+            &address,
+            &format!(
+                "GET /api/v1/journal/seed?observations={} HTTP/1.1",
+                observation.observation_id
+            ),
+        );
+        assert!(seed.starts_with("HTTP/1.1 200"));
+        assert!(seed.contains("\"schema\":\"rey.journal-seed.v1\""));
+        assert!(seed.contains("\"kind\":\"human\",\"id\":\"operator\""));
+        assert!(seed.contains(observation.observation_id.as_str()));
+        assert!(!workspace.path().join(".rey/journal/journal.json").exists());
 
         let journal = request(&address, "GET /api/v1/journal HTTP/1.1");
         assert!(journal.starts_with("HTTP/1.1 200"));

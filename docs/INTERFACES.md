@@ -895,7 +895,8 @@ operation's idempotency contract rather than one generic retry rule.
 operator projection started explicitly by the operator. It serves the embedded
 TanStack Router application plus `GET|HEAD /api/v1/health`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
-`GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, and bounded read-only
+`GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, bounded read-only
+`GET|HEAD /api/v1/journal/seed?observations=id[,id]`, and
 `GET|HEAD /api/v1/observations`. Its explicit writes
 are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
 `POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
@@ -1051,10 +1052,12 @@ and a bounded oldest-open-first frontier. Its local broadcast associates one
 observation identity with a canonical explicit target set and retains exact
 graph/HEAD bindings plus typed partial outcomes without copying content or
 granting relay authority. The read-only observation endpoint returns that same
-default bounded frontier for Feed and mailbox projection. Planned `rey journal
-seed` and `/journal/new?observations=...` paths will project selected exact
-observations into an unretained catch-up proposal; only normal Journal
-admission will create an entry.
+default bounded frontier for Feed and mailbox projection. `rey journal seed`
+and `/journal/new?observations=...` use the same deterministic bounded
+projection from exact unresolved identities to an unretained valid broadsheet
+proposal. The CLI supplies a self-asserted agent author, while the browser seed
+supplies its self-asserted human `operator` author before opening the ordinary
+live editor. Only normal Journal admission creates an entry.
 Relay declarations do not enable transport until a provider contract is
 separately admitted.
 

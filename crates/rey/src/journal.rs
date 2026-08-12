@@ -883,7 +883,7 @@ fn parse_canonical_coordinate(value: &str) -> Result<ParsedCoordinate, JournalEr
         .ok_or_else(|| JournalError::Coordinate(value.to_owned()))?;
     if !matches!(
         kind,
-        "agent" | "attention" | "cluster" | "portfolio" | "workload"
+        "agent" | "attention" | "cluster" | "document" | "portfolio" | "workload"
     ) {
         return Err(JournalError::Coordinate(value.to_owned()));
     }

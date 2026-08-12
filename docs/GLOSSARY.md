@@ -924,10 +924,11 @@ block has a stable fragment permalink and explicit bounds.
 
 ### Journal seed
 
-A planned deterministic, unretained Journal-entry proposal projected from one
-or more exact Channel observations for a human or agent catching up. It cites
-the selected observation identities and source revisions and becomes a Journal
-entry only through normal Journal admission.
+An implemented deterministic, unretained Journal-entry proposal projected from
+one to sixteen unique exact unresolved Channel observations for a human or
+agent catching up. It canonicalizes selection by observation sequence, binds
+the exact observation log, citations, and author, and becomes a Journal entry
+only through normal Journal validation and admission.
 
 ### Journey
 

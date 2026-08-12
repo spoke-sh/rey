@@ -139,6 +139,14 @@ export interface JournalAdmission {
   log: JournalLog;
 }
 
+export interface JournalSeed {
+  schema: "rey.journal-seed.v1";
+  seed_id: string;
+  source_log_id: string;
+  observation_ids: string[];
+  proposal: JournalEntryProposal;
+}
+
 export type JournalCellDelta = "inserted" | "modified" | "unchanged";
 
 export interface JournalDraftDelta {
@@ -725,16 +733,20 @@ function parseJournalReferences(value: string): string[] {
 export function JournalComposer({
   base = null,
   binding,
+  seed = null,
   onAdmit,
   onClose,
 }: {
   base?: RetainedJournalEntry | null;
   binding: JournalBinding;
+  seed?: JournalSeed | null;
   onAdmit: (proposal: JournalEntryProposal) => Promise<RetainedJournalEntry>;
   onClose: () => void;
 }) {
   const [proposal, setProposal] = useState(() =>
-    defaultJournalProposal(binding, base),
+    seed
+      ? (JSON.parse(JSON.stringify(seed.proposal)) as JournalEntryProposal)
+      : defaultJournalProposal(binding, base),
   );
   const [addKind, setAddKind] = useState<AuthorableBlockKind>("prose");
   const [submitting, setSubmitting] = useState(false);
@@ -1299,10 +1311,12 @@ function JournalEditableBlock({
 
 export function JournalNewPage({
   binding,
+  seed = null,
   onAdmit,
   onClose,
 }: {
   binding: JournalBinding;
+  seed?: JournalSeed | null;
   onAdmit: (proposal: JournalEntryProposal) => Promise<RetainedJournalEntry>;
   onClose: () => void;
 }) {
@@ -1310,7 +1324,11 @@ export function JournalNewPage({
     <main className={sx(chrome.page, styles.page)}>
       <section data-rey-section="JOURNAL / BROADSHEET">
         <JournalRouteHeading
-          detail="LIVE WORKING Δ · UNAUTHENTICATED ADMISSION"
+          detail={
+            seed
+              ? `${seed.observation_ids.length} EXACT OBSERVATIONS · UNRETAINED SEED`
+              : "LIVE WORKING Δ · UNAUTHENTICATED ADMISSION"
+          }
           index="J@NEW"
           kicker="JOURNAL / BROADSHEET"
           title="Reason on the context map"
@@ -1323,13 +1341,19 @@ export function JournalNewPage({
             ← JOURNAL INDEX
           </a>
           <div className={sx(styles.revisionTrail)}>
-            <span className={sx(chrome.micro)}>BASE / NONE</span>
+            <span className={sx(chrome.micro)}>
+              {seed ? `SEED / ${shortDigest(seed.seed_id)}` : "BASE / NONE"}
+            </span>
             <strong>WORKING</strong>
           </div>
-          <span className={sx(chrome.micro)}>UNRETAINED</span>
+          <span className={sx(chrome.micro)}>
+            {seed ? "PROPOSAL ONLY · REVIEW BEFORE RECORDING" : "UNRETAINED"}
+          </span>
         </nav>
         <JournalComposer
           binding={binding}
+          key={seed?.seed_id ?? "blank"}
+          seed={seed}
           onAdmit={onAdmit}
           onClose={onClose}
         />

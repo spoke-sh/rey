@@ -26,7 +26,10 @@ retains immutable observations, exact evidence/source and limit bindings,
 Channel admission edges, idempotent partial broadcast receipts, single
 supersession or resolution closure, and the unresolved collaboration frontier;
 its high-fidelity CLI, read-only browser endpoint, order-only Feed signals, and
-separate mailbox source section are delivered. Journal v2 retains
+separate mailbox source section are delivered. Exact selected observations now
+produce the same deterministic unretained Journal proposal in the CLI and
+`/journal/new`, while normal Journal admission remains the only retention
+boundary. Journal v2 retains
 immutable broadsheet documents and superseding revisions. Journal action cells
 are inert, exact scenario/delta routes are absent, and the footer conversation
 composer correctly remains disabled.
@@ -56,9 +59,9 @@ composer correctly remains disabled.
 
 ### 3. Bridge observations and Journal deliberately
 
-- [ ] Implement deterministic unretained Journal seeds from selected exact
+- [x] Implement deterministic unretained Journal seeds from selected exact
   observation identities in the CLI and `/journal/new`.
-- [ ] Require ordinary Journal validation and admission before retaining a
+- [x] Require ordinary Journal validation and admission before retaining a
   seed; never duplicate an observation into the Journal automatically.
 - [ ] Derive unsuperseded action cells as explicit authored opportunities on a
   reasoning surface, then use the delivered workload/policy admission boundary

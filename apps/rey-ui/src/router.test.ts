@@ -6,8 +6,10 @@ import {
   CommunicationBackdrop,
   ConversationSurface,
   isViewportLockedPath,
+  journalSeedObservationIds,
   normalizeExplorerSearch,
   normalizeFeedSearch,
+  normalizeJournalNewSearch,
   PRIMARY_NAV_ITEMS,
   router,
 } from "./router";
@@ -39,6 +41,24 @@ describe("operator routes", () => {
     ).toEqual({ streams: "signals.journal~Review,admission.now" });
     expect(normalizeFeedSearch({ streams: 3 })).toEqual({});
     expect(normalizeFeedSearch({ streams: "x".repeat(4_097) })).toEqual({});
+  });
+
+  it("bounds exact observation identities in Journal seed route state", () => {
+    const first = `blake3:${"a".repeat(64)}`;
+    const second = `blake3:${"b".repeat(64)}`;
+    expect(journalSeedObservationIds(`${first},${second}`)).toEqual([
+      first,
+      second,
+    ]);
+    expect(normalizeJournalNewSearch({ observations: first })).toEqual({
+      observations: first,
+    });
+    expect(
+      normalizeJournalNewSearch({ observations: `${first},${first}` }),
+    ).toEqual({});
+    expect(
+      normalizeJournalNewSearch({ observations: "blake3:not-a-digest" }),
+    ).toEqual({});
   });
 
   it("opens, closes, and switches the two communication axes", () => {
