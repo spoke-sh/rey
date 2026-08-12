@@ -32,8 +32,9 @@ Procedural guidance for humans and agents working on Rey.
 16. `docs/INTERFACES.md` before changing provider, HTTP, policy, or persistence
     contracts.
 17. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
-18. `plans/README.md` and the active plans before implementation work.
-19. `docs/decisions/README.md` for accepted choices that constrain the work.
+18. `docs/RELEASES.md` before changing CI, distribution, tags, or publication.
+19. `plans/README.md` and the active plans before implementation work.
+20. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 
@@ -106,14 +107,17 @@ just setup
 just rey
 just check
 just test
+just dist-check
 just build
 just fmt
 ```
 
-All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
-`check`, `test`, and `build` execute real workspace verification. See
-`docs/DEVELOPMENT.md` for the exact behavior. Documentation changes should pass
-`just check` and manual link/repository-truth review.
+These tasks are backed by the current Cargo workspace and pinned development
+environment. `rey` runs the CLI; `check`, `test`, and `build` execute real
+workspace verification; `dist-check` validates the non-publishing release
+plan. See `docs/DEVELOPMENT.md` and `docs/RELEASES.md` for the exact behavior.
+Documentation changes should pass `just check` and manual
+link/repository-truth review.
 
 ## Runtime Work
 

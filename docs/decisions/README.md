@@ -54,6 +54,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0050](0050-file-backed-workload-admission.md) | Accepted | Visible `sys/<workload>/` packages as WORKING and exact browser stage/qualification/admission from file state |
 | [0051](0051-typed-workspace-ignore-file.md) | Accepted | Bounded typed `.reyignore` rules narrow WORKING while retaining exact omission policy and match evidence |
 | [0052](0052-provider-independent-foundation.md) | Accepted | Hard cut to Rey-owned local contracts with no privileged external platform or compatibility aliases |
+| [0053](0053-github-ci-and-cargo-dist-releases.md) | Accepted | Nix-backed GitHub CI and cargo-dist releases gated by matching semantic-version tags |
 | [0054](0054-diff-directed-journal-broadsheet.md) | Accepted | Immutable live Journal revisions and a bounded 12-column broadsheet grammar |
 | [0055](0055-editor-project-state-ownership.md) | Accepted | Editor project metadata owned by `.rey`, read-only uninitialized status, and no ambient `rey.scene.json` |
 

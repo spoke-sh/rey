@@ -45,6 +45,7 @@ The default shell contains:
 
 - Rust compiler, Cargo, standard sources, Rustfmt, and Clippy;
 - `rust-analyzer`;
+- `cargo-dist`;
 - `cargo-nextest`;
 - Node.js 24 and pnpm for the embedded operator UI;
 - `actionlint` for GitHub Actions workflow validation;
@@ -53,7 +54,8 @@ The default shell contains:
 - Alejandra as the Nix formatter.
 
 The CI shell omits `rust-analyzer` but keeps the compiler, formatter, Clippy,
-Actionlint, test runner, Nix formatter, and basic command-line tools.
+Actionlint, test and distribution runners, Nix formatter, and basic
+command-line tools.
 
 ## Cache And Temporary Directories
 
@@ -85,9 +87,9 @@ formatter               Alejandra
 ```
 
 The development wrapper includes Rust, Cargo, Just, Nix, Alejandra, Actionlint,
-nextest, and the base command-line tools in its runtime closure, so `nix run
-.#dev -- setup` works without first entering `nix develop`. It deliberately
-omits editor-only rust-analyzer.
+cargo-dist, nextest, and the base command-line tools in its runtime closure, so
+`nix run .#dev -- setup` works without first entering `nix develop`. It
+deliberately omits editor-only rust-analyzer.
 
 ## Canonical Tasks
 
@@ -96,20 +98,27 @@ just setup
 just rey
 just check
 just test
+just dist-check
 just build
 just fmt
 ```
 
 Current behavior is:
 
-- `setup` prints pinned Rust, Cargo, cargo-nextest, and Just versions, fetches
-  locked Cargo dependencies, and installs the frozen pnpm graph.
+- `setup` prints pinned Rust, Cargo, cargo-dist, cargo-nextest, and Just
+  versions, fetches locked Cargo dependencies, and installs the frozen pnpm
+  graph.
 - `check` runs `git diff --check`, TypeScript formatting/type/tests/build,
+  GitHub Actions structure/expression linting, cargo-dist generation drift,
   Rustfmt, Clippy with warnings denied, and flake evaluation when Nix is
-  available.
+  available. Actionlint retains ShellCheck for the authored CI workflow and
+  disables it only for cargo-dist's generated release shell fragments.
 - `test` runs UI tests, requires cargo-nextest for all Rust workspace test
   binaries, and then uses Cargo for Rust documentation tests because Nextest
   does not execute doctests.
+- `dist-check` verifies that cargo-dist's generated release workflow matches
+  `dist-workspace.toml` and renders the complete release artifact plan without
+  building or publishing it.
 - `build` builds deterministic UI assets before every workspace crate and
   feature so the Rust binary embeds the current application.
 - `fmt` formats authored TypeScript/StyleX, pnpm workspace policy, Rust, and

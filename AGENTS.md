@@ -45,8 +45,9 @@ provider, adapter, scheduler loop, or action executor exists.
 18. `docs/PROOFS.md`
 19. `docs/INTERFACES.md`
 20. `docs/DEVELOPMENT.md`
-21. `plans/README.md` and the active plans
-22. `docs/decisions/README.md`
+21. `docs/RELEASES.md` before changing CI, distribution, tags, or publication
+22. `plans/README.md` and the active plans
+23. `docs/decisions/README.md`
 
 ## Core Principles
 

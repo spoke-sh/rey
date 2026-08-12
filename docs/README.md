@@ -44,6 +44,7 @@ document must say which is which.
 | --- | --- |
 | [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, persistence, HTTP/UI APIs, and error/limit semantics. |
 | [Development](DEVELOPMENT.md) | Pinned Nix/Rust/TypeScript environment, root `just` tasks, build outputs, dependency updates, and qualification commands. |
+| [Releases](RELEASES.md) | GitHub Actions quality gates, cargo-dist artifact planning, version tags, release permissions, and operator procedure. |
 | [Roadmap](ROADMAP.md) | Delivery sequence from local environment evidence through workloads, topography, admitted mutation, and policy. |
 | [Architecture Decisions](decisions/README.md) | Indexed accepted decisions, their status, summaries, and supersession history. |
 | [Implementation Plans](../plans/README.md) | Active and completed implementation slices with checklists and human verification paths. |

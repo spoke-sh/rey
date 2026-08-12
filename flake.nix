@@ -87,7 +87,7 @@
         pkgs.runCommand "rey" {
           meta = {
             description = "Environment-aware diff-directed compute runtime";
-            license = with pkgs.lib.licenses; [asl20 mit];
+            license = pkgs.lib.licenses.mit;
             mainProgram = "rey";
           };
         } ''
@@ -122,7 +122,9 @@
       developmentPackages =
         basePackages
         ++ [
+          pkgs.actionlint
           pkgs.alejandra
+          pkgs.cargo-dist
           pkgs.cargo-nextest
           pkgs.rust-analyzer
         ];
@@ -132,7 +134,9 @@
         runtimeInputs =
           basePackages
           ++ [
+            pkgs.actionlint
             pkgs.alejandra
+            pkgs.cargo-dist
             pkgs.cargo-nextest
             pkgs.nix
           ];
@@ -181,7 +185,9 @@
           packages =
             basePackages
             ++ [
+              pkgs.actionlint
               pkgs.alejandra
+              pkgs.cargo-dist
               pkgs.cargo-nextest
             ];
           inherit shellHook;

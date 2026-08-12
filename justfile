@@ -8,12 +8,14 @@ _default:
     '  just rey [args]     Run the Rey CLI' \
     '  just check          Check UI/Rust formatting, tests, lints, and flake evaluation' \
     '  just test           Run UI, Nextest workspace, and documentation tests' \
+    '  just dist-check     Verify the release workflow and artifact plan' \
     '  just build          Build the UI and Rust workspace' \
     '  just fmt            Format UI, Rust, and Nix sources'
 
 setup:
   @rustc --version
   @cargo --version
+  @dist --version
   @cargo nextest --version
   @just --version
   @cargo fetch --locked
@@ -24,9 +26,12 @@ rey *args:
 
 check:
   @git diff --check
+  @actionlint .github/workflows/ci.yml
+  @actionlint -shellcheck= .github/workflows/release.yml
   @pnpm --dir apps/rey-ui run check
   @cargo fmt --all -- --check
   @cargo clippy --workspace --all-targets --all-features -- -D warnings
+  @dist generate --check
   @if command -v nix >/dev/null 2>&1; then \
     nix flake check "path:$PWD" --no-build; \
   else \
@@ -37,6 +42,10 @@ test:
   @pnpm --dir apps/rey-ui run test
   @cargo nextest run --workspace --all-features
   @cargo test --workspace --all-features --doc
+
+dist-check:
+  @dist generate --check
+  @dist plan
 
 build:
   @pnpm --dir apps/rey-ui run build

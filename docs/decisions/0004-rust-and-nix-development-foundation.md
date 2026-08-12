@@ -27,18 +27,17 @@ The flake defines a pinned Rust development shape:
   `nixpkgs` unstable no longer supports `x86_64-darwin`, so Rey does not claim
   that output.
 
-The default shell adds rust-analyzer, cargo-nextest, Just, Git, curl, jq,
-certificate roots, Alejandra, and mold on Linux. A smaller CI shell omits
-rust-analyzer.
+The default shell adds rust-analyzer, cargo-nextest, cargo-dist, Actionlint,
+Just, Git, curl, jq, certificate roots, Alejandra, and mold on Linux. A smaller
+CI shell omits rust-analyzer.
 
 Cargo Nextest is the canonical Rust workspace test runner in both the root task
 surface and the Crane workspace check. Cargo remains the documentation-test
 runner because Nextest does not execute doctests.
 
-The root task surface is `setup`, `dev`, `check`, `test`, `build`, and `fmt`.
-Tasks explicitly skip or reject runtime work while no Cargo workspace exists.
-The flake exposes only development shell, wrapper, check, and formatter outputs
-until an actual `rey` binary exists.
+The root task surface is `setup`, `rey`, `check`, `test`, `dist-check`, `build`,
+and `fmt`. The flake exposes the implemented `rey` package and app, development
+shells and wrapper, checks, and formatter.
 
 ## Consequences
 

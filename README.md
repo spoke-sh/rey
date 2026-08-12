@@ -700,6 +700,8 @@ Rey is not:
 - [Interfaces](docs/INTERFACES.md) — typed policy, provider, HTTP, and
   persistence contracts.
 - [Development](docs/DEVELOPMENT.md) — toolchain and repository truth.
+- [Releases](docs/RELEASES.md) — CI, distribution artifacts, tags, and
+  publication boundaries.
 - [Roadmap](docs/ROADMAP.md) — delivery sequence.
 - [Plans](plans/README.md) — active implementation bearings.
 - [Decisions](docs/decisions/README.md) — accepted architectural choices.
