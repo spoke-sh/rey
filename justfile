@@ -7,13 +7,14 @@ _default:
     '  just setup          Verify the pinned toolchain' \
     '  just rey [args]     Run the Rey CLI' \
     '  just check          Check UI/Rust formatting, tests, lints, and flake evaluation' \
-    '  just test           Run UI, workspace, and documentation tests' \
+    '  just test           Run UI, Nextest workspace, and documentation tests' \
     '  just build          Build the UI and Rust workspace' \
     '  just fmt            Format UI, Rust, and Nix sources'
 
 setup:
   @rustc --version
   @cargo --version
+  @cargo nextest --version
   @just --version
   @cargo fetch --locked
   @pnpm --dir apps/rey-ui install --frozen-lockfile
@@ -34,11 +35,7 @@ check:
 
 test:
   @pnpm --dir apps/rey-ui run test
-  @if command -v cargo-nextest >/dev/null 2>&1; then \
-    cargo nextest run --workspace --all-features; \
-  else \
-    cargo test --workspace --all-features; \
-  fi
+  @cargo nextest run --workspace --all-features
   @cargo test --workspace --all-features --doc
 
 build:

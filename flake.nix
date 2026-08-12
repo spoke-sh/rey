@@ -43,6 +43,14 @@
         fileset = pkgs.lib.fileset.unions [
           (craneLib.fileset.commonCargoSources ./.)
           ./apps/rey-ui/dist
+          ./crates/rey-environment/tests/fixtures
+          ./crates/rey-runtime/tests/fixtures
+          ./crates/rey/tests/fixtures
+          ./docs/decisions/0041-continuous-coordinate-topography.md
+          ./plans/0017-incremental-context-topography.md
+          ./rey.scene.json
+          ./scenes/rey-county
+          ./sys/context-anchor-survey
         ];
       };
       commonCargoArgs = {
@@ -64,7 +72,7 @@
           doCheck = false;
           doInstallCargoArtifacts = true;
         });
-      workspaceTests = craneLib.cargoTest (commonCargoArgs
+      workspaceTests = craneLib.cargoNextest (commonCargoArgs
         // {
           cargoArtifacts = workspacePackage;
           nativeBuildInputs = [
@@ -72,6 +80,9 @@
             pkgs.coreutils
             pkgs.git
           ];
+          postCheck = ''
+            cargo test --locked --workspace --all-features --doc --offline
+          '';
         });
       reyPackage =
         pkgs.runCommand "rey" {

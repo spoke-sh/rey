@@ -31,6 +31,10 @@ The default shell adds rust-analyzer, cargo-nextest, Just, Git, curl, jq,
 certificate roots, Alejandra, and mold on Linux. A smaller CI shell omits
 rust-analyzer.
 
+Cargo Nextest is the canonical Rust workspace test runner in both the root task
+surface and the Crane workspace check. Cargo remains the documentation-test
+runner because Nextest does not execute doctests.
+
 The root task surface is `setup`, `dev`, `check`, `test`, `build`, and `fmt`.
 Tasks explicitly skip or reject runtime work while no Cargo workspace exists.
 The flake exposes only development shell, wrapper, check, and formatter outputs

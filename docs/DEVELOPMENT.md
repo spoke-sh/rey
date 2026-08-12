@@ -3,7 +3,8 @@
 Nix defines Rey's development toolchain, the Cargo workspace defines Rust
 dependencies and build metadata, and `just` provides the canonical root task
 surface. Crane builds the locked dependency graph once and reuses it for the
-binary and workspace tests.
+binary and Nextest workspace tests. Its filtered source includes the checked-in
+scene, workload, and topography resources embedded or opened by those tests.
 
 ## Enter The Environment
 
@@ -77,7 +78,7 @@ packages.dev            self-contained Rust/Just/Nix wrapper for root tasks
 apps.default/rey        `nix run . -- <rey arguments>`
 apps.dev                `nix run .#dev -- <just arguments>`
 checks.rey              proves the packaged binary
-checks.workspace-tests  runs locked offline workspace tests
+checks.workspace-tests  runs locked offline Nextest workspace tests and doctests
 checks.dev-wrapper      proves the development wrapper
 formatter               Alejandra
 ```
@@ -100,13 +101,14 @@ just fmt
 
 Current behavior is:
 
-- `setup` prints pinned Rust, Cargo, and Just versions, fetches locked Cargo
-  dependencies, and installs the frozen pnpm graph.
+- `setup` prints pinned Rust, Cargo, cargo-nextest, and Just versions, fetches
+  locked Cargo dependencies, and installs the frozen pnpm graph.
 - `check` runs `git diff --check`, TypeScript formatting/type/tests/build,
   Rustfmt, Clippy with warnings denied, and flake evaluation when Nix is
   available.
-- `test` runs UI tests, nextest when available, falls back to Cargo's test
-  runner, and always runs Rust documentation tests.
+- `test` runs UI tests, requires cargo-nextest for all Rust workspace test
+  binaries, and then uses Cargo for Rust documentation tests because Nextest
+  does not execute doctests.
 - `build` builds deterministic UI assets before every workspace crate and
   feature so the Rust binary embeds the current application.
 - `fmt` formats authored TypeScript/StyleX, pnpm workspace policy, Rust, and
