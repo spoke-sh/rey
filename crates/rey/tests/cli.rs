@@ -3,6 +3,8 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
     process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 use rey::channels::{
@@ -14,7 +16,8 @@ use rey::env::{
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
 };
 use rey::git::{
-    GitOperatorStatus, GitPollOutcome, GitWatchOutcome, GitWatchStopReason, LocalGitState,
+    GitCadenceFailureKind, GitCadenceTickOutcome, GitOperatorStatus, GitPollOutcome,
+    GitWatchOutcome, GitWatchStopReason, LocalGitState,
 };
 use rey::workloads::{
     QualificationState, WorkloadActivationAdmission, WorkloadActivationExecution,
@@ -1623,7 +1626,12 @@ fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
     assert_eq!(quiet.ticks.len(), 2);
     assert_eq!(quiet.ticks[0].sequence, 1);
     assert_eq!(quiet.ticks[1].sequence, 2);
-    assert!(quiet.ticks.iter().all(|tick| !tick.changed));
+    assert!(
+        quiet
+            .ticks
+            .iter()
+            .all(|tick| tick.outcome == GitCadenceTickOutcome::Unchanged)
+    );
     assert!(quiet.pending_transition_id.is_none());
 
     let timed = run_rey_workspace(&[
@@ -1664,8 +1672,8 @@ fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
     let human = String::from_utf8(human.stdout).unwrap();
     for evidence in [
         "GIT WATCH",
-        "1 iterations · 1 ms cadence · 1000 ms elapsed",
-        "#4 · NO CHANGE ·",
+        "1 iterations · 0 retries · 1 ms cadence · 1000 ms elapsed",
+        "#4 · UNCHANGED ·",
         "Stop                   iteration_limit",
         "another bounded watch must be explicit",
     ] {
@@ -1733,7 +1741,7 @@ fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
     assert_eq!(changed.stop_reason, GitWatchStopReason::PendingTransition);
     assert_eq!(changed.ticks.len(), 1);
     assert_eq!(changed.ticks[0].sequence, 5);
-    assert!(changed.ticks[0].changed);
+    assert_eq!(changed.ticks[0].outcome, GitCadenceTickOutcome::Changed);
     assert_eq!(changed.ticks[0].activation_ids.len(), 1);
     let transition_id = changed.pending_transition_id.clone().unwrap();
 
@@ -1812,6 +1820,236 @@ fn git_watch_retains_every_bounded_tick_and_stops_at_pending_evidence() {
     assert_eq!(rejected.status.code(), Some(1));
     assert!(rejected.stdout.is_empty());
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("semantically tampered"));
+}
+
+#[test]
+fn git_watch_retains_retry_exhaustion_and_recovered_partial_failure() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    initialize_git_repository(&workspace);
+    assert!(
+        run_rey_workspace(&[
+            "git",
+            "--workspace",
+            workspace_path,
+            "init",
+            "--format",
+            "json",
+        ])
+        .status
+        .success()
+    );
+    let git_directory = workspace.path().join(".git");
+    let unavailable_directory = workspace.path().join(".git-unavailable");
+    fs::rename(&git_directory, &unavailable_directory).unwrap();
+
+    let exhausted = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--max-iterations",
+        "4",
+        "--max-retries",
+        "1",
+        "--interval-ms",
+        "1",
+        "--max-elapsed-ms",
+        "1000",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(exhausted.status.code(), Some(3));
+    assert!(exhausted.stderr.is_empty());
+    let exhausted: GitWatchOutcome = serde_json::from_slice(&exhausted.stdout).unwrap();
+    exhausted.verify().unwrap();
+    assert_eq!(exhausted.stop_reason, GitWatchStopReason::RetryLimit);
+    assert_eq!(exhausted.ticks.len(), 2);
+    assert!(!exhausted.complete);
+    assert!(exhausted.ticks.iter().all(|tick| {
+        tick.outcome == GitCadenceTickOutcome::Failed
+            && tick.observed_snapshot_id.is_none()
+            && tick.failure.as_ref().is_some_and(|failure| {
+                failure.kind == GitCadenceFailureKind::RepositoryUnavailable && failure.retryable
+            })
+    }));
+    assert_eq!(
+        exhausted.omissions,
+        vec!["Git cadence observation failed: repository_unavailable"]
+    );
+
+    let human = run_rey_workspace(&[
+        "git",
+        "--workspace",
+        workspace_path,
+        "watch",
+        "--max-iterations",
+        "1",
+        "--max-retries",
+        "0",
+        "--interval-ms",
+        "1",
+        "--max-elapsed-ms",
+        "1000",
+        "--format",
+        "table",
+    ]);
+    assert_eq!(human.status.code(), Some(3));
+    assert!(human.stderr.is_empty());
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "1 iterations · 0 retries · 1 ms cadence · 1000 ms elapsed",
+        "FAILED · partial",
+        "failure: repository_unavailable · retryable",
+        "Completeness           partial · see omissions",
+        "Stop                   retry_limit",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing watch evidence: {evidence}"
+        );
+    }
+
+    let mut recovered = Command::new(env!("CARGO_BIN_EXE_rey"));
+    recovered
+        .args([
+            "git",
+            "--workspace",
+            workspace_path,
+            "watch",
+            "--max-iterations",
+            "3",
+            "--max-retries",
+            "2",
+            "--interval-ms",
+            "100",
+            "--max-elapsed-ms",
+            "2000",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = recovered.spawn().unwrap();
+    let state_path = workspace.path().join(".rey/git/state.json");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let state: LocalGitState = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+        if state.cadence_ticks.len() >= 4 {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "failed observation was not retained"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+    fs::rename(&unavailable_directory, &git_directory).unwrap();
+    let recovered = child.wait_with_output().unwrap();
+    assert_eq!(recovered.status.code(), Some(3));
+    assert!(recovered.stderr.is_empty());
+    let recovered: GitWatchOutcome = serde_json::from_slice(&recovered.stdout).unwrap();
+    recovered.verify().unwrap();
+    assert_eq!(recovered.stop_reason, GitWatchStopReason::IterationLimit);
+    assert_eq!(recovered.ticks.len(), 3);
+    assert_eq!(recovered.ticks[0].outcome, GitCadenceTickOutcome::Failed);
+    assert!(
+        recovered.ticks[1..]
+            .iter()
+            .all(|tick| tick.outcome == GitCadenceTickOutcome::Unchanged)
+    );
+    assert!(!recovered.complete);
+    assert!(recovered.pending_transition_id.is_none());
+
+    let state: LocalGitState = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state.verify().unwrap();
+    assert_eq!(state.cadence_ticks.len(), 6);
+    assert_eq!(state.watch_receipts.len(), 3);
+    assert!(state.pending.is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn git_watch_retains_cooperative_signal_cancellation() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    initialize_git_repository(&workspace);
+    assert!(
+        run_rey_workspace(&[
+            "git",
+            "--workspace",
+            workspace_path,
+            "init",
+            "--format",
+            "json",
+        ])
+        .status
+        .success()
+    );
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_rey"));
+    command
+        .args([
+            "git",
+            "--workspace",
+            workspace_path,
+            "watch",
+            "--max-iterations",
+            "100",
+            "--max-retries",
+            "0",
+            "--interval-ms",
+            "100",
+            "--max-elapsed-ms",
+            "10000",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command.spawn().unwrap();
+    let state_path = workspace.path().join(".rey/git/state.json");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let state: LocalGitState = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+        if !state.cadence_ticks.is_empty() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "first cadence tick was not retained"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        Command::new("kill")
+            .args(["-INT", &child.id().to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let cancelled = child.wait_with_output().unwrap();
+    assert_eq!(cancelled.status.code(), Some(130));
+    assert!(cancelled.stderr.is_empty());
+    let cancelled: GitWatchOutcome = serde_json::from_slice(&cancelled.stdout).unwrap();
+    cancelled.verify().unwrap();
+    assert_eq!(cancelled.stop_reason, GitWatchStopReason::Cancelled);
+    assert!(!cancelled.complete);
+    assert!(!cancelled.ticks.is_empty());
+    assert!(
+        cancelled
+            .ticks
+            .iter()
+            .all(|tick| tick.outcome == GitCadenceTickOutcome::Unchanged)
+    );
+    assert_eq!(
+        cancelled.omissions,
+        vec!["Git cadence was cancelled at a retained observation boundary before another tick"]
+    );
+    let state: LocalGitState = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state.verify().unwrap();
+    assert_eq!(state.watch_receipts.len(), 1);
+    assert_eq!(state.cadence_ticks.len(), cancelled.ticks.len());
 }
 
 #[test]
@@ -5920,6 +6158,40 @@ fn run_rey(args: &[&str]) -> std::process::Output {
         command.args(["--catalog", "conformance"]);
     }
     command.output().unwrap()
+}
+
+fn initialize_git_repository(workspace: &TempDir) {
+    let workspace_path = workspace.path().to_str().unwrap();
+    for args in [
+        vec!["init", "-q"],
+        vec!["config", "user.name", "Rey Test"],
+        vec!["config", "user.email", "rey@example.invalid"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+    fs::write(workspace.path().join("tracked"), "one\n").unwrap();
+    for args in [
+        vec!["add", "tracked"],
+        vec!["commit", "-q", "-m", "initial"],
+    ] {
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(workspace_path)
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
 }
 
 fn run_rey_workspace(args: &[&str]) -> std::process::Output {

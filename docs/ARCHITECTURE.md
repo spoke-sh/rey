@@ -561,6 +561,12 @@ disabled. Semantic index changes expose staged proposals before a commit
 exists, while raw index changes caused only by stat-cache refresh do not
 activate staged-content workload entries.
 
+The explicit Git watch recurrence retains every successful or failed attempt
+before continuing. Iteration, elapsed time, retry, and cadence are independent
+bounds; recovered failures remain partial, and cooperative signal cancellation
+retains a terminal receipt without claiming convergence. This read-only loop
+does not generalize retry safety to actions or execute an activation.
+
 Triggers select delta subsets and name an affected workload revision, scenario
 selection, or declared graph entry point. An activation has deterministic
 identity over the trigger, workload/graph/scenario selection, source/target
@@ -849,8 +855,8 @@ continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
 deterministic reference paths. Render-graph extraction, transient-patch reuse,
 retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
-activation, persistent recurring activation processing, coalescing, and policy
-proposals remain target architecture. Compatible admissions within one
+activation, persistent cross-poll activation processing, and policy proposals
+remain target architecture. Compatible admissions within one
 retained Git transition already reuse a directly evaluated scenario result
 under exact input equality and the receiving evidence budget.
 

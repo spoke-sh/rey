@@ -19,12 +19,14 @@ pub const GIT_POLL_RECORD_SCHEMA: &str = "rey.git-poll-record.v1";
 pub const GIT_OPERATOR_STATUS_SCHEMA: &str = "rey.git-operator-status.v1";
 pub const GIT_POLL_OUTCOME_SCHEMA: &str = "rey.git-poll-outcome.v1";
 pub const GIT_ACKNOWLEDGEMENT_SCHEMA: &str = "rey.git-acknowledgement.v1";
-pub const GIT_CADENCE_TICK_SCHEMA: &str = "rey.git-cadence-tick.v1";
-pub const GIT_WATCH_OUTCOME_SCHEMA: &str = "rey.git-watch-outcome.v1";
-pub const GIT_WATCH_RECEIPT_SCHEMA: &str = "rey.git-watch-receipt.v1";
+pub const GIT_CADENCE_TICK_SCHEMA: &str = "rey.git-cadence-tick.v2";
+pub const GIT_WATCH_OUTCOME_SCHEMA: &str = "rey.git-watch-outcome.v2";
+pub const GIT_WATCH_RECEIPT_SCHEMA: &str = "rey.git-watch-receipt.v2";
 pub const MAX_GIT_WATCH_ITERATIONS: u64 = 1_024;
 pub const MAX_GIT_WATCH_INTERVAL_MS: u64 = 60_000;
 pub const MAX_GIT_WATCH_ELAPSED_MS: u64 = 86_400_000;
+pub const MAX_GIT_WATCH_RETRIES: u64 = 32;
+pub const MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES: usize = 4_096;
 const STATE_FILE_NAME: &str = "state.json";
 const MAX_GIT_STATE_BYTES: u64 = 16 * 1_024 * 1_024;
 const MAX_RETAINED_GIT_TRANSITIONS: usize = 1_024;
@@ -85,6 +87,109 @@ pub struct GitAcknowledgement {
     pub authority: String,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GitCadenceFailureKind {
+    RepositoryUnavailable,
+    Deadline,
+    OutputLimit,
+    ProviderFailure,
+    InvalidEvidence,
+}
+
+impl GitCadenceFailureKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RepositoryUnavailable => "repository_unavailable",
+            Self::Deadline => "deadline",
+            Self::OutputLimit => "output_limit",
+            Self::ProviderFailure => "provider_failure",
+            Self::InvalidEvidence => "invalid_evidence",
+        }
+    }
+
+    const fn retryable(self) -> bool {
+        !matches!(self, Self::InvalidEvidence)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitCadenceFailure {
+    pub kind: GitCadenceFailureKind,
+    pub retryable: bool,
+    pub detail: String,
+    pub detail_truncated: bool,
+}
+
+impl GitCadenceFailure {
+    #[must_use]
+    pub fn repository_unavailable() -> Self {
+        Self::new(
+            GitCadenceFailureKind::RepositoryUnavailable,
+            "the explicit workspace no longer resolves to the retained Git repository",
+        )
+    }
+
+    #[must_use]
+    pub fn from_git_error(error: &GitError) -> Self {
+        let kind = match error {
+            GitError::Deadline => GitCadenceFailureKind::Deadline,
+            GitError::OutputLimit(_) => GitCadenceFailureKind::OutputLimit,
+            GitError::Path { .. } | GitError::Process(_) | GitError::Command { .. } => {
+                GitCadenceFailureKind::ProviderFailure
+            }
+            _ => GitCadenceFailureKind::InvalidEvidence,
+        };
+        Self::new(kind, &error.to_string())
+    }
+
+    fn new(kind: GitCadenceFailureKind, detail: &str) -> Self {
+        let (detail, detail_truncated) = bounded_failure_detail(detail);
+        Self {
+            kind,
+            retryable: kind.retryable(),
+            detail,
+            detail_truncated,
+        }
+    }
+
+    pub fn verify(&self) -> Result<(), LocalGitStateError> {
+        if self.retryable != self.kind.retryable()
+            || self.detail.is_empty()
+            || self.detail.len() > MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES
+            || self.detail_truncated
+                && self.detail.len() < MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES.saturating_sub(3)
+            || self.detail.chars().any(char::is_control)
+        {
+            return Err(LocalGitStateError::InvalidCadenceTick);
+        }
+        Ok(())
+    }
+
+    fn omission(&self) -> String {
+        format!("Git cadence observation failed: {}", self.kind.as_str())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GitCadenceTickOutcome {
+    Unchanged,
+    Changed,
+    Failed,
+}
+
+impl GitCadenceTickOutcome {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unchanged => "unchanged",
+            Self::Changed => "changed",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GitCadenceTick {
@@ -94,10 +199,11 @@ pub struct GitCadenceTick {
     pub observed_at_unix_ms: i64,
     pub source_cursor_id: SemanticDigest,
     pub source_snapshot_id: SemanticDigest,
-    pub observed_snapshot_id: SemanticDigest,
-    pub changed: bool,
+    pub observed_snapshot_id: Option<SemanticDigest>,
+    pub outcome: GitCadenceTickOutcome,
     pub retained_transition_id: Option<SemanticDigest>,
     pub activation_ids: Vec<SemanticDigest>,
+    pub failure: Option<GitCadenceFailure>,
     pub interval_ms: u64,
     pub complete: bool,
     pub omissions: Vec<String>,
@@ -126,15 +232,20 @@ impl GitCadenceTick {
         activation_ids.sort();
         let mut tick = Self {
             schema: GIT_CADENCE_TICK_SCHEMA.to_owned(),
-            tick_id: SemanticHasher::new("rey.git-cadence-tick.pending.v1").finish(),
+            tick_id: SemanticHasher::new("rey.git-cadence-tick.pending.v2").finish(),
             sequence,
             observed_at_unix_ms: Utc::now().timestamp_millis(),
             source_cursor_id: cursor.cursor_id.clone(),
             source_snapshot_id: cursor.snapshot_id.clone(),
-            observed_snapshot_id: record.target_snapshot.snapshot_id.clone(),
-            changed,
+            observed_snapshot_id: Some(record.target_snapshot.snapshot_id.clone()),
+            outcome: if changed {
+                GitCadenceTickOutcome::Changed
+            } else {
+                GitCadenceTickOutcome::Unchanged
+            },
             retained_transition_id: changed.then(|| record.transition.transition_id.clone()),
             activation_ids,
+            failure: None,
             interval_ms,
             complete: omissions.is_empty(),
             omissions,
@@ -145,6 +256,35 @@ impl GitCadenceTick {
         Ok(tick)
     }
 
+    fn new_failure(
+        sequence: u64,
+        cursor: &GitPollCursor,
+        failure: GitCadenceFailure,
+        interval_ms: u64,
+    ) -> Result<Self, LocalGitStateError> {
+        failure.verify()?;
+        let mut tick = Self {
+            schema: GIT_CADENCE_TICK_SCHEMA.to_owned(),
+            tick_id: SemanticHasher::new("rey.git-cadence-tick.failed.pending.v2").finish(),
+            sequence,
+            observed_at_unix_ms: Utc::now().timestamp_millis(),
+            source_cursor_id: cursor.cursor_id.clone(),
+            source_snapshot_id: cursor.snapshot_id.clone(),
+            observed_snapshot_id: None,
+            outcome: GitCadenceTickOutcome::Failed,
+            retained_transition_id: None,
+            activation_ids: Vec::new(),
+            omissions: vec![failure.omission()],
+            failure: Some(failure),
+            interval_ms,
+            complete: false,
+            authority: "cadence_observation_only; no Git mutation or workload execution".to_owned(),
+        };
+        tick.tick_id = git_cadence_tick_digest(&tick);
+        tick.verify()?;
+        Ok(tick)
+    }
+
     pub fn verify(&self) -> Result<(), LocalGitStateError> {
         if self.schema != GIT_CADENCE_TICK_SCHEMA
             || !is_semantic_digest(&self.tick_id)
@@ -152,7 +292,10 @@ impl GitCadenceTick {
             || self.observed_at_unix_ms < 0
             || !is_semantic_digest(&self.source_cursor_id)
             || !is_semantic_digest(&self.source_snapshot_id)
-            || !is_semantic_digest(&self.observed_snapshot_id)
+            || self
+                .observed_snapshot_id
+                .as_ref()
+                .is_some_and(|snapshot| !is_semantic_digest(snapshot))
             || self.interval_ms == 0
             || self.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
             || self.complete != self.omissions.is_empty()
@@ -162,13 +305,36 @@ impl GitCadenceTick {
                 .retained_transition_id
                 .as_ref()
                 .is_some_and(|transition| !is_semantic_digest(transition))
-            || if self.changed {
-                self.retained_transition_id.is_none()
-            } else {
-                self.retained_transition_id.is_some()
-                    || !self.activation_ids.is_empty()
-                    || self.source_snapshot_id != self.observed_snapshot_id
+            || match self.outcome {
+                GitCadenceTickOutcome::Changed => {
+                    self.observed_snapshot_id.is_none()
+                        || self.retained_transition_id.is_none()
+                        || self.failure.is_some()
+                }
+                GitCadenceTickOutcome::Unchanged => {
+                    self.observed_snapshot_id.as_ref() != Some(&self.source_snapshot_id)
+                        || self.retained_transition_id.is_some()
+                        || !self.activation_ids.is_empty()
+                        || self.failure.is_some()
+                }
+                GitCadenceTickOutcome::Failed => {
+                    self.observed_snapshot_id.is_some()
+                        || self.retained_transition_id.is_some()
+                        || !self.activation_ids.is_empty()
+                        || self.failure.is_none()
+                        || self.complete
+                        || self.omissions
+                            != self
+                                .failure
+                                .as_ref()
+                                .map(|failure| vec![failure.omission()])
+                                .unwrap_or_default()
+                }
             }
+            || self
+                .failure
+                .as_ref()
+                .is_some_and(|failure| failure.verify().is_err())
             || self.authority != "cadence_observation_only; no Git mutation or workload execution"
             || self.tick_id != git_cadence_tick_digest(self)
         {
@@ -194,10 +360,16 @@ impl GitCadenceTick {
         }
         omissions.sort();
         omissions.dedup();
+        let outcome = if changed {
+            GitCadenceTickOutcome::Changed
+        } else {
+            GitCadenceTickOutcome::Unchanged
+        };
         if self.source_cursor_id != record.transition.source_cursor_id
             || self.source_snapshot_id != record.transition.source_snapshot_id
-            || self.observed_snapshot_id != record.transition.target_snapshot_id
-            || self.changed != changed
+            || self.observed_snapshot_id.as_ref() != Some(&record.transition.target_snapshot_id)
+            || self.outcome != outcome
+            || self.failure.is_some()
             || self.retained_transition_id.as_ref()
                 != changed.then_some(&record.transition.transition_id)
             || self.activation_ids != activation_ids
@@ -216,6 +388,9 @@ pub enum GitWatchStopReason {
     PendingTransition,
     IterationLimit,
     TimeLimit,
+    RetryLimit,
+    Cancelled,
+    Failure,
 }
 
 impl GitWatchStopReason {
@@ -224,6 +399,9 @@ impl GitWatchStopReason {
             Self::PendingTransition => "pending_transition",
             Self::IterationLimit => "iteration_limit",
             Self::TimeLimit => "time_limit",
+            Self::RetryLimit => "retry_limit",
+            Self::Cancelled => "cancelled",
+            Self::Failure => "failure",
         }
     }
 }
@@ -234,18 +412,22 @@ pub struct GitWatchOutcome {
     pub schema: String,
     pub watch_id: SemanticDigest,
     pub max_iterations: u64,
+    pub max_retries: u64,
     pub interval_ms: u64,
     pub max_elapsed_ms: u64,
     pub elapsed_ms: u64,
     pub ticks: Vec<GitCadenceTick>,
     pub stop_reason: GitWatchStopReason,
     pub pending_transition_id: Option<SemanticDigest>,
+    pub complete: bool,
+    pub omissions: Vec<String>,
     pub authority: String,
 }
 
 impl GitWatchOutcome {
     pub fn new(
         max_iterations: u64,
+        max_retries: u64,
         interval_ms: u64,
         max_elapsed_ms: u64,
         elapsed_ms: u64,
@@ -255,16 +437,20 @@ impl GitWatchOutcome {
         let pending_transition_id = ticks
             .last()
             .and_then(|tick| tick.retained_transition_id.clone());
+        let omissions = git_watch_omissions(&ticks, stop_reason);
         let mut outcome = Self {
             schema: GIT_WATCH_OUTCOME_SCHEMA.to_owned(),
-            watch_id: SemanticHasher::new("rey.git-watch-outcome.pending.v1").finish(),
+            watch_id: SemanticHasher::new("rey.git-watch-outcome.pending.v2").finish(),
             max_iterations,
+            max_retries,
             interval_ms,
             max_elapsed_ms,
             elapsed_ms,
             ticks,
             stop_reason,
             pending_transition_id,
+            complete: omissions.is_empty(),
+            omissions,
             authority:
                 "bounded_cadence_observation; pending evidence requires explicit acknowledgement"
                     .to_owned(),
@@ -286,6 +472,7 @@ impl GitWatchOutcome {
             || !is_semantic_digest(&self.watch_id)
             || self.max_iterations == 0
             || self.max_iterations > MAX_GIT_WATCH_ITERATIONS
+            || self.max_retries > MAX_GIT_WATCH_RETRIES
             || self.interval_ms == 0
             || self.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
             || self.max_elapsed_ms == 0
@@ -309,11 +496,29 @@ impl GitWatchOutcome {
             || (self.stop_reason == GitWatchStopReason::TimeLimit
                 && self.elapsed_ms < self.max_elapsed_ms
                 && self.elapsed_ms.saturating_add(self.interval_ms) <= self.max_elapsed_ms)
+            || (self.stop_reason == GitWatchStopReason::RetryLimit
+                && failed_retryable_suffix(&self.ticks) != self.max_retries.saturating_add(1))
+            || (self.stop_reason == GitWatchStopReason::Failure
+                && !self.ticks.last().is_some_and(|tick| {
+                    tick.failure
+                        .as_ref()
+                        .is_some_and(|failure| !failure.retryable)
+                }))
+            || (matches!(
+                self.stop_reason,
+                GitWatchStopReason::IterationLimit | GitWatchStopReason::TimeLimit
+            ) && self
+                .ticks
+                .last()
+                .is_some_and(|tick| tick.outcome == GitCadenceTickOutcome::Changed))
             || self
                 .ticks
                 .iter()
                 .take(self.ticks.len().saturating_sub(1))
-                .any(|tick| tick.changed)
+                .any(|tick| tick.outcome == GitCadenceTickOutcome::Changed)
+            || self.complete != self.omissions.is_empty()
+            || !is_canonical(&self.omissions)
+            || self.omissions != git_watch_omissions(&self.ticks, self.stop_reason)
             || self.authority
                 != "bounded_cadence_observation; pending evidence requires explicit acknowledgement"
             || self.watch_id != git_watch_outcome_digest(self)
@@ -330,6 +535,7 @@ pub struct GitWatchReceipt {
     pub schema: String,
     pub watch_id: SemanticDigest,
     pub max_iterations: u64,
+    pub max_retries: u64,
     pub interval_ms: u64,
     pub max_elapsed_ms: u64,
     pub elapsed_ms: u64,
@@ -338,6 +544,8 @@ pub struct GitWatchReceipt {
     pub tick_ids: Vec<SemanticDigest>,
     pub stop_reason: GitWatchStopReason,
     pub pending_transition_id: Option<SemanticDigest>,
+    pub complete: bool,
+    pub omissions: Vec<String>,
     pub authority: String,
 }
 
@@ -356,6 +564,7 @@ impl GitWatchReceipt {
             schema: GIT_WATCH_RECEIPT_SCHEMA.to_owned(),
             watch_id: outcome.watch_id.clone(),
             max_iterations: outcome.max_iterations,
+            max_retries: outcome.max_retries,
             interval_ms: outcome.interval_ms,
             max_elapsed_ms: outcome.max_elapsed_ms,
             elapsed_ms: outcome.elapsed_ms,
@@ -368,6 +577,8 @@ impl GitWatchReceipt {
                 .collect(),
             stop_reason: outcome.stop_reason,
             pending_transition_id: outcome.pending_transition_id.clone(),
+            complete: outcome.complete,
+            omissions: outcome.omissions.clone(),
             authority: outcome.authority.clone(),
         };
         receipt.verify()?;
@@ -380,6 +591,7 @@ impl GitWatchReceipt {
             || !is_semantic_digest(&self.watch_id)
             || self.max_iterations == 0
             || self.max_iterations > MAX_GIT_WATCH_ITERATIONS
+            || self.max_retries > MAX_GIT_WATCH_RETRIES
             || self.interval_ms == 0
             || self.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
             || self.max_elapsed_ms == 0
@@ -398,6 +610,8 @@ impl GitWatchReceipt {
             || (self.stop_reason == GitWatchStopReason::TimeLimit
                 && self.elapsed_ms < self.max_elapsed_ms
                 && self.elapsed_ms.saturating_add(self.interval_ms) <= self.max_elapsed_ms)
+            || self.complete != self.omissions.is_empty()
+            || !is_canonical(&self.omissions)
             || self.authority
                 != "bounded_cadence_observation; pending evidence requires explicit acknowledgement"
             || self.watch_id != git_watch_receipt_digest(self)
@@ -609,9 +823,21 @@ impl LocalGitState {
                 || ticks
                     .iter()
                     .take(ticks.len().saturating_sub(1))
-                    .any(|tick| tick.changed)
+                    .any(|tick| tick.outcome == GitCadenceTickOutcome::Changed)
                 || ((receipt.stop_reason == GitWatchStopReason::PendingTransition)
-                    != ticks.last().is_some_and(|tick| tick.changed))
+                    != ticks
+                        .last()
+                        .is_some_and(|tick| tick.outcome == GitCadenceTickOutcome::Changed))
+                || (receipt.stop_reason == GitWatchStopReason::RetryLimit
+                    && failed_retryable_suffix(ticks) != receipt.max_retries.saturating_add(1))
+                || (receipt.stop_reason == GitWatchStopReason::Failure
+                    && !ticks.last().is_some_and(|tick| {
+                        tick.failure
+                            .as_ref()
+                            .is_some_and(|failure| !failure.retryable)
+                    }))
+                || receipt.omissions != git_watch_omissions(ticks, receipt.stop_reason)
+                || receipt.complete != receipt.omissions.is_empty()
             {
                 return Err(LocalGitStateError::InvalidState);
             }
@@ -657,14 +883,64 @@ fn cursor_boundary_exists(state: &LocalGitState, tick: &GitCadenceTick) -> bool 
     })
 }
 
+fn bounded_failure_detail(detail: &str) -> (String, bool) {
+    let mut normalized = String::with_capacity(detail.len());
+    for character in detail.chars() {
+        if character.is_control() {
+            normalized.extend(character.escape_default());
+        } else {
+            normalized.push(character);
+        }
+    }
+    let detail = normalized;
+    if detail.len() <= MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES {
+        return (detail, false);
+    }
+    let mut end = MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES;
+    while !detail.is_char_boundary(end) {
+        end -= 1;
+    }
+    (detail[..end].to_owned(), true)
+}
+
+fn failed_retryable_suffix(ticks: &[GitCadenceTick]) -> u64 {
+    ticks
+        .iter()
+        .rev()
+        .take_while(|tick| {
+            tick.failure
+                .as_ref()
+                .is_some_and(|failure| failure.retryable)
+        })
+        .count() as u64
+}
+
+fn git_watch_omissions(ticks: &[GitCadenceTick], stop_reason: GitWatchStopReason) -> Vec<String> {
+    let mut omissions = ticks
+        .iter()
+        .flat_map(|tick| tick.omissions.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    if stop_reason == GitWatchStopReason::Cancelled {
+        omissions.insert(
+            "Git cadence was cancelled at a retained observation boundary before another tick"
+                .to_owned(),
+        );
+    }
+    omissions.into_iter().collect()
+}
+
 fn git_cadence_tick_digest(tick: &GitCadenceTick) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(GIT_CADENCE_TICK_SCHEMA);
     hasher.add_u64(tick.sequence);
     hasher.add_u64(tick.observed_at_unix_ms as u64);
     hasher.add_str(tick.source_cursor_id.as_str());
     hasher.add_str(tick.source_snapshot_id.as_str());
-    hasher.add_str(tick.observed_snapshot_id.as_str());
-    hasher.add_bool(tick.changed);
+    hasher.add_optional_str(
+        tick.observed_snapshot_id
+            .as_ref()
+            .map(SemanticDigest::as_str),
+    );
+    hasher.add_str(tick.outcome.as_str());
     hasher.add_optional_str(
         tick.retained_transition_id
             .as_ref()
@@ -673,6 +949,15 @@ fn git_cadence_tick_digest(tick: &GitCadenceTick) -> SemanticDigest {
     hasher.add_u64(tick.activation_ids.len() as u64);
     for activation_id in &tick.activation_ids {
         hasher.add_str(activation_id.as_str());
+    }
+    if let Some(failure) = &tick.failure {
+        hasher.add_bool(true);
+        hasher.add_str(failure.kind.as_str());
+        hasher.add_bool(failure.retryable);
+        hasher.add_str(&failure.detail);
+        hasher.add_bool(failure.detail_truncated);
+    } else {
+        hasher.add_bool(false);
     }
     hasher.add_u64(tick.interval_ms);
     hasher.add_bool(tick.complete);
@@ -687,6 +972,7 @@ fn git_cadence_tick_digest(tick: &GitCadenceTick) -> SemanticDigest {
 fn git_watch_outcome_digest(outcome: &GitWatchOutcome) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(GIT_WATCH_OUTCOME_SCHEMA);
     hasher.add_u64(outcome.max_iterations);
+    hasher.add_u64(outcome.max_retries);
     hasher.add_u64(outcome.interval_ms);
     hasher.add_u64(outcome.max_elapsed_ms);
     hasher.add_u64(outcome.elapsed_ms);
@@ -701,6 +987,11 @@ fn git_watch_outcome_digest(outcome: &GitWatchOutcome) -> SemanticDigest {
             .as_ref()
             .map(SemanticDigest::as_str),
     );
+    hasher.add_bool(outcome.complete);
+    hasher.add_u64(outcome.omissions.len() as u64);
+    for omission in &outcome.omissions {
+        hasher.add_str(omission);
+    }
     hasher.add_str(&outcome.authority);
     hasher.finish()
 }
@@ -708,6 +999,7 @@ fn git_watch_outcome_digest(outcome: &GitWatchOutcome) -> SemanticDigest {
 fn git_watch_receipt_digest(receipt: &GitWatchReceipt) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(GIT_WATCH_OUTCOME_SCHEMA);
     hasher.add_u64(receipt.max_iterations);
+    hasher.add_u64(receipt.max_retries);
     hasher.add_u64(receipt.interval_ms);
     hasher.add_u64(receipt.max_elapsed_ms);
     hasher.add_u64(receipt.elapsed_ms);
@@ -722,6 +1014,11 @@ fn git_watch_receipt_digest(receipt: &GitWatchReceipt) -> SemanticDigest {
             .as_ref()
             .map(SemanticDigest::as_str),
     );
+    hasher.add_bool(receipt.complete);
+    hasher.add_u64(receipt.omissions.len() as u64);
+    for omission in &receipt.omissions {
+        hasher.add_str(omission);
+    }
     hasher.add_str(&receipt.authority);
     hasher.finish()
 }
@@ -874,6 +1171,37 @@ impl LocalGitStore {
         if changed {
             state.pending = Some(record);
         }
+        state.cadence_ticks.push(tick.clone());
+        self.save(&state)?;
+        Ok((state, tick))
+    }
+
+    pub fn retain_cadence_failure(
+        &self,
+        failure: GitCadenceFailure,
+        interval_ms: u64,
+    ) -> Result<(LocalGitState, GitCadenceTick), LocalGitStateError> {
+        let mut state = self.load()?;
+        let cursor = state
+            .cursor
+            .as_ref()
+            .ok_or(LocalGitStateError::Uninitialized)?;
+        if let Some(pending) = &state.pending {
+            return Err(LocalGitStateError::PendingPoll(
+                pending.transition.transition_id.clone(),
+            ));
+        }
+        if state.cadence_ticks.len() >= MAX_RETAINED_GIT_CADENCE_TICKS {
+            return Err(LocalGitStateError::CadenceTickLimit(
+                MAX_RETAINED_GIT_CADENCE_TICKS,
+            ));
+        }
+        let tick = GitCadenceTick::new_failure(
+            state.cadence_ticks.len() as u64 + 1,
+            cursor,
+            failure,
+            interval_ms,
+        )?;
         state.cadence_ticks.push(tick.clone());
         self.save(&state)?;
         Ok((state, tick))
@@ -1099,7 +1427,11 @@ mod tests {
     use rey_git::{GitInspector, GitLimits};
     use tempfile::TempDir;
 
-    use super::{GitPollRecord, LocalGitStateError, LocalGitStore};
+    use super::{
+        GitCadenceFailure, GitCadenceFailureKind, GitCadenceTickOutcome, GitPollRecord,
+        GitWatchOutcome, GitWatchStopReason, LocalGitStateError, LocalGitStore,
+        MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES,
+    };
 
     fn git(directory: &Path, args: &[&str]) {
         let status = Command::new("git")
@@ -1185,6 +1517,48 @@ mod tests {
             .unwrap();
         assert_eq!(advanced.retained_polls.len(), 2);
         advanced.verify().unwrap();
+    }
+
+    #[test]
+    fn cadence_failures_are_bounded_retained_and_cannot_claim_completion() {
+        let directory = repository();
+        let inspect = inspector(directory.path());
+        let store = LocalGitStore::default_for_workspace(directory.path());
+        let initial = inspect.inspect().unwrap().unwrap();
+        store.initialize(initial).unwrap();
+
+        let failure = GitCadenceFailure::new(
+            GitCadenceFailureKind::ProviderFailure,
+            &"x".repeat(MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES + 8),
+        );
+        assert!(failure.retryable);
+        assert!(failure.detail_truncated);
+        assert_eq!(failure.detail.len(), MAX_GIT_CADENCE_FAILURE_DETAIL_BYTES);
+        let (_, tick) = store.retain_cadence_failure(failure, 1).unwrap();
+        assert_eq!(tick.outcome, GitCadenceTickOutcome::Failed);
+        assert!(!tick.complete);
+        let outcome = GitWatchOutcome::new(
+            1,
+            0,
+            1,
+            100,
+            1,
+            vec![tick.clone()],
+            GitWatchStopReason::RetryLimit,
+        )
+        .unwrap();
+        assert!(!outcome.complete);
+        let state = store.retain_watch_outcome(&outcome).unwrap();
+        state.verify().unwrap();
+        assert_eq!(state.cadence_ticks, vec![tick.clone()]);
+        assert_eq!(state.watch_receipts.len(), 1);
+
+        let mut tampered = tick;
+        tampered.failure.as_mut().unwrap().retryable = false;
+        assert!(matches!(
+            tampered.verify(),
+            Err(LocalGitStateError::InvalidCadenceTick)
+        ));
     }
 
     #[cfg(unix)]

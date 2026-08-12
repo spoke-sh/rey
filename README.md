@@ -201,8 +201,11 @@ one typed HEAD/watched-ref/reachability/path/index transition and proposal set,
 and `ack` advances the cursor only from that exact evidence. These commands
 never mutate Git or execute a proposed workload. `rey git watch` repeats the same
 observation under explicit iteration, cadence, and elapsed bounds, retaining
-every tick and its terminal receipt; it stops at the first changed transition
-and still requires exact `ack`. `rey workloads admit-activation` then applies
+every successful or failed tick and its terminal receipt. Retryable failures
+may recur only under the explicit retry bound; recovered runs remain partial,
+and cancellation stops cooperatively at a retained boundary. A changed
+transition still stops the watch and requires exact `ack`. `rey workloads
+admit-activation` then applies
 the ordinary workload preconditions and retains scheduling eligibility only.
 `rey workloads execute-activation` revalidates those exact inputs, evaluates
 only the admitted scenarios under the retained evidence budget, and records a

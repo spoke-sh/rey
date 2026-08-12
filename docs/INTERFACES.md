@@ -632,14 +632,15 @@ watched-ref scope, HEAD, and the complete supported semantic-index poll. It
 derives bounded added/removed reachability sets for each changed ref over the
 raw object graph and bounded exact tree-to-tree path changes without rename
 inference. It accepts explicit reachable-commit, path-change, iteration,
-interval, and elapsed cadence bounds and the same bounded trigger documents as
-a single poll. It retains each
-`rey.git-cadence-tick.v1` before continuing, atomically retains a changed
-transition with its terminal tick, and then stops. A completed invocation
-retains a compact
-`rey.git-watch-receipt.v1` referencing its tick sequence and exact
-`rey.git-watch-outcome.v1` identity. A process interruption may therefore
-leave retained unreceipted ticks, which the human status reports as an
+interval, elapsed cadence, and retry bounds and the same bounded trigger
+documents as a single poll. It retains each `rey.git-cadence-tick.v2` before
+continuing, including typed failed attempts with no observed snapshot, and
+atomically retains a changed transition with its terminal tick. Every terminal
+invocation retains a compact `rey.git-watch-receipt.v2` referencing its tick
+sequence and exact `rey.git-watch-outcome.v2` identity. Recovered failures,
+retry exhaustion, and non-retryable failures remain partial; SIGINT/SIGTERM
+cancellation retains its boundary and exits distinctly. Hard process loss may
+still leave retained unreceipted ticks, which human status reports as an
 evidence gap. No watch acknowledges a transition, executes an activation, or
 claims convergence.
 

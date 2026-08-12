@@ -236,7 +236,7 @@ rey git [--workspace PATH] [--state-dir PATH]
 rey git ... init [--watch-ref refs/...]...
 rey git ... poll [--trigger TRIGGER.yaml]...
 rey git ... watch [--trigger TRIGGER.yaml]... [--max-iterations N]
-  [--interval-ms N] [--max-elapsed-ms N]
+  [--max-retries N] [--interval-ms N] [--max-elapsed-ms N]
 rey git ... ack TRANSITION_ID
 ```
 
@@ -261,15 +261,19 @@ identity-stable and does not duplicate pending evidence; a different
 transition cannot replace an unacknowledged one.
 
 `watch` repeats that exact poll observation only under explicit iteration,
-cadence, and elapsed scheduling bounds. Each observation is retained first as
-a content-identified cadence tick. A changed tick atomically retains the same
-pending transition and proposal evidence as `poll`, then stops. A normal stop
-also retains a compact receipt that cites its exact tick range, measured
-elapsed time, stop reason (`pending_transition`, `iteration_limit`, or
-`time_limit`), omissions, and authority. If interruption occurs after a tick
-but before the receipt, `git status` exposes the unreceipted count. `watch`
-never acknowledges a transition, advances the cursor, executes a workload, or
-silently starts another watch.
+cadence, elapsed, and retry bounds. Each successful or failed attempt is
+retained first as a content-identified cadence tick. Failed ticks retain
+bounded typed provider evidence but no counterfeit observed snapshot. A
+changed tick atomically retains the same pending transition and proposal
+evidence as `poll`, then stops. Every terminal invocation retains a compact
+receipt with exact tick range, bounds, measured elapsed time, completeness,
+omissions, and stop reason (`pending_transition`, `iteration_limit`,
+`time_limit`, `retry_limit`, `cancelled`, or `failure`). Recovered failures
+remain partial. SIGINT/SIGTERM cancellation is cooperative at the bounded
+command/tick boundary. A hard interruption after a tick but before the receipt
+remains visible through the unreceipted count. `watch` never acknowledges a
+transition, advances the cursor, executes a workload, silently starts another
+watch, or claims convergence.
 
 `ack` requires the exact pending transition identity, retains it in local
 history, and advances the cursor from that evidence. A snapshot id, stale
@@ -518,6 +522,11 @@ behavior.
 input or runtime failure. Staleness remains explicit typed state, but the
 current executable does not emit a separate stale exit code. Callers must not
 interpret a zero process exit as a universal proof claim.
+
+`git watch` returns `0` for a complete bounded stop or retained pending
+transition, `3` when retained failure evidence makes the watch inconclusive,
+`130` after a cooperatively retained cancellation, and `1` for invalid input
+or unsafe state. Structured failure/cancellation receipts remain on stdout.
 
 ## Local State And Guarantees
 

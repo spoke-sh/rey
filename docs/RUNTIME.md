@@ -23,10 +23,10 @@ same-transition admissions can reuse one directly evaluated retained scenario
 result under the stricter receiving evidence budget. A separate bounded
 diagnostic fully recomputes the declared suite under those frozen inputs,
 compares the selected scenario evidence exactly, and retains the result without
-changing qualification. Bounded Git cadence now
-retains each observation and stop receipt without entering this runtime
-machine. Cross-poll debounce and autonomous runtime recurrence remain
-[Plan 0001](../plans/0001-runtime-loop.md) work.
+changing qualification. Bounded Git cadence retains successful and failed
+attempts, retry/cancellation/partial-failure boundaries, and terminal receipts
+without entering this runtime machine. Cross-poll debounce and autonomous
+activation scheduling remain future work.
 
 ## Nested Campaigns
 
@@ -336,6 +336,7 @@ identity, changed and stale revisions, policy exclusion, incomplete-only
 attention, missing environment evidence, unowned surfaces, and typed-empty
 convergence without letting blocked or excluded rows reach scheduling.
 
-Future runtime slices still need timeout, execution-budget, retry,
-action-precondition staleness, partial-failure, replay, and provider-specific
-retention fixtures around real effects.
+Future effectful runtime slices still need provider-specific timeout, retry,
+action-precondition staleness, partial-failure, replay, and retention fixtures.
+The Git cadence surface proves these bounds for read-only recurring
+observation; it does not generalize their idempotency semantics to mutations.

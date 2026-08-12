@@ -242,16 +242,27 @@ ref names, and each proposal retains the exact names it matched.
 
 `rey git watch` is an explicitly invoked bounded recurrence over the same
 poll. Maximum iteration count, interval, and elapsed cadence time are positive
-bounded inputs. Before another observation can be scheduled, the current
-`rey.git-cadence-tick.v1` is verified and atomically retained. An unchanged
-tick cites the already retained cursor snapshot instead of copying it; a
-changed tick atomically retains the full pending poll record and then stops. A
-normally completed watch retains `rey.git-watch-receipt.v1`, binding its exact
-tick range, measured elapsed time, stop reason, pending transition when
-present, and `rey.git-watch-outcome.v1` identity. A crash after a tick but
-before its receipt leaves an explicit unreceipted gap visible in `git status`.
-Neither a tick nor a receipt advances the poll cursor or admits or executes an
-activation.
+bounded inputs; retry count is a separate nonnegative bound. Before another
+observation can be scheduled, the current `rey.git-cadence-tick.v2` is verified
+and atomically retained. An unchanged tick cites the already retained cursor
+snapshot instead of copying it; a changed tick atomically retains the full
+pending poll record and then stops. A failed tick has no observed snapshot and
+instead retains a bounded typed failure kind, retryability, detail/truncation,
+and omission against the unchanged source cursor. Only retryable failures may
+consume `--max-retries`; all attempts also consume `--max-iterations`.
+
+Every terminal invocation retains `rey.git-watch-receipt.v2`, binding its exact
+tick range, retry/iteration/time bounds, measured elapsed time, completeness,
+omissions, stop reason, pending transition when present, and
+`rey.git-watch-outcome.v2` identity. A recovered observation never erases an
+earlier failed tick: the receipt remains partial and exits inconclusive.
+Retry exhaustion or non-retryable evidence failure also exits inconclusive.
+SIGINT or SIGTERM requests cooperative cancellation; Rey finishes the current
+bounded Git command, retains the tick boundary and a `cancelled` receipt, then
+exits 130. A hard process loss after a tick but before its receipt leaves an
+explicit unreceipted gap visible in `git status`. Neither a tick nor a receipt
+advances the poll cursor or admits or executes an activation, and no stop
+reason claims convergence.
 
 The workload portfolio consumes only this acknowledged cursor snapshot.
 Declarations may select its exact HEAD (repository/worktree, optional symbolic
@@ -490,6 +501,7 @@ The first Git provider must cover:
 - corrupt/locked/unsupported index behavior;
 - bounded history and path overflow;
 - crash before and after cursor advancement with idempotent activation replay;
-- retained quiet cadence ticks, iteration/time stops, changed-stop atomicity,
-  interrupted receipt gaps, and cadence-state tampering; and
+- retained quiet/failed cadence ticks, iteration/time/retry/cancellation stops,
+  recovered partial failure, changed-stop atomicity, interrupted receipt gaps,
+  and cadence-state tampering; and
 - proof that polling executes no repository hooks or mutation commands.

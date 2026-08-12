@@ -14,9 +14,9 @@ selected-scenario activation execution is retained separately from full-suite
 qualification. Compatible same-transition executions can reuse exact retained
 evidence, and a separate bounded full recomputation proves whether selected
 execution evidence is exactly equivalent. Bounded Git cadence observation
-retains every tick. Cross-poll
-debounce and autonomous recurring scheduling remain
-[Plan 0001](../plans/0001-runtime-loop.md) work.
+retains every successful or failed tick plus retry, cancellation,
+partial-failure, and terminal receipts. Cross-poll debounce and autonomous
+activation scheduling remain future work.
 
 ## Public Unit
 
@@ -199,9 +199,10 @@ records the exact `source_execution_id`; the original result is not relabeled.
 Only a directly evaluated result may be a coalescing source, which prevents
 opaque reuse chains. Changed inputs or insufficient budget fall through to an
 independent execution and normal validation rather than silently widening the
-reuse boundary. Bounded `git watch` cadence retains observation ticks but does
-not admit or execute them; cross-poll debounce and recurring runtime scheduling
-remain planned.
+reuse boundary. Bounded `git watch` cadence retains successful and failed
+observation ticks under explicit retry/cancellation/partial-failure bounds but
+does not admit or execute them; cross-poll debounce and autonomous activation
+scheduling remain planned.
 
 ## Workspace Package Admission
 

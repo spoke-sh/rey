@@ -46,9 +46,11 @@ that exact retained result without erasing either activation identity. An
 explicit bounded diagnostic now fully recomputes the declared suite under the
 same frozen inputs, proves exact selected-result equivalence, and retains the
 comparison without changing qualification. Watch
-stops honestly at iteration/time bounds or the first changed transition and
-never acknowledges or executes it. Autonomous scheduling, cross-poll debounce,
-and the remaining recurrence failure bounds remain open.
+stops honestly at iteration/time/retry bounds, cooperative cancellation,
+non-retryable failure, or the first changed transition. Successful and failed
+ticks reach retention first, and recovered failure remains partial rather than
+converged. The watch never acknowledges or executes a proposal. Autonomous
+activation scheduling and cross-poll debounce remain deferred.
 
 ## Completion Checklist
 
@@ -107,11 +109,12 @@ and the remaining recurrence failure bounds remain open.
 - [x] Advance recurrence observation only after each cadence tick reaches its
   retention boundary; retain normal watch receipts, changed transitions, quiet
   ticks, interrupted receipt gaps, and coalesced execution evidence explicitly.
-- [ ] Run the loop under explicit iteration, time, action, evidence, retry,
+- [x] Run the loop under explicit iteration, time, action, evidence, retry,
   cancellation, and partial-failure bounds; stop without claiming convergence
-  when a bound or evidence gap is reached. Iteration/time cadence and
-  activation action/evidence bounds are implemented; retry, cancellation, and
-  partial-failure recurrence remain open.
+  when a bound or evidence gap is reached. Cadence retains retry exhaustion,
+  cooperative cancellation, recovered partial failure, and non-retryable
+  failure as explicit non-converged receipts; activation admission retains its
+  separate action/evidence bounds.
 
 ### 5. Qualify the slice
 

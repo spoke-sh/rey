@@ -10,6 +10,10 @@ use std::{
     net::IpAddr,
     path::{Path, PathBuf},
     process::ExitCode,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -40,10 +44,11 @@ use rey::{
         effective_index_snapshot, stage_selected_capabilities,
     },
     git::{
-        GIT_ACKNOWLEDGEMENT_SCHEMA, GIT_POLL_OUTCOME_SCHEMA, GitAcknowledgement, GitOperatorStatus,
-        GitPollOutcome, GitPollRecord, GitWatchOutcome, GitWatchStopReason, LocalGitState,
-        LocalGitStateError, LocalGitStore, MAX_GIT_WATCH_ELAPSED_MS, MAX_GIT_WATCH_INTERVAL_MS,
-        MAX_GIT_WATCH_ITERATIONS,
+        GIT_ACKNOWLEDGEMENT_SCHEMA, GIT_POLL_OUTCOME_SCHEMA, GitAcknowledgement, GitCadenceFailure,
+        GitCadenceTickOutcome, GitOperatorStatus, GitPollOutcome, GitPollRecord, GitWatchOutcome,
+        GitWatchStopReason, LocalGitState, LocalGitStateError, LocalGitStore,
+        MAX_GIT_WATCH_ELAPSED_MS, MAX_GIT_WATCH_INTERVAL_MS, MAX_GIT_WATCH_ITERATIONS,
+        MAX_GIT_WATCH_RETRIES,
     },
     inspect_environment, inspect_environment_with_mapping,
     journal::{
@@ -210,6 +215,10 @@ struct GitWatchArgs {
     /// Maximum retained observations before stopping.
     #[arg(long, default_value_t = 32)]
     max_iterations: u64,
+
+    /// Maximum retries after a retryable failed observation.
+    #[arg(long, default_value_t = 0)]
+    max_retries: u64,
 
     /// Delay between retained observations in milliseconds.
     #[arg(long, default_value_t = 1_000)]
@@ -1203,6 +1212,7 @@ fn git_watch(
 ) -> Result<ExitCode, CliError> {
     if args.max_iterations == 0
         || args.max_iterations > MAX_GIT_WATCH_ITERATIONS
+        || args.max_retries > MAX_GIT_WATCH_RETRIES
         || args.interval_ms == 0
         || args.interval_ms > MAX_GIT_WATCH_INTERVAL_MS
         || args.max_elapsed_ms == 0
@@ -1226,22 +1236,57 @@ fn git_watch(
     let started = Instant::now();
     let cadence = Duration::from_millis(args.interval_ms);
     let elapsed_limit = Duration::from_millis(args.max_elapsed_ms);
+    let cancelled = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&cancelled))
+        .map_err(CliError::Signal)?;
+    signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&cancelled))
+        .map_err(CliError::Signal)?;
     let mut ticks = Vec::new();
+    let mut consecutive_failures = 0_u64;
     let stop_reason = loop {
+        if !ticks.is_empty() && cancelled.load(Ordering::Relaxed) {
+            break GitWatchStopReason::Cancelled;
+        }
         let state = store.load()?;
         let cursor = state
             .cursor
             .as_ref()
             .ok_or(LocalGitStateError::Uninitialized)?;
-        let (target, transition) = inspector
-            .inspect_transition(cursor)?
-            .ok_or(CliError::GitRepositoryAbsent)?;
-        let record = GitPollRecord::new(target, transition, triggers.clone())?;
-        let (_, tick) = store.retain_cadence_poll(record, args.interval_ms)?;
-        let changed = tick.changed;
+        let (tick, failure) = match inspector.inspect_transition(cursor) {
+            Ok(Some((target, transition))) => {
+                let record = GitPollRecord::new(target, transition, triggers.clone())?;
+                let (_, tick) = store.retain_cadence_poll(record, args.interval_ms)?;
+                consecutive_failures = 0;
+                (tick, None)
+            }
+            Ok(None) => {
+                let failure = GitCadenceFailure::repository_unavailable();
+                let (_, tick) = store.retain_cadence_failure(failure.clone(), args.interval_ms)?;
+                consecutive_failures = consecutive_failures.saturating_add(1);
+                (tick, Some(failure))
+            }
+            Err(error) => {
+                let failure = GitCadenceFailure::from_git_error(&error);
+                let (_, tick) = store.retain_cadence_failure(failure.clone(), args.interval_ms)?;
+                consecutive_failures = consecutive_failures.saturating_add(1);
+                (tick, Some(failure))
+            }
+        };
+        let changed = tick.outcome == GitCadenceTickOutcome::Changed;
         ticks.push(tick);
         if changed {
             break GitWatchStopReason::PendingTransition;
+        }
+        if cancelled.load(Ordering::Relaxed) {
+            break GitWatchStopReason::Cancelled;
+        }
+        if let Some(failure) = failure {
+            if !failure.retryable {
+                break GitWatchStopReason::Failure;
+            }
+            if consecutive_failures > args.max_retries {
+                break GitWatchStopReason::RetryLimit;
+            }
         }
         if ticks.len() as u64 == args.max_iterations {
             break GitWatchStopReason::IterationLimit;
@@ -1251,10 +1296,11 @@ fn git_watch(
         {
             break GitWatchStopReason::TimeLimit;
         }
-        std::thread::sleep(cadence);
+        sleep_git_watch_cadence(cadence, &cancelled);
     };
     let outcome = GitWatchOutcome::new(
         args.max_iterations,
+        args.max_retries,
         args.interval_ms,
         args.max_elapsed_ms,
         started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
@@ -1268,7 +1314,29 @@ fn git_watch(
         WorkloadOutputFormat::Table => write_git_watch(&mut stdout, &outcome)?,
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
-    Ok(ExitCode::SUCCESS)
+    Ok(match outcome.stop_reason {
+        GitWatchStopReason::Cancelled => ExitCode::from(130),
+        GitWatchStopReason::RetryLimit | GitWatchStopReason::Failure => ExitCode::from(3),
+        GitWatchStopReason::PendingTransition
+        | GitWatchStopReason::IterationLimit
+        | GitWatchStopReason::TimeLimit => {
+            if outcome.complete {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(3)
+            }
+        }
+    })
+}
+
+fn sleep_git_watch_cadence(cadence: Duration, cancelled: &AtomicBool) {
+    let deadline = Instant::now() + cadence;
+    while !cancelled.load(Ordering::Relaxed) {
+        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+            break;
+        };
+        std::thread::sleep(remaining.min(Duration::from_millis(10)));
+    }
 }
 
 fn git_ack(store: &LocalGitStore, args: GitAckArgs) -> Result<ExitCode, CliError> {
@@ -4150,7 +4218,7 @@ fn write_git_status(output: &mut impl Write, status: &GitOperatorStatus) -> Resu
             &format!(
                 "#{} · {} · {}",
                 tick.sequence,
-                if tick.changed { "CHANGED" } else { "NO CHANGE" },
+                tick.outcome.as_str(),
                 if tick.complete { "complete" } else { "partial" }
             ),
         )?;
@@ -4442,8 +4510,11 @@ fn write_git_watch(output: &mut impl Write, outcome: &GitWatchOutcome) -> Result
         output,
         "Bounds",
         &format!(
-            "{} iterations · {} ms cadence · {} ms elapsed",
-            outcome.max_iterations, outcome.interval_ms, outcome.max_elapsed_ms
+            "{} iterations · {} retries · {} ms cadence · {} ms elapsed",
+            outcome.max_iterations,
+            outcome.max_retries,
+            outcome.interval_ms,
+            outcome.max_elapsed_ms
         ),
     )?;
     write_portfolio_field(
@@ -4457,15 +4528,23 @@ fn write_git_watch(output: &mut impl Write, outcome: &GitWatchOutcome) -> Result
             output,
             "    #{} · {} · {} · {}",
             tick.sequence,
-            if tick.changed { "CHANGED" } else { "NO CHANGE" },
+            tick.outcome.as_str().to_ascii_uppercase(),
             if tick.complete { "complete" } else { "partial" },
             tick.tick_id
         )?;
-        writeln!(
-            output,
-            "      observed {} at unix-ms {}",
-            tick.observed_snapshot_id, tick.observed_at_unix_ms
-        )?;
+        if let Some(snapshot_id) = &tick.observed_snapshot_id {
+            writeln!(
+                output,
+                "      observed {snapshot_id} at unix-ms {}",
+                tick.observed_at_unix_ms
+            )?;
+        } else {
+            writeln!(
+                output,
+                "      observation unavailable at unix-ms {}",
+                tick.observed_at_unix_ms
+            )?;
+        }
         if let Some(transition_id) = &tick.retained_transition_id {
             writeln!(output, "      pending transition {transition_id}")?;
         }
@@ -4476,9 +4555,39 @@ fn write_git_watch(output: &mut impl Write, outcome: &GitWatchOutcome) -> Result
                 tick.activation_ids.len()
             )?;
         }
+        if let Some(failure) = &tick.failure {
+            writeln!(
+                output,
+                "      failure: {} · {}{}",
+                failure.kind.as_str(),
+                if failure.retryable {
+                    "retryable"
+                } else {
+                    "terminal"
+                },
+                if failure.detail_truncated {
+                    " · detail truncated"
+                } else {
+                    ""
+                }
+            )?;
+            writeln!(output, "        {}", failure.detail)?;
+        }
         for omission in &tick.omissions {
             writeln!(output, "      omission: {omission}")?;
         }
+    }
+    write_portfolio_field(
+        output,
+        "Completeness",
+        if outcome.complete {
+            "complete"
+        } else {
+            "partial · see omissions"
+        },
+    )?;
+    for omission in &outcome.omissions {
+        writeln!(output, "    omission: {omission}")?;
     }
     write_portfolio_field(output, "Stop", outcome.stop_reason.as_str())?;
     write_portfolio_field(
@@ -4491,7 +4600,14 @@ fn write_git_watch(output: &mut impl Write, outcome: &GitWatchOutcome) -> Result
     )?;
     write_portfolio_field(output, "Authority", &outcome.authority)?;
     let next = outcome.pending_transition_id.as_ref().map_or_else(
-        || "No transition is pending; another bounded watch must be explicit".to_owned(),
+        || {
+            if outcome.complete {
+                "No transition is pending; another bounded watch must be explicit".to_owned()
+            } else {
+                "Review retained failure/cancellation evidence before starting another bounded watch"
+                    .to_owned()
+            }
+        },
         |transition_id| format!("rey git ack {transition_id}"),
     );
     write_portfolio_field(output, "Next", &next)?;
@@ -10349,6 +10465,8 @@ enum CliError {
     GitUnavailable,
     #[error("explicit workspace contains no Git repository")]
     GitRepositoryAbsent,
+    #[error("Git watch signal handling could not be installed: {0}")]
+    Signal(io::Error),
     #[error("Git activation trigger {path} could not be read: {source}")]
     GitTriggerInput { path: PathBuf, source: io::Error },
     #[error("Git activation trigger must be a regular non-symlinked file: {0}")]
