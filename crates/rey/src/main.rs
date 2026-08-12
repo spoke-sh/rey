@@ -55,6 +55,12 @@ use rey::{
         JournalAdmission, JournalAuthorKind, JournalBlock, JournalEntryProposal, JournalError,
         JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
+    observations::{
+        DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore, MAX_OBSERVATION_INPUT_BYTES,
+        ObservationBroadcast, ObservationDetail, ObservationError, ObservationFrontier,
+        ObservationProposal, ObservationResolutionAdmission, ObservationResolutionProposal,
+        ObservationSource,
+    },
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, MAX_WORKLOAD_RECOMPUTATION_EVIDENCE_BYTES,
         ResolvedWorkload, WorkloadActivationAdmission, WorkloadActivationExecution,
@@ -111,6 +117,8 @@ struct Cli {
 enum Command {
     /// Inspect and propose workspace-local collaboration topology.
     Channels(ChannelsArgs),
+    /// Admit and inspect bounded collaboration observations.
+    Observations(ObservationsArgs),
     /// Track bounded compute environment revisions.
     Env(EnvArgs),
     /// Observe Git transitions and retain proposal-only activation evidence.
@@ -123,6 +131,77 @@ enum Command {
     Journal(JournalArgs),
     /// Serve the Rey operator interface.
     Ui(UiArgs),
+}
+
+#[derive(Debug, Args)]
+struct ObservationsArgs {
+    /// Workspace used as the observation and Channel boundary.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local observation-state directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: ObservationsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ObservationsCommand {
+    /// Admit a workspace-contained rey.observation.v1 and optionally broadcast it locally.
+    Add(ObservationAddArgs),
+    /// List the bounded unresolved collaboration frontier.
+    List(ObservationListArgs),
+    /// Show one exact observation and its closure/admission relations.
+    Show(ObservationShowArgs),
+    /// Close one exact observation with a workspace-contained resolution document.
+    Resolve(ObservationResolveArgs),
+}
+
+#[derive(Debug, Args)]
+struct ObservationAddArgs {
+    /// Workspace-relative rey.observation.v1 YAML file.
+    observation: PathBuf,
+
+    /// Explicit local Channel target; repeat to retain typed partial fan-out outcomes.
+    #[arg(long = "channel")]
+    channel_ids: Vec<String>,
+
+    /// Do not use broadcast-default Channels when --channel is absent.
+    #[arg(long)]
+    no_broadcast: bool,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ObservationListArgs {
+    /// Maximum unresolved observations to project.
+    #[arg(short = 'n', long = "max-count", default_value_t = DEFAULT_OBSERVATION_FRONTIER_LIMIT)]
+    max_count: usize,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ObservationShowArgs {
+    /// Exact admitted observation digest.
+    observation_id: String,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ObservationResolveArgs {
+    /// Workspace-relative rey.observation-resolution.v1 YAML file.
+    resolution: PathBuf,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -1041,6 +1120,7 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
         Command::Channels(args) => channels_command(args),
+        Command::Observations(args) => observations_command(args),
         Command::Env(args) => env_command(args),
         Command::Git(args) => git_command(args),
         Command::Editor(args) => editor_command(args),
@@ -1048,6 +1128,105 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
         Command::Journal(args) => journal_command(args),
         Command::Ui(args) => ui_command(args),
     }
+}
+
+fn observations_command(args: ObservationsArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let directory = match args.state_dir {
+        Some(path) if path.is_absolute() => path,
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey").join("channels"),
+    };
+    let store = LocalObservationStore::new(directory);
+    let mut stdout = io::stdout().lock();
+    match args.command {
+        ObservationsCommand::Add(args) => {
+            let bytes = read_workspace_channel_input(
+                &workspace,
+                &args.observation,
+                MAX_OBSERVATION_INPUT_BYTES,
+            )?;
+            let proposal: ObservationProposal = serde_saphyr::from_slice(&bytes)?;
+            let channel_store = LocalChannelStore::default_for_workspace(&workspace);
+            let status = channel_store.status()?;
+            let channel_ids = if args.no_broadcast {
+                Vec::new()
+            } else if args.channel_ids.is_empty() {
+                status
+                    .working
+                    .graph
+                    .channels
+                    .iter()
+                    .filter(|channel| channel.broadcast_default)
+                    .map(|channel| channel.id.clone())
+                    .collect()
+            } else {
+                args.channel_ids
+            };
+            let locator = format!("worktree:///{}", args.observation.to_string_lossy());
+            let result = store.admit_and_broadcast(
+                proposal,
+                ObservationSource::workspace_file(locator, &bytes),
+                channel_ids,
+                status.head_commit.map(|commit| commit.commit_id),
+                &status.working,
+                Utc::now().timestamp(),
+            )?;
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+                WorkloadOutputFormat::Table => write_observation_admission(&mut stdout, &result)?,
+                WorkloadOutputFormat::Auto => unreachable!(),
+            }
+        }
+        ObservationsCommand::List(args) => {
+            let frontier = store.load()?.frontier(args.max_count)?;
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &frontier)?,
+                WorkloadOutputFormat::Table => write_observation_frontier(&mut stdout, &frontier)?,
+                WorkloadOutputFormat::Auto => unreachable!(),
+            }
+        }
+        ObservationsCommand::Show(args) => {
+            let detail = store.load()?.detail(&args.observation_id)?;
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &detail)?,
+                WorkloadOutputFormat::Table => write_observation_detail(&mut stdout, &detail)?,
+                WorkloadOutputFormat::Auto => unreachable!(),
+            }
+        }
+        ObservationsCommand::Resolve(args) => {
+            let bytes = read_workspace_channel_input(
+                &workspace,
+                &args.resolution,
+                MAX_OBSERVATION_INPUT_BYTES,
+            )?;
+            let proposal: ObservationResolutionProposal = serde_saphyr::from_slice(&bytes)?;
+            let locator = format!("worktree:///{}", args.resolution.to_string_lossy());
+            let result = store.resolve(
+                proposal,
+                ObservationSource::workspace_file(locator, &bytes),
+                Utc::now().timestamp(),
+            )?;
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+                WorkloadOutputFormat::Table => write_observation_resolution(&mut stdout, &result)?,
+                WorkloadOutputFormat::Auto => unreachable!(),
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 impl GitArgs {
@@ -3832,6 +4011,201 @@ fn write_channel_message_admission(
     writeln!(
         output,
         "  Relay authority        none · relay remains an explicit command or beacon tick"
+    )?;
+    Ok(())
+}
+
+fn write_observation_admission(
+    output: &mut impl Write,
+    result: &ObservationBroadcast,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "{} observation {}",
+        if result.observation_admitted {
+            "Admitted"
+        } else {
+            "Already admitted"
+        },
+        result.observation.observation_id
+    )?;
+    write_portfolio_field(output, "Sequence", &result.observation.sequence.to_string())?;
+    write_portfolio_field(output, "Kind", result.observation.proposal.kind.label())?;
+    write_portfolio_field(
+        output,
+        "Subject",
+        &result.observation.proposal.subject_locator,
+    )?;
+    write_portfolio_field(
+        output,
+        "Source",
+        &format!(
+            "{} · {}",
+            result.observation.source.locator, result.observation.source.content_digest
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Completeness",
+        &format!(
+            "{:?} · {} omissions · {} evidence bindings",
+            result.observation.proposal.completeness,
+            result.observation.proposal.omissions.len(),
+            result.observation.proposal.evidence.len()
+        ),
+    )?;
+    if let Some(broadcast) = &result.broadcast {
+        write_portfolio_field(output, "Broadcast", broadcast.broadcast_id.as_str())?;
+        for target in &broadcast.targets {
+            writeln!(
+                output,
+                "  {:<22} {} · {}",
+                target.channel_id,
+                target.outcome.label(),
+                target.detail
+            )?;
+        }
+    } else {
+        write_portfolio_field(output, "Broadcast", "none · retained locally only")?;
+    }
+    write_portfolio_field(
+        output,
+        "Authority",
+        "collaboration only · no relay, assignment, action, or proof authority",
+    )?;
+    Ok(())
+}
+
+fn write_observation_frontier(
+    output: &mut impl Write,
+    frontier: &ObservationFrontier,
+) -> Result<(), CliError> {
+    writeln!(output, "COLLABORATION FRONTIER")?;
+    write_portfolio_field(output, "Frontier", frontier.frontier_id.as_str())?;
+    write_portfolio_field(output, "Source log", frontier.source_log_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Coverage",
+        &format!(
+            "{} shown · {} omitted · {}",
+            frontier.rows.len(),
+            frontier.omitted,
+            if frontier.complete {
+                "complete"
+            } else {
+                "bounded partial"
+            }
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "States",
+        &format!(
+            "{} unresolved · {} superseded · {} resolved · {} withdrawn · {} unbroadcast",
+            frontier.summary.unresolved,
+            frontier.summary.superseded,
+            frontier.summary.resolved,
+            frontier.summary.withdrawn,
+            frontier.summary.unbroadcast
+        ),
+    )?;
+    for row in &frontier.rows {
+        writeln!(
+            output,
+            "  {:>4}  {}  {} · {} · channels [{}]",
+            row.observation.sequence,
+            row.observation.observation_id,
+            row.observation.proposal.kind.label(),
+            row.observation.proposal.subject_locator,
+            if row.channel_ids.is_empty() {
+                "none".to_owned()
+            } else {
+                row.channel_ids.join(", ")
+            }
+        )?;
+    }
+    Ok(())
+}
+
+fn write_observation_detail(
+    output: &mut impl Write,
+    detail: &ObservationDetail,
+) -> Result<(), CliError> {
+    writeln!(output, "OBSERVATION {}", detail.observation.observation_id)?;
+    write_portfolio_field(output, "State", detail.state.label())?;
+    write_portfolio_field(output, "Kind", detail.observation.proposal.kind.label())?;
+    write_portfolio_field(
+        output,
+        "Subject",
+        &detail.observation.proposal.subject_locator,
+    )?;
+    write_portfolio_field(
+        output,
+        "Author",
+        &format!(
+            "{:?}/{} · self-asserted",
+            detail.observation.proposal.author.kind, detail.observation.proposal.author.id
+        ),
+    )?;
+    write_portfolio_field(output, "Body", &detail.observation.proposal.body)?;
+    write_portfolio_field(
+        output,
+        "Evidence",
+        &format!(
+            "{} exact bindings · {} omissions",
+            detail.observation.proposal.evidence.len(),
+            detail.observation.proposal.omissions.len()
+        ),
+    )?;
+    for evidence in &detail.observation.proposal.evidence {
+        writeln!(
+            output,
+            "  {} · {} · {}",
+            evidence.locator, evidence.source_revision, evidence.content_digest
+        )?;
+    }
+    write_portfolio_field(
+        output,
+        "Channels",
+        &if detail.channel_admissions.is_empty() {
+            "none".to_owned()
+        } else {
+            detail
+                .channel_admissions
+                .iter()
+                .map(|admission| admission.channel_id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+    )?;
+    Ok(())
+}
+
+fn write_observation_resolution(
+    output: &mut impl Write,
+    result: &ObservationResolutionAdmission,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "{} observation resolution {}",
+        if result.admitted {
+            "Admitted"
+        } else {
+            "Already admitted"
+        },
+        result.resolution.resolution_id
+    )?;
+    write_portfolio_field(
+        output,
+        "Observation",
+        result.resolution.proposal.observation_id.as_str(),
+    )?;
+    write_portfolio_field(output, "Outcome", result.resolution.proposal.kind.label())?;
+    write_portfolio_field(output, "State", result.detail.state.label())?;
+    write_portfolio_field(
+        output,
+        "Authority",
+        "collaboration closure only · no runtime convergence or proof claim",
     )?;
     Ok(())
 }
@@ -10564,6 +10938,8 @@ enum CliError {
     Journal(#[from] JournalError),
     #[error(transparent)]
     ChannelGraph(#[from] ChannelGraphError),
+    #[error(transparent)]
+    Observation(#[from] ObservationError),
     #[error(transparent)]
     Editor(#[from] EditorError),
     #[error(transparent)]

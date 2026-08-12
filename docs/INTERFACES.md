@@ -1039,8 +1039,8 @@ write WORKING only; INDEX, HEAD, relay, and execution remain CLI/runtime
 boundaries. Feed layout resolution, deliberate adoption, and stable
 pointer/keyboard reorder persistence are implemented through that boundary.
 Remote inbound polling, resident scheduling, and the richer
-`rey observations add|list|show|resolve` rendering remain planned. The
-underlying observation store now retains immutable content-derived
+`rey observations add|list|show|resolve` now provides human and typed JSON
+rendering over the observation store. It retains immutable content-derived
 observations separately from Channel topology and Journal, exact
 locator/revision/digest evidence plus source-file bindings, self-asserted author
 labels, completeness/omissions/limits, one supersession or resolution closure,

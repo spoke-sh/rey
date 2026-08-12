@@ -275,9 +275,10 @@ pointer/keyboard movement use that same conditional WORKING write and retain
 typed deltas or rollback failures. A separate tamper-detecting observation log
 now owns immutable statements, exact source/evidence bindings, Channel
 admission edges, retained partial broadcast receipts, single supersession or
-resolution closure, and the bounded collaboration frontier. Its CLI and browser
-projections, Journal seeding, resident beacon scheduling, and remote inbound
-cursors remain planned behavior.
+resolution closure, and the bounded collaboration frontier. Its CLI exposes
+add/list/show/resolve and exact partial broadcast receipts. Browser projection,
+Journal seeding, resident beacon scheduling, and remote inbound cursors remain
+planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

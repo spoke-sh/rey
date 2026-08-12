@@ -398,6 +398,28 @@ Humans author or supersede entries through the same live document surface at
 `/journal/new` and `/journal/{slug}`. `list` exposes retained entries in
 admission order, including exact revision, band, cell-kind, and span structure.
 
+### `rey observations`
+
+```text
+rey observations [--workspace PATH] [--state-dir PATH] add OBSERVATION.yaml
+  [--channel ID ...] [--no-broadcast] [--format table|json]
+rey observations [--workspace PATH] [--state-dir PATH] list
+  [-n COUNT] [--format table|json]
+rey observations [--workspace PATH] [--state-dir PATH] show OBSERVATION_ID
+  [--format table|json]
+rey observations [--workspace PATH] [--state-dir PATH] resolve RESOLUTION.yaml
+  [--format table|json]
+```
+
+`add` admits one content-identified immutable collaboration observation from a
+workspace-contained regular file. Explicit `--channel` targets, or the
+effective graph's bounded default set, yield a retained per-target partial
+broadcast receipt; `--no-broadcast` admits locally only. `list` projects the
+bounded unresolved frontier and its completeness, omissions, and state counts.
+`show` exposes exact source, evidence, self-asserted author, Channel admissions,
+and closure. `resolve` appends one idempotent resolution. None changes Channel
+INDEX/HEAD, relays, schedules, assigns, executes, or proves work.
+
 ### `rey ui`
 
 ```text

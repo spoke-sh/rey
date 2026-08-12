@@ -1052,6 +1052,99 @@ beacons:
 }
 
 #[test]
+fn observations_cli_admits_broadcasts_projects_and_resolves_exact_state() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    fs::write(
+        workspace.path().join("observation.yaml"),
+        format!(
+            "schema: rey.observation.v1\nkind: blocker\nauthor:\n  kind: agent\n  id: codex\nsubject_locator: 'rey+local://workload/alpha?revision=alpha%401'\nbody: The exact scenario delta remains unresolved.\ndesired_delta: Qualify the exact scenario.\ncompleteness: complete\nomissions: []\nevidence:\n  - locator: rey+local://evidence/scenario-alpha\n    source_revision: alpha@1\n    content_digest: blake3:{}\nsupersedes: null\n",
+            "a".repeat(64)
+        ),
+    )
+    .unwrap();
+    let admitted = run_rey(&[
+        "observations",
+        "--workspace",
+        workspace_path,
+        "add",
+        "observation.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        admitted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&admitted.stderr)
+    );
+    let admitted: rey::observations::ObservationBroadcast =
+        serde_json::from_slice(&admitted.stdout).unwrap();
+    assert!(admitted.observation_admitted);
+    assert_eq!(admitted.broadcast.as_ref().unwrap().targets.len(), 1);
+    assert_eq!(
+        admitted.broadcast.as_ref().unwrap().targets[0].channel_id,
+        "workspace"
+    );
+
+    let listed = run_rey(&[
+        "observations",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let frontier: rey::observations::ObservationFrontier =
+        serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(frontier.summary.unresolved, 1);
+    assert_eq!(frontier.rows[0].channel_ids, ["workspace"]);
+
+    let shown = run_rey(&[
+        "observations",
+        "--workspace",
+        workspace_path,
+        "show",
+        admitted.observation.observation_id.as_str(),
+        "--format",
+        "table",
+    ]);
+    assert!(shown.status.success());
+    let shown = String::from_utf8(shown.stdout).unwrap();
+    assert!(shown.contains("self-asserted"));
+    assert!(shown.contains("scenario delta remains unresolved"));
+
+    fs::write(
+        workspace.path().join("resolution.yaml"),
+        format!(
+            "schema: rey.observation-resolution.v1\nobservation_id: {}\nauthor:\n  kind: human\n  id: operator\nkind: resolved\nreason: The exact scenario now qualifies.\nevidence: []\n",
+            admitted.observation.observation_id
+        ),
+    )
+    .unwrap();
+    let resolved = run_rey(&[
+        "observations",
+        "--workspace",
+        workspace_path,
+        "resolve",
+        "resolution.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        resolved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&resolved.stderr)
+    );
+    let resolved: rey::observations::ObservationResolutionAdmission =
+        serde_json::from_slice(&resolved.stdout).unwrap();
+    assert_eq!(
+        resolved.detail.state,
+        rey::observations::ObservationState::Resolved
+    );
+    assert_eq!(resolved.frontier.summary.unresolved, 0);
+}
+
+#[test]
 fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();

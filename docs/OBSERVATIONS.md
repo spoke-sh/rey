@@ -2,9 +2,9 @@
 
 Rey retains compact collaboration observations independently from Channel
 topology, transport messages, Journal documents, runtime observations, and the
-runtime frontier. This document defines the implemented local observation log
-and its authority boundary. CLI and browser projection remain the next active
-delivery slice.
+runtime frontier. This document defines the implemented local observation log,
+CLI surface, and authority boundary. Feed and mailbox projection remain the
+next active delivery slice.
 
 ## Ownership And Separation
 
@@ -78,6 +78,23 @@ and 4 MiB total state. It uses a separate lock and atomic replacement, rejects
 symlinked state paths, verifies contiguous sequences and every semantic
 identity on load, and leaves a missing store read-only and empty.
 
-The next active slice adds high-fidelity `rey observations add|list|show|resolve`
-rendering over these contracts. Feed and mailbox projection follows that CLI
-path; Journal seeding remains a later deliberate bridge.
+The implemented CLI is:
+
+```text
+rey observations [--workspace PATH] [--state-dir PATH] add OBSERVATION.yaml
+  [--channel ID ...] [--no-broadcast] [--format table|json]
+rey observations [--workspace PATH] [--state-dir PATH] list
+  [-n COUNT] [--format table|json]
+rey observations [--workspace PATH] [--state-dir PATH] show OBSERVATION_ID
+  [--format table|json]
+rey observations [--workspace PATH] [--state-dir PATH] resolve RESOLUTION.yaml
+  [--format table|json]
+```
+
+With no explicit `--channel`, `add` selects the effective Channel graph's
+bounded `broadcast_default` set; `--no-broadcast` retains the observation
+locally without admissions. Human rendering exposes exact identities, source,
+evidence, completeness, omissions, authority, per-target outcomes, frontier
+coverage, and closure state. JSON returns the same typed documents. `list` and
+`show` are read-only and do not create state. Feed and mailbox projection
+follows this CLI path; Journal seeding remains a later deliberate bridge.

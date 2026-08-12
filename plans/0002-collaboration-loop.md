@@ -25,7 +25,7 @@ INDEX, HEAD, relay, or execution authority. A separate bounded local store now
 retains immutable observations, exact evidence/source and limit bindings,
 Channel admission edges, idempotent partial broadcast receipts, single
 supersession or resolution closure, and the unresolved collaboration frontier;
-its CLI and browser projections remain to be delivered. Journal v2 retains
+its high-fidelity CLI is delivered while browser projection remains. Journal v2 retains
 immutable broadsheet documents and superseding revisions. Journal action cells
 are inert, exact scenario/delta routes are absent, and the footer conversation
 composer correctly remains disabled.
@@ -47,7 +47,7 @@ composer correctly remains disabled.
 - [x] Define immutable observation, channel-admission, resolution,
   supersession, and bounded frontier contracts separately from Channel graph
   INDEX and from Journal documents.
-- [ ] Implement high-fidelity CLI add/list/show paths, exact evidence/source
+- [x] Implement high-fidelity CLI add/list/show paths, exact evidence/source
   bindings, idempotent broadcast to an explicit bounded local target set, and
   typed partial fan-out outcomes.
 - [ ] Project unresolved observations into Feed and mailbox without inventing

@@ -160,8 +160,8 @@ boundary.
   through the same typed working state while retaining URL layouts as detached
   previews.
 - Project the delivered immutable observation/admission/resolution/frontier
-  store through high-fidelity CLI and browser paths; preserve its retained
-  partial broadcast outcomes without granting execution authority.
+  CLI through Feed and mailbox; preserve its retained partial broadcast
+  outcomes without granting execution authority.
 - Project selected exact observations into an unretained Journal seed for
   catch-up; require normal Journal admission before it becomes a retained entry.
 - Extend the implemented exact direct relay only after remote provider, cursor,
