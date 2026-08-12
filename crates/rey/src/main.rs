@@ -3679,6 +3679,7 @@ fn write_workload_list(
             }
             write_portfolio_field(output, "Scenario oracle", "FROZEN AT ADMISSION")?;
         }
+        write_workload_ownership(output, workload)?;
         write_portfolio_field(output, "Journey", &render_journey(workload, style))?;
         write_portfolio_field(
             output,
@@ -3898,6 +3899,40 @@ fn write_portfolio_field(
     Ok(())
 }
 
+fn write_workload_ownership(
+    output: &mut impl Write,
+    workload: &WorkloadSummary,
+) -> Result<(), CliError> {
+    if workload.owned_surfaces.is_empty() {
+        return write_portfolio_field(output, "Ownership", "no surfaces declared");
+    }
+    write_portfolio_field(
+        output,
+        "Ownership",
+        &format!(
+            "{} bounded surface declarations",
+            workload.owned_surfaces.len()
+        ),
+    )?;
+    for surface in &workload.owned_surfaces {
+        write_portfolio_field(
+            output,
+            "Owned surface",
+            &format!(
+                "{} · revision {} · capabilities {}",
+                surface.surface_id,
+                surface.source_revision,
+                if surface.required_capability_ids.is_empty() {
+                    "none".to_owned()
+                } else {
+                    surface.required_capability_ids.join(", ")
+                },
+            ),
+        )?;
+    }
+    Ok(())
+}
+
 fn write_attention_frontier(
     output: &mut impl Write,
     attention: &WorkloadAttention,
@@ -4057,6 +4092,7 @@ fn write_workload_status(
             }
             write_portfolio_field(output, "Scenario oracle", "FROZEN AT ADMISSION")?;
         }
+        write_workload_ownership(output, summary)?;
         write_portfolio_field(output, "Journey", &render_journey(summary, style))?;
         write_portfolio_field(
             output,

@@ -8,7 +8,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
-use rey_environment::{CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
+use rey_environment::{Availability, CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
 use rey_mining::{ProjectionPacket, SemanticAtlas, TopographyCoverage, TopographyPatch};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
@@ -17,8 +17,9 @@ use rey_runtime::{
     PortfolioSurfaceObservation, PortfolioWorkloadObservation, QualificationRecord,
     RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite, TestStatus,
     TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
-    WorkloadDefinitionParts, WorkloadLimits, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
-    WorkloadValue, built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
+    WorkloadDefinitionParts, WorkloadLimits, WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult,
+    WorkloadTestResult, WorkloadValue, built_in_operation_contract, built_in_workloads,
+    utf8_exact_comparator_contract,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -1143,8 +1144,26 @@ struct SuppliedWorkloadPackage {
     schema: String,
     workload: SuppliedWorkloadIdentity,
     generation: WorkloadGeneratorProvenance,
+    #[serde(default)]
+    ownership: SuppliedWorkloadOwnership,
     graph: SuppliedGraph,
     scenarios: SuppliedScenarioSuite,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SuppliedWorkloadOwnership {
+    #[serde(default)]
+    surfaces: Vec<SuppliedOwnedSurface>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SuppliedOwnedSurface {
+    surface_id: String,
+    source_revision: String,
+    #[serde(default)]
+    required_capabilities: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1339,6 +1358,16 @@ impl SuppliedWorkloadPackage {
             id: self.workload.id,
             revision: self.workload.revision,
             title: self.workload.title,
+            owned_surfaces: self
+                .ownership
+                .surfaces
+                .into_iter()
+                .map(|surface| WorkloadOwnedSurface {
+                    surface_id: surface.surface_id,
+                    source_revision: surface.source_revision,
+                    required_capability_ids: surface.required_capabilities,
+                })
+                .collect(),
             proposal: Some(proposal),
             inputs: self.workload.inputs,
             outputs: self.workload.outputs,
@@ -2312,6 +2341,7 @@ pub struct WorkloadSummary {
     pub provenance: Option<WorkloadProvenance>,
     pub workload: ContractIdentity,
     pub title: String,
+    pub owned_surfaces: Vec<WorkloadOwnedSurface>,
     pub candidate_graph: ContractIdentity,
     pub scenario_suite: ContractIdentity,
     pub evaluator: ContractIdentity,
@@ -2467,6 +2497,7 @@ impl WorkloadSummary {
             provenance: None,
             workload: workload.workload.clone(),
             title: workload.title.clone(),
+            owned_surfaces: workload.owned_surfaces.clone(),
             candidate_graph: workload.graph.graph.clone(),
             scenario_suite: workload.scenario_suite.suite.clone(),
             evaluator: workload.evaluator.clone(),
@@ -2598,6 +2629,41 @@ pub fn derive_portfolio_snapshot(
 ) -> Result<PortfolioSnapshot, PortfolioError> {
     let mut catalog_hasher = SemanticHasher::new("rey.workload-catalog.v1");
     catalog_hasher.add_u64(definitions.len() as u64);
+    let available_capability_ids = environment
+        .into_iter()
+        .flat_map(|snapshot| &snapshot.capabilities)
+        .filter(|capability| capability.availability == Availability::Available)
+        .map(|capability| capability.capability_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let input_surfaces = environment
+        .into_iter()
+        .flat_map(|snapshot| &snapshot.capabilities)
+        .filter(|capability| {
+            capability.provider_id == ENVIRONMENT_MAP_PROVIDER_ID
+                && capability.capability_kind == "input_file"
+        })
+        .filter_map(|capability| {
+            capability
+                .resolved_location
+                .as_deref()
+                .map(|location| (location, capability))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut surface_owners = BTreeMap::<&str, Vec<&str>>::new();
+    for definition in definitions {
+        for surface in &definition.owned_surfaces {
+            surface_owners
+                .entry(&surface.surface_id)
+                .or_default()
+                .push(&definition.workload.id);
+        }
+    }
+    if let Some((surface_id, owners)) = surface_owners.iter().find(|(_, owners)| owners.len() > 1) {
+        return Err(PortfolioError::OwnershipCollision {
+            surface_id: (*surface_id).to_owned(),
+            owners: owners.iter().map(|owner| (*owner).to_owned()).collect(),
+        });
+    }
     let mut workloads = Vec::with_capacity(definitions.len());
     for definition in definitions {
         definition.workload.add_semantics(&mut catalog_hasher);
@@ -2624,6 +2690,31 @@ pub fn derive_portfolio_snapshot(
         if let Some(result) = record.and_then(|record| record.last_run.as_ref()) {
             evidence_ids.push(result.run_id.clone());
         }
+        let mut changed_dependency_ids = Vec::new();
+        let mut missing_capability_ids = Vec::new();
+        for surface in &definition.owned_surfaces {
+            match input_surfaces.get(surface.surface_id.as_str()) {
+                Some(capability)
+                    if capability.content_digest.as_deref()
+                        == Some(surface.source_revision.as_str()) => {}
+                Some(capability) => changed_dependency_ids.push(format!(
+                    "surface:{}@{}",
+                    surface.surface_id,
+                    capability.content_digest.as_deref().unwrap_or("unknown")
+                )),
+                None => changed_dependency_ids
+                    .push(format!("surface:{}@unobserved", surface.surface_id)),
+            }
+            missing_capability_ids.extend(
+                surface
+                    .required_capability_ids
+                    .iter()
+                    .filter(|capability_id| {
+                        !available_capability_ids.contains(capability_id.as_str())
+                    })
+                    .cloned(),
+            );
+        }
         workloads.push(PortfolioWorkloadObservation {
             workload: definition.workload.clone(),
             graph: definition.graph.graph.clone(),
@@ -2637,8 +2728,8 @@ pub fn derive_portfolio_snapshot(
             policy,
             policy_reason,
             evidence_ids,
-            changed_dependency_ids: Vec::new(),
-            missing_capability_ids: Vec::new(),
+            changed_dependency_ids,
+            missing_capability_ids,
         });
     }
     let surfaces = environment
@@ -2659,7 +2750,15 @@ pub fn derive_portfolio_snapshot(
                     .clone()
                     .unwrap_or_else(|| capability.capability_id.clone()),
                 source_revision: hasher.finish(),
-                owners: Vec::new(),
+                owners: capability
+                    .resolved_location
+                    .as_deref()
+                    .and_then(|location| surface_owners.get(location))
+                    .cloned()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
                 evidence_ids: environment
                     .map(|snapshot| vec![snapshot.semantic_digest.clone()])
                     .unwrap_or_default(),
@@ -3049,16 +3148,19 @@ mod tests {
     use std::fs;
 
     use rey_core::SemanticHasher;
+    use rey_environment::{
+        Availability, CapabilityRecord, CapabilitySnapshot, DiscoveryLimits, TrustClass,
+    };
     use rey_runtime::{
-        BUILT_IN_NORMALIZE_WORKLOAD_ID, WorkloadRunResult, built_in_workload, test_workload,
-        test_workload_with_observer_and_snapshot,
+        AttentionAction, BUILT_IN_NORMALIZE_WORKLOAD_ID, PortfolioError, WorkloadRunResult,
+        built_in_workload, test_workload, test_workload_with_observer_and_snapshot,
     };
     use tempfile::TempDir;
 
     use super::{
         LocalWorkloadState, LocalWorkloadStore, QualificationState, WorkloadAdmissionState,
         WorkloadCatalog, WorkloadCatalogError, WorkloadCatalogKind, WorkloadFreshness,
-        WorkloadOrigin, WorkloadSummary,
+        WorkloadOrigin, WorkloadSummary, derive_portfolio_snapshot,
     };
 
     const WORKSPACE_PACKAGE: &str =
@@ -3099,6 +3201,139 @@ mod tests {
             WorkloadCatalog::load_workspace(workspace.path(), std::path::Path::new("workloads")),
             Err(WorkloadCatalogError::IncompleteGenerationProvenance)
         ));
+    }
+
+    #[test]
+    fn portfolio_binds_declared_ownership_and_live_environment_invalidation() {
+        let workspace = TempDir::new().unwrap();
+        let package = workspace.path().join("workloads/package");
+        fs::create_dir_all(&package).unwrap();
+        let source_revision = SemanticHasher::new("owned-source").finish().to_string();
+        let package_document = WORKSPACE_PACKAGE.replace(
+            "\ngraph:\n",
+            &format!(
+                "\nownership:\n  surfaces:\n    - surface_id: plans/0003-scene-to-explorer.md\n      source_revision: {source_revision}\n      required_capabilities:\n        - parser.rust\n\ngraph:\n"
+            ),
+        );
+        fs::write(package.join("workload.yaml"), package_document).unwrap();
+        let catalog =
+            WorkloadCatalog::load_workspace(workspace.path(), std::path::Path::new("workloads"))
+                .unwrap();
+        let definition = catalog.definitions().remove(0);
+        let input = fixture_capability(
+            "rey.env-map",
+            "env.mapping.node.plan",
+            "input_file",
+            Some("plans/0003-scene-to-explorer.md"),
+            Some(&source_revision),
+            Availability::Available,
+        );
+        let parser = fixture_capability(
+            "fixture.parser",
+            "parser.rust",
+            "parser",
+            None,
+            None,
+            Availability::Available,
+        );
+        let environment = CapabilitySnapshot::new(
+            "fixture",
+            DiscoveryLimits::default(),
+            vec![input.clone(), parser],
+        )
+        .unwrap();
+        let state = LocalWorkloadState::default();
+
+        let snapshot = derive_portfolio_snapshot(
+            std::slice::from_ref(&definition),
+            &state,
+            Some(&environment),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot.surfaces[0].owners,
+            [definition.workload.id.clone()]
+        );
+        assert!(snapshot.workloads[0].changed_dependency_ids.is_empty());
+        assert!(snapshot.workloads[0].missing_capability_ids.is_empty());
+
+        let changed = CapabilitySnapshot::new(
+            "fixture",
+            DiscoveryLimits::default(),
+            vec![fixture_capability(
+                "rey.env-map",
+                "env.mapping.node.plan",
+                "input_file",
+                Some("plans/0003-scene-to-explorer.md"),
+                Some(SemanticHasher::new("changed-source").finish().as_str()),
+                Availability::Available,
+            )],
+        )
+        .unwrap();
+        let changed_snapshot =
+            derive_portfolio_snapshot(std::slice::from_ref(&definition), &state, Some(&changed))
+                .unwrap();
+        assert_eq!(
+            changed_snapshot.workloads[0].missing_capability_ids,
+            ["parser.rust"]
+        );
+        assert_eq!(
+            changed_snapshot.workloads[0].changed_dependency_ids.len(),
+            1
+        );
+
+        let mut colliding = definition.clone();
+        colliding.workload.id = "other-owner".to_owned();
+        assert!(matches!(
+            derive_portfolio_snapshot(&[definition, colliding], &state, Some(&environment)),
+            Err(PortfolioError::OwnershipCollision { .. })
+        ));
+
+        let unowned_environment = CapabilitySnapshot::new(
+            "fixture",
+            DiscoveryLimits::default(),
+            vec![fixture_capability(
+                "rey.env-map",
+                "env.mapping.node.other",
+                "input_file",
+                Some("docs/unowned.md"),
+                Some(SemanticHasher::new("unowned").finish().as_str()),
+                Availability::Available,
+            )],
+        )
+        .unwrap();
+        let unowned = derive_portfolio_snapshot(&[], &state, Some(&unowned_environment)).unwrap();
+        let attention = rey_runtime::WorkloadAttention::derive(&unowned).unwrap();
+        assert_eq!(attention.rows[0].action, AttentionAction::Create);
+    }
+
+    fn fixture_capability(
+        provider_id: &str,
+        capability_id: &str,
+        capability_kind: &str,
+        resolved_location: Option<&str>,
+        content_digest: Option<&str>,
+        availability: Availability,
+    ) -> CapabilityRecord {
+        CapabilityRecord {
+            provider_id: provider_id.to_owned(),
+            provider_revision: 1,
+            provider_kind: "fixture".to_owned(),
+            capability_id: capability_id.to_owned(),
+            capability_kind: capability_kind.to_owned(),
+            resolved_location: resolved_location.map(str::to_owned),
+            version: None,
+            content_digest: content_digest.map(str::to_owned),
+            provenance: Some("fixture".to_owned()),
+            availability,
+            trust_class: TrustClass::ExplicitLocal,
+            operations: Vec::new(),
+            enforced_limits: Vec::new(),
+            unsupported_limits: Vec::new(),
+            observed_at: None,
+            error_code: None,
+            error_detail: None,
+        }
     }
 
     #[test]

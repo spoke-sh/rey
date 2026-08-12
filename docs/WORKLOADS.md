@@ -130,6 +130,11 @@ generation:
   inputs:
     - source: plans/0001-runtime-loop.md
       revision: blake3:<exact-content-digest>
+ownership:
+  surfaces:
+    - surface_id: plans/0001-runtime-loop.md
+      source_revision: blake3:<exact-observed-content-digest>
+      required_capabilities: [parser.rust]
 ```
 
 The complete product proposal is
@@ -141,6 +146,17 @@ This is an admission surface, not arbitrary code loading.
 Discovery is workspace-confined and count/byte bounded; unknown fields,
 unknown operations, duplicate workload ids, unsafe paths, and incomplete
 generation provenance fail closed.
+
+The optional ownership block is semantic workload input. Each declaration
+names one mapped surface, the exact source revision the graph was built
+against, and a canonical set of required capability ids. Workload limits bound
+both surface and capability counts. Portfolio composition binds those
+declarations to the exact workload, graph, retained environment snapshot, and
+currently observed mapped-file revision. A changed or unobserved revision
+derives a dependency-change fact; an unavailable required capability derives a
+blocked attention fact. Two workloads cannot own the same surface in one
+portfolio snapshot. A declaration grants neither file-read nor action
+authority.
 
 The root `.reyignore` file may contain `workload: <pattern>` rules. Rey loads
 and validates the complete catalog before filtering matching package or draft
@@ -619,9 +635,11 @@ typed relation/native context, ordered and relational deltas, one scheduled
 frontier row, reasoning surface, qualification, and admitted real-input run.
 The portfolio workload closes a second deterministic path from catalog,
 retained results, and environment mapping through typed attention, scenario
-qualification, list/status inspection, and retained-input run. It currently
-treats admitted mapped files as unowned because workload ownership declaration
-syntax remains required for attention binding.
+qualification, list/status inspection, and retained-input run. Workspace
+packages may now bind mapped files to bounded ownership declarations; live
+portfolio composition derives owners, changed source dependencies, and missing
+required capabilities from the retained environment snapshot. Git-native
+dependency evidence and the generic attention-to-frontier handoff remain open.
 Generic distributed or recurring scheduling, arbitrary code execution, a
 coding-harness response executor, a persistence engine,
 parser/index breadth, and provider-specific policy loops remain outside this

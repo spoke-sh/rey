@@ -1885,8 +1885,10 @@ catalog `run` may execute.
 
 An exact declaration that a workload is responsible for a mapped context
 surface. Portfolio mining uses ownership plus coverage and revisions to avoid
-duplicate creation and to derive `CREATE` or `RETEST`; general ownership syntax
-remains active plan work.
+duplicate creation and to derive `CREATE`, `RETEST`, or blocked capability
+attention. The implemented package syntax binds a surface id, exact source
+revision, and bounded required capability ids; Git-native and arbitrary
+provider dependency declarations remain active plan work.
 
 ### Workspace package catalog
 

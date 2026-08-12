@@ -269,8 +269,10 @@ action it cites.
 
 The implemented crates deliberately contain no:
 
-- generic workload-specific frontier derivation or dependency invalidation
-  beyond the source-search fixture and portfolio-attention derivation;
+- generic workload-specific frontier derivation beyond the source-search
+  fixture and portfolio-attention derivation; portfolio invalidation currently
+  covers declared mapped-file revisions and required environment capabilities,
+  not Git-native dependencies or arbitrary providers;
 - coding-harness proposal request/response campaign beyond the bounded
   workspace package receiving contract;
 - recurring, fair, parallel, or multi-user scheduling;

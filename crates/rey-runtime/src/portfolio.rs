@@ -712,9 +712,21 @@ fn validate_snapshot_shape(snapshot: &PortfolioSnapshot) -> Result<(), Portfolio
             .ok_or(PortfolioError::Overflow)?;
         for owner in &surface.owners {
             validate_text(owner)?;
+            if !workload_ids.contains(owner.as_str()) {
+                return Err(PortfolioError::UnknownOwner {
+                    surface_id: surface.surface_id.clone(),
+                    owner: owner.clone(),
+                });
+            }
             strings = strings
                 .checked_add(owner.len() as u64)
                 .ok_or(PortfolioError::Overflow)?;
+        }
+        if surface.owners.len() > 1 {
+            return Err(PortfolioError::OwnershipCollision {
+                surface_id: surface.surface_id.clone(),
+                owners: surface.owners.clone(),
+            });
         }
         for evidence_id in &surface.evidence_ids {
             validate_digest(evidence_id)?;
@@ -1030,6 +1042,13 @@ pub enum PortfolioError {
     NonCanonical,
     #[error("duplicate portfolio identity {0}")]
     Duplicate(String),
+    #[error("surface {surface_id} has multiple workload owners: {owners:?}")]
+    OwnershipCollision {
+        surface_id: String,
+        owners: Vec<String>,
+    },
+    #[error("surface {surface_id} names unknown workload owner {owner}")]
+    UnknownOwner { surface_id: String, owner: String },
     #[error("{role} count limit {limit} exceeded by {observed}")]
     CountLimit {
         role: &'static str,
@@ -1190,6 +1209,53 @@ mod tests {
         assert_eq!(frame.dataframe().height(), 0);
         assert_eq!(frame.dataframe().width(), 8);
         attention.verify().unwrap();
+    }
+
+    #[test]
+    fn ownership_collisions_and_dangling_owners_fail_closed() {
+        let workloads = vec![
+            observation(
+                "left",
+                PortfolioQualificationState::Qualified,
+                AttentionPolicy::Track,
+            ),
+            observation(
+                "right",
+                PortfolioQualificationState::Qualified,
+                AttentionPolicy::Track,
+            ),
+        ];
+        let surface = PortfolioSurfaceObservation {
+            surface_id: "src/shared.rs".to_owned(),
+            source_revision: SemanticHasher::new("surface").finish(),
+            owners: vec!["left".to_owned(), "right".to_owned()],
+            evidence_ids: Vec::new(),
+        };
+        assert!(matches!(
+            PortfolioSnapshot::new(
+                SemanticHasher::new("catalog").finish(),
+                None,
+                workloads.clone(),
+                vec![surface],
+                PortfolioLimits::default(),
+            ),
+            Err(super::PortfolioError::OwnershipCollision { .. })
+        ));
+        assert!(matches!(
+            PortfolioSnapshot::new(
+                SemanticHasher::new("catalog").finish(),
+                None,
+                workloads,
+                vec![PortfolioSurfaceObservation {
+                    surface_id: "src/missing.rs".to_owned(),
+                    source_revision: SemanticHasher::new("surface").finish(),
+                    owners: vec!["missing".to_owned()],
+                    evidence_ids: Vec::new(),
+                }],
+                PortfolioLimits::default(),
+            ),
+            Err(super::PortfolioError::UnknownOwner { .. })
+        ));
     }
 
     #[test]

@@ -486,6 +486,8 @@ impl ScenarioSuite {
 pub struct WorkloadLimits {
     pub max_scenarios: u64,
     pub max_outputs_per_scenario: u64,
+    pub max_owned_surfaces: u64,
+    pub max_required_capabilities: u64,
     pub max_string_bytes: u64,
     pub scenario_delta: ScenarioDeltaLimits,
 }
@@ -495,10 +497,19 @@ impl Default for WorkloadLimits {
         Self {
             max_scenarios: 64,
             max_outputs_per_scenario: 16,
+            max_owned_surfaces: 64,
+            max_required_capabilities: 256,
             max_string_bytes: 512 * 1_024,
             scenario_delta: ScenarioDeltaLimits::default(),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkloadOwnedSurface {
+    pub surface_id: String,
+    pub source_revision: String,
+    pub required_capability_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -507,6 +518,7 @@ pub struct WorkloadDefinition {
     pub workload: ContractIdentity,
     pub proposal: Option<ContractIdentity>,
     pub title: String,
+    pub owned_surfaces: Vec<WorkloadOwnedSurface>,
     pub inputs: Vec<WorkloadPort>,
     pub outputs: Vec<WorkloadPort>,
     pub graph: ComputeGraph,
@@ -520,6 +532,7 @@ pub struct WorkloadDefinitionParts {
     pub id: String,
     pub revision: u64,
     pub title: String,
+    pub owned_surfaces: Vec<WorkloadOwnedSurface>,
     pub proposal: Option<ContractIdentity>,
     pub inputs: Vec<WorkloadPort>,
     pub outputs: Vec<WorkloadPort>,
@@ -536,6 +549,7 @@ impl WorkloadDefinition {
             workload: placeholder_contract(&parts.id, parts.revision, "rey.workload.placeholder"),
             proposal: parts.proposal,
             title: parts.title,
+            owned_surfaces: parts.owned_surfaces,
             inputs: parts.inputs,
             outputs: parts.outputs,
             graph: parts.graph,
@@ -566,6 +580,7 @@ impl WorkloadDefinition {
         validate_contract("evaluator", &self.evaluator)?;
         validate_text("workload title", &self.title)?;
         validate_workload_limits(&self.limits)?;
+        validate_owned_surfaces(&self.owned_surfaces, &self.limits)?;
         ports_by_id("workload input", &self.inputs)?;
         ports_by_id("workload output", &self.outputs)?;
         self.graph.verify(&self.inputs, &self.outputs)?;
@@ -1732,6 +1747,7 @@ fn portfolio_attention_workload() -> Result<WorkloadDefinition, WorkloadError> {
         workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
         proposal: None,
         title: "Mine portfolio attention".to_owned(),
+        owned_surfaces: Vec::new(),
         inputs: vec![WorkloadPort {
             port_id: PORTFOLIO_INPUT_ID.to_owned(),
             value_type: ValueType::PortfolioSnapshot,
@@ -1868,6 +1884,7 @@ fn text_workload(normalize: bool) -> Result<WorkloadDefinition, WorkloadError> {
         } else {
             "Deliberate fixture mismatch".to_owned()
         },
+        owned_surfaces: Vec::new(),
         inputs: vec![WorkloadPort {
             port_id: INPUT_ID.to_owned(),
             value_type: ValueType::Utf8,
@@ -2025,6 +2042,7 @@ fn source_search_workload() -> Result<WorkloadDefinition, WorkloadError> {
         workload: placeholder_contract(workload_id, 1, "rey.workload.placeholder"),
         proposal: None,
         title: "Mine exact local source evidence".to_owned(),
+        owned_surfaces: Vec::new(),
         inputs: vec![WorkloadPort {
             port_id: INPUT_ID.to_owned(),
             value_type: ValueType::Utf8,
@@ -2554,6 +2572,8 @@ fn validate_graph_limits(limits: &GraphLimits) -> Result<(), WorkloadError> {
 fn validate_workload_limits(limits: &WorkloadLimits) -> Result<(), WorkloadError> {
     if limits.max_scenarios == 0
         || limits.max_outputs_per_scenario == 0
+        || limits.max_owned_surfaces == 0
+        || limits.max_required_capabilities == 0
         || limits.max_string_bytes == 0
         || limits.scenario_delta.max_value_bytes == 0
         || limits.scenario_delta.max_lines == 0
@@ -2562,6 +2582,52 @@ fn validate_workload_limits(limits: &WorkloadLimits) -> Result<(), WorkloadError
         || limits.scenario_delta.max_string_bytes == 0
     {
         return Err(WorkloadError::InvalidLimit);
+    }
+    Ok(())
+}
+
+fn validate_owned_surfaces(
+    surfaces: &[WorkloadOwnedSurface],
+    limits: &WorkloadLimits,
+) -> Result<(), WorkloadError> {
+    if surfaces.len() as u64 > limits.max_owned_surfaces {
+        return Err(WorkloadError::CountLimit {
+            role: "owned surfaces",
+            limit: limits.max_owned_surfaces,
+            observed: surfaces.len() as u64,
+        });
+    }
+    let mut previous_surface = None;
+    let mut required_capabilities = 0_u64;
+    for surface in surfaces {
+        validate_text("owned surface", &surface.surface_id)?;
+        validate_text("owned surface revision", &surface.source_revision)?;
+        if previous_surface.is_some_and(|previous| previous >= surface.surface_id.as_str()) {
+            return Err(WorkloadError::ResultShape(
+                "owned surfaces are not in canonical order",
+            ));
+        }
+        previous_surface = Some(surface.surface_id.as_str());
+        let mut previous_capability = None;
+        for capability_id in &surface.required_capability_ids {
+            validate_text("required capability", capability_id)?;
+            if previous_capability.is_some_and(|previous| previous >= capability_id.as_str()) {
+                return Err(WorkloadError::ResultShape(
+                    "required capabilities are not in canonical order",
+                ));
+            }
+            previous_capability = Some(capability_id.as_str());
+        }
+        required_capabilities = required_capabilities
+            .checked_add(surface.required_capability_ids.len() as u64)
+            .ok_or(WorkloadError::CountOverflow)?;
+    }
+    if required_capabilities > limits.max_required_capabilities {
+        return Err(WorkloadError::CountLimit {
+            role: "required capabilities",
+            limit: limits.max_required_capabilities,
+            observed: required_capabilities,
+        });
     }
     Ok(())
 }
@@ -2807,6 +2873,15 @@ fn workload_digest(workload: &WorkloadDefinition) -> SemanticDigest {
         add_contract(&mut hasher, proposal);
     }
     hasher.add_str(&workload.title);
+    hasher.add_u64(workload.owned_surfaces.len() as u64);
+    for surface in &workload.owned_surfaces {
+        hasher.add_str(&surface.surface_id);
+        hasher.add_str(&surface.source_revision);
+        hasher.add_u64(surface.required_capability_ids.len() as u64);
+        for capability_id in &surface.required_capability_ids {
+            hasher.add_str(capability_id);
+        }
+    }
     hasher.add_u64(workload.inputs.len() as u64);
     for port in &workload.inputs {
         hasher.add_str(&port.port_id);
@@ -2822,6 +2897,8 @@ fn workload_digest(workload: &WorkloadDefinition) -> SemanticDigest {
     add_contract(&mut hasher, &workload.evaluator);
     hasher.add_u64(workload.limits.max_scenarios);
     hasher.add_u64(workload.limits.max_outputs_per_scenario);
+    hasher.add_u64(workload.limits.max_owned_surfaces);
+    hasher.add_u64(workload.limits.max_required_capabilities);
     hasher.add_u64(workload.limits.max_string_bytes);
     hasher.add_u64(workload.limits.scenario_delta.max_value_bytes);
     hasher.add_u64(workload.limits.scenario_delta.max_lines);
@@ -3146,6 +3223,13 @@ fn semantic_string_bytes_workload(workload: &WorkloadDefinition) -> Result<u64, 
         add_contract_string_bytes(&mut bytes, proposal)?;
     }
     add_string_bytes(&mut bytes, &workload.title)?;
+    for surface in &workload.owned_surfaces {
+        add_string_bytes(&mut bytes, &surface.surface_id)?;
+        add_string_bytes(&mut bytes, &surface.source_revision)?;
+        for capability_id in &surface.required_capability_ids {
+            add_string_bytes(&mut bytes, capability_id)?;
+        }
+    }
     for port in workload.inputs.iter().chain(&workload.outputs) {
         add_string_bytes(&mut bytes, &port.port_id)?;
         add_string_bytes(&mut bytes, port.value_type.as_str())?;
@@ -3328,9 +3412,9 @@ mod tests {
     use super::{
         BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_NORMALIZE_WORKLOAD_ID,
         BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits,
-        RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadValue, built_in_workload,
-        built_in_workloads, execute_workload, run_workload, test_workload,
-        test_workload_with_observer,
+        RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadOwnedSurface,
+        WorkloadValue, built_in_workload, built_in_workloads, execute_workload, run_workload,
+        test_workload, test_workload_with_observer,
     };
 
     #[test]
@@ -3347,6 +3431,51 @@ mod tests {
         for workload in workloads {
             workload.verify().unwrap();
         }
+    }
+
+    #[test]
+    fn owned_surface_declarations_are_bounded_canonical_and_semantic() {
+        let original = built_in_workload(BUILT_IN_NORMALIZE_WORKLOAD_ID).unwrap();
+        let mut owned = original.clone();
+        owned.owned_surfaces = vec![WorkloadOwnedSurface {
+            surface_id: "src/lib.rs".to_owned(),
+            source_revision: SemanticHasher::new("source").finish().to_string(),
+            required_capability_ids: vec!["parser.rust".to_owned()],
+        }];
+        let owned = owned.finalize().unwrap();
+        assert_ne!(
+            owned.workload.semantic_digest,
+            original.workload.semantic_digest
+        );
+        owned.verify().unwrap();
+
+        let mut noncanonical = owned.clone();
+        noncanonical.owned_surfaces[0].required_capability_ids =
+            vec!["parser.rust".to_owned(), "parser.rust".to_owned()];
+        assert!(matches!(
+            noncanonical.verify(),
+            Err(WorkloadError::ResultShape(
+                "required capabilities are not in canonical order"
+            ))
+        ));
+
+        let mut over_limit = owned;
+        over_limit.limits.max_owned_surfaces = 1;
+        over_limit.owned_surfaces.push(WorkloadOwnedSurface {
+            surface_id: "src/main.rs".to_owned(),
+            source_revision: SemanticHasher::new("other-source").finish().to_string(),
+            required_capability_ids: Vec::new(),
+        });
+        over_limit
+            .owned_surfaces
+            .sort_by(|left, right| left.surface_id.cmp(&right.surface_id));
+        assert!(matches!(
+            over_limit.verify(),
+            Err(WorkloadError::CountLimit {
+                role: "owned surfaces",
+                ..
+            })
+        ));
     }
 
     #[test]

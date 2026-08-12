@@ -249,6 +249,11 @@ the complete HEAD/INDEX/WORKING portfolio without executing it. `test
 actual evidence. The human runner is diff-native: plain output opens only
 unresolved assertions, `-v` shows every compact `EXPECTED → ACTUAL` assertion,
 and `-vv` adds exact evidence objects, identities, limits, and lineage.
+Human `list` and `status` output identifies every bounded owned-surface
+declaration with its exact source revision and required capability ids; JSON
+retains the same typed declarations. Portfolio attention separately reports
+the live owner binding, revision drift, missing capability, and unowned mapped
+surface facts derived from retained environment evidence.
 `commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.
