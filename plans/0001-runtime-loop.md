@@ -27,7 +27,9 @@ surfaces; retained mapped-file and capability changes derive owner attention.
 One selected ready `CREATE` row now crosses an immutable external-harness
 request/response and human admission cycle without Rey invoking a harness.
 A bounded Git poll/watch now retains cursor, every cadence tick, normal watch
-receipts, pending transition, and proposal-only activation evidence. Workloads
+receipts, pending transition, and proposal-only activation evidence. Its
+semantic index identity now includes stages, modes, OIDs, reversible paths,
+and supported behavior flags while ignoring stat/cache storage churn. Workloads
 can declare exact Git HEAD or
 semantic-index dependencies; portfolio attention compares them only with the
 acknowledged cursor snapshot, so ambient repository movement cannot silently
@@ -80,7 +82,7 @@ and the remaining recurrence failure bounds remain open.
 
 ### 4. Add activation and recurrence
 
-- [x] Poll bounded Git HEAD and partial semantic-index observations into
+- [x] Poll bounded Git HEAD and complete supported semantic-index observations into
   classified movement, a retained cursor, and idempotent proposal-only
   activations with an exact evidence acknowledgement.
 - [x] Admit one acknowledged activation against the current Git cursor,
@@ -90,7 +92,9 @@ and the remaining recurrence failure bounds remain open.
   retain its typed deltas separately from qualification, and replay the result
   without rerunning the graph.
 - [ ] Extend activation evidence through watched refs, reachable/path deltas,
-  and complete supported index semantics.
+  and complete supported index semantics. Standard stage, mode, OID, path,
+  assume-unchanged, skip-worktree, and intent-to-add semantics are complete;
+  watched refs and reachable/path deltas remain open.
 - [x] Coalesce compatible same-transition activations onto one exact retained
   scenario result only when all frozen inputs match and the result fits the
   stricter admission budget.

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::{
+    collections::BTreeSet,
     ffi::OsString,
     fs, io,
     path::{Path, PathBuf},
@@ -187,6 +188,9 @@ pub struct GitIndexEntry {
     pub object_oid: String,
     pub stage: u8,
     pub path: PathIdentity,
+    pub assume_unchanged: bool,
+    pub skip_worktree: bool,
+    pub intent_to_add: bool,
 }
 
 impl GitIndexSummary {
@@ -205,6 +209,8 @@ impl GitIndexSummary {
                 || !valid_oid(&entry.object_oid, object_format)
                 || entry.stage > 3
                 || !entry.mode.bytes().all(|byte| byte.is_ascii_digit())
+                || entry.stage != 0
+                    && (entry.assume_unchanged || entry.skip_worktree || entry.intent_to_add)
             {
                 return Err(GitError::InvalidSnapshot);
             }
@@ -221,6 +227,9 @@ impl GitIndexSummary {
             hasher.add_str(&entry.object_oid);
             hasher.add_str(&entry.stage.to_string());
             hasher.add_bytes(&path);
+            hasher.add_bool(entry.assume_unchanged);
+            hasher.add_bool(entry.skip_worktree);
+            hasher.add_bool(entry.intent_to_add);
         }
         hasher.add_u64(self.entry_count);
         if self.entry_digest != hasher.finish() {
@@ -343,6 +352,7 @@ impl GitSnapshot {
             operations: vec![
                 "inspect_head".to_owned(),
                 "inspect_index_entries".to_owned(),
+                "inspect_index_flags".to_owned(),
                 "inspect_recent_commits".to_owned(),
                 "inspect_repository".to_owned(),
                 "inspect_repository_status".to_owned(),
@@ -351,12 +361,10 @@ impl GitSnapshot {
                 "capture_bytes".to_owned(),
                 "direct_argv".to_owned(),
                 "no_optional_locks".to_owned(),
+                "semantic_index_flags".to_owned(),
                 "wall_timeout".to_owned(),
             ],
-            unsupported_limits: vec![
-                "complete_index_flags".to_owned(),
-                "process_sandbox".to_owned(),
-            ],
+            unsupported_limits: vec!["process_sandbox".to_owned()],
             observed_at: None,
             error_code: None,
             error_detail: None,
@@ -637,9 +645,8 @@ impl GitPollTransition {
             );
         }
         if !cursor.index_complete || !target_index_complete {
-            omissions.push(
-                "semantic index comparison omits unsupported index flags or extensions".to_owned(),
-            );
+            omissions
+                .push("semantic index comparison omits unsupported persistent flags".to_owned());
         }
         let mut transition = Self {
             schema: GIT_POLL_TRANSITION_SCHEMA.to_owned(),
@@ -683,9 +690,8 @@ impl GitPollTransition {
             );
         }
         if !self.source_index_complete || !self.target_index_complete {
-            expected_omissions.push(
-                "semantic index comparison omits unsupported index flags or extensions".to_owned(),
-            );
+            expected_omissions
+                .push("semantic index comparison omits unsupported persistent flags".to_owned());
         }
         if self.schema != GIT_POLL_TRANSITION_SCHEMA
             || !is_semantic_digest(&self.transition_id)
@@ -1484,72 +1490,33 @@ impl GitInspector {
         deadline: Instant,
     ) -> Result<GitIndexSummary, GitError> {
         let output = self
-            .git(workspace, &["ls-files", "--stage", "-z"], deadline)?
+            .git(
+                workspace,
+                &["ls-files", "--stage", "--debug", "--sparse", "-z"],
+                deadline,
+            )?
             .success("read Git index entries")?;
-        let mut entries = output
-            .split(|byte| *byte == 0)
-            .filter(|row| !row.is_empty());
-        let mut count = 0_u64;
-        let mut logical_entries = Vec::new();
+        let (logical_entries, omitted_semantics) =
+            parse_debug_index_entries(&output, object_format, self.limits.max_index_entries)?;
         let mut hasher = SemanticHasher::new("rey.git-index-entries.v1");
-        for row in &mut entries {
-            count = count.saturating_add(1);
-            if count > self.limits.max_index_entries {
-                return Err(GitError::IndexEntryLimit(self.limits.max_index_entries));
-            }
-            let separator = row
-                .iter()
-                .position(|byte| *byte == b'\t')
-                .ok_or(GitError::MalformedIndex("entry is missing path separator"))?;
-            let (header, path_with_separator) = row.split_at(separator);
-            let path = &path_with_separator[1..];
-            let header = std::str::from_utf8(header)
-                .map_err(|_| GitError::MalformedIndex("entry header is not ASCII"))?;
-            let mut fields = header.split(' ');
-            let mode = fields
-                .next()
-                .ok_or(GitError::MalformedIndex("entry is missing mode"))?;
-            let oid = fields
-                .next()
-                .ok_or(GitError::MalformedIndex("entry is missing object id"))?;
-            let stage = fields
-                .next()
-                .ok_or(GitError::MalformedIndex("entry is missing stage"))?;
-            if fields.next().is_some()
-                || !mode.bytes().all(|byte| byte.is_ascii_digit())
-                || !oid.bytes().all(|byte| byte.is_ascii_hexdigit())
-                || !matches!(stage, "0" | "1" | "2" | "3")
-            {
-                return Err(GitError::MalformedIndex("entry header has invalid fields"));
-            }
-            hasher.add_str(mode);
-            hasher.add_str(object_format);
-            hasher.add_str(oid);
-            hasher.add_str(stage);
-            hasher.add_bytes(path);
-            logical_entries.push(GitIndexEntry {
-                mode: mode.to_owned(),
-                object_format: object_format.to_owned(),
-                object_oid: oid.to_owned(),
-                stage: stage
-                    .parse()
-                    .map_err(|_| GitError::MalformedIndex("entry stage is not numeric"))?,
-                path: PathIdentity::from_bytes(path),
-            });
+        for entry in &logical_entries {
+            hasher.add_str(&entry.mode);
+            hasher.add_str(&entry.object_format);
+            hasher.add_str(&entry.object_oid);
+            hasher.add_str(&entry.stage.to_string());
+            entry.path.add_semantics(&mut hasher);
+            hasher.add_bool(entry.assume_unchanged);
+            hasher.add_bool(entry.skip_worktree);
+            hasher.add_bool(entry.intent_to_add);
         }
+        let count = logical_entries.len() as u64;
         hasher.add_u64(count);
         Ok(GitIndexSummary {
             entry_digest: hasher.finish(),
             entry_count: count,
             entries: logical_entries,
-            complete: false,
-            omitted_semantics: vec![
-                "assume_unchanged".to_owned(),
-                "intent_to_add".to_owned(),
-                "skip_worktree".to_owned(),
-                "sparse_index".to_owned(),
-                "split_index".to_owned(),
-            ],
+            complete: omitted_semantics.is_empty(),
+            omitted_semantics,
         })
     }
 
@@ -1653,6 +1620,143 @@ impl SuccessfulOutput for CommandOutput {
             })
         }
     }
+}
+
+const INDEX_STAGE_MASK: u32 = 0x0000_3000;
+const INDEX_EXTENDED_FLAG: u32 = 0x0000_4000;
+const INDEX_ASSUME_UNCHANGED_FLAG: u32 = 0x0000_8000;
+const INDEX_SPLIT_REPLACEMENT_FLAG: u32 = 0x0800_0000;
+const INDEX_INTENT_TO_ADD_FLAG: u32 = 0x2000_0000;
+const INDEX_SKIP_WORKTREE_FLAG: u32 = 0x4000_0000;
+const SUPPORTED_PERSISTENT_INDEX_FLAGS: u32 = INDEX_STAGE_MASK
+    | INDEX_EXTENDED_FLAG
+    | INDEX_ASSUME_UNCHANGED_FLAG
+    | INDEX_SPLIT_REPLACEMENT_FLAG
+    | INDEX_INTENT_TO_ADD_FLAG
+    | INDEX_SKIP_WORKTREE_FLAG;
+
+fn parse_debug_index_entries(
+    output: &[u8],
+    object_format: &str,
+    max_entries: u64,
+) -> Result<(Vec<GitIndexEntry>, Vec<String>), GitError> {
+    let mut remaining = output;
+    let mut entries = Vec::new();
+    let mut omissions = BTreeSet::new();
+    while !remaining.is_empty() {
+        if entries.len() as u64 >= max_entries {
+            return Err(GitError::IndexEntryLimit(max_entries));
+        }
+        let separator =
+            remaining
+                .iter()
+                .position(|byte| *byte == 0)
+                .ok_or(GitError::MalformedIndex(
+                    "debug entry is missing its NUL separator",
+                ))?;
+        let row = &remaining[..separator];
+        remaining = &remaining[separator + 1..];
+        let path_separator = row
+            .iter()
+            .position(|byte| *byte == b'\t')
+            .ok_or(GitError::MalformedIndex("entry is missing path separator"))?;
+        let (header, path_with_separator) = row.split_at(path_separator);
+        let path = &path_with_separator[1..];
+        let header = std::str::from_utf8(header)
+            .map_err(|_| GitError::MalformedIndex("entry header is not ASCII"))?;
+        let mut fields = header.split(' ');
+        let mode = fields
+            .next()
+            .ok_or(GitError::MalformedIndex("entry is missing mode"))?;
+        let oid = fields
+            .next()
+            .ok_or(GitError::MalformedIndex("entry is missing object id"))?;
+        let stage = fields
+            .next()
+            .ok_or(GitError::MalformedIndex("entry is missing stage"))?;
+        if fields.next().is_some()
+            || !mode.bytes().all(|byte| byte.is_ascii_digit())
+            || !valid_oid(oid, object_format)
+            || !matches!(stage, "0" | "1" | "2" | "3")
+        {
+            return Err(GitError::MalformedIndex("entry header has invalid fields"));
+        }
+        for prefix in [
+            b"  ctime: ".as_slice(),
+            b"  mtime: ",
+            b"  dev: ",
+            b"  uid: ",
+        ] {
+            let line = take_debug_index_line(&mut remaining)?;
+            if !line.starts_with(prefix) {
+                return Err(GitError::MalformedIndex(
+                    "entry debug metadata has an unexpected shape",
+                ));
+            }
+        }
+        let flags_line = take_debug_index_line(&mut remaining)?;
+        if !flags_line.starts_with(b"  size: ") {
+            return Err(GitError::MalformedIndex(
+                "entry debug metadata is missing size and flags",
+            ));
+        }
+        let flags = flags_line
+            .split(|byte| *byte == b'\t')
+            .find_map(|field| field.strip_prefix(b"flags: "))
+            .ok_or(GitError::MalformedIndex(
+                "entry debug metadata is missing flags",
+            ))?;
+        let flags = std::str::from_utf8(flags)
+            .ok()
+            .and_then(|flags| u32::from_str_radix(flags, 16).ok())
+            .ok_or(GitError::MalformedIndex("entry flags are not hexadecimal"))?;
+        let stage = stage
+            .parse::<u8>()
+            .map_err(|_| GitError::MalformedIndex("entry stage is not numeric"))?;
+        if ((flags & INDEX_STAGE_MASK) >> 12) as u8 != stage {
+            return Err(GitError::MalformedIndex(
+                "entry stage disagrees with its persistent flags",
+            ));
+        }
+        let known_extended_flags = flags & (INDEX_INTENT_TO_ADD_FLAG | INDEX_SKIP_WORKTREE_FLAG);
+        if known_extended_flags != 0 && flags & INDEX_EXTENDED_FLAG == 0 {
+            return Err(GitError::MalformedIndex(
+                "entry extended flags are internally inconsistent",
+            ));
+        }
+        let unknown_flags = flags & !SUPPORTED_PERSISTENT_INDEX_FLAGS;
+        if unknown_flags != 0 {
+            omissions.insert(format!(
+                "unsupported persistent index flags 0x{unknown_flags:08x}"
+            ));
+        } else if flags & INDEX_EXTENDED_FLAG != 0 && known_extended_flags == 0 {
+            omissions.insert("unsupported empty extended index flags".to_owned());
+        }
+        entries.push(GitIndexEntry {
+            mode: mode.to_owned(),
+            object_format: object_format.to_owned(),
+            object_oid: oid.to_owned(),
+            stage,
+            path: PathIdentity::from_bytes(path),
+            assume_unchanged: flags & INDEX_ASSUME_UNCHANGED_FLAG != 0,
+            skip_worktree: flags & INDEX_SKIP_WORKTREE_FLAG != 0,
+            intent_to_add: flags & INDEX_INTENT_TO_ADD_FLAG != 0,
+        });
+    }
+    Ok((entries, omissions.into_iter().collect()))
+}
+
+fn take_debug_index_line<'a>(remaining: &mut &'a [u8]) -> Result<&'a [u8], GitError> {
+    let newline =
+        remaining
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .ok_or(GitError::MalformedIndex(
+                "entry debug metadata is incomplete",
+            ))?;
+    let line = &remaining[..newline];
+    *remaining = &remaining[newline + 1..];
+    Ok(line)
 }
 
 fn parse_line(output: &[u8]) -> Result<&str, GitError> {
@@ -2370,6 +2474,123 @@ mod tests {
     }
 
     #[test]
+    fn logical_index_retains_behavior_flags_and_ignores_storage_details() {
+        let directory = repository();
+        fs::write(directory.path().join("skip"), "skip\n").unwrap();
+        git(directory.path(), &["add", "skip"]);
+        git(
+            directory.path(),
+            &["commit", "-q", "-m", "add skip fixture"],
+        );
+        git(
+            directory.path(),
+            &["update-index", "--assume-unchanged", "tracked"],
+        );
+        git(
+            directory.path(),
+            &["update-index", "--skip-worktree", "skip"],
+        );
+        fs::write(directory.path().join("intent"), "intent\n").unwrap();
+        git(directory.path(), &["add", "-N", "intent"]);
+
+        let inspect = inspector(directory.path());
+        let flagged = inspect.inspect().unwrap().unwrap();
+        let index = flagged.index.as_ref().unwrap();
+        assert!(index.complete);
+        assert!(index.omitted_semantics.is_empty());
+        let entry = |path: &str| {
+            index
+                .entries
+                .iter()
+                .find(|entry| entry.path.display == path)
+                .unwrap()
+        };
+        assert!(entry("tracked").assume_unchanged);
+        assert!(!entry("tracked").skip_worktree);
+        assert!(entry("skip").skip_worktree);
+        assert!(!entry("skip").intent_to_add);
+        assert!(entry("intent").intent_to_add);
+        assert_eq!(entry("intent").stage, 0);
+
+        let mut tampered = flagged.clone();
+        let assume_unchanged = tampered.index.as_ref().unwrap().entries[0].assume_unchanged;
+        tampered.index.as_mut().unwrap().entries[0].assume_unchanged = !assume_unchanged;
+        assert!(matches!(tampered.verify(), Err(GitError::InvalidSnapshot)));
+
+        git(
+            directory.path(),
+            &["update-index", "--no-assume-unchanged", "tracked"],
+        );
+        git(
+            directory.path(),
+            &["update-index", "--no-skip-worktree", "skip"],
+        );
+        git(directory.path(), &["add", "intent"]);
+        let cleared = inspect.inspect().unwrap().unwrap();
+        assert_ne!(flagged.snapshot_id, cleared.snapshot_id);
+        assert_ne!(
+            flagged.index.unwrap().entry_digest,
+            cleared.index.unwrap().entry_digest
+        );
+    }
+
+    #[test]
+    fn unknown_persistent_index_flags_remain_explicit_omissions() {
+        let oid = "0".repeat(40);
+        let output = format!(
+            "100644 {oid} 0\ttracked\0  ctime: 0:0\n  mtime: 0:0\n  dev: 0\tino: 0\n  uid: 0\tgid: 0\n  size: 0\tflags: 80000000\n"
+        );
+        let (entries, omissions) =
+            super::parse_debug_index_entries(output.as_bytes(), "sha1", 8).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            omissions,
+            vec!["unsupported persistent index flags 0x80000000"]
+        );
+    }
+
+    #[test]
+    fn split_and_sparse_storage_project_complete_logical_entries() {
+        let split = repository();
+        git(split.path(), &["update-index", "--split-index"]);
+        let split_snapshot = inspector(split.path()).inspect().unwrap().unwrap();
+        let split_index = split_snapshot.index.unwrap();
+        assert!(split_index.complete);
+        assert_eq!(split_index.entries.len(), 1);
+        assert_eq!(split_index.entries[0].path.display, "tracked");
+
+        let sparse = TempDir::new().unwrap();
+        git(sparse.path(), &["init", "-q"]);
+        git(sparse.path(), &["config", "user.name", "Rey Test"]);
+        git(
+            sparse.path(),
+            &["config", "user.email", "rey@example.invalid"],
+        );
+        fs::create_dir_all(sparse.path().join("visible")).unwrap();
+        fs::create_dir_all(sparse.path().join("hidden")).unwrap();
+        fs::write(sparse.path().join("visible/file"), "visible\n").unwrap();
+        fs::write(sparse.path().join("hidden/file"), "hidden\n").unwrap();
+        git(sparse.path(), &["add", "."]);
+        git(sparse.path(), &["commit", "-q", "-m", "sparse fixture"]);
+        git(
+            sparse.path(),
+            &["sparse-checkout", "init", "--cone", "--sparse-index"],
+        );
+        git(sparse.path(), &["sparse-checkout", "set", "visible"]);
+        let sparse_snapshot = inspector(sparse.path()).inspect().unwrap().unwrap();
+        let sparse_index = sparse_snapshot.index.unwrap();
+        assert!(sparse_index.complete);
+        assert_eq!(sparse_index.entries.len(), 2);
+        let hidden = sparse_index
+            .entries
+            .iter()
+            .find(|entry| entry.path.display == "hidden/")
+            .unwrap();
+        assert_eq!(hidden.mode, "040000");
+        assert!(hidden.skip_worktree);
+    }
+
+    #[test]
     fn poll_classifies_fast_forward_and_replays_one_activation_identity() {
         let directory = repository();
         let inspect = inspector(directory.path());
@@ -2400,7 +2621,7 @@ mod tests {
             ]
         );
         assert!(transition.head_complete);
-        assert!(!transition.target_index_complete);
+        assert!(transition.target_index_complete);
 
         let trigger = trigger(&initial, GitActivationEventClass::RefFastForward, true);
         let proposals =
@@ -2515,7 +2736,7 @@ mod tests {
     }
 
     #[test]
-    fn partial_semantic_index_change_requires_an_explicit_partial_trigger() {
+    fn complete_semantic_index_change_admits_a_complete_trigger() {
         let directory = repository();
         let inspect = inspector(directory.path());
         let initial = inspect.inspect().unwrap().unwrap();
@@ -2531,19 +2752,15 @@ mod tests {
         git(directory.path(), &["add", "tracked"]);
         let (_, changed) = inspect.inspect_transition(&cursor).unwrap().unwrap();
         assert_eq!(changed.events, vec![GitActivationEventClass::IndexChanged]);
-        assert!(!changed.target_index_complete);
+        assert!(changed.source_index_complete);
+        assert!(changed.target_index_complete);
+        assert!(changed.omissions.is_empty());
 
         let complete_trigger = trigger(&initial, GitActivationEventClass::IndexChanged, true);
-        assert!(
-            derive_activation_proposals(&changed, &[complete_trigger])
-                .unwrap()
-                .is_empty()
-        );
-        let partial_trigger = trigger(&initial, GitActivationEventClass::IndexChanged, false);
-        let proposals = derive_activation_proposals(&changed, &[partial_trigger]).unwrap();
+        let proposals = derive_activation_proposals(&changed, &[complete_trigger]).unwrap();
         assert_eq!(proposals.len(), 1);
-        assert!(!proposals[0].complete);
-        assert!(!proposals[0].omissions.is_empty());
+        assert!(proposals[0].complete);
+        assert!(proposals[0].omissions.is_empty());
     }
 
     #[test]

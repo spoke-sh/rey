@@ -5,7 +5,9 @@ Git is both a source of exact code identities and a pollable change substrate
 for software-development workloads. The first foundation slice implements a
 read-only contained repository observation through bounded direct Git argv. It
 records repository/worktree identity, object format, bare/shallow state, HEAD,
-and a partial logical index-entry digest. The operator cadence slice also reads
+and a complete logical index-entry digest for the supported stage, mode, OID,
+path, assume-unchanged, skip-worktree, and intent-to-add semantics. The
+operator cadence slice also reads
 the newest 24 commits currently reachable from `HEAD`, preserving exact OIDs,
 ordered parents, committer time, subject, object format, shallow state,
 truncation, and a semantic sequence identity. It now pairs that sequence with
@@ -19,8 +21,8 @@ acknowledged transition history under `.rey/git`. The bounded `rey git watch`
 surface repeats that HEAD/index observation, retains every cadence tick and
 normal terminal receipt, and stops at the first changed transition without
 advancing the cursor. Watched-ref frames beyond HEAD, reachable-set and path
-deltas, cross-poll debounce, remote synchronization, and complete index flag
-semantics remain future Git work. Workload packages can already bind exact
+deltas, cross-poll debounce, and remote synchronization remain future Git
+work. Workload packages can already bind exact
 HEAD or semantic-index revisions and derive attention from the acknowledged
 cursor snapshot without treating an ambient observation or activation proposal
 as authority. A separate workload command can admit a current acknowledged
@@ -160,10 +162,13 @@ default semantic trigger. Git can refresh stat-cache metadata without changing
 the proposed tree. That must not activate a workload entry point whose contract
 depends only on staged content.
 
-Split and sparse indexes must be expanded or interpreted through supported Git
-semantics before Rey claims a complete logical index relation. An index lock,
-corrupt index, unsupported extension, or unresolved conflict is an explicit
-observation state.
+The implemented inspector asks Git for its logical split/sparse view and binds
+assume-unchanged, skip-worktree, and intent-to-add flags into every entry
+identity. Stat-cache and fsmonitor-valid state remain deliberately
+non-semantic. An unknown persistent flag makes the snapshot partial with an
+explicit omission; an index lock, corrupt index, or unsupported logical form
+fails closed. Conflict stages remain complete typed evidence rather than being
+silently flattened.
 
 ## Canonical Development Deltas
 
@@ -380,10 +385,11 @@ not cross-poll debounce or evidence loss.
 
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
 classes, completeness posture, exact workload/graph/scenarios, and an action,
-scenario, and evidence budget. Incomplete semantic-index transitions match
-only when a trigger explicitly permits incomplete evidence, and the proposal
-retains the omission. HEAD ancestry may remain complete even while unsupported
-index flags make the index axis partial.
+scenario, and evidence budget. Supported semantic-index transitions are now
+complete and can satisfy a completeness-requiring trigger. If an unknown
+persistent flag makes a transition incomplete, it matches only when a trigger
+explicitly permits incomplete evidence and the proposal retains the omission.
+HEAD ancestry completeness remains independent from the index axis.
 
 Workloads can therefore activate narrowly. An index delta touching Rust
 sources might select symbol and diagnostic scenarios, while a new commit on a

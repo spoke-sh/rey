@@ -242,7 +242,7 @@ rey git ... ack TRANSITION_ID
 exact snapshot identity with the retained cursor without creating `.rey`
 state. `init` explicitly retains that snapshot as the first cursor. `poll`
 revalidates the repository/worktree identity, classifies HEAD movement,
-compares the partial semantic index, and retains one changed transition plus
+compares the complete supported semantic index, and retains one changed transition plus
 its exact triggers and deterministic proposal-only activations. Repeating the
 same poll is identity-stable and does not duplicate pending evidence; a
 different transition cannot replace an unacknowledged one.

@@ -1122,6 +1122,16 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     assert!(baseline.status.success());
     let baseline: GitOperatorStatus = serde_json::from_slice(&baseline.stdout).unwrap();
     assert_eq!(baseline.changed_since_cursor, Some(false));
+    assert!(baseline.observed_snapshot.index.as_ref().unwrap().complete);
+    assert!(
+        baseline
+            .observed_snapshot
+            .index
+            .as_ref()
+            .unwrap()
+            .omitted_semantics
+            .is_empty()
+    );
 
     fs::write(workspace.path().join("tracked"), "two\n").unwrap();
     assert!(
@@ -1187,6 +1197,8 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     let polled = String::from_utf8(polled.stdout).unwrap();
     assert!(polled.contains("GIT POLL TRANSITION"));
     assert!(polled.contains("HEAD movement          fast_forward · complete"));
+    assert!(polled.contains("Semantic index         "));
+    assert!(polled.contains(" · complete"));
     assert!(polled.contains("ref.fast_forward"));
     assert!(polled.contains("Activation proposals   1"));
     assert!(polled.contains("AWAITING EVIDENCE ACK"));
@@ -1206,6 +1218,9 @@ fn git_cli_retains_transition_evidence_before_advancing_the_cursor() {
     assert!(replay.changed);
     assert!(replay.retained);
     assert_eq!(replay.record.proposals.len(), 1);
+    assert!(replay.record.transition.source_index_complete);
+    assert!(replay.record.transition.target_index_complete);
+    assert!(replay.record.transition.omissions.is_empty());
 
     let stale = run_rey_workspace(&[
         "git",

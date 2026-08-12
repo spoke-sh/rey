@@ -626,7 +626,7 @@ outcomes, and the next cursor. The next cursor is publishable only after the
 required activation evidence reaches its declared retention boundary.
 
 The implemented `rey git watch` is the bounded local recurrence surface over
-the current HEAD and partial semantic-index poll. It accepts explicit maximum
+the current HEAD and complete supported semantic-index poll. It accepts explicit maximum
 iterations, interval, elapsed cadence budget, and the same bounded trigger
 documents as a single poll. It retains each `rey.git-cadence-tick.v1` before
 continuing, atomically retains a changed transition with its terminal tick,
