@@ -200,7 +200,10 @@ retains a baseline, `poll` retains one typed transition and proposal set, and
 `ack` advances the cursor only from that exact evidence. These commands never
 mutate Git or execute a proposed workload. `rey workloads admit-activation`
 then applies the ordinary workload preconditions and retains scheduling
-eligibility only; execution remains a later bounded runtime action.
+eligibility only. `rey workloads execute-activation` revalidates those exact
+inputs, evaluates only the admitted scenarios under the retained evidence
+budget, and records a replay-stable result without mutating Git or replacing
+full-suite qualification.
 
 A workload is Rey's public unit of computation: one versioned graph, scenario
 suite, policy boundary, qualification contract, and total budget. Agents,

@@ -38,6 +38,8 @@ pub const WORKLOAD_SCHEMA: &str = "rey.workload.v1";
 pub const COMPUTE_GRAPH_SCHEMA: &str = "rey.compute-graph.v1";
 pub const SCENARIO_SUITE_SCHEMA: &str = "rey.scenario-suite.v1";
 pub const WORKLOAD_TEST_RESULT_SCHEMA: &str = "rey.workload-test-result.v1";
+pub const WORKLOAD_SCENARIO_EXECUTION_RESULT_SCHEMA: &str =
+    "rey.workload-scenario-execution-result.v1";
 pub const WORKLOAD_QUALIFICATION_SCHEMA: &str = "rey.workload-qualification.v1";
 pub const WORKLOAD_RUN_RESULT_SCHEMA: &str = "rey.workload-run-result.v1";
 
@@ -1003,106 +1005,196 @@ impl WorkloadTestResult {
             .iter()
             .zip(&workload.scenario_suite.scenarios)
         {
-            if result.scenario != scenario.scenario || result.required != scenario.required {
+            verify_scenario_result_for(workload, &self.campaign_id, result, scenario)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadScenarioExecutionResult {
+    pub schema: String,
+    pub result_id: SemanticDigest,
+    pub campaign_id: SemanticDigest,
+    pub workload: ContractIdentity,
+    pub graph: ContractIdentity,
+    pub scenario_suite: ContractIdentity,
+    pub evaluator: ContractIdentity,
+    pub capability_snapshot_id: SemanticDigest,
+    pub selected_scenario_ids: Vec<String>,
+    pub status: TestStatus,
+    pub stop_reason: String,
+    pub summary: ScenarioExecutionSummary,
+    pub scenarios: Vec<ScenarioResult>,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScenarioExecutionSummary {
+    pub selected: u64,
+    pub passed: u64,
+    pub failed: u64,
+    pub inconclusive: u64,
+    pub required: u64,
+    pub optional: u64,
+}
+
+impl WorkloadScenarioExecutionResult {
+    pub fn verify(&self) -> Result<(), WorkloadError> {
+        if self.schema != WORKLOAD_SCENARIO_EXECUTION_RESULT_SCHEMA {
+            return Err(WorkloadError::UnsupportedSchema {
+                expected: WORKLOAD_SCENARIO_EXECUTION_RESULT_SCHEMA,
+                actual: self.schema.clone(),
+            });
+        }
+        for (role, contract) in [
+            ("workload", &self.workload),
+            ("graph", &self.graph),
+            ("scenario suite", &self.scenario_suite),
+            ("evaluator", &self.evaluator),
+        ] {
+            validate_contract(role, contract)?;
+        }
+        validate_digest(&self.campaign_id)?;
+        validate_digest(&self.capability_snapshot_id)?;
+        if self.campaign_id
+            != campaign_digest_from_contracts(
+                &self.workload,
+                &self.graph,
+                &self.scenario_suite,
+                &self.evaluator,
+            )
+            || self.selected_scenario_ids.is_empty()
+            || !is_canonical_strings(&self.selected_scenario_ids)
+            || self.scenarios.len() != self.selected_scenario_ids.len()
+        {
+            return Err(WorkloadError::ResultShape(
+                "scenario execution selection is invalid",
+            ));
+        }
+        let mut previous_scenario = None;
+        for (selected_id, scenario) in self.selected_scenario_ids.iter().zip(&self.scenarios) {
+            validate_contract("scenario", &scenario.scenario)?;
+            validate_digest(&scenario.execution_id)?;
+            if selected_id != &scenario.scenario.id
+                || previous_scenario
+                    .is_some_and(|previous| previous >= scenario.scenario.id.as_str())
+                || scenario.deltas.is_empty()
+            {
                 return Err(WorkloadError::ResultShape(
-                    "scenario result does not match the exact scenario contract",
+                    "scenario execution results are not the exact canonical selection",
                 ));
             }
-            if result.deltas.len() != scenario.expected_outputs.len() {
-                return Err(WorkloadError::ResultShape(
-                    "scenario result does not cover every expected output",
-                ));
-            }
-            let expected_mining = usize::from(scenario.source_search.is_some());
-            if result.mining.len() != expected_mining {
-                return Err(WorkloadError::ResultShape(
-                    "scenario result does not cover its mining operation",
-                ));
-            }
-            let expected_topography = usize::from(scenario.topography_survey.is_some());
-            if result.topography.len() != expected_topography {
-                return Err(WorkloadError::ResultShape(
-                    "scenario result does not cover its topography survey",
-                ));
-            }
-            let expects_attention = usize::from(
-                workload
-                    .graph
-                    .nodes
-                    .iter()
-                    .any(|node| node.operation == portfolio_attention_operation()),
-            );
-            if result.attention.len() != expects_attention {
-                return Err(WorkloadError::ResultShape(
-                    "scenario result does not cover its portfolio-attention operation",
-                ));
-            }
-            if let Some(attention) = result.attention.first() {
-                let snapshot = match scenario.inputs.get(PORTFOLIO_INPUT_ID) {
-                    Some(WorkloadValue::PortfolioSnapshot(snapshot)) => snapshot,
-                    _ => {
-                        return Err(WorkloadError::ResultShape(
-                            "portfolio-attention scenario has no portfolio snapshot",
-                        ));
-                    }
-                };
-                attention.verify_against(snapshot)?;
-            }
-            if let Some(source) = &scenario.source_search {
-                let current = LocalSourceCorpus::bind(
-                    source_fixture_root(),
-                    source.fixture_paths.iter().map(PathBuf::from),
-                    source.binding_limits.clone(),
-                )
-                .map_err(|_| WorkloadError::StaleQualification)?;
-                if current.binding() != &result.mining[0].execution.corpus
-                    || current.verify_current().is_err()
-                    || result.mining[0]
-                        .execution
-                        .evidence
-                        .verify_against(&current, &result.mining[0].execution.request)
-                        .is_err()
+            previous_scenario = Some(scenario.scenario.id.as_str());
+            let mut previous_output = None;
+            for delta in &scenario.deltas {
+                delta.verify()?;
+                if delta.inputs.workload != self.workload
+                    || delta.inputs.graph != self.graph
+                    || delta.inputs.scenario != scenario.scenario
+                    || delta.inputs.comparator != self.evaluator
+                    || previous_output
+                        .is_some_and(|previous| previous >= delta.inputs.output_id.as_str())
                 {
-                    return Err(WorkloadError::StaleQualification);
-                }
-            }
-            if let Some(survey) = &scenario.topography_survey {
-                let input = TopographySurveyInput {
-                    root: topography_fixture_root(&survey.fixture_project)
-                        .map_err(|_| WorkloadError::StaleQualification)?,
-                    relative_paths: survey.seed_paths.iter().map(PathBuf::from).collect(),
-                    capability_snapshot_id: result.topography[0].capability_snapshot_id.clone(),
-                    limits: survey.limits.clone(),
-                    resolution_limits: survey.resolution_limits.clone(),
-                    prior: None,
-                };
-                let current = execute_context_anchor_survey(TopographyExecutionContext {
-                    workload: &self.workload,
-                    graph: &self.graph,
-                    scenario: Some(&scenario.scenario),
-                    campaign_id: &self.campaign_id,
-                    graph_node_id: "survey",
-                    declared_seeds: scenario.inputs[INPUT_ID].as_utf8()?,
-                    input: &input,
-                })
-                .map_err(|_| WorkloadError::StaleQualification)?;
-                if current != result.topography[0] {
-                    return Err(WorkloadError::StaleQualification);
-                }
-            }
-            for delta in &result.deltas {
-                let expected = scenario
-                    .expected_outputs
-                    .get(&delta.inputs.output_id)
-                    .ok_or(WorkloadError::ResultShape(
-                        "scenario result contains an undeclared output",
-                    ))?;
-                if delta.expected != expected.as_utf8()? {
                     return Err(WorkloadError::ResultShape(
-                        "scenario delta does not match its declared expected output",
+                        "scenario execution delta does not bind the result",
+                    ));
+                }
+                previous_output = Some(delta.inputs.output_id.as_str());
+            }
+            for mining in &scenario.mining {
+                mining.verify()?;
+                if mining.relation_delta.inputs.workload != self.workload
+                    || mining.relation_delta.inputs.graph != self.graph
+                    || mining.relation_delta.inputs.scenario != scenario.scenario
+                    || !mining_context_matches(
+                        &mining.execution,
+                        &self.workload,
+                        &self.graph,
+                        Some(&scenario.scenario),
+                        Some(&self.campaign_id),
+                    )
+                    || mining.execution.request.capability_snapshot_id
+                        != self.capability_snapshot_id
+                {
+                    return Err(WorkloadError::ResultShape(
+                        "scenario mining evidence does not bind the execution result",
                     ));
                 }
             }
+            for attention in &scenario.attention {
+                attention.verify()?;
+            }
+            for patch in &scenario.topography {
+                patch.verify()?;
+                if patch.workload != self.workload
+                    || patch.graph != self.graph
+                    || patch.scenario.as_ref() != Some(&scenario.scenario)
+                    || patch.campaign_id != self.campaign_id
+                    || patch.capability_snapshot_id != self.capability_snapshot_id
+                {
+                    return Err(WorkloadError::ResultShape(
+                        "scenario topography evidence does not bind the execution result",
+                    ));
+                }
+            }
+            if scenario.evaluation
+                != scenario_evaluation(&scenario.deltas, &scenario.mining, &scenario.topography)
+            {
+                return Err(WorkloadError::ResultShape(
+                    "scenario execution evaluation does not match its deltas",
+                ));
+            }
+        }
+        let (status, summary) = summarize_scenario_execution(&self.scenarios);
+        let stop_reason = match status {
+            TestStatus::Passed => "selected_scenarios_passed",
+            TestStatus::Failed => "selected_scenarios_failed",
+            TestStatus::Inconclusive => "selected_scenarios_inconclusive",
+        };
+        if self.status != status
+            || self.summary != summary
+            || self.stop_reason != stop_reason
+            || self.authority != "scenario_evidence_only; this result does not qualify the workload"
+            || self.result_id != workload_scenario_execution_result_digest(self)
+        {
+            return Err(WorkloadError::ResultShape(
+                "scenario execution result summary or identity is invalid",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn verify_for(&self, workload: &WorkloadDefinition) -> Result<(), WorkloadError> {
+        workload.verify()?;
+        self.verify()?;
+        if self.workload != workload.workload
+            || self.graph != workload.graph.graph
+            || self.scenario_suite != workload.scenario_suite.suite
+            || self.evaluator != workload.evaluator
+        {
+            return Err(WorkloadError::StaleQualification);
+        }
+        let selected = self
+            .selected_scenario_ids
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let declared = workload
+            .scenario_suite
+            .scenarios
+            .iter()
+            .filter(|scenario| selected.contains(&scenario.scenario.id))
+            .collect::<Vec<_>>();
+        if declared.len() != self.scenarios.len() {
+            return Err(WorkloadError::ResultShape(
+                "scenario execution contains an unknown selection",
+            ));
+        }
+        for (result, scenario) in self.scenarios.iter().zip(declared) {
+            verify_scenario_result_for(workload, &self.campaign_id, result, scenario)?;
         }
         Ok(())
     }
@@ -1442,12 +1534,124 @@ pub fn test_workload_with_observer(
 pub fn test_workload_with_observer_and_snapshot(
     workload: &WorkloadDefinition,
     capability_snapshot_id: SemanticDigest,
-    mut observer: impl FnMut(&ScenarioResult),
+    observer: impl FnMut(&ScenarioResult),
 ) -> Result<WorkloadTestResult, WorkloadError> {
     workload.verify()?;
+    let (campaign_id, scenarios) =
+        evaluate_workload_scenarios(workload, &capability_snapshot_id, None, observer)?;
+    let (status, summary) = summarize(&scenarios);
+    let stop_reason = match status {
+        TestStatus::Passed => "qualified",
+        TestStatus::Failed => "conclusive_failure",
+        TestStatus::Inconclusive => "inconclusive",
+    }
+    .to_owned();
+    let mut result = WorkloadTestResult {
+        schema: WORKLOAD_TEST_RESULT_SCHEMA.to_owned(),
+        result_id: placeholder_digest("rey.workload-test-result.placeholder"),
+        campaign_id,
+        workload: workload.workload.clone(),
+        graph: workload.graph.graph.clone(),
+        scenario_suite: workload.scenario_suite.suite.clone(),
+        evaluator: workload.evaluator.clone(),
+        status,
+        stop_reason,
+        summary,
+        scenarios,
+        qualification: None,
+    };
+    result.result_id = test_result_digest(&result);
+    if status == TestStatus::Passed {
+        let mut qualification = QualificationRecord {
+            schema: WORKLOAD_QUALIFICATION_SCHEMA.to_owned(),
+            qualification_id: placeholder_digest("rey.workload-qualification.placeholder"),
+            workload: workload.workload.clone(),
+            graph: workload.graph.graph.clone(),
+            scenario_suite: workload.scenario_suite.suite.clone(),
+            evaluator: workload.evaluator.clone(),
+            test_result_id: result.result_id.clone(),
+        };
+        qualification.qualification_id = qualification_digest(&qualification);
+        result.qualification = Some(qualification);
+    }
+    result.verify()?;
+    Ok(result)
+}
+
+pub fn execute_workload_scenario_selection_with_snapshot(
+    workload: &WorkloadDefinition,
+    selected_scenario_ids: &[String],
+    capability_snapshot_id: SemanticDigest,
+) -> Result<WorkloadScenarioExecutionResult, WorkloadError> {
+    workload.verify()?;
+    if selected_scenario_ids.is_empty()
+        || !is_canonical_strings(selected_scenario_ids)
+        || selected_scenario_ids.len() as u64 > workload.limits.max_scenarios
+    {
+        return Err(WorkloadError::ResultShape(
+            "scenario execution selection is empty, noncanonical, or over limit",
+        ));
+    }
+    let selected = selected_scenario_ids
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if workload
+        .scenario_suite
+        .scenarios
+        .iter()
+        .filter(|scenario| selected.contains(&scenario.scenario.id))
+        .count()
+        != selected.len()
+    {
+        return Err(WorkloadError::ResultShape(
+            "scenario execution selection contains an unknown scenario",
+        ));
+    }
+    let (campaign_id, scenarios) =
+        evaluate_workload_scenarios(workload, &capability_snapshot_id, Some(&selected), |_| {})?;
+    let (status, summary) = summarize_scenario_execution(&scenarios);
+    let stop_reason = match status {
+        TestStatus::Passed => "selected_scenarios_passed",
+        TestStatus::Failed => "selected_scenarios_failed",
+        TestStatus::Inconclusive => "selected_scenarios_inconclusive",
+    }
+    .to_owned();
+    let mut result = WorkloadScenarioExecutionResult {
+        schema: WORKLOAD_SCENARIO_EXECUTION_RESULT_SCHEMA.to_owned(),
+        result_id: placeholder_digest("rey.workload-scenario-execution-result.placeholder"),
+        campaign_id,
+        workload: workload.workload.clone(),
+        graph: workload.graph.graph.clone(),
+        scenario_suite: workload.scenario_suite.suite.clone(),
+        evaluator: workload.evaluator.clone(),
+        capability_snapshot_id,
+        selected_scenario_ids: selected_scenario_ids.to_vec(),
+        status,
+        stop_reason,
+        summary,
+        scenarios,
+        authority: "scenario_evidence_only; this result does not qualify the workload".to_owned(),
+    };
+    result.result_id = workload_scenario_execution_result_digest(&result);
+    result.verify_for(workload)?;
+    Ok(result)
+}
+
+fn evaluate_workload_scenarios(
+    workload: &WorkloadDefinition,
+    capability_snapshot_id: &SemanticDigest,
+    selected_scenario_ids: Option<&BTreeSet<String>>,
+    mut observer: impl FnMut(&ScenarioResult),
+) -> Result<(SemanticDigest, Vec<ScenarioResult>), WorkloadError> {
     let campaign_id = campaign_digest(workload);
-    let mut scenarios = Vec::with_capacity(workload.scenario_suite.scenarios.len());
+    let mut scenarios = Vec::with_capacity(
+        selected_scenario_ids.map_or(workload.scenario_suite.scenarios.len(), BTreeSet::len),
+    );
     for scenario in &workload.scenario_suite.scenarios {
+        if selected_scenario_ids.is_some_and(|selected| !selected.contains(&scenario.scenario.id)) {
+            continue;
+        }
         let source = scenario
             .source_search
             .as_ref()
@@ -1552,43 +1756,7 @@ pub fn test_workload_with_observer_and_snapshot(
         scenarios.push(scenario_result);
     }
     scenarios.sort_by(|left, right| left.scenario.id.cmp(&right.scenario.id));
-    let (status, summary) = summarize(&scenarios);
-    let stop_reason = match status {
-        TestStatus::Passed => "qualified",
-        TestStatus::Failed => "conclusive_failure",
-        TestStatus::Inconclusive => "inconclusive",
-    }
-    .to_owned();
-    let mut result = WorkloadTestResult {
-        schema: WORKLOAD_TEST_RESULT_SCHEMA.to_owned(),
-        result_id: placeholder_digest("rey.workload-test-result.placeholder"),
-        campaign_id,
-        workload: workload.workload.clone(),
-        graph: workload.graph.graph.clone(),
-        scenario_suite: workload.scenario_suite.suite.clone(),
-        evaluator: workload.evaluator.clone(),
-        status,
-        stop_reason,
-        summary,
-        scenarios,
-        qualification: None,
-    };
-    result.result_id = test_result_digest(&result);
-    if status == TestStatus::Passed {
-        let mut qualification = QualificationRecord {
-            schema: WORKLOAD_QUALIFICATION_SCHEMA.to_owned(),
-            qualification_id: placeholder_digest("rey.workload-qualification.placeholder"),
-            workload: workload.workload.clone(),
-            graph: workload.graph.graph.clone(),
-            scenario_suite: workload.scenario_suite.suite.clone(),
-            evaluator: workload.evaluator.clone(),
-            test_result_id: result.result_id.clone(),
-        };
-        qualification.qualification_id = qualification_digest(&qualification);
-        result.qualification = Some(qualification);
-    }
-    result.verify()?;
-    Ok(result)
+    Ok((campaign_id, scenarios))
 }
 
 pub fn run_workload(
@@ -2593,6 +2761,153 @@ fn summarize(scenarios: &[ScenarioResult]) -> (TestStatus, TestSummary) {
     (status, summary)
 }
 
+fn summarize_scenario_execution(
+    scenarios: &[ScenarioResult],
+) -> (TestStatus, ScenarioExecutionSummary) {
+    let mut summary = ScenarioExecutionSummary {
+        selected: scenarios.len() as u64,
+        passed: 0,
+        failed: 0,
+        inconclusive: 0,
+        required: 0,
+        optional: 0,
+    };
+    for scenario in scenarios {
+        match scenario.evaluation {
+            ScenarioEvaluation::Passed => summary.passed += 1,
+            ScenarioEvaluation::Failed => summary.failed += 1,
+            ScenarioEvaluation::Inconclusive => summary.inconclusive += 1,
+        }
+        if scenario.required {
+            summary.required += 1;
+        } else {
+            summary.optional += 1;
+        }
+    }
+    let status = if summary.failed > 0 {
+        TestStatus::Failed
+    } else if summary.inconclusive > 0 {
+        TestStatus::Inconclusive
+    } else {
+        TestStatus::Passed
+    };
+    (status, summary)
+}
+
+fn is_canonical_strings(values: &[String]) -> bool {
+    values.iter().all(|value| !value.trim().is_empty())
+        && values.windows(2).all(|window| window[0] < window[1])
+}
+
+fn verify_scenario_result_for(
+    workload: &WorkloadDefinition,
+    campaign_id: &SemanticDigest,
+    result: &ScenarioResult,
+    scenario: &Scenario,
+) -> Result<(), WorkloadError> {
+    if result.scenario != scenario.scenario || result.required != scenario.required {
+        return Err(WorkloadError::ResultShape(
+            "scenario result does not match the exact scenario contract",
+        ));
+    }
+    if result.deltas.len() != scenario.expected_outputs.len() {
+        return Err(WorkloadError::ResultShape(
+            "scenario result does not cover every expected output",
+        ));
+    }
+    let expected_mining = usize::from(scenario.source_search.is_some());
+    if result.mining.len() != expected_mining {
+        return Err(WorkloadError::ResultShape(
+            "scenario result does not cover its mining operation",
+        ));
+    }
+    let expected_topography = usize::from(scenario.topography_survey.is_some());
+    if result.topography.len() != expected_topography {
+        return Err(WorkloadError::ResultShape(
+            "scenario result does not cover its topography survey",
+        ));
+    }
+    let expects_attention = usize::from(
+        workload
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation == portfolio_attention_operation()),
+    );
+    if result.attention.len() != expects_attention {
+        return Err(WorkloadError::ResultShape(
+            "scenario result does not cover its portfolio-attention operation",
+        ));
+    }
+    if let Some(attention) = result.attention.first() {
+        let snapshot = match scenario.inputs.get(PORTFOLIO_INPUT_ID) {
+            Some(WorkloadValue::PortfolioSnapshot(snapshot)) => snapshot,
+            _ => {
+                return Err(WorkloadError::ResultShape(
+                    "portfolio-attention scenario has no portfolio snapshot",
+                ));
+            }
+        };
+        attention.verify_against(snapshot)?;
+    }
+    if let Some(source) = &scenario.source_search {
+        let current = LocalSourceCorpus::bind(
+            source_fixture_root(),
+            source.fixture_paths.iter().map(PathBuf::from),
+            source.binding_limits.clone(),
+        )
+        .map_err(|_| WorkloadError::StaleQualification)?;
+        if current.binding() != &result.mining[0].execution.corpus
+            || current.verify_current().is_err()
+            || result.mining[0]
+                .execution
+                .evidence
+                .verify_against(&current, &result.mining[0].execution.request)
+                .is_err()
+        {
+            return Err(WorkloadError::StaleQualification);
+        }
+    }
+    if let Some(survey) = &scenario.topography_survey {
+        let input = TopographySurveyInput {
+            root: topography_fixture_root(&survey.fixture_project)
+                .map_err(|_| WorkloadError::StaleQualification)?,
+            relative_paths: survey.seed_paths.iter().map(PathBuf::from).collect(),
+            capability_snapshot_id: result.topography[0].capability_snapshot_id.clone(),
+            limits: survey.limits.clone(),
+            resolution_limits: survey.resolution_limits.clone(),
+            prior: None,
+        };
+        let current = execute_context_anchor_survey(TopographyExecutionContext {
+            workload: &workload.workload,
+            graph: &workload.graph.graph,
+            scenario: Some(&scenario.scenario),
+            campaign_id,
+            graph_node_id: "survey",
+            declared_seeds: scenario.inputs[INPUT_ID].as_utf8()?,
+            input: &input,
+        })
+        .map_err(|_| WorkloadError::StaleQualification)?;
+        if current != result.topography[0] {
+            return Err(WorkloadError::StaleQualification);
+        }
+    }
+    for delta in &result.deltas {
+        let expected = scenario
+            .expected_outputs
+            .get(&delta.inputs.output_id)
+            .ok_or(WorkloadError::ResultShape(
+                "scenario result contains an undeclared output",
+            ))?;
+        if delta.expected != expected.as_utf8()? {
+            return Err(WorkloadError::ResultShape(
+                "scenario delta does not match its declared expected output",
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_graph_limits(limits: &GraphLimits) -> Result<(), WorkloadError> {
     if limits.max_nodes == 0
         || limits.max_edges == 0
@@ -3142,6 +3457,62 @@ fn test_result_digest(result: &WorkloadTestResult) -> SemanticDigest {
     hasher.finish()
 }
 
+fn workload_scenario_execution_result_digest(
+    result: &WorkloadScenarioExecutionResult,
+) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(WORKLOAD_SCENARIO_EXECUTION_RESULT_SCHEMA);
+    hasher.add_str(result.campaign_id.as_str());
+    add_contract(&mut hasher, &result.workload);
+    add_contract(&mut hasher, &result.graph);
+    add_contract(&mut hasher, &result.scenario_suite);
+    add_contract(&mut hasher, &result.evaluator);
+    hasher.add_str(result.capability_snapshot_id.as_str());
+    hasher.add_u64(result.selected_scenario_ids.len() as u64);
+    for scenario_id in &result.selected_scenario_ids {
+        hasher.add_str(scenario_id);
+    }
+    hasher.add_str(result.status.as_str());
+    hasher.add_str(&result.stop_reason);
+    hasher.add_u64(result.summary.selected);
+    hasher.add_u64(result.summary.required);
+    hasher.add_u64(result.summary.passed);
+    hasher.add_u64(result.summary.failed);
+    hasher.add_u64(result.summary.inconclusive);
+    hasher.add_u64(result.summary.optional);
+    hasher.add_u64(result.scenarios.len() as u64);
+    for scenario in &result.scenarios {
+        add_contract(&mut hasher, &scenario.scenario);
+        hasher.add_bool(scenario.required);
+        hasher.add_str(scenario.execution_id.as_str());
+        hasher.add_str(scenario.evaluation.as_str());
+        hasher.add_u64(scenario.deltas.len() as u64);
+        for delta in &scenario.deltas {
+            hasher.add_str(delta.delta_id.as_str());
+        }
+        hasher.add_u64(scenario.mining.len() as u64);
+        for mining in &scenario.mining {
+            hasher.add_str(mining.execution.evidence.result.result_id.as_str());
+            hasher.add_str(mining.relation_delta.delta_id.as_str());
+            hasher.add_bool(mining.reasoning.is_some());
+            if let Some(reasoning) = &mining.reasoning {
+                hasher.add_str(reasoning.frontier.frontier_id.as_str());
+                hasher.add_str(reasoning.scheduling.decision_id.as_str());
+                hasher.add_str(reasoning.surface.surface_id.as_str());
+            }
+        }
+        hasher.add_u64(scenario.topography.len() as u64);
+        for patch in &scenario.topography {
+            hasher.add_str(patch.patch_id.as_str());
+        }
+        hasher.add_u64(scenario.attention.len() as u64);
+        for attention in &scenario.attention {
+            hasher.add_str(attention.attention_id.as_str());
+        }
+    }
+    hasher.add_str(&result.authority);
+    hasher.finish()
+}
+
 fn qualification_digest(qualification: &QualificationRecord) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(WORKLOAD_QUALIFICATION_SCHEMA);
     add_contract(&mut hasher, &qualification.workload);
@@ -3551,8 +3922,8 @@ mod tests {
         BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, GraphLimits,
         RunStatus, ScenarioEvaluation, TestStatus, WorkloadError, WorkloadGitDependency,
         WorkloadGitDependencyKind, WorkloadOwnedSurface, WorkloadValue, built_in_workload,
-        built_in_workloads, execute_workload, run_workload, test_workload,
-        test_workload_with_observer,
+        built_in_workloads, execute_workload, execute_workload_scenario_selection_with_snapshot,
+        fixture_capability_snapshot_id, run_workload, test_workload, test_workload_with_observer,
     };
 
     #[test]
@@ -3789,6 +4160,39 @@ mod tests {
                 .any(|delta| delta.assessment == DeltaAssessment::Different)
         );
         failing.verify().unwrap();
+    }
+
+    #[test]
+    fn selected_scenario_execution_retains_evidence_without_qualification() {
+        let workload = built_in_workload(BUILT_IN_NORMALIZE_WORKLOAD_ID).unwrap();
+        let selected = vec![workload.scenario_suite.scenarios[0].scenario.id.clone()];
+        let capability_snapshot_id = fixture_capability_snapshot_id();
+        let result = execute_workload_scenario_selection_with_snapshot(
+            &workload,
+            &selected,
+            capability_snapshot_id.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(result.selected_scenario_ids, selected);
+        assert_eq!(result.scenarios.len(), 1);
+        assert_eq!(result.capability_snapshot_id, capability_snapshot_id);
+        assert_eq!(result.status, TestStatus::Passed);
+        assert_eq!(
+            result.authority,
+            "scenario_evidence_only; this result does not qualify the workload"
+        );
+        result.verify_for(&workload).unwrap();
+
+        let unknown = vec!["fixture.unknown".to_owned()];
+        assert!(
+            execute_workload_scenario_selection_with_snapshot(
+                &workload,
+                &unknown,
+                fixture_capability_snapshot_id(),
+            )
+            .is_err()
+        );
     }
 
     #[test]

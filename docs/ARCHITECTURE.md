@@ -843,9 +843,9 @@ validity/elevation/hydrology/normal/curvature/material buffers and renders
 continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
 deterministic reference paths. Render-graph extraction, transient-patch reuse,
 retained voyages, and a qualified terrain-fidelity result remain incomplete
-[Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic
-activation execution, persistent activation processing, recurring scheduling,
-and policy proposals remain target architecture.
+[Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
+activation, persistent recurring activation processing, coalescing, and policy
+proposals remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.
@@ -875,9 +875,9 @@ the generic frontier and one bounded reasoning surface. One selected `CREATE`
 row can cross an immutable harness request/response and exact human workload
 admission cycle without Rey invoking the harness. An acknowledged Git
 activation can separately cross exact workload/runtime preconditions into a
-content-identified schedule-only admission.
+content-identified admission and replay-stable selected-scenario execution.
 
-Recurring scheduling, Git activation execution, admitted `rg` search,
+Recurring scheduling, activation coalescing, admitted `rg` search,
 parser/index breadth, general structural delta, and a provider-specific agent
 loop remain unimplemented. Those require the same human-verifiable end-to-end
 boundary before they count as delivered.

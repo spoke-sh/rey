@@ -128,7 +128,7 @@ rey channels   list | status | diff | apply | add | commit | log | message | rel
 rey env        status | add | diff | commit | log
 rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
-rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | run
+rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | execute-activation | run
 rey journal    add | list
 rey ui
 ```
@@ -273,6 +273,7 @@ rey workloads ... test --staged [ID] [-v|-vv]
 rey workloads ... commit -m MESSAGE
 rey workloads ... log [-p] [-n COUNT]
 rey workloads ... admit-activation ACTIVATION_ID
+rey workloads ... execute-activation ADMISSION_ID
 rey workloads ... run ID [INPUTS AND LIMITS]
 ```
 
@@ -317,6 +318,15 @@ graph, scenario selection, capability snapshot, and effective bounds. It
 retains a content-identified, idempotent scheduling admission. The human
 receipt and `list` runtime-admissions section expose every binding and state
 plainly that no execution occurred; JSON carries the complete typed contract.
+`execute-activation` revalidates that admission against current acknowledged
+Git, workload HEAD, exact scenario contracts, retained capabilities, and its
+action/evidence budget. It evaluates only the selected scenarios, retains
+their exact deltas and evidence separately from `last_test`, and returns exit
+`0`, `2`, or `3` for passed, failed, or inconclusive evidence. Repeating an
+executed admission returns the retained receipt without rerunning the graph.
+The human receipt exposes source/target Git evidence, scenario execution and
+delta identities, evidence consumption, omissions, authority, and the explicit
+boundary that full-suite qualification is unchanged.
 `commit` requires fresh complete qualification for the
 exact INDEX. `run` executes only the exact qualified graph in HEAD through its
 declared providers.
@@ -375,6 +385,7 @@ does not bypass the three-plane contract.
 | `env commit`, `editor commit`, `workloads commit` | Verify and advance only from INDEX; never absorb later WORKING state. |
 | `workloads test --staged` | Executes bounded scenario probes and retains qualification evidence; never advances HEAD. |
 | `workloads admit-activation` | Retains exact scheduling eligibility for one acknowledged Git proposal after ordinary workload precondition checks; executes nothing. |
+| `workloads execute-activation` | Revalidates one retained admission, evaluates its selected scenarios under the exact evidence budget, and retains a replay-stable non-qualifying result; never mutates Git. |
 | `workloads run` | Executes an admitted graph and retains results under declared provider/effect contracts. |
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
 | `channels apply` | Writes only the Channel WORKING proposal. |

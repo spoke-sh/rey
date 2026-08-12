@@ -17,7 +17,7 @@ deterministic proposal-only activations. The `rey git` CLI retains an exact
 baseline cursor, one pending transition with its triggers and proposals, and
 acknowledged transition history under `.rey/git`. Watched-ref frames beyond
 HEAD, reachable-set and path deltas, recurring polling and coalescing,
-activation execution, remote synchronization, and complete index flag semantics
+remote synchronization, and complete index flag semantics
 remain future Git work. Workload packages can already bind exact HEAD or
 semantic-index revisions and derive attention from the acknowledged cursor
 snapshot without treating an ambient observation or activation proposal as
@@ -246,10 +246,11 @@ One bounded poll performs:
 10. schedule and execute the selected workload scenarios or graph entry point.
 
 The current library and CLI implement steps 1–8 for HEAD and the partial
-logical index. `rey workloads admit-activation` implements step 9 only: it
-revalidates exact current Git, workload HEAD, graph, scenario, capability, and
-budget preconditions, then retains schedule-only admission. No path yet
-performs step 10 or polls recurrently.
+logical index. `rey workloads admit-activation` implements step 9, and
+`execute-activation` implements the scenario-selection form of step 10. It
+revalidates exact current Git, workload HEAD, graph, scenarios, capabilities,
+and budgets before executing; arbitrary graph-entry activation and recurring
+polling remain absent.
 
 Polling observes snapshots, not every intermediate mutation. Commits can often
 be recovered from the object graph within retention and traversal bounds, but
@@ -326,6 +327,19 @@ and narrowed effective budget into
 identity-stable. A pending proposal, stale cursor, changed graph, unknown
 scenario, or missing capability snapshot fails closed. The admission says only
 `admitted_for_runtime_scheduling`; no graph has run and no progress is implied.
+
+For a new execution, `rey workloads execute-activation <admission-id>` accepts
+only a current unexecuted admission, revalidates its acknowledged Git cursor,
+workload HEAD,
+exact workload/graph/suite/scenario contracts, and retained capability
+snapshot, then evaluates the selected scenarios. The typed
+`rey.workload-activation-execution.v1` binds the admission and activation to
+`rey.workload-scenario-execution-result.v1`, its directed deltas and mining or
+topography evidence, and the measured serialized evidence bytes. Evidence
+over the admitted cap is rejected before retention. Repeating the command
+returns the exact retained result without rerunning the graph. This selected
+evidence cannot issue or replace full-suite qualification, and no Git mutation
+occurs.
 
 `rey.git-activation-trigger.v1` currently selects repository/worktree, event
 classes, completeness posture, exact workload/graph/scenarios, and an action,

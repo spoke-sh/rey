@@ -10,7 +10,8 @@ the implemented portfolio-mining conformance workload makes typed workload
 attention an outer-loop input. Owned mapped surfaces and exact Git HEAD or
 semantic-index dependencies derive live invalidation from retained evidence;
 acknowledged Git activations can enter schedule-only workload admission, while
-activation execution and bounded recurrence remain
+selected-scenario activation execution is retained separately from full-suite
+qualification. Coalescing and bounded recurrence remain
 [Plan 0001](../plans/0001-runtime-loop.md) work.
 
 ## Public Unit
@@ -38,6 +39,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] commit -m <message>
 rey workloads [--workspace PATH] [--catalog-dir PATH] log [-p] [-n COUNT]
 rey workloads [--workspace PATH] [--catalog-dir PATH] list
 rey workloads [--workspace PATH] [--catalog-dir PATH] admit-activation <activation-id>
+rey workloads [--workspace PATH] [--catalog-dir PATH] execute-activation <admission-id>
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--catalog-dir PATH] run context-anchor-survey --source <path> [--source <path>...]
 rey workloads --catalog conformance list|test|run|status ...
@@ -156,10 +158,20 @@ workload HEAD commit/snapshot, workload/graph/suite contracts, resolved
 scenario ids, capability snapshot, effective budget, and explicit
 schedule-only authority. `workloads list` exposes the same typed admissions in
 JSON and a `RUNTIME ADMISSIONS` human section. Admission does not run a
-scenario, mutate Git, claim progress, or consume the activation; execution and
-coalescing remain later runtime steps. A later scheduler must revalidate the
-frozen cursor, workload, capability, and budget preconditions before execution;
-admission is not a permanent freshness label.
+scenario, mutate Git, claim progress, or consume the activation. Admission is
+not a permanent freshness label.
+
+`workloads execute-activation <admission-id>` revalidates the frozen Git
+cursor, workload HEAD, exact workload/graph/suite/scenario contracts, retained
+capabilities, and effective action/evidence budget. It executes only the
+selected scenarios and retains their directed deltas and native evidence as
+`rey.workload-scenario-execution-result.v1`, wrapped by the exact admission in
+`rey.workload-activation-execution.v1`. The measured serialized evidence must
+fit the admission cap before retention. The result is deliberately separate
+from `last_test`: even an all-passing subset cannot issue or replace exact
+full-suite qualification. Repeating the command returns the retained execution
+without rerunning the graph. Failure and inconclusive evidence remain visible
+through semantic exit codes and the human receipt. No path mutates Git.
 
 ## Workspace Package Admission
 
@@ -650,6 +662,7 @@ identities and dependency facts, never toggled manually.
 | `workloads log [-p] [-n count]` | Verify and render workload admission history newest first, optionally deriving exact parent-to-commit package patches. |
 | `workloads list` | Project admitted HEAD and retained result state while separately carrying drafts and HEAD/INDEX/WORKING revision posture. It performs no graph execution. |
 | `workloads admit-activation id` | Revalidate one proposal from acknowledged Git history against the current cursor, workload HEAD, graph, scenarios, capabilities, and effective budget; retain schedule-only admission without executing it. |
+| `workloads execute-activation id` | Revalidate one retained admission, execute only its selected scenarios under the exact evidence cap, and retain replay-stable non-qualifying deltas and evidence without mutating Git. |
 | `workloads run id` | Execute only an exact current fresh qualified graph admitted in HEAD against explicit inputs through declared providers; retain outputs and exact mining lineage. |
 
 `list` and `status` return success when inspection succeeds even if workloads
@@ -717,7 +730,7 @@ composition derives their changes only from the acknowledged Git cursor
 snapshot. Ready attention reaches the generic frontier and one bounded
 reasoning surface, and a selected `CREATE` row can complete the immutable
 harness-response and human-admission cycle. Acknowledged Git proposals can
-cross exact schedule-only workload admission. Activation execution, generic
-distributed or recurring scheduling, arbitrary code execution, a persistence
-engine, parser/index breadth, and provider-specific policy loops remain outside
-this boundary.
+cross exact admission and selected-scenario execution without changing
+qualification. Generic distributed or recurring scheduling, arbitrary code
+execution, a persistence engine, parser/index breadth, and provider-specific
+policy loops remain outside this boundary.

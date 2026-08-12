@@ -31,9 +31,10 @@ proposal-only activation evidence. Workloads can declare exact Git HEAD or
 semantic-index dependencies; portfolio attention compares them only with the
 acknowledged cursor snapshot, so ambient repository movement cannot silently
 invalidate work. An acknowledged proposal can now cross a separate exact
-workload admission gate into retained scheduling eligibility without executing
-its graph. Activation execution, coalescing, and a bounded recurring scheduler
-remain open.
+workload admission gate and execute only its retained scenario selection after
+the Git cursor, workload HEAD, capabilities, and budget are revalidated. The
+result is replay-stable and cannot replace full-suite qualification. Activation
+coalescing and a bounded recurring scheduler remain open.
 
 ## Completion Checklist
 
@@ -77,10 +78,13 @@ remain open.
 - [x] Admit one acknowledged activation against the current Git cursor,
   workload HEAD, graph, scenario selection, capability snapshot, and effective
   budget without executing it.
+- [x] Execute one admitted scenario selection under its exact evidence budget,
+  retain its typed deltas separately from qualification, and replay the result
+  without rerunning the graph.
 - [ ] Extend activation evidence through watched refs, reachable/path deltas,
   and complete supported index semantics.
-- [ ] Coalesce replay safely and advance a cursor only after required evidence
-  reaches its claimed retention boundary.
+- [ ] Coalesce distinct activations safely and advance recurrence state only
+  after required evidence reaches its claimed retention boundary.
 - [ ] Run the loop under explicit iteration, time, action, evidence, retry,
   cancellation, and partial-failure bounds; stop without claiming convergence
   when a bound or evidence gap is reached.

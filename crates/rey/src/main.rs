@@ -50,12 +50,12 @@ use rey::{
     },
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadActivationAdmission,
-        WorkloadAddResult, WorkloadCatalog, WorkloadCatalogDescriptor, WorkloadCatalogError,
-        WorkloadChangeKind, WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult,
-        WorkloadCreationAttentionBinding, WorkloadDraft, WorkloadList, WorkloadLog,
-        WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView,
-        WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState, derive_portfolio_snapshot,
-        fresh_qualification,
+        WorkloadActivationExecution, WorkloadAddResult, WorkloadCatalog, WorkloadCatalogDescriptor,
+        WorkloadCatalogError, WorkloadChangeKind, WorkloadChangeSet, WorkloadCommitResult,
+        WorkloadCreateResult, WorkloadCreationAttentionBinding, WorkloadDraft, WorkloadList,
+        WorkloadLog, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
+        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState,
+        derive_portfolio_snapshot, fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -78,8 +78,9 @@ use rey_runtime::{
     CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, PortfolioReasoningEvidence, RunStatus, ScenarioEvaluation,
     ScenarioResult, SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention,
     WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue,
-    orient_portfolio_attention, run_workload, run_workload_with_source,
-    run_workload_with_topography, source_fixture_root, test_workload_with_observer_and_snapshot,
+    execute_workload_scenario_selection_with_snapshot, orient_portfolio_attention, run_workload,
+    run_workload_with_source, run_workload_with_topography, source_fixture_root,
+    test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -628,6 +629,8 @@ enum WorkloadsCommand {
     Run(WorkloadRunArgs),
     /// Admit one acknowledged Git activation into workload runtime scheduling.
     AdmitActivation(WorkloadAdmitActivationArgs),
+    /// Execute the exact selected scenarios for one retained activation admission.
+    ExecuteActivation(WorkloadExecuteActivationArgs),
 }
 
 #[derive(Debug, Args)]
@@ -730,6 +733,16 @@ struct WorkloadAdmitActivationArgs {
     activation_id: String,
 
     /// Human admission receipt or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadExecuteActivationArgs {
+    /// Exact retained workload activation admission identity.
+    admission_id: String,
+
+    /// Human execution receipt or typed JSON contract.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
@@ -2030,6 +2043,10 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
             require_workspace_admission_catalog(args.catalog)?;
             workload_admit_activation(&store, &workspace, command)
         }
+        WorkloadsCommand::ExecuteActivation(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_execute_activation(&store, &workspace, command)
+        }
     }
 }
 
@@ -2135,6 +2152,141 @@ fn workload_admit_activation(
     Ok(ExitCode::SUCCESS)
 }
 
+fn workload_execute_activation(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    args: WorkloadExecuteActivationArgs,
+) -> Result<ExitCode, CliError> {
+    let state = store.load()?;
+    let admission = state
+        .activation_admissions
+        .iter()
+        .find(|admission| admission.admission_id.as_str() == args.admission_id)
+        .cloned()
+        .ok_or_else(|| {
+            LocalWorkloadStateError::ActivationPrecondition(format!(
+                "unknown retained activation admission {}",
+                args.admission_id
+            ))
+        })?;
+    if let Some(execution) = state
+        .activation_executions
+        .iter()
+        .find(|execution| execution.admission_id == admission.admission_id)
+    {
+        write_workload_activation_execution_output(
+            execution,
+            &admission,
+            true,
+            args.format.resolve(),
+        )?;
+        return Ok(workload_activation_execution_exit(execution));
+    }
+
+    let git_state = LocalGitStore::default_for_workspace(workspace).load()?;
+    let activation =
+        git_state.acknowledged_activation(admission.activation.activation_id.as_str())?;
+    let cursor = git_state
+        .cursor
+        .as_ref()
+        .ok_or(LocalGitStateError::Uninitialized)?;
+    if activation != admission.activation
+        || cursor.snapshot_id != admission.activation.target_snapshot_id
+        || cursor.retained_evidence_id != admission.activation.transition_id
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "activation Git evidence is no longer the exact current acknowledged cursor".to_owned(),
+        )
+        .into());
+    }
+
+    let workload_head = state.commits.last().ok_or_else(|| {
+        LocalWorkloadStateError::ActivationPrecondition(
+            "workload HEAD is empty; activation execution cannot proceed".to_owned(),
+        )
+    })?;
+    if workload_head.commit_id != admission.workload_head_commit_id
+        || workload_head.snapshot.snapshot_revision != admission.workload_head_snapshot_id
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "workload HEAD changed after activation admission".to_owned(),
+        )
+        .into());
+    }
+    let catalog = store.head_catalog()?;
+    let workload = catalog
+        .select(Some(&admission.workload.id))?
+        .into_iter()
+        .next()
+        .ok_or(CliError::EmptyWorkloadCatalog)?
+        .definition;
+    let declared_scenarios = workload
+        .scenario_suite
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.scenario.clone())
+        .collect::<Vec<_>>();
+    if workload.workload != admission.workload
+        || workload.graph.graph != admission.graph
+        || workload.scenario_suite.suite != admission.scenario_suite
+        || workload.evaluator != admission.evaluator
+        || declared_scenarios != admission.declared_scenarios
+    {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "activation admission no longer matches the exact workload package".to_owned(),
+        )
+        .into());
+    }
+    let environment =
+        retained_environment_snapshot(workspace)?.ok_or(CliError::ActivationEnvironmentRequired)?;
+    if environment.semantic_digest != admission.capability_snapshot_id {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "retained capability snapshot changed after activation admission".to_owned(),
+        )
+        .into());
+    }
+
+    let result = execute_workload_scenario_selection_with_snapshot(
+        &workload,
+        &admission.selected_scenario_ids,
+        environment.semantic_digest,
+    )?;
+    let execution = WorkloadActivationExecution::new(&admission, &workload, result)?;
+    let execution = store.retain_activation_execution(execution)?;
+    write_workload_activation_execution_output(
+        &execution,
+        &admission,
+        false,
+        args.format.resolve(),
+    )?;
+    Ok(workload_activation_execution_exit(&execution))
+}
+
+fn write_workload_activation_execution_output(
+    execution: &WorkloadActivationExecution,
+    admission: &WorkloadActivationAdmission,
+    replayed: bool,
+    format: WorkloadOutputFormat,
+) -> Result<(), CliError> {
+    let mut stdout = io::stdout().lock();
+    match format {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, execution)?,
+        WorkloadOutputFormat::Table => {
+            write_workload_activation_execution(&mut stdout, execution, admission, replayed)?
+        }
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(())
+}
+
+fn workload_activation_execution_exit(execution: &WorkloadActivationExecution) -> ExitCode {
+    match execution.result.status {
+        TestStatus::Passed => ExitCode::SUCCESS,
+        TestStatus::Failed => ExitCode::from(2),
+        TestStatus::Inconclusive => ExitCode::from(3),
+    }
+}
+
 fn current_workload_list(
     store: &LocalWorkloadStore,
     workspace: &Path,
@@ -2174,10 +2326,11 @@ fn current_workload_list(
         summaries,
         revision.drafts.clone(),
         state.activation_admissions.clone(),
+        state.activation_executions.clone(),
         attention,
         runtime,
-        Some(revision),
-    );
+    )
+    .with_revision(revision);
     Ok(list)
 }
 
@@ -2224,9 +2377,9 @@ fn workload_list(
                 summaries,
                 catalog.drafts.clone(),
                 Vec::new(),
+                Vec::new(),
                 attention,
                 runtime,
-                None,
             )
         }
     };
@@ -3833,6 +3986,17 @@ fn write_workload_activation_admission(
             admission.selected_scenario_ids.len()
         ),
     )?;
+    write_portfolio_field(
+        output,
+        "Contracts",
+        &format!(
+            "workload {} · graph {} · suite {} · evaluator {}",
+            admission.workload.semantic_digest,
+            admission.graph.semantic_digest,
+            admission.scenario_suite.semantic_digest,
+            admission.evaluator.semantic_digest,
+        ),
+    )?;
     for scenario_id in &admission.selected_scenario_ids {
         writeln!(output, "    {scenario_id}")?;
     }
@@ -3868,6 +4032,151 @@ fn write_workload_activation_admission(
         output,
         "Next",
         "runtime scheduling must revalidate these preconditions; no execution has occurred",
+    )?;
+    Ok(())
+}
+
+fn write_workload_activation_execution(
+    output: &mut impl Write,
+    execution: &WorkloadActivationExecution,
+    admission: &WorkloadActivationAdmission,
+    replayed: bool,
+) -> Result<(), CliError> {
+    writeln!(output, "WORKLOAD ACTIVATION EXECUTION")?;
+    write_portfolio_field(
+        output,
+        "Receipt",
+        if replayed {
+            "retained result replayed · graph was not executed again"
+        } else {
+            "new execution retained"
+        },
+    )?;
+    write_portfolio_field(output, "Execution", execution.execution_id.as_str())?;
+    write_portfolio_field(output, "Admission", execution.admission_id.as_str())?;
+    write_portfolio_field(output, "Activation", execution.activation_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Git evidence",
+        &format!(
+            "{} → {} · transition {}",
+            admission.activation.source_snapshot_id,
+            admission.activation.target_snapshot_id,
+            admission.activation.transition_id
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Workload",
+        &format!(
+            "{}@{} · graph {}@{}",
+            execution.result.workload.id,
+            execution.result.workload.revision,
+            execution.result.graph.id,
+            execution.result.graph.revision
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Contracts",
+        &format!(
+            "workload {} · graph {} · suite {} · evaluator {}",
+            execution.result.workload.semantic_digest,
+            execution.result.graph.semantic_digest,
+            execution.result.scenario_suite.semantic_digest,
+            execution.result.evaluator.semantic_digest,
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Status",
+        match execution.result.status {
+            TestStatus::Passed => "PASSED",
+            TestStatus::Failed => "FAILED",
+            TestStatus::Inconclusive => "INCONCLUSIVE",
+        },
+    )?;
+    write_portfolio_field(
+        output,
+        "Scenarios",
+        &format!(
+            "{} selected · {} evaluated",
+            execution.result.selected_scenario_ids.len(),
+            execution.result.summary.selected
+        ),
+    )?;
+    for scenario in &execution.result.scenarios {
+        writeln!(
+            output,
+            "    {} · {} · execution {}",
+            scenario.scenario.id,
+            match scenario.evaluation {
+                ScenarioEvaluation::Passed => "PASSED",
+                ScenarioEvaluation::Failed => "FAILED",
+                ScenarioEvaluation::Inconclusive => "INCONCLUSIVE",
+            },
+            scenario.execution_id
+        )?;
+        for delta in &scenario.deltas {
+            write_scenario_assertion(output, delta, TerminalStyle::stdout())?;
+            writeln!(
+                output,
+                "      delta {} · output {} · {}",
+                delta.delta_id,
+                delta.inputs.output_id,
+                match delta.assessment {
+                    DeltaAssessment::Equal => "EQUAL",
+                    DeltaAssessment::Different => "DIFFERENT",
+                    DeltaAssessment::Inconclusive => "INCONCLUSIVE",
+                }
+            )?;
+        }
+        for mining in &scenario.mining {
+            write_source_mining_assertions(output, mining, 2, TerminalStyle::stdout())?;
+            writeln!(
+                output,
+                "      mining {} · relation delta {}",
+                mining.execution.evidence.result.result_id, mining.relation_delta.delta_id
+            )?;
+        }
+        for patch in &scenario.topography {
+            write_topography_assertion(output, patch, 2, TerminalStyle::stdout())?;
+            writeln!(output, "      topography patch {}", patch.patch_id)?;
+        }
+        for attention in &scenario.attention {
+            writeln!(output, "      attention {}", attention.attention_id)?;
+        }
+    }
+    write_portfolio_field(
+        output,
+        "Evidence budget",
+        &format!(
+            "{} / {} bytes",
+            execution.evidence_bytes, admission.effective_budget.max_evidence_bytes
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Capabilities",
+        execution.result.capability_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Completeness",
+        if admission.activation.complete {
+            "Git trigger evidence complete"
+        } else {
+            "Git trigger evidence partial · see admission omissions"
+        },
+    )?;
+    for omission in &admission.activation.omissions {
+        writeln!(output, "    omission: {omission}")?;
+    }
+    write_portfolio_field(output, "Authority", &execution.authority)?;
+    write_portfolio_field(
+        output,
+        "Qualification",
+        "unchanged · selected scenario evidence cannot qualify the workload",
     )?;
     Ok(())
 }
@@ -4330,13 +4639,14 @@ fn write_workload_list(
         output,
         "Runtime admissions",
         &format!(
-            "{} Git activation{} · no execution implied",
+            "{} Git activation{} · {} executed",
             list.activation_admissions.len(),
             if list.activation_admissions.len() == 1 {
                 ""
             } else {
                 "s"
             },
+            list.activation_executions.len(),
         ),
     )?;
     write_portfolio_field(
@@ -4477,7 +4787,12 @@ fn write_workload_list(
     )?;
     write_attention_frontier(output, &list.attention, style)?;
     write_runtime_frontier(output, list.runtime.as_ref(), style)?;
-    write_activation_admissions(output, &list.activation_admissions, style)?;
+    write_activation_admissions(
+        output,
+        &list.activation_admissions,
+        &list.activation_executions,
+        style,
+    )?;
     if list.workloads.is_empty() && list.drafts.is_empty() {
         writeln!(output, "  {}", style.dim("No workloads found"))?;
         return Ok(());
@@ -4686,6 +5001,7 @@ fn write_workload_list(
 fn write_activation_admissions(
     output: &mut impl Write,
     admissions: &[WorkloadActivationAdmission],
+    executions: &[WorkloadActivationExecution],
     style: TerminalStyle,
 ) -> Result<(), CliError> {
     writeln!(output)?;
@@ -4695,12 +5011,20 @@ fn write_activation_admissions(
         return Ok(());
     }
     for admission in admissions {
+        let execution = executions
+            .iter()
+            .find(|execution| execution.admission_id == admission.admission_id);
         writeln!(
             output,
-            "  {} · {} · {} scenarios · ADMITTED",
+            "  {} · {} · {} scenarios · {}",
             admission.admission_id,
             admission.workload.id,
             admission.selected_scenario_ids.len(),
+            if execution.is_some() {
+                "EXECUTED"
+            } else {
+                "ADMITTED"
+            },
         )?;
         writeln!(
             output,
@@ -4709,11 +5033,19 @@ fn write_activation_admissions(
             admission.activation.transition_id,
             admission.activation.target_snapshot_id,
         )?;
-        writeln!(
-            output,
-            "    workload HEAD {} · capabilities {} · revalidate before scheduling · no execution",
-            admission.workload_head_commit_id, admission.capability_snapshot_id,
-        )?;
+        if let Some(execution) = execution {
+            writeln!(
+                output,
+                "    execution {} · {:?} · {} evidence bytes · qualification unchanged",
+                execution.execution_id, execution.result.status, execution.evidence_bytes,
+            )?;
+        } else {
+            writeln!(
+                output,
+                "    workload HEAD {} · capabilities {} · revalidate before execution",
+                admission.workload_head_commit_id, admission.capability_snapshot_id,
+            )?;
+        }
     }
     Ok(())
 }

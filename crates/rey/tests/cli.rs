@@ -15,10 +15,10 @@ use rey::env::{
 };
 use rey::git::{GitOperatorStatus, GitPollOutcome};
 use rey::workloads::{
-    QualificationState, WorkloadActivationAdmission, WorkloadCatalogKind, WorkloadChangeSet,
-    WorkloadCreateResult, WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin,
-    WorkloadProposalKind, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
-    WorkloadTestBatch,
+    QualificationState, WorkloadActivationAdmission, WorkloadActivationExecution,
+    WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
+    WorkloadLog, WorkloadOrigin, WorkloadProposalKind, WorkloadRevisionStatus, WorkloadRunView,
+    WorkloadStatusBatch, WorkloadTestBatch,
 };
 use rey_core::ContractIdentity;
 use rey_git::{
@@ -1622,12 +1622,15 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         require_complete: true,
         workload_id: workload.workload.id.clone(),
         graph: workload.candidate_graph.clone(),
-        scenario_ids: Vec::new(),
+        scenario_ids: vec!["rey.fixture.activation-normalization.scenario.plain".to_owned()],
         budget: GitActivationBudget::default(),
     };
     let mut bad_trigger = good_trigger.clone();
     bad_trigger.trigger_id = "fixture.admit.bad-graph".to_owned();
     bad_trigger.graph = ContractIdentity::new("fixture.wrong.graph", 1, "wrong graph");
+    let mut low_budget_trigger = good_trigger.clone();
+    low_budget_trigger.trigger_id = "fixture.admit.low-budget".to_owned();
+    low_budget_trigger.budget.max_evidence_bytes = 1;
     fs::write(
         workspace.path().join("good-trigger.json"),
         serde_json::to_vec_pretty(&good_trigger).unwrap(),
@@ -1636,6 +1639,11 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     fs::write(
         workspace.path().join("bad-trigger.json"),
         serde_json::to_vec_pretty(&bad_trigger).unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.path().join("low-budget-trigger.json"),
+        serde_json::to_vec_pretty(&low_budget_trigger).unwrap(),
     )
     .unwrap();
 
@@ -1648,6 +1656,8 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         "good-trigger.json",
         "--trigger",
         "bad-trigger.json",
+        "--trigger",
+        "low-budget-trigger.json",
         "--format",
         "json",
     ]);
@@ -1657,13 +1667,19 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         .record
         .proposals
         .iter()
-        .find(|proposal| proposal.graph == workload.candidate_graph)
+        .find(|proposal| proposal.trigger_id == "fixture.admit.good")
         .unwrap();
     let bad = polled
         .record
         .proposals
         .iter()
-        .find(|proposal| proposal.graph != workload.candidate_graph)
+        .find(|proposal| proposal.trigger_id == "fixture.admit.bad-graph")
+        .unwrap();
+    let low_budget = polled
+        .record
+        .proposals
+        .iter()
+        .find(|proposal| proposal.trigger_id == "fixture.admit.low-budget")
         .unwrap();
 
     let pending = run_rey_workspace(&[
@@ -1709,7 +1725,11 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     );
     let admitted: WorkloadActivationAdmission = serde_json::from_slice(&admitted.stdout).unwrap();
     assert_eq!(admitted.activation, *good);
-    assert_eq!(admitted.selected_scenario_ids.len(), 2);
+    assert_eq!(admitted.declared_scenarios.len(), 2);
+    assert_eq!(
+        admitted.selected_scenario_ids,
+        ["rey.fixture.activation-normalization.scenario.plain"]
+    );
     assert_eq!(admitted.effective_budget.max_actions, 1);
     assert_eq!(
         admitted.authority,
@@ -1743,7 +1763,7 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     );
     assert_eq!(
         listed.workloads[0].last_test_result_id,
-        Some(original_test_id)
+        Some(original_test_id.clone())
     );
 
     let human = run_rey_workspace(&[
@@ -1758,13 +1778,12 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     let human = String::from_utf8(human.stdout).unwrap();
     for evidence in [
         "Runtime admissions",
-        "1 Git activation · no execution implied",
+        "1 Git activation · 0 executed",
         "RUNTIME ADMISSIONS",
         "ADMITTED",
-        "revalidate before scheduling",
+        "revalidate before execution",
         admitted.admission_id.as_str(),
         good.activation_id.as_str(),
-        "no execution",
     ] {
         assert!(
             human.contains(evidence),
@@ -1772,9 +1791,138 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
         );
     }
 
+    let low_budget_admission = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "admit-activation",
+        low_budget.activation_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(low_budget_admission.status.success());
+    let low_budget_admission: WorkloadActivationAdmission =
+        serde_json::from_slice(&low_budget_admission.stdout).unwrap();
+    assert_eq!(low_budget_admission.effective_budget.max_evidence_bytes, 1);
+    let over_budget = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "execute-activation",
+        low_budget_admission.admission_id.as_str(),
+    ]);
+    assert_eq!(over_budget.status.code(), Some(1));
+    assert!(over_budget.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&over_budget.stderr).contains("over budget"));
+
+    let executed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "execute-activation",
+        admitted.admission_id.as_str(),
+        "--format",
+        "json",
+    ]);
+    assert!(
+        executed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    let executed: WorkloadActivationExecution = serde_json::from_slice(&executed.stdout).unwrap();
+    assert_eq!(executed.admission_id, admitted.admission_id);
+    assert_eq!(executed.activation_id, good.activation_id);
+    assert_eq!(
+        executed.result.selected_scenario_ids,
+        ["rey.fixture.activation-normalization.scenario.plain"]
+    );
+    assert_eq!(executed.result.scenarios.len(), 1);
+    assert_eq!(executed.result.status, TestStatus::Passed);
+    assert!(executed.evidence_bytes <= admitted.effective_budget.max_evidence_bytes);
+    assert_eq!(
+        executed.result.authority,
+        "scenario_evidence_only; this result does not qualify the workload"
+    );
+    assert_eq!(
+        executed.authority,
+        "activation_scenarios_evaluated; no Git mutation occurred"
+    );
+
+    let execution_replay = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "execute-activation",
+        admitted.admission_id.as_str(),
+        "--format",
+        "table",
+    ]);
+    assert!(execution_replay.status.success());
+    let execution_replay = String::from_utf8(execution_replay.stdout).unwrap();
+    for evidence in [
+        "WORKLOAD ACTIVATION EXECUTION",
+        "retained result replayed · graph was not executed again",
+        executed.execution_id.as_str(),
+        "selected scenario evidence cannot qualify the workload",
+    ] {
+        assert!(
+            execution_replay.contains(evidence),
+            "missing activation execution evidence: {evidence}"
+        );
+    }
+
+    let listed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "json",
+    ]);
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(
+        listed.activation_executions.as_slice(),
+        std::slice::from_ref(&executed)
+    );
+    assert_eq!(
+        listed.workloads[0].last_test_result_id,
+        Some(original_test_id)
+    );
+
+    let human = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "2 Git activations · 1 executed",
+        "EXECUTED",
+        executed.execution_id.as_str(),
+        "qualification unchanged",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing retained activation execution: {evidence}"
+        );
+    }
+
     let state_path = workspace.path().join(".rey/workloads/state.json");
-    let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    let original_state = fs::read(&state_path).unwrap();
+    let mut state: Value = serde_json::from_slice(&original_state).unwrap();
     state["activation_admissions"][0]["authority"] = "tampered".into();
+    fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+    let tampered = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert_eq!(tampered.status.code(), Some(1));
+    assert!(tampered.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&tampered.stderr).contains("tampered"));
+
+    fs::write(&state_path, original_state).unwrap();
+    let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state["activation_executions"][0]["evidence_bytes"] = 1.into();
     fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
     let tampered = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
     assert_eq!(tampered.status.code(), Some(1));

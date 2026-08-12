@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Execute admitted Git activations under their exact scenario/evidence budget, then coalesce replay and add bounded recurrence. | Implemented environment/Git invalidation, attention/frontier and harness handoffs, manual Git cursor/transition, and schedule-only activation admission. |
+| [0001 — Close the runtime loop](0001-runtime-loop.md) | Active | Coalesce distinct activation evidence safely, then add bounded recurrence and prove full-recomputation equivalence. | Implemented environment/Git invalidation, attention/frontier and harness handoffs, manual Git cursor/transition, and exact activation admission/execution. |
 | [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Project the implemented Channel graph/messages into the operator surface, then admit one exact observation and derive its unresolved frontier without dirtying topology. | Implemented Channel CLI, Journal, Feed, and runtime evidence. Plan 0001 only where an authored opportunity becomes runtime work. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
@@ -42,7 +42,7 @@ The current repository already provides:
 - immutable Channel messages, explicit relay and one-shot beacon commands;
 - a manual bounded Git cursor/pending-transition loop with classified HEAD and
   partial semantic-index evidence plus proposal-only activations and exact
-  schedule-only workload admission;
+  workload admission plus replay-stable selected-scenario execution;
 - candidate-only native scene authoring and procedural terrain generation; and
 - a read-first Explorer with consent-first orientation, semantic World globe,
   synthetic atlas, continuous terrain, WebGPU/WebGL2 acceleration, and a

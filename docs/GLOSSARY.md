@@ -63,7 +63,9 @@ A content-identified match between a trigger and an exact source delta. An
 activation proposes a workload, scenario selection, or graph entry point; it
 still passes normal runtime admission and is replay-safe rather than
 exactly-once. The implemented workload gate can retain an acknowledged
-activation as scheduling-eligible without executing it. See [Git](GIT.md).
+activation as scheduling-eligible, then revalidate and evaluate its selected
+scenarios as replay-stable evidence without changing full-suite qualification.
+See [Git](GIT.md).
 
 ### Admission
 

@@ -19,8 +19,9 @@ use rey_runtime::{
     QualificationRecord, RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite,
     TestStatus, TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention,
     WorkloadDefinition, WorkloadDefinitionParts, WorkloadGitDependency, WorkloadGitDependencyKind,
-    WorkloadLimits, WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult, WorkloadTestResult,
-    WorkloadValue, built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
+    WorkloadLimits, WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult,
+    WorkloadScenarioExecutionResult, WorkloadTestResult, WorkloadValue,
+    built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -46,6 +47,7 @@ pub const WORKLOAD_COMMIT_SCHEMA: &str = "rey.workload-commit.v1";
 pub const WORKLOAD_COMMIT_RESULT_SCHEMA: &str = "rey.workload-commit-result.v1";
 pub const WORKLOAD_LOG_SCHEMA: &str = "rey.workload-log.v1";
 pub const WORKLOAD_ACTIVATION_ADMISSION_SCHEMA: &str = "rey.workload-activation-admission.v1";
+pub const WORKLOAD_ACTIVATION_EXECUTION_SCHEMA: &str = "rey.workload-activation-execution.v1";
 
 const STATE_FILE_NAME: &str = "state.json";
 const LOCK_FILE_NAME: &str = "workloads.lock";
@@ -61,6 +63,7 @@ const MAX_WORKLOAD_INTENT_BYTES: usize = 16 * 1_024;
 const MAX_WORKLOAD_COMMITS: usize = 256;
 const MAX_COMMIT_MESSAGE_BYTES: usize = 4_096;
 const MAX_WORKLOAD_ACTIVATION_ADMISSIONS: usize = 256;
+const MAX_WORKLOAD_ACTIVATION_EXECUTIONS: usize = 256;
 const MAX_WORKLOAD_ACTIVATION_EVIDENCE_BYTES: u64 = 4 * 1_024 * 1_024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -409,7 +412,8 @@ pub struct WorkloadActivationAdmission {
     pub workload: ContractIdentity,
     pub graph: ContractIdentity,
     pub scenario_suite: ContractIdentity,
-    pub declared_scenario_ids: Vec<String>,
+    pub evaluator: ContractIdentity,
+    pub declared_scenarios: Vec<ContractIdentity>,
     pub selected_scenario_ids: Vec<String>,
     pub capability_snapshot_id: SemanticDigest,
     pub effective_budget: GitActivationBudget,
@@ -439,19 +443,19 @@ impl WorkloadActivationAdmission {
                 "activation does not bind the exact admitted workload HEAD".to_owned(),
             ));
         }
-        let mut declared_scenario_ids = workload
+        let mut declared_scenarios = workload
             .scenario_suite
             .scenarios
             .iter()
-            .map(|scenario| scenario.scenario.id.clone())
+            .map(|scenario| scenario.scenario.clone())
             .collect::<Vec<_>>();
-        declared_scenario_ids.sort();
-        let declared_scenarios = declared_scenario_ids
+        declared_scenarios.sort_by(|left, right| left.id.cmp(&right.id));
+        let declared_scenario_ids = declared_scenarios
             .iter()
-            .cloned()
+            .map(|scenario| scenario.id.clone())
             .collect::<BTreeSet<_>>();
         let mut selected_scenario_ids = if activation.scenario_ids.is_empty() {
-            declared_scenarios.iter().cloned().collect::<Vec<_>>()
+            declared_scenario_ids.iter().cloned().collect::<Vec<_>>()
         } else {
             activation.scenario_ids.clone()
         };
@@ -460,7 +464,7 @@ impl WorkloadActivationAdmission {
             || !is_canonical(&selected_scenario_ids)
             || selected_scenario_ids
                 .iter()
-                .any(|scenario| !declared_scenarios.contains(scenario))
+                .any(|scenario| !declared_scenario_ids.contains(scenario))
             || selected_scenario_ids.len() as u64 > activation.budget.max_scenarios
             || selected_scenario_ids.len() as u64 > workload.limits.max_scenarios
         {
@@ -478,7 +482,8 @@ impl WorkloadActivationAdmission {
             workload: workload.workload.clone(),
             graph: workload.graph.graph.clone(),
             scenario_suite: workload.scenario_suite.suite.clone(),
-            declared_scenario_ids,
+            evaluator: workload.evaluator.clone(),
+            declared_scenarios,
             effective_budget: GitActivationBudget {
                 max_scenarios: selected_scenario_ids.len() as u64,
                 max_actions: 1,
@@ -500,7 +505,12 @@ impl WorkloadActivationAdmission {
 
     pub fn verify(&self) -> Result<(), LocalWorkloadStateError> {
         self.activation.verify()?;
-        for contract in [&self.workload, &self.graph, &self.scenario_suite] {
+        for contract in [
+            &self.workload,
+            &self.graph,
+            &self.scenario_suite,
+            &self.evaluator,
+        ] {
             if contract.id.is_empty()
                 || contract.revision == 0
                 || !is_semantic_digest(&contract.semantic_digest)
@@ -515,16 +525,30 @@ impl WorkloadActivationAdmission {
             || !is_semantic_digest(&self.capability_snapshot_id)
             || self.activation.workload_id != self.workload.id
             || self.activation.graph != self.graph
-            || self.declared_scenario_ids.is_empty()
-            || !is_canonical(&self.declared_scenario_ids)
+            || self.declared_scenarios.is_empty()
+            || self.declared_scenarios.iter().any(|scenario| {
+                scenario.id.is_empty()
+                    || scenario.revision == 0
+                    || !is_semantic_digest(&scenario.semantic_digest)
+            })
+            || self
+                .declared_scenarios
+                .windows(2)
+                .any(|window| window[0].id >= window[1].id)
             || self.selected_scenario_ids.is_empty()
             || !is_canonical(&self.selected_scenario_ids)
-            || self
-                .selected_scenario_ids
-                .iter()
-                .any(|scenario| self.declared_scenario_ids.binary_search(scenario).is_err())
+            || self.selected_scenario_ids.iter().any(|scenario| {
+                self.declared_scenarios
+                    .binary_search_by(|declared| declared.id.as_str().cmp(scenario))
+                    .is_err()
+            })
             || if self.activation.scenario_ids.is_empty() {
-                self.selected_scenario_ids != self.declared_scenario_ids
+                self.selected_scenario_ids
+                    != self
+                        .declared_scenarios
+                        .iter()
+                        .map(|scenario| scenario.id.clone())
+                        .collect::<Vec<_>>()
             } else {
                 self.selected_scenario_ids != self.activation.scenario_ids
             }
@@ -540,6 +564,93 @@ impl WorkloadActivationAdmission {
             || self.admission_id != workload_activation_admission_digest(self)
         {
             return Err(LocalWorkloadStateError::InvalidActivationAdmission);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadActivationExecution {
+    pub schema: String,
+    pub execution_id: SemanticDigest,
+    pub admission_id: SemanticDigest,
+    pub activation_id: SemanticDigest,
+    pub result: WorkloadScenarioExecutionResult,
+    pub evidence_bytes: u64,
+    pub authority: String,
+}
+
+impl WorkloadActivationExecution {
+    pub fn new(
+        admission: &WorkloadActivationAdmission,
+        workload: &WorkloadDefinition,
+        result: WorkloadScenarioExecutionResult,
+    ) -> Result<Self, LocalWorkloadStateError> {
+        admission.verify()?;
+        result.verify_for(workload)?;
+        let evidence_bytes = serde_json::to_vec(&result)
+            .map_err(|_| LocalWorkloadStateError::InvalidActivationExecution)?
+            .len() as u64;
+        let mut execution = Self {
+            schema: WORKLOAD_ACTIVATION_EXECUTION_SCHEMA.to_owned(),
+            execution_id: SemanticHasher::new("rey.workload-activation-execution.pending.v1")
+                .finish(),
+            admission_id: admission.admission_id.clone(),
+            activation_id: admission.activation.activation_id.clone(),
+            result,
+            evidence_bytes,
+            authority: "activation_scenarios_evaluated; no Git mutation occurred".to_owned(),
+        };
+        execution.execution_id = workload_activation_execution_digest(&execution);
+        execution.verify_for(admission)?;
+        Ok(execution)
+    }
+
+    pub fn verify_for(
+        &self,
+        admission: &WorkloadActivationAdmission,
+    ) -> Result<(), LocalWorkloadStateError> {
+        admission.verify()?;
+        self.result.verify()?;
+        let evidence_bytes = serde_json::to_vec(&self.result)
+            .map_err(|_| LocalWorkloadStateError::InvalidActivationExecution)?
+            .len() as u64;
+        let declared_scenarios = admission
+            .declared_scenarios
+            .iter()
+            .filter(|scenario| {
+                admission
+                    .selected_scenario_ids
+                    .binary_search(&scenario.id)
+                    .is_ok()
+            })
+            .collect::<Vec<_>>();
+        if self.schema != WORKLOAD_ACTIVATION_EXECUTION_SCHEMA
+            || !is_semantic_digest(&self.execution_id)
+            || self.admission_id != admission.admission_id
+            || self.activation_id != admission.activation.activation_id
+            || self.result.workload != admission.workload
+            || self.result.graph != admission.graph
+            || self.result.scenario_suite != admission.scenario_suite
+            || self.result.evaluator != admission.evaluator
+            || self.result.capability_snapshot_id != admission.capability_snapshot_id
+            || self.result.selected_scenario_ids != admission.selected_scenario_ids
+            || self.result.scenarios.len() != declared_scenarios.len()
+            || self
+                .result
+                .scenarios
+                .iter()
+                .zip(declared_scenarios)
+                .any(|(result, declared)| result.scenario != *declared)
+            || self.evidence_bytes == 0
+            || self.evidence_bytes != evidence_bytes
+            || self.evidence_bytes > admission.effective_budget.max_evidence_bytes
+            || admission.effective_budget.max_actions != 1
+            || self.authority != "activation_scenarios_evaluated; no Git mutation occurred"
+            || self.execution_id != workload_activation_execution_digest(self)
+        {
+            return Err(LocalWorkloadStateError::InvalidActivationExecution);
         }
         Ok(())
     }
@@ -1985,6 +2096,8 @@ pub struct LocalWorkloadState {
     pub records: BTreeMap<String, LocalWorkloadRecord>,
     #[serde(default)]
     pub activation_admissions: Vec<WorkloadActivationAdmission>,
+    #[serde(default)]
+    pub activation_executions: Vec<WorkloadActivationExecution>,
 }
 
 impl Default for LocalWorkloadState {
@@ -1996,6 +2109,7 @@ impl Default for LocalWorkloadState {
             qualified_index: None,
             records: BTreeMap::new(),
             activation_admissions: Vec::new(),
+            activation_executions: Vec::new(),
         }
     }
 }
@@ -2015,6 +2129,11 @@ impl LocalWorkloadState {
         if self.activation_admissions.len() > MAX_WORKLOAD_ACTIVATION_ADMISSIONS {
             return Err(LocalWorkloadStateError::ActivationAdmissionLimit(
                 MAX_WORKLOAD_ACTIVATION_ADMISSIONS,
+            ));
+        }
+        if self.activation_executions.len() > MAX_WORKLOAD_ACTIVATION_EXECUTIONS {
+            return Err(LocalWorkloadStateError::ActivationExecutionLimit(
+                MAX_WORKLOAD_ACTIVATION_EXECUTIONS,
             ));
         }
         verify_workload_commit_history(&self.commits)?;
@@ -2057,13 +2176,44 @@ impl LocalWorkloadState {
         let mut activation_ids = BTreeSet::new();
         for admission in &self.activation_admissions {
             admission.verify()?;
+            let commit = self
+                .commits
+                .iter()
+                .find(|commit| commit.commit_id == admission.workload_head_commit_id)
+                .ok_or(LocalWorkloadStateError::InvalidActivationAdmission)?;
+            let package = commit
+                .snapshot
+                .packages
+                .iter()
+                .find(|package| package.workload == admission.workload)
+                .ok_or(LocalWorkloadStateError::InvalidActivationAdmission)?;
             if previous_admission
                 .is_some_and(|previous| previous >= admission.admission_id.as_str())
                 || !activation_ids.insert(admission.activation.activation_id.clone())
+                || commit.snapshot.snapshot_revision != admission.workload_head_snapshot_id
+                || package.graph != admission.graph
+                || package.scenario_suite != admission.scenario_suite
             {
                 return Err(LocalWorkloadStateError::InvalidActivationAdmission);
             }
             previous_admission = Some(admission.admission_id.as_str());
+        }
+        let mut previous_execution = None;
+        let mut admission_ids = BTreeSet::new();
+        for execution in &self.activation_executions {
+            let admission = self
+                .activation_admissions
+                .iter()
+                .find(|admission| admission.admission_id == execution.admission_id)
+                .ok_or(LocalWorkloadStateError::InvalidActivationExecution)?;
+            execution.verify_for(admission)?;
+            if previous_execution
+                .is_some_and(|previous| previous >= execution.execution_id.as_str())
+                || !admission_ids.insert(execution.admission_id.clone())
+            {
+                return Err(LocalWorkloadStateError::InvalidActivationExecution);
+            }
+            previous_execution = Some(execution.execution_id.as_str());
         }
         Ok(())
     }
@@ -2395,6 +2545,55 @@ impl LocalWorkloadStore {
                 .sort_by(|left, right| left.admission_id.cmp(&right.admission_id));
             self.save(&state)?;
             Ok(admission)
+        })
+    }
+
+    pub fn retain_activation_execution(
+        &self,
+        execution: WorkloadActivationExecution,
+    ) -> Result<WorkloadActivationExecution, LocalWorkloadStateError> {
+        self.with_lock(|| {
+            let mut state = self.load()?;
+            let admission = state
+                .activation_admissions
+                .iter()
+                .find(|admission| admission.admission_id == execution.admission_id)
+                .ok_or(LocalWorkloadStateError::UnknownActivationAdmission(
+                    execution.admission_id.clone(),
+                ))?;
+            execution.verify_for(admission)?;
+            if state.commits.last().is_none_or(|head| {
+                head.commit_id != admission.workload_head_commit_id
+                    || head.snapshot.snapshot_revision != admission.workload_head_snapshot_id
+            }) {
+                return Err(LocalWorkloadStateError::ActivationPrecondition(
+                    "workload HEAD changed before activation execution retention".to_owned(),
+                ));
+            }
+            if let Some(existing) = state
+                .activation_executions
+                .iter()
+                .find(|existing| existing.admission_id == execution.admission_id)
+            {
+                if existing == &execution {
+                    return Ok(existing.clone());
+                }
+                return Err(LocalWorkloadStateError::ActivationAlreadyExecuted {
+                    admission_id: execution.admission_id.clone(),
+                    execution_id: existing.execution_id.clone(),
+                });
+            }
+            if state.activation_executions.len() >= MAX_WORKLOAD_ACTIVATION_EXECUTIONS {
+                return Err(LocalWorkloadStateError::ActivationExecutionLimit(
+                    MAX_WORKLOAD_ACTIVATION_EXECUTIONS,
+                ));
+            }
+            state.activation_executions.push(execution.clone());
+            state
+                .activation_executions
+                .sort_by(|left, right| left.execution_id.cmp(&right.execution_id));
+            self.save(&state)?;
+            Ok(execution)
         })
     }
 
@@ -3062,6 +3261,8 @@ pub struct WorkloadList {
     pub drafts: Vec<WorkloadDraft>,
     #[serde(default)]
     pub activation_admissions: Vec<WorkloadActivationAdmission>,
+    #[serde(default)]
+    pub activation_executions: Vec<WorkloadActivationExecution>,
     pub attention: WorkloadAttention,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<PortfolioReasoningEvidence>,
@@ -3077,9 +3278,9 @@ impl WorkloadList {
         workloads: Vec<WorkloadSummary>,
         drafts: Vec<WorkloadDraft>,
         activation_admissions: Vec<WorkloadActivationAdmission>,
+        activation_executions: Vec<WorkloadActivationExecution>,
         attention: WorkloadAttention,
         runtime: Option<PortfolioReasoningEvidence>,
-        revision: Option<WorkloadRevisionStatus>,
     ) -> Self {
         let semantic_atlas =
             SemanticAtlas::from_topographies(workloads.iter().filter_map(|workload| {
@@ -3095,11 +3296,18 @@ impl WorkloadList {
             workloads,
             drafts,
             activation_admissions,
+            activation_executions,
             attention,
             runtime,
             semantic_atlas,
-            revision,
+            revision: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_revision(mut self, revision: WorkloadRevisionStatus) -> Self {
+        self.revision = Some(revision);
+        self
     }
 }
 
@@ -3542,9 +3750,10 @@ fn workload_activation_admission_digest(admission: &WorkloadActivationAdmission)
     admission.workload.add_semantics(&mut hasher);
     admission.graph.add_semantics(&mut hasher);
     admission.scenario_suite.add_semantics(&mut hasher);
-    hasher.add_u64(admission.declared_scenario_ids.len() as u64);
-    for scenario_id in &admission.declared_scenario_ids {
-        hasher.add_str(scenario_id);
+    admission.evaluator.add_semantics(&mut hasher);
+    hasher.add_u64(admission.declared_scenarios.len() as u64);
+    for scenario in &admission.declared_scenarios {
+        scenario.add_semantics(&mut hasher);
     }
     hasher.add_u64(admission.selected_scenario_ids.len() as u64);
     for scenario_id in &admission.selected_scenario_ids {
@@ -3555,6 +3764,16 @@ fn workload_activation_admission_digest(admission: &WorkloadActivationAdmission)
     hasher.add_u64(admission.effective_budget.max_actions);
     hasher.add_u64(admission.effective_budget.max_evidence_bytes);
     hasher.add_str(&admission.authority);
+    hasher.finish()
+}
+
+fn workload_activation_execution_digest(execution: &WorkloadActivationExecution) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(WORKLOAD_ACTIVATION_EXECUTION_SCHEMA);
+    hasher.add_str(execution.admission_id.as_str());
+    hasher.add_str(execution.activation_id.as_str());
+    hasher.add_str(execution.result.result_id.as_str());
+    hasher.add_u64(execution.evidence_bytes);
+    hasher.add_str(&execution.authority);
     hasher.finish()
 }
 
@@ -3675,6 +3894,8 @@ pub enum LocalWorkloadStateError {
     EmptyRecord(String),
     #[error("workload activation admission is invalid or has been tampered with")]
     InvalidActivationAdmission,
+    #[error("workload activation execution is invalid, over budget, or has been tampered with")]
+    InvalidActivationExecution,
     #[error("workload activation admission precondition failed: {0}")]
     ActivationPrecondition(String),
     #[error("local workload state exceeds {0} activation admissions")]
@@ -3685,6 +3906,15 @@ pub enum LocalWorkloadStateError {
     ActivationAlreadyAdmitted {
         activation_id: SemanticDigest,
         admission_id: SemanticDigest,
+    },
+    #[error("unknown workload activation admission {0}")]
+    UnknownActivationAdmission(SemanticDigest),
+    #[error("local workload state exceeds {0} activation executions")]
+    ActivationExecutionLimit(usize),
+    #[error("workload activation admission {admission_id} already executed as {execution_id}")]
+    ActivationAlreadyExecuted {
+        admission_id: SemanticDigest,
+        execution_id: SemanticDigest,
     },
     #[error("state record key {key} does not match artifact workload {artifact}")]
     RecordIdentity { key: String, artifact: String },
