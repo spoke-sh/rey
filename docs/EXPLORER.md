@@ -49,7 +49,7 @@ presentation. Only canvas, lens, regime, camera, focus, and omission are
 React/read-model concepts:
 
 ```text
-Coordinate         = typed provider-qualified Spoke address for an object or
+Coordinate         = typed provider-qualified semantic address for an object or
                      bounded region; local bindings carry narrower guarantees
 Locator            = candidate address; resolution is a separate bounded act
 Context topology   = bounded typed anchors + classified relationships
@@ -469,9 +469,8 @@ presented as runtime availability, live activity, or assignment. The Explorer
 does not yet contain exact environment nodes, Git commit objects, source spans,
 scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
 Explorer must not imply that unavailable objects have been rendered. The
-workload endpoint returns local admitted topography patches; Spoke coordinates
-remain an explicit opaque-carrier conformance gap and are not presented as
-connected semantics.
+workload endpoint returns local admitted topography patches. Remote or
+federated coordinates are not part of the current contract.
 
 ## Current React Boundaries And Engine Cut
 
@@ -516,4 +515,4 @@ editor regions. Travel, trade, and economic layers require their own typed
 qualified evidence and are not inferred from survey edges or visual proximity.
 
 Browser mutation, workload campaign controls, authentication, multi-user
-scope, remote deployment, and Spoke-backed streams remain separate decisions.
+scope, remote deployment, and remote streams remain separate decisions.

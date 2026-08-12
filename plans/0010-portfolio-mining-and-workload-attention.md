@@ -124,5 +124,5 @@ source revision should derive `RETEST` for that exact owner.
 
 Recurring daemon scheduling, learned ranking, automatic retirement, package
 formats beyond the bounded V1 slice, arbitrary tool execution, parser/index
-breadth, and Spoke durability are not prerequisites for this plan's next
+breadth, and remote durability are not prerequisites for this plan's next
 anchor.

@@ -8,7 +8,7 @@ import type {
 } from "./journal";
 
 export interface UiServerIdentity {
-  source_repository: string;
+  source_repository: string | null;
   implementation_revision: string;
   journal_write_enabled: boolean;
   workload_admission_enabled: boolean;

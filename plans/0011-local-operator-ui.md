@@ -359,5 +359,5 @@ routes remain the next evidence projection after those contracts.
 Workload and campaign mutation controls, WebSockets as an assumed conversation
 transport, URL-addressable canvas focus, high-cardinality search, multi-user
 identity, authentication, TLS, remote deployment,
-Spoke-backed streams, and a general Rey service topology are not part of this
+remote streams and a general Rey service topology are not part of this
 slice.

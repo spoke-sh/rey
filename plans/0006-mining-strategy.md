@@ -7,7 +7,7 @@
 ## Outcome
 
 Formalize mining as Rey's bounded bridge from environment context to
-delta-directed evidence, then implement the smallest zero-Spoke workload that
+delta-directed evidence, then implement the smallest local-only workload that
 combines relational and source mining. The slice must retain native text,
 project typed match relations, compute directed relational and text deltas,
 render evidence-linked human views, and feed a failing result into a bounded
@@ -37,7 +37,7 @@ durable index, or an agent loop.
   `run`, and `status` without adding a peer top-level mining resource.
 - [x] Derive a workload frontier from retained failing mining evidence and
   construct one verified delta-directed reasoning surface.
-- [x] Prove deterministic zero-Spoke behavior, hard bounds, provider/source
+- [x] Prove deterministic local-only behavior, hard bounds, provider/source
   drift, malformed/unsupported input, failure, truncation, and staleness.
 - [x] Keep JSON/stdout/stderr/exit behavior and human `-v`/`-vv` evidence
   contracts covered by CLI fixtures.
@@ -205,7 +205,7 @@ tampering and stale request, provider, capability, or implementation bindings.
 
 - Mining composes provider capabilities; it does not create a second storage,
   query, document, stream, table, tool, run, capture, or index service beside
-  Spoke.
+  an external service.
 - The public CLI remains environment plus workloads. Focused diagnostics may be
   added only when needed to explain the workload slice.
 - The first slice is read-only except for explicit local result/evidence
@@ -215,8 +215,8 @@ tampering and stale request, provider, capability, or implementation bindings.
   ranking, agent transport, recurring scheduler, or service is selected here.
 - Native source remains authoritative; frames, summaries, deltas, and
   visualizations are bounded derived evidence.
-- Spoke amplification follows only after the standalone semantic contract is
-  proved and must use public Spoke capabilities.
+- Additional providers follow only after the standalone semantic contract is
+  proved and a concrete workload requires them.
 
 ## Exit Bearing
 
@@ -224,7 +224,7 @@ Plan 0006 is complete: one scenario-qualified workload mines exact local
 source through admitted operations, retains native and relational evidence,
 produces directed text and relational deltas, renders reviewable linked views,
 derives one bounded frontier and reasoning surface from failure, and proves the
-same deterministic contracts with zero Spoke under explicit limits.
+same deterministic contracts locally under explicit limits.
 
 The next bearing may then choose one richer source-mining rung—CST/AST parsing,
 semantic symbol/reference indexing, or derived code-quality/dependency metrics

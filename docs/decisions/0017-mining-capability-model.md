@@ -4,7 +4,6 @@
 - Date: 2026-08-08
 - Builds on: [ADR 0001](0001-diff-directed-runtime.md),
   [ADR 0002](0002-dataframes-typed-deltas-and-tabular-diff.md),
-  [ADR 0005](0005-environment-awareness-and-optional-spoke.md),
   [ADR 0012](0012-delta-directed-orientation.md), and
   [ADR 0015](0015-workload-centered-product.md)
 
@@ -32,8 +31,8 @@ text patch loses relational types, keys, and alignment.
 
 The missing concept is mining: the bounded transformation of context into
 navigable, addressable evidence. It needs a common control contract without
-becoming a universal query engine, parser bundle, durable index, or second
-storage plane beside Spoke.
+becoming a universal query engine, parser bundle, durable index, or undeclared
+storage plane.
 
 ## Decision
 
@@ -83,7 +82,7 @@ The first common model will version:
   visualization results.
 
 The manifest is an evidence index, not a content store. Retention uses the
-selected local or Spoke-backed boundary and states only its actual guarantees.
+selected local boundary and states only its actual guarantees.
 
 ### Diff And Visualization Families
 
@@ -136,8 +135,8 @@ Concrete ownership remains distributed:
 - `rey-runtime` owns graph validation, admission, transitions, budgets, and
   mining composition;
 - `rey-policy` owns the provider-neutral reasoning/proposal boundary; and
-- Spoke owns durable files, objects, documents, streams, tables, composed
-  query, registered tools, runs, captures, and durable lineage.
+- providers own their source, query, execution, capture, and retention
+  semantics.
 
 `rey-mining` is a provisional target crate for common operation, request,
 result, artifact, completeness, dependency, and visualization contracts. Plan
@@ -158,7 +157,7 @@ intelligence. It will:
 6. exercise those operations through a scenario-qualified workload and a
    delta-directed reasoning-surface fixture; and
 7. prove source/tool drift, truncation, unsupported input, deterministic
-   replay, and zero-Spoke behavior.
+   replay, and local-only behavior.
 
 AST/CST adapters, semantic resolution, code-quality metric catalogs, durable
 indexes, general graph visualization, learned ranking, and recurring
@@ -177,8 +176,7 @@ scheduling remain later bearings.
   justified by selected deltas and dependency closure.
 - Source, operation, parser/index, parameter, capability, completeness, and
   limit changes become explicit invalidation and proof inputs.
-- Spoke remains the durable reasoning/query/compute plane rather than being
-  duplicated by a local Rey index or storage service.
+- Rey does not invent a durable reasoning/query/compute plane.
 - The new common contract increases schema and fixture work before richer
   adapters can be claimed, intentionally trading early breadth for trustworthy
   composition.

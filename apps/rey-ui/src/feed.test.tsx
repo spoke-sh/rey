@@ -216,7 +216,7 @@ describe("high-cadence operator feed", () => {
     expect(markup).not.toContain("1 PROPOSALS · 1 READY");
     expect(markup).not.toContain("1 WORKLOADS");
     expect(markup).toContain(
-      `href="https://github.com/spoke-sh/rey/commit/${"a".repeat(40)}"`,
+      `href="https://github.com/example/rey/commit/${"a".repeat(40)}"`,
     );
   });
 });
@@ -313,7 +313,7 @@ function cadenceProjection(): CadenceProjection {
   return {
     schema: "rey.ui-cadence.v1",
     ordering: "partial",
-    source_repository: "https://github.com/spoke-sh/rey",
+    source_repository: "https://github.com/example/rey",
     repository_state: {
       id: "repository:rey",
       working_tree_state: "clean",

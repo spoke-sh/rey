@@ -54,7 +54,7 @@ keeps these dimensions separate:
 | Provider execution | succeeded, failed, cancelled, timed out, or lost |
 | Observation | complete, partial, unavailable, or failed |
 | Semantic outcome | unresolved, progressing, unchanged, regressing, converged, or inconclusive |
-| Evidence | pending, retained, verified, missing, or stale under a local or Spoke-backed profile |
+| Evidence | pending, retained, verified, missing, or stale under the local profile |
 | Stop reason | converged, budget, cancellation, timeout, evidence, eligibility, capability, inconclusive, or failure |
 
 A successful provider process changes only the provider-execution dimension.
@@ -140,9 +140,8 @@ Convergence itself also requires retained or verified evidence; it cannot be
 committed over missing or stale evidence.
 
 The local profile means evidence reached the declared local boundary; it does
-not claim process-crash durability, remote durability, or Spoke semantics. The
-Spoke-backed profile can be selected only when public Spoke contracts provide
-the claimed retention evidence.
+not claim process-crash durability, remote durability, or external-service
+semantics.
 
 ## Delta Roles And Progress
 
@@ -287,7 +286,7 @@ The implemented crates deliberately contain no:
 - coding-harness proposal request/response campaign beyond the bounded
   workspace package receiving contract;
 - recurring, fair, parallel, or multi-user scheduling;
-- external tool, query, parser, index, or Spoke retrieval implementation;
+- external tool, query, parser, or index retrieval implementation;
 - general visualization specification beyond the source workload's terminal
   table/patch projection;
 - policy request transport or proposal parser;

@@ -55,4 +55,3 @@ and frontiers.
 ## References
 
 - [Frictionless Data Tabular Diff Format 0.8](https://specs.frictionlessdata.io/tabular-diff/)
-- [Spoke ADR 0004: Polars DataFrames And Arrow Interfaces](../../../spoke/docs/decisions/0004-polars-dataframes-and-arrow-interfaces.md)

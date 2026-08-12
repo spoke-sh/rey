@@ -57,12 +57,11 @@ versioned providers. Discovery is an observation, not permission to execute
 arbitrary tools. The capability snapshot is evidence and changes to it can
 invalidate actions and proofs.
 
-### 6. Let Spoke Amplify, Not Gate, Rey
+### 6. Make Provider Guarantees Explicit
 
-Rey remains useful with zero Spoke capabilities. When present, Spoke is Rey's
-durable reasoning and compute plane. Rey integrates through public Spoke
-contracts and does not imitate stronger Spoke storage, query, or execution
-claims in standalone mode.
+Rey remains useful from local evidence. Every provider owns and declares its
+actual storage, query, and execution guarantees; Rey never silently upgrades or
+counterfeits them.
 
 ### 7. Degrade Capabilities Visibly
 
@@ -104,13 +103,11 @@ proofs have explicit row, byte, time, memory, depth, concurrency, and iteration
 limits where applicable. Stopping because a bound was reached is observable;
 it is never represented as convergence.
 
-### 13. Co-Evolve Without A Dependency Cycle
+### 13. Integrate Without A Dependency Cycle
 
-Rey is a reference external application of Spoke and should turn real client
-friction into conformance evidence that improves both systems. Rey must still
-run when Spoke is absent or unhealthy, and Spoke must build and start without
-Rey. Cross-project improvement follows public contracts and versioned evidence,
-not private imports or circular bootstrapping.
+External integrations follow public contracts and versioned evidence, not
+private imports or circular bootstrapping. Rey's build and local runtime do not
+depend on an external service.
 
 ### 14. Evidence Beats Aspiration
 
@@ -245,23 +242,21 @@ reproducible; they grant no read, probe, action, or admission authority.
 - Similarity and progress scores help navigate evidence; neither is a parity
   proof.
 - Evidence is content-addressed or bound to the strongest immutable source
-  revision available. A certificate states whether evidence is local-only or
-  Spoke-backed and never claims stronger durability than its provider.
+  revision available. A certificate states its retention guarantees and never
+  claims stronger durability than its provider.
 
 ## Collaboration Rules
 
 - Keep target architecture separate from current repository truth.
 - Record consequential choices before coupling implementation broadly to them.
 - Prefer the smallest end-to-end slice that proves a runtime invariant in
-  standalone mode, then proves the same semantic contract with Spoke
-  amplification where applicable.
-- Use Rey's observations of Spoke as actionable compatibility evidence, and
-  feed newly implemented Spoke capabilities back into Rey's capability probes.
-- Treat commit and index deltas in Rey and Spoke checkouts as pollable
-  activation sources without making either repository a boot dependency.
+  standalone mode, then proves the same semantic contract through additional
+  providers when a Rey requirement calls for them.
+- Treat declared commit and index deltas as pollable activation sources without
+  making another repository a boot dependency.
 - Update documents, decisions, plan checklists, examples, and tests with the
   behavior they describe.
 - Make hard cutovers during pre-alpha development unless a plan explicitly
   defines a migration.
-- Keep credentials, local Spoke data, generated traces, and large proof
+- Keep credentials, private service data, generated traces, and large proof
   artifacts out of source control unless they are intentional bounded fixtures.

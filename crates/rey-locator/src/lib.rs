@@ -14,7 +14,6 @@ pub const LOCATOR_RESOLUTION_SCHEMA: &str = "rey.locator-resolution.v1";
 #[serde(rename_all = "snake_case")]
 pub enum CoordinateProfile {
     LocalStandalone,
-    SpokePublic,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -167,28 +166,7 @@ impl CoordinateBinding {
             coordinate: coordinate.to_uri(),
             identity_class,
             source_revision: source_revision.into(),
-            retention: "process-local evidence; no Spoke durability or federation".to_owned(),
-        };
-        binding.binding_id = binding_digest(&binding);
-        binding.verify()?;
-        Ok(binding)
-    }
-
-    pub fn spoke_opaque(
-        provider: ContractIdentity,
-        coordinate: impl Into<String>,
-        identity_class: CoordinateIdentityClass,
-        source_revision: impl Into<String>,
-    ) -> Result<Self, LocatorError> {
-        let mut binding = Self {
-            schema: COORDINATE_BINDING_SCHEMA.to_owned(),
-            binding_id: placeholder("rey.coordinate-binding.placeholder"),
-            profile: CoordinateProfile::SpokePublic,
-            provider,
-            coordinate: coordinate.into(),
-            identity_class,
-            source_revision: source_revision.into(),
-            retention: "provider-owned public Spoke contract".to_owned(),
+            retention: "process-local evidence; no remote durability or federation".to_owned(),
         };
         binding.binding_id = binding_digest(&binding);
         binding.verify()?;
@@ -212,12 +190,6 @@ impl CoordinateBinding {
                 let coordinate = LocalCoordinate::parse(&self.coordinate)?;
                 if coordinate.revision != self.source_revision {
                     return Err(LocatorError::RevisionBinding);
-                }
-            }
-            CoordinateProfile::SpokePublic => {
-                // The carrier intentionally does not reinterpret the provider-owned payload.
-                if self.coordinate.starts_with("rey+local://") {
-                    return Err(LocatorError::CoordinateScheme);
                 }
             }
         }
@@ -437,7 +409,6 @@ fn binding_digest(binding: &CoordinateBinding) -> SemanticDigest {
     let mut hasher = SemanticHasher::new(COORDINATE_BINDING_SCHEMA);
     hasher.add_str(match binding.profile {
         CoordinateProfile::LocalStandalone => "local_standalone",
-        CoordinateProfile::SpokePublic => "spoke_public",
     });
     binding.provider.add_semantics(&mut hasher);
     hasher.add_str(&binding.coordinate);
@@ -623,28 +594,6 @@ mod tests {
             LocalCoordinate::parse("rey+local://file/x?role=human&revision=blake3%3Asource")
                 .is_err()
         );
-    }
-
-    #[test]
-    fn opaque_spoke_coordinates_are_carried_losslessly_without_reinterpretation() {
-        let opaque = "spoke+coordinate://space/native%2Fpayload?provider-owned=true";
-        let binding = CoordinateBinding::spoke_opaque(
-            ContractIdentity::new(
-                "spoke.coordinate.public",
-                1,
-                "public opaque coordinate carrier",
-            ),
-            opaque,
-            CoordinateIdentityClass::RevisionBound,
-            "spoke-revision:7",
-        )
-        .unwrap();
-        assert_eq!(binding.coordinate, opaque);
-        binding.verify().unwrap();
-
-        let json = serde_json::to_vec(&binding).unwrap();
-        let decoded: CoordinateBinding = serde_json::from_slice(&json).unwrap();
-        assert_eq!(decoded, binding);
     }
 
     #[test]

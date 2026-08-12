@@ -2015,7 +2015,8 @@ fn write_ui_startup(
         "Implementation",
         &format!(
             "{} · {}",
-            descriptor.source_repository, descriptor.implementation_revision
+            descriptor.source_repository.as_deref().unwrap_or("UNBOUND"),
+            descriptor.implementation_revision
         ),
     )?;
     writeln!(output)?;

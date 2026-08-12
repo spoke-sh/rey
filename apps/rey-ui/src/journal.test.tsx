@@ -100,7 +100,7 @@ function entry(): RetainedJournalEntry {
         kind: "query",
         id: "query",
         language: "sql",
-        provider: "spoke",
+        provider: "local",
         mode: "read_only",
         statement: "select * from coverage",
         parameters: {},

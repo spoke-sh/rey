@@ -8,8 +8,8 @@
 Rey's first executable slice can inspect the local environment into the typed
 `rey.capabilities.v1` relation. The next slice must prove that a diff can
 direct compute without prematurely freezing a universal dataframe delta
-layout. It also needs one honest proof claim that works without Spoke and can
-later be retained or evaluated by Spoke.
+layout. It also needs one honest proof claim that can be retained and evaluated
+locally.
 
 Tabular Diff 0.8 is useful interoperability output, but modified cells combine
 two values into text and CSV null conventions cannot preserve every typed
@@ -56,12 +56,11 @@ must bump the corresponding contract revision and digest input.
 
 ## Consequences
 
-- Rey gains its first complete inspect-to-delta-to-certificate loop without a
-  Spoke dependency.
+- Rey gains its first complete inspect-to-delta-to-certificate local loop.
 - Capability fixtures can establish typed, Arrow, Tabular Diff, and staleness
   parity before a generic dataframe comparator is designed.
 - Observation-only fields cannot create false capability changes.
 - Tabular Diff remains portable review output while typed JSON and Arrow keep
   semantic authority.
-- Durable retention, generic proof bundles, Git relation deltas, activation,
-  and Spoke evaluation remain later vertical slices.
+- Durable retention, generic proof bundles, Git relation deltas, and activation
+  remain later vertical slices.

@@ -1856,7 +1856,7 @@ fn text_workload(normalize: bool) -> Result<WorkloadDefinition, WorkloadError> {
         GraphLimits::default(),
     )?;
     let scenarios = vec![
-        text_scenario(workload_id, "plain", "spoke", "SPOKE"),
+        text_scenario(workload_id, "plain", "atlas", "ATLAS"),
         text_scenario(workload_id, "surrounded", " rey ", "REY"),
     ];
     WorkloadDefinition {
@@ -3482,11 +3482,11 @@ mod tests {
         let run = run_workload(
             &workload,
             test.qualification.as_ref().unwrap(),
-            BTreeMap::from([("text".to_owned(), WorkloadValue::Utf8(" spoke ".to_owned()))]),
+            BTreeMap::from([("text".to_owned(), WorkloadValue::Utf8(" atlas ".to_owned()))]),
         )
         .unwrap();
         assert_eq!(run.status, RunStatus::Passed);
-        assert_eq!(run.outputs["text"], WorkloadValue::Utf8("SPOKE".to_owned()));
+        assert_eq!(run.outputs["text"], WorkloadValue::Utf8("ATLAS".to_owned()));
         run.verify().unwrap();
     }
 

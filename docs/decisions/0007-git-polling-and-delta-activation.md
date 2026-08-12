@@ -2,9 +2,7 @@
 
 - Status: Accepted; public activation target terminology narrowed by ADR 0015
 - Date: 2026-08-07
-- Extends: [ADR 0001](0001-diff-directed-runtime.md),
-  [ADR 0005](0005-environment-awareness-and-optional-spoke.md), and
-  [ADR 0006](0006-rey-spoke-recursive-improvement.md)
+- Extends: [ADR 0001](0001-diff-directed-runtime.md)
 - Narrowed by: [ADR 0015](0015-workload-centered-product.md)
 - Environment-admission placement narrowed by:
   [ADR 0033](0033-git-shaped-environment-loop-fidelity.md)
@@ -80,9 +78,9 @@ safety contract before it becomes broad dependency policy.
   application components.
 - Linked worktrees, bare repositories, shallow history, conflicts, merges,
   submodule gitlinks, and supported sparse/split indexes need focused fixtures.
-- Local cursors have local retention guarantees; connected mode may retain poll
-  events and cursors through Spoke without making Spoke the Git source of truth.
-- Git commit and index deltas provide a concrete activation mechanism for the
-  recursive Rey–Spoke conformance loop.
+- Local cursors have local retention guarantees; a future retention provider
+  cannot become the Git source of truth.
+- Git commit and index deltas provide a concrete activation mechanism for
+  declared conformance workloads.
 - Trigger and cursor schema changes can make pending or retained activations
   stale independently from source content.

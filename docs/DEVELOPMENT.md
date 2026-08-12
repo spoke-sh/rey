@@ -23,7 +23,7 @@ to `.envrc`; that would create a second environment path.
 
 ## Flake Inputs
 
-The flake follows Spoke's Rust environment shape and pins four inputs:
+The flake pins four development inputs:
 
 - `nixpkgs` for tools and libraries;
 - `rust-overlay` for a pinned stable Rust toolchain;
@@ -64,7 +64,7 @@ Both shells establish:
 
 Set `REY_CARGO_TARGET_DIR` or `REY_TMPDIR` before entering the shell to override
 those project-specific defaults. The shell does not repurpose `HOME` or infer a
-Spoke data root. Linux shells select `mold` consistently for x86_64 and aarch64
+private service data root. Linux shells select `mold` consistently for x86_64 and aarch64
 GNU targets.
 
 ## Flake Outputs

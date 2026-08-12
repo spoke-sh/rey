@@ -113,7 +113,7 @@ replay-verifiable directed delta.
 
 The store claims local atomic replacement and lock coordination only. It does
 not claim `fsync`, authenticated ownership, multi-user merge, remote durability,
-or Spoke stream semantics.
+or remote stream semantics.
 
 ### 3. Agent CLI
 

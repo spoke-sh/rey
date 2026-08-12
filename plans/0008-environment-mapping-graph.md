@@ -66,5 +66,5 @@ JSON, stderr, and categorized exits.
 Dynamic file paths derived from variable values, parsing references from file
 contents, invoking executable version probes from the DSL, capability
 action admission, revision selectors, graph query/visualization breadth, and
-Spoke retention remain later slices. Plan 0009 delivered history admission;
+remote retention remains a later slice. Plan 0009 delivered history admission;
 that does not admit mapped executable capabilities for action.

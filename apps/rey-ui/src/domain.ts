@@ -88,7 +88,7 @@ export type LocatorResolutionStatus =
 export interface CoordinateBinding {
   schema: string;
   binding_id: string;
-  profile: "local_standalone" | "spoke_public";
+  profile: "local_standalone";
   provider: ContractIdentity;
   coordinate: string;
   identity_class: "immutable" | "revision_bound" | "mutable";

@@ -9,7 +9,7 @@ lineage without reading implementation code.
 This document is the canonical philosophy and command-level reference for the
 implemented CLI. Run `rey <command> --help` for the exact accepted flags of the
 installed binary. [Interfaces](INTERFACES.md) defines the underlying typed,
-provider, HTTP, policy, and Spoke contracts; subject semantics live in
+provider, HTTP, and policy contracts; subject semantics live in
 [Environment](ENVIRONMENT.md), [Workloads](WORKLOADS.md),
 [Explorer](EXPLORER.md), and [Journal](JOURNAL.md).
 
@@ -357,7 +357,7 @@ By default Rey keeps local state under the selected workspace:
 ```
 
 These stores are bounded, verified local single-process evidence boundaries.
-They do not claim authenticated writers, remote durability, Spoke semantics,
+They do not claim authenticated writers, remote durability, external-service semantics,
 or Git object-database behavior. Source-owned workload, scene, Channel, and
 Journal proposal files remain outside the local object caches. Clearing
 `.rey` clears retained local Rey state, not authored workspace files.

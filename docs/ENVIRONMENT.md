@@ -2,18 +2,17 @@
 
 This document defines Rey's target environment-discovery and capability
 contracts. Environment awareness lets Rey use the best context surfaces
-available without making Spoke or any host tool an invisible boot dependency.
-ADR 0008 and the first Plan 0001 slice now implement the version-1 capability
+available without making any host tool an invisible boot dependency.
+ADR 0008 implements the version-1 capability
 relation for built-in frames, one explicit workspace, allowlisted `git` and
-`rg` identity probes, and a contained Git repository observation. Optional
-Spoke discovery, action admission, and other tool adapters remain Plan 0001
-work. ADRs 0010 and 0011 add capability deltas, required-capability
+`rg` identity probes, and a contained Git repository observation. Action
+admission and other tool adapters remain later work. ADRs 0010 and 0011 add capability deltas, required-capability
 certificates, and bounded local-only bundle retention over this relation. ADR
 0017 classifies relational and source mining operations as first-class
 capabilities. Plan 0006 now implements the first deterministic built-in local
 source binding and literal-search capability and ADR 0018 composes it through
-the workload CLI; external `rg`, parser, index, and Spoke mining adapters remain
-later slices. ADR 0020 added the first explicit environment graph, ADR 0027
+the workload CLI; external `rg`, parser, and index adapters remain later
+slices. ADR 0020 added the first explicit environment graph, ADR 0027
 added bounded non-sensitive value capture and one operator delta for the CLI
 and UI, and ADR 0031 hard-cuts the current mapping contract to
 `rey.env-map.v1` with separate desired-application and search records. ADR
@@ -26,7 +25,7 @@ revisions those observations.
 
 - A **context surface** is a bounded source of information or action in the
   current environment: a workspace, version-control repository, executable,
-  runtime, service, or Spoke deployment.
+  runtime, or service.
 - A **provider** owns discovery and operations for one class of context surface.
 - A **capability** is one typed operation or guarantee advertised by a provider.
 - A **mining capability** is a versioned relational or source operation such as
@@ -39,8 +38,8 @@ revisions those observations.
 ## Principles
 
 - Discovery is bounded observation, not ambient authority.
-- Spoke is an optional provider and a first-class amplifier.
-- Local fallback is useful but cannot impersonate Spoke semantics.
+- The implemented profile uses explicit local providers.
+- A provider cannot claim guarantees it does not implement.
 - Provider and tool drift are runtime deltas, not hidden machine state.
 - A missing capability removes actions or makes dependent claims inconclusive;
   it never silently weakens the claim.
@@ -48,7 +47,7 @@ revisions those observations.
 - Mining discovery names semantic operations and limitations; a tool name or
   server version alone never implies search, parse, index, or query parity.
 - Bootstrap discovery observes only `HOME`, `PWD`, and `PATH`; it never infers
-  project or Spoke relevance from an ambient variable name.
+  project or service relevance from an ambient variable name.
 
 ## Provider Contract
 
@@ -102,7 +101,7 @@ distinguishes unknown, unavailable, and unsupported values. An absent
 enforcement claim is never encoded as an enforced zero or unbounded
 permission.
 
-Locations are provider-scoped. A local path, Spoke path, URL, object URI, and
+Locations are provider-scoped. A local path, URL, object URI, and
 logical tool name are not interchangeable strings.
 
 ## Process-Owned Discovery Seeds
@@ -135,10 +134,9 @@ the separate Git cadence/activation provider. Moving Git HEAD or staging files
 therefore leaves the environment snapshot unchanged unless a declared
 environment input, variable, or application observation also changed.
 
-`SPOKE_ENDPOINT` and `SPOKE_TOKEN` are not discovery seeds. An agent may later
-propose them in a reasoning map if frozen project evidence supports their
-relevance; the token must remain presence-only. A future Spoke provider should
-prefer its public discovery contract over ambient variable convention.
+Endpoint and token variables are not discovery seeds. An agent may propose
+explicit non-sensitive references in a reasoning map when frozen project
+evidence supports their relevance; secret values remain presence-only.
 
 ## Agent-Generated Reasoning Map
 
@@ -255,9 +253,7 @@ Provider ownership remains explicit:
 - local filesystem and Git adapters establish local source identity and safe
   reads;
 - tool adapters invoke and interpret allowlisted executables;
-- language adapters own parser and semantic-index interpretation;
-- Spoke owns its durable source, composed query, registered-tool, run, capture,
-  and lineage semantics; and
+- language adapters own parser and semantic-index interpretation; and
 - Rey binds those capabilities into mining requests, workload nodes, deltas,
   invalidation, and reasoning surfaces.
 
@@ -303,39 +299,17 @@ retains the exact corpus, request, capability snapshot, provider, result,
 match, and context identities. `list`, `test -v/-vv`, `status`, and `run`
 surface those facts without adding a separate mining command hierarchy.
 
-## Spoke Provider
-
-The Spoke provider may contribute:
-
-- exact versioned files and objects;
-- document, stream, and table relations;
-- composed relational, graph, lexical, and vector query;
-- registered tool identity and admitted compute;
-- run, attempt, event, capture, fence, and cancellation lineage; and
-- durable artifact and trace retention.
-
-Rey uses advertised, proven capabilities rather than inferring support from a
-server version string. A reachable health endpoint does not imply every Spoke
-capability required by a space.
-
-Spoke discovery and operations use public contracts. Local provider paths never
-become Spoke paths, and Rey never opens the Spoke data directory.
-
 ## Profiles And Requirements
 
 The initial semantic profiles are:
 
-- **standalone** — disable Spoke discovery and use allowed built-in/local
-  providers;
-- **auto** — use built-in/local providers and add a safely configured or
-  discovered Spoke provider when healthy; and
+- **standalone** — use allowed built-in and local providers; and
 - **required capabilities** — declare exact capabilities/guarantees a space,
   lens, action, or claim needs regardless of profile.
 
-Profiles select availability, not proof meaning. A claim requiring durable
-Spoke revisions remains unavailable or inconclusive in standalone mode. A local
-claim remains local even if Spoke happens to appear unless its declaration
-selects Spoke evidence.
+Profiles select availability, not proof meaning. A claim requiring an
+unavailable guarantee remains unavailable or inconclusive; it never silently
+weakens itself.
 
 ## Action Admission
 
@@ -363,7 +337,7 @@ Meaningful changes include:
 - version, path, digest, provenance, platform, or trust changed;
 - operation support appeared/disappeared;
 - an enforced or unsupported limit changed; and
-- a Spoke schema or capability revision changed.
+- a provider schema or capability revision changed.
 
 Dependency metadata maps those deltas to affected lenses, actions, and proofs.
 Unrelated local frames do not become stale merely because an unused tool
@@ -462,7 +436,7 @@ boundaries. History publication and index removal are not one crash-atomic
 transaction; an index left after a successful commit is stale and rejected. It
 is not a Git object database and claims no pathspec, reset/restore, branches,
 merges, rewrite, `fsync`, locking, authenticated writer, remote durability, or
-Spoke revision semantics.
+external revision semantics.
 
 The fresh v1 history does not admit repository snapshot rows. Git repository
 state belongs to cadence and workload activation; a document from an earlier
@@ -486,7 +460,7 @@ tool/process observations, artifacts, and certificate digests.
 
 The bundle does not claim:
 
-- Spoke resource revisions or query checkpoints;
+- remote resource revisions or query checkpoints;
 - fenced or leased compute attempts;
 - multi-process transactionality;
 - remote durability or retention;
@@ -519,7 +493,7 @@ admitting a Git repository provider or enabling network and mutation commands.
 
 The first environment implementation must cover:
 
-- zero-Spoke startup;
+- local-only startup;
 - standalone, auto, and required-capability selection;
 - explicit workspace-root bounds and path escape rejection;
 - known tool present, missing, duplicated, and permission denied;
@@ -528,7 +502,6 @@ The first environment implementation must cover:
 - mining operation appearance/disappearance, semantic-version drift,
   unsupported encoding/language behavior, result truncation, and parser/index
   completeness degradation;
-- Spoke absent, unhealthy, partially capable, and healthy;
 - optional-provider failure isolated from healthy local providers;
 - required-provider failure before any side effect;
 - deterministic capability frames and deltas for identical observations; and

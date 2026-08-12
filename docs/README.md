@@ -42,9 +42,9 @@ document must say which is which.
 
 | Document | Purpose |
 | --- | --- |
-| [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, Spoke boundaries, persistence, HTTP/UI APIs, and error/limit semantics. |
+| [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, persistence, HTTP/UI APIs, and error/limit semantics. |
 | [Development](DEVELOPMENT.md) | Pinned Nix/Rust/TypeScript environment, root `just` tasks, build outputs, dependency updates, and qualification commands. |
-| [Roadmap](ROADMAP.md) | Delivery sequence from standalone environment evidence through workloads, topography, admitted mutation, Spoke, and policy. |
+| [Roadmap](ROADMAP.md) | Delivery sequence from local environment evidence through workloads, topography, admitted mutation, and policy. |
 | [Architecture Decisions](decisions/README.md) | Indexed accepted decisions, their status, summaries, and supersession history. |
 | [Implementation Plans](../plans/README.md) | Active and completed implementation slices with checklists and human verification paths. |
 

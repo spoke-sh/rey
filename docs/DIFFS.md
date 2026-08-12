@@ -34,7 +34,7 @@ its observation:
 | schema | Ordered column names, logical types, nullability, and schema revision |
 | keys | Unique comparison key columns and ordering semantics |
 | capabilities | Frozen provider/tool snapshot and guarantees used to create the frame |
-| sources | Exact Spoke bindings or strongest immutable local identities available |
+| sources | Strongest exact source identities available |
 | mining | Operation/request/result identities and derivation dependencies when the frame is mined |
 | normalizers | Ordered versioned transformations applied before comparison |
 | limits | Requested and effective evaluation bounds |
@@ -305,7 +305,7 @@ The first diff engine must include fixtures for:
 - meaningful and meaningless ordering;
 - incompatible schemas and types;
 - truncated or failed observations;
-- zero-Spoke and Spoke-connected frames with explicit capability metadata;
+- local frames with explicit capability metadata;
 - provider/tool appearance, disappearance, and version or digest drift;
 - Git fast-forward, rewind, rewrite, merge, incomplete-history, and semantic
   index deltas;

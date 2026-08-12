@@ -8,8 +8,8 @@ and proof belong in `plans/`.
 - Establish the constitution, architecture, diff, proof, interface, and
   development contracts.
 - Pin the reproducible Rust toolchain and root task surface.
-- Record the environment-aware, diff-directed runtime, DataFrame, optional
-  Spoke, and proof boundaries.
+- Record the environment-aware, diff-directed runtime, DataFrame, provider,
+  and proof boundaries.
 - Scaffold the narrow Cargo ownership map only after those choices are legible.
 
 ## Phase 1 — Standalone Environment And Delta
@@ -33,23 +33,10 @@ comparison, and broader proof coverage.
 - Render compatible deltas as Tabular Diff 0.8 and a complete structured form.
 - Emit a content-addressed proof manifest and detect stale or tampered inputs.
 - Retain a local-only evidence bundle with honest durability metadata.
-- Prove zero-Spoke operation, capability drift, deterministic artifacts,
+- Prove local-only operation, capability drift, deterministic artifacts,
   limits, null behavior, typed empty frames, and duplicate-key rejection.
 
-## Phase 2 — Optional First-Class Spoke Observation
-
-- Discover and validate a routed Spoke deployment as an optional provider.
-- Bind frames to exact file, object, document, table, and query revisions needed
-  by the first slice.
-- Materialize one Arrow query relation without a local storage bypass.
-- Persist one frame, delta, trace, and proof bundle through public Spoke
-  contracts.
-- Prove restart, revision drift, missing capability, limit, and routed-error
-  behavior.
-- Prove that Spoke absence preserves standalone behavior and that a
-  Spoke-required claim fails closed rather than weakening itself.
-
-## Phase 3 — Mining-Powered Workload Compute Graphs
+## Phase 2 — Mining-Powered Workload Compute Graphs
 
 The explicit compiled conformance catalog, workload CLI projections, typed DAG, scenario
 qualification, common mining manifests, exact local literal search, typed match
@@ -83,7 +70,7 @@ execution, and broader provider behavior.
 - Declare workload surface ownership, derive invalidation from retained
   environment/Git deltas, and adapt ready attention into the generic frontier.
 - Prove source/tool drift, truncation, unsupported input, deterministic replay,
-  and zero-Spoke behavior before adding parser or index breadth.
+  and local-only behavior before adding parser or index breadth.
 - Admit deterministic read-only probes against frozen inputs.
 - Re-evaluate invalidated lenses and stop on convergence, failure,
   inconclusiveness, cancellation, or budget exhaustion.
@@ -124,8 +111,8 @@ execution, and broader provider behavior.
   evidence contract with revision, authority, effects, limits, and lineage.
 - Keep surveyed-empty, unexplored, omitted, stale, unsupported, and truncated
   regions distinct; never let navigation start a hidden crawl.
-- Exercise the coordinate carrier through a public Spoke conformance contract
-  before claiming connected coordinate semantics.
+- Keep the coordinate carrier local until a concrete federation requirement is
+  accepted and proved.
 
 ## Cross-Cutting — Workspace Collaboration Channels
 
@@ -145,17 +132,17 @@ execution, and broader provider behavior.
 - Specify relay provider, cursor, hop, idempotency, loop-prevention, delivery,
   and omission contracts before enabling local or remote transport.
 
-## Phase 4 — Admitted Mutation
+## Phase 3 — Admitted Mutation
 
 - Define effect classes and allowed targets.
-- Admit an explicit local tool or submit a registered tool through Spoke compute
-  with exact capability preconditions and idempotency where supported.
+- Admit an explicit local tool with exact capability preconditions and
+  idempotency where supported.
 - Preserve the run, attempt, tool, capture, guarantee, and failure lineage the
   selected provider can prove.
 - Re-observe the target rather than trusting process exit status.
 - Gate mutation and acceptance on fresh scoped proofs.
 
-## Phase 5 — Codebase Spaces
+## Phase 4 — Codebase Spaces
 
 - Project files, symbols, references, dependencies, diagnostics, tests, and
   changes as related frames bound to exact code revisions.
@@ -166,23 +153,11 @@ execution, and broader provider behavior.
 - Add evidence-linked table, patch, tree, graph, timeline, and metric
   visualizations with explicit aggregation and elision.
 - Add code-aware lenses and conservative invalidation.
-- Explore graph, lexical, and vector dimensions through Spoke's composed query
-  plane as those contracts are available.
+- Explore graph, lexical, and vector dimensions through bounded operations
+  justified by named workloads.
 - Prove bounded remediation loops against reviewed codebase fixtures.
 
-## Phase 6 — Rey–Spoke Co-Evolution
-
-- Use standalone Rey to inspect and diagnose the Spoke repository when no
-  healthy Spoke runtime exists.
-- Activate external-client conformance from exact Spoke commit/ref/index deltas.
-- Maintain external-client conformance spaces for Spoke query, compute,
-  persistence, and lineage.
-- Turn missing or awkward Spoke capabilities into typed frontier evidence.
-- Discover newly delivered Spoke capabilities and rerun the same claims.
-- Use Rey to improve Rey through Spoke-backed codebase spaces without making
-  either repository a boot dependency of the other.
-
-## Phase 7 — Agent Policies
+## Phase 5 — Agent Policies
 
 - Fix the provider-neutral policy request/proposal contract.
 - Add one agent adapter that proposes immutable graph revisions without
@@ -193,7 +168,7 @@ execution, and broader provider behavior.
 - Preserve model and prompt lineage needed for audit without treating rationale
   as proof.
 
-## Phase 8 — Scale And Deployment
+## Phase 6 — Scale And Deployment
 
 - Benchmark full versus incremental recomputation with named workloads.
 - Introduce durable frontier checkpoints and resumable traces where evidence
@@ -207,7 +182,7 @@ execution, and broader provider behavior.
 - untrusted-code sandbox claims;
 - autonomous production mutation;
 - model training or serving;
-- a second durable service beside Spoke;
+- an undeclared second durable service;
 - a custom distributed query engine;
 - universal proof or formal-verification claims; and
 - compatibility commitments before the first pre-alpha contract stabilizes.

@@ -14,9 +14,7 @@ unresolved deltas to schedule subsequent probes or mutations. It records enough
 lineage to explain how evidence was derived, why each action ran, and what a
 scoped proof actually covers.
 
-Rey has a useful standalone profile over explicit local context. Spoke is an
-optional capability amplifier that supplies durable content, exact resource
-revisions, composed query, admitted execution, and durable lineage. A model may
+Rey has a useful standalone profile over explicit local context. A model may
 guide the feedback loop, but model inference and provider integration are
 policy concerns rather than runtime correctness dependencies.
 
@@ -44,8 +42,7 @@ Rey separates ten responsibilities:
    semantic LOD, render passes, picking, and high-fidelity browser pixels;
    rendering never becomes semantic authority.
 6. **Reasoning plane** — selected frontier work and mined evidence become a
-   bounded reasoning surface with exact omissions and admissible operations;
-   optional Spoke amplifies retrieval and retention, not surface semantics.
+   bounded reasoning surface with exact omissions and admissible operations.
 7. **Observation plane** — lenses bind exact inputs and materialize bounded
    typed frames or native artifact references.
 8. **Delta plane** — relational, text, and structural comparison preserves
@@ -59,9 +56,7 @@ These are responsibility boundaries, not requirements for separate processes.
 The first topology is a local Rey process. `rey ui` attaches an operator
 projection to that process; its only browser write is bounded unauthenticated
 Journal admission on any explicitly configured listener. It is not a separate
-runtime or scheduler, and Journal admission grants no compute authority. A
-Spoke provider, when configured or discovered, uses Spoke's routed HTTP
-interface.
+runtime or scheduler, and Journal admission grants no compute authority.
 
 ## System Graph
 
@@ -72,9 +67,9 @@ interface.
                     │                         ▼
                     │            explicit environment boundary
                     │                         │
-                    │        ┌────────────────┼────────────────┐
-                    │        ▼                ▼                ▼
-                    │ local workspace  discovered tools  optional Spoke
+                    │        ┌────────────────┴────────────────┐
+                    │        ▼                                 ▼
+                    │ local workspace                   discovered tools
                     │        └────────────────┬────────────────┘
                     │                         ▼
                     │              capability snapshot frame
@@ -100,7 +95,7 @@ interface.
                         ▼           ▼
               ┌──────────────┐  ┌──────────────┐
               │ frame/native │  │ local action │
-              │ projections  │  │ or Spoke run │
+              │ projections  │  │              │
               └──────┬───────┘  └──────┬───────┘
                      │                 │
                      └────────┬────────┘
@@ -116,7 +111,7 @@ interface.
           mine · visualize           proof evaluator
                    │                        │
                    ▼                        ▼
-          reasoning surface    local or Spoke-backed evidence
+          reasoning surface           local evidence
                    │
                    ▼
              next proposal
@@ -139,16 +134,16 @@ poll cursors, and delta-triggered workloads.
 | Concept             | Meaning                                                                                                                                                                                                | Owner or retention boundary                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | Environment         | Explicit boundary from which providers may discover context                                                                                                                                            | Host/deployment configuration; observed by Rey                                                                  |
-| Capability snapshot | Frozen inventory of providers, tools, operations, trust, and limits                                                                                                                                    | Rey evidence; local or Spoke-backed                                                                             |
+| Capability snapshot | Frozen inventory of providers, tools, operations, trust, and limits                                                                                                                                    | Local Rey evidence                                                                                              |
 | Workload            | Public versioned composition of graph contract, scenarios, environment, claims, policy, qualification, effects, and budgets                                                                            | Rey declaration and catalog provider                                                                            |
 | Compute graph       | Immutable content-identified typed nodes, ports, and dependency edges proposed for one workload                                                                                                        | Catalog/result provider with explicit retention profile                                                         |
 | Scenario            | Exact fixtures, expected observations or claims, comparator, and limits used to test one graph revision                                                                                                | Rey declaration and retained evidence                                                                           |
-| Test campaign       | Bounded lineage of graph proposals, scenario attempts, typed deltas, and qualification decision                                                                                                        | Local or Spoke-backed result provider                                                                           |
-| Space               | Named boundary over sources, lenses, actions, claims, and limits                                                                                                                                       | Rey declaration; local or stored through Spoke                                                                  |
-| Source binding      | Exact Spoke or local immutable input identity                                                                                                                                                          | Source system; referenced by Rey                                                                                |
-| Coordinate binding  | Provider-qualified semantic address for one object or bounded region; camera and lens are not identity                                                                                                 | Owning provider; local bindings disclose zero-Spoke guarantees                                                  |
-| Lens                | Versioned deterministic observation definition                                                                                                                                                         | Rey declaration; local or stored through Spoke                                                                  |
-| Frame               | Bounded typed observation plus schema and lineage                                                                                                                                                      | Working state in Rey; local or Spoke evidence when retained                                                     |
+| Test campaign       | Bounded lineage of graph proposals, scenario attempts, typed deltas, and qualification decision                                                                                                        | Local result provider                                                                                           |
+| Space               | Named boundary over sources, lenses, actions, claims, and limits                                                                                                                                       | Rey declaration                                                                                                 |
+| Source binding      | Strongest exact input identity available                                                                                                                                                               | Source system; referenced by Rey                                                                                |
+| Coordinate binding  | Provider-qualified semantic address for one object or bounded region; camera and lens are not identity                                                                                                 | Owning provider; local bindings disclose local-only guarantees                                                  |
+| Lens                | Versioned deterministic observation definition                                                                                                                                                         | Rey declaration                                                                                                 |
+| Frame               | Bounded typed observation plus schema and lineage                                                                                                                                                      | Working state or explicit local evidence                                                                        |
 | Mining operation    | Versioned relational or source transformation with typed inputs, outputs, effects, limits, and completeness                                                                                            | Rey contract; implemented by built-in or discovered provider adapters                                           |
 | Mining request      | Exact source/artifact bindings, operation, parameters, capability snapshot, limits, and frontier rationale                                                                                             | Rey transition or graph-node evidence                                                                           |
 | Mining result       | Manifest of produced native, relational, tree, graph, delta, metric, or visual artifacts plus lineage and omissions                                                                                    | Rey evidence index; artifacts remain provider-owned or explicitly retained                                      |
@@ -162,17 +157,17 @@ poll cursors, and delta-triggered workloads.
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Scene snapshot      | Immutable, stably ordered engine scene compiled from one projection packet; semantic identity excludes camera motion and measured frame time                                                           | Browser working state and optional bounded proof artifact; never authoritative source evidence                  |
 | Portfolio snapshot  | Exact bounded catalog, qualification, environment, dependency, capability, ownership, and coverage inputs for one portfolio observation                                                                | Rey runtime evidence; derived from catalog/result/environment providers                                         |
-| Workload attention  | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost                                                           | Rey runtime working evidence; local or Spoke-backed when retained                                               |
-| Journal entry       | Ordered typed collaboration document bound to an exact semantic coordinate, numeric camera scale, and source revision; admission grants no execution authority                                         | Local Rey journal; Spoke retention remains separate                                                             |
+| Workload attention  | Canonical typed relation of refine, retest, create, block, or policy-excluded subjects with reasons, readiness, evidence, priority, and cost                                                           | Rey runtime working evidence                                                                                   |
+| Journal entry       | Ordered typed collaboration document bound to an exact semantic coordinate, numeric camera scale, and source revision; admission grants no execution authority                                         | Local Rey journal                                                                                               |
 | Action proposal     | Policy request naming frozen inputs, effect class, and bounds                                                                                                                                          | Rey trace                                                                                                       |
-| Run/attempt         | Provider-owned execution and capture lineage                                                                                                                                                           | Local executor or Spoke compute, explicitly distinguished                                                       |
-| Delta               | Directed typed comparison between compatible frames                                                                                                                                                    | Rey evidence; local or Spoke-backed                                                                             |
+| Run/attempt         | Provider-owned execution and capture lineage                                                                                                                                                           | Local executor                                                                                                  |
+| Delta               | Directed typed comparison between compatible frames                                                                                                                                                    | Local Rey evidence                                                                                              |
 | Frontier            | Bounded prioritized unresolved work                                                                                                                                                                    | Rey working state; checkpointed when needed                                                                     |
 | Trigger             | Versioned predicate mapping a source delta to workload test selection or graph entry points                                                                                                            | Rey declaration                                                                                                 |
 | Activation          | Idempotent trigger match against exact source/target snapshots                                                                                                                                         | Rey transition evidence                                                                                         |
-| Claim               | Predicate and required evidence over a named scope                                                                                                                                                     | Rey declaration; local or stored through Spoke                                                                  |
+| Claim               | Predicate and required evidence over a named scope                                                                                                                                                     | Rey declaration                                                                                                 |
 | Proof               | Claim assessment bound to exact evidence and evaluator inputs                                                                                                                                          | Rey artifact with explicit provider guarantees                                                                  |
-| Trace               | Graph connecting the concepts above                                                                                                                                                                    | Local artifacts or Spoke events/artifacts                                                                       |
+| Trace               | Graph connecting the concepts above                                                                                                                                                                    | Local artifacts                                                                                                 |
 
 Working DataFrames and queues are never the only durable copy of authored
 content. A frame may be reproducible from exact sources and a lens, or retained
@@ -198,7 +193,7 @@ remain deep inspection evidence rather than relief or path geometry.
 Landscape, Neighborhood, Object, and Evidence progressively add labels, survey zones, relationships, inspection objects, and
 exact basis without replacing the map. Identity, relationship classification,
 bounds, and omissions survive those visual transitions. Semantic coordinates
-are provider-qualified Spoke-model addresses;
+are provider-qualified addresses;
 camera center, continuous scale, viewport, and lens remain separate view state.
 The current hard-cut interface uses `rey+local://...` semantic coordinates and
 the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths are not
@@ -395,9 +390,8 @@ unbounded host scan. Initial provider classes may include:
   edges;
 - an explicit local workspace with bounded filesystem access;
 - a Git provider with commit/ref/index/worktree frames and polling;
-- known developer tools resolved from configured paths or `PATH`;
-- language-specific toolchains, analyzers, build systems, and test runners; and
-- a Spoke endpoint with discovered public capabilities.
+- known developer tools resolved from configured paths or `PATH`; and
+- language-specific toolchains, analyzers, build systems, and test runners.
 
 Each provider has stable identity, version, detection rules, trust class,
 source/effect capabilities, supported enforcement, and probe limits. Discovery
@@ -405,8 +399,8 @@ may use narrowly defined read-only operations such as executable resolution,
 metadata inspection, or a bounded `--version` invocation. It never executes an
 unknown file merely because it exists.
 
-Bootstrap discovery loads no project configuration and assumes no Spoke
-variable names. The frozen discovery record becomes input to agent reasoning;
+Bootstrap discovery loads no project configuration and assumes no remote
+service variable names. The frozen discovery record becomes input to agent reasoning;
 an emitted mapping resource enters observation only through explicit `--map`.
 The mapping graph is a context declaration, not a provider adapter or policy
 grant. Each desired executable declares why it belongs in the inventory. An
@@ -427,7 +421,7 @@ supported operations, enforcement claims, observation time, and errors.
 
 Capability discovery is repeatable during a trace. A delta between snapshots
 can invalidate actions, lenses, and proofs. An executable path, version, digest,
-provider health, or Spoke capability change is part of runtime state rather
+provider health, or capability change is part of runtime state rather
 than ambient trivia.
 
 The human environment revision loop adds a separate admission index between a
@@ -442,14 +436,12 @@ accepted executable observation into action authority.
   local context. Evidence may be retained in a caller-selected local artifact
   directory, but Rey makes no restart, transactional, multi-process, or remote
   durability claim beyond the underlying filesystem and content digests.
-- **Connected** adds Spoke capabilities to the same snapshot. Exact Spoke
-  versions, query, compute, and persistence can satisfy stronger claims.
 - **Required-capability** is a per-space or per-claim constraint, not a separate
   runtime. Admission fails early when the snapshot lacks a named capability or
   guarantee.
 
-Automatic mode may discover Spoke, but it cannot silently change a claim's
-required guarantees. A proof states its profile and provider set.
+A proof states its profile and provider set. No provider may silently change a
+claim's required guarantees.
 
 ## Observation
 
@@ -466,7 +458,7 @@ A lens contains:
 
 Materialization resolves every mutable source name to the strongest exact
 identity its provider can establish before evaluation. The frame records those
-bindings, the capability snapshot, and relevant local tool or Spoke revisions,
+bindings, the capability snapshot, and relevant local tool revisions,
 query checkpoints, request ids, run ids, capture digests, and other lineage.
 
 A lens may consume another frame. Those dependencies form the invalidation
@@ -596,8 +588,8 @@ Orientation is the bounded inner loop that turns a committed frontier into a
 reasoning surface. Rey identifies mining needs from frontier rows, retrieves
 exact read-only evidence through the provider that owns it, and applies
 versioned deterministic relational or source projections. Mining does not
-grant new execution authority or duplicate Spoke query, index, and storage
-ownership. Any read that observes mutable state, invokes a tool, or creates a
+grant new execution authority or duplicate provider ownership. Any read that
+observes mutable state, invokes a tool, or creates a
 new lens result is an explicit probe transition.
 
 Mining and projection may repeat inside one orientation phase as exact evidence
@@ -642,8 +634,7 @@ An action has one of two effect classes:
 
 - **probe** — read-only computation that may produce new observations or
   derived artifacts; or
-- **mutation** — an explicit change to a declared target through a Spoke
-  resource method, admitted Spoke compute run, or explicitly authorized local
+- **mutation** — an explicit change to a declared target through an admitted
   provider action.
 
 One transition follows this protocol after a committed frontier is available:
@@ -681,55 +672,18 @@ Provider credentials, prompt construction, inference retries, and model context
 management do not belong in core diff or proof crates. A provider adapter may
 exist later behind the policy contract.
 
-## Spoke Boundary
+## Provider Boundary
 
-The optional Spoke provider integrates through versioned service contracts:
+Providers implement narrow Rey-owned contracts and retain ownership of their
+source, query, execution, capture, and retention semantics. Rey binds exact
+provider identities and advertised guarantees into evidence; it never reaches
+through a public interface into private storage or upgrades local evidence into
+a stronger claim.
 
-- Files and Objects provide exact named content versions.
-- Documents provide exact source bindings and derived text/chunk observations.
-- Streams provide ordered trace events and projection inputs where useful.
-- Tables and `QUERY /db` provide typed relational observations.
-- Graph, lexical, and vector operations remain part of Spoke's composed query
-  model as they become available.
-- Compute resolves registered tools, admits bounded runs, owns attempts and
-  fences, and exposes immutable captures.
-
-Rey never opens Spoke's data directory, imports a capability implementation to
-bypass HTTP, interprets a host path as a Spoke path, or advances a Spoke-owned
-checkpoint directly. A future optimized internal contract must preserve the
-same identity, authorization, consistency, and failure semantics as the routed
-surface.
-
-In connected mode, Rey's durable artifacts should use ordinary Spoke resources
-and explicit media types. The initial mapping of spaces, lens declarations,
-traces, frames, deltas, and proofs onto files, objects, streams, or tables
-remains an open implementation decision in Plan 0001.
-
-Spoke absence is not an error unless a requested action or claim requires it.
-Standalone local providers are not permitted to mint Spoke resource ids,
-simulate Spoke revision/checkpoint metadata, or claim Spoke durability.
-
-## Rey–Spoke Recursive Improvement Loop
-
-Rey is the first external application expected to exercise Spoke's runtime as a
-real client. That creates a deliberate feedback loop:
-
-1. standalone Rey can inspect the Spoke repository, run available development
-   tools, and describe gaps even when Spoke cannot start;
-2. connected Rey exercises public Spoke query, compute, persistence, and
-   lineage contracts against real exploration workloads;
-3. Rey records missing capabilities, incompatible schemas, excessive friction,
-   failures, and parity gaps as typed evidence;
-4. that evidence directs a change in Spoke or its public contract;
-5. Rey's next capability probe discovers the new Spoke behavior; and
-6. the same fixture proves whether the gap closed and what new frontier emerged.
-
-The loop is recursive at the product and evidence level, not the package graph.
-Rey never imports Spoke capability internals, and Spoke does not require Rey for
-core startup. Shared fixtures may describe a public contract, but each
-repository owns and can run its side of the conformance test independently.
-Git commit/ref/index deltas provide a natural activation source for these
-conformance workloads without changing that ownership boundary.
+The implemented profile is local. Any future adapter requires a concrete Rey
+workload need, an accepted decision, bounded public-contract fixtures, and a
+human-verifiable CLI path. No provider becomes a privileged architectural
+plane by anticipation.
 
 ## Codebase Space Example
 
@@ -766,7 +720,7 @@ The first design proposes these Rust ownership boundaries:
 | `rey`             | Workload CLI, catalog/configuration composition, and user-facing orchestration                                                                                |
 | `rey-core`        | identities, revisions, limits, statuses, and shared value contracts                                                                                           |
 | `rey-mining`      | provider-neutral mining operation/request/result, artifact, completeness, dependency, and visualization contracts; no query engine, parser bundle, or storage |
-| `rey-locator`     | canonical coordinate bindings, locator syntax, resolution outcomes, and exact resolver limits; no retrieval authority or Spoke reinterpretation               |
+| `rey-locator`     | canonical coordinate bindings, locator syntax, resolution outcomes, and exact resolver limits; no retrieval authority                                 |
 | `rey-dataframe`   | frame metadata, Polars schemas, Arrow codecs, and bounded rendering                                                                                           |
 | `rey-environment` | capability discovery, snapshots, provider contracts, and local context adapters                                                                               |
 | `rey-git`         | repository identity, bounded current reachable-commit sequence, commit/ref/index frames, polling cursors, triggers, and activations                           |
@@ -775,7 +729,6 @@ The first design proposes these Rust ownership boundaries:
 | `rey-frontier`    | canonical frontier/progress relations, prioritization inputs, convergence evaluation, and bounded deterministic selection                                     |
 | `rey-proof`       | claims, evidence manifests, certificates, verification, and staleness                                                                                         |
 | `rey-policy`      | bounded reasoning surfaces plus provider-neutral proposal and admissible-action contracts                                                                     |
-| `rey-spoke`       | Optional Spoke provider, exact source bindings, compute runs, and artifact persistence                                                                        |
 
 This table is an ownership proposal, not a requirement for one process per
 crate. Plan 0006 has created the narrow `rey-mining` contract crate; provider
@@ -808,15 +761,15 @@ stopped evaluation.
 ## Security Boundary
 
 Rey is not an execution sandbox. It records the actual trust and enforcement
-claims of a local executor or delegates them to Spoke compute. Policy proposals
+claims of a local executor. Policy proposals
 carry no ambient authority. Rey configuration and proof artifacts contain
 references to secret handles, never secret values.
 
 Local adapters must distinguish trusted developer input from remote or
 adversarial content, remain within explicitly selected roots, and never
 silently widen host filesystem access. Tool discovery is not execution
-authority. Connected mode must never translate a local host path into a Spoke
-path or silently widen Spoke access.
+authority. An adapter must never reinterpret a local host path as a provider
+resource or silently widen access.
 
 ## Current Status
 
@@ -833,7 +786,7 @@ one non-empty semantic revision, and `log -p` reopens exact parent-directed
 environment patches. Status separates staged and unstaged working-tree rows,
 interactive add confirms environment-native hunks, and new commit identities
 bind explicit retention time. These environment commits are local Rey observations, not
-Git objects or Spoke-durable revisions. `rey-runtime` implements the pure
+Git objects or remotely durable revisions. `rey-runtime` implements the pure
 formal state reducer through an explicit scheduling phase; `rey-frontier`
 implements canonical frontier, progress, and bounded selection contracts; and
 `rey-policy` implements the bounded reasoning-surface document and DataFrame
@@ -866,8 +819,8 @@ relief through the Three.js WebGPU/TSL adapter with WebGL2 and deterministic
 reference paths. Render-graph extraction, smooth LOD transition proof, retained
 voyages, and a qualified terrain-fidelity result remain incomplete Plan 0020
 work. Generic
-dependency invalidation, recurring scheduling, policy proposals, Git
-activation, and the Spoke provider remain target architecture.
+dependency invalidation, recurring scheduling, policy proposals, and Git
+activation remain target architecture.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts

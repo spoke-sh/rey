@@ -11,24 +11,17 @@ scoped proof artifacts. Mining spans typed retrieval/grouping/traversal and
 text search/parsing/indexing/metrics/visualization without flattening native
 artifacts into artificial tables.
 
-Rey first inventories its environment and remains useful without Spoke. When
-available, Spoke is Rey's durable reasoning and compute plane. Rey must not
-duplicate Spoke storage, query, document, stream, table, tool, run, or capture
-ownership or pretend standalone providers offer those guarantees. The runtime
-remains deterministic without an LLM; an agent is one policy that may propose
-compute-graph revisions or actions through the same validated interface as
-rules or humans.
-
-Rey is Spoke's first external runtime application. Preserve a two-way
-improvement loop: Rey exposes public-contract gaps in Spoke, and new Spoke
-capabilities become discoverable Rey providers. Do not create a build, package,
-storage, or startup cycle between the repositories.
+Rey first inventories its environment and remains useful from local evidence.
+Providers retain ownership of their storage, query, document, stream, table,
+tool, run, and capture guarantees; Rey does not counterfeit those guarantees.
+The runtime remains deterministic without an LLM; an agent is one policy that
+may propose compute-graph revisions or actions through the same validated
+interface as rules or humans.
 
 The repository currently contains foundational documents, a pinned Rust
 development shell, and a twelve-crate Cargo workspace. Executable behavior
 remains narrow: inspect current files and tests before inferring that a
-provider, adapter, scheduler loop, action executor, or Spoke integration
-exists.
+provider, adapter, scheduler loop, or action executor exists.
 
 ## Read This First
 
@@ -92,7 +85,7 @@ exists.
   as observed work.
 - Treat Git commit, ref, and semantic index snapshots as first-class software
   activation inputs.
-- Support a zero-Spoke standalone profile with explicitly narrower guarantees.
+- Support a local standalone profile with explicit guarantees.
 - Bind observations, actions, and proofs to exact source and implementation
   revisions.
 - Use Polars DataFrames as canonical bounded in-process state and Arrow as the
@@ -195,12 +188,10 @@ rey-runtime         workloads, graph/scenario transitions, actions, and bounded 
 rey-frontier        invalidation, dependencies, prioritization, convergence
 rey-proof           claims, evidence manifests, certificates, and staleness
 rey-policy          policy proposal contract; no provider-specific agent loop
-rey-spoke           optional Spoke provider, source bindings, runs, and persistence
 ```
 
 This is an ownership map, not a requirement that every boundary become a
-process. The workspace proves which crates exist; provider implementations and
-the optional `rey-spoke` boundary remain plan-owned target work.
+process. The workspace proves which crates and provider implementations exist.
 
 ## Decision Resolution
 
@@ -224,7 +215,7 @@ update the stale artifact in the same change.
   defines migration behavior.
 - Begin discovery from only the process-owned `HOME`, `PWD`, and `PATH` seed
   set. Do not load a project configuration file, source shell profiles, or
-  infer Spoke configuration during bootstrap.
+  infer remote-service configuration during bootstrap.
 - Probe only process-declared adapters or explicitly supplied reasoning-map
   surfaces with bounded read-only discovery; finding a tool does not grant
   permission to execute it.
@@ -250,16 +241,16 @@ update the stale artifact in the same change.
   Never fabricate append events across a rebase or incomplete history.
 - Advance Git poll cursors only after retained transition evidence and make
   activation replay idempotent.
-- Never silently substitute standalone evidence for a required Spoke-backed
-  claim.
+- Never silently substitute local evidence for a claim that requires stronger
+  provider guarantees.
 - Keep raw bytes and native artifacts out of DataFrame wrappers when tabular
   semantics add no value.
 - Require unique keys before comparing unordered relations.
 - Retain source/target labels, types, schemas, keys, revisions, and normalizers
   through every delta representation.
 - Reject stale action preconditions before effects.
-- Keep `QUERY` paths read-only; use explicit local actions or Spoke resource
-  methods/admitted compute for mutation according to the active provider.
+- Keep `QUERY` paths read-only; use explicit admitted actions for mutation
+  according to the active provider.
 - Never let an agent directly declare its own proof successful.
 - Keep similarity, confidence, coverage, progress, and proof status separate.
 - Apply limits before optimization work is accepted.
@@ -269,8 +260,8 @@ update the stale artifact in the same change.
 
 ## Plans And Proof
 
-- Implement the smallest end-to-end slice that proves a diff invariant with no
-  Spoke, then exercise the same contract through Spoke when available.
+- Implement the smallest local end-to-end slice that proves a diff invariant,
+  then exercise the same contract through other providers only when required.
 - Environment work needs fixtures for malformed mapping graphs, secret
   handling, missing and changed variables/files/executables, path and symlink
   rejection, bounds, tool drift, timeouts, malformed version output, trust
@@ -291,10 +282,10 @@ update the stale artifact in the same change.
   partial-failure tests.
 - Proof changes need tampering, changed-input, changed-evaluator, missing
   evidence, inconclusive, and stale verification tests.
-- Spoke changes need direct and routed contract evidence with exact revision and
-  run lineage.
+- Provider changes need direct contract evidence with exact revision and run
+  lineage.
 - Cross-project work needs a conformance artifact that can direct the next
-  change in Rey or Spoke without importing either repository's internals.
+  change without importing another repository's internals.
 - CLI changes need stdout, stderr, structured output, and exit-code tests.
 - Feature proof must exercise the high-fidelity human CLI path in addition to
   lower-level contract and provider tests.
@@ -303,8 +294,8 @@ update the stale artifact in the same change.
 ## Hygiene
 
 - Preserve user changes and unrelated work in a dirty worktree.
-- Keep credentials, local Spoke state, private codebase snapshots, and generated
-  proof artifacts out of source control.
+- Keep credentials, private service state, private codebase snapshots, and
+  generated proof artifacts out of source control.
 - Do not treat a cache, frame, delta rendering, or projection as the sole copy
   of user-authored data.
 - Keep examples synchronized with current implementation status.

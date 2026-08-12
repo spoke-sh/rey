@@ -1,7 +1,7 @@
 # Rey Interfaces
 
-This document defines Rey's typed provider, policy, persistence, HTTP/UI, and
-Spoke boundaries. [Rey Command-Line Interface](CLI.md) is the canonical
+This document defines Rey's typed provider, policy, persistence, and HTTP/UI
+boundaries. [Rey Command-Line Interface](CLI.md) is the canonical
 command philosophy and command-level reference; CLI details retained here
 explain the typed contracts projected by those commands.
 The implemented CLI includes a Git-shaped, mapping-aware standalone
@@ -10,7 +10,7 @@ hard-cuts the default catalog to bounded workspace packages and keeps compiled
 fixtures behind an explicit conformance selector. ADR 0024 adds the strict
 external coding-harness creation request and visible draft lifecycle. Lower-level proof and
 local-bundle contracts remain library/runtime capabilities rather than manual
-user commands. Automatic graph proposal policy and connected Spoke behavior remain provisional. ADR
+user commands. Automatic graph proposal policy remains provisional. ADR
 0017 fixes the common relational/source mining boundary; ADR 0018 implements
 its first workload-wired local source corpus, literal search, typed relation
 and ordered text deltas, reasoning fixture, and human CLI projections. ADR
@@ -66,10 +66,8 @@ interactive admission as environment hunks, and adds bounded dated history.
 - Policy proposals carry no authority until admitted by the runtime.
 - Environment discovery is bounded and returns an inspectable capability
   relation before policy selects work.
-- Spoke is optional unless a space, action, or claim requires one of its
-  capabilities.
-- Connected Spoke integration uses explicit endpoint and identity configuration
-  and never resolves a Spoke name through host paths or private storage.
+- Providers expose only their proven capabilities and never gain action
+  authority through discovery alone.
 
 ## CLI Contract Projection
 
@@ -343,12 +341,12 @@ reset/restore, branch, merge, rewrite, or revision expression in this slice. An
 environment commit records an observation; it is not a Git commit and does not
 mutate the environment. The bounded local state
 claims no `fsync`, locking, authenticated writer, multi-process transaction,
-remote retention, or Spoke durability.
+remote retention, or remote durability.
 
 Manual `prove`, `verify`, and `verify-bundle` commands are not part of the
 accepted CLI persona. Their proof, certificate, and local-retention contracts
 remain usable behind workload evaluation and in focused lower-level tests.
-Help must not imply that a planned Spoke capability is available.
+Help must not imply that a planned provider capability is available.
 
 ## Formats
 
@@ -388,7 +386,7 @@ The implemented capability change Arrow relation is
 snapshot ids and labels, comparator identity, and delta id. Tabular Diff uses
 `text/csv; charset=utf-8; profile=tabular-diff-0.8`, is portable and ANSI-free,
 and is not authoritative input for proof or replay. Generic frame-delta media
-types and schemas remain Plan 0001 work.
+types and schemas remain future diff work.
 
 ## Mining Operation Contract
 
@@ -535,7 +533,7 @@ rey+proof:<proof-id>
 ```
 
 This grammar is illustrative, not accepted. It must be decided alongside
-percent-encoding, canonicalization, tenancy, and Spoke artifact mapping.
+percent-encoding, canonicalization, and tenancy.
 
 ## Workload Declaration
 
@@ -561,7 +559,7 @@ graph contract is a finite typed DAG. Exact serialization remains open. See
 A space declaration needs, independent of final YAML/JSON/TOML syntax:
 
 - id, revision, description, and owners;
-- allowed environment providers and optional Spoke endpoint discovery;
+- allowed environment providers;
 - required capabilities and guarantee levels;
 - source bindings or binding rules;
 - lens, action, policy, and claim revisions;
@@ -591,9 +589,8 @@ resolved_location · version · digest/provenance · availability
 trust_class · operations · enforcement · observed_at · error
 ```
 
-`resolved_location` is provider-specific evidence. A local executable path is
-never interpreted as a Spoke Files path, and a Spoke URI is never handed to a
-host process as a path.
+`resolved_location` is provider-specific evidence. A provider URI is never
+handed to a host process as a path.
 
 Known executable discovery may resolve configured paths or `PATH`, inspect
 metadata, and invoke a bounded read-only identity command such as `--version`.
@@ -612,12 +609,11 @@ The runtime supports these provisional selection attitudes:
 ```text
 --environment auto|standalone
 --require-capability <capability-id>[,...]
---spoke <url>
 ```
 
-`auto` may add a configured or safely discovered Spoke provider. `standalone`
-disables it. A required capability fails closed if unavailable. Exact flag and
-configuration names remain provisional.
+`standalone` selects the implemented local providers. A required capability
+fails closed if unavailable. Exact flag and configuration names remain
+provisional.
 
 ## Git Polling And Activation
 
@@ -725,7 +721,7 @@ relation.
 Retrieval in this phase resolves only declared read-only evidence. A mutable
 observation, tool invocation, or new lens evaluation is a probe and passes
 normal proposal and admission. Surface construction does not turn a local path
-into a Spoke source, give a cited capability execution authority, or make the
+into a provider resource, give a cited capability execution authority, or make the
 surface the sole copy of native source content.
 
 The reasoning-surface schema is a verified v1 library contract whose design
@@ -773,43 +769,10 @@ parent graph revision when present, cited failing scenario/delta facts, and
 requested graph/execution sub-budgets. Runtime graph validation occurs before
 the proposal can become a campaign candidate.
 
-## Spoke Configuration
-
-The Spoke provider uses an explicit or safely discovered base URL and an
-authentication context supplied through configuration and environment
-references. Rey discovers and validates advertised capabilities before using
-the provider. Spoke absence is a normal capability result unless the selected
-space or claim requires it.
-
-The client preserves:
-
-- Spoke resource ids, revisions, versions, checkpoints, and ETags;
-- request and problem identifiers;
-- query media type and result schema metadata;
-- compute run, attempt, executor, fence, event, and capture identities where
-  exposed; and
-- effective server limits and truncation metadata.
-
-Endpoint changes invalidate cached capability discovery and any binding that
-cannot be proven to name the same durable deployment.
-
-## Spoke Read Paths
-
-Read-only materialization may use:
-
-```text
-GET/HEAD  exact file, object, document, table, run, and capture resources
-QUERY     safe bounded Spoke query surfaces
-```
-
-Rey freezes returned revisions before building a frame. A query result without
-sufficient revision/checkpoint lineage cannot satisfy a claim that requires a
-reproducible snapshot.
-
 ## Effect Paths
 
 Effects use the operation owned by the selected provider: an explicitly
-authorized local action, a Spoke resource method, or a Spoke compute submission.
+authorized admitted action.
 `QUERY` never carries a Rey mutation.
 
 A local tool-backed action freezes:
@@ -823,8 +786,7 @@ A local tool-backed action freezes:
 - idempotency identity where the effect permits it.
 
 The local executor is not a sandbox unless a future backend proves that claim.
-It records process and capture lineage with explicitly weaker durability than
-Spoke compute.
+It records only the process and capture lineage it can establish.
 
 A compute-backed action freezes:
 
@@ -836,9 +798,9 @@ A compute-backed action freezes:
 - limits and backend enforcement requirements; and
 - idempotency identity.
 
-Spoke owns process states and captures. Rey observes terminal state, validates
-capture completeness and media type, materializes post-action lenses, and then
-decides the semantic transition outcome.
+Rey observes terminal state, validates capture completeness and media type,
+materializes post-action lenses, and then decides the semantic transition
+outcome.
 
 ## Persistence Paths
 
@@ -856,12 +818,10 @@ explicit conformance selection. It uses a bounded
 `${workspace}/.rey/workloads/state.json`, overridable by explicit
 `--state-dir`. Reads reject symlinked state files and verify every retained
 semantic result. Writes use a same-directory temporary file and rename. This
-single-process provider claims no `fsync`, lock, remote durability, or Spoke
-semantics. A graph selected for future runs cannot exist solely in a
-disposable cache. Connected mode uses
-public Spoke resources for stronger durability, query, compute, and lineage
-claims. A general manifest encoding, Spoke mapping, and stronger publication
-protocol remain undecided; ADRs 0016 and 0018 do not select an engine.
+single-process provider claims no `fsync`, lock, or remote durability. A graph
+selected for future runs cannot exist solely in a disposable cache. A stronger
+publication protocol requires a separate accepted contract; ADRs 0016 and 0018
+do not select an engine.
 
 ## Workspace Ignore Surface
 
@@ -898,19 +858,10 @@ directory contains all objects and the manifest. The manifest, rather than the
 retention-neutral certificate, states the filesystem-only guarantees and
 explicit non-guarantees.
 
-Connected Rey can later publish the same semantic artifacts through public
-Spoke resources. Publication is idempotent by content identity and must not
-make a certificate visible before its required evidence reaches the claimed
-retention boundary.
-
 Git poll cursors are part of this publication boundary. Local mode retains a
-local cursor with local-file guarantees. Connected mode may retain activations
-and cursors in Spoke, but a cursor never advances merely because a Git poll
-returned successfully.
-
-The Spoke resource layout and commit protocol are not yet fixed. Interface work
-must coordinate with `docs/PROOFS.md` and a future persistence ADR rather than
-projecting the local directory layout onto Spoke.
+local cursor with local-file guarantees. A cursor never advances merely
+because a Git poll returned successfully. Any stronger publication boundary
+must coordinate with `docs/PROOFS.md` and a future persistence ADR.
 
 ## Errors And Limits
 

@@ -29,16 +29,16 @@ Procedural guidance for humans and agents working on Rey.
 14. `docs/DIFFS.md` before changing frames, comparison, normalization, or
    renderings.
 15. `docs/PROOFS.md` before changing claims, certificates, staleness, or evidence.
-16. `docs/INTERFACES.md` before changing provider, HTTP, policy, persistence, or
-    Spoke integration contracts.
+16. `docs/INTERFACES.md` before changing provider, HTTP, policy, or persistence
+    contracts.
 17. `docs/DEVELOPMENT.md` before changing the toolchain or root tasks.
 18. `plans/README.md` and the active plans before implementation work.
 19. `docs/decisions/README.md` for accepted choices that constrain the work.
 
 ## Working Loop
 
-1. **Orient** — inspect current files, accepted decisions, active plans, the
-   available environment, and relevant Spoke contracts when present.
+1. **Orient** — inspect current files, accepted decisions, active plans, and the
+   available environment.
 2. **Bind** — identify the exact source revisions and observable claim affected
    by the work.
 3. **Mine** — retrieve and project only the bounded relational or source
@@ -48,7 +48,7 @@ Procedural guidance for humans and agents working on Rey.
 5. **Decide** — record consequential or hard-to-reverse choices before they
    spread through code and formats.
 6. **Change** — preserve the boundary between deterministic runtime, policy,
-   Spoke, and presentation.
+   providers, and presentation.
 7. **Prove** — run focused checks and exercise the feature through its
    high-fidelity human `rey` CLI path; internal APIs and structured output are
    necessary but do not complete a feature slice by themselves.
@@ -95,8 +95,8 @@ frontier selection, and reasoning-surface projection through those commands.
 Do not generalize that fixed provider, workload-specific derivation, or local
 operator server into
 regex or parser breadth, external tool execution beyond declared identity probes, recurring scheduling,
-activation, browser mutation, authentication, remote service topology, Spoke
-durability, or Spoke process-lineage behavior.
+activation, browser mutation, authentication, remote service topology, remote
+durability, or process-lineage behavior.
 
 Enter the environment and use:
 
@@ -133,7 +133,7 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
   failures as typed deltas.
 - Keep frame construction, typed comparison, frontier selection, action
   admission, and proof evaluation deterministic and usable without an LLM.
-- Keep the standalone runtime deterministic and useful without Spoke.
+- Keep the standalone runtime deterministic and useful from local evidence.
 - Treat policy as an external decision source. Policy output is an untrusted
   proposal until the runtime validates identity, revisions, effects, and limits.
 - Keep all queues, results, captures, traversals, iterations, and concurrency
@@ -142,9 +142,8 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
   boundary.
 - Prefer one-way capability dependencies. Shared crates stay narrow and own
   semantics actually shared by multiple capabilities.
-- Do not confuse standalone providers with a local Spoke storage bypass. When
-  connected to Spoke, a same-host integration still uses the documented public
-  or explicitly internal service contract.
+- Do not confuse local evidence with guarantees owned by another provider. A
+  same-host integration still uses its documented contract.
 
 ## Mining Work
 
@@ -224,32 +223,22 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
   digest/provenance when available, trust class, supported actions, and limits.
 - Revalidate the capability snapshot at action admission. Tool or provider
   drift makes a proposal stale.
-- Make standalone, connected, and required-capability behavior explicit in
-  configuration and evidence.
+- Make standalone and required-capability behavior explicit in configuration
+  and evidence.
 - Missing capabilities remove actions or make dependent claims inconclusive;
   they do not silently select a weaker proof contract.
 
-## Spoke Integration And Co-Evolution
+## Provider Integration
 
-- Use exact Spoke identities and revisions in source bindings; mutable paths or
-  names alone are insufficient.
-- Keep `QUERY` safe and idempotent. Effects use explicit resource methods or
-  admitted compute runs.
-- Let Spoke own tool resolution, process attempts, fencing, cancellation,
-  captures, and durable process lineage.
+- Use exact provider identities and revisions in source bindings; mutable paths
+  or names alone are insufficient.
+- Keep `QUERY` safe and idempotent. Effects use explicit admitted actions.
+- Let each provider own its process attempts, captures, retention, and lineage.
 - Let Rey own observation definitions, action rationale, frame/delta lineage,
   frontier selection, claim evaluation, and proof assembly.
-- Preserve Spoke request ids, revisions, checkpoints, run ids, attempt ids,
-  capture digests, and errors in Rey evidence where relevant.
-- Test the direct Spoke contract and the same behavior through its routed public
-  surface before claiming first-class integration.
-- Keep the core standalone path capable of diagnosing Spoke while Spoke is
-  unavailable, broken, or being changed.
-- Turn Rey-discovered Spoke gaps into versioned conformance fixtures and proof
-  artifacts. When Spoke closes a gap, expose the capability through discovery
-  and exercise it from Rey.
-- Do not make Spoke depend on Rey to boot or make Rey depend on Spoke to run its
-  foundation tests.
+- Preserve provider request and revision lineage in Rey evidence where relevant.
+- Test a provider's public contract before claiming first-class integration.
+- Do not make Rey's build or local runtime depend on an external provider.
 
 ## Git Polling And Activation
 
@@ -284,8 +273,8 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
   exist.
 - Keep generated Arrow, CSV, trace, certificate, and benchmark outputs out of
   source control unless deliberately maintained as small fixtures.
-- Never commit credentials, Spoke tokens, model provider keys, or private source
-  snapshots.
+- Never commit credentials, service tokens, model provider keys, or private
+  source snapshots.
 - Avoid unresolved ambient host paths, environment variables, timestamps, or
   random values in semantic identities. Resolved environment capabilities are
   explicit inputs and must be recorded when they affect semantics.

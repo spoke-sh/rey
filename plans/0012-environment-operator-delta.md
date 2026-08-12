@@ -38,8 +38,8 @@ bounded set of applications found and searched but not found.
 
 Use the checked-in `rey.env.yaml` to prove four variable modes and three
 application outcomes without inventing execution authority. `PATH`,
-`CARGO_HOME`, and `SPOKE_ENDPOINT` are explicit non-sensitive value captures;
-`SPOKE_TOKEN` is presence-only. `cargo`, `git`, and `rg` remain bounded
+`CARGO_HOME`, and `CACHE_ROOT` are explicit non-sensitive value captures;
+`PRIVATE_TOKEN` is presence-only. `cargo`, `git`, and `rg` remain bounded
 executable searches whose current paths and potential capabilities are
 evidence, not admitted operations.
 
@@ -77,7 +77,7 @@ paths and search counts, three input identities, seven reference edges, and no
 generic capability wall. Its live `/api/v1/environment` response returned
 `rey.environment-status.v1` and
 `rey.environment-operator-projection.v1` from the same workspace. The
-`SPOKE_TOKEN` observation remained `capture: presence` with a null value.
+`PRIVATE_TOKEN` observation remained `capture: presence` with a null value.
 
 The human `rey env diff` now renders its selected `INDEX → WORKING` or
 `HEAD → INDEX` direction as directed variable text, bounded application search,

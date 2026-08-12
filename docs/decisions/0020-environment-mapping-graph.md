@@ -142,5 +142,5 @@ appears in `env diff`.
 - Proof libraries remain part of Rey without occupying the primary CLI persona.
 - Dynamic path templates, file-content reference parsing, executable version
   invocation, schema migration, graph visualization beyond the terminal
-  projection, workload admission from potential capabilities, and Spoke-backed
+  projection, workload admission from potential capabilities, and remote
   graph retention remain later work.

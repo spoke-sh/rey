@@ -6,8 +6,8 @@
 ## Context
 
 The foundational runtime needs concrete types and dependencies before it can
-honestly expose an executable. The first slice must remain compatible with
-Spoke's tabular transport, produce stable semantic identities, and observe a
+honestly expose an executable. The first slice must define typed tabular
+transport, produce stable semantic identities, and observe a
 local environment without turning ambient executables or Git configuration
 into authority.
 
@@ -18,7 +18,7 @@ exist would give speculative layouts accidental durability.
 ## Decision
 
 The initial workspace uses Rust 2024 with a minimum Rust version of 1.96. It
-matches Spoke's reviewed dependency line for Polars 0.55.2 with default
+pins Polars 0.55.2 with default
 features disabled and only `fmt` and `ipc_streaming` enabled. Arrow IPC stream
 is the typed frame representation and
 `application/vnd.apache.arrow.stream` is its media type.
@@ -71,13 +71,12 @@ a complete semantic index.
 
 ## Consequences
 
-- The first CLI can emit a useful typed zero-Spoke capability snapshot without
+- The first CLI can emit a useful typed local-only capability snapshot without
   implying that polling, activation, mutation, or proof exists.
 - Stable semantic ids do not depend on JSON map ordering, terminal rendering,
   timestamps, or raw Git index stat-cache bytes.
-- Polars compile cost is paid once through Crane dependency artifacts and kept
-  aligned with Spoke.
+- Polars compile cost is paid once through Crane dependency artifacts.
 - A new schema version is required for nested Arrow capability fields or new
   identity-bearing fields.
 - Git index flag completeness, watched refs, commit traversal, cursoring, and
-  replay-safe activation remain Plan 0001 work.
+  replay-safe activation remain future Git work.

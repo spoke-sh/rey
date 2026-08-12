@@ -176,8 +176,8 @@ Relay is a later provider contract, not part of the first local index slice. A
 relay must freeze exact source and target channel locators, accepted kinds,
 filters, provider capability and revision, authority, cursor, hop limit,
 idempotency key, payload digest, attempt outcome, and omissions. Loop prevention
-uses observation origin plus destination and a hard hop bound. Remote Spoke
-documents/streams remain Spoke-owned; Rey records public bindings and realized
+uses observation origin plus destination and a hard hop bound. Remote
+documents and streams remain provider-owned; Rey records public bindings and realized
 lineage rather than implementing competing durable transport.
 
 ## Implementation Status

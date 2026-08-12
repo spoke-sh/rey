@@ -19,7 +19,7 @@ describe("cadence projection", () => {
     const cadence: CadenceProjection = {
       schema: "rey.ui-cadence.v1",
       ordering: "partial",
-      source_repository: "https://github.com/spoke-sh/rey",
+      source_repository: "https://github.com/example/rey",
       repository_state: {
         id: "blake3:repository-state",
         working_tree_state: "dirty",
@@ -72,7 +72,7 @@ describe("cadence projection", () => {
     );
     expect(markup).toContain(`data-git-sha="${revision}"`);
     expect(markup).toContain(
-      `href="https://github.com/spoke-sh/rey/commit/${revision}"`,
+      `href="https://github.com/example/rey/commit/${revision}"`,
     );
     expect(markup).toContain("02ad6ed2…24d9a3");
     expect(markup).toContain("WORKING TREE");

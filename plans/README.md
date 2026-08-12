@@ -6,8 +6,6 @@ completion criteria.
 
 ## Active
 
-- [0001 — Foundation and first delta proof](0001-foundation.md) — continuing
-  Git/Spoke foundation track
 - [0010 — Portfolio mining and workload attention](0010-portfolio-mining-and-workload-attention.md) — active workload-centered implementation bearing
 - [0011 — Local operator UI](0011-local-operator-ui.md) — active UI-first context-topology and high-fidelity collaboration surface
 - [0014 — Seed discovery and locator survey](0014-seed-discovery-and-locator-survey.md) — active context-lifecycle and locator bearing
@@ -20,6 +18,7 @@ completion criteria.
 - [0024 — Workload admission history](0024-workload-admission-history.md) — active exact HEAD/INDEX/WORKING workload loop and admission-first operator bearing
 - [0025 — File-backed workload admission](0025-file-backed-workload-admission.md) — active visible `sys/<workload>/` packages and direct exact-file browser admission bearing
 - [0026 — Typed workspace ignore file](0026-typed-workspace-ignore-file.md) — active omission-visible `.reyignore` scope for workload and environment WORKING observations
+- [0027 — Provider-independent foundation](0027-provider-independent-foundation.md) — active hard cut from privileged external-platform assumptions to Rey-owned local contracts
 
 ## Completed
 

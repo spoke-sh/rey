@@ -522,12 +522,10 @@ The first standalone result provider stores a bounded
 It verifies retained test and run artifacts on every read and publishes a
 same-directory temporary document with rename. It claims no `fsync` crash
 durability, locking, multi-process transactionality, authenticated writer, or
-Spoke semantics. Workspace package YAML is a catalog input contract; it does
-not select a result database or Spoke representation.
-Connected mode uses
-public Spoke contracts for any durability, query, run, or lineage guarantees
-it claims. Rey does not project a local layout onto Spoke or create a second
-durable service.
+external-service semantics. Workspace package YAML is a catalog input contract;
+it does not select a result database or remote representation. A future result
+provider must state the durability, query, run, and lineage guarantees it
+actually implements; Rey does not project the local layout onto it.
 
 User-authored workload and scenario declarations, and any graph selected for
 future runs, cannot exist only in a disposable cache or DataFrame. Generated

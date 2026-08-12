@@ -2,7 +2,7 @@
 
 This document defines Rey's target Git provider and delta-trigger contracts.
 Git is both a source of exact code identities and a pollable change substrate
-for software-development workloads. The first Plan 0001 slice implements a
+for software-development workloads. The first foundation slice implements a
 read-only contained repository observation through bounded direct Git argv. It
 records repository/worktree identity, object format, bare/shallow state, HEAD,
 and a partial logical index-entry digest. The operator cadence slice also reads
@@ -12,7 +12,7 @@ truncation, and a semantic sequence identity. It now pairs that sequence with
 bounded porcelain-v2 working-tree counts and exact local-upstream publication
 state. Ref-frame history, movement classification, general graph traversal,
 polling, triggers, activations, remote synchronization, and complete index flag
-semantics remain Plan 0001 work.
+semantics remain future Git work.
 
 Git is not part of the `rey env` admission snapshot. That loop discovers the
 `git` executable as an application, while this provider owns repository HEAD,
@@ -194,8 +194,7 @@ required transition evidence reach their claimed retention boundary. A crash
 before cursor advancement can replay work. Consumers use activation identity
 and action idempotency; Rey does not claim exactly-once Git triggering.
 
-Local cursors have local-file retention guarantees. A connected profile may
-store poll events and cursors through Spoke streams/tables, but Git remains the
+Local cursors have local-file retention guarantees. Git remains the
 authoritative source of repository state.
 
 ## Polling And Ref Movement
@@ -277,16 +276,14 @@ sources might select symbol and diagnostic scenarios, while a new commit on a
 release ref might run a broader conformance workload. Unrelated workload graph
 entry points remain idle.
 
-## Rey–Spoke Development Loop
+## Cross-Project Activation
 
-Git activation gives the Rey–Spoke feedback loop a concrete clock without
+Git activation can give public-contract conformance a concrete clock without
 creating a package dependency:
 
-- a new Spoke commit can activate Rey's external-client capability and
-  conformance lenses;
+- an external commit can activate declared compatibility lenses;
 - the resulting delta can identify a closed gap or a new missing capability;
-- a Rey commit can activate standalone self-checks and connected Spoke-backed
-  exploration; and
+- a Rey commit can activate standalone self-checks; and
 - index changes in either checkout can trigger cheap local diagnostics before
   a commit exists.
 

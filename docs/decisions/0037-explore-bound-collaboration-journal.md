@@ -85,4 +85,4 @@ the complete format and implemented authority boundary.
 - A loopback-only human write exception keeps the browser boundary narrow;
   explicit network binds retain read-only authority.
 - Query execution, action admission, assignment, proof, remote durability,
-  multi-user identity, and Spoke retention remain separate contracts.
+  multi-user identity, and remote retention remain separate contracts.

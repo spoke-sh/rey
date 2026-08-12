@@ -1152,7 +1152,10 @@ mod tests {
             ("HOME".to_owned(), OsString::from("/home/operator")),
             ("PWD".to_owned(), OsString::from("/workspace/project")),
             ("PATH".to_owned(), OsString::from("/bin:/usr/bin")),
-            ("SPOKE_TOKEN".to_owned(), OsString::from("must-not-be-read")),
+            (
+                "PRIVATE_TOKEN".to_owned(),
+                OsString::from("must-not-be-read"),
+            ),
         ]
         .into_iter()
         .collect();
@@ -1180,7 +1183,7 @@ mod tests {
             !row.provenance
                 .as_deref()
                 .unwrap_or_default()
-                .contains("SPOKE")
+                .contains("PRIVATE_TOKEN")
         }));
         assert_eq!(
             seeds

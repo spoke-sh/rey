@@ -1089,7 +1089,7 @@ mod tests {
                 JournalBlock::Query {
                     id: "query".to_owned(),
                     language: "sql".to_owned(),
-                    provider: "spoke".to_owned(),
+                    provider: "local".to_owned(),
                     mode: "read_only".to_owned(),
                     statement: "select * from coverage".to_owned(),
                     parameters: BTreeMap::new(),

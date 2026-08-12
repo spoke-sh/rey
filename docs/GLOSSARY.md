@@ -146,10 +146,9 @@ change its meaning.
 
 ### Auto profile
 
-The provider-selection attitude that uses built-in and local capabilities and
-adds a safely configured or discovered healthy Spoke provider when available.
-It does not change the meaning of claims or silently make local evidence
-Spoke-backed.
+The provider-selection attitude that uses discovered capabilities satisfying
+the declared requirements. It does not change claim meaning or silently
+strengthen local evidence.
 
 ## B
 
@@ -264,9 +263,8 @@ Rey never silently substitutes a weaker contract.
 
 ### Capture
 
-Provider-owned retained output from an execution attempt. In connected mode,
-Spoke owns capture identity and durability; Rey cites it as evidence and
-validates its completeness and media type.
+Provider-owned retained output from an execution attempt. Rey cites it as
+evidence and validates its completeness and media type.
 
 ### Catalog
 
@@ -417,7 +415,7 @@ copied wholesale into policy input.
 ### Context surface
 
 A bounded source of information or action, such as a workspace, repository,
-file, executable, runtime, service, or Spoke deployment. A provider owns how a
+file, executable, runtime, or service. A provider owns how a
 surface is discovered, identified, read, and acted upon.
 
 ### Context topology
@@ -452,10 +450,10 @@ implemented.
 
 ### Coordinate
 
-A typed provider-qualified semantic address in the Spoke coordinate model for
+A typed provider-qualified semantic address in Rey's coordinate model for
 an object or bounded region. A coordinate retains its provider, space or
 namespace, native locator payload, identity class, and exact source/version
-binding where available. Local zero-Spoke bindings carry narrower guarantees;
+binding where available. Local bindings carry explicit guarantees;
 neither form grants authority. Camera, scale, lens, and selection are view
 state rather than coordinate identity. See [Explorer](EXPLORER.md).
 
@@ -644,7 +642,7 @@ details as identity.
 
 A bounded manifest plus content-addressed evidence objects published under an
 explicit retention profile. The implemented local bundle claims filesystem-
-only guarantees and explicitly denies Spoke durability and process lineage.
+only guarantees and explicitly denies remote durability and process lineage.
 
 ### Execution status
 
@@ -936,7 +934,7 @@ explains how evidence was derived and what changes make it stale.
 
 Evidence retained in Rey's bounded local filesystem state with explicitly
 narrow guarantees. It does not claim remote durability, authenticated writers,
-multi-process transactionality, fenced execution, or Spoke semantics.
+multi-process transactionality, fenced execution, or external-service semantics.
 
 ### Locator
 
@@ -987,8 +985,8 @@ invalidation dependencies.
 
 ### Mutation
 
-An explicit effect that changes a declared target through an authorized local
-provider action, Spoke resource method, or admitted compute run. Mutation is
+An explicit effect that changes a declared target through an authorized
+admitted provider action. Mutation is
 not mining and cannot hide behind a query path.
 
 ## N
@@ -1139,7 +1137,7 @@ presentation, not evidence identity or semantic assessment.
 ### Profile
 
 A declared provider-selection and required-guarantee policy, such as
-standalone, auto, local retention, or Spoke-backed retention. A profile changes
+standalone, auto, or local retention. A profile changes
 available capabilities and guarantees, not the deterministic Rey runtime.
 
 ### Probe
@@ -1356,9 +1354,8 @@ transition delta describing what changed during the action.
 
 ### Retention profile
 
-The declared boundary and guarantees under which evidence is stored. Initial
-profiles are local and Spoke-backed; neither may claim guarantees it did not
-actually use.
+The declared boundary and guarantees under which evidence is stored. The
+implemented profile is local and may claim only guarantees it actually used.
 
 ### Required and optional scenarios
 
@@ -1383,15 +1380,8 @@ content digest; the identity family must remain explicit.
 
 The diff-directed mining and compute runtime defined by this repository. Rey
 owns workload composition, deterministic transition and evidence semantics,
-delta/frontier rationale, and local operator projection while leaving source,
-execution, and durable Spoke capabilities with their owning providers.
-
-### Rey–Spoke improvement loop
-
-The two-way process in which Rey exposes public-contract gaps by exercising
-Spoke as an external application, then discovers and uses the capabilities
-Spoke adds. It is an evidence and product loop, not a package, storage, startup,
-or private-internals dependency cycle.
+delta/frontier rationale, and local operator projection while leaving source
+and execution capabilities with their owning providers.
 
 ### `rg` awareness
 
@@ -1580,19 +1570,6 @@ A named versioned boundary over sources, lenses, actions, claims, policy,
 environment requirements, mutations, and limits. Workloads compose spaces and
 other runtime concepts so users need not orchestrate them independently.
 
-### Spoke
-
-Rey's optional durable reasoning and compute plane. Spoke owns its files,
-objects, documents, streams, tables, composed query, registered tools, runs,
-captures, and durable lineage; Rey integrates through public contracts and
-does not imitate those guarantees locally.
-
-### Spoke-backed profile
-
-A retention or provider profile that uses public Spoke resources and exact
-Spoke revisions for the guarantees it claims. Same-host access does not permit
-Rey to bypass Spoke contracts or open private storage.
-
 ### Stale
 
 Previously evaluated evidence whose bound semantic inputs no longer match the
@@ -1602,7 +1579,7 @@ toggled.
 
 ### Standalone profile
 
-Rey's zero-Spoke operating mode over explicitly selected built-in and local
+Rey's local-only operating mode over explicitly selected built-in and local
 providers. It remains useful while disclosing narrower identity, durability,
 query, isolation, and execution guarantees.
 
@@ -1857,12 +1834,11 @@ worktree state.
 
 ## Z
 
-### Zero-Spoke
+### Local-only
 
-The requirement that Rey's deterministic foundation remains useful when Spoke
-is absent. Zero-Spoke evidence explicitly carries local-only guarantees and
-never mints or imitates Spoke identities, durability, query, fencing, or
-lineage semantics.
+The requirement that Rey's deterministic foundation remains useful from local
+evidence. Local-only evidence explicitly carries local guarantees and never
+claims remote durability, query, fencing, or lineage semantics.
 
 ## Related Documents
 

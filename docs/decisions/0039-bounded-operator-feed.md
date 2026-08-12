@@ -103,4 +103,4 @@ decision once real use validates that bearing.
 - URL stream state is projection-only in this slice; ADR 0040 defines the later
   workspace-local Channel index while preserving URLs as detached previews.
 - Durable operator cursors, read state, stream pagination, aggregation windows,
-  cross-clock causal edges, and Spoke-backed feeds remain later contracts.
+  cross-clock causal edges, and remote feeds remain later contracts.

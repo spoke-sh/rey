@@ -99,14 +99,12 @@ impl RuntimePhase {
 #[serde(rename_all = "snake_case")]
 pub enum RetentionProfile {
     Local,
-    SpokeBacked,
 }
 
 impl RetentionProfile {
     const fn as_str(self) -> &'static str {
         match self {
             Self::Local => "local",
-            Self::SpokeBacked => "spoke_backed",
         }
     }
 }

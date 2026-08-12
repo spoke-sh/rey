@@ -45,7 +45,7 @@ evidence. It answers four questions before policy proposes work:
 4. Which representation makes that evidence useful without overstating it?
 
 Mining is how Rey makes high-dimensional environments tractable. It does not
-mean scraping everything, building a second durable index beside Spoke, or
+mean scraping everything, building an undeclared durable index, or
 giving an agent arbitrary query or execution authority. Every mining operation
 has explicit sources, semantics, limits, completeness, and lineage.
 
@@ -64,8 +64,8 @@ align · order · traverse · compare · summarize · visualize
 
 Polars DataFrames are Rey's canonical bounded in-process representation for
 these collections, and Arrow is the preferred typed interchange family.
-Providers still own source query semantics: Spoke owns Spoke query and durable
-tables; a database provider owns its snapshot and query contract; Rey owns the
+Providers still own source query semantics: a database provider owns its
+snapshot and query contract; Rey owns the
 versioned mining request, bounded projection, delta use, and lineage that joins
 the result to a workload.
 
@@ -209,7 +209,7 @@ A mining result manifest binds:
 
 The manifest is an evidence index, not a content store. Native source remains
 owned by its source provider. Working frames are bounded state. Retained
-artifacts use the selected local or Spoke-backed evidence boundary and claim
+artifacts use the selected local evidence boundary and claim
 only its actual guarantees.
 
 ## Artifact Shapes
@@ -350,7 +350,7 @@ It does not sweep the ambient workspace to create a generic prompt. The
 reasoning surface cites mining-result artifacts and omissions rather than
 copying an unbounded repository into policy input.
 
-## Provider And Spoke Boundary
+## Provider Boundary
 
 Rey composes mining but does not seize provider ownership:
 
@@ -360,15 +360,12 @@ Rey composes mining but does not seize provider ownership:
 - language adapters own parser, syntax, semantic, and index interpretation;
 - `rey-dataframe` owns bounded local relational representation and Arrow
   interchange;
-- `rey-diff` owns authoritative comparison contracts and projections;
-- Spoke owns durable files, objects, documents, streams, tables, composed
-  query, registered tools, runs, captures, and durable lineage; and
+- `rey-diff` owns authoritative comparison contracts and projections; and
 - the Rey runtime owns workload admission, delta/frontier rationale, limits,
   mining composition, invalidation, and policy-surface projection.
 
-An adapter may use a Spoke query rather than duplicate it locally. A local
-fallback exposes narrower guarantees and never mints Spoke revisions or claims
-Spoke query semantics.
+An adapter exposes only the identities, operations, and guarantees its public
+contract proves. Rey never upgrades those claims on the adapter's behalf.
 
 ## Current Truth And First Slice
 
@@ -486,8 +483,7 @@ Mining implementation work needs fixtures for:
   color;
 - complete, partial, truncated, unsupported, unavailable, failed, and stale
   results; and
-- identical semantic artifacts with zero Spoke and equivalent Spoke-backed
-  source bindings where that provider is available.
+- identical semantic artifacts from identical local source bindings.
 
 ## Non-Goals
 

@@ -5,7 +5,7 @@ an object or bounded region in context. It does not retrieve the object, grant
 authority to read it, admit an executable, or prove that the object exists.
 
 A locator is not itself an Explorer camera location or necessarily a resolved
-Spoke coordinate. Resolution may bind a candidate locator to a typed,
+semantic coordinate. Resolution may bind a candidate locator to a typed,
 provider-qualified coordinate, or retain a missing, stale, unsupported,
 unauthorized, malformed, or truncated outcome. The coordinate identifies the
 semantic object or region; camera center, scale, lens, and selection are
@@ -32,14 +32,13 @@ worktree:///src/lib.rs?revision=<worktree-id>#L40-L62
 git://<commit>/src/lib.rs#L40-L62
 rey-workload://context-anchor-survey?revision=<revision>
 rey+local://agent/codex?revision=gpt-5&role=coding_harness
-spoke+local://<provider-owned-identity>
+rey+local://<provider-owned-identity>
 ```
 
 These examples establish families, not an implemented universal parser. The
 implemented `rey-locator` slice parses canonical workspace references and
-HTTP/HTTPS candidates and emits `rey+local://...` bindings. Rey must not
-reinterpret a provider-owned Spoke locator or claim global uniqueness without
-that provider's public contract.
+HTTP/HTTPS candidates and emits `rey+local://...` bindings. Rey does not claim
+global uniqueness or federation for this local carrier.
 
 ## Resolution
 
@@ -58,7 +57,7 @@ but semantic identity always retains the complete revision.
 The dependency-light `rey-locator` crate now implements:
 
 - canonical local coordinate parse/format with view-state dimensions rejected;
-- lossless provider-qualified local and opaque Spoke coordinate carriers;
+- lossless provider-qualified local coordinate carriers;
 - canonical workspace-reference and HTTP/HTTPS locator parse/format;
 - resolved, missing, stale, unsupported, unauthorized, malformed, and
   truncated outcomes with exact capability snapshots and hard limits; and
@@ -66,10 +65,9 @@ The dependency-light `rey-locator` crate now implements:
   distinct outcomes, path escape, and deterministic replay.
 
 Generic scheme registration and typed line/JSON/table/graph/source-span
-fragments remain later breadth. No public Spoke coordinate contract is present
-in this workspace, so the Spoke carrier is deliberately opaque and tested only
-for lossless round trip. This is an explicit conformance gap: Rey claims no
-connected Spoke resolution, durability, or federation semantics.
+fragments remain later breadth. The current carrier is deliberately local:
+Rey claims no remote resolution, durability, global identity, or federation
+semantics.
 
 The first CLI proof is the admitted `context-anchor-survey` workload in [Plan
 0017](../plans/0017-incremental-context-topography.md). It begins with a bounded

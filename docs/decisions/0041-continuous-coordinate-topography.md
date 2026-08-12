@@ -27,8 +27,8 @@ The existing term *Explorer coordinate* also combined two different things:
 an address in context and browser presentation state. The former matrix route
 binds a Rey object kind, identity, revision, lens regime, and sometimes agent
 role. Zoom and lens are not part of an object's semantic identity, and a
-browser route is not the Spoke coordinate system Rey intends to retrieve and
-project.
+browser route is not the semantic coordinate system Rey intends to retrieve
+and project.
 
 Rey already has the pieces of an incremental map: process-owned discovery
 seeds, agent-generated workloads, native locators, bounded mining, directed
@@ -39,19 +39,15 @@ contract before the canvas or a generic scheduler grows.
 
 ### Coordinates, locators, and views
 
-A **coordinate** is a typed, provider-qualified address in the Spoke
-coordinate model. It identifies an object or bounded region independently of
+A **coordinate** is a typed, provider-qualified address in Rey's coordinate
+model. It identifies an object or bounded region independently of
 how a browser draws it. Its exact provider, space or namespace, native locator
 payload, identity class, and source/version binding remain available to the
 resolver and projection. Provider-owned payloads stay opaque.
 
-The current Spoke repository publishes exact resource locators, but not yet a
-general public coordinate algebra for Rey to import. This decision records the
-required cross-project contract rather than minting counterfeit global Spoke
-identities. In zero-Spoke operation Rey may retain an explicitly local
-coordinate binding over native locators. That binding carries standalone
-provider and retention guarantees and never claims Spoke durability, global
-resolution, or federation.
+Rey currently defines only a local coordinate carrier. It retains an explicit
+local binding over native locators, carries local provider and retention
+guarantees, and never claims global resolution or federation.
 
 A **locator** is a candidate address emitted during survey. Locator resolution
 is a separate bounded operation. It may return a coordinate binding, or a
@@ -70,8 +66,8 @@ rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
 agent and is `coding_harness`, `human`, or `rule`. The canonical serializer
 orders `revision` before `role`, percent-encodes the identity and values, and
 rejects duplicate, unknown, empty, or non-canonical dimensions. This local
-family is a provider-qualified carrier with explicit zero-Spoke guarantees; it
-does not pretend to be a globally resolved Spoke resource.
+family is a provider-qualified carrier with explicit local-only guarantees; it
+does not pretend to be globally resolved.
 
 An **Explorer view** is a presentation envelope over a selected coordinate:
 
@@ -137,7 +133,7 @@ evidence to the same scene rather than replacing it with an unrelated layout.
 As additional admitted patches enlarge the bounded world, zooming out reveals
 additional survey scenes.
 
-The current zero-Spoke layout is relational, not semantic: deterministic
+The current local-only layout is relational, not semantic: deterministic
 positions come from admitted anchor and edge topology. Relief therefore means
 anchor concentration and classified connectivity only. It does not claim that
 screen distance is language similarity. A high-dimensional language or
@@ -225,8 +221,8 @@ not satisfy this interface.
   evidence frontier; it is not a one-time bootstrap phase.
 - Unexplored, surveyed-empty, omitted, stale, and unsupported regions remain
   distinct.
-- Rey needs a coordinate/locator conformance boundary with Spoke before it can
-  claim connected coordinate semantics.
+- Rey must accept and prove a concrete federation requirement before it can
+  claim non-local coordinate semantics.
 - The first implementation slice must prove one seed-to-patch-to-Explorer path
   through `rey workloads ...` before generic topographic scheduling or broad
   crawling is considered.

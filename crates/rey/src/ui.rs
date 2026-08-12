@@ -32,7 +32,6 @@ const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
 const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c5";
-const REY_SOURCE_REPOSITORY: &str = "https://github.com/spoke-sh/rey";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 
 const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
@@ -68,7 +67,7 @@ pub struct UiServerDescriptor {
     pub grammar_revision: String,
     pub entry_route: String,
     pub live_refresh_interval_ms: u64,
-    pub source_repository: String,
+    pub source_repository: Option<String>,
     pub implementation_revision: String,
 }
 
@@ -212,7 +211,7 @@ impl UiServer {
             grammar_revision: HIFI_GRAMMAR_REVISION.to_owned(),
             entry_route: "/feed?streams=admission.all".to_owned(),
             live_refresh_interval_ms: LIVE_REFRESH_INTERVAL_MS,
-            source_repository: REY_SOURCE_REPOSITORY.to_owned(),
+            source_repository: None,
             implementation_revision: REY_IMPLEMENTATION_REVISION.to_owned(),
         };
         Ok(Self {
@@ -569,7 +568,7 @@ impl UiServer {
         };
 
         let mut projection_omissions = Vec::new();
-        let mut source_repository = None;
+        let source_repository = None;
         let mut repository_state: Option<UiCadenceRepositoryState> = None;
         let git_lane = match env::var_os("PATH")
             .map(|path| env::split_paths(&path).collect::<Vec<_>>())
@@ -590,9 +589,6 @@ impl UiServer {
                 }
                 match inspector.inspect_recent_commits(CADENCE_GIT_COMMIT_LIMIT) {
                     Ok(Some(sequence)) => {
-                        if sequence.head_oid.as_deref() == Some(REY_IMPLEMENTATION_REVISION) {
-                            source_repository = Some(REY_SOURCE_REPOSITORY.to_owned());
-                        }
                         let commit_oids = sequence
                             .commits
                             .iter()
@@ -886,10 +882,7 @@ mod tests {
         assert!(descriptor.workload_admission_enabled);
         assert_eq!(descriptor.grammar, "kinetic");
         assert_eq!(descriptor.theme, "precision");
-        assert_eq!(
-            descriptor.source_repository,
-            "https://github.com/spoke-sh/rey"
-        );
+        assert_eq!(descriptor.source_repository, None);
         assert!(!descriptor.implementation_revision.is_empty());
         assert_eq!(
             descriptor.grammar_revision,

@@ -41,7 +41,7 @@ committed delta and frontier
 The transition record is committed before its delta or frontier directs
 another action. "Record" means adding replayable trace evidence at the
 selected retention boundary; it does not make Rey a standalone log service or
-give local traces Spoke durability.
+give local traces remote durability.
 
 Rey distinguishes two directed delta roles:
 
@@ -72,8 +72,7 @@ Expected information value guides navigation, but only later observation can
 establish actual progress.
 
 Retrieval resolves only declared, admitted, read-only evidence through the
-provider that owns it. Local providers retain local guarantees; Spoke retains
-its query, document, table, stream, storage, and revision guarantees. Rey owns
+provider that owns it. Providers retain only their declared guarantees. Rey owns
 why evidence was requested and how it relates to the frontier, but does not
 duplicate provider retrieval or storage semantics. If obtaining information
 requires running a tool, observing a mutable source, or producing a new lens
@@ -121,7 +120,7 @@ reasoning surface stop explicitly and never become convergence.
   information gain without trusting the policy's prediction.
 - Rules, humans, and agents use the same bounded surface and proposal
   contract.
-- Exact provider ownership and standalone-versus-Spoke guarantees survive
+- Exact provider ownership and guarantee boundaries survive
   retrieval and projection.
 - Trace replay can explain which committed delta caused which evidence to be
   retrieved and why the next action was selected.

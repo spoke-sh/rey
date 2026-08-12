@@ -15,7 +15,7 @@ been selected, under which limits, or against which capability revision.
 Scheduling before canonical frontier identity would let the first policy or
 provider adapter invent work keys, convergence, ranking meaning, stale-input
 behavior, and progress scoring. Those are deterministic runtime contracts and
-must remain usable without an LLM or Spoke.
+must remain usable without an LLM or external service.
 
 ## Decision
 

@@ -83,11 +83,6 @@ pub struct LocalRetentionContract {
     pub multi_process_transactional: bool,
     pub remote_durable: bool,
     pub authenticated_writer: bool,
-    pub spoke_durable: bool,
-    pub spoke_fenced_execution: bool,
-    pub spoke_query_semantics: bool,
-    pub spoke_revision_lineage: bool,
-    pub spoke_process_lineage: bool,
 }
 
 impl Default for LocalRetentionContract {
@@ -103,11 +98,6 @@ impl Default for LocalRetentionContract {
             multi_process_transactional: false,
             remote_durable: false,
             authenticated_writer: false,
-            spoke_durable: false,
-            spoke_fenced_execution: false,
-            spoke_query_semantics: false,
-            spoke_revision_lineage: false,
-            spoke_process_lineage: false,
         }
     }
 }
@@ -618,11 +608,6 @@ fn add_retention(hasher: &mut SemanticHasher, retention: &LocalRetentionContract
     hasher.add_bool(retention.multi_process_transactional);
     hasher.add_bool(retention.remote_durable);
     hasher.add_bool(retention.authenticated_writer);
-    hasher.add_bool(retention.spoke_durable);
-    hasher.add_bool(retention.spoke_fenced_execution);
-    hasher.add_bool(retention.spoke_query_semantics);
-    hasher.add_bool(retention.spoke_revision_lineage);
-    hasher.add_bool(retention.spoke_process_lineage);
 }
 
 fn add_limits(hasher: &mut SemanticHasher, limits: &LocalBundleLimits) {
@@ -1128,10 +1113,6 @@ mod tests {
         assert!(first.retention.verification_read_only);
         assert!(!first.retention.process_crash_durable);
         assert!(!first.retention.remote_durable);
-        assert!(!first.retention.spoke_durable);
-        assert!(!first.retention.spoke_fenced_execution);
-        assert!(!first.retention.spoke_query_semantics);
-        assert!(!first.retention.spoke_revision_lineage);
 
         let verification = verify_local_proof_bundle(&first_path, limits).unwrap();
         assert_eq!(verification.status, LocalBundleVerificationStatus::Verified);

@@ -158,10 +158,10 @@ describe("portfolio projection", () => {
   it("links the short footer label through the complete source commit", () => {
     const revision = "02ad6ed24744dbeabb0b8bef5a64d547f424d9a3";
     expect(shortDigest(revision)).toBe("02ad6ed2…24d9a3");
-    expect(sourceCommitUrl("https://github.com/spoke-sh/rey", revision)).toBe(
-      `https://github.com/spoke-sh/rey/commit/${revision}`,
+    expect(sourceCommitUrl("https://github.com/example/rey", revision)).toBe(
+      `https://github.com/example/rey/commit/${revision}`,
     );
-    expect(sourceCommitUrl("https://github.com/spoke-sh/rey", "unknown")).toBe(
+    expect(sourceCommitUrl("https://github.com/example/rey", "unknown")).toBe(
       null,
     );
   });

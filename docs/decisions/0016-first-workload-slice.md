@@ -17,7 +17,7 @@ workload manifest, catalog, graph executor, scenario delta, qualification, or
 result provider.
 
 The first slice needs retained cross-command progress without selecting a
-database or pretending local files provide Spoke guarantees. It also needs a
+database or pretending local files provide remote guarantees. It also needs a
 real failing scenario so the CLI proves that a test failure is an authoritative
 typed delta rather than prose or process status.
 
@@ -70,7 +70,7 @@ bounded and verify every retained semantic artifact before use.
 
 This is a single-process local result provider. It claims no `fsync` crash
 durability, multi-process transactionality, locking, authenticated writer,
-remote durability, or Spoke revision semantics. Built-in workload definitions
+remote durability, or external revision semantics. Built-in workload definitions
 and graphs remain in the binary; the state file is not their sole copy.
 
 Freshness compares retained workload, graph, scenario-suite, and evaluator
@@ -126,5 +126,5 @@ decoder for the superseded schemas.
   semantically.
 - `run` demonstrates qualification admission and test/run graph parity.
 - External manifests, agent proposals, frontier derivation from scenario
-  deltas, Spoke retention, arbitrary operations, parallel execution, retries,
+  deltas, remote retention, arbitrary operations, parallel execution, retries,
   and recurring scheduling remain later bearings.

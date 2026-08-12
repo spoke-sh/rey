@@ -8,12 +8,12 @@
 ## Context
 
 ADR 0010 emits a verified capability delta and required-capability certificate,
-but the certificate exists only on stdout. Plan 0001 needs a local retention
+but the certificate exists only on stdout. Rey needs a local retention
 boundary before Git polling can advance a cursor after evidence publication and
-before the same semantic artifacts can be mapped onto Spoke resources.
+before any stronger publication contract is considered.
 
 The local profile must remain useful without pretending a group of host files
-has Spoke revisions, remote durability, fenced execution lineage, or a
+has remote revisions, remote durability, fenced execution lineage, or a
 multi-process transaction. It also needs deterministic identities, bounded
 verification, and safe behavior when publication is retried after interruption.
 
@@ -65,7 +65,7 @@ The manifest declares the exact local contract:
 - an existing destination is never overwritten;
 - verification is read-only; and
 - no process-crash durability, multi-process transactionality, remote
-  durability, authenticated writer identity, Spoke durability, fenced
+  durability, authenticated writer identity, fenced
   execution, query semantics, revision lineage, or process lineage is claimed.
 
 The implementation does not call `fsync`, coordinate concurrent writers, clean
@@ -88,9 +88,9 @@ lower-level tests.
   without inventing a storage service.
 - Git activation can use successful bundle publication as the local evidence
   precondition for cursor advancement.
-- Exact artifact roles and media types can later be mapped through public Spoke
-  contracts without treating the local directory layout as a Spoke API.
+- Exact artifact roles and media types leave room for a future publication
+  contract without treating the local directory layout as an API.
 - The certificate itself remains retention-neutral; the enclosing manifest
   states the local guarantees.
-- Spoke artifact mapping, signatures, shared object stores, garbage collection,
+- Remote artifact mapping, signatures, shared object stores, garbage collection,
   concurrent writers, and crash-durable flushing remain later decisions.

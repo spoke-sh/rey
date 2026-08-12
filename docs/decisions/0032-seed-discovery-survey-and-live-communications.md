@@ -8,9 +8,9 @@
 
 Rey loaded `rey.env.yaml` by convention. This made a useful early environment
 projection possible, but it made project configuration look like discovery
-truth. In particular, `SPOKE_ENDPOINT` and `SPOKE_TOKEN` appeared because Rey's
-own checked-in map named them, not because the current environment or an agent
-had found evidence that this project uses Spoke.
+truth. In particular, endpoint and token variables appeared because Rey's own
+checked-in map named them, not because the current environment or an agent had
+found evidence that this project uses a remote service.
 
 The same collapse obscured four different runtime phases: deterministic
 orientation, agent reasoning over that evidence, exact surface survey, and
@@ -25,7 +25,7 @@ Rey uses this ordered context lifecycle:
    `HOME`, `PWD`, and `PATH` under explicit bounds. It may use those seeds only
    through declared adapters, including `git`, `rg`, and the major
    agent-runtime identity inventory defined by ADR 0034. It does not load a project configuration file, source a shell
-   profile, traverse all of `HOME`, or infer Spoke configuration.
+   profile, traverse all of `HOME`, or infer remote-service configuration.
 2. **Reasoning over discovery.** A coding harness or other policy receives the
    frozen discovery record and may propose a bounded environment mapping
    resource. `rey.env-map.v3` remains the current interchange format, but it
@@ -35,8 +35,7 @@ Rey uses this ordered context lifecycle:
    environment, Git, workload, and provider evidence. Locators identify; they
    do not retrieve, authorize, or prove. A future `rey-locator` library owns
    canonical parsing, normalization, resolution dispatch, and canonical query
-   dimensions. Provider-owned Spoke locators remain opaque to Rey and may use
-   schemes such as `spoke+local://...`.
+   dimensions. Provider-owned locators remain opaque to Rey.
 4. **Process.** Rey incrementally processes artifacts produced by survey and
    by retained cadence ticks such as Git revisions, environment admissions,
    workload results, and scheduled scans. Processing derives deltas and typed
@@ -69,7 +68,7 @@ the operator projection.
 
 ## Consequences
 
-- `SPOKE_ENDPOINT` and `SPOKE_TOKEN` are not default Rey environment inputs.
+- Endpoint and token variables are not default Rey environment inputs.
 - A file named `rey.env.yaml` has no effect unless explicitly supplied.
 - Agent-generated mappings remain bounded, diffable, admissible evidence
   without becoming hidden configuration authority.

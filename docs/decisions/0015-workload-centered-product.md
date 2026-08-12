@@ -135,10 +135,10 @@ inconclusive only when required evaluation could not complete.
 Rey requires a catalog provider for declarations and immutable graph/scenario
 assets, and a result provider for campaigns, proposals, attempts, outputs,
 deltas, qualifications, runs, and queryable indexes. This decision does not
-select their encoding, directory layout, database, or Spoke mapping.
+select their encoding, directory layout, database, or remote mapping.
 
 Standalone providers disclose local filesystem-only guarantees at an explicit
-artifact boundary. Connected providers use public Spoke contracts for any
+artifact boundary. Providers use public contracts for any
 durability, query, compute, or lineage guarantees claimed. A selected graph
 cannot exist only in a disposable cache or DataFrame.
 
@@ -173,6 +173,6 @@ shipping the workload CLI. The old fields were not silently redefined.
 ## Not Decided
 
 This decision does not select a manifest encoding, catalog discovery layout,
-persistence engine, Spoke artifact mapping, policy transport, model provider,
+persistence engine, remote artifact mapping, policy transport, model provider,
 parallel graph executor, cyclic graph semantics, recurring service, or
 multi-user scheduler.

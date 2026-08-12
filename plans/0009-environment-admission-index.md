@@ -58,4 +58,4 @@ tampered index rejection, and safe symlink handling.
 
 Pathspecs, named index entries, non-interactive selectors, patch editing,
 reset/restore, revision expressions, stronger transactionality, and
-Spoke-backed index retention remain later slices.
+remote index retention remains a later slice.

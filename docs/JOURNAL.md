@@ -130,7 +130,7 @@ agent statements stay distinguishable from current derived frontier state.
 Both authoring paths use the same validator, content identity, ordered local
 log, entry/block limits, and atomic locked publication beneath
 `.rey/journal/journal.json`. This local log is standalone runtime state, not a
-claim of Spoke durability, multi-user consistency, authenticated identity, or
+claim of remote durability, multi-user consistency, authenticated identity, or
 remote retention. Unauthenticated admission does not weaken validation,
 content identity, limits, atomic publication, or the rule that Journal blocks
 carry no execution authority.
@@ -172,7 +172,7 @@ blocks:
   - kind: query
     id: coverage-query
     language: sql
-    provider: spoke
+    provider: local
     mode: read_only
     statement: select * from coverage where owner is null
     parameters: {}
@@ -181,7 +181,7 @@ blocks:
     operation: refine
     desired_delta: Reduce unowned source surfaces from two to zero.
     evidence_ids:
-      - spoke+local://coverage/latest
+      - rey+local://coverage/latest
     dependency_ids: []
 ```
 

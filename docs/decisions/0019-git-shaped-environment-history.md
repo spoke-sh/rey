@@ -22,7 +22,7 @@ should form one tight revision surface.
 The desired interaction is Git-shaped. A user should be able to commit an
 observed environment revision, inspect whether the working observation differs
 from it, and reopen a patch-bearing log. Rey must not imply that these commits
-are Git objects, mutations of the host environment, or Spoke-durable records.
+are Git objects, mutations of the host environment, or remotely durable records.
 
 ## Decision
 
@@ -68,7 +68,7 @@ Commit ids intentionally omit wall-clock time, ambient author identity, and
 host-specific display state. Sequence and parent order the local chain;
 snapshot and message provide semantic content. The v1 store claims no `fsync`
 crash durability, multi-process transactionality, locking, authenticated
-writer, branching, merge semantics, remote retention, or Spoke durability.
+writer, branching, merge semantics, or remote retention.
 
 ## Consequences
 
@@ -78,7 +78,7 @@ writer, branching, merge semantics, remote retention, or Spoke durability.
 - `inspect` remained a lower-level diagnostic in this decision. ADR 0020 made
   `diff` history-aware, and ADR 0021 later removed `inspect`, added the
   admission index, and made commits index-only.
-- Later work may add revision selection, `show`, named refs, or Spoke-backed
+- Later work may add revision selection, `show`, named refs, or remote
   retention without changing what v1 commits claim.
 - A Rey environment commit never changes the discovered environment and is not
   a Git commit.

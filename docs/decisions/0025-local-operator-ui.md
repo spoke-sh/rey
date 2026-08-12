@@ -88,6 +88,6 @@ workspace build, and Crane includes those assets in the filtered source.
   unauthenticated, so it is suitable only inside an operator-controlled
   network boundary.
 - Browser writes, scenario execution, server-side scheduling, authentication,
-  TLS, remote deployment, and Spoke-backed live streams remain future decisions.
+  TLS, remote deployment, and remote live streams remain future decisions.
 - ADR 0026 extends this surface with the default context-topology Explorer and
   passive read-only revalidation.

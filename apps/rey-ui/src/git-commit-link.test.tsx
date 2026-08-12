@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { GitCommitLink } from "./git-commit-link";
 
-const repository = "https://github.com/spoke-sh/rey";
+const repository = "https://github.com/example/rey";
 const revision = "02ad6ed24744dbeabb0b8bef5a64d547f424d9a3";
 
 describe("GitCommitLink", () => {
@@ -12,7 +12,7 @@ describe("GitCommitLink", () => {
     );
 
     expect(markup).toContain(
-      `href="https://github.com/spoke-sh/rey/commit/${revision}"`,
+      `href="https://github.com/example/rey/commit/${revision}"`,
     );
     expect(markup).toContain(`data-git-sha="${revision}"`);
     expect(markup).toContain("02ad6ed2…24d9a3");

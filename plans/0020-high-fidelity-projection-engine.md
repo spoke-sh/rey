@@ -167,7 +167,7 @@ dynamic-entity requirement.
       machine, with field compilation, tile memory, draw-call, label, and frame
       budgets reported separately.
 - [ ] Verify the packaged Nix build, embedded assets, CLI/browser parity, and
-      zero-Spoke fallback through `just check` and `just test`.
+      local-only fallback through `just check` and `just test`.
 
 ## Implementation Checkpoint: 2026-08-11 Continuous Relief
 

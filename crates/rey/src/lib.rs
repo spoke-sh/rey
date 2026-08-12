@@ -91,17 +91,12 @@ mod tests {
     use super::{inspect_environment, inspect_environment_with_mapping};
 
     #[test]
-    fn inspection_succeeds_without_spoke_or_git_repository() {
+    fn inspection_succeeds_without_a_git_repository() {
         let workspace = TempDir::new().unwrap();
         let snapshot = inspect_environment(workspace.path(), DiscoveryLimits::default()).unwrap();
 
         assert_eq!(snapshot.profile, "standalone");
-        assert!(
-            snapshot
-                .capabilities
-                .iter()
-                .all(|row| !row.provider_id.contains("spoke"))
-        );
+        assert!(!snapshot.capabilities.is_empty());
     }
 
     #[test]

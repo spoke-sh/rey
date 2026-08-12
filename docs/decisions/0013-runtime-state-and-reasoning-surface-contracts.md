@@ -74,7 +74,7 @@ which Rey still observes and evaluates. A successful execution enters
 Every active event must cite the same transition identity established by
 `begin_orientation`. Evidence is `pending` during an active transition. Rey can
 continue from a committed transition only when evidence is `retained` or
-`verified` at the selected local or Spoke-backed retention profile. Missing,
+`verified` at the selected local retention profile. Missing,
 stale, or pending evidence cannot admit the next action.
 
 Semantic outcome remains independent of execution and evidence state. V1
@@ -135,12 +135,12 @@ explicit stop.
 These crates do not:
 
 - derive, rank, or schedule a frontier;
-- retrieve from local or Spoke providers;
+- retrieve from admitted providers;
 - decide when iterative orientation has enough information;
 - define or invoke a policy proposal adapter;
 - admit or execute an action;
 - compare arbitrary frames or calculate generic progress; or
-- persist a trace or claim Spoke durability.
+- persist a trace or claim remote durability.
 
 Those behaviors must consume these contracts and remain independently bounded
 and testable.

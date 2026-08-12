@@ -1190,13 +1190,7 @@ fn status_json_is_machine_clean_and_contains_the_complete_inventory() {
     assert!(output.stderr.is_empty());
     let status: EnvironmentStatus = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(status.working_snapshot.profile, "standalone");
-    assert!(
-        status
-            .working_snapshot
-            .capabilities
-            .iter()
-            .all(|row| !row.provider_id.contains("spoke"))
-    );
+    assert!(!status.working_snapshot.capabilities.is_empty());
     assert!(
         status
             .working_snapshot
@@ -2338,7 +2332,7 @@ blocks:
   - kind: query
     id: coverage-query
     language: sql
-    provider: spoke
+    provider: local
     mode: read_only
     statement: select * from coverage
     parameters: {}
@@ -2458,7 +2452,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
         "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/admit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
-        "Implementation         https://github.com/spoke-sh/rey · ",
+        "Implementation         UNBOUND · ",
     ] {
         assert!(table.contains(evidence), "missing UI evidence: {evidence}");
     }
@@ -2512,10 +2506,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert_eq!(descriptor["theme"], "precision");
     assert_eq!(descriptor["entry_route"], "/feed?streams=admission.all");
     assert_eq!(descriptor["live_refresh_interval_ms"], 5_000);
-    assert_eq!(
-        descriptor["source_repository"],
-        "https://github.com/spoke-sh/rey"
-    );
+    assert!(descriptor["source_repository"].is_null());
     assert!(descriptor["implementation_revision"].is_string());
     assert_eq!(
         descriptor["grammar_revision"],
@@ -2925,7 +2916,7 @@ fn workload_test_verbose_levels_expand_evidence_without_changing_json() {
     assert_eq!(verbose.matches("Evidence format:").count(), 2);
     assert_eq!(verbose.matches("Evidence matches:").count(), 2);
     assert!(verbose.contains("Match (output text):"));
-    assert!(verbose.contains("   \"SPOKE\""));
+    assert!(verbose.contains("   \"ATLAS\""));
     assert!(verbose.contains("Stop reason: qualified"));
     assert!(verbose.contains("Qualification: issued"));
     assert!(!verbose.contains("Workload binding:"));

@@ -5,8 +5,8 @@
 
 ## Context
 
-Rey will integrate closely with Spoke's Rust, Polars, and Arrow contracts and
-needs deterministic comparison, bounded execution, and portable local tooling.
+Rey needs deterministic comparison, bounded execution, portable local tooling,
+and typed Polars and Arrow contracts.
 The repository needs a reproducible toolchain before a Cargo workspace is
 scaffolded, while avoiding placeholder binaries or package outputs that imply
 implementation exists.
@@ -16,7 +16,7 @@ implementation exists.
 Rey's runtime is Rust-first. Nix pins the development toolchain and Just exposes
 the root lifecycle.
 
-The flake follows Spoke's development shape:
+The flake defines a pinned Rust development shape:
 
 - `nixpkgs` provides tools and libraries;
 - `rust-overlay` provides pinned stable Rust with Clippy, Rustfmt, and sources;

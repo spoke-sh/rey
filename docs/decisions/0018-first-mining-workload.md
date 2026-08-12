@@ -116,7 +116,7 @@ decoder silently reinterprets v1 local state under the new mining semantics.
 - The first slice proves exact source binding, complete/empty/different/
   truncated evidence, typed and ordered comparison, human/machine projection,
   qualification, run parity, frontier selection, and reasoning projection with
-  zero Spoke.
+  local-only execution.
 - Exact platform path bytes and all effective source/mining limits participate
   in run-context identity; lossy display paths do not.
 - The optional failing and inconclusive scenarios intentionally make portfolio

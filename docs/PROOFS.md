@@ -42,7 +42,7 @@ child claim does not imply its siblings ran.
 Evidence is the retained, addressable material used to evaluate a claim. It may
 include:
 
-- exact Spoke source versions and query revisions;
+- exact source versions and query revisions;
 - local source identities and the capability snapshot used to establish them;
 - Git repository/worktree identity, object format, commit/ref OIDs, semantic
   index digest, poll cursor, and activation identities where applicable;
@@ -52,7 +52,7 @@ include:
 - structured deltas and Tabular Diff projections;
 - lens, normalizer, comparator, and evaluator implementation digests;
 - action proposals and admission decisions;
-- local or Spoke run, attempt, event, capture, and tool-resolution lineage;
+- run, attempt, event, capture, and tool-resolution lineage;
 - fixtures, expected values, and reviewed exceptions;
 - workload, graph, scenario-suite, test-campaign, qualification, and production
   run identities where applicable;
@@ -196,7 +196,7 @@ comparator and evaluator contract digests. Verification checks the certificate
 digest, recomputes the delta and check results, and reports `stale` when a
 snapshot or current contract input changes. The certificate remains
 retention-neutral: it may be emitted to stdout or enclosed by the local bundle
-manifest, but does not itself claim local or Spoke durability, signatures, or a
+manifest, but does not itself claim local or remote durability, signatures, or a
 generic proof manifest.
 
 ### Implemented Local Bundle
@@ -217,8 +217,8 @@ verified replay is idempotent; a different or invalid existing destination is
 never overwritten.
 
 The manifest explicitly denies process-crash durability, multi-process
-transactionality, remote durability, authenticated-writer identity, Spoke
-durability, fenced execution, query semantics, revision lineage, and process
+transactionality, remote durability, authenticated-writer identity, fenced
+execution, query semantics, revision lineage, and process
 lineage. No `fsync` or concurrent-writer coordination is claimed.
 
 ## Coverage And Completeness
@@ -257,29 +257,19 @@ Missing retained evidence makes verification inconclusive unless the claim
 explicitly permits deterministic replay and every replay input is still
 available at its exact revision.
 
-## Retention Profiles
+## Retention Profile
 
-Rey has two initial evidence-retention profiles:
+Rey has one implemented evidence-retention profile:
 
 - **local** writes the ADR 0011 content-addressed, bounded proof bundle to an
   explicit caller-selected artifact directory. Same-parent staged rename keeps
   the final name hidden until all files exist, but the profile does not claim
   `fsync` crash durability, multi-process transactionality, remote durability,
-  restart coordination, or Spoke revision semantics.
-- **Spoke-backed** persists proof inputs and artifacts using public Spoke
-  resources with immutable versions and explicit media types.
+  restart coordination, or external revision semantics.
 
-Candidate Spoke-backed mappings include:
-
-- files or objects for canonical manifests, Arrow frames, deltas, CSV, and text
-  patches;
-- streams for ordered transition and proof events;
-- tables for queryable proof, check, frontier, and lineage indexes; and
-- documents for human-authored claims and review material.
-
-The Spoke mapping and its publication boundary remain open Plan 0001 decisions.
 A proof bundle names its retention profile and must not claim durability
-stronger than the operations actually used.
+stronger than the operations actually used. A future profile requires its own
+accepted contract and end-to-end proof.
 
 ## Acceptance And Mutation
 
@@ -301,9 +291,9 @@ The first proof engine must demonstrate:
   derivation dependencies, visualization selection, or completeness semantics;
 - changed workload, graph, scenario suite, expected output, and qualification
   inputs;
-- changed capability snapshots and loss of required Spoke guarantees;
+- changed capability snapshots and loss of required guarantees;
 - changed Git refs, index semantics, trigger definitions, or replay cursor;
-- honest verification of both local-only and Spoke-backed retention profiles;
+- honest verification of the local retention profile;
 - missing and tampered evidence;
 - incomplete coverage and truncated observations;
 - downstream proof staleness;

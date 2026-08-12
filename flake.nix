@@ -77,7 +77,6 @@
         pkgs.runCommand "rey" {
           meta = {
             description = "Environment-aware diff-directed compute runtime";
-            homepage = "https://github.com/spoke-sh/rey";
             license = with pkgs.lib.licenses; [asl20 mit];
             mainProgram = "rey";
           };

@@ -14,7 +14,7 @@ the agent CLI and live operator UI.
 - [x] Make `HOME`, `PWD`, and `PATH` the fixed process-owned discovery seeds.
 - [x] Stop loading `rey.env.yaml` by convention; accept mapping resources only
   through explicit `--map` input.
-- [x] Remove checked-in Spoke endpoint/token assumptions and project the
+- [x] Remove checked-in endpoint/token assumptions and project the
   process-owned application inventory into `rey env` and `/environment`.
 - [x] Advance environment structured contracts and add CLI/provider fixtures.
 - [x] Replace the decorative UI pipeline footer with a live attention mailbox,

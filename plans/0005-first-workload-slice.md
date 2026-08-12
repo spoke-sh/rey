@@ -41,7 +41,7 @@ schemas before exposing the commands.
 - Every graph is a finite typed DAG and uses a deterministic serial baseline.
 - The local state document is a result index, not a general database or a
   source of workload definitions.
-- No agent, policy transport, graph optimization loop, Spoke provider, generic
+- No agent, policy transport, graph optimization loop, external provider, generic
   persistence engine, recurring scheduler, or service is introduced.
 
 ## Verification Evidence

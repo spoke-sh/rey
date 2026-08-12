@@ -924,7 +924,7 @@ function ImplementationLink({
   repository,
   revision,
 }: {
-  repository: string;
+  repository: string | null;
   revision: string;
 }) {
   return (

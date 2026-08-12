@@ -24,7 +24,7 @@ is implemented.
 - [x] Test and run share one graph contract while keeping fixture providers and
   real effects distinct.
 - [x] Catalog and result-provider responsibilities are defined without
-  selecting an encoding, database, directory layout, or Spoke mapping.
+  selecting an encoding, database, directory layout, or remote mapping.
 - [x] Architecture, runtime, frontier, Git, proof, interface, roadmap, and
   contributor guidance use the workload-centered model.
 - [x] Current implementation truth and the required versioned legacy-schema
@@ -63,7 +63,7 @@ schemas needed to run one built-in, zero-agent fixture workload through:
 
 That slice must cut the legacy application/component schema fields to explicit
 workload, graph, scenario, campaign, and run identities. Agent generation,
-Spoke retention, arbitrary external operations, incremental scenario reuse,
+remote retention, arbitrary external operations, incremental scenario reuse,
 parallel execution, recurring scheduling, and generic persistence remain
 later work.
 
@@ -76,6 +76,6 @@ git diff --check
 just check
 # Rustfmt, Clippy, flake evaluation, and repository whitespace checks passed
 # all local Markdown links resolved
-# all application/component references reviewed as external-Spoke wording,
+# all application and component references reviewed as external-provider wording,
 # historical ADR context, explicit legacy schema truth, or stale text removed
 ```

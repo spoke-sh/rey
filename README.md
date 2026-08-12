@@ -85,7 +85,7 @@ Rey keeps four phases separate:
 
 1. **Discovery** starts inside the compiled process from only `HOME`, `PWD`,
    and `PATH`. Declared built-in adapters may perform bounded identity
-   discovery; no project configuration file or Spoke variable is assumed.
+   discovery; no project configuration file or remote-service variable is assumed.
 2. **Reasoning over discovery** gives that frozen record to an agent, rule, or
    human. A coding harness may emit an explicit `rey.env-map.v1` reasoning
    resource describing useful variables, input files, desired applications,
@@ -132,7 +132,7 @@ live agent activity. See [ADR
 
 ```text
                     explicit environment boundary
-          workspace · Git · tools · runtimes · optional Spoke
+                 workspace · Git · tools · runtimes
                                   │
                        inventory capabilities
                                   │
@@ -506,7 +506,7 @@ environment scope, changed
 dimensions, and mapping follow. `env log -p` expands each selected parent-to-commit
 transition through the same directed text, bounded search, and reference
 planes. This is bounded single-process local state, not a Git object store or
-a Spoke-durable log.
+a remotely durable log.
 
 There is no implicit environment configuration file. Discovery always records
 the process-owned `HOME`, `PWD`, and `PATH` seed set and the current compiled
@@ -626,13 +626,13 @@ declared sources, operations, fixtures, keys, normalizers, parser/evaluator
 revisions, completeness, and coverage. Changed source, mining implementation,
 capability, or effective limit makes dependent evidence stale.
 
-## Environment, Git, And Spoke
+## Environment And Git
 
 Rey treats its environment as an explicit runtime input. A bounded discovery
 pass can inventory a selected workspace, Git repository, `rg`, language
-toolchains, analyzers, test runners, and a reachable Spoke deployment. Each
-provider advertises exact operations, trust, provenance, and enforceable
-limits. Discovery remains read-only and separate from action admission.
+toolchains, analyzers, and test runners. Each provider advertises exact
+operations, trust, provenance, and enforceable limits. Discovery remains
+read-only and separate from action admission.
 
 The `env` CLI makes those observations revisionable. `status` computes
 `HEAD → INDEX → WORKING`, `add` explicitly accepts observations into a bounded
@@ -648,24 +648,10 @@ scenarios or graph entry points. Ref rewrites, incomplete history, linked
 worktrees, and conflicts remain explicit; Rey never fabricates an append-only
 event stream from a mutable repository.
 
-Rey remains useful with zero Spoke. In standalone mode it mines explicitly
-selected local surfaces with narrower disclosed guarantees. When present,
-Spoke is Rey's durable reasoning and compute plane: versioned content,
-composed query, admitted compute, captures, and durable lineage amplify the
-same mining contracts.
-
-Rey does not duplicate Spoke storage, document, stream, table, query, tool,
-run, or capture ownership. It uses public Spoke contracts and exact revisions.
-Standalone adapters never mint Spoke identities or pretend to provide Spoke
-durability.
-
-The projects improve one another without a package or startup cycle:
-
-```text
-Rey mines Spoke ──► finds a public-contract delta ──► improves Spoke
-      ▲                                                   │
-      └────── discovers the new mining/compute capability ◄┘
-```
+The implemented profile mines explicitly selected local surfaces and states
+their exact guarantees. Future adapters remain subordinate to Rey's public
+provider contracts and cannot redefine workload, evidence, coordinate, or
+proof semantics.
 
 ## Boundaries
 
@@ -674,7 +660,7 @@ Rey is not:
 - a model server or model-provider framework;
 - a general-purpose database, search engine, code index, or visualization
   store;
-- a replacement for Spoke storage, query, documents, or compute;
+- a general-purpose durable storage, query, document, or compute service;
 - an ambient shell that executes every discovered tool;
 - a workflow engine whose tasks have no delta or scenario semantics;
 - a claim that all text, code, graphs, or binary artifacts are naturally
@@ -710,8 +696,8 @@ Rey is not:
 - [Proofs](docs/PROOFS.md) — claims, evidence, certificates, and staleness.
 - [CLI](docs/CLI.md) — command philosophy, revision loops, command groups,
   output, and exit behavior.
-- [Interfaces](docs/INTERFACES.md) — typed policy, provider, HTTP, persistence,
-  and Spoke contracts.
+- [Interfaces](docs/INTERFACES.md) — typed policy, provider, HTTP, and
+  persistence contracts.
 - [Development](docs/DEVELOPMENT.md) — toolchain and repository truth.
 - [Roadmap](docs/ROADMAP.md) — delivery sequence.
 - [Plans](plans/README.md) — active implementation bearings.
@@ -737,7 +723,7 @@ local corpora; the source-search workload executes it through the same test and
 run graph, compares native ordered text and typed match relations, and projects
 complete, failing, and truncated evidence through `list`, `test`, `status`, and
 `run`. The dependency-light `rey-locator` crate supplies canonical local
-coordinates, opaque Spoke coordinate carriage, canonical workspace/HTTP
+coordinates, canonical workspace/HTTP
 locators, and typed resolution outcomes. The admitted
 `context-anchor-survey` package exercises those contracts over bounded
 `AGENTS.md` and README fixtures, retains `rey.topography-patch.v1` results and
@@ -791,7 +777,7 @@ commit admits it to HEAD.
 environment interface and places a reviewable admission index between working
 observation and commit. Variables, input files, executable candidates, and
 their declared relationships are visible across both staged and unstaged
-planes. Revision selectors, reset/restore, branches, and Spoke retention remain
+planes. Revision selectors, reset/restore, branches, and remote retention remain
 later work.
 
 [Plan 0010](plans/0010-portfolio-mining-and-workload-attention.md) carries the
@@ -843,5 +829,6 @@ without writing state merely to inspect the default. The next slice adds
 Channel admission and draggable persistent Feed headers remain subsequent
 slices over the same high-fidelity agent surface.
 
-The longer-running [Plan 0001](plans/0001-foundation.md) still owns complete Git
-activation and the first routed Spoke proof.
+[Plan 0027](plans/0027-provider-independent-foundation.md) records the hard cut
+to Rey-owned local contracts. Complete Git activation remains future work and
+does not imply an external integration track.

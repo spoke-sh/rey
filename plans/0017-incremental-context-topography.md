@@ -15,8 +15,7 @@ interest through a continuous far-out Explorer lens.
 
 ## Completion Checklist
 
-- [x] Define a lossless provider-qualified coordinate binding that can carry
-  opaque Spoke coordinates and explicitly local zero-Spoke bindings without
+- [x] Define a lossless provider-qualified local coordinate binding without
   conflating either with browser view state.
 - [x] Implement canonical locator parse/format and typed resolution outcomes
   with exact provider, source, revision, capability, limit, and completeness
@@ -51,8 +50,8 @@ interest through a continuous far-out Explorer lens.
   Journal v1 binding stores semantic coordinate and numeric scale separately.
 - [x] Add focused CLI, structured-output, read-model, camera, route, and live UI
   tests plus one captured high-fidelity human verification path.
-- [x] Exercise the coordinate carrier against a public Spoke contract, or
-  preserve an explicit conformance gap without claiming connected semantics.
+- [x] Keep the coordinate carrier local and preserve an explicit federation
+  boundary without claiming non-local semantics.
 
 ## Concrete Anchor
 
@@ -118,7 +117,6 @@ bound.
 
 The end-to-end CLI test also starts a real ephemeral `rey ui` listener and
 proves that `GET /api/v1/workloads` returns the identical retained patch used by
-Explorer. The local coordinate carrier round-trips opaque provider-owned Spoke
-payloads, but no public Spoke coordinate contract is available here. That
-connected-semantics conformance gap is explicit in `docs/LOCATORS.md`; no Spoke
-resolution, durability, or federation claim is made.
+Explorer. The local coordinate carrier round-trips provider-qualified payloads.
+`docs/LOCATORS.md` explicitly denies remote resolution, durability, global
+identity, and federation guarantees.
