@@ -13,12 +13,12 @@ import {
 } from "./router";
 
 describe("operator routes", () => {
-  it("places Feed before Explorer and keeps Environment last", () => {
+  it("places Agents before Cadence while keeping Feed first and Environment last", () => {
     expect(PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Feed",
       "Explore",
-      "Cadence",
       "Agents",
+      "Cadence",
       "Workloads",
       "Environment",
     ]);
