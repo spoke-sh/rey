@@ -386,15 +386,15 @@ function cadenceProjection(): CadenceProjection {
 
 function journalProjection(): JournalProjection {
   return {
-    schema: "rey.ui-journal.v1",
+    schema: "rey.ui-journal.v2",
     write_enabled: true,
     authority: "unauthenticated_journal_admission",
     log: {
-      schema: "rey.journal-log.v1",
+      schema: "rey.journal-log.v2",
       log_id: "blake3:journal",
       entries: [
         {
-          schema: "rey.journal-entry.v1",
+          schema: "rey.journal-entry.v2",
           entry_id: "blake3:entry",
           sequence: 1,
           admitted_at: "1970-01-01T00:03:20.000Z",
@@ -407,6 +407,19 @@ function journalProjection(): JournalProjection {
             source_revision: "blake3:source",
           },
           supersedes: null,
+          layout: {
+            kind: "broadsheet",
+            columns: 12,
+            bands: [
+              {
+                id: "lead",
+                cells: [
+                  { block_id: "brief", span: 8 },
+                  { block_id: "delta", span: 4 },
+                ],
+              },
+            ],
+          },
           blocks: [
             {
               kind: "prose",

@@ -12,18 +12,20 @@ use rey_core::{SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub const JOURNAL_PROPOSAL_SCHEMA: &str = "rey.journal-entry-proposal.v1";
-pub const JOURNAL_ENTRY_SCHEMA: &str = "rey.journal-entry.v1";
-pub const JOURNAL_LOG_SCHEMA: &str = "rey.journal-log.v1";
-pub const JOURNAL_ADMISSION_SCHEMA: &str = "rey.journal-admission.v1";
+pub const JOURNAL_PROPOSAL_SCHEMA: &str = "rey.journal-entry-proposal.v2";
+pub const JOURNAL_ENTRY_SCHEMA: &str = "rey.journal-entry.v2";
+pub const JOURNAL_LOG_SCHEMA: &str = "rey.journal-log.v2";
+pub const JOURNAL_ADMISSION_SCHEMA: &str = "rey.journal-admission.v2";
 pub const MAX_JOURNAL_ENTRIES: usize = 256;
 pub const MAX_JOURNAL_BLOCKS: usize = 32;
+pub const JOURNAL_BROADSHEET_COLUMNS: u8 = 12;
 pub const MAX_JOURNAL_STATE_BYTES: u64 = 8 * 1_024 * 1_024;
 pub const MAX_JOURNAL_PROPOSAL_BYTES: u64 = 1_024 * 1_024;
 const MAX_TITLE_CHARS: usize = 240;
 const MAX_AUTHOR_CHARS: usize = 128;
 const MAX_COORDINATE_BYTES: usize = 4_096;
 const MAX_BLOCK_ID_CHARS: usize = 80;
+const MAX_LAYOUT_BANDS: usize = MAX_JOURNAL_BLOCKS;
 const MAX_PROSE_NODES: usize = 128;
 const MAX_PROSE_CHARS: usize = 64 * 1_024;
 const MAX_QUERY_CHARS: usize = 32 * 1_024;
@@ -80,6 +82,34 @@ pub struct JournalProseNode {
 pub struct JournalFrameColumn {
     pub name: String,
     pub data_type: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JournalLayoutKind {
+    Broadsheet,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct JournalLayoutCell {
+    pub block_id: String,
+    pub span: u8,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct JournalLayoutBand {
+    pub id: String,
+    pub cells: Vec<JournalLayoutCell>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct JournalLayout {
+    pub kind: JournalLayoutKind,
+    pub columns: u8,
+    pub bands: Vec<JournalLayoutBand>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -153,6 +183,7 @@ pub struct JournalEntryProposal {
     pub binding: JournalBinding,
     #[serde(default)]
     pub supersedes: Option<SemanticDigest>,
+    pub layout: JournalLayout,
     pub blocks: Vec<JournalBlock>,
 }
 
@@ -181,6 +212,7 @@ impl JournalEntryProposal {
             }
             validate_block(block)?;
         }
+        validate_layout(&self.layout, &self.blocks)?;
         for (index, block) in self.blocks.iter().enumerate() {
             if let JournalBlock::Frame {
                 source_block_id, ..
@@ -221,6 +253,7 @@ pub struct JournalEntry {
     pub author: JournalAuthor,
     pub binding: JournalBinding,
     pub supersedes: Option<SemanticDigest>,
+    pub layout: JournalLayout,
     pub blocks: Vec<JournalBlock>,
 }
 
@@ -254,6 +287,7 @@ impl JournalEntry {
             author: proposal.author,
             binding: proposal.binding,
             supersedes: proposal.supersedes,
+            layout: proposal.layout,
             blocks: proposal.blocks,
         })
     }
@@ -265,6 +299,7 @@ impl JournalEntry {
             author: self.author.clone(),
             binding: self.binding.clone(),
             supersedes: self.supersedes.clone(),
+            layout: self.layout.clone(),
             blocks: self.blocks.clone(),
         }
     }
@@ -759,6 +794,63 @@ fn validate_block(block: &JournalBlock) -> Result<(), JournalError> {
     Ok(())
 }
 
+fn validate_layout(layout: &JournalLayout, blocks: &[JournalBlock]) -> Result<(), JournalError> {
+    if layout.kind != JournalLayoutKind::Broadsheet || layout.columns != JOURNAL_BROADSHEET_COLUMNS
+    {
+        return Err(JournalError::LayoutColumns {
+            actual: layout.columns,
+            expected: JOURNAL_BROADSHEET_COLUMNS,
+        });
+    }
+    if layout.bands.is_empty() || layout.bands.len() > MAX_LAYOUT_BANDS {
+        return Err(JournalError::LayoutBandLimit {
+            actual: layout.bands.len(),
+            limit: MAX_LAYOUT_BANDS,
+        });
+    }
+
+    let mut band_ids = BTreeSet::new();
+    let mut placed = Vec::new();
+    for band in &layout.bands {
+        validate_identifier("layout band id", &band.id, MAX_BLOCK_ID_CHARS)?;
+        if !band_ids.insert(band.id.as_str()) {
+            return Err(JournalError::DuplicateLayoutBand(band.id.clone()));
+        }
+        if band.cells.is_empty() {
+            return Err(JournalError::EmptyLayoutBand(band.id.clone()));
+        }
+        let mut occupied = 0_u16;
+        for cell in &band.cells {
+            validate_identifier("layout block id", &cell.block_id, MAX_BLOCK_ID_CHARS)?;
+            if !(1..=JOURNAL_BROADSHEET_COLUMNS).contains(&cell.span) {
+                return Err(JournalError::LayoutSpan {
+                    block_id: cell.block_id.clone(),
+                    span: cell.span,
+                    columns: JOURNAL_BROADSHEET_COLUMNS,
+                });
+            }
+            occupied = occupied.saturating_add(u16::from(cell.span));
+            placed.push(cell.block_id.as_str());
+        }
+        if occupied > u16::from(JOURNAL_BROADSHEET_COLUMNS) {
+            return Err(JournalError::LayoutBandOverflow {
+                band_id: band.id.clone(),
+                occupied,
+                columns: JOURNAL_BROADSHEET_COLUMNS,
+            });
+        }
+    }
+
+    let expected = blocks.iter().map(JournalBlock::id).collect::<Vec<_>>();
+    if placed != expected {
+        return Err(JournalError::LayoutReadingOrder {
+            expected: expected.into_iter().map(ToOwned::to_owned).collect(),
+            actual: placed.into_iter().map(ToOwned::to_owned).collect(),
+        });
+    }
+    Ok(())
+}
+
 fn validate_binding(binding: &JournalBinding) -> Result<(), JournalError> {
     if binding.coordinate.len() > MAX_COORDINATE_BYTES {
         return Err(JournalError::CoordinateLimit(MAX_COORDINATE_BYTES));
@@ -974,6 +1066,33 @@ pub enum JournalError {
     EntryLimit(usize),
     #[error("duplicate journal block id {0}")]
     DuplicateBlock(String),
+    #[error("journal broadsheet must declare {expected} columns, got {actual}")]
+    LayoutColumns { actual: u8, expected: u8 },
+    #[error("journal broadsheet band count {actual} is outside 1..={limit}")]
+    LayoutBandLimit { actual: usize, limit: usize },
+    #[error("duplicate journal broadsheet band id {0}")]
+    DuplicateLayoutBand(String),
+    #[error("journal broadsheet band {0} contains no cells")]
+    EmptyLayoutBand(String),
+    #[error("journal broadsheet cell {block_id} span {span} is outside 1..={columns} columns")]
+    LayoutSpan {
+        block_id: String,
+        span: u8,
+        columns: u8,
+    },
+    #[error("journal broadsheet band {band_id} occupies {occupied} of {columns} columns")]
+    LayoutBandOverflow {
+        band_id: String,
+        occupied: u16,
+        columns: u8,
+    },
+    #[error(
+        "journal broadsheet reading order must place every block exactly once in block order; expected {expected:?}, got {actual:?}"
+    )]
+    LayoutReadingOrder {
+        expected: Vec<String>,
+        actual: Vec<String>,
+    },
     #[error("duplicate journal entry {0}")]
     DuplicateEntry(SemanticDigest),
     #[error("journal block references missing block {0}")]
@@ -1061,10 +1180,46 @@ mod tests {
 
     use super::{
         JOURNAL_PROPOSAL_SCHEMA, JournalAuthor, JournalAuthorKind, JournalBinding, JournalBlock,
-        JournalEntryProposal, JournalProseKind, JournalProseNode, LocalJournalStore,
+        JournalEntryProposal, JournalLayout, JournalLayoutBand, JournalLayoutCell,
+        JournalLayoutKind, JournalProseKind, JournalProseNode, LocalJournalStore,
     };
 
+    fn stacked_layout(blocks: &[JournalBlock]) -> JournalLayout {
+        JournalLayout {
+            kind: JournalLayoutKind::Broadsheet,
+            columns: 12,
+            bands: blocks
+                .iter()
+                .enumerate()
+                .map(|(index, block)| JournalLayoutBand {
+                    id: format!("band-{}", index + 1),
+                    cells: vec![JournalLayoutCell {
+                        block_id: block.id().to_owned(),
+                        span: 12,
+                    }],
+                })
+                .collect(),
+        }
+    }
+
     fn proposal() -> JournalEntryProposal {
+        let blocks = vec![
+            JournalBlock::Prose {
+                id: "context".to_owned(),
+                document: vec![JournalProseNode {
+                    kind: JournalProseKind::Paragraph,
+                    text: "Coverage moved after the latest survey.".to_owned(),
+                }],
+            },
+            JournalBlock::Query {
+                id: "query".to_owned(),
+                language: "sql".to_owned(),
+                provider: "local".to_owned(),
+                mode: "read_only".to_owned(),
+                statement: "select * from coverage".to_owned(),
+                parameters: BTreeMap::new(),
+            },
+        ];
         JournalEntryProposal {
             schema: JOURNAL_PROPOSAL_SCHEMA.to_owned(),
             title: "Inspect source coverage".to_owned(),
@@ -1078,23 +1233,8 @@ mod tests {
                 source_revision: "blake3:abc".to_owned(),
             },
             supersedes: None,
-            blocks: vec![
-                JournalBlock::Prose {
-                    id: "context".to_owned(),
-                    document: vec![JournalProseNode {
-                        kind: JournalProseKind::Paragraph,
-                        text: "Coverage moved after the latest survey.".to_owned(),
-                    }],
-                },
-                JournalBlock::Query {
-                    id: "query".to_owned(),
-                    language: "sql".to_owned(),
-                    provider: "local".to_owned(),
-                    mode: "read_only".to_owned(),
-                    statement: "select * from coverage".to_owned(),
-                    parameters: BTreeMap::new(),
-                },
-            ],
+            layout: stacked_layout(&blocks),
+            blocks,
         }
     }
 
@@ -1118,6 +1258,26 @@ mod tests {
         assert_eq!(repeated.entry.entry_id, first.entry.entry_id);
         assert_eq!(repeated.log.entries.len(), 1);
         assert_eq!(store.load().unwrap(), repeated.log);
+    }
+
+    #[test]
+    fn editing_appends_an_exact_superseding_revision() {
+        let directory = TempDir::new().unwrap();
+        let store = LocalJournalStore::new(directory.path().join("journal"));
+        let first = store.admit(proposal(), "2026-08-10T20:00:00Z").unwrap();
+        let mut revision = proposal();
+        revision.title = "Inspect and verify source coverage".to_owned();
+        revision.supersedes = Some(first.entry.entry_id.clone());
+
+        let revised = store.admit(revision, "2026-08-10T20:05:00Z").unwrap();
+        assert!(revised.admitted);
+        assert_eq!(revised.entry.sequence, 2);
+        assert_eq!(
+            revised.entry.supersedes.as_ref(),
+            Some(&first.entry.entry_id)
+        );
+        assert_eq!(revised.log.entries[0], first.entry);
+        assert_eq!(revised.log.entries[1], revised.entry);
     }
 
     #[test]
@@ -1167,6 +1327,7 @@ mod tests {
                 dependency_ids: Vec::new(),
             },
         ]);
+        proposal.layout = stacked_layout(&proposal.blocks);
         proposal.validate().unwrap();
         let replayed: JournalEntryProposal =
             serde_json::from_slice(&serde_json::to_vec(&proposal).unwrap()).unwrap();
@@ -1197,6 +1358,47 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("earlier query block")
+        );
+    }
+
+    #[test]
+    fn broadsheet_layout_is_bounded_complete_and_reading_ordered() {
+        let mut proposal = proposal();
+        proposal.layout = JournalLayout {
+            kind: JournalLayoutKind::Broadsheet,
+            columns: 12,
+            bands: vec![JournalLayoutBand {
+                id: "lead".to_owned(),
+                cells: vec![
+                    JournalLayoutCell {
+                        block_id: "context".to_owned(),
+                        span: 8,
+                    },
+                    JournalLayoutCell {
+                        block_id: "query".to_owned(),
+                        span: 4,
+                    },
+                ],
+            }],
+        };
+        proposal.validate().unwrap();
+
+        proposal.layout.bands[0].cells.swap(0, 1);
+        assert!(
+            proposal
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("reading order")
+        );
+        proposal.layout.bands[0].cells.swap(0, 1);
+        proposal.layout.bands[0].cells[1].span = 5;
+        assert!(
+            proposal
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("occupies 13 of 12")
         );
     }
 

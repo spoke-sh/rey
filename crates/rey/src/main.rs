@@ -36,8 +36,8 @@ use rey::{
     },
     inspect_environment, inspect_environment_with_mapping,
     journal::{
-        JournalAdmission, JournalAuthorKind, JournalEntryProposal, JournalError, JournalLog,
-        LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
+        JournalAdmission, JournalAuthorKind, JournalBlock, JournalEntryProposal, JournalError,
+        JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
     workloads::{
         LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadAddResult,
@@ -366,7 +366,7 @@ enum JournalCommand {
 
 #[derive(Debug, Args)]
 struct JournalAddArgs {
-    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v1.
+    /// Workspace-contained YAML proposal using rey.journal-entry-proposal.v2.
     proposal: PathBuf,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
@@ -2322,6 +2322,23 @@ fn write_journal_admission(
     write_portfolio_field(output, "Scale", &entry.binding.scale.to_string())?;
     write_portfolio_field(output, "Document", &format!("/journal/{}", entry.slug()))?;
     write_portfolio_field(output, "Blocks", &entry.blocks.len().to_string())?;
+    write_portfolio_field(
+        output,
+        "Broadsheet",
+        &format!(
+            "{} columns · {}",
+            entry.layout.columns,
+            count_noun(entry.layout.bands.len(), "band")
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Revision",
+        entry
+            .supersedes
+            .as_ref()
+            .map_or("root", |identity| identity.as_str()),
+    )?;
     write_portfolio_field(output, "Identity", entry.entry_id.as_str())?;
     writeln!(output)?;
     Ok(())
@@ -2359,14 +2376,45 @@ fn write_journal_log(output: &mut impl Write, log: &JournalLog) -> Result<(), Cl
         writeln!(output, "  /journal/{}", entry.slug())?;
         writeln!(
             output,
-            "  {} · {} blocks · {}",
+            "  {} · {} / {} · {}",
             entry.admitted_at,
-            entry.blocks.len(),
+            count_noun(entry.blocks.len(), "cell"),
+            count_noun(entry.layout.bands.len(), "band"),
             entry.entry_id
         )?;
+        if let Some(supersedes) = &entry.supersedes {
+            writeln!(output, "  supersedes {supersedes}")?;
+        }
+        for band in &entry.layout.bands {
+            let cells = band
+                .cells
+                .iter()
+                .map(|cell| {
+                    let kind = entry
+                        .blocks
+                        .iter()
+                        .find(|block| block.id() == cell.block_id)
+                        .map_or("missing", journal_block_kind);
+                    format!("{}:{kind} {}/12", cell.block_id, cell.span)
+                })
+                .collect::<Vec<_>>()
+                .join(" | ");
+            writeln!(output, "  [{}] {cells}", band.id)?;
+        }
     }
     writeln!(output)?;
     Ok(())
+}
+
+fn journal_block_kind(block: &JournalBlock) -> &'static str {
+    match block {
+        JournalBlock::Prose { .. } => "prose",
+        JournalBlock::Explore { .. } => "explore",
+        JournalBlock::Query { .. } => "query",
+        JournalBlock::Frame { .. } => "frame",
+        JournalBlock::Diff { .. } => "diff",
+        JournalBlock::Action { .. } => "action",
+    }
 }
 
 fn journal_author_kind(kind: JournalAuthorKind) -> &'static str {

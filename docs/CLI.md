@@ -227,9 +227,11 @@ rey journal [--workspace PATH] [--state-dir PATH] list
 ```
 
 `add` validates and idempotently retains one workspace-contained
-`rey.journal-entry-proposal.v1`. Agent-authored entries may contain bounded
-typed blocks, but admission executes none of them. Humans normally author in
-`/journal/new`; `list` exposes retained entries in admission order.
+`rey.journal-entry-proposal.v2`. Agent-authored entries must place every typed
+block in the bounded 12-column broadsheet, but admission executes none of them.
+Humans author or supersede entries through the same live document surface at
+`/journal/new` and `/journal/{slug}`. `list` exposes retained entries in
+admission order, including exact revision, band, cell-kind, and span structure.
 
 ### `rey ui`
 

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { shortDigest, type WorkloadList } from "./domain";
 import {
   explorerCoordinateUri,
@@ -31,6 +31,22 @@ export interface JournalProseNode {
 export interface JournalFrameColumn {
   name: string;
   data_type: string;
+}
+
+export interface JournalLayoutCell {
+  block_id: string;
+  span: number;
+}
+
+export interface JournalLayoutBand {
+  id: string;
+  cells: JournalLayoutCell[];
+}
+
+export interface JournalLayout {
+  kind: "broadsheet";
+  columns: 12;
+  bands: JournalLayoutBand[];
 }
 
 export type JournalBlock =
@@ -81,16 +97,17 @@ export type JournalBlock =
     };
 
 export interface JournalEntryProposal {
-  schema: "rey.journal-entry-proposal.v1";
+  schema: "rey.journal-entry-proposal.v2";
   title: string;
   author: JournalAuthor;
   binding: JournalBinding;
   supersedes?: string | null;
+  layout: JournalLayout;
   blocks: JournalBlock[];
 }
 
 export interface RetainedJournalEntry {
-  schema: "rey.journal-entry.v1";
+  schema: "rey.journal-entry.v2";
   entry_id: string;
   sequence: number;
   admitted_at: string;
@@ -98,27 +115,40 @@ export interface RetainedJournalEntry {
   author: JournalAuthor;
   binding: JournalBinding;
   supersedes: string | null;
+  layout: JournalLayout;
   blocks: JournalBlock[];
 }
 
 export interface JournalLog {
-  schema: "rey.journal-log.v1";
+  schema: "rey.journal-log.v2";
   log_id: string;
   entries: RetainedJournalEntry[];
 }
 
 export interface JournalProjection {
-  schema: "rey.ui-journal.v1";
+  schema: "rey.ui-journal.v2";
   write_enabled: boolean;
   authority: "unauthenticated_journal_admission";
   log: JournalLog;
 }
 
 export interface JournalAdmission {
-  schema: "rey.journal-admission.v1";
+  schema: "rey.journal-admission.v2";
   admitted: boolean;
   entry: RetainedJournalEntry;
   log: JournalLog;
+}
+
+export type JournalCellDelta = "inserted" | "modified" | "unchanged";
+
+export interface JournalDraftDelta {
+  changed: boolean;
+  inserted: number;
+  modified: number;
+  removed: number;
+  layout_changed: boolean;
+  metadata_changed: boolean;
+  cells: Record<string, JournalCellDelta>;
 }
 
 export function defaultJournalBinding(portfolio: WorkloadList): JournalBinding {
@@ -165,6 +195,88 @@ export function resolveJournalEntry(
 
 export function journalBlockFragment(blockId: string): string {
   return `block-${blockId}`;
+}
+
+export function journalBlockSpan(
+  layout: JournalLayout,
+  blockId: string,
+): number | null {
+  for (const band of layout.bands) {
+    const cell = band.cells.find((candidate) => candidate.block_id === blockId);
+    if (cell) return cell.span;
+  }
+  return null;
+}
+
+function journalBlockPlacement(
+  layout: JournalLayout,
+  blockId: string,
+): string | null {
+  for (const [bandIndex, band] of layout.bands.entries()) {
+    const cellIndex = band.cells.findIndex(
+      (candidate) => candidate.block_id === blockId,
+    );
+    if (cellIndex >= 0) {
+      return `${bandIndex}:${cellIndex}:${band.cells[cellIndex]!.span}`;
+    }
+  }
+  return null;
+}
+
+export function journalDraftDelta(
+  base: RetainedJournalEntry | null,
+  proposal: JournalEntryProposal,
+): JournalDraftDelta {
+  const cells: Record<string, JournalCellDelta> = {};
+  let inserted = 0;
+  let modified = 0;
+  const baseBlocks = new Map(
+    (base?.blocks ?? []).map((block) => [block.id, block]),
+  );
+  for (const block of proposal.blocks) {
+    const prior = baseBlocks.get(block.id);
+    if (!prior) {
+      cells[block.id] = "inserted";
+      inserted += 1;
+      continue;
+    }
+    const contentChanged = JSON.stringify(prior) !== JSON.stringify(block);
+    const placementChanged =
+      journalBlockPlacement(base!.layout, block.id) !==
+      journalBlockPlacement(proposal.layout, block.id);
+    if (contentChanged || placementChanged) {
+      cells[block.id] = "modified";
+      modified += 1;
+    } else {
+      cells[block.id] = "unchanged";
+    }
+  }
+  const removed = (base?.blocks ?? []).filter(
+    (block) => !proposal.blocks.some((candidate) => candidate.id === block.id),
+  ).length;
+  const layoutChanged =
+    base !== null &&
+    JSON.stringify(base.layout) !== JSON.stringify(proposal.layout);
+  const metadataChanged =
+    base !== null &&
+    (base.title !== proposal.title ||
+      base.author.id !== proposal.author.id ||
+      JSON.stringify(base.binding) !== JSON.stringify(proposal.binding));
+  return {
+    changed:
+      base === null ||
+      inserted > 0 ||
+      modified > 0 ||
+      removed > 0 ||
+      layoutChanged ||
+      metadataChanged,
+    inserted,
+    modified,
+    removed,
+    layout_changed: layoutChanged,
+    metadata_changed: metadataChanged,
+    cells,
+  };
 }
 
 export function JournalEntries({
@@ -235,11 +347,7 @@ export function JournalEntryDocument({
         </div>
         <time className={sx(chrome.micro)}>{entry.admitted_at}</time>
       </header>
-      <div className={sx(styles.blockStack)}>
-        {entry.blocks.map((block) => (
-          <JournalBlockView block={block} key={block.id} />
-        ))}
-      </div>
+      <JournalBroadsheet entry={entry} />
       <footer className={sx(styles.entryBinding)}>
         <span className={sx(chrome.micro)}>EXACT EXPLORE BINDING</span>
         <code>{entry.binding.source_revision}</code>
@@ -254,7 +362,31 @@ export function JournalEntryDocument({
   );
 }
 
-function JournalBlockView({ block }: { block: JournalBlock }) {
+function JournalBroadsheet({ entry }: { entry: RetainedJournalEntry }) {
+  const blocks = new Map(entry.blocks.map((block) => [block.id, block]));
+  return (
+    <div className={sx(styles.broadsheet)} data-journal-layout="broadsheet">
+      {entry.layout.bands.map((band) => (
+        <div className={sx(styles.broadsheetBand)} key={band.id}>
+          {band.cells.map((cell) => {
+            const block = blocks.get(cell.block_id);
+            return block ? (
+              <div
+                className={sx(styles.broadsheetCell)}
+                key={cell.block_id}
+                style={{ gridColumn: `span ${cell.span}` }}
+              >
+                <JournalBlockView block={block} />
+              </div>
+            ) : null;
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function JournalBlockView({ block }: { block: JournalBlock }) {
   const fragment = journalBlockFragment(block.id);
   if (block.kind === "prose") {
     return (
@@ -397,38 +529,51 @@ export function JournalCreateLink() {
   );
 }
 
-export function JournalComposer({
-  binding,
-  onAdmit,
-  onClose,
-}: {
-  binding: JournalBinding;
-  onAdmit: (proposal: JournalEntryProposal) => Promise<RetainedJournalEntry>;
-  onClose: () => void;
-}) {
-  const [author, setAuthor] = useState("operator");
-  const [title, setTitle] = useState("");
-  const [prose, setProse] = useState("");
-  const [queryOpen, setQueryOpen] = useState(false);
-  const [provider, setProvider] = useState("");
-  const [statement, setStatement] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+type AuthorableBlockKind = "prose" | "query" | "diff" | "action";
 
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const blocks: JournalBlock[] = [
-      {
-        kind: "prose",
-        id: "context",
-        document: prose
-          .split(/\n\s*\n/)
-          .map((text) => text.trim())
-          .filter(Boolean)
-          .map((text) => ({ kind: "paragraph", text })),
+function cloneBlock<T extends JournalBlock>(block: T): T {
+  return JSON.parse(JSON.stringify(block)) as T;
+}
+
+function defaultJournalProposal(
+  binding: JournalBinding,
+  base: RetainedJournalEntry | null,
+): JournalEntryProposal {
+  if (base) {
+    return {
+      schema: "rey.journal-entry-proposal.v2",
+      title: base.title,
+      author: {
+        kind: "human",
+        id: base.author.kind === "human" ? base.author.id : "operator",
       },
+      binding: { ...base.binding },
+      supersedes: base.entry_id,
+      layout: JSON.parse(JSON.stringify(base.layout)) as JournalLayout,
+      blocks: base.blocks.map(cloneBlock),
+    };
+  }
+  return {
+    schema: "rey.journal-entry-proposal.v2",
+    title: "",
+    author: { kind: "human", id: "operator" },
+    binding: { ...binding },
+    supersedes: null,
+    layout: {
+      kind: "broadsheet",
+      columns: 12,
+      bands: [
+        {
+          id: "lead",
+          cells: [
+            { block_id: "context", span: 8 },
+            { block_id: "map", span: 4 },
+          ],
+        },
+      ],
+    },
+    blocks: [
+      { kind: "prose", id: "context", document: [] },
       {
         kind: "explore",
         id: "map",
@@ -437,25 +582,313 @@ export function JournalComposer({
         source_revision: binding.source_revision,
         caption: "Context at admission",
       },
-    ];
-    if (queryOpen && statement.trim()) {
-      blocks.push({
-        kind: "query",
-        id: "query",
-        language: "sql",
-        provider: provider.trim(),
-        mode: "read_only",
-        statement: statement.trim(),
-        parameters: {},
-      });
+    ],
+  };
+}
+
+export function parseJournalProse(value: string): JournalProseNode[] {
+  const units: string[] = [];
+  let lines: string[] = [];
+  let fenced = false;
+  const flush = () => {
+    const unit = lines.join("\n").trim();
+    if (unit) units.push(unit);
+    lines = [];
+  };
+  for (const line of value.split("\n")) {
+    if (line.trim() === "```") {
+      lines.push("```");
+      fenced = !fenced;
+    } else if (!fenced && line.trim() === "") {
+      flush();
+    } else {
+      lines.push(line);
     }
+  }
+  flush();
+  return units
+    .map((text) => text.trim())
+    .map((text): JournalProseNode => {
+      if (text.startsWith("# "))
+        return { kind: "heading", text: text.slice(2) };
+      if (text.startsWith("- ")) return { kind: "bullet", text: text.slice(2) };
+      if (text.startsWith("> ")) return { kind: "quote", text: text.slice(2) };
+      if (text.startsWith("```\n") && text.endsWith("```")) {
+        return { kind: "code", text: text.slice(4, -3).trimEnd() };
+      }
+      return { kind: "paragraph", text };
+    });
+}
+
+export function formatJournalProse(document: JournalProseNode[]): string {
+  return document
+    .map((node) => {
+      if (node.kind === "heading") return `# ${node.text}`;
+      if (node.kind === "bullet") return `- ${node.text}`;
+      if (node.kind === "quote") return `> ${node.text}`;
+      if (node.kind === "code") return `\`\`\`\n${node.text}\n\`\`\``;
+      return node.text;
+    })
+    .join("\n\n");
+}
+
+function nextIdentifier(
+  proposal: JournalEntryProposal,
+  prefix: string,
+): string {
+  const used = new Set([
+    ...proposal.blocks.map((block) => block.id),
+    ...proposal.layout.bands.map((band) => band.id),
+  ]);
+  let index = 1;
+  while (used.has(`${prefix}-${index}`)) index += 1;
+  return `${prefix}-${index}`;
+}
+
+function newBlock(
+  proposal: JournalEntryProposal,
+  kind: AuthorableBlockKind,
+): JournalBlock {
+  const id = nextIdentifier(proposal, kind);
+  if (kind === "prose") return { kind, id, document: [] };
+  if (kind === "query") {
+    return {
+      kind,
+      id,
+      language: "sql",
+      provider: "local",
+      mode: "read_only",
+      statement: "",
+      parameters: {},
+    };
+  }
+  if (kind === "diff") {
+    return {
+      kind,
+      id,
+      source: "journal://source",
+      target: "journal://target",
+      direction: "expected_to_observed",
+      assessment: "inconclusive",
+      summary: "",
+    };
+  }
+  return {
+    kind,
+    id,
+    operation: "mine",
+    desired_delta: "",
+    evidence_ids: [],
+    dependency_ids: [],
+  };
+}
+
+function proposalIsAdmissible(proposal: JournalEntryProposal): boolean {
+  if (!proposal.title.trim() || !proposal.author.id.trim()) return false;
+  if (proposal.blocks.length === 0) return false;
+  return proposal.blocks.every((block) => {
+    if (block.kind === "prose") {
+      return (
+        block.document.length > 0 &&
+        block.document.every((node) => node.text.trim().length > 0)
+      );
+    }
+    if (block.kind === "query") {
+      return Boolean(block.provider.trim() && block.statement.trim());
+    }
+    if (block.kind === "diff") {
+      return Boolean(
+        block.source.trim() &&
+        block.target.trim() &&
+        block.direction.trim() &&
+        block.summary.trim(),
+      );
+    }
+    if (block.kind === "action") {
+      return Boolean(block.operation.trim() && block.desired_delta.trim());
+    }
+    return true;
+  });
+}
+
+function parseJournalReferences(value: string): string[] {
+  return [
+    ...new Set(
+      value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+export function JournalComposer({
+  base = null,
+  binding,
+  onAdmit,
+  onClose,
+}: {
+  base?: RetainedJournalEntry | null;
+  binding: JournalBinding;
+  onAdmit: (proposal: JournalEntryProposal) => Promise<RetainedJournalEntry>;
+  onClose: () => void;
+}) {
+  const [proposal, setProposal] = useState(() =>
+    defaultJournalProposal(binding, base),
+  );
+  const [addKind, setAddKind] = useState<AuthorableBlockKind>("prose");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const delta = useMemo(
+    () => journalDraftDelta(base, proposal),
+    [base, proposal],
+  );
+
+  const updateBlock = (next: JournalBlock) => {
+    setProposal((current) => ({
+      ...current,
+      blocks: current.blocks.map((block) =>
+        block.id === next.id ? next : block,
+      ),
+    }));
+  };
+
+  const addBlock = () => {
+    setProposal((current) => {
+      const block = newBlock(current, addKind);
+      return {
+        ...current,
+        blocks: [...current.blocks, block],
+        layout: {
+          ...current.layout,
+          bands: [
+            ...current.layout.bands,
+            {
+              id: nextIdentifier(current, "band"),
+              cells: [{ block_id: block.id, span: 12 }],
+            },
+          ],
+        },
+      };
+    });
+  };
+
+  const removeBlock = (blockId: string) => {
+    setProposal((current) => {
+      const removed = new Set([blockId]);
+      for (const block of current.blocks) {
+        if (block.kind === "frame" && block.source_block_id === blockId) {
+          removed.add(block.id);
+        }
+      }
+      return {
+        ...current,
+        blocks: current.blocks.filter((block) => !removed.has(block.id)),
+        layout: {
+          ...current.layout,
+          bands: current.layout.bands
+            .map((band) => ({
+              ...band,
+              cells: band.cells.filter((cell) => !removed.has(cell.block_id)),
+            }))
+            .filter((band) => band.cells.length > 0),
+        },
+      };
+    });
+  };
+
+  const setSpan = (blockId: string, span: number) => {
+    setProposal((current) => ({
+      ...current,
+      layout: {
+        ...current.layout,
+        bands: current.layout.bands.map((band) => {
+          if (!band.cells.some((cell) => cell.block_id === blockId))
+            return band;
+          const other = band.cells
+            .filter((cell) => cell.block_id !== blockId)
+            .reduce((total, cell) => total + cell.span, 0);
+          return other + span <= 12
+            ? {
+                ...band,
+                cells: band.cells.map((cell) =>
+                  cell.block_id === blockId ? { ...cell, span } : cell,
+                ),
+              }
+            : band;
+        }),
+      },
+    }));
+  };
+
+  const joinPreviousBand = (blockId: string) => {
+    setProposal((current) => {
+      const sourceIndex = current.layout.bands.findIndex((band) =>
+        band.cells.some((cell) => cell.block_id === blockId),
+      );
+      if (sourceIndex <= 0) return current;
+      const source = current.layout.bands[sourceIndex]!;
+      const sourceCell = source.cells.find(
+        (cell) => cell.block_id === blockId,
+      )!;
+      if (source.cells[0]?.block_id !== blockId) return current;
+      const target = current.layout.bands[sourceIndex - 1]!;
+      const occupied = target.cells.reduce(
+        (total, cell) => total + cell.span,
+        0,
+      );
+      if (occupied + sourceCell.span > 12) return current;
+      const bands = current.layout.bands.map((band) => ({
+        ...band,
+        cells: [...band.cells],
+      }));
+      bands[sourceIndex - 1]!.cells.push(sourceCell);
+      bands[sourceIndex]!.cells = bands[sourceIndex]!.cells.filter(
+        (cell) => cell.block_id !== blockId,
+      );
+      return {
+        ...current,
+        layout: {
+          ...current.layout,
+          bands: bands.filter((band) => band.cells.length > 0),
+        },
+      };
+    });
+  };
+
+  const breakBand = (blockId: string) => {
+    setProposal((current) => {
+      const bandIndex = current.layout.bands.findIndex((band) =>
+        band.cells.some((cell) => cell.block_id === blockId),
+      );
+      if (bandIndex < 0) return current;
+      const band = current.layout.bands[bandIndex]!;
+      const cellIndex = band.cells.findIndex(
+        (cell) => cell.block_id === blockId,
+      );
+      if (cellIndex <= 0) return current;
+      const bands = current.layout.bands.map((candidate) => ({
+        ...candidate,
+        cells: [...candidate.cells],
+      }));
+      const trailing = bands[bandIndex]!.cells.splice(cellIndex);
+      bands.splice(bandIndex + 1, 0, {
+        id: nextIdentifier(current, "band"),
+        cells: trailing,
+      });
+      return { ...current, layout: { ...current.layout, bands } };
+    });
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
     try {
       await onAdmit({
-        schema: "rey.journal-entry-proposal.v1",
-        title: title.trim(),
-        author: { kind: "human", id: author.trim() },
-        binding,
-        blocks,
+        ...proposal,
+        title: proposal.title.trim(),
+        author: { ...proposal.author, id: proposal.author.id.trim() },
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -464,114 +897,404 @@ export function JournalComposer({
     }
   };
 
+  const canSubmit =
+    proposalIsAdmissible(proposal) && delta.changed && !submitting;
+  const blocks = new Map(proposal.blocks.map((block) => [block.id, block]));
+
   return (
     <form
-      className={sx(styles.composer)}
+      className={sx(styles.entry, styles.liveDocument)}
+      data-journal-mode={base ? "revision" : "new"}
+      data-journal-surface="broadsheet"
       onSubmit={(event) => void submit(event)}
     >
-      <header className={sx(styles.composerHeader)}>
-        <div>
-          <span className={sx(chrome.micro)}>NEW JOURNAL ENTRY</span>
-          <h3>Compose on the context map</h3>
+      <header className={sx(styles.entryHeader, styles.liveHeader)}>
+        <div className={sx(styles.entryOrdinal)}>
+          {base ? `J@${base.sequence}` : "J@NEW"}
         </div>
-        <button
-          className={sx(styles.textButton)}
-          onClick={onClose}
-          type="button"
-        >
-          CLOSE
-        </button>
-      </header>
-      <div className={sx(styles.composerMeta)}>
-        <label className={sx(styles.field)}>
-          <span className={sx(chrome.micro)}>AUTHOR LABEL / SELF-ASSERTED</span>
-          <input
-            className={sx(styles.control)}
-            onChange={(event) => setAuthor(event.target.value)}
-            required
-            value={author}
-          />
-        </label>
-        <label className={sx(styles.field)}>
-          <span className={sx(chrome.micro)}>TITLE</span>
-          <input
-            className={sx(styles.control)}
-            onChange={(event) => setTitle(event.target.value)}
-            required
-            value={title}
-          />
-        </label>
-      </div>
-      <label className={sx(styles.editorCell)}>
-        <span className={sx(chrome.micro)}>PROSE / NOTEBOOK TEXT CELL</span>
-        <textarea
-          className={sx(styles.control, styles.textControl)}
-          onChange={(event) => setProse(event.target.value)}
-          placeholder="Write the context, observation, or direction. Separate paragraphs with a blank line."
-          required
-          rows={8}
-          value={prose}
-        />
-      </label>
-      <div className={sx(styles.bindingCell)}>
-        <span className={sx(chrome.micro)}>EXPLORE MAP / EXACT BINDING</span>
-        <code>{binding.coordinate}</code>
-        <code>SCALE / {binding.scale}</code>
-      </div>
-      {queryOpen ? (
-        <div className={sx(styles.queryComposer)}>
-          <label className={sx(styles.field)}>
-            <span className={sx(chrome.micro)}>QUERY PROVIDER</span>
+        <div className={sx(styles.entryIdentity)}>
+          <label className={sx(styles.inlineLabel)}>
+            <span className={sx(chrome.micro)}>HUMAN / SELF-ASSERTED</span>
             <input
-              className={sx(styles.control, styles.queryControl)}
-              onChange={(event) => setProvider(event.target.value)}
-              placeholder="Exact provider id"
-              required
-              value={provider}
+              aria-label="Revision author"
+              className={sx(styles.inlineMetaControl)}
+              maxLength={128}
+              onChange={(event) =>
+                setProposal((current) => ({
+                  ...current,
+                  author: { ...current.author, id: event.target.value },
+                }))
+              }
+              value={proposal.author.id}
             />
           </label>
-          <label className={sx(styles.field)}>
-            <span className={sx(chrome.micro)}>
-              SQL / READ-ONLY DECLARATION
-            </span>
-            <textarea
-              className={sx(
-                styles.control,
-                styles.textControl,
-                styles.queryControl,
-              )}
-              onChange={(event) => setStatement(event.target.value)}
-              placeholder="select …"
-              required
-              rows={5}
-              value={statement}
-            />
-          </label>
+          <input
+            aria-label="Journal title"
+            className={sx(styles.titleControl)}
+            maxLength={240}
+            onChange={(event) =>
+              setProposal((current) => ({
+                ...current,
+                title: event.target.value,
+              }))
+            }
+            placeholder="Untitled bearing"
+            value={proposal.title}
+          />
         </div>
-      ) : (
-        <button
-          className={sx(styles.addCell)}
-          onClick={() => setQueryOpen(true)}
-          type="button"
+        <div
+          className={sx(styles.deltaSummary)}
+          data-draft-changed={delta.changed}
         >
-          + ADD READ-ONLY SQL CELL
+          <span className={sx(chrome.micro)}>WORKING Δ</span>
+          <strong>
+            +{delta.inserted} ~{delta.modified} −{delta.removed} · L
+            {delta.layout_changed ? 1 : 0} M{delta.metadata_changed ? 1 : 0}
+          </strong>
+          <code>{base ? shortDigest(base.entry_id) : "unretained"}</code>
+        </div>
+      </header>
+
+      <div className={sx(styles.broadsheet)} data-journal-layout="broadsheet">
+        {proposal.layout.bands.map((band, bandIndex) => (
+          <div className={sx(styles.broadsheetBand)} key={band.id}>
+            {band.cells.map((cell) => {
+              const block = blocks.get(cell.block_id);
+              if (!block) return null;
+              const occupied = band.cells.reduce(
+                (total, candidate) => total + candidate.span,
+                0,
+              );
+              return (
+                <div
+                  className={sx(styles.broadsheetCell)}
+                  data-cell-delta={delta.cells[block.id]}
+                  key={block.id}
+                  style={{ gridColumn: `span ${cell.span}` }}
+                >
+                  <div className={sx(styles.cellTools)}>
+                    <span className={sx(chrome.micro)}>{block.id}</span>
+                    <span className={sx(styles.deltaBadge)}>
+                      {delta.cells[block.id] ?? "unchanged"}
+                    </span>
+                    <label>
+                      <span className={sx(styles.visuallyHidden)}>
+                        Cell width
+                      </span>
+                      <select
+                        aria-label={`${block.id} cell width`}
+                        className={sx(styles.cellSelect)}
+                        onChange={(event) =>
+                          setSpan(block.id, Number(event.target.value))
+                        }
+                        value={cell.span}
+                      >
+                        {Array.from({ length: 12 }, (_, index) => index + 1)
+                          .filter((span) => occupied - cell.span + span <= 12)
+                          .map((span) => (
+                            <option key={span} value={span}>
+                              {span}/12
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    {bandIndex > 0 ? (
+                      <button
+                        className={sx(styles.cellToolButton)}
+                        onClick={() => joinPreviousBand(block.id)}
+                        type="button"
+                      >
+                        JOIN ↑
+                      </button>
+                    ) : null}
+                    {band.cells[0]?.block_id !== block.id ? (
+                      <button
+                        className={sx(styles.cellToolButton)}
+                        onClick={() => breakBand(block.id)}
+                        type="button"
+                      >
+                        BREAK ↵
+                      </button>
+                    ) : null}
+                    <button
+                      className={sx(styles.cellToolButton)}
+                      disabled={proposal.blocks.length === 1}
+                      onClick={() => removeBlock(block.id)}
+                      type="button"
+                    >
+                      REMOVE
+                    </button>
+                  </div>
+                  <JournalEditableBlock block={block} onChange={updateBlock} />
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <div className={sx(styles.addCellBar)}>
+        <select
+          aria-label="New cell type"
+          className={sx(styles.cellSelect)}
+          onChange={(event) =>
+            setAddKind(event.target.value as AuthorableBlockKind)
+          }
+          value={addKind}
+        >
+          <option value="prose">Prose</option>
+          <option value="query">Read-only query</option>
+          <option value="diff">Directed diff</option>
+          <option value="action">Action opportunity</option>
+        </select>
+        <button className={sx(styles.addCell)} onClick={addBlock} type="button">
+          + ADD TYPED CELL
         </button>
-      )}
-      {error ? <p className={sx(styles.composerError)}>{error}</p> : null}
-      <footer className={sx(styles.composerFooter)}>
         <span className={sx(chrome.micro)}>
-          ADMISSION RETAINS THE ENTRY · QUERY CELLS DO NOT EXECUTE
+          CELLS FLOW IN READING ORDER · 12-COLUMN BOUNDED BROADSHEET
         </span>
-        <button
-          className={sx(styles.submitButton)}
-          disabled={submitting}
-          type="submit"
-        >
-          {submitting ? "ADMITTING…" : "ADMIT JOURNAL ENTRY"}
-        </button>
+      </div>
+
+      <footer className={sx(styles.entryBinding, styles.liveFooter)}>
+        <div className={sx(styles.bindingIdentity)}>
+          <span className={sx(chrome.micro)}>EXACT EXPLORE BINDING</span>
+          <code>{proposal.binding.source_revision}</code>
+          <a
+            className={sx(styles.exploreLink)}
+            href={journalBindingPath(proposal.binding)}
+          >
+            OPEN MAP →
+          </a>
+        </div>
+        <div className={sx(styles.revisionActions)}>
+          <button
+            className={sx(styles.textButton)}
+            onClick={onClose}
+            type="button"
+          >
+            CLOSE
+          </button>
+          <button
+            className={sx(styles.submitButton)}
+            disabled={!canSubmit}
+            type="submit"
+          >
+            {submitting
+              ? "RECORDING…"
+              : base
+                ? "RECORD REVISION"
+                : "RECORD ENTRY"}
+          </button>
+        </div>
       </footer>
+      {error ? <p className={sx(styles.composerError)}>{error}</p> : null}
+      <p className={sx(styles.authorityNote, chrome.micro)}>
+        RECORDING APPENDS AN IMMUTABLE REVISION · QUERY AND ACTION CELLS DO NOT
+        EXECUTE
+      </p>
     </form>
   );
+}
+
+function JournalEditableBlock({
+  block,
+  onChange,
+}: {
+  block: JournalBlock;
+  onChange: (block: JournalBlock) => void;
+}) {
+  if (block.kind === "prose") {
+    return (
+      <section
+        className={sx(styles.block, styles.proseBlock)}
+        id={journalBlockFragment(block.id)}
+      >
+        <BlockHeader id={block.id} kind="PROSE" />
+        <textarea
+          aria-label={`${block.id} prose`}
+          className={sx(styles.liveText, styles.proseLiveText)}
+          maxLength={65_536}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              document: parseJournalProse(event.target.value),
+            })
+          }
+          placeholder="# Heading\n\nParagraph\n\n- Point\n\n> Quotation"
+          rows={7}
+          value={formatJournalProse(block.document)}
+        />
+      </section>
+    );
+  }
+  if (block.kind === "query") {
+    return (
+      <section
+        className={sx(styles.block, styles.queryBlock)}
+        id={journalBlockFragment(block.id)}
+      >
+        <BlockHeader
+          id={block.id}
+          kind={`${block.language.toUpperCase()} QUERY`}
+        />
+        <div className={sx(styles.queryMeta)}>
+          <input
+            aria-label={`${block.id} provider`}
+            className={sx(styles.darkInlineControl)}
+            maxLength={128}
+            onChange={(event) =>
+              onChange({ ...block, provider: event.target.value })
+            }
+            placeholder="provider"
+            value={block.provider}
+          />
+          <strong>READ ONLY · DECLARATION</strong>
+          <span>{Object.keys(block.parameters).length} parameters</span>
+        </div>
+        <textarea
+          aria-label={`${block.id} statement`}
+          className={sx(styles.codeSurface, styles.liveCode)}
+          maxLength={32_768}
+          onChange={(event) =>
+            onChange({ ...block, statement: event.target.value })
+          }
+          placeholder="select …"
+          rows={7}
+          value={block.statement}
+        />
+      </section>
+    );
+  }
+  if (block.kind === "diff") {
+    return (
+      <section
+        className={sx(styles.block, styles.diffBlock)}
+        id={journalBlockFragment(block.id)}
+      >
+        <BlockHeader id={block.id} kind="DIRECTED DIFF" />
+        <div className={sx(styles.inlineFields)}>
+          <input
+            aria-label={`${block.id} source`}
+            className={sx(styles.inlineControl)}
+            onChange={(event) =>
+              onChange({ ...block, source: event.target.value })
+            }
+            value={block.source}
+          />
+          <span>→</span>
+          <input
+            aria-label={`${block.id} target`}
+            className={sx(styles.inlineControl)}
+            onChange={(event) =>
+              onChange({ ...block, target: event.target.value })
+            }
+            value={block.target}
+          />
+        </div>
+        <select
+          aria-label={`${block.id} assessment`}
+          className={sx(styles.cellSelect)}
+          onChange={(event) =>
+            onChange({
+              ...block,
+              assessment: event.target.value as
+                "equal" | "different" | "inconclusive",
+            })
+          }
+          value={block.assessment}
+        >
+          <option value="inconclusive">Inconclusive</option>
+          <option value="different">Different</option>
+          <option value="equal">Equal</option>
+        </select>
+        <textarea
+          aria-label={`${block.id} summary`}
+          className={sx(styles.liveText)}
+          maxLength={65_536}
+          onChange={(event) =>
+            onChange({ ...block, summary: event.target.value })
+          }
+          placeholder="Describe expected → observed."
+          rows={5}
+          value={block.summary}
+        />
+      </section>
+    );
+  }
+  if (block.kind === "action") {
+    return (
+      <section
+        className={sx(styles.block, styles.actionBlock)}
+        id={journalBlockFragment(block.id)}
+      >
+        <BlockHeader id={block.id} kind="ACTION OPPORTUNITY" />
+        <input
+          aria-label={`${block.id} operation`}
+          className={sx(styles.operationControl)}
+          maxLength={128}
+          onChange={(event) =>
+            onChange({ ...block, operation: event.target.value })
+          }
+          placeholder="mine / build / verify / …"
+          value={block.operation}
+        />
+        <textarea
+          aria-label={`${block.id} desired delta`}
+          className={sx(styles.liveText)}
+          maxLength={65_536}
+          onChange={(event) =>
+            onChange({ ...block, desired_delta: event.target.value })
+          }
+          placeholder="State the exact desired delta."
+          rows={5}
+          value={block.desired_delta}
+        />
+        <div className={sx(styles.referenceEditors)}>
+          <label className={sx(styles.referenceEditor)}>
+            <span className={sx(chrome.micro)}>
+              EVIDENCE LOCATORS / ONE PER LINE
+            </span>
+            <textarea
+              aria-label={`${block.id} evidence locators`}
+              className={sx(styles.liveText, styles.referenceText)}
+              maxLength={131_072}
+              onChange={(event) =>
+                onChange({
+                  ...block,
+                  evidence_ids: parseJournalReferences(event.target.value),
+                })
+              }
+              rows={3}
+              value={block.evidence_ids.join("\n")}
+            />
+          </label>
+          <label className={sx(styles.referenceEditor)}>
+            <span className={sx(chrome.micro)}>
+              DEPENDENCY LOCATORS / ONE PER LINE
+            </span>
+            <textarea
+              aria-label={`${block.id} dependency locators`}
+              className={sx(styles.liveText, styles.referenceText)}
+              maxLength={131_072}
+              onChange={(event) =>
+                onChange({
+                  ...block,
+                  dependency_ids: parseJournalReferences(event.target.value),
+                })
+              }
+              rows={3}
+              value={block.dependency_ids.join("\n")}
+            />
+          </label>
+        </div>
+        <span className={sx(chrome.micro)}>
+          {block.evidence_ids.length} EVIDENCE · {block.dependency_ids.length}{" "}
+          DEPENDENCIES · NOT ADMITTED FOR EXECUTION
+        </span>
+      </section>
+    );
+  }
+  return <JournalBlockView block={block} />;
 }
 
 export function JournalNewPage({
@@ -585,13 +1308,26 @@ export function JournalNewPage({
 }) {
   return (
     <main className={sx(chrome.page, styles.page)}>
-      <section data-rey-section="01 / NEW ENTRY">
+      <section data-rey-section="JOURNAL / BROADSHEET">
         <JournalRouteHeading
-          detail="UNAUTHENTICATED · VALIDATED DOCUMENT ADMISSION"
-          index="01"
-          kicker="JOURNAL / NEW"
-          title="Write on the context map"
+          detail="LIVE WORKING Δ · UNAUTHENTICATED ADMISSION"
+          index="J@NEW"
+          kicker="JOURNAL / BROADSHEET"
+          title="Reason on the context map"
         />
+        <nav
+          aria-label="Journal entry actions"
+          className={sx(styles.documentNav)}
+        >
+          <a className={sx(styles.exploreLink)} href="/agents">
+            ← JOURNAL INDEX
+          </a>
+          <div className={sx(styles.revisionTrail)}>
+            <span className={sx(chrome.micro)}>BASE / NONE</span>
+            <strong>WORKING</strong>
+          </div>
+          <span className={sx(chrome.micro)}>UNRETAINED</span>
+        </nav>
         <JournalComposer
           binding={binding}
           onAdmit={onAdmit}
@@ -604,17 +1340,31 @@ export function JournalNewPage({
 
 export function JournalDocumentPage({
   entry,
+  log,
+  onAdmit,
+  onClose,
 }: {
   entry: RetainedJournalEntry;
+  log: JournalLog;
+  onAdmit: (proposal: JournalEntryProposal) => Promise<RetainedJournalEntry>;
+  onClose: () => void;
 }) {
+  const previous = entry.supersedes
+    ? (log.entries.find(
+        (candidate) => candidate.entry_id === entry.supersedes,
+      ) ?? null)
+    : null;
+  const revisions = log.entries.filter(
+    (candidate) => candidate.supersedes === entry.entry_id,
+  );
   return (
     <main className={sx(chrome.page, styles.page)}>
-      <section data-rey-section={`J@${entry.sequence} / JOURNAL ENTRY`}>
+      <section data-rey-section="JOURNAL / BROADSHEET">
         <JournalRouteHeading
-          detail={`${entry.blocks.length} BLOCKS · EXACT RETAINED DOCUMENT`}
+          detail={`${entry.blocks.length} CELLS · EDITS APPEND A REVISION`}
           index={`J@${entry.sequence}`}
-          kicker="JOURNAL / ENTRY"
-          title={entry.title}
+          kicker="JOURNAL / BROADSHEET"
+          title="Reason on the context map"
         />
         <nav
           aria-label="Journal entry actions"
@@ -623,11 +1373,44 @@ export function JournalDocumentPage({
           <a className={sx(styles.exploreLink)} href="/agents">
             ← JOURNAL INDEX
           </a>
+          <div className={sx(styles.revisionTrail)}>
+            {previous ? (
+              <a
+                className={sx(styles.exploreLink)}
+                href={`/journal/${journalEntrySlug(previous)}`}
+              >
+                ← J@{previous.sequence}
+              </a>
+            ) : (
+              <span className={sx(chrome.micro)}>ROOT</span>
+            )}
+            <strong>J@{entry.sequence}</strong>
+            {revisions.slice(0, 3).map((revision) => (
+              <a
+                className={sx(styles.exploreLink)}
+                href={`/journal/${journalEntrySlug(revision)}`}
+                key={revision.entry_id}
+              >
+                J@{revision.sequence} →
+              </a>
+            ))}
+            {revisions.length > 3 ? (
+              <span className={sx(chrome.micro)}>
+                +{revisions.length - 3} BRANCHES
+              </span>
+            ) : null}
+          </div>
           <a className={sx(styles.exploreLink)} href="/journal/new">
             NEW ENTRY →
           </a>
         </nav>
-        <JournalEntryDocument entry={entry} />
+        <JournalComposer
+          base={entry}
+          binding={entry.binding}
+          key={entry.entry_id}
+          onAdmit={onAdmit}
+          onClose={onClose}
+        />
       </section>
     </main>
   );

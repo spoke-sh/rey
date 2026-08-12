@@ -47,7 +47,7 @@ interest through a continuous far-out Explorer lens.
   frontier regions distinctly without presenting interpolated terrain as
   evidence.
 - [x] Hard-cut matrix routes to `/explore?coordinate=...&scale=...`; the fresh
-  Journal v1 binding stores semantic coordinate and numeric scale separately.
+  The Journal binding stores semantic coordinate and numeric scale separately.
 - [x] Add focused CLI, structured-output, read-model, camera, route, and live UI
   tests plus one captured high-fidelity human verification path.
 - [x] Keep the coordinate carrier local and preserve an explicit federation

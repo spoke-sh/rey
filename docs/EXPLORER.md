@@ -368,7 +368,7 @@ accepted range is `0.05..=5.4`, with deterministic World, Atlas, Landscape,
 Neighborhood, Object, and Evidence stops inside that continuum. The selected
 coordinate anchors the camera; free pan and viewport remain ephemeral. The
 scene extent is derived from the bounded projection instead of a fixed world
-rectangle. The matrix route is outside the current contract. Journal v1 stores
+rectangle. The matrix route is outside the current contract. Journal v2 stores
 coordinate and numeric scale as separate fields and derives the browser envelope. See [ADR
 0041](decisions/0041-continuous-coordinate-topography.md). World geometry and
 probe navigation are fixed by [ADR

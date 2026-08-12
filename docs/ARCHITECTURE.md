@@ -197,7 +197,8 @@ are provider-qualified addresses;
 camera center, continuous scale, viewport, and lens remain separate view state.
 The current hard-cut interface uses `rey+local://...` semantic coordinates and
 the `/explore?coordinate=...&scale=...` browser envelope. Matrix paths are not
-part of the v1 contract. Journal v1 stores coordinate and scale separately.
+part of the v1 Explorer contract. Journal v2 stores coordinate and scale
+separately and places its typed blocks in a bounded 12-column broadsheet.
 `/environment` projects the same typed
 `HEAD → INDEX → WORKING` environment delta as `rey env status`; `/workloads`
 retains the exact catalog/detail routes and aligns admitted revisions plus
@@ -206,10 +207,11 @@ routes continue that relation grammar across runtime or request posture, exact
 bindings, and retained mining output. `/agents` begins with the Journal: current
 requests and non-excluded attention produce derived system entries; retained
 human and agent entries use one bounded typed contract and point to exact
-`/explore` coordinates. `/journal/new` admits human entries and routes
-to their exact `/journal/{slug}` document; entry blocks expose stable fragment
-permalinks. Agents admit through `rey journal add`, and neither path executes
-notebook blocks. It then projects an
+`/explore` coordinates. `/journal/new` and exact `/journal/{slug}` routes share
+one live editing surface; a retained edit appends an exact superseding entry
+instead of rewriting history. Entry blocks expose stable fragment permalinks.
+Agents admit through `rey journal add`, and neither path executes notebook
+blocks. It then projects an
 observed-work ledger from exact workload revisions, tests, runs, mining
 outputs, deltas, and attention. Journal entries communicate direction without
 becoming assignments or execution authority. Tasks still organize intent,
@@ -266,7 +268,8 @@ Cadence repository state is specified by [ADR
 0036](decisions/0036-cadence-repository-state-and-publication.md).
 The shared collaboration Journal is specified by [ADR
 0037](decisions/0037-explore-bound-collaboration-journal.md), [ADR
-0038](decisions/0038-unauthenticated-hyperlinkable-journal.md), and
+0038](decisions/0038-unauthenticated-hyperlinkable-journal.md), [ADR
+0054](decisions/0054-diff-directed-journal-broadsheet.md), and
 [Collaboration Journal](JOURNAL.md).
 
 ### Explorer projection-engine boundary

@@ -6,6 +6,10 @@
 - Supersedes: the loopback-only, exact-origin browser admission constraint in ADR 0037
 - Extended by: [ADR 0041](0041-continuous-coordinate-topography.md), which
   advances the Journal projection to `rey.ui-journal.v3`
+- Reset by: [ADR 0048](0048-fresh-v1-contract-baseline.md), which returned all
+  current Rey public documents to `.v1`
+- Extended by: [ADR 0054](0054-diff-directed-journal-broadsheet.md), which
+  advances the implemented projection to the live `rey.ui-journal.v2`
 
 ## Context
 

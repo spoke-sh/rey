@@ -20,9 +20,9 @@ observation, or let an author qualify its own claim.
 
 ## Entry Contract
 
-`rey.journal-entry-proposal.v1` is the authored contract. Admission derives a
-content identity and produces `rey.journal-entry.v1`; the ordered retained
-collection is `rey.journal-log.v1`.
+`rey.journal-entry-proposal.v2` is the authored contract. Admission derives a
+content identity and produces `rey.journal-entry.v2`; the ordered retained
+collection is `rey.journal-log.v2`.
 
 | Field | Meaning |
 | --- | --- |
@@ -31,6 +31,7 @@ collection is `rey.journal-log.v1`.
 | `author` | Typed `human`, `agent`, or `system` identity |
 | `binding` | Canonical semantic coordinate, numeric Explorer scale, and the matching exact source revision |
 | `supersedes` | Optional identity of an earlier retained entry; history is never rewritten |
+| `layout` | Required bounded 12-column broadsheet of ordered bands and cells |
 | `blocks` | Ordered bounded document of 1–32 typed blocks |
 
 The retained entry adds `entry_id`, one-based `sequence`, and `admitted_at`.
@@ -49,8 +50,8 @@ Coordinate dimensions are lexically ordered `revision`, `role`. The decoded
 `revision` must equal `binding.source_revision`; `scale` must be finite within
 the current Explorer bound. The UI derives
 `/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}`.
-The former matrix grammar and all Journal v1 documents are rejected with no
-dual reader or automatic migration. The binding may intentionally name
+The former matrix grammar and all earlier Journal documents are rejected with
+no dual reader or automatic migration. The binding may intentionally name
 historical context; Explorer resolution determines whether it is current,
 stale, or missing. See [ADR
 0041](decisions/0041-continuous-coordinate-topography.md).
@@ -98,10 +99,69 @@ Frame, diff, and action blocks are communication surfaces, not proof merely
 because an author submitted them. Exact evidence locators and the runtime's
 normal validators remain authoritative.
 
-This is the first implemented authoring envelope. The `/journal/new` composer currently
-creates prose, exact Explore, and optional read-only SQL cells. Agent proposals
-may use every block type, so richer retained artifacts render immediately in
-the same Journal document interface.
+The live browser authoring surface creates prose, read-only query, directed
+diff, and proposed-action cells. Every new document also starts with an exact
+Explore cell. Frame cells remain exact retained previews authored through the
+agent contract; they render and survive a human superseding revision without
+becoming editable browser-produced evidence.
+
+## Broadsheet Grammar
+
+Every block is placed exactly once in a required `broadsheet` layout:
+
+```yaml
+layout:
+  kind: broadsheet
+  columns: 12
+  bands:
+    - id: lead
+      cells:
+        - block_id: context
+          span: 8
+        - block_id: map
+          span: 4
+```
+
+The column count is always 12. A document contains 1–32 uniquely named ordered
+bands. Every band contains one or more ordered cells with a span from 1–12;
+the spans in one band cannot exceed 12. Blank columns are explicit whitespace,
+not missing evidence. Band/cell traversal must equal `blocks` order, so the
+semantic reading order stays deterministic and every fragment remains stable.
+
+Small viewports stack cells in that same order. Width, adjacency, whitespace,
+and responsive stacking are projection choices only: they cannot introduce a
+relationship, change a diff assessment, hide a completeness boundary, or
+grant an action authority.
+
+The browser supports every 1–12-column span. A narrower cell can join the
+preceding band when the combined span remains within 12. These controls compile
+the same exact grammar accepted by agent YAML; the browser does not retain an
+independent layout model.
+
+## Live Editing And Revisions
+
+`/journal/new` and `/journal/{slug}` use the same live broadsheet surface. A
+new entry compares against an empty base. A retained route compares the live
+document against that exact entry and reports inserted, modified, removed, and
+layout changes. Recording is disabled until the proposal is both admissible
+and changed.
+
+Retained routes expose the exact predecessor and up to three direct
+superseding branches as canonical document links; additional branches are
+counted rather than silently omitted. This is an immutable revision plane, not
+a mutable branch selector or Git repository claim.
+
+Editing never updates an entry in place. Recording a retained document creates
+a new human-authored proposal with `supersedes` set to the exact current
+`entry_id`, appends it through ordinary Journal admission, and enters the new
+canonical route. Earlier entries, slugs, fragments, sequences, authors, and
+timestamps remain unchanged. The browser has no retained draft or autosave
+contract in this slice.
+
+Prose editing is a deterministic shorthand over typed nodes. Blank-line-
+separated units starting with `# `, `- `, or `> ` become heading, bullet, or
+quote nodes; triple-backtick fenced units become code; other units become
+paragraphs. Only the typed nodes are retained.
 
 ## Authoring Surfaces
 
@@ -146,7 +206,6 @@ one or more explicit local channels without creating or duplicating a Journal
 entry. `rey journal seed <observation-id>...` and
 `/journal/new?observations=...` will create deterministic, unretained catch-up
 proposals that preserve exact observation citations. Only ordinary Journal
-admission retains the resulting document or its inert query/action blocks. This
 observation, channel-admission, seed, and relay behavior is planned by
 [Plan 0016](../plans/0016-channel-graph-and-operator-index.md) and is not part of
 the currently implemented Journal commands or HTTP endpoint.
@@ -154,7 +213,7 @@ the currently implemented Journal commands or HTTP endpoint.
 ## Example Agent Proposal
 
 ```yaml
-schema: rey.journal-entry-proposal.v1
+schema: rey.journal-entry-proposal.v2
 title: Source coverage moved after survey
 author:
   kind: agent
@@ -163,6 +222,20 @@ binding:
   coordinate: rey+local://workload/source-mining?revision=blake3%3Aabc
   scale: 2.05
   source_revision: blake3:abc
+layout:
+  kind: broadsheet
+  columns: 12
+  bands:
+    - id: evidence
+      cells:
+        - block_id: context
+          span: 8
+        - block_id: coverage-query
+          span: 4
+    - id: bearing
+      cells:
+        - block_id: next-bearing
+          span: 12
 blocks:
   - kind: prose
     id: context
@@ -187,5 +260,6 @@ blocks:
 
 See [Context Topology Explorer](EXPLORER.md) for coordinate resolution and
 [ADR 0037](decisions/0037-explore-bound-collaboration-journal.md) plus [ADR
-0038](decisions/0038-unauthenticated-hyperlinkable-journal.md) for the decision
+0038](decisions/0038-unauthenticated-hyperlinkable-journal.md) and [ADR
+0054](decisions/0054-diff-directed-journal-broadsheet.md) for the decision
 boundary.
