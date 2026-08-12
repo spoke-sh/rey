@@ -392,6 +392,71 @@ export interface WorkloadDraft {
   source_digest: string;
 }
 
+export interface WorkloadPackageSnapshot {
+  workload_id: string;
+  workload_revision: number;
+  title: string;
+  source: string;
+  source_digest: string;
+  object_path: string;
+  bytes: number;
+  generation: GeneratorProvenance;
+  workload: ContractIdentity;
+  graph: ContractIdentity;
+  scenario_suite: ContractIdentity;
+}
+
+export interface WorkloadAdmissionSnapshot {
+  schema: "rey.workload-admission-snapshot.v1";
+  snapshot_revision: string;
+  packages: WorkloadPackageSnapshot[];
+}
+
+export interface WorkloadChange {
+  workload_id: string;
+  change_kind: "inserted" | "deleted" | "modified";
+  source_revision: string | null;
+  target_revision: string | null;
+}
+
+export interface WorkloadChangeSet {
+  schema: "rey.workload-change-set.v1";
+  source_label: string;
+  target_label: string;
+  source_revision: string | null;
+  target_revision: string | null;
+  assessment: "equal" | "different" | "inconclusive";
+  inserted: number;
+  deleted: number;
+  modified: number;
+  changes: WorkloadChange[];
+}
+
+export interface WorkloadCommit {
+  schema: "rey.workload-commit.v1";
+  commit_id: string;
+  sequence: number;
+  parent_commit_id: string | null;
+  committed_at_unix: number;
+  message: string;
+  snapshot: WorkloadAdmissionSnapshot;
+  qualification_ids: string[];
+}
+
+export interface WorkloadRevisionStatus {
+  schema: "rey.workload-revision-status.v1";
+  state: "clean" | "working" | "staged" | "mixed";
+  head: WorkloadCommit | null;
+  index: WorkloadAdmissionSnapshot | null;
+  working: WorkloadAdmissionSnapshot;
+  staged: WorkloadChangeSet;
+  unstaged: WorkloadChangeSet;
+  drafts: WorkloadDraft[];
+  commit_ready: boolean;
+  qualification_omissions: string[];
+  admission_boundary: string;
+}
+
 export interface AttentionRow {
   row_id: string;
   action: AttentionAction;
@@ -423,6 +488,7 @@ export interface WorkloadList {
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];
   semantic_atlas: SemanticAtlas | null;
+  revision?: WorkloadRevisionStatus;
   attention: {
     schema: string;
     attention_id: string;

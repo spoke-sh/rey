@@ -14,7 +14,8 @@ describe("workload portfolio tables", () => {
       createElement(WorkloadsPage, { portfolio: portfolio() }),
     );
 
-    expect(markup.match(/data-kinetic-dense-table=""/g)).toHaveLength(2);
+    expect(markup.match(/data-kinetic-dense-table=""/g)).toHaveLength(3);
+    expect(markup).toContain('<table aria-label="Incoming workload revisions"');
     expect(markup).toContain('<table aria-label="Admitted workload revisions"');
     expect(markup).toContain('<table aria-label="Workload creation requests"');
     for (const evidence of [
@@ -51,7 +52,8 @@ describe("workload portfolio tables", () => {
       createElement(WorkloadsPage, { portfolio: document }),
     );
 
-    expect(markup).toContain("NO ADMITTED WORKLOAD PACKAGES");
+    expect(markup).toContain("NO WORKLOAD REVISION IS WAITING FOR ADMISSION");
+    expect(markup).toContain("NO WORKLOAD PACKAGES HAVE BEEN ADMITTED");
     expect(markup).toContain("NO WORKLOADS AWAITING CODING HARNESS");
   });
 

@@ -40,11 +40,12 @@ use rey::{
         LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
     },
     workloads::{
-        LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadCatalog,
-        WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadCreateResult, WorkloadDraft,
-        WorkloadList, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView, WorkloadSummary,
-        WorkloadTestBatch, derive_portfolio_snapshot, derive_workload_attention,
-        fresh_qualification,
+        LocalWorkloadStateError, LocalWorkloadStore, ResolvedWorkload, WorkloadAddResult,
+        WorkloadCatalog, WorkloadCatalogDescriptor, WorkloadCatalogError, WorkloadChangeKind,
+        WorkloadChangeSet, WorkloadCommitResult, WorkloadCreateResult, WorkloadDraft, WorkloadList,
+        WorkloadLog, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
+        WorkloadStatusView, WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState,
+        derive_portfolio_snapshot, derive_workload_attention, fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -437,13 +438,21 @@ struct WorkloadsArgs {
 enum WorkloadsCommand {
     /// Create a strict workload request for an external coding harness.
     Create(WorkloadCreateArgs),
-    /// List resolved workloads and retained scenario progress without executing them.
-    List(WorkloadListArgs),
-    /// Show workload definitions, retained deltas, qualification, and latest run.
+    /// List the admitted workload HEAD without executing it.
+    List(WorkloadOutputArgs),
+    /// Show HEAD, INDEX, and WORKING workload admission state.
     Status(WorkloadStatusArgs),
-    /// Execute required scenarios and retain their typed output deltas.
+    /// Stage exact verified WORKING workload packages into INDEX.
+    Add(WorkloadOutputArgs),
+    /// Approve the qualified INDEX and advance workload HEAD.
+    Commit(WorkloadCommitArgs),
+    /// Show admitted workload commits newest first.
+    Log(WorkloadLogArgs),
+    /// Show INDEX to WORKING changes, or HEAD to INDEX with --staged.
+    Diff(WorkloadDiffArgs),
+    /// Execute required scenarios against the exact staged INDEX.
     Test(WorkloadTestArgs),
-    /// Execute an exactly qualified graph against explicit or retained inputs.
+    /// Execute an exactly qualified graph admitted in HEAD.
     Run(WorkloadRunArgs),
 }
 
@@ -466,16 +475,53 @@ struct WorkloadCreateArgs {
 }
 
 #[derive(Debug, Args)]
-struct WorkloadListArgs {
+struct WorkloadStatusArgs {
+    /// Diagnostic workload id; only valid with --catalog conformance.
+    workload_id: Option<String>,
+
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
-struct WorkloadStatusArgs {
-    /// Workload id; omit to show every workload in the selected catalog.
-    workload_id: Option<String>,
+struct WorkloadOutputArgs {
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadCommitArgs {
+    /// Human approval message bound into workload history.
+    #[arg(short = 'm', long = "message", required = true)]
+    message: String,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadLogArgs {
+    /// Render each exact parent-to-commit package patch.
+    #[arg(short = 'p', long = "patch")]
+    patch: bool,
+
+    /// Maximum number of newest commits to show.
+    #[arg(short = 'n', long = "max-count", default_value_t = 32)]
+    max_count: usize,
+
+    /// Output representation; auto uses a table on a terminal and JSON when piped.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct WorkloadDiffArgs {
+    /// Compare workload HEAD with the staged INDEX.
+    #[arg(long)]
+    staged: bool,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
@@ -486,6 +532,10 @@ struct WorkloadStatusArgs {
 struct WorkloadTestArgs {
     /// Workload id; omit to test every workload in the selected catalog.
     workload_id: Option<String>,
+
+    /// Qualify the exact frozen INDEX; required for workspace workloads.
+    #[arg(long)]
+    staged: bool,
 
     /// Output representation; auto uses a table on a terminal and JSON when piped.
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
@@ -1123,7 +1173,7 @@ fn ui_command(args: UiArgs) -> Result<ExitCode, CliError> {
     stdout.flush()?;
     if !descriptor.loopback_only {
         eprintln!(
-            "rey: warning: UI is listening beyond loopback with unauthenticated Journal writes enabled; protect access externally"
+            "rey: warning: UI is listening beyond loopback with unauthenticated Journal writes and exact workload approval enabled; protect access externally"
         );
     }
     server.serve()?;
@@ -1194,12 +1244,6 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
         Some(path) => LocalWorkloadStore::new(workspace.join(path)),
         None => LocalWorkloadStore::default_for_workspace(&workspace),
     };
-    let catalog = match args.catalog {
-        WorkloadCatalogSelection::Workspace => {
-            WorkloadCatalog::load_workspace(&workspace, &args.catalog_dir)?
-        }
-        WorkloadCatalogSelection::Conformance => WorkloadCatalog::built_in_conformance()?,
-    };
     match args.command {
         WorkloadsCommand::Create(command) => {
             if args.catalog != WorkloadCatalogSelection::Workspace {
@@ -1207,10 +1251,63 @@ fn workloads(args: WorkloadsArgs) -> Result<ExitCode, CliError> {
             }
             workload_create(&workspace, &args.catalog_dir, command)
         }
-        WorkloadsCommand::List(command) => workload_list(&store, &workspace, &catalog, command),
-        WorkloadsCommand::Status(command) => workload_status(&store, &workspace, &catalog, command),
-        WorkloadsCommand::Test(command) => workload_test(&store, &catalog, command),
-        WorkloadsCommand::Run(command) => workload_run(&store, &workspace, &catalog, command),
+        WorkloadsCommand::List(command) => {
+            workload_list(&store, &workspace, &args.catalog_dir, args.catalog, command)
+        }
+        WorkloadsCommand::Status(command) => match args.catalog {
+            WorkloadCatalogSelection::Workspace => {
+                if command.workload_id.is_some() {
+                    return Err(CliError::WorkspaceStatusIsPortfolio);
+                }
+                workload_revision_status(&store, &workspace, &args.catalog_dir, command)
+            }
+            WorkloadCatalogSelection::Conformance => {
+                workload_conformance_status(&store, &workspace, command)
+            }
+        },
+        WorkloadsCommand::Add(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_add(&store, &workspace, &args.catalog_dir, command)
+        }
+        WorkloadsCommand::Commit(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_commit(&store, command)
+        }
+        WorkloadsCommand::Log(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_log(&store, command)
+        }
+        WorkloadsCommand::Diff(command) => {
+            require_workspace_admission_catalog(args.catalog)?;
+            workload_diff(&store, &workspace, &args.catalog_dir, command)
+        }
+        WorkloadsCommand::Test(command) => {
+            let catalog = match args.catalog {
+                WorkloadCatalogSelection::Workspace => {
+                    if !command.staged {
+                        return Err(CliError::WorkspaceTestRequiresIndex);
+                    }
+                    store.index_catalog()?
+                }
+                WorkloadCatalogSelection::Conformance => WorkloadCatalog::built_in_conformance()?,
+            };
+            workload_test(&store, &catalog, command)
+        }
+        WorkloadsCommand::Run(command) => {
+            let catalog = match args.catalog {
+                WorkloadCatalogSelection::Workspace => store.head_catalog()?,
+                WorkloadCatalogSelection::Conformance => WorkloadCatalog::built_in_conformance()?,
+            };
+            workload_run(&store, &workspace, &catalog, command)
+        }
+    }
+}
+
+fn require_workspace_admission_catalog(catalog: WorkloadCatalogSelection) -> Result<(), CliError> {
+    if catalog == WorkloadCatalogSelection::Workspace {
+        Ok(())
+    } else {
+        Err(CliError::AdmissionRequiresWorkspaceCatalog)
     }
 }
 
@@ -1235,29 +1332,19 @@ fn workload_create(
     Ok(ExitCode::SUCCESS)
 }
 
-fn workload_list(
-    store: &LocalWorkloadStore,
-    workspace: &Path,
-    catalog: &WorkloadCatalog,
-    args: WorkloadListArgs,
-) -> Result<ExitCode, CliError> {
-    let list = current_workload_list(store, workspace, catalog)?;
-    let mut stdout = io::stdout().lock();
-    match args.format.resolve() {
-        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
-        WorkloadOutputFormat::Table => {
-            write_workload_list(&mut stdout, &list, TerminalStyle::stdout())?;
-        }
-        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
-    }
-    Ok(ExitCode::SUCCESS)
-}
-
 fn current_workload_list(
     store: &LocalWorkloadStore,
     workspace: &Path,
-    catalog: &WorkloadCatalog,
+    catalog_dir: &Path,
 ) -> Result<WorkloadList, CliError> {
+    let mut catalog = store.head_catalog()?;
+    let revision = store.status(workspace, catalog_dir)?;
+    catalog.descriptor.workload_count = catalog
+        .workloads
+        .len()
+        .max(revision.working.packages.len())
+        .saturating_add(revision.drafts.len()) as u64;
+    catalog.descriptor.draft_count = revision.drafts.len() as u64;
     let state = store.load()?;
     let summaries = catalog
         .workloads
@@ -1275,31 +1362,84 @@ fn current_workload_list(
     let list = WorkloadList::new(
         catalog.descriptor.clone(),
         summaries,
-        catalog.drafts.clone(),
+        revision.drafts.clone(),
         attention,
+        Some(revision),
     );
     Ok(list)
 }
 
-fn workload_status(
+fn workload_list(
     store: &LocalWorkloadStore,
     workspace: &Path,
-    catalog: &WorkloadCatalog,
+    catalog_dir: &Path,
+    selection: WorkloadCatalogSelection,
+    args: WorkloadOutputArgs,
+) -> Result<ExitCode, CliError> {
+    let list = match selection {
+        WorkloadCatalogSelection::Workspace => {
+            current_workload_list(store, workspace, catalog_dir)?
+        }
+        WorkloadCatalogSelection::Conformance => {
+            let catalog = WorkloadCatalog::built_in_conformance()?;
+            let state = store.load()?;
+            let summaries = catalog
+                .workloads
+                .iter()
+                .map(|workload| {
+                    WorkloadSummary::derive_resolved(
+                        workload,
+                        state.record(&workload.definition.workload.id),
+                    )
+                })
+                .collect();
+            let definitions = catalog.definitions();
+            let environment = retained_environment_snapshot(workspace)?;
+            let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
+            WorkloadList::new(
+                catalog.descriptor.clone(),
+                summaries,
+                catalog.drafts.clone(),
+                attention,
+                None,
+            )
+        }
+    };
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &list)?,
+        WorkloadOutputFormat::Table => {
+            write_workload_list(&mut stdout, &list, TerminalStyle::stdout())?;
+        }
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_revision_status(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    catalog_dir: &Path,
     args: WorkloadStatusArgs,
 ) -> Result<ExitCode, CliError> {
+    let status = store.status(workspace, catalog_dir)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &status)?,
+        WorkloadOutputFormat::Table => write_workload_revision_status(&mut stdout, &status)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_conformance_status(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    args: WorkloadStatusArgs,
+) -> Result<ExitCode, CliError> {
+    let catalog = WorkloadCatalog::built_in_conformance()?;
     let state = store.load()?;
-    let selected = match args.workload_id.as_deref() {
-        Some(id)
-            if catalog
-                .drafts
-                .iter()
-                .any(|draft| draft.request.workload_id == id) =>
-        {
-            Vec::new()
-        }
-        _ => catalog.select(args.workload_id.as_deref())?,
-    };
-    let drafts = catalog.select_drafts(args.workload_id.as_deref());
+    let selected = catalog.select(args.workload_id.as_deref())?;
     let statuses = selected
         .into_iter()
         .map(|workload| {
@@ -1310,11 +1450,69 @@ fn workload_status(
     let definitions = catalog.definitions();
     let environment = retained_environment_snapshot(workspace)?;
     let attention = derive_workload_attention(&definitions, &state, environment.as_ref())?;
-    let batch = WorkloadStatusBatch::new(catalog.descriptor.clone(), statuses, drafts, attention);
+    let batch =
+        WorkloadStatusBatch::new(catalog.descriptor.clone(), statuses, Vec::new(), attention);
     let mut stdout = io::stdout().lock();
     match args.format.resolve() {
         WorkloadOutputFormat::Json => write_json_line(&mut stdout, &batch)?,
         WorkloadOutputFormat::Table => write_workload_status(&mut stdout, &batch)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_add(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    catalog_dir: &Path,
+    args: WorkloadOutputArgs,
+) -> Result<ExitCode, CliError> {
+    let result = store.add(workspace, catalog_dir)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_workload_add(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_commit(
+    store: &LocalWorkloadStore,
+    args: WorkloadCommitArgs,
+) -> Result<ExitCode, CliError> {
+    let result = store.commit(args.message, None, None)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_workload_commit(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_log(store: &LocalWorkloadStore, args: WorkloadLogArgs) -> Result<ExitCode, CliError> {
+    let log = store.log(args.max_count, args.patch)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &log)?,
+        WorkloadOutputFormat::Table => write_workload_log(&mut stdout, &log)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn workload_diff(
+    store: &LocalWorkloadStore,
+    workspace: &Path,
+    catalog_dir: &Path,
+    args: WorkloadDiffArgs,
+) -> Result<ExitCode, CliError> {
+    let diff = store.diff(workspace, catalog_dir, args.staged)?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &diff)?,
+        WorkloadOutputFormat::Table => write_workload_diff(&mut stdout, &diff)?,
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(ExitCode::SUCCESS)
@@ -1405,6 +1603,7 @@ fn workload_test(
                 state.retain_test(result.clone());
                 results.push(result);
             }
+            state.refresh_index_qualification(&catalog.definitions());
             state.verify()?;
             store.save(&state)?;
             let batch = WorkloadTestBatch::new(
@@ -1421,6 +1620,7 @@ fn workload_test(
         }
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
+    state.refresh_index_qualification(&catalog.definitions());
     state.verify()?;
     store.save(&state)?;
     let batch = WorkloadTestBatch::new(
@@ -1661,43 +1861,33 @@ impl WorkloadPortfolioSummary {
         };
         for workload in workloads {
             match workload.qualification {
-                rey::workloads::QualificationState::Untested => {
-                    summary.untested = summary.untested.saturating_add(1);
-                }
+                rey::workloads::QualificationState::Untested => summary.untested += 1,
                 rey::workloads::QualificationState::Qualified => {
-                    summary.tested = summary.tested.saturating_add(1);
-                    summary.qualified = summary.qualified.saturating_add(1);
+                    summary.tested += 1;
+                    summary.qualified += 1;
                 }
                 rey::workloads::QualificationState::Failing => {
-                    summary.tested = summary.tested.saturating_add(1);
-                    summary.failing = summary.failing.saturating_add(1);
+                    summary.tested += 1;
+                    summary.failing += 1;
                 }
                 rey::workloads::QualificationState::Inconclusive => {
-                    summary.tested = summary.tested.saturating_add(1);
-                    summary.inconclusive = summary.inconclusive.saturating_add(1);
+                    summary.tested += 1;
+                    summary.inconclusive += 1;
                 }
                 rey::workloads::QualificationState::Stale => {
-                    summary.tested = summary.tested.saturating_add(1);
-                    summary.stale_workloads = summary.stale_workloads.saturating_add(1);
+                    summary.tested += 1;
+                    summary.stale_workloads += 1;
                 }
             }
-            summary.required_scenarios =
-                summary.required_scenarios.saturating_add(workload.required);
-            summary.passed_scenarios = summary.passed_scenarios.saturating_add(workload.passed);
-            summary.evaluated_scenarios = summary
-                .evaluated_scenarios
-                .saturating_add(workload.evaluated);
-            summary.stale_scenarios = summary.stale_scenarios.saturating_add(workload.stale);
-            summary.optional_scenarios =
-                summary.optional_scenarios.saturating_add(workload.optional);
+            summary.required_scenarios += workload.required;
+            summary.passed_scenarios += workload.passed;
+            summary.evaluated_scenarios += workload.evaluated;
+            summary.stale_scenarios += workload.stale;
+            summary.optional_scenarios += workload.optional;
             match workload.last_run_status {
-                Some(RunStatus::Passed) => {
-                    summary.passed_runs = summary.passed_runs.saturating_add(1);
-                }
-                Some(RunStatus::Blocked) => {
-                    summary.blocked_runs = summary.blocked_runs.saturating_add(1);
-                }
-                None => summary.unrun = summary.unrun.saturating_add(1),
+                Some(RunStatus::Passed) => summary.passed_runs += 1,
+                Some(RunStatus::Blocked) => summary.blocked_runs += 1,
+                None => summary.unrun += 1,
             }
         }
         summary
@@ -1728,9 +1918,10 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "Data plane",
-        "LIVE READS · UNAUTHENTICATED JOURNAL WRITE",
+        "LIVE READS · JOURNAL WRITE · WORKLOAD APPROVAL",
     )?;
     write_portfolio_field(output, "Human entry", &descriptor.entry_route)?;
+    write_portfolio_field(output, "Workload approval", "ENABLED · EXACT INDEX → HEAD")?;
     write_portfolio_field(
         output,
         "Revalidation",
@@ -1744,7 +1935,7 @@ fn write_ui_startup(
     write_portfolio_field(
         output,
         "API",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/commit",
     )?;
     write_portfolio_field(output, "Grammar revision", &descriptor.grammar_revision)?;
     write_portfolio_field(
@@ -2146,6 +2337,251 @@ fn write_workload_create(
     write_portfolio_field(output, "Further action required", "YES")?;
     write_portfolio_field(output, "Next", &result.next)?;
     Ok(())
+}
+
+fn write_workload_revision_status(
+    output: &mut impl Write,
+    status: &WorkloadRevisionStatus,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "On workload {}",
+        status.head.as_ref().map_or_else(
+            || "no commits yet".to_owned(),
+            |commit| format!("WORKLOAD@{}", commit.sequence)
+        )
+    )?;
+    if status.state == WorkloadWorkingState::Clean && status.drafts.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "nothing to admit, working workload catalog clean")?;
+        return Ok(());
+    }
+    if status.staged.assessment == DeltaAssessment::Different {
+        writeln!(output)?;
+        writeln!(output, "Changes staged for workload admission:")?;
+        writeln!(
+            output,
+            "  (review with \"rey workloads diff --staged\"; approve in Rey UI or with \"rey workloads commit\")"
+        )?;
+        write_workload_change_lines(output, &status.staged)?;
+    }
+    if status.unstaged.assessment == DeltaAssessment::Different {
+        writeln!(output)?;
+        writeln!(output, "Changes not staged for workload admission:")?;
+        writeln!(
+            output,
+            "  (use \"rey workloads diff\" to review; \"rey workloads add\" to stage)"
+        )?;
+        write_workload_change_lines(output, &status.unstaged)?;
+    }
+    if !status.drafts.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "Agentic workload requests awaiting packages:")?;
+        for draft in &status.drafts {
+            writeln!(
+                output,
+                "        requested: workload: {}",
+                draft.request.workload_id
+            )?;
+        }
+    }
+    writeln!(output)?;
+    if status.commit_ready {
+        writeln!(
+            output,
+            "staged workload INDEX is qualified and awaiting human approval"
+        )?;
+    } else if status.index.is_some() && !status.qualification_omissions.is_empty() {
+        writeln!(
+            output,
+            "staged workload INDEX is not ready (use `rey workloads test --staged`)"
+        )?;
+        for omission in &status.qualification_omissions {
+            writeln!(output, "  {omission}")?;
+        }
+    } else if status.unstaged.assessment == DeltaAssessment::Different {
+        writeln!(
+            output,
+            "no changes staged for workload admission (use `rey workloads add`)"
+        )?;
+    }
+    Ok(())
+}
+
+fn write_workload_change_lines(
+    output: &mut impl Write,
+    changes: &WorkloadChangeSet,
+) -> io::Result<()> {
+    for change in &changes.changes {
+        let label = match change.change_kind {
+            WorkloadChangeKind::Inserted => "new:     ",
+            WorkloadChangeKind::Deleted => "deleted: ",
+            WorkloadChangeKind::Modified => "modified:",
+        };
+        writeln!(output, "        {label} workload: {}", change.workload_id)?;
+    }
+    Ok(())
+}
+
+fn write_workload_diff(output: &mut impl Write, diff: &WorkloadChangeSet) -> Result<(), CliError> {
+    writeln!(output, "WORKLOAD CHANGE SET")?;
+    writeln!(
+        output,
+        "  Comparison             {} → {}",
+        diff.source_label, diff.target_label
+    )?;
+    writeln!(
+        output,
+        "  Assessment             {} · +{} -{} ~{}",
+        scene_assessment(diff.assessment),
+        diff.inserted,
+        diff.deleted,
+        diff.modified
+    )?;
+    writeln!(
+        output,
+        "  Source revision         {}",
+        diff.source_revision
+            .as_ref()
+            .map_or("EMPTY", SemanticDigest::as_str)
+    )?;
+    writeln!(
+        output,
+        "  Target revision         {}",
+        diff.target_revision
+            .as_ref()
+            .map_or("EMPTY", SemanticDigest::as_str)
+    )?;
+    for change in &diff.changes {
+        let symbol = match change.change_kind {
+            WorkloadChangeKind::Inserted => '+',
+            WorkloadChangeKind::Deleted => '-',
+            WorkloadChangeKind::Modified => '~',
+        };
+        writeln!(output, "  {symbol} workload {}", change.workload_id)?;
+    }
+    Ok(())
+}
+
+fn write_workload_add(output: &mut impl Write, result: &WorkloadAddResult) -> Result<(), CliError> {
+    writeln!(output, "WORKLOAD INDEX")?;
+    writeln!(
+        output,
+        "  Snapshot               {}",
+        result.snapshot.snapshot_revision
+    )?;
+    writeln!(
+        output,
+        "  Packages               {}",
+        result.snapshot.packages.len()
+    )?;
+    writeln!(
+        output,
+        "  Selection              {} workload changes {}",
+        result.delta.changes.len(),
+        if result.staged {
+            "staged"
+        } else {
+            "verified unchanged"
+        }
+    )?;
+    writeln!(
+        output,
+        "  Authority              frozen candidate only · not admitted · not runnable"
+    )?;
+    Ok(())
+}
+
+fn write_workload_commit(
+    output: &mut impl Write,
+    result: &WorkloadCommitResult,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "[WORKLOAD@{} {}] {}",
+        result.commit.sequence, result.commit.commit_id, result.commit.message
+    )?;
+    writeln!(
+        output,
+        " admission complete · snapshot {} · {} workloads · {} qualifications",
+        result.commit.snapshot.snapshot_revision,
+        result.commit.snapshot.packages.len(),
+        result.commit.qualification_ids.len()
+    )?;
+    writeln!(
+        output,
+        " {} workload changes · +{} -{} ~{}",
+        result.delta.changes.len(),
+        result.delta.inserted,
+        result.delta.deleted,
+        result.delta.modified
+    )?;
+    Ok(())
+}
+
+fn write_workload_log(output: &mut impl Write, log: &WorkloadLog) -> Result<(), CliError> {
+    writeln!(output, "REY WORKLOAD LOG")?;
+    writeln!(
+        output,
+        "  History                {} total · {} shown · newest first",
+        log.total_commits, log.selected_commits
+    )?;
+    for (index, commit) in log.commits.iter().enumerate() {
+        writeln!(output)?;
+        writeln!(
+            output,
+            "commit WORKLOAD@{} {}{}",
+            commit.sequence,
+            commit.commit_id,
+            if index == 0 { " (HEAD)" } else { "" }
+        )?;
+        writeln!(
+            output,
+            "Parent: {}",
+            commit
+                .parent_commit_id
+                .as_ref()
+                .map_or("EMPTY", SemanticDigest::as_str)
+        )?;
+        writeln!(
+            output,
+            "Date:   {}",
+            format_workload_commit_date(commit.committed_at_unix)
+        )?;
+        writeln!(output)?;
+        writeln!(output, "    {}", commit.message)?;
+        writeln!(output)?;
+        writeln!(
+            output,
+            "  Snapshot               {} · {} workloads",
+            commit.snapshot.snapshot_revision,
+            commit.snapshot.packages.len()
+        )?;
+        writeln!(
+            output,
+            "  Qualifications         {} exact passing records",
+            commit.qualification_ids.len()
+        )?;
+        if log.patch {
+            let parent = log.commits.get(index + 1).map(|parent| &parent.snapshot);
+            let diff = WorkloadChangeSet::derive(
+                if parent.is_some() { "HEAD^" } else { "EMPTY" },
+                parent,
+                &format!("WORKLOAD@{}", commit.sequence),
+                Some(&commit.snapshot),
+            );
+            writeln!(output)?;
+            write_workload_diff(output, &diff)?;
+        }
+    }
+    Ok(())
+}
+
+fn format_workload_commit_date(committed_at_unix: i64) -> String {
+    DateTime::<Utc>::from_timestamp(committed_at_unix, 0).map_or_else(
+        || "invalid timestamp".to_owned(),
+        |date| date.format("%a %b %e %H:%M:%S %Y %z").to_string(),
+    )
 }
 
 fn write_workload_list(
@@ -6549,6 +6985,14 @@ enum CliError {
         "workloads create requires the workspace catalog; built-in conformance workloads are immutable"
     )]
     CreateRequiresWorkspaceCatalog,
+    #[error("workload admission history exists only for the workspace catalog")]
+    AdmissionRequiresWorkspaceCatalog,
+    #[error("workspace workload qualification requires --staged and a nonempty INDEX")]
+    WorkspaceTestRequiresIndex,
+    #[error(
+        "workspace workload status reports the complete HEAD, INDEX, and WORKING portfolio; omit the workload id"
+    )]
+    WorkspaceStatusIsPortfolio,
     #[error("limits must be greater than zero")]
     InvalidLimit,
     #[error("source-mining runs require at least one workspace-relative --source path")]

@@ -1808,9 +1808,18 @@ scenario, or oracle.
 
 ### Workload package
 
-An admitted `rey.workload-package.v1` document at
+An untrusted `rey.workload-package.v1` proposal at
 `workloads/*/workload.yaml` binding typed ports, compute graph, frozen scenario
-suite, generator provenance, source identity, and admission decision.
+suite, generator provenance, and source identity. It owns no admission
+decision.
+
+### Workload HEAD, INDEX, and WORKING
+
+The workspace workload admission planes. WORKING is the current verified
+agent-authored package catalog. INDEX is the exact content-addressed snapshot
+frozen by `rey workloads add` and qualified by `test --staged`. HEAD is the
+newest human-approved, parent-linked workload commit and is the only workspace
+catalog `run` may execute.
 
 ### Workload ownership
 
@@ -1823,8 +1832,8 @@ remains active plan work.
 
 The default product catalog rooted at the workspace-relative `workloads/`
 directory. Immediate child directories contain either a creation request draft
-or an admitted workload package under strict path, symlink, count, and byte
-bounds.
+or a workload package proposal under strict path, symlink, count, and byte
+bounds. Admission is retained separately in workload history.
 
 ### Working environment
 

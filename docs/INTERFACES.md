@@ -120,33 +120,33 @@ The implemented slice behaves as follows:
 - `create` writes one immutable bounded request for an external coding harness,
   prints the exact instructions/next action, refuses overwrite, and invents no
   graph, scenario, oracle, or admission claim;
-- `list` reads catalog and result indexes and shows exact candidate/qualified
-  graph identities, operation order, scenario progress, mining completeness,
-  retained relation/reasoning counts, current portfolio attention, and mapped
-  surface coverage; it executes no graph or probe;
-- `test` executes one bounded deterministic graph/scenario pass, retains
-  `EXPECTED` to `OBSERVED` typed deltas plus mining evidence, and qualifies
-  only a graph revision for which every required scenario freshly passes;
-  without an id it selects every catalog workload and fails closed on the
-  workload-count bound; its human view renders scenario results incrementally
-  in declaration order;
-- `run` executes the current fresh qualified resolved graph against one
+- `status` observes the complete workload HEAD, INDEX, and WORKING portfolio;
+  `diff` projects INDEX-to-WORKING or HEAD-to-INDEX changes;
+- `add` freezes verified package bytes as one exact INDEX; it performs no test
+  or admission;
+- `test --staged` executes a bounded deterministic graph/scenario pass,
+  retains `EXPECTED` to `OBSERVED` typed deltas plus mining evidence, and binds
+  complete all-passing qualification to the exact INDEX snapshot;
+- `commit` verifies the frozen INDEX and qualification and advances HEAD
+  without re-observing WORKING; `log` verifies and renders that history;
+- `list` reads admitted HEAD and result indexes while carrying drafts and
+  revision posture separately; it executes no graph or probe;
+- `run` executes the current fresh qualified graph admitted in HEAD against one
   admitted UTF-8 input and, for the mining workload, repeatable explicit
   `--source` paths under the workspace. The portfolio workload instead binds
   retained catalog/workload/environment inputs and rejects `--input`;
-- `status` reads the exact workload, graph, suite, retained deltas,
-  mining results/omissions/reasoning, qualification, freshness, stop reason,
-  and latest run without repairing it.
+- the explicit conformance catalog preserves detailed fixture inspection
+  without participating in workspace admission history.
 
 The default catalog resolves request-only drafts from
-`workloads/*/request.yaml` and accepted packages from
+`workloads/*/request.yaml` and WORKING proposals from
 `workloads/*/workload.yaml`. Creation requests bind a semantic request id,
 bounded intent, target, requirements, and limits; they remain ineligible for
-test/run. V1 packages admit only UTF-8 ports and exact
+qualification/run. V1 packages support only UTF-8 ports and exact
 `trim`/`uppercase` operation contracts; each package carries proposal kind,
 producer revision and inputs, generated graph/suite roles, and a frozen
 scenario oracle. Exact package bytes and path participate in the workload
-proposal identity and therefore in freshness.
+proposal identity, INDEX qualification, and admission commit.
 
 `--catalog conformance` instead selects compiled `rey.portfolio.attention`,
 `rey.fixture.source-search`, passing `rey.fixture.text-normalize`, and failing
@@ -431,7 +431,7 @@ pixels. An immutable scene snapshot compiled from it retains stable object and
 evidence identities; camera and renderer backends consume that snapshot without
 receiving authority to reinterpret source evidence.
 
-`rey workloads test context-anchor-survey -vv` exposes the implemented packet
+`rey workloads test --staged context-anchor-survey -vv` exposes the implemented packet
 identity, exact patch binding, synthetic anchor-orientation basis, scene
 compiler, extent, exact overview 31×21, regional 61×41, and local 121×81
 levels, their 12,953-cell/712,415-byte total allocation, regime bindings,
@@ -486,9 +486,10 @@ exit behavior. Environment inspection, status, diff, commit, and log return
 diff are normal output. Invalid input and runtime failure return `1`; Clap
 retains its own argument-parsing exit behavior.
 
-Implemented `workloads create`, `list`, and `status` return `0` whenever the
-requested mutation or inspection succeeds, even when rows show failing or
-stale workloads. `workloads test` and
+Implemented `workloads create`, `status`, `diff`, `add`, `commit`, `log`, and
+`list` return `0` whenever the requested mutation or inspection succeeds.
+Semantic differences and an unready INDEX are status, not command failure.
+`workloads test` and
 `run` use `0` for qualified/passed, `2` for conclusive semantic failure, `3`
 for inconclusive or blocked, `4` for stale, and `1` for invalid input or runtime
 failure.
@@ -893,12 +894,13 @@ operation's idempotency contract rather than one generic retry rule.
 operator projection started explicitly by the operator. It serves the embedded
 TanStack Router application plus `GET|HEAD /api/v1/health`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/environment`,
-`GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its only write is
-`POST /api/v1/journal`, which accepts bounded human JSON proposals without
-authentication or an origin check on every explicitly configured listener.
-Other methods are rejected. Deep browser
+`GET|HEAD /api/v1/cadence`, and `GET|HEAD /api/v1/journal`. Its explicit writes
+are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
+`POST /api/v1/workloads/commit`, which approves a qualified exact INDEX with
+expected HEAD/INDEX preconditions. Neither is authenticated or origin-gated on
+an explicitly configured listener. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
-`/explore`. The application routes are `/feed`, coordinate-bound `/explore`
+`/feed?streams=admission.all`. The application routes are `/feed`, coordinate-bound `/explore`
 query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, and `/workloads/$workloadId`. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
@@ -906,8 +908,8 @@ index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
 
-`/workloads` renders the admitted and request-only catalog partitions as two
-native Hifi `KineticDenseTable` relations. The admitted relation keeps
+`/workloads` renders incoming INDEX/WORKING candidates, admitted HEAD, and
+request-only drafts as three native Hifi `KineticDenseTable` relations. The admitted relation keeps
 revision, journey, qualification, freshness, scenario conformance, exact graph
 and test identities, mining output, and attention aligned. The request relation
 keeps intent, admission boundary, target package, request source, and exact
@@ -915,8 +917,12 @@ detail location aligned. Narrow viewports scroll the complete bounded relation;
 they do not collapse those dimensions into cards. `/workloads/$workloadId`
 continues the same grammar: admitted packages expose runtime posture, scenario
 outcomes, exact workload/graph/package/test bindings, and mining output as
-three relations; creation requests expose request posture and exact
-coding-harness bindings as two relations.
+three relations; candidate revisions expose their plane, exact package and
+snapshot identity, qualification posture, and approval boundary; creation
+requests expose request posture and exact coding-harness bindings as two
+relations. The Feed starts with admission rows and an exact-index approval
+control. That control advances HEAD through the same local commit contract as
+the CLI; it never edits WORKING or bypasses qualification.
 
 The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact

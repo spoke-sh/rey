@@ -19,7 +19,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0012](0012-delta-directed-orientation.md) | Accepted | Formal bootstrap/transition lifecycle and bounded delta-directed reasoning surfaces |
 | [0013](0013-runtime-state-and-reasoning-surface-contracts.md) | Accepted; v1 schemas superseded by 0014 | Executable runtime-state reducer and bounded reasoning-surface contracts before scheduling |
 | [0014](0014-frontier-progress-and-scheduling.md) | Accepted; public identity schemas superseded by 0016 | Canonical frontier/progress relations, deterministic bounded work selection, and decision-bound runtime/surface v2 |
-| [0015](0015-workload-centered-product.md) | Accepted; first slice implemented by 0016 | Workload-centered product, scenario-qualified compute graphs, and four-command CLI contract |
+| [0015](0015-workload-centered-product.md) | Accepted; CLI/admission loop superseded by 0049 | Workload-centered product and scenario-qualified compute graphs |
 | [0016](0016-first-workload-slice.md) | Accepted | Built-in zero-agent workload slice, local result index, typed scenario deltas, and workload identity cutover |
 | [0017](0017-mining-capability-model.md) | Accepted | Relational and source mining operations, artifacts, diffs, visualization, and workload/runtime placement |
 | [0018](0018-first-mining-workload.md) | Accepted | Source-search workload, typed relation/text deltas, evidence-linked CLI, and one delta-directed reasoning fixture |
@@ -27,9 +27,9 @@ guide experiments but do not outrank the architecture until accepted.
 | [0020](0020-environment-mapping-graph.md) | Accepted | Human env diff, YAML variable/file/executable graph, safe observations, and removal of manual proof plumbing |
 | [0021](0021-environment-admission-index.md) | Accepted | Unified environment status, HEAD-bound admission index, staged diff, partial add, and index-only commit |
 | [0022](0022-portfolio-mining-and-workload-attention.md) | Accepted | Ongoing portfolio mining, typed workload attention, explicit coverage/blocker/exclusion evidence, and workload-centered CLI placement |
-| [0023](0023-workspace-workload-packages.md) | Accepted | Workspace packages as the default product catalog, frozen generated scenarios, exact proposal provenance, and explicit built-in conformance catalog |
+| [0023](0023-workspace-workload-packages.md) | Accepted; self-declared admission superseded by 0049 | Workspace packages as the default product catalog, frozen generated scenarios, exact proposal provenance, and explicit built-in conformance catalog |
 | [0024](0024-workload-creation-requests.md) | Accepted | Explicit content-addressed workload creation requests, external coding-harness handoff, visible drafts, and strict admission gating |
-| [0025](0025-local-operator-ui.md) | Accepted | Read-only `rey ui`, loopback-first HTTP, embedded TanStack Router application, and pinned Hifi Kinetic Precision grammar |
+| [0025](0025-local-operator-ui.md) | Accepted; workload write boundary superseded by 0049 | Loopback-first HTTP, embedded TanStack Router application, and pinned Hifi Kinetic Precision grammar |
 | [0026](0026-context-topology-explorer.md) | Accepted | UI-first human operation, default context-topology Explorer, semantic zoom regimes, full-screen canvas, and passive revalidation |
 | [0027](0027-environment-operator-delta.md) | Accepted; application presentation superseded by 0031 and status projection by 0033 | Shared CLI/UI environment delta, bounded value capture, env-shaped variable diff, and found/not-found application evidence |
 | [0028](0028-environment-three-plane-diff.md) | Accepted | Three-plane human env diff for unstaged and staged directions with unchanged authoritative JSON |
@@ -45,7 +45,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0038](0038-unauthenticated-hyperlinkable-journal.md) | Accepted | Unauthenticated Journal writes plus exact entry and block hyperlinks |
 | [0039](0039-bounded-operator-feed.md) | Accepted | Bounded high-cadence inspection queue and signal feed without inventing a global event log |
 | [0040](0040-workspace-channels-and-operator-index.md) | Accepted | Standalone frontier observations, Journal seeds, workspace-local channel graph, Git-shaped operator index, Feed persistence, and relay boundary |
-| [0041](0041-continuous-coordinate-topography.md) | Accepted | Hard-cut semantic coordinate/scale links, continuous lens, admitted survey voyages, and incremental evidence-backed context topography |
+| [0041](0041-continuous-coordinate-topography.md) | Accepted; workload admission path superseded by 0049 | Hard-cut semantic coordinate/scale links, continuous lens, admitted survey voyages, and incremental evidence-backed context topography |
 | [0042](0042-world-geometry-and-probe-navigation.md) | Accepted; transport/path projection superseded by 0043 | Six-level World projection and probe horizons |
 | [0043](0043-emergent-natural-features-and-separate-paths.md) | Accepted | Anchor-field relief, unresolved weather, runoff hydrology and erosion, and separate discovered/constructed path evidence |
 | [0044](0044-explorer-projection-engine.md) | Accepted | High-fidelity spatial game engine for evidence-bound high-dimensional projection, 2.5D terrain fidelity, immutable scenes, field/LOD/render-graph boundaries, and renderer qualification |
@@ -53,6 +53,7 @@ guide experiments but do not outrank the architecture until accepted.
 | [0046](0046-read-first-scene-editor.md) | Accepted | Read-first scene editor candidates, exact native GeoJSON objects, Git-shaped staging, immutable packages, and a separate workload admission boundary |
 | [0047](0047-semantic-spherical-atlas.md) | Accepted | Admission-revisioned synthetic semantic sphere, deterministic regional clustering, and World globe projection without an Earth-coordinate claim |
 | [0048](0048-fresh-v1-contract-baseline.md) | Accepted | Destructive fresh v1 public-contract baseline, no compatibility readers, and a Rey-evidence-authored county candidate |
+| [0049](0049-workload-admission-history.md) | Accepted | Git-shaped workload HEAD/INDEX/WORKING, exact staged qualification, human approval, and admission-first UI |
 
 When a decision changes, add a superseding decision and link both documents.
 Do not silently rewrite the context that led to an accepted choice.

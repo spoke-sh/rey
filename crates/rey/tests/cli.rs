@@ -16,7 +16,8 @@ use rey::env::{
 };
 use rey::workloads::{
     QualificationState, WorkloadCatalogKind, WorkloadCreateResult, WorkloadFreshness, WorkloadList,
-    WorkloadOrigin, WorkloadProposalKind, WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
+    WorkloadChangeSet, WorkloadLog, WorkloadOrigin, WorkloadProposalKind, WorkloadRevisionStatus,
+    WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
 };
 use rey_mining::MiningCompleteness;
 use rey_runtime::{
@@ -1958,11 +1959,11 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
     let workspace = TempDir::new().unwrap();
     let package_dir = workspace
         .path()
-        .join("workloads/portfolio-label-normalization");
+        .join("workloads/agent-proposed-normalization");
     fs::create_dir_all(&package_dir).unwrap();
     fs::write(
         package_dir.join("workload.yaml"),
-        include_str!("../../../workloads/portfolio-label-normalization/workload.yaml"),
+        include_str!("fixtures/workloads/agent-proposed-normalization.yaml"),
     )
     .unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
@@ -1973,23 +1974,16 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
     assert!(!workspace.path().join(".rey").exists());
     let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
     assert_eq!(listed.catalog.kind, WorkloadCatalogKind::WorkspacePackages);
-    assert_eq!(listed.workloads.len(), 1);
+    assert!(listed.workloads.is_empty());
+    let revision = listed.revision.as_ref().unwrap();
+    assert_eq!(revision.working.packages.len(), 1);
     assert_eq!(
-        listed.workloads[0].workload.id,
-        "rey.portfolio.label-normalization"
+        revision.working.packages[0].workload_id,
+        "rey.fixture.agent-proposed-normalization"
     );
-    let provenance = listed.workloads[0].provenance.as_ref().unwrap();
-    assert_eq!(provenance.origin, WorkloadOrigin::WorkspacePackage);
-    assert_eq!(
-        provenance.generation.as_ref().map(|value| value.kind),
-        Some(WorkloadProposalKind::CodingHarness)
-    );
-    assert!(
-        listed
-            .workloads
-            .iter()
-            .all(|workload| !workload.workload.id.starts_with("rey.fixture."))
-    );
+    assert_eq!(revision.unstaged.inserted, 1);
+    assert!(!revision.commit_ready);
+
     let conformance = run_rey_workspace(&[
         "workloads",
         "--workspace",
@@ -2006,26 +2000,39 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
     );
     assert_eq!(conformance.workloads.len(), 4);
 
-    let table = run_rey_workspace(&[
+    let staged = run_rey_workspace(&[
         "workloads",
         "--workspace",
         workspace_path,
-        "list",
+        "add",
         "--format",
         "table",
     ]);
-    let table = String::from_utf8(table.stdout).unwrap();
-    assert!(table.contains("Catalog                WORKSPACE PACKAGES · 1 admitted · 0 draft"));
-    assert!(table.contains("Origin                 WORKSPACE PACKAGE · workloads/"));
-    assert!(table.contains("Generator              CODING HARNESS · codex@gpt-5"));
-    assert!(table.contains("Scenario oracle        FROZEN AT ADMISSION"));
+    assert!(staged.status.success());
+    let staged = String::from_utf8(staged.stdout).unwrap();
+    assert!(staged.contains("WORKLOAD INDEX"));
+    assert!(staged.contains("not admitted · not runnable"));
+
+    let staged_diff = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "diff",
+        "--staged",
+    ]);
+    assert!(staged_diff.status.success());
+    let staged_diff: WorkloadChangeSet = serde_json::from_slice(&staged_diff.stdout).unwrap();
+    assert_eq!(staged_diff.inserted, 1);
+    assert_eq!(staged_diff.source_label, "HEAD");
+    assert_eq!(staged_diff.target_label, "INDEX");
 
     let tested = run_rey_workspace(&[
         "workloads",
         "--workspace",
         workspace_path,
         "test",
-        "rey.portfolio.label-normalization",
+        "--staged",
+        "rey.fixture.agent-proposed-normalization",
     ]);
     assert!(tested.status.success());
     let tested: WorkloadTestBatch = serde_json::from_slice(&tested.stdout).unwrap();
@@ -2033,26 +2040,47 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
     assert_eq!(tested.results[0].status, TestStatus::Passed);
     assert_eq!(tested.workloads[0].origin, WorkloadOrigin::WorkspacePackage);
 
-    let status = run_rey_workspace(&[
+    let status = run_rey_workspace(&["workloads", "--workspace", workspace_path, "status"]);
+    assert!(status.status.success());
+    let status: WorkloadRevisionStatus = serde_json::from_slice(&status.stdout).unwrap();
+    assert!(status.commit_ready);
+    assert!(status.qualification_omissions.is_empty());
+
+    let committed = run_rey_workspace(&[
         "workloads",
         "--workspace",
         workspace_path,
-        "status",
-        "rey.portfolio.label-normalization",
+        "commit",
+        "-m",
+        "Approve agent normalization fixture",
     ]);
-    assert!(status.status.success());
-    let status: WorkloadStatusBatch = serde_json::from_slice(&status.stdout).unwrap();
-    assert_eq!(status.catalog.kind, WorkloadCatalogKind::WorkspacePackages);
+    assert!(committed.status.success());
+
+    let log = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "log",
+        "--patch",
+    ]);
+    assert!(log.status.success());
+    let log: WorkloadLog = serde_json::from_slice(&log.stdout).unwrap();
+    assert_eq!(log.total_commits, 1);
+    assert_eq!(log.commits[0].sequence, 1);
+    assert_eq!(log.commits[0].message, "Approve agent normalization fixture");
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(listed.workloads.len(), 1);
+    let provenance = listed.workloads[0].provenance.as_ref().unwrap();
+    assert_eq!(provenance.origin, WorkloadOrigin::WorkspacePackage);
     assert_eq!(
-        status.statuses[0]
-            .summary
-            .provenance
-            .as_ref()
-            .map(|value| value.origin),
-        Some(WorkloadOrigin::WorkspacePackage)
+        provenance.generation.as_ref().map(|value| value.kind),
+        Some(WorkloadProposalKind::CodingHarness)
     );
     assert_eq!(
-        status.statuses[0].summary.qualification,
+        listed.workloads[0].qualification,
         QualificationState::Qualified
     );
 
@@ -2061,7 +2089,7 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
         "--workspace",
         workspace_path,
         "run",
-        "rey.portfolio.label-normalization",
+        "rey.fixture.agent-proposed-normalization",
         "--input",
         " create ",
     ]);
@@ -2074,18 +2102,26 @@ fn workspace_package_is_the_default_catalog_and_retains_harness_provenance() {
         rey_runtime::WorkloadValue::Utf8("CREATE".to_owned())
     );
 
-    let revised = include_str!("../../../workloads/portfolio-label-normalization/workload.yaml")
-        .replace(
-            "producer_revision: gpt-5",
-            "producer_revision: gpt-5-revised",
-        );
+    let revised = include_str!("fixtures/workloads/agent-proposed-normalization.yaml").replace(
+        "producer_revision: fixture-v1",
+        "producer_revision: fixture-v2",
+    );
     fs::write(package_dir.join("workload.yaml"), revised).unwrap();
-    let relisted = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
-    assert!(relisted.status.success());
-    let relisted: WorkloadList = serde_json::from_slice(&relisted.stdout).unwrap();
-    assert_eq!(
-        relisted.workloads[0].qualification,
-        QualificationState::Stale
+    let status = run_rey_workspace(&["workloads", "--workspace", workspace_path, "status"]);
+    assert!(status.status.success());
+    let status: WorkloadRevisionStatus = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(status.unstaged.modified, 1);
+
+    let restaged = run_rey_workspace(&["workloads", "--workspace", workspace_path, "add"]);
+    assert!(restaged.status.success());
+    let status = run_rey_workspace(&["workloads", "--workspace", workspace_path, "status"]);
+    let status: WorkloadRevisionStatus = serde_json::from_slice(&status.stdout).unwrap();
+    assert!(!status.commit_ready);
+    assert!(
+        status
+            .qualification_omissions
+            .iter()
+            .any(|omission| omission.contains("exact INDEX snapshot"))
     );
 }
 
@@ -2153,35 +2189,36 @@ fn workload_create_is_a_visible_coding_harness_request_and_admission_boundary() 
     assert!(listed.workloads.is_empty());
     assert_eq!(listed.drafts[0].request.workload_id, "api-drift");
 
-    let status = run_rey_workspace(&[
-        "workloads",
-        "--workspace",
-        workspace_path,
-        "status",
-        "api-drift",
-    ]);
+    let status = run_rey_workspace(&["workloads", "--workspace", workspace_path, "status"]);
     assert!(status.status.success());
-    let status: WorkloadStatusBatch = serde_json::from_slice(&status.stdout).unwrap();
-    assert!(status.statuses.is_empty());
+    let status: WorkloadRevisionStatus = serde_json::from_slice(&status.stdout).unwrap();
+    assert!(status.working.packages.is_empty());
     assert_eq!(
         status.drafts[0].request.intent.as_deref(),
         Some("Mine API drift and formalize authoritative scenarios")
     );
 
-    for command in ["test", "run"] {
-        let rejected = run_rey_workspace(&[
-            "workloads",
-            "--workspace",
-            workspace_path,
-            command,
-            "api-drift",
-        ]);
-        assert_eq!(rejected.status.code(), Some(1));
-        assert!(rejected.stdout.is_empty());
-        assert!(
-            String::from_utf8_lossy(&rejected.stderr).contains("awaiting coding harness hydration")
-        );
-    }
+    let unqualified = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "test",
+        "api-drift",
+    ]);
+    assert_eq!(unqualified.status.code(), Some(1));
+    assert!(unqualified.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&unqualified.stderr).contains("requires --staged"));
+
+    let unadmitted = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "api-drift",
+    ]);
+    assert_eq!(unadmitted.status.code(), Some(1));
+    assert!(unadmitted.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&unadmitted.stderr).contains("unknown workload api-drift"));
 
     let duplicate = run_rey_workspace(&[
         "workloads",
@@ -2367,10 +2404,11 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Exposure               LOOPBACK ONLY",
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
-        "Data plane             LIVE READS · UNAUTHENTICATED JOURNAL WRITE",
-        "Human entry            /explore",
+        "Data plane             LIVE READS · JOURNAL WRITE · WORKLOAD APPROVAL",
+        "Human entry            /feed?streams=admission.all",
+        "Workload approval      ENABLED · EXACT INDEX → HEAD",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads",
+        "/api/v1/health · /api/v1/cadence · /api/v1/environment · /api/v1/journal · /api/v1/workloads · /api/v1/workloads/commit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         https://github.com/spoke-sh/rey · ",
     ] {
@@ -2420,10 +2458,11 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert_eq!(descriptor["loopback_only"], false);
     assert_eq!(descriptor["read_only"], false);
     assert_eq!(descriptor["journal_write_enabled"], true);
+    assert_eq!(descriptor["workload_admission_enabled"], true);
     assert_eq!(descriptor["application"], "tanstack_router");
     assert_eq!(descriptor["grammar"], "kinetic");
     assert_eq!(descriptor["theme"], "precision");
-    assert_eq!(descriptor["entry_route"], "/explore");
+    assert_eq!(descriptor["entry_route"], "/feed?streams=admission.all");
     assert_eq!(descriptor["live_refresh_interval_ms"], 5_000);
     assert_eq!(
         descriptor["source_repository"],
@@ -2437,7 +2476,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
     let mut warning = String::new();
     network_stderr.read_line(&mut warning).unwrap();
-    assert!(warning.contains("unauthenticated Journal writes enabled"));
+    assert!(warning.contains("exact workload approval enabled"));
 
     let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
     let proposal = serde_json::json!({
@@ -3036,11 +3075,23 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     let workspace_path = workspace.path().to_str().unwrap();
     materialize_context_topography_fixture(workspace.path());
 
+    let staged = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "add",
+        "--format",
+        "table",
+    ]);
+    assert!(staged.status.success());
+    assert!(String::from_utf8_lossy(&staged.stdout).contains("WORKLOAD INDEX"));
+
     let tested = run_rey_workspace(&[
         "workloads",
         "--workspace",
         workspace_path,
         "test",
+        "--staged",
         "context-anchor-survey",
         "--format",
         "table",
@@ -3092,6 +3143,20 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
             "missing topography evidence: {needle}"
         );
     }
+
+    let committed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "Admit context anchor survey",
+    ]);
+    assert!(
+        committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&committed.stderr)
+    );
 
     let readme_path = workspace.path().join("README.md");
     let mut expanded_readme = fs::read_to_string(&readme_path).unwrap();
@@ -3223,17 +3288,13 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "--workspace",
         workspace_path,
         "status",
-        "context-anchor-survey",
         "--format",
         "table",
     ]);
     assert!(status.status.success());
     let status = String::from_utf8(status.stdout).unwrap();
-    assert!(status.contains("Topography revision"));
-    assert!(status.contains("Topography coverage"));
-    assert!(status.contains("unique candidates resolved ·"));
-    assert!(status.contains("frontier"));
-    assert!(status.contains("Topography patch:"));
+    assert!(status.contains("On workload WORKLOAD@1"));
+    assert!(status.contains("nothing to admit, working workload catalog clean"));
 
     let mut ui = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([

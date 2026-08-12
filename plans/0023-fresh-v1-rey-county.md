@@ -31,9 +31,12 @@ evidence, and `/explore`.
 
 - [x] Observe the process-owned environment with `rey env status`, then stage
       and commit the exact fresh v1 tool snapshot.
-- [x] Qualify both workspace workloads through `rey workloads test`.
+- [x] Qualify the then-current workspace workload set through the former
+      pre-admission `rey workloads test` surface; ADR 0049 supersedes that
+      lifecycle with exact INDEX qualification.
 - [x] Run the context-anchor survey over an explicit bounded corpus and run
-      the portfolio label-normalization workload over an explicit input.
+      the then-checked-in normalization proof over an explicit input. ADR 0049
+      removes that proof from the product catalog.
 - [x] Record exact tool, workload, graph, package, result, and topography
       identities used to author the scene.
 

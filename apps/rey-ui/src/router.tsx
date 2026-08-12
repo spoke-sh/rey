@@ -55,6 +55,7 @@ import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 import {
   AdmittedWorkloadDetail,
+  CandidateWorkloadDetail,
   DraftWorkloadDetail,
   WorkloadsPage,
 } from "./workloads";
@@ -886,6 +887,23 @@ function WorkloadDetailRoutePage() {
   const draft = portfolio.drafts.find(
     (candidate) => candidate.request.workload_id === workloadId,
   );
+  const revision = portfolio.revision;
+  const stagedCandidate = revision?.staged.changes.some(
+    (change) => change.workload_id === workloadId,
+  )
+    ? revision?.index?.packages.find((item) => item.workload_id === workloadId)
+    : undefined;
+  const workingCandidate = revision?.unstaged.changes.some(
+    (change) => change.workload_id === workloadId,
+  )
+    ? revision?.working.packages.find((item) => item.workload_id === workloadId)
+    : undefined;
+  const candidate = stagedCandidate ?? workingCandidate;
+
+  if (candidate && revision)
+    return (
+      <CandidateWorkloadDetail candidate={candidate} revision={revision} />
+    );
 
   if (draft) return <DraftWorkloadDetail draft={draft} />;
 

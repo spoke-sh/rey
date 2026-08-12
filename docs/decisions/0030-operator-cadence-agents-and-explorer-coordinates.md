@@ -55,7 +55,7 @@ Examples are:
 
 ```text
 /explore/portfolio/current;at=blake3%3A...;lens=landscape
-/explore/workload/rey.portfolio.label-normalization;at=blake3%3A...;lens=objects
+/explore/workload/context-anchor-survey;at=blake3%3A...;lens=objects
 /explore/attention/blake3%3A...;at=blake3%3A...;lens=objects
 /explore/agent/codex;at=gpt-5;lens=objects;role=coding_harness
 ```

@@ -1,6 +1,6 @@
 # ADR 0041: Continuous Coordinate Topography
 
-- Status: Accepted
+- Status: Accepted; workload admission path superseded by ADR 0049
 - Date: 2026-08-10
 - Extends: [ADR 0017](0017-mining-capability-model.md), [ADR
   0026](0026-context-topology-explorer.md), and [ADR

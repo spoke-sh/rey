@@ -26,10 +26,6 @@ generation:
     - source: docs/decisions/0041-continuous-coordinate-topography.md
       revision: git:f9e0a8c4daf2bc537f9e91d10bc8afd584878c6e
 
-admission:
-  state: accepted
-  scenario_oracle: frozen
-
 graph:
   id: context-anchor-survey.graph
   revision: 1

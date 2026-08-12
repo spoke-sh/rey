@@ -1,7 +1,7 @@
 # Plan 0010: Portfolio Mining And Workload Attention
 
 - Status: Active
-- Decisions: [ADR 0022](../docs/decisions/0022-portfolio-mining-and-workload-attention.md), [ADR 0023](../docs/decisions/0023-workspace-workload-packages.md), [ADR 0024](../docs/decisions/0024-workload-creation-requests.md)
+- Decisions: [ADR 0022](../docs/decisions/0022-portfolio-mining-and-workload-attention.md), [ADR 0023](../docs/decisions/0023-workspace-workload-packages.md), [ADR 0024](../docs/decisions/0024-workload-creation-requests.md), [ADR 0049](../docs/decisions/0049-workload-admission-history.md)
 
 ## Outcome
 
@@ -16,8 +16,10 @@ workload, while workspace packages are now the default product catalog:
 
 ```text
 rey workloads create <workload-id> --intent <bounded-objective>
+rey workloads status
+rey workloads add
+rey workloads test --staged -vv
 rey workloads list
-rey workloads test -vv
 rey workloads --catalog conformance test rey.portfolio.attention -vv
 rey workloads --catalog conformance run rey.portfolio.attention
 ```
@@ -45,11 +47,12 @@ rey workloads --catalog conformance run rey.portfolio.attention
   `rey.workload-package.v1` workspace packages; keep system/fixture workloads
   behind explicit `--catalog conformance`.
 - [x] Bind coding-harness producer/revision/inputs, generated graph and suite
-  roles, accepted admission, frozen scenario oracle, package source digest,
-  and source path into the resolved workload surface and freshness identity.
-- [x] Prove one checked-in harness-generated package through default
-  `list`, `test`, `run`, and `status` resolution, including staleness after a
-  provenance-only package revision.
+  roles, frozen scenario oracle, package source digest, and source path into
+  the WORKING proposal; bind admission separately through exact workload
+  INDEX qualification and human commit.
+- [x] Prove one harness-generated package through WORKING, INDEX,
+  qualification, HEAD, and run, including requalification after a
+  provenance-only restage.
 - [x] Add `workloads create` as a bounded content-addressed request for an
   external coding harness; expose request-only packages as visible drafts and
   reject their test/run admission without fabricating graphs or scenarios.
@@ -67,8 +70,8 @@ rey workloads --catalog conformance run rey.portfolio.attention
 
 ## Current Proof
 
-Implemented tests exercise the typed derivation and the five-command CLI
-surface. In particular, an admitted `rey.env-map` input file with no declared
+Implemented tests exercise the typed derivation and workload CLI surface. In
+particular, an admitted `rey.env-map` input file with no declared
 owner appears as a ready `CREATE` row in `workloads list` and in a qualified
 portfolio run. The portfolio workload's six required scenarios retain the
 authoritative relation alongside their exact expected-to-observed text delta.
@@ -85,11 +88,10 @@ just build
 ```
 
 A human CLI walkthrough used isolated workload state against this workspace.
-Default `list` resolved only the workspace package and exposed its coding-
-harness producer, exact package revision, and frozen oracle. `test -vv`
-qualified both generated scenarios with exact workload/graph/suite/evaluator/
-execution/delta bindings. `status` reopened package provenance and retained
-qualification; `run` executed the same graph and produced `CREATE`. Explicit
+The current admission proof leaves product packages outside HEAD until `add`,
+exact `test --staged`, and human commit. After approval, `list` exposes the
+coding-harness producer, exact package revision, and frozen oracle and `run`
+executes that same graph. Explicit
 `--catalog conformance list` separately rendered the four compiled system and
 fixture workloads with unmistakable origin labels. The integration test also
 changes only harness provenance and proves that retained qualification becomes
@@ -108,10 +110,11 @@ adding a new peer resource hierarchy. `workloads create` now owns the exact
 request and visible `AWAITING CODING HARNESS` draft. Next, bind one selected
 attention row, reasoning surface, current package/graph/suite identities,
 failing deltas, permitted operations, and limits into that request. A harness
-response must materialize an immutable candidate package revision; Rey then
-validates the package, runs its already-frozen scenarios, and reports whether
-attention changed. The CLI must visibly distinguish `AWAITING CODING HARNESS`,
-`PROPOSAL REJECTED`, `SCENARIOS FAILING`, and `QUALIFIED`.
+response must materialize an immutable WORKING package revision; Rey then
+validates it, stages exact bytes, runs its already-frozen scenarios, and awaits
+human approval before reporting whether admitted attention changed. The CLI
+must visibly distinguish `AWAITING CODING HARNESS`, `WORKING`, `INDEX
+UNQUALIFIED`, `INDEX QUALIFIED`, and `HEAD`.
 
 Surface ownership remains the first meaningful proposal payload: one unowned
 mapped source should become an admitted owned workload, then a changed retained

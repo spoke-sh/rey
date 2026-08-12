@@ -51,7 +51,7 @@ comparison, and broader proof coverage.
 
 ## Phase 3 — Mining-Powered Workload Compute Graphs
 
-The compiled workload catalog, four-command CLI, typed DAG, scenario
+The explicit compiled conformance catalog, workload CLI projections, typed DAG, scenario
 qualification, common mining manifests, exact local literal search, typed match
 and ordered text deltas, source-search workload, linked human projections, and
 one failure-derived reasoning surface are delivered. Plan 0010 also delivers

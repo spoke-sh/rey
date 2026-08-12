@@ -1,4 +1,4 @@
-import type { FeedSources } from "./api";
+import { approveWorkloadIndex, type FeedSources } from "./api";
 import { useEffect, useState, type ReactNode } from "react";
 import type { CadenceProjection, CadenceTick } from "./cadence";
 import {
@@ -105,7 +105,13 @@ export function normalizeFeedStreamName(value: string): string | undefined {
 
 export interface InspectionRow {
   id: string;
-  source: "ATTENTION" | "QUALIFICATION" | "REPOSITORY" | "REQUEST";
+  source:
+    | "ATTENTION"
+    | "INDEX"
+    | "QUALIFICATION"
+    | "REPOSITORY"
+    | "REQUEST"
+    | "WORKING";
   subject: string;
   signal: string;
   detail: string;
@@ -139,24 +145,69 @@ export function deriveInspectionQueue(
   portfolio: WorkloadList,
   cadence: CadenceProjection,
 ): InspectionRow[] {
-  const rows: InspectionRow[] = portfolio.attention.rows
-    .filter((row) => row.readiness !== "excluded")
-    .map((row) => ({
-      id: `attention:${row.row_id}`,
-      source: "ATTENTION",
-      subject: row.subject_id,
-      signal: row.action.toUpperCase(),
-      detail: row.reason,
-      urgency: urgencyForReadiness(row.readiness),
-      priority: row.priority,
-      sortPriority: row.priority,
-      basis: `${row.evidence_ids.length} evidence · ${row.dependency_ids.length} dependencies · C${row.estimated_cost_units}`,
-      href:
-        row.subject_kind === "workload"
-          ? `/workloads/${encodeURIComponent(row.subject_id)}`
-          : "/explore",
-      location: row.subject_kind === "workload" ? "WORKLOAD" : "EXPLORE",
-    }));
+  const rows: InspectionRow[] = [];
+  const revision = portfolio.revision;
+  for (const change of revision?.staged.changes ?? []) {
+    const packageSnapshot = revision?.index?.packages.find(
+      (candidate) => candidate.workload_id === change.workload_id,
+    );
+    rows.push({
+      id: `workload-index:${change.workload_id}:${revision?.index?.snapshot_revision ?? "missing"}`,
+      source: "INDEX",
+      subject: change.workload_id,
+      signal: revision?.commit_ready ? "APPROVE" : "QUALIFY",
+      detail: revision?.commit_ready
+        ? `${packageSnapshot?.title ?? change.workload_id} is frozen, qualified, and awaiting human approval.`
+        : `${packageSnapshot?.title ?? change.workload_id} is staged but cannot be admitted until its exact INDEX revision passes qualification.`,
+      urgency: revision?.commit_ready ? "NOW" : "WATCH",
+      priority: null,
+      sortPriority: revision?.commit_ready ? 100 : 50,
+      basis: `${change.change_kind} · ${packageSnapshot?.source_digest ?? change.target_revision ?? "missing digest"}`,
+      href: `/workloads/${encodeURIComponent(change.workload_id)}`,
+      location: "ADMISSION",
+    });
+  }
+  for (const change of revision?.unstaged.changes ?? []) {
+    const packageSnapshot = revision?.working.packages.find(
+      (candidate) => candidate.workload_id === change.workload_id,
+    );
+    rows.push({
+      id: `workload-working:${change.workload_id}:${revision?.working.snapshot_revision ?? "missing"}`,
+      source: "WORKING",
+      subject: change.workload_id,
+      signal: "STAGE",
+      detail: `${packageSnapshot?.title ?? change.workload_id} has agent-authored package changes that are not frozen for admission.`,
+      urgency: "WATCH",
+      priority: null,
+      sortPriority: 25,
+      basis: `${change.change_kind} · ${packageSnapshot?.source_digest ?? change.target_revision ?? "missing digest"}`,
+      href: `/workloads/${encodeURIComponent(change.workload_id)}`,
+      location: "WORKLOAD",
+    });
+  }
+  rows.push(
+    ...portfolio.attention.rows
+      .filter((row) => row.readiness !== "excluded")
+      .map(
+        (row) =>
+          ({
+            id: `attention:${row.row_id}`,
+            source: "ATTENTION",
+            subject: row.subject_id,
+            signal: row.action.toUpperCase(),
+            detail: row.reason,
+            urgency: urgencyForReadiness(row.readiness),
+            priority: row.priority,
+            sortPriority: row.priority,
+            basis: `${row.evidence_ids.length} evidence · ${row.dependency_ids.length} dependencies · C${row.estimated_cost_units}`,
+            href:
+              row.subject_kind === "workload"
+                ? `/workloads/${encodeURIComponent(row.subject_id)}`
+                : "/explore",
+            location: row.subject_kind === "workload" ? "WORKLOAD" : "EXPLORE",
+          }) satisfies InspectionRow,
+      ),
+  );
   const subjectsWithAttention = new Set(
     portfolio.attention.rows.map(
       (row) => `${row.subject_kind}:${row.subject_id}`,
@@ -545,11 +596,7 @@ function FeedStream({
             {filteredQueue.length > 0 ? (
               <ReyBriefing queue={filteredQueue} />
             ) : null}
-            <div className={sx(styles.admissionBoundary)}>
-              <span className={sx(chrome.micro)}>ADMISSION CONTROL</span>
-              <strong>INSPECT-ONLY</strong>
-              <p>No browser contract admits an action into Flow yet.</p>
-            </div>
+            <AdmissionControl portfolio={portfolio} />
             {filteredQueue.map((row) => (
               <AdmissionPost key={row.id} row={row} />
             ))}
@@ -576,6 +623,72 @@ function FeedStream({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function AdmissionControl({ portfolio }: { portfolio: WorkloadList }) {
+  const revision = portfolio.revision;
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const index = revision?.index;
+  const enabled = Boolean(revision?.commit_ready && index && message.trim());
+  const approve = async () => {
+    if (!revision || !index || !enabled) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await approveWorkloadIndex({
+        message: message.trim(),
+        expected_head: revision.head?.commit_id ?? "EMPTY",
+        expected_index: index.snapshot_revision,
+      });
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className={sx(styles.admissionBoundary)}>
+      <span className={sx(chrome.micro)}>ADMISSION CONTROL</span>
+      <strong>
+        {revision?.commit_ready
+          ? `${index?.packages.length ?? 0} QUALIFIED / READY`
+          : index
+            ? "INDEX REQUIRES QUALIFICATION"
+            : "NO STAGED INDEX"}
+      </strong>
+      <p>
+        {revision?.admission_boundary ??
+          "No workload revision state is available."}
+      </p>
+      {index ? (
+        <>
+          <code title={index.snapshot_revision}>
+            INDEX / {shortDigest(index.snapshot_revision)}
+          </code>
+          <input
+            aria-label="Workload approval message"
+            className={sx(styles.admissionMessage)}
+            disabled={!revision?.commit_ready || submitting}
+            maxLength={4096}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="Why are you admitting this workload revision?"
+            value={message}
+          />
+          <button
+            className={sx(styles.admissionApprove)}
+            disabled={!enabled || submitting}
+            onClick={() => void approve()}
+            type="button"
+          >
+            {submitting ? "ADMITTING…" : "APPROVE EXACT INDEX"}
+          </button>
+        </>
+      ) : null}
+      {error ? <p role="alert">{error}</p> : null}
+    </div>
   );
 }
 

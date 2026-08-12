@@ -1,9 +1,9 @@
 schema: rey.workload-package.v1
 
 workload:
-  id: rey.portfolio.label-normalization
+  id: rey.fixture.agent-proposed-normalization
   revision: 1
-  title: Normalize portfolio attention labels
+  title: Normalize a proposed label
   inputs:
     - port_id: text
       value_type: utf8
@@ -14,22 +14,16 @@ workload:
 generation:
   kind: coding_harness
   producer: codex
-  producer_revision: gpt-5
+  producer_revision: fixture-v1
   generated:
     - compute_graph
     - scenario_suite
   inputs:
-    - source: plans/0010-portfolio-mining-and-workload-attention.md
-      revision: git:7f108d2fe655cffea830d9dd36da4ecbb9a104f1
-    - source: docs/WORKLOADS.md
-      revision: git:7f108d2fe655cffea830d9dd36da4ecbb9a104f1
-
-admission:
-  state: accepted
-  scenario_oracle: frozen
+    - source: AGENTS.md
+      revision: fixture:agents-v1
 
 graph:
-  id: rey.portfolio.label-normalization.graph
+  id: rey.fixture.agent-proposed-normalization.graph
   revision: 1
   nodes:
     - id: trim
@@ -58,7 +52,7 @@ graph:
       value_type: utf8
 
 scenarios:
-  id: rey.portfolio.label-normalization.scenarios
+  id: rey.fixture.agent-proposed-normalization.scenarios
   revision: 1
   cases:
     - id: plain

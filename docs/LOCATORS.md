@@ -30,7 +30,7 @@ Representative families are:
 env://PATH
 worktree:///src/lib.rs?revision=<worktree-id>#L40-L62
 git://<commit>/src/lib.rs#L40-L62
-rey-workload://portfolio-label-normalization?revision=<revision>
+rey-workload://context-anchor-survey?revision=<revision>
 rey+local://agent/codex?revision=gpt-5&role=coding_harness
 spoke+local://<provider-owned-identity>
 ```

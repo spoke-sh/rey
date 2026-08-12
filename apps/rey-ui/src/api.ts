@@ -11,7 +11,14 @@ export interface UiServerIdentity {
   source_repository: string;
   implementation_revision: string;
   journal_write_enabled: boolean;
+  workload_admission_enabled: boolean;
   read_only: boolean;
+}
+
+export interface WorkloadApprovalRequest {
+  message: string;
+  expected_head: string;
+  expected_index: string;
 }
 
 export type OperatorContext = WorkloadList & {
@@ -103,4 +110,23 @@ export async function admitJournalEntry(
     throw new Error(`Journal admission failed (${response.status}): ${detail}`);
   }
   return (await response.json()) as JournalAdmission;
+}
+
+export async function approveWorkloadIndex(
+  approval: WorkloadApprovalRequest,
+): Promise<void> {
+  const response = await fetch("/api/v1/workloads/commit", {
+    body: JSON.stringify(approval),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Workload admission failed (${response.status}): ${detail}`,
+    );
+  }
 }

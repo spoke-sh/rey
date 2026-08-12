@@ -5,7 +5,9 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use chrono::{DateTime, Utc};
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
+use rey_diff::DeltaAssessment;
 use rey_environment::{CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
 use rey_mining::{ProjectionPacket, SemanticAtlas, TopographyCoverage, TopographyPatch};
 use rey_runtime::{
@@ -31,8 +33,16 @@ pub const WORKLOAD_CREATION_REQUEST_SCHEMA: &str = "rey.workload-creation-reques
 pub const WORKLOAD_CREATE_RESULT_SCHEMA: &str = "rey.workload-create-result.v1";
 pub const WORKLOAD_CATALOG_SCHEMA: &str = "rey.workload-catalog.v1";
 pub const WORKLOAD_RUN_VIEW_SCHEMA: &str = "rey.workload-run-view.v1";
+pub const WORKLOAD_ADMISSION_SNAPSHOT_SCHEMA: &str = "rey.workload-admission-snapshot.v1";
+pub const WORKLOAD_CHANGE_SET_SCHEMA: &str = "rey.workload-change-set.v1";
+pub const WORKLOAD_REVISION_STATUS_SCHEMA: &str = "rey.workload-revision-status.v1";
+pub const WORKLOAD_ADD_RESULT_SCHEMA: &str = "rey.workload-add-result.v1";
+pub const WORKLOAD_COMMIT_SCHEMA: &str = "rey.workload-commit.v1";
+pub const WORKLOAD_COMMIT_RESULT_SCHEMA: &str = "rey.workload-commit-result.v1";
+pub const WORKLOAD_LOG_SCHEMA: &str = "rey.workload-log.v1";
 
 const STATE_FILE_NAME: &str = "state.json";
+const LOCK_FILE_NAME: &str = "workloads.lock";
 const MAX_STATE_BYTES: u64 = 4 * 1_024 * 1_024;
 const MAX_STATE_RECORDS: usize = 64;
 const WORKLOAD_PACKAGE_FILE_NAME: &str = "workload.yaml";
@@ -42,6 +52,8 @@ const MAX_WORKLOAD_PACKAGE_BYTES: u64 = 1_024 * 1_024;
 const MAX_GENERATION_INPUTS: usize = 64;
 const MAX_PROVENANCE_TEXT_BYTES: usize = 1_024;
 const MAX_WORKLOAD_INTENT_BYTES: usize = 16 * 1_024;
+const MAX_WORKLOAD_COMMITS: usize = 256;
+const MAX_COMMIT_MESSAGE_BYTES: usize = 4_096;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -217,6 +229,303 @@ pub struct WorkloadCreateResult {
     pub next: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadPackageSnapshot {
+    pub workload_id: String,
+    pub workload_revision: u64,
+    pub title: String,
+    pub source: String,
+    pub source_digest: SemanticDigest,
+    pub object_path: String,
+    pub bytes: u64,
+    pub generation: WorkloadGeneratorProvenance,
+    pub workload: ContractIdentity,
+    pub graph: ContractIdentity,
+    pub scenario_suite: ContractIdentity,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadAdmissionSnapshot {
+    pub schema: String,
+    pub snapshot_revision: SemanticDigest,
+    pub packages: Vec<WorkloadPackageSnapshot>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkloadChangeKind {
+    Inserted,
+    Deleted,
+    Modified,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadChange {
+    pub workload_id: String,
+    pub change_kind: WorkloadChangeKind,
+    pub source_revision: Option<SemanticDigest>,
+    pub target_revision: Option<SemanticDigest>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadChangeSet {
+    pub schema: String,
+    pub source_label: String,
+    pub target_label: String,
+    pub source_revision: Option<SemanticDigest>,
+    pub target_revision: Option<SemanticDigest>,
+    pub assessment: DeltaAssessment,
+    pub inserted: u64,
+    pub deleted: u64,
+    pub modified: u64,
+    pub changes: Vec<WorkloadChange>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkloadWorkingState {
+    Clean,
+    Working,
+    Staged,
+    Mixed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadCommit {
+    pub schema: String,
+    pub commit_id: SemanticDigest,
+    pub sequence: u64,
+    pub parent_commit_id: Option<SemanticDigest>,
+    pub committed_at_unix: i64,
+    pub message: String,
+    pub snapshot: WorkloadAdmissionSnapshot,
+    pub qualification_ids: Vec<SemanticDigest>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadRevisionStatus {
+    pub schema: String,
+    pub state: WorkloadWorkingState,
+    pub head: Option<WorkloadCommit>,
+    pub index: Option<WorkloadAdmissionSnapshot>,
+    pub working: WorkloadAdmissionSnapshot,
+    pub staged: WorkloadChangeSet,
+    pub unstaged: WorkloadChangeSet,
+    pub drafts: Vec<WorkloadDraft>,
+    pub commit_ready: bool,
+    pub qualification_omissions: Vec<String>,
+    pub admission_boundary: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadAddResult {
+    pub schema: String,
+    pub staged: bool,
+    pub snapshot: WorkloadAdmissionSnapshot,
+    pub delta: WorkloadChangeSet,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadCommitResult {
+    pub schema: String,
+    pub commit: WorkloadCommit,
+    pub delta: WorkloadChangeSet,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkloadLog {
+    pub schema: String,
+    pub head_commit_id: Option<SemanticDigest>,
+    pub total_commits: u64,
+    pub selected_commits: u64,
+    pub patch: bool,
+    pub commits: Vec<WorkloadCommit>,
+}
+
+impl WorkloadAdmissionSnapshot {
+    fn new(mut packages: Vec<WorkloadPackageSnapshot>) -> Result<Self, LocalWorkloadStateError> {
+        packages.sort_by(|left, right| left.workload_id.cmp(&right.workload_id));
+        let mut snapshot = Self {
+            schema: WORKLOAD_ADMISSION_SNAPSHOT_SCHEMA.to_owned(),
+            snapshot_revision: workload_digest_placeholder(),
+            packages,
+        };
+        snapshot.snapshot_revision = workload_snapshot_identity(&snapshot);
+        snapshot.verify()?;
+        Ok(snapshot)
+    }
+
+    fn verify(&self) -> Result<(), LocalWorkloadStateError> {
+        if self.schema != WORKLOAD_ADMISSION_SNAPSHOT_SCHEMA {
+            return Err(LocalWorkloadStateError::SnapshotSchema(self.schema.clone()));
+        }
+        if self.packages.len() > MAX_WORKLOAD_PACKAGES {
+            return Err(LocalWorkloadStateError::SnapshotLimit(
+                MAX_WORKLOAD_PACKAGES,
+            ));
+        }
+        let mut previous = None;
+        for package in &self.packages {
+            validate_workload_id(&package.workload_id)?;
+            if previous.is_some_and(|previous| previous >= package.workload_id.as_str()) {
+                return Err(LocalWorkloadStateError::NonCanonicalSnapshot);
+            }
+            previous = Some(package.workload_id.as_str());
+            if package.workload.id != package.workload_id
+                || package.workload.revision != package.workload_revision
+                || package.source.is_empty()
+                || package.object_path.is_empty()
+                || package.bytes == 0
+            {
+                return Err(LocalWorkloadStateError::SnapshotPackage(
+                    package.workload_id.clone(),
+                ));
+            }
+        }
+        if self.snapshot_revision != workload_snapshot_identity(self) {
+            return Err(LocalWorkloadStateError::SnapshotIdentity);
+        }
+        Ok(())
+    }
+}
+
+impl WorkloadChangeSet {
+    #[must_use]
+    pub fn derive(
+        source_label: &str,
+        source: Option<&WorkloadAdmissionSnapshot>,
+        target_label: &str,
+        target: Option<&WorkloadAdmissionSnapshot>,
+    ) -> Self {
+        let source_packages = source
+            .into_iter()
+            .flat_map(|snapshot| &snapshot.packages)
+            .map(|package| (package.workload_id.as_str(), &package.source_digest))
+            .collect::<BTreeMap<_, _>>();
+        let target_packages = target
+            .into_iter()
+            .flat_map(|snapshot| &snapshot.packages)
+            .map(|package| (package.workload_id.as_str(), &package.source_digest))
+            .collect::<BTreeMap<_, _>>();
+        let ids = source_packages
+            .keys()
+            .chain(target_packages.keys())
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let changes = ids
+            .into_iter()
+            .filter_map(|workload_id| {
+                let source_revision = source_packages.get(workload_id).copied().cloned();
+                let target_revision = target_packages.get(workload_id).copied().cloned();
+                let change_kind = match (&source_revision, &target_revision) {
+                    (None, Some(_)) => WorkloadChangeKind::Inserted,
+                    (Some(_), None) => WorkloadChangeKind::Deleted,
+                    (Some(source), Some(target)) if source != target => {
+                        WorkloadChangeKind::Modified
+                    }
+                    _ => return None,
+                };
+                Some(WorkloadChange {
+                    workload_id: workload_id.to_owned(),
+                    change_kind,
+                    source_revision,
+                    target_revision,
+                })
+            })
+            .collect::<Vec<_>>();
+        let inserted = changes
+            .iter()
+            .filter(|change| change.change_kind == WorkloadChangeKind::Inserted)
+            .count() as u64;
+        let deleted = changes
+            .iter()
+            .filter(|change| change.change_kind == WorkloadChangeKind::Deleted)
+            .count() as u64;
+        let modified = changes
+            .iter()
+            .filter(|change| change.change_kind == WorkloadChangeKind::Modified)
+            .count() as u64;
+        Self {
+            schema: WORKLOAD_CHANGE_SET_SCHEMA.to_owned(),
+            source_label: source_label.to_owned(),
+            target_label: target_label.to_owned(),
+            source_revision: source.map(|snapshot| snapshot.snapshot_revision.clone()),
+            target_revision: target.map(|snapshot| snapshot.snapshot_revision.clone()),
+            assessment: if changes.is_empty() {
+                DeltaAssessment::Equal
+            } else {
+                DeltaAssessment::Different
+            },
+            inserted,
+            deleted,
+            modified,
+            changes,
+        }
+    }
+}
+
+impl WorkloadCommit {
+    fn new(
+        sequence: u64,
+        parent_commit_id: Option<SemanticDigest>,
+        message: String,
+        snapshot: WorkloadAdmissionSnapshot,
+        qualification_ids: Vec<SemanticDigest>,
+    ) -> Result<Self, LocalWorkloadStateError> {
+        let message = normalize_workload_commit_message(message)?;
+        let committed_at_unix = Utc::now().timestamp();
+        let mut commit = Self {
+            schema: WORKLOAD_COMMIT_SCHEMA.to_owned(),
+            commit_id: workload_digest_placeholder(),
+            sequence,
+            parent_commit_id,
+            committed_at_unix,
+            message,
+            snapshot,
+            qualification_ids,
+        };
+        commit.commit_id = workload_commit_identity(&commit);
+        commit.verify()?;
+        Ok(commit)
+    }
+
+    fn verify(&self) -> Result<(), LocalWorkloadStateError> {
+        if self.schema != WORKLOAD_COMMIT_SCHEMA {
+            return Err(LocalWorkloadStateError::CommitSchema(self.schema.clone()));
+        }
+        if self.sequence == 0
+            || DateTime::<Utc>::from_timestamp(self.committed_at_unix, 0).is_none()
+            || normalize_workload_commit_message(self.message.clone())? != self.message
+        {
+            return Err(LocalWorkloadStateError::CommitIdentity);
+        }
+        self.snapshot.verify()?;
+        if self.qualification_ids.len() != self.snapshot.packages.len() {
+            return Err(LocalWorkloadStateError::CommitQualificationShape);
+        }
+        if self.commit_id != workload_commit_identity(self) {
+            return Err(LocalWorkloadStateError::CommitIdentity);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct ObservedWorkloadAdmission {
+    catalog: WorkloadCatalog,
+    snapshot: WorkloadAdmissionSnapshot,
+    artifacts: BTreeMap<String, Vec<u8>>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ResolvedWorkload {
     pub definition: WorkloadDefinition,
@@ -317,7 +626,8 @@ impl WorkloadCatalog {
                     let bytes = read_bounded_catalog_file(&path)?;
                     let supplied: SuppliedWorkloadPackage = serde_saphyr::from_slice(&bytes)?;
                     let source = relative_source(workspace, &path);
-                    let resolved = supplied.resolve(source, &bytes)?;
+                    let resolved =
+                        supplied.resolve(source, &bytes, WorkloadAdmissionState::Proposed)?;
                     let workload_id = resolved.definition.workload.id.clone();
                     if let Some(request) = request {
                         let draft = load_workload_draft(workspace, &request)?;
@@ -357,7 +667,7 @@ impl WorkloadCatalog {
                 kind: WorkloadCatalogKind::WorkspacePackages,
                 root: Some(descriptor_root),
                 workload_count: workloads.len().saturating_add(drafts.len()) as u64,
-                admitted_count: workloads.len() as u64,
+                admitted_count: 0,
                 draft_count: drafts.len() as u64,
             },
             workloads,
@@ -692,7 +1002,7 @@ fn workload_creation_requirements() -> Vec<String> {
             .to_owned(),
         "Generate required and optional scenarios from authoritative behavior; never derive expected values from candidate execution."
             .to_owned(),
-        "Freeze the scenario oracle and mark admission accepted only after graph and suite review."
+        "Freeze the scenario oracle, stage the complete package, and leave admission to an exact qualified workload commit."
             .to_owned(),
         "Materialize the target workload.yaml and preserve request.yaml as creation lineage."
             .to_owned(),
@@ -823,7 +1133,6 @@ struct SuppliedWorkloadPackage {
     schema: String,
     workload: SuppliedWorkloadIdentity,
     generation: WorkloadGeneratorProvenance,
-    admission: WorkloadAdmission,
     graph: SuppliedGraph,
     scenarios: SuppliedScenarioSuite,
 }
@@ -898,16 +1207,12 @@ impl SuppliedWorkloadPackage {
         self,
         source: String,
         bytes: &[u8],
+        admission_state: WorkloadAdmissionState,
     ) -> Result<ResolvedWorkload, WorkloadCatalogError> {
         if self.schema != WORKLOAD_PACKAGE_SCHEMA {
             return Err(WorkloadCatalogError::UnsupportedPackageSchema(self.schema));
         }
         validate_generation(&self.generation)?;
-        if self.admission.state != WorkloadAdmissionState::Accepted
-            || self.admission.scenario_oracle != ScenarioOraclePolicy::Frozen
-        {
-            return Err(WorkloadCatalogError::NotAdmitted(self.workload.id));
-        }
         if self
             .workload
             .inputs
@@ -1039,7 +1344,10 @@ impl SuppliedWorkloadPackage {
                 source,
                 source_digest: Some(source_digest),
                 generation: Some(self.generation),
-                admission: self.admission,
+                admission: WorkloadAdmission {
+                    state: admission_state,
+                    scenario_oracle: ScenarioOraclePolicy::Frozen,
+                },
             },
         })
     }
@@ -1173,8 +1481,13 @@ impl LocalWorkloadRecord {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct LocalWorkloadState {
     pub schema: String,
+    pub commits: Vec<WorkloadCommit>,
+    pub index: Option<WorkloadAdmissionSnapshot>,
+    #[serde(default)]
+    pub qualified_index: Option<SemanticDigest>,
     pub records: BTreeMap<String, LocalWorkloadRecord>,
 }
 
@@ -1182,6 +1495,9 @@ impl Default for LocalWorkloadState {
     fn default() -> Self {
         Self {
             schema: LOCAL_WORKLOAD_STATE_SCHEMA.to_owned(),
+            commits: Vec::new(),
+            index: None,
+            qualified_index: None,
             records: BTreeMap::new(),
         }
     }
@@ -1198,6 +1514,16 @@ impl LocalWorkloadState {
             return Err(LocalWorkloadStateError::RecordLimit {
                 limit: MAX_STATE_RECORDS,
             });
+        }
+        verify_workload_commit_history(&self.commits)?;
+        if let Some(index) = &self.index {
+            index.verify()?;
+        }
+        if self.qualified_index.is_some()
+            && self.qualified_index.as_ref()
+                != self.index.as_ref().map(|index| &index.snapshot_revision)
+        {
+            return Err(LocalWorkloadStateError::QualifiedIndexMismatch);
         }
         for (workload_id, record) in &self.records {
             if workload_id.is_empty() {
@@ -1248,6 +1574,22 @@ impl LocalWorkloadState {
             .or_insert_with(LocalWorkloadRecord::empty)
             .last_run = Some(result);
     }
+
+    pub fn refresh_index_qualification(&mut self, definitions: &[WorkloadDefinition]) {
+        self.qualified_index = self.index.as_ref().and_then(|index| {
+            let exact_catalog = index.packages.len() == definitions.len()
+                && index.packages.iter().all(|package| {
+                    definitions
+                        .iter()
+                        .any(|definition| definition.workload.id == package.workload_id)
+                });
+            let all_qualified = exact_catalog
+                && definitions.iter().all(|definition| {
+                    fresh_qualification(definition, self.record(&definition.workload.id)).is_some()
+                });
+            all_qualified.then(|| index.snapshot_revision.clone())
+        });
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1269,6 +1611,443 @@ impl LocalWorkloadStore {
     #[must_use]
     pub fn path(&self) -> PathBuf {
         self.directory.join(STATE_FILE_NAME)
+    }
+
+    fn observe(
+        &self,
+        workspace: &Path,
+        catalog_dir: &Path,
+    ) -> Result<ObservedWorkloadAdmission, LocalWorkloadStateError> {
+        let catalog = WorkloadCatalog::load_workspace(workspace, catalog_dir)?;
+        let mut artifacts = BTreeMap::new();
+        let mut packages = Vec::with_capacity(catalog.workloads.len());
+        for workload in &catalog.workloads {
+            let source = &workload.provenance.source;
+            let source_path = Path::new(source);
+            if source_path.as_os_str().is_empty()
+                || source_path
+                    .components()
+                    .any(|component| !matches!(component, Component::Normal(_)))
+            {
+                return Err(LocalWorkloadStateError::ArtifactSource(source.clone()));
+            }
+            let bytes = read_bounded_catalog_file(&workspace.join(source_path))?;
+            let source_digest = source_digest("rey.workload-package-source.v1", &bytes);
+            if workload.provenance.source_digest.as_ref() != Some(&source_digest) {
+                return Err(LocalWorkloadStateError::ArtifactIdentity(
+                    workload.definition.workload.id.clone(),
+                ));
+            }
+            let object_path = format!("objects/{}.yaml", workload_digest_key(&source_digest));
+            packages.push(WorkloadPackageSnapshot {
+                workload_id: workload.definition.workload.id.clone(),
+                workload_revision: workload.definition.workload.revision,
+                title: workload.definition.title.clone(),
+                source: source.clone(),
+                source_digest: source_digest.clone(),
+                object_path: object_path.clone(),
+                bytes: bytes.len() as u64,
+                generation: workload.provenance.generation.clone().ok_or_else(|| {
+                    LocalWorkloadStateError::ArtifactIdentity(
+                        workload.definition.workload.id.clone(),
+                    )
+                })?,
+                workload: workload.definition.workload.clone(),
+                graph: workload.definition.graph.graph.clone(),
+                scenario_suite: workload.definition.scenario_suite.suite.clone(),
+            });
+            artifacts.insert(object_path, bytes);
+        }
+        Ok(ObservedWorkloadAdmission {
+            catalog,
+            snapshot: WorkloadAdmissionSnapshot::new(packages)?,
+            artifacts,
+        })
+    }
+
+    pub fn status(
+        &self,
+        workspace: &Path,
+        catalog_dir: &Path,
+    ) -> Result<WorkloadRevisionStatus, LocalWorkloadStateError> {
+        let observed = self.observe(workspace, catalog_dir)?;
+        let state = self.load()?;
+        let head = state.commits.last().cloned();
+        let head_snapshot = head.as_ref().map(|commit| &commit.snapshot);
+        let staged = WorkloadChangeSet::derive(
+            "HEAD",
+            head_snapshot,
+            "INDEX",
+            state.index.as_ref().or(head_snapshot),
+        );
+        let unstaged = WorkloadChangeSet::derive(
+            "INDEX",
+            state.index.as_ref().or(head_snapshot),
+            "WORKING",
+            Some(&observed.snapshot),
+        );
+        let state_kind = match (
+            staged.assessment == DeltaAssessment::Different,
+            unstaged.assessment == DeltaAssessment::Different,
+        ) {
+            (false, false) => WorkloadWorkingState::Clean,
+            (false, true) => WorkloadWorkingState::Working,
+            (true, false) => WorkloadWorkingState::Staged,
+            (true, true) => WorkloadWorkingState::Mixed,
+        };
+        let mut qualification_omissions = state.index.as_ref().map_or_else(Vec::new, |snapshot| {
+            match self.catalog_from_snapshot(snapshot, WorkloadAdmissionState::Proposed) {
+                Ok(catalog) => catalog
+                    .workloads
+                    .iter()
+                    .filter(|workload| {
+                        fresh_qualification(
+                            &workload.definition,
+                            state.record(&workload.definition.workload.id),
+                        )
+                        .is_none()
+                    })
+                    .map(|workload| {
+                        format!(
+                            "{} lacks fresh passing qualification for the exact staged package",
+                            workload.definition.workload.id
+                        )
+                    })
+                    .collect(),
+                Err(error) => vec![error.to_string()],
+            }
+        });
+        if let Some(index) = &state.index
+            && state.qualified_index.as_ref() != Some(&index.snapshot_revision)
+        {
+            qualification_omissions.push(
+                "the complete scenario suite has not qualified this exact INDEX snapshot"
+                    .to_owned(),
+            );
+        }
+        let commit_ready = state.index.is_some()
+            && staged.assessment == DeltaAssessment::Different
+            && qualification_omissions.is_empty();
+        Ok(WorkloadRevisionStatus {
+            schema: WORKLOAD_REVISION_STATUS_SCHEMA.to_owned(),
+            state: state_kind,
+            head,
+            index: state.index,
+            working: observed.snapshot,
+            staged,
+            unstaged,
+            drafts: observed.catalog.drafts,
+            commit_ready,
+            qualification_omissions,
+            admission_boundary: "only a human-approved workload commit advances HEAD; test and run never admit mutable WORKING bytes".to_owned(),
+        })
+    }
+
+    pub fn diff(
+        &self,
+        workspace: &Path,
+        catalog_dir: &Path,
+        staged: bool,
+    ) -> Result<WorkloadChangeSet, LocalWorkloadStateError> {
+        let status = self.status(workspace, catalog_dir)?;
+        Ok(if staged {
+            status.staged
+        } else {
+            status.unstaged
+        })
+    }
+
+    pub fn add(
+        &self,
+        workspace: &Path,
+        catalog_dir: &Path,
+    ) -> Result<WorkloadAddResult, LocalWorkloadStateError> {
+        self.with_lock(|| {
+            let observed = self.observe(workspace, catalog_dir)?;
+            let mut state = self.load()?;
+            let head_snapshot = state.commits.last().map(|commit| &commit.snapshot);
+            let delta =
+                WorkloadChangeSet::derive("HEAD", head_snapshot, "INDEX", Some(&observed.snapshot));
+            self.write_artifacts(&observed.artifacts)?;
+            let staged = head_snapshot != Some(&observed.snapshot);
+            let preserves_qualification = state.index.as_ref() == Some(&observed.snapshot);
+            state.index = staged.then_some(observed.snapshot.clone());
+            if !preserves_qualification || state.index.is_none() {
+                state.qualified_index = None;
+            }
+            self.save(&state)?;
+            Ok(WorkloadAddResult {
+                schema: WORKLOAD_ADD_RESULT_SCHEMA.to_owned(),
+                staged,
+                snapshot: observed.snapshot,
+                delta,
+            })
+        })
+    }
+
+    pub fn head_catalog(&self) -> Result<WorkloadCatalog, LocalWorkloadStateError> {
+        let state = self.load()?;
+        match state.commits.last() {
+            Some(commit) => {
+                self.catalog_from_snapshot(&commit.snapshot, WorkloadAdmissionState::Accepted)
+            }
+            None => Ok(empty_workspace_catalog("WORKLOAD HEAD")),
+        }
+    }
+
+    pub fn index_catalog(&self) -> Result<WorkloadCatalog, LocalWorkloadStateError> {
+        let state = self.load()?;
+        let snapshot = state
+            .index
+            .as_ref()
+            .ok_or(LocalWorkloadStateError::EmptyIndex)?;
+        self.catalog_from_snapshot(snapshot, WorkloadAdmissionState::Proposed)
+    }
+
+    pub fn commit(
+        &self,
+        message: String,
+        expected_head: Option<&str>,
+        expected_index: Option<&str>,
+    ) -> Result<WorkloadCommitResult, LocalWorkloadStateError> {
+        let message = normalize_workload_commit_message(message)?;
+        self.with_lock(|| {
+            let mut state = self.load()?;
+            let snapshot = state
+                .index
+                .clone()
+                .ok_or(LocalWorkloadStateError::EmptyIndex)?;
+            if state.qualified_index.as_ref() != Some(&snapshot.snapshot_revision) {
+                return Err(LocalWorkloadStateError::ExactIndexQualificationRequired(
+                    snapshot.snapshot_revision.clone(),
+                ));
+            }
+            snapshot.verify()?;
+            let current_head = state.commits.last();
+            if let Some(expected) = expected_head {
+                let matches = if expected == "EMPTY" {
+                    current_head.is_none()
+                } else {
+                    current_head.map(|commit| commit.commit_id.as_str()) == Some(expected)
+                };
+                if !matches {
+                    return Err(LocalWorkloadStateError::ApprovalPrecondition(
+                        "HEAD changed before approval".to_owned(),
+                    ));
+                }
+            }
+            if expected_index
+                .is_some_and(|expected| expected != snapshot.snapshot_revision.as_str())
+            {
+                return Err(LocalWorkloadStateError::ApprovalPrecondition(
+                    "INDEX changed before approval".to_owned(),
+                ));
+            }
+            self.verify_staged_artifacts(&snapshot)?;
+            let catalog =
+                self.catalog_from_snapshot(&snapshot, WorkloadAdmissionState::Proposed)?;
+            let mut qualification_ids = Vec::with_capacity(catalog.workloads.len());
+            for workload in &catalog.workloads {
+                let qualification = fresh_qualification(
+                    &workload.definition,
+                    state.record(&workload.definition.workload.id),
+                )
+                .ok_or_else(|| {
+                    LocalWorkloadStateError::QualificationRequired(
+                        workload.definition.workload.id.clone(),
+                    )
+                })?;
+                qualification_ids.push(qualification.qualification_id.clone());
+            }
+            let head_snapshot = current_head.map(|commit| &commit.snapshot);
+            if head_snapshot == Some(&snapshot) {
+                return Err(LocalWorkloadStateError::NothingToCommit);
+            }
+            if state.commits.len() >= MAX_WORKLOAD_COMMITS {
+                return Err(LocalWorkloadStateError::CommitLimit(MAX_WORKLOAD_COMMITS));
+            }
+            let sequence = state.commits.len() as u64 + 1;
+            let delta = WorkloadChangeSet::derive(
+                if sequence == 1 { "EMPTY" } else { "HEAD" },
+                head_snapshot,
+                &format!("WORKLOAD@{sequence}"),
+                Some(&snapshot),
+            );
+            let commit = WorkloadCommit::new(
+                sequence,
+                current_head.map(|commit| commit.commit_id.clone()),
+                message,
+                snapshot,
+                qualification_ids,
+            )?;
+            state.commits.push(commit.clone());
+            state.index = None;
+            state.qualified_index = None;
+            self.save(&state)?;
+            Ok(WorkloadCommitResult {
+                schema: WORKLOAD_COMMIT_RESULT_SCHEMA.to_owned(),
+                commit,
+                delta,
+            })
+        })
+    }
+
+    pub fn log(
+        &self,
+        max_count: usize,
+        patch: bool,
+    ) -> Result<WorkloadLog, LocalWorkloadStateError> {
+        if max_count == 0 || max_count > MAX_WORKLOAD_COMMITS {
+            return Err(LocalWorkloadStateError::LogLimit {
+                limit: MAX_WORKLOAD_COMMITS,
+                actual: max_count,
+            });
+        }
+        let state = self.load()?;
+        let commits = state
+            .commits
+            .iter()
+            .rev()
+            .take(max_count)
+            .cloned()
+            .collect::<Vec<_>>();
+        Ok(WorkloadLog {
+            schema: WORKLOAD_LOG_SCHEMA.to_owned(),
+            head_commit_id: state.commits.last().map(|commit| commit.commit_id.clone()),
+            total_commits: state.commits.len() as u64,
+            selected_commits: commits.len() as u64,
+            patch,
+            commits,
+        })
+    }
+
+    fn catalog_from_snapshot(
+        &self,
+        snapshot: &WorkloadAdmissionSnapshot,
+        admission_state: WorkloadAdmissionState,
+    ) -> Result<WorkloadCatalog, LocalWorkloadStateError> {
+        snapshot.verify()?;
+        let mut workloads = Vec::with_capacity(snapshot.packages.len());
+        for package in &snapshot.packages {
+            let path = self.safe_object_path(&package.object_path)?;
+            let bytes = read_local_workload_file(&path, MAX_WORKLOAD_PACKAGE_BYTES)?;
+            if source_digest("rey.workload-package-source.v1", &bytes) != package.source_digest {
+                return Err(LocalWorkloadStateError::ArtifactIdentity(
+                    package.workload_id.clone(),
+                ));
+            }
+            let supplied: SuppliedWorkloadPackage = serde_saphyr::from_slice(&bytes)?;
+            let resolved = supplied.resolve(package.source.clone(), &bytes, admission_state)?;
+            if resolved.definition.workload != package.workload
+                || resolved.definition.graph.graph != package.graph
+                || resolved.definition.scenario_suite.suite != package.scenario_suite
+                || resolved.definition.title != package.title
+            {
+                return Err(LocalWorkloadStateError::ArtifactIdentity(
+                    package.workload_id.clone(),
+                ));
+            }
+            workloads.push(resolved);
+        }
+        Ok(WorkloadCatalog {
+            descriptor: WorkloadCatalogDescriptor {
+                schema: WORKLOAD_CATALOG_SCHEMA.to_owned(),
+                kind: WorkloadCatalogKind::WorkspacePackages,
+                root: Some(
+                    match admission_state {
+                        WorkloadAdmissionState::Accepted => "WORKLOAD HEAD",
+                        WorkloadAdmissionState::Proposed => "WORKLOAD INDEX",
+                        WorkloadAdmissionState::Rejected => "REJECTED WORKLOAD SNAPSHOT",
+                    }
+                    .to_owned(),
+                ),
+                workload_count: workloads.len() as u64,
+                admitted_count: if admission_state == WorkloadAdmissionState::Accepted {
+                    workloads.len() as u64
+                } else {
+                    0
+                },
+                draft_count: 0,
+            },
+            workloads,
+            drafts: Vec::new(),
+        })
+    }
+
+    fn write_artifacts(
+        &self,
+        artifacts: &BTreeMap<String, Vec<u8>>,
+    ) -> Result<(), LocalWorkloadStateError> {
+        self.prepare_directory()?;
+        for (relative, bytes) in artifacts {
+            let path = self.safe_object_path(relative)?;
+            write_local_content_addressed(&path, bytes)?;
+        }
+        Ok(())
+    }
+
+    fn verify_staged_artifacts(
+        &self,
+        snapshot: &WorkloadAdmissionSnapshot,
+    ) -> Result<(), LocalWorkloadStateError> {
+        for package in &snapshot.packages {
+            let path = self.safe_object_path(&package.object_path)?;
+            let bytes = read_local_workload_file(&path, MAX_WORKLOAD_PACKAGE_BYTES)?;
+            if source_digest("rey.workload-package-source.v1", &bytes) != package.source_digest {
+                return Err(LocalWorkloadStateError::ArtifactIdentity(
+                    package.workload_id.clone(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn safe_object_path(&self, relative: &str) -> Result<PathBuf, LocalWorkloadStateError> {
+        let components = Path::new(relative).components().collect::<Vec<_>>();
+        if components.len() != 2
+            || components.first() != Some(&Component::Normal("objects".as_ref()))
+            || !matches!(components.get(1), Some(Component::Normal(_)))
+        {
+            return Err(LocalWorkloadStateError::ArtifactSource(relative.to_owned()));
+        }
+        Ok(self.directory.join(relative))
+    }
+
+    fn with_lock<T>(
+        &self,
+        operation: impl FnOnce() -> Result<T, LocalWorkloadStateError>,
+    ) -> Result<T, LocalWorkloadStateError> {
+        self.prepare_directory()?;
+        let lock_path = self.directory.join(LOCK_FILE_NAME);
+        if let Ok(metadata) = fs::symlink_metadata(&lock_path)
+            && (metadata.file_type().is_symlink() || !metadata.is_file())
+        {
+            return Err(LocalWorkloadStateError::UnsafeStatePath(lock_path));
+        }
+        let lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .map_err(|source| LocalWorkloadStateError::Write {
+                path: lock_path.clone(),
+                source,
+            })?;
+        File::lock(&lock).map_err(|source| LocalWorkloadStateError::Lock {
+            path: lock_path.clone(),
+            source,
+        })?;
+        let result = operation();
+        let unlock = File::unlock(&lock).map_err(|source| LocalWorkloadStateError::Lock {
+            path: lock_path,
+            source,
+        });
+        match (result, unlock) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
+        }
     }
 
     pub fn load(&self) -> Result<LocalWorkloadState, LocalWorkloadStateError> {
@@ -1359,19 +2138,33 @@ impl LocalWorkloadStore {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => Err(
                 LocalWorkloadStateError::UnsafeStatePath(self.directory.clone()),
             ),
-            Ok(_) => Ok(()),
+            Ok(_) => self.prepare_child_directory("objects"),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 fs::create_dir_all(&self.directory).map_err(|source| {
                     LocalWorkloadStateError::Write {
                         path: self.directory.clone(),
                         source,
                     }
-                })
+                })?;
+                self.prepare_child_directory("objects")
             }
             Err(source) => Err(LocalWorkloadStateError::Write {
                 path: self.directory.clone(),
                 source,
             }),
+        }
+    }
+
+    fn prepare_child_directory(&self, child: &str) -> Result<(), LocalWorkloadStateError> {
+        let path = self.directory.join(child);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                Err(LocalWorkloadStateError::UnsafeStatePath(path))
+            }
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => fs::create_dir(&path)
+                .map_err(|source| LocalWorkloadStateError::Write { path, source }),
+            Err(source) => Err(LocalWorkloadStateError::Write { path, source }),
         }
     }
 
@@ -1649,6 +2442,8 @@ pub struct WorkloadList {
     pub drafts: Vec<WorkloadDraft>,
     pub attention: WorkloadAttention,
     pub semantic_atlas: Option<SemanticAtlas>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<WorkloadRevisionStatus>,
 }
 
 impl WorkloadList {
@@ -1658,6 +2453,7 @@ impl WorkloadList {
         workloads: Vec<WorkloadSummary>,
         drafts: Vec<WorkloadDraft>,
         attention: WorkloadAttention,
+        revision: Option<WorkloadRevisionStatus>,
     ) -> Self {
         let semantic_atlas =
             SemanticAtlas::from_topographies(workloads.iter().filter_map(|workload| {
@@ -1674,6 +2470,7 @@ impl WorkloadList {
             drafts,
             attention,
             semantic_atlas,
+            revision,
         }
     }
 }
@@ -1890,6 +2687,171 @@ pub fn fresh_qualification<'a>(
         .filter(|qualification| qualification.is_fresh_for(workload))
 }
 
+fn empty_workspace_catalog(root: &str) -> WorkloadCatalog {
+    WorkloadCatalog {
+        descriptor: WorkloadCatalogDescriptor {
+            schema: WORKLOAD_CATALOG_SCHEMA.to_owned(),
+            kind: WorkloadCatalogKind::WorkspacePackages,
+            root: Some(root.to_owned()),
+            workload_count: 0,
+            admitted_count: 0,
+            draft_count: 0,
+        },
+        workloads: Vec::new(),
+        drafts: Vec::new(),
+    }
+}
+
+fn workload_digest_placeholder() -> SemanticDigest {
+    let mut hasher = SemanticHasher::new("rey.workload-identity-placeholder.v1");
+    hasher.add_str("excluded from identity");
+    hasher.finish()
+}
+
+fn workload_digest_key(digest: &SemanticDigest) -> &str {
+    digest
+        .as_str()
+        .strip_prefix("blake3:")
+        .unwrap_or(digest.as_str())
+}
+
+fn workload_snapshot_identity(snapshot: &WorkloadAdmissionSnapshot) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(WORKLOAD_ADMISSION_SNAPSHOT_SCHEMA);
+    hasher.add_u64(snapshot.packages.len() as u64);
+    for package in &snapshot.packages {
+        hasher.add_str(&package.workload_id);
+        hasher.add_str(&package.workload_revision.to_string());
+        hasher.add_str(&package.title);
+        hasher.add_str(&package.source);
+        hasher.add_str(package.source_digest.as_str());
+        hasher.add_str(&package.object_path);
+        hasher.add_u64(package.bytes);
+        package.workload.add_semantics(&mut hasher);
+        package.graph.add_semantics(&mut hasher);
+        package.scenario_suite.add_semantics(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn workload_commit_identity(commit: &WorkloadCommit) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new(WORKLOAD_COMMIT_SCHEMA);
+    hasher.add_u64(commit.sequence);
+    hasher.add_optional_str(commit.parent_commit_id.as_ref().map(SemanticDigest::as_str));
+    hasher.add_str(&commit.committed_at_unix.to_string());
+    hasher.add_str(&commit.message);
+    hasher.add_str(commit.snapshot.snapshot_revision.as_str());
+    hasher.add_u64(commit.qualification_ids.len() as u64);
+    for qualification_id in &commit.qualification_ids {
+        hasher.add_str(qualification_id.as_str());
+    }
+    hasher.finish()
+}
+
+fn normalize_workload_commit_message(message: String) -> Result<String, LocalWorkloadStateError> {
+    let normalized = message.trim().to_owned();
+    if normalized.is_empty()
+        || normalized.len() > MAX_COMMIT_MESSAGE_BYTES
+        || normalized.contains('\0')
+    {
+        return Err(LocalWorkloadStateError::CommitMessage);
+    }
+    Ok(normalized)
+}
+
+fn verify_workload_commit_history(
+    commits: &[WorkloadCommit],
+) -> Result<(), LocalWorkloadStateError> {
+    if commits.len() > MAX_WORKLOAD_COMMITS {
+        return Err(LocalWorkloadStateError::CommitLimit(MAX_WORKLOAD_COMMITS));
+    }
+    let mut parent: Option<&WorkloadCommit> = None;
+    let mut ids = BTreeSet::new();
+    for (index, commit) in commits.iter().enumerate() {
+        commit.verify()?;
+        let expected_sequence = index as u64 + 1;
+        if commit.sequence != expected_sequence
+            || commit.parent_commit_id.as_ref() != parent.map(|parent| &parent.commit_id)
+            || !ids.insert(commit.commit_id.clone())
+        {
+            return Err(LocalWorkloadStateError::CommitHistory);
+        }
+        parent = Some(commit);
+    }
+    Ok(())
+}
+
+fn read_local_workload_file(path: &Path, limit: u64) -> Result<Vec<u8>, LocalWorkloadStateError> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| LocalWorkloadStateError::Read {
+        path: path.to_owned(),
+        source,
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(LocalWorkloadStateError::UnsafeStatePath(path.to_owned()));
+    }
+    if metadata.len() > limit {
+        return Err(LocalWorkloadStateError::ByteLimit {
+            path: path.to_owned(),
+            limit,
+        });
+    }
+    let mut bytes = Vec::new();
+    File::open(path)
+        .map_err(|source| LocalWorkloadStateError::Read {
+            path: path.to_owned(),
+            source,
+        })?
+        .take(limit.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|source| LocalWorkloadStateError::Read {
+            path: path.to_owned(),
+            source,
+        })?;
+    if bytes.len() as u64 > limit {
+        return Err(LocalWorkloadStateError::ByteLimit {
+            path: path.to_owned(),
+            limit,
+        });
+    }
+    Ok(bytes)
+}
+
+fn write_local_content_addressed(path: &Path, bytes: &[u8]) -> Result<(), LocalWorkloadStateError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(LocalWorkloadStateError::UnsafeStatePath(path.to_owned()));
+        }
+        Ok(_) => {
+            if read_local_workload_file(path, MAX_WORKLOAD_PACKAGE_BYTES)? == bytes {
+                return Ok(());
+            }
+            return Err(LocalWorkloadStateError::ContentAddressCollision(
+                path.to_owned(),
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(source) => {
+            return Err(LocalWorkloadStateError::Write {
+                path: path.to_owned(),
+                source,
+            });
+        }
+    }
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|source| LocalWorkloadStateError::Write {
+            path: path.to_owned(),
+            source,
+        })?;
+    file.write_all(bytes)
+        .and_then(|()| file.flush())
+        .map_err(|source| LocalWorkloadStateError::Write {
+            path: path.to_owned(),
+            source,
+        })
+}
+
 #[derive(Debug, Error)]
 pub enum LocalWorkloadStateError {
     #[error("unsupported local workload state schema {actual}")]
@@ -1902,6 +2864,48 @@ pub enum LocalWorkloadStateError {
     EmptyRecord(String),
     #[error("state record key {key} does not match artifact workload {artifact}")]
     RecordIdentity { key: String, artifact: String },
+    #[error("unsupported workload admission snapshot schema {0}")]
+    SnapshotSchema(String),
+    #[error("workload admission snapshot exceeds {0} packages")]
+    SnapshotLimit(usize),
+    #[error("workload admission snapshot is not in canonical workload order")]
+    NonCanonicalSnapshot,
+    #[error("workload admission snapshot package is invalid: {0}")]
+    SnapshotPackage(String),
+    #[error("workload admission snapshot identity does not match its contents")]
+    SnapshotIdentity,
+    #[error("unsupported workload commit schema {0}")]
+    CommitSchema(String),
+    #[error("workload commit identity does not match its contents")]
+    CommitIdentity,
+    #[error("workload commit qualification set does not cover its exact snapshot")]
+    CommitQualificationShape,
+    #[error("workload commit history is not a canonical linear chain")]
+    CommitHistory,
+    #[error("workload commit history exceeds {0} commits")]
+    CommitLimit(usize),
+    #[error("workload commit message must be nonempty, NUL-free, and at most 4096 bytes")]
+    CommitMessage,
+    #[error("workload INDEX is empty; run `rey workloads add` before qualification or approval")]
+    EmptyIndex,
+    #[error("nothing is staged for workload admission")]
+    NothingToCommit,
+    #[error("retained workload qualification does not identify the current INDEX")]
+    QualifiedIndexMismatch,
+    #[error("workload INDEX {0} requires complete passing qualification of that exact snapshot")]
+    ExactIndexQualificationRequired(SemanticDigest),
+    #[error("workload {0} requires fresh passing qualification for its exact staged package")]
+    QualificationRequired(String),
+    #[error("workload approval precondition failed: {0}")]
+    ApprovalPrecondition(String),
+    #[error("workload log count {actual} is outside 1..={limit}")]
+    LogLimit { limit: usize, actual: usize },
+    #[error("workload artifact source is not a canonical retained path: {0}")]
+    ArtifactSource(String),
+    #[error("staged workload artifact identity changed: {0}")]
+    ArtifactIdentity(String),
+    #[error("content-addressed workload object changed in place: {0}")]
+    ContentAddressCollision(PathBuf),
     #[error("unsafe symlink or non-regular local workload state path {0}")]
     UnsafeStatePath(PathBuf),
     #[error("local workload state {path} exceeds the {limit}-byte limit")]
@@ -1916,6 +2920,11 @@ pub enum LocalWorkloadStateError {
         path: PathBuf,
         source: std::io::Error,
     },
+    #[error("local workload state lock {path} failed: {source}")]
+    Lock {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[error("local workload state {path} is invalid JSON: {source}")]
     Json {
         path: PathBuf,
@@ -1924,6 +2933,10 @@ pub enum LocalWorkloadStateError {
     #[error("could not allocate a local workload state temporary file in {0}")]
     TemporaryLimit(PathBuf),
     #[error(transparent)]
+    Catalog(#[from] WorkloadCatalogError),
+    #[error("staged workload package YAML is invalid: {0}")]
+    Yaml(#[from] serde_saphyr::Error),
+    #[error(transparent)]
     Workload(#[from] rey_runtime::WorkloadError),
 }
 
@@ -1931,22 +2944,24 @@ pub enum LocalWorkloadStateError {
 mod tests {
     use std::fs;
 
+    use rey_core::SemanticHasher;
     use rey_runtime::{
         BUILT_IN_NORMALIZE_WORKLOAD_ID, WorkloadRunResult, built_in_workload, test_workload,
+        test_workload_with_observer_and_snapshot,
     };
     use tempfile::TempDir;
 
     use super::{
-        LocalWorkloadState, LocalWorkloadStore, QualificationState, WorkloadCatalog,
-        WorkloadCatalogError, WorkloadCatalogKind, WorkloadFreshness, WorkloadOrigin,
-        WorkloadSummary,
+        LocalWorkloadState, LocalWorkloadStore, QualificationState, WorkloadAdmissionState,
+        WorkloadCatalog, WorkloadCatalogError, WorkloadCatalogKind, WorkloadFreshness,
+        WorkloadOrigin, WorkloadSummary,
     };
 
     const WORKSPACE_PACKAGE: &str =
-        include_str!("../../../workloads/portfolio-label-normalization/workload.yaml");
+        include_str!("../../../workloads/context-anchor-survey/workload.yaml");
 
     #[test]
-    fn workspace_catalog_loads_exact_admitted_package_and_rejects_incomplete_provenance() {
+    fn workspace_catalog_loads_exact_proposal_and_rejects_incomplete_provenance() {
         let workspace = TempDir::new().unwrap();
         let package = workspace.path().join("workloads/package");
         fs::create_dir_all(&package).unwrap();
@@ -1960,9 +2975,14 @@ mod tests {
             WorkloadCatalogKind::WorkspacePackages
         );
         assert_eq!(catalog.workloads.len(), 1);
+        assert_eq!(catalog.descriptor.admitted_count, 0);
         assert_eq!(
             catalog.workloads[0].provenance.origin,
             WorkloadOrigin::WorkspacePackage
+        );
+        assert_eq!(
+            catalog.workloads[0].provenance.admission.state,
+            WorkloadAdmissionState::Proposed
         );
         assert!(catalog.workloads[0].definition.proposal.is_some());
 
@@ -1978,21 +2998,21 @@ mod tests {
     }
 
     #[test]
-    fn creation_request_is_content_identified_and_yields_to_an_admitted_package() {
+    fn creation_request_is_content_identified_and_yields_to_a_working_package() {
         let workspace = TempDir::new().unwrap();
         let catalog_dir = std::path::Path::new("workloads");
-        let workload_id = "rey.portfolio.label-normalization";
+        let workload_id = "context-anchor-survey";
         let created = WorkloadCatalog::create_workspace_request(
             workspace.path(),
             catalog_dir,
             workload_id,
-            Some("Portfolio label normalization"),
-            Some("Mine and normalize portfolio attention labels"),
+            Some("Context anchor survey"),
+            Some("Survey admitted context anchors"),
         )
         .unwrap();
         let request_path = workspace
             .path()
-            .join("workloads/rey.portfolio.label-normalization/request.yaml");
+            .join("workloads/context-anchor-survey/request.yaml");
         let request_bytes = fs::read(&request_path).unwrap();
 
         let draft_catalog = WorkloadCatalog::load_workspace(workspace.path(), catalog_dir).unwrap();
@@ -2015,16 +3035,68 @@ mod tests {
             WORKSPACE_PACKAGE,
         )
         .unwrap();
-        let admitted_catalog =
+        let working_catalog =
             WorkloadCatalog::load_workspace(workspace.path(), catalog_dir).unwrap();
-        assert_eq!(admitted_catalog.descriptor.workload_count, 1);
-        assert_eq!(admitted_catalog.descriptor.admitted_count, 1);
-        assert_eq!(admitted_catalog.descriptor.draft_count, 0);
-        assert!(admitted_catalog.drafts.is_empty());
+        assert_eq!(working_catalog.descriptor.workload_count, 1);
+        assert_eq!(working_catalog.descriptor.admitted_count, 0);
+        assert_eq!(working_catalog.descriptor.draft_count, 0);
+        assert!(working_catalog.drafts.is_empty());
         assert_eq!(
-            admitted_catalog.workloads[0].definition.workload.id,
+            working_catalog.workloads[0].definition.workload.id,
             workload_id
         );
+    }
+
+    #[test]
+    fn workload_admission_commits_only_the_qualified_frozen_index() {
+        let workspace = TempDir::new().unwrap();
+        let catalog_dir = std::path::Path::new("workloads");
+        let package_dir = workspace.path().join("workloads/context-anchor-survey");
+        fs::create_dir_all(&package_dir).unwrap();
+        let package_path = package_dir.join("workload.yaml");
+        fs::write(&package_path, WORKSPACE_PACKAGE).unwrap();
+        let store = LocalWorkloadStore::default_for_workspace(workspace.path());
+
+        let working = store.status(workspace.path(), catalog_dir).unwrap();
+        assert_eq!(working.state, super::WorkloadWorkingState::Working);
+        assert_eq!(working.unstaged.inserted, 1);
+        let added = store.add(workspace.path(), catalog_dir).unwrap();
+        assert!(added.staged);
+        let staged_revision = added.snapshot.snapshot_revision.clone();
+
+        let staged = store.index_catalog().unwrap();
+        let result = test_workload_with_observer_and_snapshot(
+            &staged.workloads[0].definition,
+            SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish(),
+            |_| {},
+        )
+        .unwrap();
+        assert!(result.qualification.is_some(), "{:?}", result.status);
+        let mut state = store.load().unwrap();
+        state.retain_test(result);
+        state.refresh_index_qualification(&staged.definitions());
+        store.save(&state).unwrap();
+        let ready = store.status(workspace.path(), catalog_dir).unwrap();
+        assert!(ready.commit_ready, "{:?}", ready.qualification_omissions);
+
+        fs::write(
+            &package_path,
+            WORKSPACE_PACKAGE.replace("Survey project context anchors", "Agent editing continues"),
+        )
+        .unwrap();
+        let committed = store
+            .commit(
+                "approve context survey".to_owned(),
+                Some("EMPTY"),
+                Some(staged_revision.as_str()),
+            )
+            .unwrap();
+        assert_eq!(committed.commit.sequence, 1);
+        assert_eq!(committed.commit.qualification_ids.len(), 1);
+        assert_eq!(store.head_catalog().unwrap().workloads.len(), 1);
+        let status = store.status(workspace.path(), catalog_dir).unwrap();
+        assert_eq!(status.state, super::WorkloadWorkingState::Working);
+        assert_eq!(status.unstaged.modified, 1);
     }
 
     #[test]

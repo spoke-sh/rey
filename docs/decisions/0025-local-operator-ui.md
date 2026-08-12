@@ -1,6 +1,6 @@
 # ADR 0025: Local Operator UI
 
-- Status: Accepted
+- Status: Accepted; workload write boundary superseded by ADR 0049
 - Date: 2026-08-09
 - Extends: [ADR 0022](0022-portfolio-mining-and-workload-attention.md)
 - Extended: scoped loopback Journal admission in [ADR 0037](0037-explore-bound-collaboration-journal.md)

@@ -165,7 +165,8 @@ describe("high-cadence operator feed", () => {
     expect(markup).toContain("Share an observation…");
     expect(markup).toContain("JOURNAL / RICH DOCUMENT");
     expect(markup).toContain("DIRECTED DIFF / different");
-    expect(markup).toContain("INSPECT-ONLY");
+    expect(markup).toContain("ADMISSION CONTROL");
+    expect(markup).toContain("NO STAGED INDEX");
     expect(markup).toContain("REY / ATTENTION");
     expect(markup).toContain("LOCAL CONFORMANCE");
     expect(markup).toContain("Display order is not causal order");

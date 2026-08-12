@@ -12,11 +12,11 @@ use rey::{
         JournalAdmission, JournalAuthorKind, JournalEntryProposal, JournalLog, LocalJournalStore,
         MAX_JOURNAL_PROPOSAL_BYTES,
     },
-    workloads::{LocalWorkloadStore, WorkloadCatalog},
+    workloads::LocalWorkloadStore,
 };
 use rey_environment::{DiscoveryLimits, resolve_executable};
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
@@ -27,6 +27,7 @@ const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
+const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
@@ -58,6 +59,7 @@ pub struct UiServerDescriptor {
     pub loopback_only: bool,
     pub read_only: bool,
     pub journal_write_enabled: bool,
+    pub workload_admission_enabled: bool,
     pub workspace: String,
     pub catalog_root: String,
     pub application: String,
@@ -170,6 +172,14 @@ struct UiJournalProjection {
     log: JournalLog,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UiWorkloadApproval {
+    message: String,
+    expected_head: String,
+    expected_index: String,
+}
+
 pub struct UiServer {
     server: Server,
     config: UiServerConfig,
@@ -193,13 +203,14 @@ impl UiServer {
             loopback_only: bound.ip().is_loopback(),
             read_only: false,
             journal_write_enabled: true,
+            workload_admission_enabled: true,
             workspace: config.workspace.display().to_string(),
             catalog_root: config.catalog_directory.display().to_string(),
             application: "tanstack_router".to_owned(),
             grammar: "kinetic".to_owned(),
             theme: "precision".to_owned(),
             grammar_revision: HIFI_GRAMMAR_REVISION.to_owned(),
-            entry_route: "/explore".to_owned(),
+            entry_route: "/feed?streams=admission.all".to_owned(),
             live_refresh_interval_ms: LIVE_REFRESH_INTERVAL_MS,
             source_repository: REY_SOURCE_REPOSITORY.to_owned(),
             implementation_revision: REY_IMPLEMENTATION_REVISION.to_owned(),
@@ -246,6 +257,9 @@ impl UiServer {
         if request.method() == &Method::Post && path == "/api/v1/journal" {
             return self.admit_journal(request);
         }
+        if request.method() == &Method::Post && path == "/api/v1/workloads/commit" {
+            return self.admit_workloads(request);
+        }
         if request.method() != &Method::Get && !head {
             return with_header(
                 json_error(
@@ -259,7 +273,7 @@ impl UiServer {
         }
 
         let response = match path {
-            "/" => redirect_response("/explore"),
+            "/" => redirect_response("/feed?streams=admission.all"),
             "/api/v1/health" => self.health(),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/environment" => self.environment(),
@@ -293,19 +307,80 @@ impl UiServer {
     }
 
     fn workloads(&self) -> Response<Cursor<Vec<u8>>> {
-        let result = (|| {
-            let catalog = WorkloadCatalog::load_workspace(
+        let result = {
+            let store = LocalWorkloadStore::new(self.config.state_directory.clone());
+            super::current_workload_list(
+                &store,
                 &self.config.workspace,
                 &self.config.catalog_directory,
             )
-            .map_err(|error| error.to_string())?;
-            let store = LocalWorkloadStore::new(self.config.state_directory.clone());
-            super::current_workload_list(&store, &self.config.workspace, &catalog)
-                .map_err(|error| error.to_string())
-        })();
+            .map_err(|error| error.to_string())
+        };
         match result {
             Ok(list) => json_response(StatusCode(200), &list),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
+        }
+    }
+
+    fn admit_workloads(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        if request_header(request, "Content-Type") != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "workload_admission_content_type",
+                "workload admission requires Content-Type: application/json",
+            );
+        }
+        if request
+            .body_length()
+            .is_some_and(|length| length as u64 > MAX_WORKLOAD_APPROVAL_BYTES)
+        {
+            return json_error(
+                StatusCode(413),
+                "workload_admission_body_limit",
+                "workload approval exceeds the 16384-byte limit",
+            );
+        }
+        let mut bytes = Vec::new();
+        if let Err(error) = request
+            .as_reader()
+            .take(MAX_WORKLOAD_APPROVAL_BYTES.saturating_add(1))
+            .read_to_end(&mut bytes)
+        {
+            return json_error(
+                StatusCode(400),
+                "workload_admission_body_unreadable",
+                &error.to_string(),
+            );
+        }
+        if bytes.len() as u64 > MAX_WORKLOAD_APPROVAL_BYTES {
+            return json_error(
+                StatusCode(413),
+                "workload_admission_body_limit",
+                "workload approval exceeds the 16384-byte limit",
+            );
+        }
+        let approval: UiWorkloadApproval = match serde_json::from_slice(&bytes) {
+            Ok(approval) => approval,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "workload_admission_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        let store = LocalWorkloadStore::new(self.config.state_directory.clone());
+        match store.commit(
+            approval.message,
+            Some(&approval.expected_head),
+            Some(&approval.expected_index),
+        ) {
+            Ok(result) => json_response(StatusCode(201), &result),
+            Err(error) => json_error(
+                StatusCode(409),
+                "workload_admission_rejected",
+                &error.to_string(),
+            ),
         }
     }
 
@@ -763,6 +838,7 @@ pub enum UiError {
 #[cfg(test)]
 mod tests {
     use std::{
+        fs,
         io::{Read, Write},
         net::TcpStream,
         thread,
@@ -770,11 +846,38 @@ mod tests {
 
     use tempfile::TempDir;
 
+    use rey::workloads::LocalWorkloadStore;
+    use rey_core::SemanticHasher;
+    use rey_runtime::test_workload_with_observer_and_snapshot;
+
     use super::{UiServer, UiServerConfig};
 
     #[test]
     fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {
         let workspace = TempDir::new().unwrap();
+        let package_directory = workspace.path().join("workloads/context-anchor-survey");
+        fs::create_dir_all(&package_directory).unwrap();
+        fs::write(
+            package_directory.join("workload.yaml"),
+            include_str!("../../../workloads/context-anchor-survey/workload.yaml"),
+        )
+        .unwrap();
+        let workload_store = LocalWorkloadStore::default_for_workspace(workspace.path());
+        let added = workload_store
+            .add(workspace.path(), std::path::Path::new("workloads"))
+            .unwrap();
+        let staged_revision = added.snapshot.snapshot_revision.clone();
+        let staged_catalog = workload_store.index_catalog().unwrap();
+        let result = test_workload_with_observer_and_snapshot(
+            &staged_catalog.workloads[0].definition,
+            SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish(),
+            |_| {},
+        )
+        .unwrap();
+        let mut workload_state = workload_store.load().unwrap();
+        workload_state.retain_test(result);
+        workload_state.refresh_index_qualification(&staged_catalog.definitions());
+        workload_store.save(&workload_state).unwrap();
         let server = UiServer::bind(UiServerConfig {
             workspace: workspace.path().to_owned(),
             state_directory: workspace.path().join(".rey/workloads"),
@@ -789,6 +892,7 @@ mod tests {
         assert!(descriptor.loopback_only);
         assert!(!descriptor.read_only);
         assert!(descriptor.journal_write_enabled);
+        assert!(descriptor.workload_admission_enabled);
         assert_eq!(descriptor.grammar, "kinetic");
         assert_eq!(descriptor.theme, "precision");
         assert_eq!(
@@ -802,7 +906,7 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(20)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(21)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -812,6 +916,23 @@ mod tests {
         let workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(workloads.starts_with("HTTP/1.1 200"));
         assert!(workloads.contains("\"schema\":\"rey.workload-list.v1\""));
+        assert!(workloads.contains("\"commit_ready\":true"));
+
+        let approval = serde_json::json!({
+            "message": "Approve exact context survey",
+            "expected_head": "EMPTY",
+            "expected_index": staged_revision,
+        })
+        .to_string();
+        let approved = request_with_body(
+            &address,
+            "POST /api/v1/workloads/commit HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &approval,
+        );
+        assert!(approved.starts_with("HTTP/1.1 201"));
+        assert!(approved.contains("\"schema\":\"rey.workload-commit-result.v1\""));
+        assert!(approved.contains("\"sequence\":1"));
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
@@ -936,10 +1057,12 @@ mod tests {
         assert!(application.contains("Rename stream"));
         assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
-        assert!(application.contains("INSPECT-ONLY"));
+        assert!(application.contains("ADMISSION CONTROL"));
+        assert!(application.contains("APPROVE EXACT INDEX"));
         assert!(application.contains("Display order is not causal order"));
         assert!(application.contains("data-kinetic-dense-table"));
-        assert!(application.contains("Admitted workload revisions"));
+        assert!(application.contains("Incoming workload revisions"));
+        assert!(application.contains("Admitted workload HEAD"));
         assert!(application.contains("Workload creation requests"));
         assert!(application.contains("WORKLOAD / REVISION"));
         assert!(application.contains("MINING / ATTENTION"));
@@ -958,7 +1081,7 @@ mod tests {
 
         let root = request(&address, "GET / HTTP/1.1");
         assert!(root.starts_with("HTTP/1.1 307"));
-        assert!(root.contains("Location: /explore"));
+        assert!(root.contains("Location: /feed?streams=admission.all"));
 
         let explore = request(&address, "GET /explore HTTP/1.1");
         assert!(explore.starts_with("HTTP/1.1 200"));

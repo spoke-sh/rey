@@ -115,12 +115,13 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 
 - Keep workload declarations, graph revisions, scenarios, campaigns,
   qualification records, and production runs as distinct exact identities.
-- Treat workspace packages as admitted harness/rule/human proposals. Bind
-  exact producer and input revisions, freeze scenario oracles before
-  execution, and never present compiled conformance fixtures as product work.
+- Treat workspace packages as untrusted harness/rule/human WORKING proposals.
+  Bind exact producer and input revisions, freeze scenario oracles before
+  staging, qualify the exact INDEX, require human commit for HEAD, and never
+  present compiled conformance fixtures as product work.
 - Treat `workloads create` as an immutable request handoff to an external
   coding harness. Keep drafts visible, refuse overwrite, generate no fake
-  graph or oracle, and reject test/run until an admitted package exists.
+  graph or oracle, and reject run until an admitted HEAD package exists.
 - Validate every agent-, rule-, or human-proposed graph before execution; a
   proposal cannot introduce ambient executable authority or declare itself
   qualified.
@@ -149,9 +150,9 @@ All six tasks are backed by the current Cargo workspace. `rey` runs the CLI;
 - Keep portfolio attention provider-neutral and typed. Preserve action, reason,
   readiness, blockers/exclusions, evidence, dependency, priority, cost, and
   coverage as separate fields before scheduling or policy projection.
-- Exercise portfolio behavior through `rey workloads create`, `list`, `test`,
-  `run`, and `status`; do not introduce a parallel top-level mining command
-  hierarchy.
+- Exercise portfolio behavior through `rey workloads create`, `status`,
+  `diff`, `add`, `test --staged`, `commit`, `log`, `list`, and `run`; do not
+  introduce a parallel top-level mining command hierarchy.
 
 - Treat relational and source mining as peer capability families connected by
   exact projections, not as a reason to stringify data or tabularize every

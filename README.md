@@ -220,13 +220,16 @@ the same untrusted contract. Rey validates its operations, inputs, types,
 capabilities, effects, and bounds. The runtime executes the graph and computes
 scenario deltas; the proposer cannot declare its own graph qualified.
 
-The default catalog is the workspace's `workloads/` directory. Each accepted
-`rey.workload-package.v1` binds a generated graph, a generated but frozen
-scenario oracle, exact harness provenance, and its package source revision.
+The default catalog is the workspace's `workloads/` directory. Each
+`rey.workload-package.v1` is an agent-authored WORKING proposal that binds a
+generated graph, a generated but frozen scenario oracle, exact harness
+provenance, and its package source revision. It cannot admit itself.
 `rey workloads create` adds the missing agentic entry point: it writes a
 content-addressed `request.yaml` for an external coding harness and exposes the
-workload as a draft until that harness materializes an admitted package. Rey
-does not fabricate a graph or scenario oracle in the request step.
+workload as a draft until that harness materializes a package. `add` freezes
+the package in INDEX, `test --staged` qualifies that exact snapshot, and a
+human workload commit advances HEAD. Rey does not fabricate a graph or
+scenario oracle in the request step.
 Compiled fixtures are an explicit diagnostic surface selected with
 `--catalog conformance`; they are not presented as the user's portfolio.
 
@@ -251,10 +254,14 @@ rey editor commit -m <message>
 rey editor log [-p] [-n <count>]
 rey editor diff [--staged]
 rey workloads create <workload-id> [--title <title>] [--intent <intent>]
+rey workloads status
+rey workloads diff [--staged]
+rey workloads add
+rey workloads test --staged [<workload-id>] [-v|-vv]
+rey workloads commit -m <message>
+rey workloads log [-p] [-n <count>]
 rey workloads list
-rey workloads test [<workload-id>] [-v|-vv]
 rey workloads run <workload-id> --input <utf8>
-rey workloads status [<workload-id>]
 rey workloads --catalog conformance list|test|run|status ...
 rey journal add <proposal.yaml>
 rey journal list
@@ -301,9 +308,14 @@ just rey workloads create api-drift \
   --title 'API drift mining' \
   --intent 'Mine authoritative API behavior and formalize its graph and scenarios' \
   --format table
+just rey workloads status --format table
+just rey workloads diff --format table
+just rey workloads add --format table
+just rey workloads test --staged context-anchor-survey --format table -vv
+just rey workloads status --format table
+# Review and approve the exact qualified INDEX in the admission Feed:
+just rey ui
 just rey workloads list --format table
-just rey workloads test rey.portfolio.label-normalization --format table -vv
-just rey workloads run rey.portfolio.label-normalization --input ' refine ' --format table
 just rey workloads --catalog conformance test rey.fixture.text-mismatch --format table -vv
 just rey workloads --catalog conformance test rey.fixture.source-search --format table -vv
 just rey workloads --catalog conformance test rey.portfolio.attention --format table -vv
@@ -314,8 +326,8 @@ just rey workloads --catalog conformance run rey.fixture.source-search \
   --format table
 just rey journal add path/to/agent-entry.yaml
 just rey journal list
-just rey ui
-# Explicit network exposure; Rey warns that reachable clients can write unauthenticated Journal documents.
+# Explicit network exposure; workload approval remains enabled, so Rey warns
+# that reachable clients can write Journal documents and admit an exact INDEX.
 just rey ui --host 0.0.0.0 --port 5714
 ```
 
@@ -407,21 +419,23 @@ StyleX Vite integration into one deterministic atomic stylesheet; runtime
 Kinetic material values remain typed custom properties.
 The server defaults to `127.0.0.1:5714`, accepts explicit `--host` and `--port`
 values, and reports its exact exposure before serving. Its data projections
-are read-only. Its one write admits validated human Journal entries without
-authentication on every explicit bind; a non-loopback bind therefore warns
-that every reachable client can write. Journal admission remains separate from
-compute and proof authority. See
+are read-only except for two explicit admissions: validated human Journal
+entries and a qualified exact workload INDEX. Both are unauthenticated on every
+explicit bind; a non-loopback bind therefore warns that every reachable client
+can write Journal documents and advance workload HEAD. Journal admission,
+workload admission, runtime execution, and proof authority remain separate. See
 [Context Topology Explorer](docs/EXPLORER.md) for lens and coordinate semantics
 and [Collaboration Journal](docs/JOURNAL.md) for the notebook block and
 admission contracts.
 
 The default catalog contains the checked-in, coding-harness-generated
-`rey.portfolio.label-normalization` package. Its exact YAML graph and frozen
-scenario suite are visible at
-[`workloads/portfolio-label-normalization/workload.yaml`](workloads/portfolio-label-normalization/workload.yaml).
-Rey imports this accepted package. `workloads create` now produces the strict
-request side of the external harness handoff; harness response admission and
-automatic campaign continuation remain the next boundary.
+`context-anchor-survey` proposal. Its exact YAML graph and frozen scenario
+suite are visible at
+[`workloads/context-anchor-survey/workload.yaml`](workloads/context-anchor-survey/workload.yaml).
+Rey shows this package in WORKING until an agent stages and qualifies it and a
+human approves the exact INDEX. `workloads create` produces the strict request
+side of the external harness handoff; automatic harness invocation remains a
+later boundary.
 
 The explicit conformance catalog contains four executable diagnostic workloads. Two graphs cover
 deterministic UTF-8 `trim` and `uppercase`. The source-search graph composes
@@ -737,14 +751,16 @@ Plan 0010 has now started the outer loop. Workspace packages are the default
 product catalog and compiled workloads are explicitly diagnostic.
 `rey.portfolio-snapshot.v1` and the
 Polars-backed `rey.workload-attention.v1` relation are executable through the
-scenario-qualified `rey.portfolio.attention` workload. The five workload
-commands expose current attention, coverage, exact relation evidence, and
+scenario-qualified `rey.portfolio.attention` workload. The workload
+projections plus the Git-shaped admission loop expose current attention,
+coverage, exact relation evidence, and
 qualification-gated retained-input evaluation. Ready work, capability/evidence
 blockers, and policy exclusions remain separate facts.
 `rey.workload-creation-request.v1` makes draft creation visible in that same
 portfolio plane: `create` records an immutable harness request, `list` and
 `status` render `HYDRATE`/`AWAITING CODING HARNESS`, and `test`/`run` reject the
-draft until an admitted package exists.
+draft until a harness materializes a WORKING package and a qualified human
+commit admits it to HEAD.
 
 [Plan 0009](plans/0009-environment-admission-index.md) makes `status` the one
 environment interface and places a reviewable admission index between working

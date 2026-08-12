@@ -29,9 +29,10 @@ a probe.
 
 ADR 0022 and Plan 0010 now extend this foundation with ongoing portfolio
 mining. The canonical portfolio snapshot and workload-attention relation, a
-scenario-qualified system workload, and all four workload CLI projections are
-implemented; ownership declarations, live invalidation, scheduler handoff,
-and proposal/admission remain active work.
+scenario-qualified system workload, and its workload CLI projections are
+implemented; ownership declarations, live invalidation, and scheduler handoff
+remain active work. Product proposal/admission now uses workload
+HEAD/INDEX/WORKING under ADR 0049.
 
 ## Purpose
 

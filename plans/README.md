@@ -17,6 +17,7 @@ completion criteria.
 - [0020 — High-fidelity projection engine](0020-high-fidelity-projection-engine.md) — active Explorer engine extraction and continuous terrain-fidelity bearing
 - [0021 — Read-first scene editor](0021-read-first-scene-editor.md) — active native survey artifact, scene candidate, marker, and workload admission bearing
 - [0022 — Semantic spherical atlas and World globe](0022-semantic-spherical-atlas.md) — active admission-revisioned regional clustering, spherical World, and wraparound Atlas bearing
+- [0024 — Workload admission history](0024-workload-admission-history.md) — active exact HEAD/INDEX/WORKING workload loop and admission-first operator bearing
 
 ## Completed
 

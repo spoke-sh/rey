@@ -256,10 +256,10 @@ typed Kinetic material values remain runtime data; Rey's typed documents
 remain authoritative.
 
 The listener defaults to loopback and carries no authentication, multi-user,
-or remote-service guarantee. Its only write is bounded unauthenticated local
-Journal admission. An explicit non-loopback bind exposes that write to every
-client that can reach the listener and therefore emits a warning; no bind
-turns the UI into an execution control plane. See [Context Topology
+or remote-service guarantee. Its explicit writes are bounded Journal admission
+and qualified exact workload-INDEX approval. An explicit non-loopback bind
+exposes both writes to every client that can reach the listener and therefore
+emits a warning; no bind grants workload execution or proof authority. See [Context Topology
 Explorer](EXPLORER.md), [ADR 0025](decisions/0025-local-operator-ui.md), and
 [ADR 0026](decisions/0026-context-topology-explorer.md), and [ADR
 0030](decisions/0030-operator-cadence-agents-and-explorer-coordinates.md). The
@@ -347,27 +347,32 @@ edges, exact operation contracts, capability/effect requirements, and limits.
 The initial graph is acyclic. An agent, rule, or human may propose a graph, but
 the runtime validates it and deterministic scenarios decide qualification.
 
-The first product catalog resolves accepted
-`workloads/*/workload.yaml` packages. A package binds the generated graph and
-scenario suite, proposal producer/revision/inputs, and a frozen-oracle
-admission decision. Exact source bytes and path participate in the workload
-proposal identity. Compiled workloads are explicitly selected conformance and
-system diagnostics, not default portfolio entries.
+The product catalog observes `workloads/*/workload.yaml` as WORKING proposals.
+A package binds the generated graph and frozen scenario suite plus proposal
+producer, revision, and inputs; it owns no admission decision. Exact source
+bytes and path participate in the proposal identity. `workloads add` freezes
+the complete catalog in INDEX, `test --staged` binds passing qualification to
+that exact snapshot, and a human workload commit advances HEAD. Compiled
+workloads are explicitly selected conformance and system diagnostics, not
+default portfolio entries.
 
 `workloads create` precedes package admission with a content-addressed
 `workloads/*/request.yaml` contract. That request is an explicit handoff to an
 external coding harness, not an LLM embedded in the runtime. Request-only
 entries remain visible drafts and cannot be tested or run. Rey imports the
-materialized package only after its graph, suite, provenance, frozen oracle,
-limits, and request/package identity match validate. Automatic harness
+materialized package into WORKING only after its graph, suite, provenance,
+frozen oracle, limits, and request/package identity match validate. Automatic harness
 invocation remains a later campaign boundary. See [ADR
 0023](decisions/0023-workspace-workload-packages.md) and [ADR
-0024](decisions/0024-workload-creation-requests.md).
+0024](decisions/0024-workload-creation-requests.md). ADR
+[0049](decisions/0049-workload-admission-history.md) owns the subsequent
+HEAD/INDEX/WORKING admission loop.
 
 A scenario executes that exact graph against fixture bindings and compares
 `EXPECTED` to `OBSERVED`. Conclusive mismatches retain typed deltas; missing or
 incompatible evidence is inconclusive. All required scenarios must freshly
-pass for the same graph revision before `workloads run` selects it by default.
+pass for every package in the exact staged INDEX before a human can admit that
+snapshot; `workloads run` resolves only the resulting HEAD.
 
 Manual, policy-selected, Git, or future stream activations select a workload
 test campaign, scenario subset, or declared graph entry point through normal
@@ -873,14 +878,16 @@ UTF-8 literal search, native context retention, and the typed
 source provider and renderer in one qualified graph, derives one frontier row
 from its complete failing evidence, selects it with the generic scheduler, and
 projects one verified reasoning surface. The CLI exposes complete, different,
-and truncated mining evidence through all four workload commands.
+and truncated mining evidence through the workload conformance projections and
+retains product execution behind workload HEAD.
 
 The first portfolio-mining slice adds `rey.portfolio-snapshot.v1`, the
 Polars-backed `rey.workload-attention.v1` relation, and the qualified
 `rey.portfolio.attention` system workload. The workload CLI now exposes exact
 attention actions, reasons, readiness, coverage, evidence, priority, cost, and
-exclusions. Read-only list/status consume retained environment state; run
-evaluates the same retained portfolio inputs under fresh qualification.
+exclusions. Read-only list/status consume retained environment state; the
+explicit conformance run evaluates the same retained portfolio inputs under
+fresh qualification.
 
 No workload ownership declaration, live dependency invalidation, attention-to-
 frontier adapter, coding-harness request/response, recurring scheduler,

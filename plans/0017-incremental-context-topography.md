@@ -7,7 +7,7 @@
 
 ## Outcome
 
-Prove one complete seed-to-map voyage: an agent-generated, admitted workload
+Prove one complete seed-to-map voyage: an agent-generated workload
 locates project anchors from bounded `AGENTS.md` and README seeds, emits a
 typed topography patch and directed delta through the workloads CLI, and makes
 that same evidence navigable as anchor-shaped relief and stable points of
@@ -28,7 +28,7 @@ interest through a continuous far-out Explorer lens.
 - [x] Add fixture projects covering `AGENTS.md`, README variants, absolute and
   relative URI/reference candidates, duplicate anchors, malformed candidates,
   missing seeds, bounds, and deterministic replay.
-- [x] Make `rey workloads test context-anchor-survey -v|-vv` render seed,
+- [x] Make `rey workloads test --staged context-anchor-survey -v|-vv` render seed,
   locator, resolution, anchor, relationship, coverage, omission, and patch
   evidence at the established verbosity levels.
 - [x] Make `rey workloads run` retain one exact patch result and make
@@ -76,13 +76,16 @@ The acceptance path starts at the existing CLI:
 rey workloads create context-anchor-survey \
   --title "Survey project context anchors" \
   --intent "Mine bounded AGENTS.md and README seeds for exact URI and reference anchors"
-rey workloads test context-anchor-survey -vv
+rey workloads add
+rey workloads test --staged context-anchor-survey -vv
+rey workloads status
+# Human approves the exact INDEX in rey ui or with workloads commit.
 rey workloads run context-anchor-survey --source AGENTS.md --source README.md
-rey workloads status context-anchor-survey
 rey ui
 ```
 
-If the coding harness has not yet generated and admitted the package,
+If the coding harness has not yet generated the package, or a human has not
+yet admitted its exact qualified INDEX,
 `test|run` must report that boundary rather than substituting runtime-owned
 scenarios. Zooming the canvas must never advance the voyage.
 
@@ -97,7 +100,7 @@ cargo test --workspace
 pnpm --dir apps/rey-ui check
 # formatting, typecheck, 51 read-model/route/component tests, and production build passed
 
-rey workloads test context-anchor-survey --format table -vv
+rey workloads test --staged context-anchor-survey --format table -vv
 # required scenarios passed; bounded optional scenario remained explicitly inconclusive
 
 rey workloads run context-anchor-survey --source AGENTS.md --source README.md

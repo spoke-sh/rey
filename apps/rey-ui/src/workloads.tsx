@@ -6,6 +6,8 @@ import {
   workloadJourney,
   type WorkloadDraft,
   type WorkloadList,
+  type WorkloadPackageSnapshot,
+  type WorkloadRevisionStatus,
   type WorkloadSummary,
 } from "./domain";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
@@ -398,8 +400,111 @@ const requestPostureColumns: readonly KineticDenseTableColumn<WorkloadDraft>[] =
     },
   ];
 
+export interface AdmissionCandidateRow {
+  package: WorkloadPackageSnapshot;
+  plane: "INDEX" | "WORKING";
+  ready: boolean;
+}
+
+export function admissionCandidates(
+  revision: WorkloadRevisionStatus | undefined,
+): AdmissionCandidateRow[] {
+  if (!revision) return [];
+  const rows: AdmissionCandidateRow[] = (revision.index?.packages ?? []).map(
+    (candidate) => ({
+      package: candidate,
+      plane: "INDEX" as const,
+      ready: revision.commit_ready,
+    }),
+  );
+  for (const change of revision.unstaged.changes) {
+    const candidate = revision.working.packages.find(
+      (item) => item.workload_id === change.workload_id,
+    );
+    if (candidate)
+      rows.push({ package: candidate, plane: "WORKING", ready: false });
+  }
+  return rows;
+}
+
+const candidateColumns: readonly KineticDenseTableColumn<AdmissionCandidateRow>[] =
+  [
+    {
+      id: "workload",
+      header: "WORKLOAD / REVISION",
+      rowHeader: true,
+      width: "25%",
+      render: (row, index) => (
+        <div className={sx(styles.identity)}>
+          <span className={sx(styles.ordinal)}>
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <div className={sx(styles.identityDetail)}>
+            <strong>{row.package.workload_id}</strong>
+            <p className={sx(styles.description)}>{row.package.title}</p>
+            <span className={sx(chrome.micro)}>
+              R{row.package.workload_revision} / {row.plane}
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "admission",
+      header: "ADMISSION",
+      width: "18%",
+      render: (row) => (
+        <div className={sx(styles.cellStack)}>
+          <strong>{row.ready ? "AWAITING HUMAN APPROVAL" : row.plane}</strong>
+          <span className={sx(chrome.micro)}>
+            {row.ready ? "QUALIFIED / FROZEN" : "NOT ADMITTED"}
+          </span>
+          <span className={sx(styles.secondary)}>
+            {row.package.generation.kind.replaceAll("_", " ")} /{" "}
+            {row.package.generation.producer}@
+            {row.package.generation.producer_revision}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: "package",
+      header: "EXACT PACKAGE",
+      width: "25%",
+      render: (row) => (
+        <div className={sx(styles.cellStack)}>
+          <code title={row.package.source_digest}>
+            {shortDigest(row.package.source_digest)}
+          </code>
+          <span className={sx(styles.secondary)}>{row.package.source}</span>
+        </div>
+      ),
+    },
+    {
+      id: "graph",
+      header: "GRAPH",
+      width: "16%",
+      render: (row) => (
+        <code title={row.package.graph.semantic_digest}>
+          {row.package.graph.id}@{row.package.graph.revision}
+        </code>
+      ),
+    },
+    {
+      id: "oracle",
+      header: "SCENARIO ORACLE",
+      width: "16%",
+      render: (row) => (
+        <code title={row.package.scenario_suite.semantic_digest}>
+          {row.package.scenario_suite.id}@{row.package.scenario_suite.revision}
+        </code>
+      ),
+    },
+  ];
+
 export function WorkloadsPage({ portfolio }: { portfolio: WorkloadList }) {
   const metrics = derivePortfolioMetrics(portfolio);
+  const candidates = admissionCandidates(portfolio.revision);
   const attentionRows = portfolio.workloads.reduce(
     (total, workload) => total + workload.attention_rows,
     0,
@@ -408,19 +513,44 @@ export function WorkloadsPage({ portfolio }: { portfolio: WorkloadList }) {
     <main className={sx(chrome.page, styles.page)}>
       <section
         className={sx(styles.section, styles.firstSection)}
-        data-rey-section="01 / EXECUTABLE"
+        data-rey-section="01 / ADMISSION"
+      >
+        <WorkloadHeading
+          detail={`${candidates.length} incoming · ${portfolio.revision?.index?.packages.length ?? 0} staged · ${portfolio.revision?.commit_ready ? "approval ready" : "qualification required"}`}
+          index="01"
+          kicker="ADMISSION"
+          title="Incoming workload revisions"
+        />
+        <KineticDenseTable
+          ariaLabel="Incoming workload revisions"
+          className={sx(styles.table)}
+          columns={candidateColumns}
+          emptyState="NO WORKLOAD REVISION IS WAITING FOR ADMISSION"
+          getRowClassName={(row) =>
+            sx(styles.row, row.plane === "WORKING" && styles.draftRow)
+          }
+          getRowKey={(row) => `${row.plane}:${row.package.workload_id}`}
+          minWidth={1100}
+          rows={candidates}
+          theme="precision"
+        />
+      </section>
+
+      <section
+        className={sx(styles.section)}
+        data-rey-section="02 / EXECUTABLE"
       >
         <WorkloadHeading
           detail={`${metrics.admitted} admitted · ${metrics.qualified} qualified · ${metrics.failing} failing · ${metrics.stale} stale · ${attentionRows} attention`}
-          index="01"
+          index="02"
           kicker="EXECUTABLE"
-          title="Admitted workloads"
+          title="Admitted workload HEAD"
         />
         <KineticDenseTable
           ariaLabel="Admitted workload revisions"
           className={sx(styles.table)}
           columns={admittedColumns}
-          emptyState="NO ADMITTED WORKLOAD PACKAGES"
+          emptyState="NO WORKLOAD PACKAGES HAVE BEEN ADMITTED"
           getRowClassName={(workload) =>
             sx(
               styles.row,
@@ -439,11 +569,11 @@ export function WorkloadsPage({ portfolio }: { portfolio: WorkloadList }) {
 
       <section
         className={sx(styles.section)}
-        data-rey-section="02 / AGENTIC HANDOFF"
+        data-rey-section="03 / AGENTIC HANDOFF"
       >
         <WorkloadHeading
-          detail={`${metrics.drafts} requested · ${portfolio.attention.summary.create} create attention · ${portfolio.catalog.root ?? "compiled catalog"}`}
-          index="02"
+          detail={`${metrics.drafts} requested · ${portfolio.attention.summary.create} create attention · ${portfolio.catalog.root ?? "workspace catalog"}`}
+          index="03"
           kicker="AGENTIC HANDOFF"
           title="Creation requests"
         />
@@ -456,6 +586,50 @@ export function WorkloadsPage({ portfolio }: { portfolio: WorkloadList }) {
           getRowKey={(draft) => draft.request.workload_id}
           minWidth={1080}
           rows={portfolio.drafts}
+          theme="precision"
+        />
+      </section>
+    </main>
+  );
+}
+
+export function CandidateWorkloadDetail({
+  candidate,
+  revision,
+}: {
+  candidate: WorkloadPackageSnapshot;
+  revision: WorkloadRevisionStatus;
+}) {
+  const indexed = revision.index?.packages.some(
+    (item) =>
+      item.workload_id === candidate.workload_id &&
+      item.source_digest === candidate.source_digest,
+  );
+  const row: AdmissionCandidateRow = {
+    package: candidate,
+    plane: indexed ? "INDEX" : "WORKING",
+    ready: indexed === true && revision.commit_ready,
+  };
+  return (
+    <main className={sx(chrome.page, styles.page)}>
+      <PortfolioLink />
+      <section
+        className={sx(styles.section, styles.firstSection)}
+        data-rey-section="01 / ADMISSION POSTURE"
+      >
+        <WorkloadHeading
+          detail={`${row.plane} · ${row.ready ? "qualified and awaiting approval" : "not admitted"}`}
+          index="01"
+          kicker="ADMISSION POSTURE"
+          title={candidate.workload_id}
+        />
+        <KineticDenseTable
+          ariaLabel={`${candidate.workload_id} admission posture`}
+          className={sx(styles.table)}
+          columns={candidateColumns}
+          getRowKey={(item) => `${item.plane}:${item.package.workload_id}`}
+          minWidth={1100}
+          rows={[row]}
           theme="precision"
         />
       </section>

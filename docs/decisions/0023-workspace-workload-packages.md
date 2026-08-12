@@ -1,6 +1,6 @@
 # ADR 0023: Workspace Workload Packages
 
-- Status: Accepted
+- Status: Accepted; self-declared admission superseded by ADR 0049
 - Date: 2026-08-09
 - Extends: [ADR 0015](0015-workload-centered-product.md)
 - Narrows: [ADR 0016](0016-first-workload-slice.md)

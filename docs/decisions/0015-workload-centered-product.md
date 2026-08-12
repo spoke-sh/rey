@@ -1,6 +1,6 @@
 # ADR 0015: Workload-Centered Product And Scenario-Qualified Graphs
 
-- Status: Accepted
+- Status: Accepted; CLI and admission loop superseded by ADR 0049
 - Date: 2026-08-07
 - Environment namespace superseded by:
   [ADR 0019](0019-git-shaped-environment-history.md)
