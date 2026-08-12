@@ -3801,6 +3801,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     assert_eq!(initial.attention.summary.retest, 2);
     assert_eq!(initial.attention.summary.policy_excluded, 2);
     assert_eq!(initial.attention.summary.create, 0);
+    assert!(initial.runtime.is_none());
 
     let tested = run_rey(&[
         "workloads",
@@ -3867,6 +3868,8 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     assert!(status.contains("rey.portfolio.attention"));
     assert!(status.contains("ATTENTION FRONTIER"));
     assert!(status.contains("rey.fixture.text-normalize · untested · ready"));
+    assert!(status.contains("RUNTIME FRONTIER"));
+    assert!(status.contains("Unavailable · no retained environment snapshot"));
 
     fs::write(workspace.path().join("input.txt"), "portfolio surface\n").unwrap();
     fs::write(
@@ -3906,6 +3909,35 @@ edges: []
     ]);
     assert!(committed.status.success());
 
+    let structured = run_rey(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(structured.status.success());
+    assert!(structured.stderr.is_empty());
+    let structured: WorkloadList = serde_json::from_slice(&structured.stdout).unwrap();
+    let runtime = structured.runtime.as_ref().unwrap();
+    runtime.frontier.verify().unwrap();
+    runtime
+        .scheduling
+        .verify_against(&runtime.frontier)
+        .unwrap();
+    runtime.surface.as_ref().unwrap().verify().unwrap();
+    assert_eq!(
+        runtime.frontier.inputs.trace_id,
+        structured.attention.attention_id
+    );
+    assert_eq!(runtime.frontier.rows.len(), 3);
+    assert_eq!(runtime.scheduling.selected.len(), 1);
+    assert_eq!(runtime.scheduling.selected_cost_units, 1);
+    assert_eq!(runtime.surface.as_ref().unwrap().rows.len(), 1);
+    assert_ne!(
+        structured.attention.attention_id,
+        runtime.frontier.frontier_id
+    );
+    assert_ne!(runtime.frontier.frontier_id, runtime.scheduling.decision_id);
+    assert_ne!(
+        runtime.scheduling.decision_id,
+        runtime.surface.as_ref().unwrap().surface_id
+    );
+
     let listed = run_rey(&[
         "workloads",
         "--workspace",
@@ -3919,6 +3951,26 @@ edges: []
     assert!(listed.contains("Attention              0 refine · 2 retest · 1 create"));
     assert!(listed.contains("Coverage               1 mapped surfaces · 0 owned · 1 unowned"));
     assert!(listed.contains("input.txt · unowned_surface · ready"));
+    for needle in [
+        "RUNTIME FRONTIER",
+        "Frontier               blake3:",
+        "3 schedulable rows",
+        "Attention trace        blake3:",
+        "Portfolio snapshot     blake3:",
+        "Environment            blake3:",
+        "Scheduling             blake3:",
+        "1 selected · cost 1/5",
+        "Reasoning surface      blake3:",
+        "1 rows · 2 evidence · 1 actions",
+        "Surface budget",
+        "Progress               not derived · no prior runtime frontier",
+        "Proof                  not derived · no evaluated runtime transition",
+    ] {
+        assert!(
+            listed.contains(needle),
+            "missing runtime evidence: {needle}"
+        );
+    }
 
     let rerun = run_rey(&[
         "workloads",

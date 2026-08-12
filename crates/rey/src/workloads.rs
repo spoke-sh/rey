@@ -3259,8 +3259,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            snapshot.surfaces[0].owners,
-            [definition.workload.id.clone()]
+            snapshot.surfaces[0].owners.as_slice(),
+            std::slice::from_ref(&definition.workload.id)
         );
         assert!(snapshot.workloads[0].changed_dependency_ids.is_empty());
         assert!(snapshot.workloads[0].missing_capability_ids.is_empty());
