@@ -10,3 +10,4 @@ install-path = "CARGO_HOME"
 hosting = "github"
 install-updater = false
 pr-run-mode = "plan"
+github-build-setup = "../build-setup.yml"

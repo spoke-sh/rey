@@ -1,10 +1,12 @@
 # Development Environment
 
 Nix defines Rey's development toolchain, the Cargo workspace defines Rust
-dependencies and build metadata, and `just` provides the canonical root task
-surface. Crane builds the locked dependency graph once and reuses it for the
-binary and Nextest workspace tests. Its filtered source includes the checked-in
-scene, workload, and topography resources embedded or opened by those tests.
+dependencies and build metadata, the root pnpm workspace and Turborepo define
+the JavaScript monorepo graph, and `just` provides the canonical cross-language
+task surface. Crane builds the locked Rust dependency graph once and reuses it
+for the binary and Nextest workspace tests. Its filtered source includes the
+checked-in scene, workload, and topography resources embedded or opened by
+those tests.
 
 ## Enter The Environment
 
@@ -107,22 +109,23 @@ just fmt
 Current behavior is:
 
 - `setup` prints pinned Rust, Cargo, cargo-dist, cargo-nextest, and Just
-  versions, fetches locked Cargo dependencies, and installs the frozen pnpm
-  graph.
-- `check` runs `git diff --check`, TypeScript formatting/type/tests/build,
+  versions, fetches locked Cargo dependencies, installs the frozen root pnpm
+  graph, and prints the repository-local Turbo version.
+- `check` runs `git diff --check`, Turbo-scheduled TypeScript
+  formatting/type/tests/build,
   GitHub Actions structure/expression linting, cargo-dist generation drift,
   Rustfmt, Clippy with warnings denied, and flake evaluation when Nix is
   available. Actionlint retains ShellCheck for the authored CI workflow and
   disables it only for cargo-dist's generated release shell fragments.
-- `test` runs UI tests, requires cargo-nextest for all Rust workspace test
-  binaries, and then uses Cargo for Rust documentation tests because Nextest
-  does not execute doctests.
+- `test` runs Turbo-scheduled UI tests, regenerates the embedded UI assets,
+  requires cargo-nextest for all Rust workspace test binaries, and then uses
+  Cargo for Rust documentation tests because Nextest does not execute doctests.
 - `dist-check` verifies that cargo-dist's generated release workflow matches
   `dist-workspace.toml` and renders the complete release artifact plan without
   building or publishing it.
-- `build` builds deterministic UI assets before every workspace crate and
-  feature so the Rust binary embeds the current application.
-- `fmt` formats authored TypeScript/StyleX, pnpm workspace policy, Rust, and
+- `build` builds deterministic UI assets through Turbo before every workspace
+  crate and feature so the Rust binary embeds the current application.
+- `fmt` formats authored TypeScript/StyleX, root pnpm/Turbo policy, Rust, and
   `flake.nix`; installed Hifi packages remain immutable dependency artifacts.
 - `rey` runs the `rey` binary through Cargo with Rust build progress suppressed
   so the terminal surface is Rey's output; compiler diagnostics and failures
@@ -130,6 +133,31 @@ Current behavior is:
   the static UI build without suppressing TypeScript/Vite output, routes that
   build transcript to diagnostics so JSON stdout stays machine-clean, then
   starts the binary that embeds those freshly built assets.
+
+## JavaScript Monorepo
+
+The repository root owns the private `rey` package, the exact pnpm version,
+the single `pnpm-lock.yaml`, and `turbo.json`. `pnpm-workspace.yaml` admits
+`apps/*`; `@rey/ui` is the first workspace package. Add future applications as
+separately named packages under that root graph rather than creating nested
+workspace files or lockfiles.
+
+Root `pnpm` scripts are the JavaScript task surface. Turbo schedules and caches
+package `build`, `format:check`, `test`, and `typecheck` tasks, retains declared
+`dist/**` build outputs in its disposable cache, and leaves mutating `format`
+tasks uncached. Both `.turbo` and application `dist` directories are ignored;
+generated bundles are never source inputs from version control. `just` remains
+the repository-wide surface that composes this JavaScript graph with Cargo,
+Nix, release, and documentation checks.
+
+Nix packages the same graph explicitly. A fixed-output dependency derivation
+materializes the root pnpm lock, a UI derivation runs Turbo/Vite, and Crane
+receives that immutable output through `REY_UI_DIST_DIR` before compiling the
+Rust workspace. The cargo-dist release workflow performs its pinned Node/pnpm
+setup and UI build before `dist build`. The Rust build script only validates
+and embeds the supplied output; it does not install packages or access the
+network. Outside those composed entry points, a direct Cargo build requires a
+prior `pnpm run build` and reports that boundary if the assets are absent.
 
 ## Rust Conventions
 
@@ -196,12 +224,14 @@ Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
 CSS asset while typed Kinetic material values remain runtime custom
 properties. Exact MIT-licensed Hifi core/Kinetic Git packages are pinned to one
-GitHub revision in `apps/rey-ui/package.json` and `pnpm-lock.yaml`. The pnpm
-workspace policy admits build scripts only for those exact two codeload
+GitHub revision in `apps/rey-ui/package.json` and the root `pnpm-lock.yaml`.
+The pnpm workspace policy admits build scripts only for those exact two codeload
 artifacts; no ambient sibling checkout or arbitrary dependency build is
-trusted. Crane's filtered source includes built `apps/rey-ui/dist` assets
-consumed by Rust `include_bytes!` calls; the packaged Rey binary does not need
-Node at runtime.
+trusted. Nix fetches the same revision and content hash, rebuilds only those two
+packages inside the UI derivation, and then runs the root Turbo build. Crane
+passes the resulting immutable asset directory to the Rust build script for
+`include_bytes!`; neither `apps/rey-ui/dist` nor any other generated UI bundle
+is checked in. The packaged Rey binary does not need Node at runtime.
 
 `crates/rey/src/journal.rs` owns the shared typed entry validator, semantic
 identity, idempotent ordered log, hard limits,
@@ -261,9 +291,10 @@ The production UI build uses Vite 8's Rolldown output contract. Route surfaces
 are loaded through dynamic imports, WebGPU uses Three.js's modular source graph,
 and explicit React, router, and Three.js chunk groups keep each emitted
 JavaScript object at or below 450 KiB. The build fails if that bound is crossed
-and preserves `apps/rey-ui/dist/bundle-report.json` as deterministic evidence,
+and emits `apps/rey-ui/dist/bundle-report.json` beside the disposable bundle,
 including each chunk's exact byte size, imports, and entry or dynamic-entry
-role. The named production route-bundle workload reduced `app.js` from the
+role. Nix retains that report in the immutable UI derivation used to build the
+binary. The named production route-bundle workload reduced `app.js` from the
 650.17 kB baseline to 233,819 bytes and removed the prior 1,032.25 kB
 `three.webgpu.js` monolith; the generated manifest embeds and serves every
 emitted JavaScript and CSS object rather than assuming a fixed asset list.
@@ -304,7 +335,7 @@ Run a retained Explorer browser voyage against an explicitly started CLI
 surface with:
 
 ```sh
-pnpm --dir apps/rey-ui qualify:explorer -- \
+pnpm --filter @rey/ui qualify:explorer -- \
   --base-url http://127.0.0.1:5714 \
   --backend webgpu \
   --width 1920 \
@@ -342,7 +373,7 @@ activity or admitted evidence.
 After retaining one bound trio, record structural and rendered parity with:
 
 ```sh
-pnpm --dir apps/rey-ui qualify:explorer-parity -- \
+pnpm --filter @rey/ui qualify:explorer-parity -- \
   --reference .rey/qualification/explorer/<reference>/manifest.json \
   --webgl2 .rey/qualification/explorer/<webgl2>/manifest.json \
   --webgpu .rey/qualification/explorer/<webgpu>/manifest.json
@@ -368,7 +399,7 @@ After retaining all six viewport/backend voyages with performance fields,
 evaluate the versioned local ceiling with:
 
 ```sh
-pnpm --dir apps/rey-ui qualify:explorer-performance -- \
+pnpm --filter @rey/ui qualify:explorer-performance -- \
   --machine-name rey-local-swiftshader \
   --manifest .rey/qualification/explorer/<voyage>/manifest.json \
   --manifest .rey/qualification/explorer/<voyage>/manifest.json

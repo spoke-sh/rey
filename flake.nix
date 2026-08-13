@@ -38,11 +38,71 @@
       };
 
       craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+      uiSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./package.json
+          ./pnpm-lock.yaml
+          ./pnpm-workspace.yaml
+          ./turbo.json
+          ./apps/rey-ui/index.html
+          ./apps/rey-ui/package.json
+          ./apps/rey-ui/src
+          ./apps/rey-ui/tsconfig.json
+          ./apps/rey-ui/vite.config.ts
+        ];
+      };
+      uiPnpmDeps = pkgs.fetchPnpmDeps {
+        pname = "rey-ui-dependencies";
+        version = "0.1.0";
+        src = uiSource;
+        pnpm = pkgs.pnpm;
+        fetcherVersion = 4;
+        hash = "sha256-k1imL4PId6xNR/+f6USyh4w4Ex9r/o+XsH2IP1f5mdw=";
+      };
+      hifiSource = pkgs.fetchurl {
+        url = "https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5";
+        hash = "sha256-PzJsF7nxHWaVuVUsFo+XeszzjRFtOBI8SI/6sdeYRUM=";
+      };
+      uiAssets = pkgs.stdenvNoCC.mkDerivation {
+        pname = "rey-ui";
+        version = "0.1.0";
+        src = uiSource;
+        pnpmDeps = uiPnpmDeps;
+        nativeBuildInputs = [
+          pkgs.nodejs_24
+          pkgs.pnpm
+          pkgs.pnpmConfigHook
+        ];
+        TURBO_TELEMETRY_DISABLED = "1";
+        buildPhase = ''
+          runHook preBuild
+          # fetchPnpmDeps suppresses dependency lifecycle scripts. Rebuild the
+          # two explicitly admitted Hifi packages from the same pinned archive
+          # before compiling Rey's UI against their package outputs.
+          mkdir hifi
+          tar -xzf ${hifiSource} --strip-components=1 -C hifi
+          rm -rf apps/rey-ui/node_modules/@hifi
+          mkdir -p apps/rey-ui/node_modules/@hifi
+          ln -s "$PWD/hifi/packages/core" apps/rey-ui/node_modules/@hifi/core
+          ln -s "$PWD/hifi/packages/kinetic" apps/rey-ui/node_modules/@hifi/kinetic
+          ln -s "$PWD/apps/rey-ui/node_modules" hifi/node_modules
+          apps/rey-ui/node_modules/.bin/tsc -p hifi/packages/core/tsconfig.build.json
+          apps/rey-ui/node_modules/.bin/tsc -p hifi/packages/kinetic/tsconfig.build.json
+          pnpm run build
+          runHook postBuild
+        '';
+        installPhase = ''
+          runHook preInstall
+          mkdir -p "$out"
+          cp -R apps/rey-ui/dist/. "$out/"
+          runHook postInstall
+        '';
+      };
       cargoSource = pkgs.lib.fileset.toSource {
         root = ./.;
         fileset = pkgs.lib.fileset.unions [
           (craneLib.fileset.commonCargoSources ./.)
-          ./apps/rey-ui/dist
           ./crates/rey-environment/tests/fixtures
           ./crates/rey-runtime/tests/fixtures
           ./crates/rey/tests/fixtures
@@ -59,6 +119,7 @@
         strictDeps = true;
         cargoExtraArgs = "--locked --workspace --all-features";
         REY_BUILD_REVISION = self.rev or self.dirtyRev or "unknown";
+        REY_UI_DIST_DIR = uiAssets;
       };
       cargoArtifacts = craneLib.buildDepsOnly (commonCargoArgs
         // {
@@ -148,6 +209,7 @@
       packages = {
         default = reyPackage;
         rey = reyPackage;
+        ui = uiAssets;
         dev = reyDev;
       };
 
@@ -171,6 +233,7 @@
 
       checks = {
         rey = reyPackage;
+        ui = uiAssets;
         workspace-tests = workspaceTests;
         dev-wrapper = reyDev;
       };

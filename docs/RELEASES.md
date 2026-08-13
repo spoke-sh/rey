@@ -18,12 +18,16 @@ checked-in lock files remain authoritative when the cache is absent or stale.
 ## Release Planning
 
 `dist-workspace.toml` is the authored cargo-dist configuration and
-`.github/workflows/release.yml` is generated from it. Pull requests run the
-release plan but do not build or publish release artifacts. `just check`
-rejects a generated workflow that has drifted from its configuration and uses
-Actionlint to verify workflow structure and GitHub expressions. ShellCheck is
-retained for the authored CI workflow and disabled for the generated release
-pass because cargo-dist owns those shell fragments.
+`.github/workflows/release.yml` is generated from it. The authored
+`.github/build-setup.yml` fragment installs the root package's pnpm version,
+installs the frozen dependency graph, and runs the Turbo UI build before every
+platform-specific `dist build`; cargo-dist incorporates that fragment into its
+generated workflow. No checked-in frontend bundle participates in a release.
+Pull requests run the release plan but do not build or publish release
+artifacts. `just check` rejects a generated workflow that has drifted from its
+configuration and uses Actionlint to verify workflow structure and GitHub
+expressions. ShellCheck is retained for the authored CI workflow and disabled
+for the generated release pass because cargo-dist owns those shell fragments.
 
 The current plan distributes only the `rey` application and produces:
 
@@ -54,10 +58,11 @@ The release tag is the explicit publication boundary. Before tagging:
    ```
 
 Cargo-dist rejects a tag whose version does not match the distributable
-package. A matching pushed tag builds every configured target, creates the
-GitHub Release, uploads the archives, installers, checksums, source archive,
-and final distribution manifest, then announces the release. Prerelease
-semantic versions such as `v0.2.0-rc.1` become GitHub prereleases.
+package. A matching pushed tag builds the UI before compiling the Rust binary
+for every configured target, creates the GitHub Release, uploads the archives,
+installers, checksums, source archive, and final distribution manifest, then
+announces the release. Prerelease semantic versions such as `v0.2.0-rc.1`
+become GitHub prereleases.
 
 Do not create or push a release tag merely to test the workflow. Pull-request
 planning and `just dist-check` are the non-publishing verification surfaces.

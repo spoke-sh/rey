@@ -11,6 +11,7 @@ const UI_ASSET_MANIFEST: &str = "rey_ui_assets.rs";
 
 fn main() {
     println!("cargo:rerun-if-env-changed=REY_BUILD_REVISION");
+    println!("cargo:rerun-if-env-changed=REY_UI_DIST_DIR");
     let revision = env::var("REY_BUILD_REVISION")
         .ok()
         .filter(|value| valid_git_oid(value))
@@ -24,8 +25,18 @@ fn generate_ui_asset_manifest() {
     let manifest = PathBuf::from(
         env::var_os("CARGO_MANIFEST_DIR").expect("Cargo must provide CARGO_MANIFEST_DIR"),
     );
-    let assets = manifest.join("../../apps/rey-ui/dist/assets");
-    println!("cargo:rerun-if-changed={}", assets.display());
+    let dist = env::var_os("REY_UI_DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| manifest.join("../../apps/rey-ui/dist"));
+    let index = dist.join("index.html");
+    let assets = dist.join("assets");
+    println!("cargo:rerun-if-changed={}", dist.display());
+
+    assert!(
+        index.is_file(),
+        "embedded UI entry point {} does not exist; run the UI build first or set REY_UI_DIST_DIR",
+        index.display()
+    );
 
     let mut files = fs::read_dir(&assets)
         .unwrap_or_else(|error| {
@@ -50,9 +61,16 @@ fn generate_ui_asset_manifest() {
     files.sort();
     assert!(!files.is_empty(), "embedded UI asset directory is empty");
 
-    let mut generated = String::from("const STATIC_UI_ASSETS: &[(&str, &[u8], &str)] = &[\n");
+    let mut generated = String::new();
+    writeln!(
+        generated,
+        "const INDEX_HTML: &[u8] = include_bytes!({:?});",
+        rust_path(&index)
+    )
+    .expect("writing a String cannot fail");
+    generated.push_str("const STATIC_UI_ASSETS: &[(&str, &[u8], &str)] = &[\n");
     for path in files {
-        write_ui_asset(&mut generated, &assets, &path);
+        write_ui_asset(&mut generated, &path);
     }
     generated.push_str("];\n");
 
@@ -66,7 +84,7 @@ fn generate_ui_asset_manifest() {
     });
 }
 
-fn write_ui_asset(generated: &mut String, assets: &Path, path: &Path) {
+fn write_ui_asset(generated: &mut String, path: &Path) {
     let file_name = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -76,19 +94,19 @@ fn write_ui_asset(generated: &mut String, assets: &Path, path: &Path) {
         Some("js") => "text/javascript; charset=utf-8",
         _ => return,
     };
-    let assets_directory = assets
-        .file_name()
-        .and_then(|value| value.to_str())
-        .expect("embedded UI asset directory name must be UTF-8");
-    let relative = format!("/../../apps/rey-ui/dist/{assets_directory}/{file_name}");
     writeln!(
         generated,
-        "    ({:?}, include_bytes!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?})), {:?}),",
+        "    ({:?}, include_bytes!({:?}), {:?}),",
         format!("/assets/{file_name}"),
-        relative,
+        rust_path(path),
         content_type,
     )
     .expect("writing a String cannot fail");
+}
+
+fn rust_path(path: &Path) -> &str {
+    path.to_str()
+        .expect("embedded UI asset paths must be valid UTF-8")
 }
 
 fn repository_revision() -> Option<String> {

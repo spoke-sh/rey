@@ -303,8 +303,9 @@ slices live in [Current Plans](plans/README.md).
 
 ## Development
 
-Rey uses a pinned Nix development shell, Rust workspace, TypeScript UI,
-Nextest, and cargo-dist. The normal qualification path is:
+Rey uses a pinned Nix development shell, a Cargo workspace, a root pnpm and
+Turborepo monorepo with the TypeScript UI as its first package, Nextest, and
+cargo-dist. The normal qualification path is:
 
 ```sh
 nix develop

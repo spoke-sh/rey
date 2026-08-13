@@ -61,7 +61,6 @@ const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 const REQUEST_RECEIVE_POLL_INTERVAL_MS: u64 = 50;
 
-const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
 include!(concat!(env!("OUT_DIR"), "/rey_ui_assets.rs"));
 
 #[derive(Clone, Debug)]

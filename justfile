@@ -19,17 +19,18 @@ setup:
   @cargo nextest --version
   @just --version
   @cargo fetch --locked
-  @pnpm --dir apps/rey-ui install --frozen-lockfile
+  @pnpm install --frozen-lockfile
+  @pnpm exec turbo --version
 
 rey *args:
-  @if [[ "${1:-}" == "agent" ]]; then pnpm --dir apps/rey-ui run build >&2; fi
+  @if [[ "${1:-}" == "agent" ]]; then pnpm run build >&2; fi
   @cargo run --quiet -p rey --bin rey -- "$@"
 
 check:
   @git diff --check
   @actionlint .github/workflows/ci.yml
   @actionlint -shellcheck= .github/workflows/release.yml
-  @pnpm --dir apps/rey-ui run check
+  @pnpm run check
   @cargo fmt --all -- --check
   @cargo clippy --workspace --all-targets --all-features -- -D warnings
   @dist generate --check
@@ -40,7 +41,8 @@ check:
   fi
 
 test:
-  @pnpm --dir apps/rey-ui run test
+  @pnpm run test
+  @pnpm run build
   @cargo nextest run --workspace --all-features
   @cargo test --workspace --all-features --doc
 
@@ -49,11 +51,11 @@ dist-check:
   @dist plan
 
 build:
-  @pnpm --dir apps/rey-ui run build
+  @pnpm run build
   @cargo build --workspace --all-features
 
 fmt:
-  @pnpm --dir apps/rey-ui run format
+  @pnpm run format
   @cargo fmt --all
   @if command -v nix >/dev/null 2>&1; then \
     nix fmt -- flake.nix; \

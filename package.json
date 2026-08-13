@@ -1,0 +1,20 @@
+{
+  "name": "rey",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "check": "pnpm run format:check && turbo run typecheck test build",
+    "format": "turbo run format && pnpm --filter @rey/ui exec prettier --write ../../package.json ../../pnpm-workspace.yaml ../../turbo.json",
+    "format:check": "turbo run format:check && pnpm --filter @rey/ui exec prettier --check ../../package.json ../../pnpm-workspace.yaml ../../turbo.json",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.9"
+  }
+}
