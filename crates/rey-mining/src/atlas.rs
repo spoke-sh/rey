@@ -8,7 +8,9 @@ use thiserror::Error;
 use crate::{TopographyAnchorKind, TopographyPatch};
 
 pub const SEMANTIC_ATLAS_SCHEMA: &str = "rey.semantic-atlas.v1";
+pub const SEMANTIC_ATLAS_DELTA_SCHEMA: &str = "rey.semantic-atlas-delta.v1";
 const MICRODEGREES_PER_DEGREE: f64 = 1_000_000.0;
+const MAX_ATLAS_DELTA_CHANGES: usize = 512;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -317,6 +319,383 @@ impl SemanticAtlas {
         }
         Ok(())
     }
+
+    pub fn delta_from(
+        &self,
+        source: Option<&Self>,
+    ) -> Result<SemanticAtlasDelta, SemanticAtlasError> {
+        SemanticAtlasDelta::between(source, self)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticAtlasRegionChangeKind {
+    Inserted,
+    Removed,
+    Moved,
+    InterestChanged,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticAtlasRegionChange {
+    pub region_id: SemanticDigest,
+    pub kind: SemanticAtlasRegionChangeKind,
+    pub before: Option<SemanticAtlasRegion>,
+    pub after: Option<SemanticAtlasRegion>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticAtlasClusterChangeKind {
+    Merged,
+    Split,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticAtlasClusterChange {
+    pub kind: SemanticAtlasClusterChangeKind,
+    pub region_ids: Vec<SemanticDigest>,
+    pub source_cluster_ids: Vec<SemanticDigest>,
+    pub target_cluster_ids: Vec<SemanticDigest>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticAtlasDelta {
+    pub schema: String,
+    pub delta_id: SemanticDigest,
+    pub source_revision: SemanticDigest,
+    pub target_revision: SemanticDigest,
+    pub inserted: u64,
+    pub removed: u64,
+    pub moved: u64,
+    pub interest_changed: u64,
+    pub merged: u64,
+    pub split: u64,
+    pub region_changes: Vec<SemanticAtlasRegionChange>,
+    pub cluster_changes: Vec<SemanticAtlasClusterChange>,
+}
+
+impl SemanticAtlasDelta {
+    pub fn between(
+        source: Option<&SemanticAtlas>,
+        target: &SemanticAtlas,
+    ) -> Result<Self, SemanticAtlasError> {
+        if let Some(source) = source {
+            source.verify()?;
+        }
+        target.verify()?;
+        let source_regions = source
+            .into_iter()
+            .flat_map(|atlas| &atlas.regions)
+            .map(|region| (region.region_id.clone(), region))
+            .collect::<BTreeMap<_, _>>();
+        let target_regions = target
+            .regions
+            .iter()
+            .map(|region| (region.region_id.clone(), region))
+            .collect::<BTreeMap<_, _>>();
+        let mut region_changes = Vec::new();
+        for region_id in source_regions
+            .keys()
+            .chain(target_regions.keys())
+            .collect::<BTreeSet<_>>()
+        {
+            match (source_regions.get(region_id), target_regions.get(region_id)) {
+                (None, Some(after)) => region_changes.push(SemanticAtlasRegionChange {
+                    region_id: (*region_id).clone(),
+                    kind: SemanticAtlasRegionChangeKind::Inserted,
+                    before: None,
+                    after: Some((*after).clone()),
+                }),
+                (Some(before), None) => region_changes.push(SemanticAtlasRegionChange {
+                    region_id: (*region_id).clone(),
+                    kind: SemanticAtlasRegionChangeKind::Removed,
+                    before: Some((*before).clone()),
+                    after: None,
+                }),
+                (Some(before), Some(after)) => {
+                    if atlas_region_moved(before, after) {
+                        region_changes.push(SemanticAtlasRegionChange {
+                            region_id: (*region_id).clone(),
+                            kind: SemanticAtlasRegionChangeKind::Moved,
+                            before: Some((*before).clone()),
+                            after: Some((*after).clone()),
+                        });
+                    }
+                    if atlas_region_interest_changed(before, after) {
+                        region_changes.push(SemanticAtlasRegionChange {
+                            region_id: (*region_id).clone(),
+                            kind: SemanticAtlasRegionChangeKind::InterestChanged,
+                            before: Some((*before).clone()),
+                            after: Some((*after).clone()),
+                        });
+                    }
+                }
+                (None, None) => unreachable!("region identity came from one atlas"),
+            }
+        }
+        region_changes.sort_by(|left, right| {
+            (&left.region_id, left.kind).cmp(&(&right.region_id, right.kind))
+        });
+        let mut cluster_changes = source.map_or_else(Vec::new, |source| {
+            semantic_atlas_cluster_changes(source, target)
+        });
+        cluster_changes.sort_by(|left, right| {
+            (
+                left.kind,
+                &left.source_cluster_ids,
+                &left.target_cluster_ids,
+                &left.region_ids,
+            )
+                .cmp(&(
+                    right.kind,
+                    &right.source_cluster_ids,
+                    &right.target_cluster_ids,
+                    &right.region_ids,
+                ))
+        });
+        let count_region = |kind| {
+            region_changes
+                .iter()
+                .filter(|change| change.kind == kind)
+                .count() as u64
+        };
+        let count_cluster = |kind| {
+            cluster_changes
+                .iter()
+                .filter(|change| change.kind == kind)
+                .count() as u64
+        };
+        let mut delta = Self {
+            schema: SEMANTIC_ATLAS_DELTA_SCHEMA.to_owned(),
+            delta_id: placeholder("rey.semantic-atlas-delta.placeholder"),
+            source_revision: source
+                .map_or_else(empty_atlas_revision, |atlas| atlas.atlas_revision.clone()),
+            target_revision: target.atlas_revision.clone(),
+            inserted: count_region(SemanticAtlasRegionChangeKind::Inserted),
+            removed: count_region(SemanticAtlasRegionChangeKind::Removed),
+            moved: count_region(SemanticAtlasRegionChangeKind::Moved),
+            interest_changed: count_region(SemanticAtlasRegionChangeKind::InterestChanged),
+            merged: count_cluster(SemanticAtlasClusterChangeKind::Merged),
+            split: count_cluster(SemanticAtlasClusterChangeKind::Split),
+            region_changes,
+            cluster_changes,
+        };
+        delta.delta_id = atlas_delta_digest(&delta)?;
+        delta.verify()?;
+        Ok(delta)
+    }
+
+    pub fn verify(&self) -> Result<(), SemanticAtlasError> {
+        if self.schema != SEMANTIC_ATLAS_DELTA_SCHEMA
+            || self.source_revision.as_str().is_empty()
+            || self.target_revision.as_str().is_empty()
+            || self
+                .region_changes
+                .len()
+                .saturating_add(self.cluster_changes.len())
+                > MAX_ATLAS_DELTA_CHANGES
+        {
+            return Err(SemanticAtlasError::DeltaShape);
+        }
+        let mut previous_region = None;
+        let mut region_keys = BTreeSet::new();
+        for change in &self.region_changes {
+            let key = (&change.region_id, change.kind);
+            if previous_region.is_some_and(|previous| previous >= key)
+                || !region_keys.insert((change.region_id.clone(), change.kind))
+                || !valid_region_change(change)
+            {
+                return Err(SemanticAtlasError::DeltaShape);
+            }
+            previous_region = Some(key);
+        }
+        let mut previous_cluster = None;
+        let mut cluster_keys = BTreeSet::new();
+        for change in &self.cluster_changes {
+            let key = (
+                change.kind,
+                &change.source_cluster_ids,
+                &change.target_cluster_ids,
+                &change.region_ids,
+            );
+            if previous_cluster.is_some_and(|previous| previous >= key)
+                || !cluster_keys.insert((
+                    change.kind,
+                    change.source_cluster_ids.clone(),
+                    change.target_cluster_ids.clone(),
+                    change.region_ids.clone(),
+                ))
+                || !valid_cluster_change(change)
+            {
+                return Err(SemanticAtlasError::DeltaShape);
+            }
+            previous_cluster = Some(key);
+        }
+        let count_region = |kind| {
+            self.region_changes
+                .iter()
+                .filter(|change| change.kind == kind)
+                .count() as u64
+        };
+        let count_cluster = |kind| {
+            self.cluster_changes
+                .iter()
+                .filter(|change| change.kind == kind)
+                .count() as u64
+        };
+        if self.inserted != count_region(SemanticAtlasRegionChangeKind::Inserted)
+            || self.removed != count_region(SemanticAtlasRegionChangeKind::Removed)
+            || self.moved != count_region(SemanticAtlasRegionChangeKind::Moved)
+            || self.interest_changed != count_region(SemanticAtlasRegionChangeKind::InterestChanged)
+            || self.merged != count_cluster(SemanticAtlasClusterChangeKind::Merged)
+            || self.split != count_cluster(SemanticAtlasClusterChangeKind::Split)
+            || self.delta_id != atlas_delta_digest(self)?
+        {
+            return Err(SemanticAtlasError::DeltaDigest);
+        }
+        Ok(())
+    }
+
+    pub fn verify_between(
+        &self,
+        source: Option<&SemanticAtlas>,
+        target: &SemanticAtlas,
+    ) -> Result<(), SemanticAtlasError> {
+        let expected = Self::between(source, target)?;
+        if *self != expected {
+            return Err(SemanticAtlasError::DeltaBinding);
+        }
+        Ok(())
+    }
+}
+
+fn atlas_region_moved(left: &SemanticAtlasRegion, right: &SemanticAtlasRegion) -> bool {
+    left.cluster_id != right.cluster_id
+        || left.semantic_longitude_microdegrees != right.semantic_longitude_microdegrees
+        || left.semantic_latitude_microdegrees != right.semantic_latitude_microdegrees
+        || left.angular_radius_microdegrees != right.angular_radius_microdegrees
+}
+
+fn atlas_region_interest_changed(left: &SemanticAtlasRegion, right: &SemanticAtlasRegion) -> bool {
+    left.workload_id != right.workload_id
+        || left.source_patch_id != right.source_patch_id
+        || left.source_topography_revision != right.source_topography_revision
+        || left.anchor_count != right.anchor_count
+        || left.frontier_rows != right.frontier_rows
+        || left.complete != right.complete
+        || left.dominant_feature != right.dominant_feature
+}
+
+fn semantic_atlas_cluster_changes(
+    source: &SemanticAtlas,
+    target: &SemanticAtlas,
+) -> Vec<SemanticAtlasClusterChange> {
+    let source_cluster_by_region = source
+        .regions
+        .iter()
+        .map(|region| (region.region_id.clone(), region.cluster_id.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let target_cluster_by_region = target
+        .regions
+        .iter()
+        .map(|region| (region.region_id.clone(), region.cluster_id.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let persistent_regions = source_cluster_by_region
+        .keys()
+        .filter(|region_id| target_cluster_by_region.contains_key(*region_id))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut changes = Vec::new();
+    for target_cluster in &target.clusters {
+        let region_ids = target_cluster
+            .member_region_ids
+            .iter()
+            .filter(|region_id| persistent_regions.contains(*region_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let source_cluster_ids = region_ids
+            .iter()
+            .filter_map(|region_id| source_cluster_by_region.get(region_id))
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if source_cluster_ids.len() > 1 {
+            changes.push(SemanticAtlasClusterChange {
+                kind: SemanticAtlasClusterChangeKind::Merged,
+                region_ids,
+                source_cluster_ids,
+                target_cluster_ids: vec![target_cluster.cluster_id.clone()],
+            });
+        }
+    }
+    for source_cluster in &source.clusters {
+        let region_ids = source_cluster
+            .member_region_ids
+            .iter()
+            .filter(|region_id| persistent_regions.contains(*region_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let target_cluster_ids = region_ids
+            .iter()
+            .filter_map(|region_id| target_cluster_by_region.get(region_id))
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if target_cluster_ids.len() > 1 {
+            changes.push(SemanticAtlasClusterChange {
+                kind: SemanticAtlasClusterChangeKind::Split,
+                region_ids,
+                source_cluster_ids: vec![source_cluster.cluster_id.clone()],
+                target_cluster_ids,
+            });
+        }
+    }
+    changes
+}
+
+fn valid_region_change(change: &SemanticAtlasRegionChange) -> bool {
+    let bound = |region: &SemanticAtlasRegion| region.region_id == change.region_id;
+    match (&change.kind, &change.before, &change.after) {
+        (SemanticAtlasRegionChangeKind::Inserted, None, Some(after)) => bound(after),
+        (SemanticAtlasRegionChangeKind::Removed, Some(before), None) => bound(before),
+        (SemanticAtlasRegionChangeKind::Moved, Some(before), Some(after)) => {
+            bound(before) && bound(after) && atlas_region_moved(before, after)
+        }
+        (SemanticAtlasRegionChangeKind::InterestChanged, Some(before), Some(after)) => {
+            bound(before) && bound(after) && atlas_region_interest_changed(before, after)
+        }
+        _ => false,
+    }
+}
+
+fn valid_cluster_change(change: &SemanticAtlasClusterChange) -> bool {
+    if !canonical_nonempty_digests(&change.region_ids)
+        || !canonical_nonempty_digests(&change.source_cluster_ids)
+        || !canonical_nonempty_digests(&change.target_cluster_ids)
+    {
+        return false;
+    }
+    match change.kind {
+        SemanticAtlasClusterChangeKind::Merged => {
+            change.source_cluster_ids.len() > 1 && change.target_cluster_ids.len() == 1
+        }
+        SemanticAtlasClusterChangeKind::Split => {
+            change.source_cluster_ids.len() == 1 && change.target_cluster_ids.len() > 1
+        }
+    }
+}
+
+fn canonical_nonempty_digests(values: &[SemanticDigest]) -> bool {
+    !values.is_empty()
+        && values.iter().all(|value| !value.as_str().is_empty())
+        && values.windows(2).all(|pair| pair[0] < pair[1])
 }
 
 fn build_atlas(mut sources: Vec<SemanticAtlasSource>) -> Result<SemanticAtlas, SemanticAtlasError> {
@@ -608,6 +987,19 @@ fn atlas_revision_digest(atlas: &SemanticAtlas) -> Result<SemanticDigest, Semant
     Ok(hasher.finish())
 }
 
+fn atlas_delta_digest(delta: &SemanticAtlasDelta) -> Result<SemanticDigest, SemanticAtlasError> {
+    let mut normalized = delta.clone();
+    normalized.delta_id = placeholder("rey.semantic-atlas-delta.placeholder");
+    let bytes = serde_json::to_vec(&normalized)?;
+    let mut hasher = SemanticHasher::new(SEMANTIC_ATLAS_DELTA_SCHEMA);
+    hasher.add_bytes(&bytes);
+    Ok(hasher.finish())
+}
+
+fn empty_atlas_revision() -> SemanticDigest {
+    SemanticHasher::new("rey.semantic-atlas.empty.v1").finish()
+}
+
 fn validate_limits(limits: &SemanticAtlasLimits) -> Result<(), SemanticAtlasError> {
     if [
         limits.max_regions,
@@ -670,6 +1062,12 @@ pub enum SemanticAtlasError {
     Limit,
     #[error("semantic atlas digest does not match its content")]
     Digest,
+    #[error("semantic atlas delta shape is invalid")]
+    DeltaShape,
+    #[error("semantic atlas delta digest does not match its content")]
+    DeltaDigest,
+    #[error("semantic atlas delta does not match its source and target revisions")]
+    DeltaBinding,
     #[error(transparent)]
     Topography(#[from] crate::TopographyError),
     #[error(transparent)]
@@ -730,6 +1128,93 @@ mod tests {
     }
 
     #[test]
+    fn atlas_delta_is_directed_typed_and_content_identified() {
+        let source = SemanticAtlas::from_sources(vec![
+            source("docs", 1, 8),
+            source("code", 9, 1),
+            source("mixed", 4, 4),
+        ])
+        .expect("source atlas");
+        let initial = source.delta_from(None).expect("initial delta");
+        assert_eq!(initial.inserted, 3);
+        assert_eq!(initial.removed, 0);
+        initial.verify_between(None, &source).expect("bound delta");
+
+        let mut target = source.clone();
+        let changed_region_id = target.sources[0].region_id.clone();
+        target.sources[0].source_topography_revision = placeholder("changed-source");
+        let changed_region = target
+            .regions
+            .iter_mut()
+            .find(|region| region.region_id == changed_region_id)
+            .expect("changed region");
+        changed_region.source_topography_revision =
+            target.sources[0].source_topography_revision.clone();
+        changed_region.semantic_longitude_microdegrees += 1;
+        target.atlas_revision = atlas_revision_digest(&target).expect("target revision");
+        target.atlas_id = target.atlas_revision.clone();
+        target.verify().expect("target atlas");
+
+        let delta = target.delta_from(Some(&source)).expect("directed delta");
+        assert_eq!(delta.inserted, 0);
+        assert_eq!(delta.removed, 0);
+        assert_eq!(delta.moved, 1);
+        assert_eq!(delta.interest_changed, 1);
+        assert_eq!(delta.source_revision, source.atlas_revision);
+        assert_eq!(delta.target_revision, target.atlas_revision);
+        delta
+            .verify_between(Some(&source), &target)
+            .expect("bound delta");
+
+        let reverse = source.delta_from(Some(&target)).expect("reverse delta");
+        assert_ne!(delta.delta_id, reverse.delta_id);
+        assert_eq!(reverse.source_revision, target.atlas_revision);
+        assert_eq!(reverse.target_revision, source.atlas_revision);
+
+        let mut tampered = delta.clone();
+        tampered.moved = 0;
+        assert!(matches!(
+            tampered.verify(),
+            Err(SemanticAtlasError::DeltaDigest)
+        ));
+    }
+
+    #[test]
+    fn atlas_delta_keeps_merge_split_insert_and_remove_distinct() {
+        let split = SemanticAtlas::from_sources(vec![
+            source("one", 9, 1),
+            source("two", 8, 2),
+            source("three", 1, 9),
+            source("four", 2, 8),
+        ])
+        .expect("split atlas");
+        assert!(split.clusters.len() > 1);
+        let all_region_ids = split
+            .regions
+            .iter()
+            .map(|region| region.region_id.clone())
+            .collect::<Vec<_>>();
+        let merged = regroup(split.clone(), vec![all_region_ids]);
+
+        let merge_delta = merged.delta_from(Some(&split)).expect("merge delta");
+        assert_eq!(merge_delta.merged, 1);
+        assert_eq!(merge_delta.split, 0);
+        assert_eq!(merge_delta.inserted, 0);
+        assert_eq!(merge_delta.removed, 0);
+
+        let split_delta = split.delta_from(Some(&merged)).expect("split delta");
+        assert_eq!(split_delta.merged, 0);
+        assert_eq!(split_delta.split, 1);
+
+        let reduced =
+            SemanticAtlas::from_sources(split.sources[..3].to_vec()).expect("reduced atlas");
+        let remove_delta = reduced.delta_from(Some(&split)).expect("remove delta");
+        assert_eq!(remove_delta.removed, 1);
+        let insert_delta = split.delta_from(Some(&reduced)).expect("insert delta");
+        assert_eq!(insert_delta.inserted, 1);
+    }
+
+    #[test]
     fn atlas_rejects_earth_crs_and_tampered_coordinates() {
         let mut atlas = SemanticAtlas::from_sources(vec![source("one", 2, 1)]).expect("atlas");
         atlas.coordinate_system.earth_crs = Some("OGC:CRS84".to_owned());
@@ -754,5 +1239,49 @@ mod tests {
             "zoom selects retained level of detail and never reclusters"
         );
         assert!(atlas.coordinate_system.earth_crs.is_none());
+    }
+
+    fn regroup(mut atlas: SemanticAtlas, mut groups: Vec<Vec<SemanticDigest>>) -> SemanticAtlas {
+        for group in &mut groups {
+            group.sort();
+        }
+        groups.sort();
+        atlas.clusters = groups
+            .iter()
+            .enumerate()
+            .map(|(index, region_ids)| {
+                let cluster_id = cluster_identity(region_ids);
+                for region in &mut atlas.regions {
+                    if region_ids.contains(&region.region_id) {
+                        region.cluster_id = cluster_id.clone();
+                    }
+                }
+                let sources = region_ids
+                    .iter()
+                    .filter_map(|region_id| {
+                        atlas
+                            .sources
+                            .iter()
+                            .find(|source| &source.region_id == region_id)
+                    })
+                    .collect::<Vec<_>>();
+                let (longitude, latitude) = cluster_center(index, groups.len());
+                SemanticAtlasCluster {
+                    cluster_id,
+                    semantic_longitude_microdegrees: longitude,
+                    semantic_latitude_microdegrees: latitude,
+                    angular_radius_microdegrees: 22_000_000,
+                    member_region_ids: region_ids.clone(),
+                    dominant_feature: dominant_feature(sources),
+                }
+            })
+            .collect();
+        atlas
+            .clusters
+            .sort_by(|left, right| left.cluster_id.cmp(&right.cluster_id));
+        atlas.atlas_revision = atlas_revision_digest(&atlas).expect("regrouped revision");
+        atlas.atlas_id = atlas.atlas_revision.clone();
+        atlas.verify().expect("regrouped atlas");
+        atlas
     }
 }

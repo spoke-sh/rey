@@ -57,6 +57,16 @@ export function compileSceneSnapshot(
         ].sort((left, right) => left.localeCompare(right));
   if (portfolio.semantic_atlas)
     sourceRevisions.push(portfolio.semantic_atlas.atlas_revision);
+  const latestAtlasDelta = portfolio.semantic_atlas_deltas.at(-1);
+  const latestRetainedAtlas = portfolio.semantic_atlas_history.at(-1);
+  if (
+    portfolio.semantic_atlas &&
+    latestAtlasDelta &&
+    latestRetainedAtlas?.atlas_revision ===
+      portfolio.semantic_atlas.atlas_revision &&
+    latestAtlasDelta.target_revision === portfolio.semantic_atlas.atlas_revision
+  )
+    sourceRevisions.push(latestAtlasDelta.delta_id);
   sourceRevisions.sort((left, right) => left.localeCompare(right));
   const compilerRevisions = topographies
     .map(({ projection }) => projection.scene_compiler.semantic_digest)

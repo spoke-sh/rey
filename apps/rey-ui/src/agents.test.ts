@@ -254,6 +254,8 @@ function emptyPortfolio(): WorkloadList {
   return {
     schema: "rey.workload-list.v1",
     semantic_atlas: null,
+    semantic_atlas_history: [],
+    semantic_atlas_deltas: [],
     catalog: {
       schema: "rey.workload-catalog.v1",
       kind: "workspace_packages",

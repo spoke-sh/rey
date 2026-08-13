@@ -10,7 +10,9 @@ use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
 use rey_environment::{Availability, CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
 use rey_git::{GitActivationBudget, GitActivationProposal, GitSnapshot};
-use rey_mining::{ProjectionPacket, SemanticAtlas, TopographyCoverage, TopographyPatch};
+use rey_mining::{
+    ProjectionPacket, SemanticAtlas, SemanticAtlasDelta, TopographyCoverage, TopographyPatch,
+};
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
     CONTEXT_ANCHOR_SURVEY_OPERATION_ID, ComputeGraph, GraphLimits, GraphNode, GraphOutput,
@@ -57,6 +59,7 @@ const STATE_FILE_NAME: &str = "state.json";
 const LOCK_FILE_NAME: &str = "workloads.lock";
 const MAX_STATE_BYTES: u64 = 4 * 1_024 * 1_024;
 const MAX_STATE_RECORDS: usize = 64;
+const MAX_RETAINED_SEMANTIC_ATLASES: usize = 64;
 const WORKLOAD_PACKAGE_FILE_NAME: &str = "workload.yaml";
 const WORKLOAD_CREATION_REQUEST_FILE_NAME: &str = "request.yaml";
 const MAX_WORKLOAD_PACKAGES: usize = 128;
@@ -2353,6 +2356,10 @@ pub struct LocalWorkloadState {
     pub qualified_index: Option<SemanticDigest>,
     pub records: BTreeMap<String, LocalWorkloadRecord>,
     #[serde(default)]
+    pub semantic_atlas_history: Vec<SemanticAtlas>,
+    #[serde(default)]
+    pub semantic_atlas_deltas: Vec<SemanticAtlasDelta>,
+    #[serde(default)]
     pub activation_admissions: Vec<WorkloadActivationAdmission>,
     #[serde(default)]
     pub activation_executions: Vec<WorkloadActivationExecution>,
@@ -2368,6 +2375,8 @@ impl Default for LocalWorkloadState {
             index: None,
             qualified_index: None,
             records: BTreeMap::new(),
+            semantic_atlas_history: Vec::new(),
+            semantic_atlas_deltas: Vec::new(),
             activation_admissions: Vec::new(),
             activation_executions: Vec::new(),
             activation_recomputations: Vec::new(),
@@ -2386,6 +2395,24 @@ impl LocalWorkloadState {
             return Err(LocalWorkloadStateError::RecordLimit {
                 limit: MAX_STATE_RECORDS,
             });
+        }
+        if self.semantic_atlas_history.len() > MAX_RETAINED_SEMANTIC_ATLASES
+            || self.semantic_atlas_deltas.len() != self.semantic_atlas_history.len()
+        {
+            return Err(LocalWorkloadStateError::SemanticAtlasHistory);
+        }
+        let mut atlas_revisions = BTreeSet::new();
+        for (index, atlas) in self.semantic_atlas_history.iter().enumerate() {
+            atlas.verify()?;
+            if !atlas_revisions.insert(atlas.atlas_revision.clone()) {
+                return Err(LocalWorkloadStateError::SemanticAtlasHistory);
+            }
+            self.semantic_atlas_deltas[index].verify_between(
+                index
+                    .checked_sub(1)
+                    .and_then(|prior| self.semantic_atlas_history.get(prior)),
+                atlas,
+            )?;
         }
         if self.activation_admissions.len() > MAX_WORKLOAD_ACTIVATION_ADMISSIONS {
             return Err(LocalWorkloadStateError::ActivationAdmissionLimit(
@@ -2543,6 +2570,43 @@ impl LocalWorkloadState {
             .entry(workload_id)
             .or_insert_with(LocalWorkloadRecord::empty)
             .last_run = Some(result);
+    }
+
+    pub fn retain_semantic_atlas_transition(
+        &mut self,
+        source: Option<SemanticAtlas>,
+        target: Option<SemanticAtlas>,
+    ) -> Result<(), LocalWorkloadStateError> {
+        let Some(target) = target else { return Ok(()) };
+        if source
+            .as_ref()
+            .is_some_and(|source| source.atlas_revision == target.atlas_revision)
+        {
+            return Ok(());
+        }
+        if self.semantic_atlas_history.is_empty()
+            && let Some(source) = source
+        {
+            self.push_semantic_atlas(source)?;
+        }
+        if self
+            .semantic_atlas_history
+            .last()
+            .is_some_and(|atlas| atlas.atlas_revision == target.atlas_revision)
+        {
+            return Ok(());
+        }
+        self.push_semantic_atlas(target)
+    }
+
+    fn push_semantic_atlas(&mut self, atlas: SemanticAtlas) -> Result<(), LocalWorkloadStateError> {
+        if self.semantic_atlas_history.len() >= MAX_RETAINED_SEMANTIC_ATLASES {
+            return Err(LocalWorkloadStateError::SemanticAtlasHistory);
+        }
+        let delta = atlas.delta_from(self.semantic_atlas_history.last())?;
+        self.semantic_atlas_history.push(atlas);
+        self.semantic_atlas_deltas.push(delta);
+        Ok(())
     }
 
     pub fn refresh_index_qualification(&mut self, definitions: &[WorkloadDefinition]) {
@@ -3554,10 +3618,7 @@ impl WorkloadSummary {
             .chain(&run_topography)
             .filter(|patch| patch.complete)
             .count() as u64;
-        let last_patch = run_topography
-            .last()
-            .copied()
-            .or_else(|| test_topography.last().copied());
+        let last_patch = run_topography.last().copied();
         let mining_results = source_mining_results
             .saturating_add(attention_results)
             .saturating_add(topography_results);
@@ -3645,6 +3706,8 @@ pub struct WorkloadList {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<PortfolioReasoningEvidence>,
     pub semantic_atlas: Option<SemanticAtlas>,
+    pub semantic_atlas_history: Vec<SemanticAtlas>,
+    pub semantic_atlas_deltas: Vec<SemanticAtlasDelta>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<WorkloadRevisionStatus>,
 }
@@ -3679,6 +3742,8 @@ impl WorkloadList {
             attention,
             runtime,
             semantic_atlas,
+            semantic_atlas_history: Vec::new(),
+            semantic_atlas_deltas: Vec::new(),
             revision: None,
         }
     }
@@ -3697,6 +3762,37 @@ impl WorkloadList {
         self.activation_recomputations = recomputations;
         self
     }
+
+    #[must_use]
+    pub fn with_semantic_atlas_history(
+        mut self,
+        history: Vec<SemanticAtlas>,
+        deltas: Vec<SemanticAtlasDelta>,
+    ) -> Self {
+        self.semantic_atlas_history = history;
+        self.semantic_atlas_deltas = deltas;
+        self
+    }
+}
+
+pub fn derive_semantic_atlas(
+    definitions: &[WorkloadDefinition],
+    state: &LocalWorkloadState,
+) -> Result<Option<SemanticAtlas>, rey_mining::SemanticAtlasError> {
+    let patches = definitions
+        .iter()
+        .filter_map(|workload| {
+            let summary = WorkloadSummary::derive(workload, state.record(&workload.workload.id));
+            summary
+                .topography_patch
+                .map(|patch| (workload.workload.id.clone(), patch))
+        })
+        .collect::<Vec<_>>();
+    SemanticAtlas::from_topographies(
+        patches
+            .iter()
+            .map(|(workload_id, patch)| (workload_id.as_str(), patch)),
+    )
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -4306,6 +4402,8 @@ pub enum LocalWorkloadStateError {
     RecordLimit { limit: usize },
     #[error("local workload state contains an empty workload id")]
     EmptyWorkloadId,
+    #[error("retained semantic atlas history is invalid, non-linear, or exceeds its bound")]
+    SemanticAtlasHistory,
     #[error("local workload state record {0} has no retained artifact")]
     EmptyRecord(String),
     #[error("workload activation admission is invalid or has been tampered with")]
@@ -4427,6 +4525,8 @@ pub enum LocalWorkloadStateError {
     Workload(#[from] rey_runtime::WorkloadError),
     #[error(transparent)]
     Git(#[from] rey_git::GitError),
+    #[error(transparent)]
+    SemanticAtlas(#[from] rey_mining::SemanticAtlasError),
     #[error(transparent)]
     Ignore(#[from] ReyIgnoreError),
 }

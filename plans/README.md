@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Retain prior atlas revisions and typed movement deltas, then add stable sector identity without conflating sectors and native County footprints. | Implemented editor-to-admission-to-Explorer voyage, projection packets, current synthetic atlas, and renderer boundary. |
+| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Bind accepted regional scenes into retained atlas revisions, then add stable sector identity without conflating sectors and native County footprints. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey-atlas history/deltas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:

@@ -465,10 +465,14 @@ The workload list also derives `rey.semantic-atlas.v1` over the latest admitted
 regional patches. Its bounded survey-structure clustering and synthetic
 spherical placement are pure visualization mining with an exact compiler and
 revision; visual proximity is not a mined relationship or similarity claim.
-Zoom never enters that derivation. [Plan
-0003](../plans/0003-scene-to-explorer.md) must retain prior atlas revisions and
-a directed movement delta before admission-time topology changes can be
-inspected historically.
+Zoom never enters that derivation. Production survey runs retain a bounded
+linear atlas history and content-identified `rey.semantic-atlas-delta.v1`
+documents. Region changes remain typed as inserted, removed, moved, or
+interest-changed; cluster topology changes remain merged or split. Each delta
+binds exact source and target atlas revisions, and replay/tamper verification
+recomputes it from both documents. Qualification fixtures and read-only
+projection do not advance this history. Accepted regional-scene membership in
+that atlas remains Plan 0003 work.
 
 The remaining render-graph extraction, transient-patch transitions, retained
 visual proof, and named performance qualification remain

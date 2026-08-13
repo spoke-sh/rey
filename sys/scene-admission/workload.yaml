@@ -20,9 +20,9 @@ generation:
     - scenario_suite
   inputs:
     - source: plans/0003-scene-to-explorer.md
-      revision: sha256:6c5604dd28c2950f8f19c8bcc67370fe5048bbc72cfcf5772d65f67406b95466
+      revision: sha256:8141c5b515660a3fc8a1a5ffdedbb9910eea5c458d130029a479fe8666ae5ca8
     - source: docs/EXPLORER.md
-      revision: sha256:2f729839e2aa954a5016ac454be68d43e4f4f009d3d88bc8fb8df8dc08b605aa
+      revision: sha256:8d19fbf6250c6a71b579812c36ca456891651c34daa52daeac72fa5eabecabea
 
 graph:
   id: scene-admission.graph

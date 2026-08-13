@@ -86,7 +86,7 @@ use rey::{
         WorkloadDraft, WorkloadList, WorkloadLog, WorkloadRecomputationAssessment,
         WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch, WorkloadStatusView,
         WorkloadSummary, WorkloadTestBatch, WorkloadWorkingState, derive_portfolio_snapshot,
-        fresh_qualification,
+        derive_semantic_atlas, fresh_qualification,
     },
 };
 use rey_core::{SemanticDigest, SemanticHasher};
@@ -3443,6 +3443,10 @@ fn current_workload_list(
         runtime,
     )
     .with_activation_recomputations(state.activation_recomputations.clone())
+    .with_semantic_atlas_history(
+        state.semantic_atlas_history.clone(),
+        state.semantic_atlas_deltas.clone(),
+    )
     .with_revision(revision);
     Ok(list)
 }
@@ -3874,6 +3878,8 @@ fn workload_run(
             WorkloadValue::Utf8(args.input.ok_or(CliError::MissingWorkloadInput)?),
         );
     }
+    let atlas_definitions = catalog.definitions();
+    let atlas_source = derive_semantic_atlas(&atlas_definitions, &state)?;
     let result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
         Some(qualification) if workload.workload.id == SCENE_ADMISSION_WORKLOAD_ID => {
             let editor = editor_store_for_workspace(workspace, args.editor_state_dir.as_deref())?;
@@ -3945,6 +3951,8 @@ fn workload_run(
         RunStatus::Blocked => ExitCode::from(3),
     };
     state.retain_run(result.clone());
+    let atlas_target = derive_semantic_atlas(&atlas_definitions, &state)?;
+    state.retain_semantic_atlas_transition(atlas_source, atlas_target)?;
     state.verify()?;
     store.save(&state)?;
     let mut stdout = io::stdout().lock();
@@ -7170,6 +7178,32 @@ fn write_workload_list(
                 atlas.compiler.id, atlas.compiler.revision,
             ),
         )?;
+        write_portfolio_field(
+            output,
+            "Atlas history",
+            &format!(
+                "{} retained revisions · {} directed deltas · read-only list does not create history",
+                list.semantic_atlas_history.len(),
+                list.semantic_atlas_deltas.len(),
+            ),
+        )?;
+        if let Some(delta) = list.semantic_atlas_deltas.last() {
+            write_portfolio_field(
+                output,
+                "Latest atlas delta",
+                &format!(
+                    "{} → {} · +{} −{} · {} moved · {} interest changed · {} merged · {} split",
+                    delta.source_revision,
+                    delta.target_revision,
+                    delta.inserted,
+                    delta.removed,
+                    delta.moved,
+                    delta.interest_changed,
+                    delta.merged,
+                    delta.split,
+                ),
+            )?;
+        }
     }
     write_portfolio_field(
         output,
@@ -12218,6 +12252,8 @@ enum CliError {
     Command(#[from] rey_environment::CommandError),
     #[error(transparent)]
     Delta(#[from] rey_diff::DeltaError),
+    #[error(transparent)]
+    SemanticAtlas(#[from] rey_mining::SemanticAtlasError),
     #[error(transparent)]
     Workload(#[from] rey_runtime::WorkloadError),
     #[error(transparent)]

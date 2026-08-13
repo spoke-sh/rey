@@ -1632,7 +1632,11 @@ regional evidence. It preserves stable region identity and exact source
 revisions while deriving world clusters and synthetic spherical placement from
 an explicit compiler, policy, limits, completeness, omissions, and lineage.
 The current workload-list atlas is reproducible from retained admission state;
-retained prior revisions and movement deltas remain planned.
+production survey runs retain a bounded linear history plus one
+`rey.semantic-atlas-delta.v1` per revision. Its exact source/target binding keeps
+inserted, removed, moved, interest-changed, merged, and split changes distinct.
+Qualification fixtures and reads cannot advance atlas history. Accepted
+regional-scene membership and sector polygons remain planned.
 
 ### Semantic spherical coordinate
 

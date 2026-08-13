@@ -583,6 +583,10 @@ attention, retained `rey.topography-patch.v1` artifacts, and their exact
 `rey.projection-packet.v1` envelopes. It also consumes the deterministic
 `rey.semantic-atlas.v1` projection of admitted survey patches and the latest
 accepted production `rey.scene-admission-result.v1` for each regional workload.
+Production survey runs also expose a retained bounded atlas history and directed
+typed delta. The immutable browser scene and bearing bind the latest delta only
+when its target and the last retained revision equal the current atlas;
+qualification fixtures and list/UI reads cannot advance it.
 With a fresh
 `.rey`, it projects incoming workload file state as an unmapped orientation
 globe and directs the operator toward consensual survey admission. At World the
@@ -642,8 +646,8 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: retain
-atlas revisions and movement deltas, add sector identity, complete World and
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: make
+accepted regional scenes retained atlas members, add sector identity, complete World and
 semantic-Mercator wrapping/morphing, expand the bounded County into a local
 isometric surface with exact links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta

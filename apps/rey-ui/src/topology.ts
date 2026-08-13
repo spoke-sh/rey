@@ -3,6 +3,7 @@ import type {
   AttentionRow,
   ProjectionPacket,
   SemanticAtlas,
+  SemanticAtlasDelta,
   WorkloadDraft,
   WorkloadList,
   WorkloadSummary,
@@ -343,6 +344,25 @@ type TopologyProjection = Omit<
   globe?: TopologyGlobe | null;
 };
 
+function currentSemanticAtlasDelta(
+  portfolio: WorkloadList,
+): SemanticAtlasDelta | null {
+  const atlas = portfolio.semantic_atlas;
+  const retained = portfolio.semantic_atlas_history.at(-1);
+  const delta = portfolio.semantic_atlas_deltas.at(-1);
+  if (
+    !atlas ||
+    !retained ||
+    !delta ||
+    retained.atlas_revision !== atlas.atlas_revision ||
+    delta.target_revision !== atlas.atlas_revision ||
+    portfolio.semantic_atlas_history.length !==
+      portfolio.semantic_atlas_deltas.length
+  )
+    return null;
+  return delta;
+}
+
 function buildWorld(
   portfolio: WorkloadList,
   focusId: string,
@@ -354,6 +374,7 @@ function buildWorld(
       focusId,
       "world",
       portfolio.semantic_atlas ?? null,
+      currentSemanticAtlasDelta(portfolio),
     );
   return buildOrientationWorld(portfolio, focusId);
 }
@@ -567,7 +588,13 @@ function buildAtlas(
       ],
     };
   }
-  return buildSurveyTerrain(topographies, focusId, "atlas");
+  return buildSurveyTerrain(
+    topographies,
+    focusId,
+    "atlas",
+    portfolio.semantic_atlas ?? null,
+    currentSemanticAtlasDelta(portfolio),
+  );
 }
 
 function buildRegionalWorld(
@@ -1903,6 +1930,7 @@ function buildSurveyTerrain(
   focusId: string,
   regime: LensRegime,
   semanticAtlas: SemanticAtlas | null = null,
+  atlasDelta: SemanticAtlasDelta | null = null,
 ): TopologyProjection {
   const layout = layoutSurveyTerrain(topographies, regime);
   const selected = selectTopography(topographies, focusId);
@@ -1916,11 +1944,17 @@ function buildSurveyTerrain(
     requestedFocusPoint ??
     selectedPoints.find((point) => point.family === "WORKSPACE") ??
     selectedPoints[0];
-  const bearing = buildSurveyBearing(
+  const baseBearing = buildSurveyBearing(
     selectedPoints,
     requestedFocusPoint,
     selected.patch,
   );
+  const bearing = atlasDelta
+    ? {
+        ...baseBearing,
+        detail: `${baseBearing.detail} · atlas ${shortCoordinate(atlasDelta.source_revision)} → ${shortCoordinate(atlasDelta.target_revision)} · +${atlasDelta.inserted} −${atlasDelta.removed} · ${atlasDelta.moved} moved · ${atlasDelta.interest_changed} interest changed · ${atlasDelta.merged} merged · ${atlasDelta.split} split`,
+      }
+    : baseBearing;
   const detail = buildSurveyTerrainDetails(
     selected,
     focusPoint,

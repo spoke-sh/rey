@@ -450,6 +450,34 @@ export interface SemanticAtlas {
   lineage: Array<{ kind: string; identity: string; revision: string }>;
 }
 
+export type SemanticAtlasRegionChangeKind =
+  "inserted" | "removed" | "moved" | "interest_changed";
+
+export interface SemanticAtlasDelta {
+  schema: "rey.semantic-atlas-delta.v1";
+  delta_id: string;
+  source_revision: string;
+  target_revision: string;
+  inserted: number;
+  removed: number;
+  moved: number;
+  interest_changed: number;
+  merged: number;
+  split: number;
+  region_changes: Array<{
+    region_id: string;
+    kind: SemanticAtlasRegionChangeKind;
+    before: SemanticAtlas["regions"][number] | null;
+    after: SemanticAtlas["regions"][number] | null;
+  }>;
+  cluster_changes: Array<{
+    kind: "merged" | "split";
+    region_ids: string[];
+    source_cluster_ids: string[];
+    target_cluster_ids: string[];
+  }>;
+}
+
 export interface TopographyPatch {
   schema: "rey.topography-patch.v1";
   patch_id: string;
@@ -649,6 +677,8 @@ export interface WorkloadList {
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];
   semantic_atlas: SemanticAtlas | null;
+  semantic_atlas_history: SemanticAtlas[];
+  semantic_atlas_deltas: SemanticAtlasDelta[];
   revision?: WorkloadRevisionStatus;
   attention: {
     schema: string;

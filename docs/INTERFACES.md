@@ -229,14 +229,18 @@ contain a `rey.workload-qualification.v1` binding the exact workload, graph,
 scenario suite, evaluator, and test result.
 
 `rey.workload-list.v1` additionally carries an optional
-`rey.semantic-atlas.v1` whenever verified regional topography is retained. The
-atlas binds stable region identities to exact patch/revision sources and
-integer synthetic semantic longitude/latitude. It declares no Earth CRS.
-`workloads list` exposes its exact revision, compiler, region/cluster counts,
+`rey.semantic-atlas.v1` whenever a verified production regional-topography run
+is retained. Qualification fixtures count as test evidence but cannot become
+atlas or Explorer fabric. The atlas binds stable region identities to exact
+patch/revision sources and integer synthetic semantic longitude/latitude; it
+declares no Earth CRS. Workload state retains at most 64 atlas revisions and an
+equal linear sequence of `rey.semantic-atlas-delta.v1` documents. Each delta is
+content identified, binds exact source and target revisions, and keeps inserted,
+removed, moved, interest-changed, merged, and split changes distinct. The first
+delta starts at the typed empty atlas revision. `workloads list` exposes the
+current atlas, history, exact deltas, compiler, region/cluster counts,
 boundedness, admission-revision recluster rule, and the fact that zoom cannot
-recluster it. The current document derives the atlas from retained admission
-state; prior-revision movement deltas remain
-[Plan 0003](../plans/0003-scene-to-explorer.md) work.
+recluster it. List and UI reads do not advance history.
 
 ## Implemented Environment CLI
 
@@ -450,7 +454,9 @@ Explorer fails closed to the portfolio fallback unless both identities match.
 When a semantic atlas is present, Explorer also binds the atlas and layout
 compiler revisions into its immutable World scene. This adds a spherical
 layout authority; it does not change the native coordinate or evidence
-authority inside any regional packet.
+authority inside any regional packet. Explorer binds the latest retained atlas
+delta into the scene snapshot and bearing only when its target and last retained
+revision both equal the current atlas; mismatched history remains unprojected.
 The implemented `rey.explore-grammar.v1` additionally binds the renderer-independent
 World-globe, semantic-Mercator, and local-isometric posture bands; hysteresis;
 geometry-morph and inverse-picking policy; polar/antimeridian behavior; and

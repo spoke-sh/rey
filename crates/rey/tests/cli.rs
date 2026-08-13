@@ -6473,6 +6473,22 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         String::from_utf8_lossy(&committed.stderr)
     );
 
+    let qualified_only = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(qualified_only.status.success());
+    let qualified_only: WorkloadList = serde_json::from_slice(&qualified_only.stdout).unwrap();
+    assert!(qualified_only.semantic_atlas.is_none());
+    assert!(qualified_only.semantic_atlas_history.is_empty());
+    assert!(qualified_only.semantic_atlas_deltas.is_empty());
+    assert!(
+        qualified_only
+            .workloads
+            .iter()
+            .find(|summary| summary.workload.id == "context-anchor-survey")
+            .unwrap()
+            .topography_patch
+            .is_none()
+    );
+
     let readme_path = workspace.path().join("README.md");
     let mut expanded_readme = fs::read_to_string(&readme_path).unwrap();
     for index in 0..30 {
@@ -6581,6 +6597,24 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         atlas.layout_policy.zoom_rule,
         "zoom selects retained level of detail and never reclusters"
     );
+    assert_eq!(listed.semantic_atlas_history.len(), 2);
+    assert_eq!(listed.semantic_atlas_deltas.len(), 2);
+    for (index, retained) in listed.semantic_atlas_history.iter().enumerate() {
+        let prior = index
+            .checked_sub(1)
+            .and_then(|prior| listed.semantic_atlas_history.get(prior));
+        retained.verify().unwrap();
+        listed.semantic_atlas_deltas[index]
+            .verify_between(prior, retained)
+            .unwrap();
+    }
+    let latest_atlas_delta = listed.semantic_atlas_deltas.last().unwrap();
+    assert_eq!(
+        latest_atlas_delta.source_revision,
+        listed.semantic_atlas_history[0].atlas_revision
+    );
+    assert_eq!(latest_atlas_delta.target_revision, atlas.atlas_revision);
+    assert_eq!(latest_atlas_delta.interest_changed, 1);
 
     let listed_table = run_rey_workspace(&[
         "workloads",
@@ -6598,6 +6632,9 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(listed_table.contains("synthetic semantic longitude/latitude"));
     assert!(listed_table.contains("not Earth CRS84"));
     assert!(listed_table.contains("zoom selects retained LOD and never reclusters"));
+    assert!(listed_table.contains("2 retained revisions · 2 directed deltas"));
+    assert!(listed_table.contains("Latest atlas delta"));
+    assert!(listed_table.contains("1 interest changed"));
 
     let status = run_rey_workspace(&[
         "workloads",
@@ -6639,11 +6676,23 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(response.contains("\"topography_projection\""));
     assert!(response.contains("\"schema\":\"rey.projection-packet.v1\""));
     assert!(response.contains("\"schema\":\"rey.semantic-atlas.v1\""));
+    assert!(response.contains("\"semantic_atlas_history\""));
+    assert!(response.contains("\"schema\":\"rey.semantic-atlas-delta.v1\""));
+    assert!(response.contains(latest_atlas_delta.delta_id.as_str()));
     assert!(response.contains("\"kind\":\"synthetic_semantic_sphere\""));
     assert!(response.contains(patch.patch_id.as_str()));
     assert!(response.contains("\"state\":\"unexplored\""));
     ui.kill().unwrap();
     ui.wait().unwrap();
+
+    let state_path = workspace.path().join(".rey/workloads/state.json");
+    let mut state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    state["semantic_atlas_deltas"][1]["interest_changed"] = Value::from(99);
+    fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+    let tampered = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(!tampered.status.success());
+    assert!(tampered.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&tampered.stderr).contains("atlas delta"));
 }
 
 fn materialize_context_topography_fixture(workspace: &std::path::Path) {

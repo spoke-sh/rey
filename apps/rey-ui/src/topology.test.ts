@@ -60,6 +60,8 @@ const workload = (id: string): WorkloadSummary => ({
 const portfolio: WorkloadList = {
   schema: "rey.workload-list.v1",
   semantic_atlas: null,
+  semantic_atlas_history: [],
+  semantic_atlas_deltas: [],
   catalog: {
     schema: "rey.workload-catalog.v1",
     kind: "workspace_packages",
@@ -308,9 +310,27 @@ describe("context topology lens", () => {
   });
 
   it("derives all six levels from admitted patches and preserves unknown region states", () => {
+    const retainedAtlas = atlasFor(surveyPatch);
     const patchPortfolio: WorkloadList = {
       ...portfolio,
-      semantic_atlas: atlasFor(surveyPatch),
+      semantic_atlas: retainedAtlas,
+      semantic_atlas_history: [retainedAtlas],
+      semantic_atlas_deltas: [
+        {
+          schema: "rey.semantic-atlas-delta.v1",
+          delta_id: "atlas-delta:1",
+          source_revision: "atlas:empty",
+          target_revision: retainedAtlas.atlas_revision,
+          inserted: 1,
+          removed: 0,
+          moved: 0,
+          interest_changed: 0,
+          merged: 0,
+          split: 0,
+          region_changes: [],
+          cluster_changes: [],
+        },
+      ],
       workloads: [
         {
           ...portfolio.workloads[0]!,
@@ -331,6 +351,7 @@ describe("context topology lens", () => {
       NEIGHBORHOOD_LENS_ZOOM,
       "topography:rey.example",
     );
+    expect(world.bearing.detail).toContain("atlas atlas:empty → atlas:1");
     const objects = buildTopologyScene(
       patchPortfolio,
       OBJECT_LENS_ZOOM,
