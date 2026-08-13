@@ -220,7 +220,9 @@ The environment's `02 / BOUNDED SEARCH` evidence plane. It places the exact
 desired application inventory beside the bounded found, missing, and errored
 search record. The inventory may place one declaration in multiple logical
 groups, while the search record contains one observation per application and
-never implies that a discovered application may be invoked.
+never implies that a discovered application may be invoked. The CLI renders
+both records; `/environment` renders only the flattened search rows with group
+memberships while retaining the inventory identity in its typed document.
 
 ### Bootstrap
 

@@ -1445,9 +1445,11 @@ coordinate. Candidate terrain controls never enter that program.
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded
-application search, and the input/reference plane. The application plane keeps
-the application-inventory identity, declared groups, and purposes distinct from
-the flattened working search snapshot identity and outcomes. Environment state, mapping, completeness, and
+application search, and the input/reference plane. The application plane renders
+only the flattened working search outcomes, one row per application, and names
+each row's declared group memberships. The typed document retains the separate
+application-inventory identity and declaration evidence without duplicating it
+as a browser section. Environment state, mapping, completeness, and
 admission counts remain compact metadata within those sections rather than
 separate visual destinations.
 

@@ -3,7 +3,6 @@ import {
   admissionState,
   currentApplications,
   environmentVariableDiff,
-  groupApplications,
   type EnvironmentApplicationObservation,
   type EnvironmentObjectStatus,
   type EnvironmentVariableObservation,
@@ -66,10 +65,6 @@ describe("environment operator projection", () => {
 
     expect(currentApplications([missing], "unavailable")).toEqual([missing]);
     expect(admissionState(missing.changes)).toBe("working");
-    expect(groupApplications([missing])).toEqual([
-      { id: "retrieval", applications: [missing] },
-      { id: "code", applications: [missing] },
-    ]);
   });
 });
 

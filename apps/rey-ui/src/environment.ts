@@ -3,13 +3,6 @@ export type EnvironmentCapture = "presence" | "digest" | "value";
 export type EnvironmentObjectChange =
   "unchanged" | "inserted" | "deleted" | "modified";
 
-export const preferredApplicationGroupOrder = [
-  "communications",
-  "agents",
-  "retrieval",
-  "code",
-] as const;
-
 export interface EnvironmentPlaneChanges {
   head_to_index: EnvironmentObjectChange;
   index_to_working: EnvironmentObjectChange;
@@ -184,47 +177,6 @@ export function currentApplications(
   return applications.filter(
     (application) => application.working?.availability === availability,
   );
-}
-
-export interface EnvironmentApplicationGroup {
-  id: string;
-  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[];
-}
-
-export function groupApplications(
-  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[],
-): EnvironmentApplicationGroup[] {
-  const grouped = new Map<
-    string,
-    EnvironmentObjectStatus<EnvironmentApplicationObservation>[]
-  >();
-  for (const application of applications) {
-    const groups =
-      application.working?.groups ?? application.head?.groups ?? [];
-    for (const group of groups.length > 0 ? groups : ["ungrouped"]) {
-      const members = grouped.get(group) ?? [];
-      members.push(application);
-      grouped.set(group, members);
-    }
-  }
-  return [...grouped.entries()]
-    .sort(([left], [right]) => compareApplicationGroups(left, right))
-    .map(([id, members]) => ({ id, applications: members }));
-}
-
-function compareApplicationGroups(left: string, right: string): number {
-  const leftIndex = preferredApplicationGroupOrder.indexOf(
-    left as (typeof preferredApplicationGroupOrder)[number],
-  );
-  const rightIndex = preferredApplicationGroupOrder.indexOf(
-    right as (typeof preferredApplicationGroupOrder)[number],
-  );
-  if (leftIndex !== -1 || rightIndex !== -1) {
-    if (leftIndex === -1) return 1;
-    if (rightIndex === -1) return -1;
-    return leftIndex - rightIndex;
-  }
-  return left.localeCompare(right);
 }
 
 export function admissionState(
