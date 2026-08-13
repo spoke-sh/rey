@@ -185,6 +185,9 @@ remain open.
   `topology.ts`; finish the
   evidence-adapter, compiler, engine, renderer, picking, and React ownership
   boundary without introducing a parallel scene truth.
+- [x] Move deterministic multi-chart survey layout, validity regions,
+  anchor/frontier placement, landform envelopes, field requests, and omissions
+  behind a revisioned projection module retained in scene lineage.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient
   patches, including stable absolute sampling, hydrology halos, exact shared
   channel seams, cache keys, and CPU cell/byte budgets.

@@ -264,8 +264,11 @@ continuous relief mesh in `/explore`; React retains the controls, accessible
 overlays, exact evidence links, active band/backend status, and current/maximum
 working-set allocation. The revisioned survey-terrain scene compiler owns
 reference field evaluation, contours, projected hydrology/weather, and natural
-features. `topology.ts` still combines portfolio adaptation, survey scene
-layout, and lens data. The reference surface remains mounted during accelerated initialization and is
+features. A separate revisioned survey-scene layout projection owns bounded
+multi-chart placement, validity regions, anchor/frontier placement, landform
+envelopes, field requests, and omissions. Both revisions enter immutable scene
+lineage. `topology.ts` still owns portfolio-to-scene orchestration and legacy
+lens data. The reference surface remains mounted during accelerated initialization and is
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.

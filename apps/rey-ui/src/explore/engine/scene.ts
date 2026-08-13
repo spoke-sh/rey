@@ -18,6 +18,7 @@ import type {
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "./labels";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 import { SURVEY_TERRAIN_SCENE_COMPILER_REVISION } from "../projection/survey-terrain";
+import { SURVEY_SCENE_LAYOUT_REVISION } from "../projection/survey-scene-layout";
 import {
   EXPLORER_PICKING_REVISION,
   compileScenePickingIndex,
@@ -147,8 +148,10 @@ export function compileSceneSnapshot(
       ]),
     )
     .sort((left, right) => left.localeCompare(right));
-  if (topographies.length > 0)
+  if (topographies.length > 0) {
+    compilerRevisions.push(SURVEY_SCENE_LAYOUT_REVISION);
     compilerRevisions.push(SURVEY_TERRAIN_SCENE_COMPILER_REVISION);
+  }
   if (regionalScenes.length > 0) {
     compilerRevisions.push(SEMANTIC_MERCATOR_PROJECTION_REVISION);
     compilerRevisions.push(SEMANTIC_LABEL_LAYOUT_REVISION);
