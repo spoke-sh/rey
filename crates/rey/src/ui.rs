@@ -1953,8 +1953,9 @@ mod tests {
         assert!(application.contains("DESIRED INVENTORY"));
         assert!(application.contains("SEARCH RECORD"));
         assert!(application.contains("PROCESS SEEDS"));
-        assert!(application.contains("assets/three-terrain.js"));
-        assert!(application.contains("three-webgpu.js"));
+        assert!(application.contains("./three-globe.js"));
+        assert!(application.contains("./three-terrain.js"));
+        assert!(application.contains("./three-webgpu.js"));
         assert!(application.contains("HISTORY / RUNTIME + COLLABORATION"));
         assert!(application.contains("Mailbox history"));
         assert!(application.contains("REY / AGENT / OPERATOR"));
