@@ -106,12 +106,13 @@ use rey_mining::{
 };
 use rey_runtime::{
     BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID, BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID,
-    CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, PortfolioReasoningEvidence, RunStatus, ScenarioEvaluation,
-    ScenarioResult, SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention,
+    CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID, PortfolioReasoningEvidence, RunStatus,
+    SCENE_ADMISSION_WORKLOAD_ID, ScenarioEvaluation, ScenarioResult, SceneAdmissionInput,
+    SceneAdmissionLimits, SourceRunInput, TestStatus, TopographySurveyInput, WorkloadAttention,
     WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue,
-    execute_workload_scenario_selection_with_snapshot, orient_portfolio_attention, run_workload,
-    run_workload_with_source, run_workload_with_topography, source_fixture_root,
-    test_workload_with_observer_and_snapshot,
+    execute_workload_scenario_selection_with_snapshot, orient_portfolio_attention,
+    render_scene_admission_result, run_workload, run_workload_with_scene, run_workload_with_source,
+    run_workload_with_topography, source_fixture_root, test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -1117,6 +1118,14 @@ struct WorkloadRunArgs {
     /// UTF-8 value bound to a text workload; omitted for portfolio mining.
     #[arg(long)]
     input: Option<String>,
+
+    /// Exact committed editor revision (SCENE@n) for scene admission.
+    #[arg(long)]
+    scene: Option<String>,
+
+    /// Explicit editor-state directory; relative paths resolve below the workspace.
+    #[arg(long)]
+    editor_state_dir: Option<PathBuf>,
 
     /// Workspace-relative regular source file; repeat to bind an explicit corpus.
     #[arg(long = "source")]
@@ -3804,6 +3813,12 @@ fn workload_run(
     let workload = resolved.definition;
     let mut state = store.load()?;
     let mut inputs = BTreeMap::new();
+    let mut scene_sequence = None;
+    if workload.workload.id != SCENE_ADMISSION_WORKLOAD_ID
+        && (args.scene.is_some() || args.editor_state_dir.is_some())
+    {
+        return Err(CliError::UnexpectedSceneOptions);
+    }
     if workload.workload.id == BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID {
         if args.input.is_some()
             || !args.sources.is_empty()
@@ -3821,6 +3836,21 @@ fn workload_run(
             "portfolio".to_owned(),
             WorkloadValue::PortfolioSnapshot(Box::new(snapshot)),
         );
+    } else if workload.workload.id == SCENE_ADMISSION_WORKLOAD_ID {
+        if args.input.is_some()
+            || !args.sources.is_empty()
+            || args.context_before != 0
+            || args.context_after != 0
+        {
+            return Err(CliError::UnexpectedSceneInput);
+        }
+        let label = args
+            .scene
+            .as_deref()
+            .ok_or(CliError::MissingSceneRevision)?;
+        let sequence = parse_scene_revision(label)?;
+        scene_sequence = Some(sequence);
+        inputs.insert("text".to_owned(), WorkloadValue::Utf8(label.to_owned()));
     } else if workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID {
         if args.input.is_some() {
             return Err(CliError::UnexpectedTopographyInput);
@@ -3845,6 +3875,19 @@ fn workload_run(
         );
     }
     let result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
+        Some(qualification) if workload.workload.id == SCENE_ADMISSION_WORKLOAD_ID => {
+            let editor = editor_store_for_workspace(workspace, args.editor_state_dir.as_deref())?;
+            let candidate = editor.admission_candidate(
+                scene_sequence.expect("scene workload established an exact sequence"),
+            )?;
+            let snapshot = inspect_environment(workspace, DiscoveryLimits::default())?;
+            let scene = SceneAdmissionInput {
+                candidate,
+                limits: SceneAdmissionLimits::default(),
+                capability_snapshot_id: snapshot.semantic_digest,
+            };
+            run_workload_with_scene(&workload, qualification, inputs, &scene)?
+        }
         Some(qualification) if workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID => {
             if args.sources.is_empty() {
                 return Err(CliError::MissingSourceFiles);
@@ -3921,6 +3964,37 @@ fn retained_environment_snapshot(workspace: &Path) -> Result<Option<CapabilitySn
     Ok(index
         .map(|index| index.snapshot)
         .or_else(|| history.head().map(|commit| commit.snapshot.clone())))
+}
+
+fn parse_scene_revision(label: &str) -> Result<u64, CliError> {
+    let sequence = label
+        .strip_prefix("SCENE@")
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|sequence| *sequence > 0)
+        .ok_or_else(|| CliError::InvalidSceneRevision(label.to_owned()))?;
+    if label != format!("SCENE@{sequence}") {
+        return Err(CliError::InvalidSceneRevision(label.to_owned()));
+    }
+    Ok(sequence)
+}
+
+fn editor_store_for_workspace(
+    workspace: &Path,
+    state_dir: Option<&Path>,
+) -> Result<LocalEditorStore, CliError> {
+    match state_dir {
+        Some(path) if path.is_absolute() => {
+            Ok(LocalEditorStore::new(workspace.to_owned(), path.to_owned()))
+        }
+        Some(path) if relative_path_escapes(path) => {
+            Err(CliError::StateDirectoryEscape(path.to_owned()))
+        }
+        Some(path) => Ok(LocalEditorStore::new(
+            workspace.to_owned(),
+            workspace.join(path),
+        )),
+        None => Ok(LocalEditorStore::default_for_workspace(workspace)),
+    }
 }
 
 fn retained_git_snapshot(workspace: &Path) -> Result<Option<rey_git::GitSnapshot>, CliError> {
@@ -7953,6 +8027,7 @@ fn write_workload_test_start(
             scenario.expected_outputs.len()
                 + usize::from(scenario.source_search.is_some()).saturating_mul(2)
                 + usize::from(scenario.topography_survey.is_some())
+                + usize::from(scenario.scene_admission.is_some())
         })
         .sum::<usize>();
     let graph_path = workload
@@ -8014,6 +8089,23 @@ fn write_workload_test_start(
         writeln!(
             output,
             "  Operation   rey.source-search.literal-utf8@1 → rey.source-matches.v1 → ordered UTF-8 text"
+        )?;
+    }
+    if verbosity >= 2
+        && workload
+            .graph
+            .nodes
+            .iter()
+            .any(|node| node.operation.id == "rey.scene-admission.validate")
+    {
+        writeln!(
+            output,
+            "  Scene       {} · exact editor candidate · bounded read-only admission",
+            style.green("VERIFIED")
+        )?;
+        writeln!(
+            output,
+            "  Operation   rey.scene-admission.validate@1 → rey.admitted-regional-scene.v1 → coordinate-explicit UTF-8 evidence"
         )?;
     }
     if verbosity >= 2
@@ -8110,10 +8202,15 @@ fn write_workload_test_scenario(
         .iter()
         .filter(|patch| patch.complete)
         .count();
-    let assertion_total =
-        scenario.deltas.len() + scenario.mining.len().saturating_mul(2) + scenario.topography.len();
-    let assertions_satisfied =
-        equal_outputs + equal_relations + complete_mining + complete_topography;
+    let assertion_total = scenario.deltas.len()
+        + scenario.mining.len().saturating_mul(2)
+        + scenario.topography.len()
+        + scenario.scene_admissions.len();
+    let assertions_satisfied = equal_outputs
+        + equal_relations
+        + complete_mining
+        + complete_topography
+        + scenario.scene_admissions.len();
     let label = match scenario.evaluation {
         ScenarioEvaluation::Passed => style.green("PASS"),
         ScenarioEvaluation::Failed => style.red("FAIL"),
@@ -8155,6 +8252,19 @@ fn write_workload_test_scenario(
     for patch in &scenario.topography {
         write_topography_assertion(output, patch, verbosity, style)?;
     }
+    for admission in &scenario.scene_admissions {
+        writeln!(
+            output,
+            "      {} scene.admission · {}",
+            assertion_marker(DeltaAssessment::Equal, style),
+            style.green("EQUAL")
+        )?;
+        writeln!(
+            output,
+            "        ACTUAL   {:?} · {} · candidate {}",
+            admission.status, admission.code, admission.candidate_id
+        )?;
+    }
     if verbosity >= 2 {
         writeln!(output, "    Evidence (exact)")?;
         for delta in &scenario.deltas {
@@ -8165,6 +8275,9 @@ fn write_workload_test_scenario(
         }
         for patch in &scenario.topography {
             write_topography_evidence(output, patch, verbosity, style)?;
+        }
+        for admission in &scenario.scene_admissions {
+            write_scene_admission_evidence(output, admission, 3)?;
         }
         for attention in &scenario.attention {
             write_portfolio_attention_evidence(output, attention, verbosity, style)?;
@@ -9555,6 +9668,9 @@ fn write_test_detail(output: &mut impl Write, result: &WorkloadTestResult) -> Re
         for patch in &scenario.topography {
             write_topography_evidence(output, patch, 2, TerminalStyle { enabled: false })?;
         }
+        for admission in &scenario.scene_admissions {
+            write_scene_admission_evidence(output, admission, 2)?;
+        }
     }
     if let Some(qualification) = &result.qualification {
         writeln!(
@@ -9621,7 +9737,11 @@ fn write_workload_run(output: &mut impl Write, view: &WorkloadRunView) -> Result
     write_portfolio_field(output, "Stop reason", &result.stop_reason)?;
     write_portfolio_field(output, "Run evidence", result.run_id.as_str())?;
     write_portfolio_field(output, "Node order", &result.node_order.join(" → "))?;
-    if result.mining.is_empty() && result.topography.is_empty() && result.attention.is_empty() {
+    if result.mining.is_empty()
+        && result.topography.is_empty()
+        && result.scene_admissions.is_empty()
+        && result.attention.is_empty()
+    {
         write_portfolio_field(output, "Outputs", &json_cell(&result.outputs)?)?;
     } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text")
         && !result.attention.is_empty()
@@ -9635,7 +9755,7 @@ fn write_workload_run(output: &mut impl Write, view: &WorkloadRunView) -> Result
     } else if let Some(WorkloadValue::Utf8(value)) = result.outputs.get("text") {
         writeln!(
             output,
-            "output=text · {} canonical match lines · {} bytes",
+            "output=text · {} canonical evidence lines · {} bytes",
             value.lines().count(),
             value.len()
         )?;
@@ -9708,10 +9828,72 @@ fn write_workload_run(output: &mut impl Write, view: &WorkloadRunView) -> Result
     for patch in &result.topography {
         write_topography_evidence(output, patch, 2, TerminalStyle { enabled: false })?;
     }
+    for admission in &result.scene_admissions {
+        write_scene_admission_evidence(output, admission, 0)?;
+    }
     for attention in &result.attention {
         write_portfolio_attention_evidence(output, attention, 2, TerminalStyle { enabled: false })?;
     }
     Ok(())
+}
+
+fn write_scene_admission_evidence(
+    output: &mut impl Write,
+    admission: &rey_runtime::SceneAdmissionResult,
+    indent: usize,
+) -> io::Result<()> {
+    let pad = "  ".repeat(indent);
+    for line in render_scene_admission_result(admission).lines() {
+        writeln!(output, "{pad}{line}")?;
+    }
+    writeln!(
+        output,
+        "{pad}IDENTITY result={} candidate={} campaign={} capability={}",
+        admission.result_id,
+        admission.candidate_id,
+        admission.campaign_id,
+        admission.capability_snapshot_id,
+    )?;
+    writeln!(output, "{pad}LIMITS {}", json_io(&admission.limits)?)?;
+    if let Some(scene) = &admission.scene {
+        writeln!(
+            output,
+            "{pad}BINDING scene={} admission={} editor=SCENE@{} package={} snapshot={} packet={}",
+            scene.scene_id,
+            scene.admission.admission_id,
+            scene.admission.editor_sequence,
+            scene.admission.package_id,
+            scene.admission.package_snapshot_revision,
+            scene.projection.packet_id,
+        )?;
+        writeln!(output, "{pad}BOUNDS {}", json_io(&scene.native_bounds)?)?;
+        for binding in &scene.projection.coordinate_bindings {
+            writeln!(output, "{pad}COORDINATE {}", json_io(binding)?)?;
+        }
+        for transform in &scene.projection.transforms {
+            writeln!(output, "{pad}TRANSFORM {}", json_io(transform)?)?;
+        }
+        for object in &scene.projection.objects {
+            writeln!(output, "{pad}OBJECT {}", json_io(object)?)?;
+        }
+        for layer in &scene.projection.layers {
+            writeln!(output, "{pad}LAYER {}", json_io(layer)?)?;
+        }
+        for validity in &scene.projection.validity {
+            writeln!(output, "{pad}VALIDITY {}", json_io(validity)?)?;
+        }
+        for omission in &scene.omissions {
+            writeln!(output, "{pad}OMISSION {}", json_io(omission)?)?;
+        }
+        for lineage in &scene.lineage {
+            writeln!(output, "{pad}LINEAGE {}", json_io(lineage)?)?;
+        }
+    }
+    Ok(())
+}
+
+fn json_io(value: &impl Serialize) -> io::Result<String> {
+    serde_json::to_string(value).map_err(io::Error::other)
 }
 
 fn env_status(
@@ -11934,6 +12116,10 @@ enum CliError {
     MissingSourceFiles,
     #[error("context-anchor-survey runs require at least one workspace-relative --source seed")]
     MissingTopographySeeds,
+    #[error("scene-admission runs require an exact --scene SCENE@n revision")]
+    MissingSceneRevision,
+    #[error("invalid editor scene revision {0}; expected canonical SCENE@n with n > 0")]
+    InvalidSceneRevision(String),
     #[error("text workload runs require --input")]
     MissingWorkloadInput,
     #[error("selected workload catalog contains no admitted workload packages")]
@@ -11944,6 +12130,10 @@ enum CliError {
     UnexpectedTopographyInput,
     #[error("source context windows are not valid for context-anchor-survey")]
     UnexpectedTopographyContext,
+    #[error("scene-admission derives its input from --scene and rejects text/source options")]
+    UnexpectedSceneInput,
+    #[error("--scene and --editor-state-dir are only valid for scene-admission")]
+    UnexpectedSceneOptions,
     #[error("--source and source-context options are only valid for a source-mining workload")]
     UnexpectedSourceFiles,
     #[error("--patch requires human table output")]

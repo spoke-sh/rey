@@ -22,9 +22,9 @@ generation:
     - source: sys/context-anchor-survey/request.yaml
       revision: blake3:ae6225ab5d7809dd325de1df03e228b9051fbad1d0030e530e4417d9c1048f24
     - source: plans/0003-scene-to-explorer.md
-      revision: sha256:c80f7168ca62fdc451b971e4ea80e8e10b983814f1811b8ba87d0d05849789dc
+      revision: sha256:d8a85ece219281d5241b0cefb7760664fac879b328772947c278257f39ef0934
     - source: docs/decisions/README.md
-      revision: sha256:76daf8283d887800ed5c03de77ce39481e86fd98fbde4f3ef393dd1aea8e9c96
+      revision: sha256:8cec2e157fe2e98f88254b8a958ddb2dfefe9cd793f9fc1f026e0cbcef6e1380
 
 graph:
   id: context-anchor-survey.graph

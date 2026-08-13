@@ -23,11 +23,14 @@ editor WORKING → INDEX → SCENE@n package
 ## Current Boundary
 
 The editor generates and validates bounded native CRS84 GeoJSON, stages exact
-objects, and retains candidate-only packages. No scene-admission workload
-exists. The verified `rey.admitted-regional-scene.v1`,
+objects, and retains candidate-only packages. The file-backed
+`scene-admission` workload now qualifies deterministic acceptance and rejection
+scenarios and the CLI admits one exact current `SCENE@n` transfer envelope into
+a retained regional scene and projection packet. The verified
+`rey.admitted-regional-scene.v1`,
 `rey.regional-projection-packet.v1`, and `rey.explore-grammar.v1` structural
-contracts plus a bounded multi-region fixture now define the workload target,
-but no CLI path produces them. The workload list derives a current synthetic semantic atlas but does
+contracts plus a bounded multi-region fixture define that path. `/explore`
+does not consume the retained regional result yet. The workload list derives a current synthetic semantic atlas but does
 not retain prior revisions or movement deltas. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
@@ -46,7 +49,7 @@ reuse, and retained visual/performance proof remain open.
 - [x] Add a versioned Explorer grammar contract for projection posture,
   hysteresis, morphing, semantic/geometric LOD budgets, picking, and
   renderer-independent camera constraints.
-- [ ] Make workload human/JSON output distinguish native CRS84, synthetic
+- [x] Make workload human/JSON output distinguish native CRS84, synthetic
   semantic, Mercator chart, County-local, and camera coordinates.
 - [x] Add one bounded multi-region fixture with accepted/rejected candidates,
   polar and antimeridian cases, overlapping footprints, and typed County
@@ -54,10 +57,10 @@ reuse, and retained visual/performance proof remain open.
 
 ### 2. Admit one scene package
 
-- [ ] Add a file-backed `scene-admission` workload with deterministic scenarios
+- [x] Add a file-backed `scene-admission` workload with deterministic scenarios
   for package/object tampering, stale parents, unsupported formats, coordinate
   mismatch, duplicate identity, missing objects, bounds, omissions, and replay.
-- [ ] Qualify one exact `SCENE@n` package, retain the admitted regional result,
+- [x] Qualify one exact `SCENE@n` package, retain the admitted regional result,
   and emit a verified projection packet without copying candidate-only hints
   into observed truth.
 - [ ] Make `/explore` consume only that admitted result; keep candidate preview,

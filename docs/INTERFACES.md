@@ -1251,6 +1251,17 @@ the validation receipt for the frozen snapshot; validation failure prevents
 HEAD from advancing. Use `log` for immutable history/package evidence and JSON
 `status` for the complete typed state.
 
+`rey workloads run scene-admission --scene SCENE@n` is the implemented bridge
+from that candidate store into runtime evidence. It accepts only a canonical
+scene label, resolves the exact package/request/native objects from the
+selected editor store, and submits a content-identified transfer envelope to a
+fresh qualified file-backed workload. The retained accepted or rejected result
+binds workload, graph, suite, campaign, capability snapshot, editor commit,
+package, request, limits, and authority. Human rendering makes native CRS84,
+synthetic semantic, semantic-Mercator, County-local, and camera coordinates
+separate; structured output retains the full regional scene and projection
+packet. This command does not rewrite candidate state or publish to the browser.
+
 `generate terrain` writes a deterministic terrain-control GeoJSON source into
 WORKING and registers it in the project. It binds the complete effective recipe
 in `rey.scene-generation.v1`: seed, CRS84 bounds, feature and vertex counts,

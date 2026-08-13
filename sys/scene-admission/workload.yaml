@@ -1,0 +1,243 @@
+schema: rey.workload-package.v1
+
+workload:
+  id: scene-admission
+  revision: 1
+  title: Admit exact editor scenes for regional projection
+  inputs:
+    - port_id: text
+      value_type: utf8
+  outputs:
+    - port_id: text
+      value_type: utf8
+
+generation:
+  kind: coding_harness
+  producer: codex
+  producer_revision: gpt-5
+  generated:
+    - compute_graph
+    - scenario_suite
+  inputs:
+    - source: plans/0003-scene-to-explorer.md
+      revision: sha256:d8a85ece219281d5241b0cefb7760664fac879b328772947c278257f39ef0934
+    - source: docs/EXPLORER.md
+      revision: sha256:d12ca1ce762ba8ff627655c0524e16125b5c53e471de2e7221e43d8bb409687b
+
+graph:
+  id: scene-admission.graph
+  revision: 1
+  nodes:
+    - id: admit
+      operation:
+        id: rey.scene-admission.validate
+        revision: 1
+      input:
+        kind: external_input
+        input_id: text
+      value_type: scene_admission
+    - id: render
+      operation:
+        id: rey.admitted-regional-scene.render-lines
+        revision: 1
+      input:
+        kind: node_output
+        node_id: admit
+        output_id: value
+      value_type: utf8
+  outputs:
+    - id: text
+      source:
+        kind: node_output
+        node_id: render
+        output_id: value
+      value_type: utf8
+
+scenarios:
+  id: scene-admission.scenarios
+  revision: 1
+  cases:
+    - id: accepted
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME ACCEPTED · accepted
+          DETAIL exact current editor package and every bounded native object passed the declared admission contract
+          SCENE fixture-county · SCENE@2 · 1 native objects · 1 layers · 3 validity records
+          NATIVE OGC:CRS84 longitude/latitude · -123000000µ°, 37000000µ° → -122000000µ°, 38000000µ° · exact geographic source evidence
+          SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
+          MERCATOR spherical chart of synthetic semantic coordinates · horizontally wrapping · not EPSG:3857
+          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint
+          CAMERA view only · center/scale/viewport/selection are not evidence identity
+          ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
+          COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: accepted
+
+    - id: antimeridian
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME ACCEPTED · accepted
+          DETAIL exact current editor package and every bounded native object passed the declared admission contract
+          SCENE fixture-county · SCENE@2 · 1 native objects · 1 layers · 3 validity records
+          NATIVE OGC:CRS84 longitude/latitude · 179000000µ°, -1000000µ° → -179000000µ°, 1000000µ° · exact geographic source evidence
+          SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
+          MERCATOR spherical chart of synthetic semantic coordinates · horizontally wrapping · not EPSG:3857
+          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint
+          CAMERA view only · center/scale/viewport/selection are not evidence identity
+          ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
+          COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: antimeridian
+
+    - id: bounds-exceeded
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · bounds_exceeded
+          DETAIL source fixture-county exceeds its byte limit
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: bounds_exceeded
+        limits:
+          max_sources: 64
+          max_features: 10000
+          max_coordinates: 1000000
+          max_source_bytes: 1
+          max_total_bytes: 1
+          max_omissions: 1024
+
+    - id: coordinate-mismatch
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · coordinate_mismatch
+          DETAIL scene-admission coordinate system must be geographic OGC CRS84 longitude/latitude
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: coordinate_mismatch
+
+    - id: duplicate-identity
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · duplicate_identity
+          DETAIL scene-admission candidate identities are duplicated or noncanonical
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: duplicate_identity
+
+    - id: missing-object
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · missing_object
+          DETAIL source fixture-county has no frozen native bytes
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: missing_object
+
+    - id: object-tampering
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · object_tampering
+          DETAIL source fixture-county bytes do not match the frozen byte binding
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: object_tampering
+
+    - id: package-tampering
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · package_tampering
+          DETAIL scene-admission package/request binding or candidate-only authority is invalid
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: package_tampering
+
+    - id: polar
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME ACCEPTED · accepted
+          DETAIL exact current editor package and every bounded native object passed the declared admission contract
+          SCENE fixture-county · SCENE@2 · 1 native objects · 1 layers · 3 validity records
+          NATIVE OGC:CRS84 longitude/latitude · 10000000µ°, 86000000µ° → 11000000µ°, 87000000µ° · exact geographic source evidence
+          SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
+          MERCATOR spherical chart of synthetic semantic coordinates · horizontally wrapping · not EPSG:3857
+          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint
+          CAMERA view only · center/scale/viewport/selection are not evidence identity
+          ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
+          COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: polar
+
+    - id: stale-parent
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · stale_parent
+          DETAIL SCENE@2 is not current editor HEAD SCENE@3
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: stale_parent
+
+    - id: unsupported-format
+      revision: 1
+      required: true
+      inputs:
+        text: SCENE@2
+      expected:
+        text: |-
+          SCENE ADMISSION
+          OUTCOME REJECTED · unsupported_format
+          DETAIL source fixture-county uses unsupported format geo_package
+          AUTHORITY qualified workload result only; no editor mutation, browser admission, terrain inference, action, or proof authority
+      scene:
+        fixture: unsupported_format

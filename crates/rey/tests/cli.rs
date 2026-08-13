@@ -39,7 +39,8 @@ use rey_mining::MiningCompleteness;
 use rey_runtime::{
     AttentionAction, AttentionReason, BUILT_IN_MISMATCH_WORKLOAD_ID,
     BUILT_IN_NORMALIZE_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
-    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, TestStatus,
+    BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, RunStatus, ScenarioEvaluation, SceneAdmissionStatus,
+    TestStatus,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -6117,6 +6118,171 @@ fn source_mining_is_verifiable_across_test_list_status_and_run() {
     );
     assert_eq!(structured.mining[0].evidence.matches.len(), 1);
     structured.verify().unwrap();
+}
+
+#[test]
+fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    fs::create_dir_all(workspace.path().join("sys/scene-admission")).unwrap();
+    fs::write(
+        workspace.path().join("sys/scene-admission/workload.yaml"),
+        include_str!("../../../sys/scene-admission/workload.yaml"),
+    )
+    .unwrap();
+
+    let generated = run_rey_workspace(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "generate",
+        "terrain",
+        "terrain.geojson",
+        "--id",
+        "regional-controls",
+        "--scene-id",
+        "regional-demo",
+        "--seed",
+        "17",
+        "--west",
+        "-123",
+        "--south",
+        "37",
+        "--east",
+        "-122",
+        "--north",
+        "38",
+        "--features",
+        "2",
+        "--vertices",
+        "5",
+    ]);
+    assert!(generated.status.success());
+    assert!(
+        run_rey_workspace(&["editor", "--workspace", workspace_path, "add",])
+            .status
+            .success()
+    );
+    assert!(
+        run_rey_workspace(&[
+            "editor",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "Freeze regional candidate",
+        ])
+        .status
+        .success()
+    );
+
+    assert!(
+        run_rey_workspace(&["workloads", "--workspace", workspace_path, "add",])
+            .status
+            .success()
+    );
+    let tested = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "test",
+        "--staged",
+        "scene-admission",
+        "--format",
+        "table",
+        "-vv",
+    ]);
+    assert!(
+        tested.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&tested.stdout),
+        String::from_utf8_lossy(&tested.stderr),
+    );
+    assert!(tested.stderr.is_empty());
+    let tested = String::from_utf8(tested.stdout).unwrap();
+    for evidence in [
+        "scene-admission · 11 scenarios · 22 assertions",
+        "PASS 01/11 accepted · 2/2 assertions satisfied · required",
+        "scene.admission · EQUAL",
+        "OUTCOME ACCEPTED · accepted",
+        "OUTCOME REJECTED · object_tampering",
+        "NATIVE OGC:CRS84 longitude/latitude",
+        "SYNTHETIC semantic longitude/latitude",
+        "MERCATOR spherical chart",
+        "COUNTY local east/north/up",
+        "CAMERA view only",
+        "COORDINATE {\"space\":\"native_crs84\"",
+        "VALIDITY {",
+        "AUTHORITY qualified workload result only",
+    ] {
+        assert!(
+            tested.contains(evidence),
+            "missing scene evidence: {evidence}"
+        );
+    }
+
+    let committed = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "Admit scene validation workload",
+    ]);
+    assert!(committed.status.success());
+
+    let human = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "scene-admission",
+        "--scene",
+        "SCENE@1",
+        "--format",
+        "table",
+    ]);
+    assert!(
+        human.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&human.stdout),
+        String::from_utf8_lossy(&human.stderr),
+    );
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "Result                 PASSED",
+        "Node order             admit → render",
+        "SCENE regional-demo · SCENE@1 · 2 native objects",
+        "BINDING scene=blake3:",
+        "package=blake3:",
+        "packet=blake3:",
+        "COORDINATE {\"space\":\"camera\"",
+        "terrain height explicitly unsupported",
+    ] {
+        assert!(human.contains(evidence), "missing run evidence: {evidence}");
+    }
+
+    let structured = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "scene-admission",
+        "--scene",
+        "SCENE@1",
+    ]);
+    assert!(structured.status.success());
+    assert!(structured.stderr.is_empty());
+    let structured: WorkloadRunView = serde_json::from_slice(&structured.stdout).unwrap();
+    structured.result.verify().unwrap();
+    assert_eq!(structured.result.scene_admissions.len(), 1);
+    let admission = &structured.result.scene_admissions[0];
+    assert_eq!(admission.status, SceneAdmissionStatus::Accepted);
+    let scene = admission.scene.as_ref().unwrap();
+    assert_eq!(scene.admission.editor_sequence, 1);
+    assert_eq!(scene.projection.coordinate_bindings.len(), 5);
+    assert_eq!(scene.projection.objects.len(), 2);
+    assert!(scene.artifacts.terrain_program_id.is_none());
 }
 
 #[test]

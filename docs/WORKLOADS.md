@@ -47,6 +47,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] execute-activation <admiss
 rey workloads [--workspace PATH] [--catalog-dir PATH] verify-activation <execution-id> [--max-evidence-bytes <bytes>]
 rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
 rey workloads [--workspace PATH] [--catalog-dir PATH] run context-anchor-survey --source <path> [--source <path>...]
+rey workloads [--workspace PATH] [--catalog-dir PATH] run scene-admission --scene SCENE@n [--editor-state-dir PATH]
 rey workloads --catalog conformance list|test|run|status ...
 rey ui [--workspace PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
@@ -90,7 +91,7 @@ These fixtures are runner/system conformance, not the user's product
 portfolio. They are available only with `--catalog conformance`.
 
 The default workspace catalog contains the coding-harness-generated
-`context-anchor-survey` package. Its graph accepts declared seed names, runs
+`context-anchor-survey` and `scene-admission` packages. The survey graph accepts declared seed names, runs
 the deterministic bounded survey operation, passes a typed topography patch to
 its renderer, and compares frozen human-readable evidence. `test -v` renders
 each typed assertion as `EXPECTED → ACTUAL`; `test -vv` additionally exposes
@@ -98,6 +99,16 @@ the exact seed, resolution, anchor, edge, region, frontier, omission, limit,
 and lineage evidence behind those assertions. After explicit admission, `run` requires
 repeatable `--source` paths and retains one exact patch; `list` and
 `GET /api/v1/workloads` project HEAD and retained state without surveying again.
+
+`scene-admission` accepts a canonical `SCENE@n` label, validates an exact
+editor transfer envelope and all bounded native GeoJSON bytes, and renders a
+typed accepted/rejected result. Its frozen required suite covers package and
+object tampering, stale parent state, unsupported format, coordinate mismatch,
+duplicate identity, missing objects, byte bounds, polar coordinates,
+antimeridian crossing, and replay. An accepted run retains
+`rey.admitted-regional-scene.v1` with its embedded
+`rey.regional-projection-packet.v1`; it does not copy candidate-only terrain
+hints into observed height and does not change `/explore`.
 
 ## Workload Creation Request
 
@@ -716,7 +727,7 @@ identities and dependency facts, never toggled manually.
 | `workloads admit-activation id` | Revalidate one proposal from acknowledged Git history against the current cursor, workload HEAD, graph, scenarios, capabilities, and effective budget; retain schedule-only admission without executing it. |
 | `workloads execute-activation id` | Revalidate one retained admission, execute only its selected scenarios under the exact evidence cap, and retain replay-stable non-qualifying deltas and evidence without mutating Git. |
 | `workloads verify-activation id` | Revalidate one retained execution, fully recompute its declared suite under an explicit evidence cap, compare selected scenario evidence exactly, and retain a replay-stable non-qualifying proof. |
-| `workloads run id` | Execute only an exact current fresh qualified graph admitted in HEAD against explicit inputs through declared providers; retain outputs and exact mining lineage. |
+| `workloads run id` | Execute only an exact current fresh qualified graph admitted in HEAD against explicit inputs through declared providers; retain outputs and exact mining lineage. `scene-admission` additionally requires `--scene SCENE@n` and may select an explicit editor state directory. |
 
 `list` and `status` return success when inspection succeeds even if workloads
 are failing. `verify-activation` returns `0` for exact equivalence and `2` for

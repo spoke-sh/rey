@@ -10,6 +10,11 @@ use std::{
 use chrono::{DateTime, Utc};
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_diff::DeltaAssessment;
+use rey_mining::RegionalBounds;
+use rey_runtime::{
+    SCENE_ADMISSION_CANDIDATE_SCHEMA, SceneAdmissionCandidate, SceneAdmissionCoordinateSystem,
+    SceneAdmissionFeature, SceneAdmissionSource,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -1104,6 +1109,100 @@ impl LocalEditorStore {
             patch,
             entries,
         })
+    }
+
+    pub fn admission_candidate(
+        &self,
+        sequence: u64,
+    ) -> Result<SceneAdmissionCandidate, EditorError> {
+        let state = self.load_state()?;
+        let latest_editor_sequence = state.commits.last().map_or(0, |commit| commit.sequence);
+        let commit = state
+            .commits
+            .iter()
+            .find(|commit| commit.sequence == sequence)
+            .ok_or(EditorError::UnknownSceneSequence(sequence))?;
+        let package = self
+            .load_commit_package(Some(commit))?
+            .ok_or_else(|| EditorError::UnknownPackage(commit.package.package_id.to_string()))?;
+        let request = self.load_admission_request(&commit.package.admission_request_path)?;
+        let bounds = package
+            .snapshot
+            .bounds
+            .as_ref()
+            .ok_or(EditorError::EmptySceneBounds)?;
+        let native_bounds = regional_bounds(bounds);
+        let sources = package
+            .snapshot
+            .sources
+            .iter()
+            .map(|source| {
+                let object_path = self.safe_store_path(&source.artifact.object_path)?;
+                let native_bytes =
+                    read_bounded_file(&object_path, MAX_SOURCE_BYTES, "committed scene object")?;
+                Ok(SceneAdmissionSource {
+                    source_id: source.source_id.clone(),
+                    worktree_path: source.worktree_path.clone(),
+                    format: match source.format {
+                        SceneSourceFormat::GeoJson => "geo_json".to_owned(),
+                    },
+                    role: source.role.label().to_owned(),
+                    media_type: source.artifact.media_type.clone(),
+                    artifact_id: source.artifact.content_digest.clone(),
+                    artifact_path: source.artifact.object_path.clone(),
+                    declared_bytes: source.artifact.bytes,
+                    native_bytes: Some(native_bytes),
+                    feature_count: source.feature_count,
+                    coordinate_count: source.coordinate_count,
+                })
+            })
+            .collect::<Result<Vec<_>, EditorError>>()?;
+        let features = package
+            .snapshot
+            .features
+            .iter()
+            .map(|feature| SceneAdmissionFeature {
+                feature_id: feature.feature_id.clone(),
+                source_id: feature.source_id.clone(),
+                source_feature_id: feature.source_feature_id.clone(),
+                role: feature.role.label().to_owned(),
+                geometry_kind: feature.geometry_kind.clone(),
+                native_bounds: regional_bounds(&feature.bounds),
+                coordinate_count: feature.coordinate_count,
+                properties_digest: feature.properties_digest.clone(),
+                feature_revision: feature.feature_revision.clone(),
+            })
+            .collect();
+        SceneAdmissionCandidate {
+            schema: SCENE_ADMISSION_CANDIDATE_SCHEMA.to_owned(),
+            candidate_id: digest_placeholder(),
+            editor_commit_id: commit.commit_id.clone(),
+            editor_sequence: commit.sequence,
+            latest_editor_sequence,
+            package_id: package.package_id.clone(),
+            parent_package_id: package.parent_package_id.clone(),
+            package_snapshot_revision: package.snapshot.snapshot_revision.clone(),
+            package_authority: package.admission_authority.clone(),
+            admission_request_id: request.request_id,
+            admission_request_package_id: request.package_id,
+            requested_operation: request.requested_operation,
+            request_status: request.status,
+            request_admitted: request.admitted,
+            project_id: package.snapshot.project_id,
+            coordinate_system: SceneAdmissionCoordinateSystem {
+                kind: package.snapshot.coordinate_system.kind,
+                authority: package.snapshot.coordinate_system.authority,
+                code: package.snapshot.coordinate_system.code,
+                axis_order: package.snapshot.coordinate_system.axis_order,
+            },
+            native_bounds,
+            sources,
+            features,
+            complete: package.snapshot.complete,
+            omissions: package.snapshot.omissions,
+        }
+        .finalize()
+        .map_err(EditorError::from)
     }
 
     fn observe(&self) -> Result<ObservedScene, EditorError> {
@@ -2324,6 +2423,16 @@ fn content_identity(bytes: &[u8]) -> SemanticDigest {
     hasher.finish()
 }
 
+fn regional_bounds(bounds: &SceneBounds) -> RegionalBounds {
+    RegionalBounds {
+        west_microdegrees: (bounds.west * 1_000_000.0).round() as i64,
+        south_microdegrees: (bounds.south * 1_000_000.0).round() as i64,
+        east_microdegrees: (bounds.east * 1_000_000.0).round() as i64,
+        north_microdegrees: (bounds.north * 1_000_000.0).round() as i64,
+        crosses_antimeridian: false,
+    }
+}
+
 fn properties_identity(bytes: &[u8]) -> SemanticDigest {
     let mut hasher = SemanticHasher::new("rey.scene-feature-properties.v1");
     hasher.add_bytes(bytes);
@@ -2749,6 +2858,12 @@ pub enum EditorError {
     CommitIdentity,
     #[error("unknown current scene package: {0}")]
     UnknownPackage(String),
+    #[error("unknown editor scene revision SCENE@{0}")]
+    UnknownSceneSequence(u64),
+    #[error("editor scene revision has no bounded native coordinates")]
+    EmptySceneBounds,
+    #[error(transparent)]
+    SceneAdmission(#[from] rey_runtime::SceneAdmissionError),
     #[error("editor JSON failed: {0}")]
     Json(#[from] serde_json::Error),
     #[error("editor filesystem operation failed: {0}")]

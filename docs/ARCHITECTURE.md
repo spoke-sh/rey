@@ -343,11 +343,13 @@ admitted evidence
 
 The editor arrow cannot bypass the admission workload. `rey.scene-package.v1`
 is not a topography patch, projection packet, browser scene, or proof. The
-current first slice freezes bounded native GeoJSON and a feature/POI index but
-does not yet implement the admission workload; therefore it is enabling work
-and creating a package leaves `/explore` unchanged. [Explorer](EXPLORER.md),
-[Mining](MINING.md), and [Plan 0003](../plans/0003-scene-to-explorer.md) own
-this boundary.
+editor freezes bounded native GeoJSON and a feature/POI index. The file-backed
+`scene-admission` workload now validates exact current packages and native
+objects, qualifies deterministic acceptance/rejection scenarios, and retains
+an admitted regional scene plus projection packet through the CLI. This is
+still enabling work because creating or admitting a package leaves `/explore`
+unchanged. [Explorer](EXPLORER.md), [Mining](MINING.md), and [Plan
+0003](../plans/0003-scene-to-explorer.md) own this boundary.
 
 Picking reverses only screen position to a stable scene identity and exact
 coordinate. It does not reverse pixels into evidence. The CLI inspects the
@@ -886,9 +888,11 @@ LOD, picking, camera bounds, exact editor/workload lineage, distinct native,
 synthetic, Mercator, County-local, and camera coordinate planes, typed native
 objects/layers, validity, limits, omissions, and explicit optional
 topography/atlas/terrain relationships. Multi-region fixtures prove their
-bounded structural invariants. This remains incomplete enabling work: no
-file-backed scene-admission workload or CLI result producer exists yet, and
-the browser consumes none of these regional documents.
+bounded structural invariants. `rey-runtime` now produces these contracts
+through the qualified file-backed workload, and the CLI exposes exact human and
+JSON evidence for a real `SCENE@n`. This remains incomplete enabling work: the
+browser consumes none of these regional documents and no atlas history or
+movement delta is retained yet.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.

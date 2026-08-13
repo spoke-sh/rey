@@ -20,11 +20,13 @@ The separate `rey editor` CLI assembles WORKING projects, stages exact native
 objects in INDEX, and commits linear `SCENE@n` history with immutable candidate
 scene packages. Deterministic generators may author tunable source features in
 WORKING, but generation itself grants no evidence authority. Those packages
-are not Explorer inputs. Only a later qualified workload may admit their
-terrain or features and produce evidence consumed by a projection packet. The
-implemented editor slice has no admission workload, so scene commits change
-neither the UI API nor `/explore`. See [CLI](CLI.md), [Mining](MINING.md), and
-[Plan 0003](../plans/0003-scene-to-explorer.md).
+are not Explorer inputs. The file-backed `scene-admission` workload now
+validates one exact current package and its frozen GeoJSON objects, retains a
+typed accepted/rejected result, and emits a regional projection packet. This
+closes the CLI admission path only: `/explore` does not yet consume that result,
+so scene commits and admitted runs still leave the browser unchanged. See
+[CLI](CLI.md), [Mining](MINING.md), and [Plan
+0003](../plans/0003-scene-to-explorer.md).
 
 ## Operator Model
 
@@ -160,8 +162,8 @@ chart, and line features do not become paths or source relationships. Detailed
 raster terrain and provider-qualified semantic chart formats require separate
 adapters and admission scenarios.
 
-The renderer-independent result contracts now exist even though the admitting
-workload does not. `rey.admitted-regional-scene.v1` binds one exact editor
+The renderer-independent result contracts and their file-backed admitting
+workload now exist. `rey.admitted-regional-scene.v1` binds one exact editor
 commit, package, snapshot, admission request, qualifying workload/graph/suite,
 capability snapshot, native bounds and objects, coordinate transforms, typed
 layers, validity/no-data records, limits, omissions, and lineage. Its embedded
@@ -172,7 +174,11 @@ view-only. Topography patch, retained atlas revision, projection packet, and
 terrain program identities are separate nullable bindings. With no qualified
 terrain adapter, the contract must retain an unsupported terrain-height
 validity row, an absent terrain program, and the fact that candidate controls
-were not copied into observed terrain truth.
+were not copied into observed terrain truth. `rey workloads test --staged
+scene-admission -vv` qualifies frozen acceptance and rejection cases;
+`rey workloads run scene-admission --scene SCENE@n` revalidates a real current
+editor revision and exposes the five coordinate planes, exact identities,
+validity, omissions, limits, and lineage in human or JSON form.
 
 `rey.explore-grammar.v1` freezes the six semantic levels independently from
 World-globe, semantic-Mercator, County-isometric, and County-evidence postures.

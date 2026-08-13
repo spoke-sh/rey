@@ -16,12 +16,13 @@ use rey_runtime::{
     CONTEXT_ANCHOR_SURVEY_OPERATION_ID, ComputeGraph, GraphLimits, GraphNode, GraphOutput,
     PortfolioError, PortfolioLimits, PortfolioQualificationState, PortfolioReasoningEvidence,
     PortfolioSnapshot, PortfolioSurfaceObservation, PortfolioWorkloadObservation,
-    QualificationRecord, RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, Scenario, ScenarioSuite,
-    TestStatus, TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention,
-    WorkloadDefinition, WorkloadDefinitionParts, WorkloadGitDependency, WorkloadGitDependencyKind,
-    WorkloadLimits, WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult,
-    WorkloadScenarioExecutionResult, WorkloadTestResult, WorkloadValue,
-    built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
+    QualificationRecord, RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID,
+    RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, SCENE_ADMISSION_OPERATION_ID, Scenario,
+    ScenarioSuite, SceneAdmissionScenario, TestStatus, TopographySurveyScenario, ValueSource,
+    ValueType, WorkloadAttention, WorkloadDefinition, WorkloadDefinitionParts,
+    WorkloadGitDependency, WorkloadGitDependencyKind, WorkloadLimits, WorkloadOwnedSurface,
+    WorkloadPort, WorkloadRunResult, WorkloadScenarioExecutionResult, WorkloadTestResult,
+    WorkloadValue, built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -1993,6 +1994,8 @@ struct SuppliedScenario {
     expected: BTreeMap<String, String>,
     #[serde(default)]
     survey: Option<TopographySurveyScenario>,
+    #[serde(default)]
+    scene: Option<SceneAdmissionScenario>,
 }
 
 impl SuppliedWorkloadPackage {
@@ -2037,6 +2040,8 @@ impl SuppliedWorkloadPackage {
                         CONTEXT_ANCHOR_SURVEY_OPERATION_ID,
                         ValueType::TopographyPatch
                     ) | (RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, ValueType::Utf8)
+                        | (SCENE_ADMISSION_OPERATION_ID, ValueType::SceneAdmission)
+                        | (RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID, ValueType::Utf8)
                 );
                 if !supported {
                     return Err(WorkloadCatalogError::UnsupportedPackageOperation(
@@ -2076,7 +2081,7 @@ impl SuppliedWorkloadPackage {
             .scenarios
             .cases
             .into_iter()
-            .map(|scenario| {
+            .map(|scenario| -> Result<Scenario, WorkloadCatalogError> {
                 let id = format!("{}.scenario.{}", self.workload.id, scenario.id);
                 let inputs = scenario
                     .inputs
@@ -2088,8 +2093,8 @@ impl SuppliedWorkloadPackage {
                     .into_iter()
                     .map(|(id, value)| (id, WorkloadValue::Utf8(value)))
                     .collect();
-                match scenario.survey {
-                    Some(survey) => Scenario::new_versioned_topography(
+                Ok(match (scenario.survey, scenario.scene) {
+                    (Some(survey), None) => Scenario::new_versioned_topography(
                         &id,
                         scenario.revision,
                         scenario.required,
@@ -2097,7 +2102,15 @@ impl SuppliedWorkloadPackage {
                         expected,
                         survey,
                     ),
-                    None => Scenario::new_versioned(
+                    (None, Some(scene)) => Scenario::new_versioned_scene_admission(
+                        &id,
+                        scenario.revision,
+                        scenario.required,
+                        inputs,
+                        expected,
+                        scene,
+                    ),
+                    (None, None) => Scenario::new_versioned(
                         &id,
                         scenario.revision,
                         scenario.required,
@@ -2105,9 +2118,12 @@ impl SuppliedWorkloadPackage {
                         expected,
                         None,
                     ),
-                }
+                    (Some(_), Some(_)) => {
+                        return Err(WorkloadCatalogError::MultipleScenarioProbeFamilies);
+                    }
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
         let scenario_suite =
             ScenarioSuite::new_versioned(&self.scenarios.id, self.scenarios.revision, scenarios);
         let mut source_hasher = SemanticHasher::new("rey.workload-package-source.v1");
@@ -2287,6 +2303,8 @@ pub enum WorkloadCatalogError {
     UnsupportedPackageValueType,
     #[error("workload package v1 does not admit operation {0}")]
     UnsupportedPackageOperation(String),
+    #[error("workload package scenario cannot bind more than one probe input family")]
+    MultipleScenarioProbeFamilies,
     #[error("duplicate workspace workload id {0}")]
     DuplicateWorkload(String),
     #[error(

@@ -1,10 +1,12 @@
 #![forbid(unsafe_code)]
 
 mod portfolio;
+mod scene_admission;
 mod topography;
 mod workload;
 mod workload_mining;
 
+pub use scene_admission::*;
 pub use topography::*;
 
 pub use portfolio::{
@@ -29,10 +31,11 @@ pub use workload::{
     WorkloadGitDependencyKind, WorkloadLimits, WorkloadOwnedSurface, WorkloadPort,
     WorkloadRunResult, WorkloadScenarioExecutionResult, WorkloadTestResult, WorkloadValue,
     built_in_operation_contract, built_in_workload, built_in_workloads, execute_workload,
-    execute_workload_scenario_selection_with_snapshot, execute_workload_with_source,
-    execute_workload_with_topography, run_workload, run_workload_with_source,
-    run_workload_with_topography, test_workload, test_workload_with_observer,
-    test_workload_with_observer_and_snapshot, utf8_exact_comparator_contract,
+    execute_workload_scenario_selection_with_snapshot, execute_workload_with_scene,
+    execute_workload_with_source, execute_workload_with_topography, run_workload,
+    run_workload_with_scene, run_workload_with_source, run_workload_with_topography, test_workload,
+    test_workload_with_observer, test_workload_with_observer_and_snapshot,
+    utf8_exact_comparator_contract,
 };
 pub use workload_mining::{
     BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID, MiningReasoningEvidence, MiningScenarioEvidence,
