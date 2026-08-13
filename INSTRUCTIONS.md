@@ -91,11 +91,11 @@ worker, fails closed on unexpected worker exit, and stops it cooperatively on
 SIGINT or SIGTERM. It does not invoke a discovered agent runtime or schedule a
 workload. The UI starts from that CLI process, passively revalidates the same workload-list
 derivation, defaults to loopback, and is not a general mutation plane or public
-Rey service. Its explicit Channel editor writes only validated WORKING state
-against expected snapshots and grants no INDEX, HEAD, relay, or execution
-authority. Feed resolves URL preview, Channel WORKING, Channel HEAD, then
-built-in layout; URL edits remain detached until adoption, and stable stream
-movement uses that same expected-snapshot WORKING boundary. The separate local
+Rey service. Channel topology remains non-navigable substrate behind Feed,
+mailbox, and conversation. Feed resolves URL preview, Channel WORKING, Channel
+HEAD, then built-in layout; URL edits remain detached until adoption, and
+stable stream movement uses the expected-snapshot WORKING boundary without
+granting INDEX, HEAD, relay, or execution authority. The separate local
 observation log retains exact source/evidence bindings and Channel-admission
 edges without entering topology INDEX or granting relay authority. Its fixed
 footer is a two-axis communication plane: the mailbox

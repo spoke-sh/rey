@@ -339,12 +339,13 @@ authority. The local revision slice implements the canonical built-in graph,
 bounded snapshots/deltas, symlink-safe `CHANNEL HEAD → INDEX → WORKING` store,
 and `channels list/status/diff/apply/add/commit/log`. Immutable file-backed
 messages, explicit relay attempts, and bounded one-shot polling-beacon ticks
-are also implemented. `/channels` reads the same bounded status and can replace
-WORKING only through the same validator/store under exact expected HEAD and
-WORKING snapshot preconditions. Feed selects detached URL preview, WORKING,
-HEAD, then built-in layout state; deliberate adoption and stable
-pointer/keyboard movement use that same conditional WORKING write and retain
-typed deltas or rollback failures. A separate tamper-detecting observation log
+are also implemented. The Channel graph and browser API remain non-navigable
+substrate behind Feed, mailbox, and conversation; there is no top-level
+`/channels` route or navigation item. Feed selects detached URL preview,
+WORKING, HEAD, then built-in layout state; deliberate adoption and stable
+pointer/keyboard movement use the conditional WORKING write under exact HEAD
+and WORKING snapshot preconditions and retain typed deltas or rollback failures.
+A separate tamper-detecting observation log
 now owns immutable statements, exact source/evidence bindings, Channel
 admission edges, retained partial broadcast receipts, single supersession or
 resolution closure, and the bounded collaboration frontier. Its CLI exposes

@@ -277,10 +277,6 @@
     border-color: #b57417;
   }
 
-  .x19syesh {
-    border-color: #b72d25;
-  }
-
   .x1sqno1q {
     border-color: #237047b3;
   }
@@ -533,10 +529,6 @@
     gap: 8px;
   }
 
-  .xtxm03z {
-    gap: 92px;
-  }
-
   .xmmi0ta {
     gap: 9px;
   }
@@ -575,10 +567,6 @@
 
   .x10im51j {
     margin-block: 0;
-  }
-
-  .x2k5q2m {
-    margin-block: 14px;
   }
 
   .x6rq67f {
@@ -969,10 +957,6 @@
     background-color: #8a5a1914;
   }
 
-  .x171pawp {
-    background-color: color-mix(in srgb,#b57417 10%,var(--surface));
-  }
-
   .x1t1zxt8 {
     background-color: color-mix(in srgb,#b57417 13%,var(--surface));
   }
@@ -983,10 +967,6 @@
 
   .x1qrgn9 {
     background-color: #b5741717;
-  }
-
-  .xnqrdti {
-    background-color: color-mix(in srgb,#b72d25 10%,var(--surface));
   }
 
   .x13uqpff {
@@ -1593,10 +1573,6 @@
     font-size: .76rem;
   }
 
-  .xp1qmoa {
-    font-size: .78rem;
-  }
-
   .x1sfrptf {
     font-size: .7rem;
   }
@@ -1875,10 +1851,6 @@
 
   .xnby9oq {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .x185a7wo {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .xl501l6 {
@@ -2820,12 +2792,6 @@
     }
   }
 
-  @media (width <= 900px) {
-    .xyw5f.xyw5f {
-      grid-template-columns: 1fr;
-    }
-  }
-
   @media (width <= 920px) {
     .xyya9i6.xyya9i6 {
       grid-template-columns: 1fr;
@@ -2847,12 +2813,6 @@
   @media (width <= 700px) {
     .xve905q.xve905q {
       grid-template-columns: 52px 1fr;
-    }
-  }
-
-  @media (width <= 760px) {
-    .x1u1qk0f.x1u1qk0f {
-      grid-template-columns: 52px minmax(0, 1fr);
     }
   }
 
@@ -3014,10 +2974,6 @@
     border-left-color: #9a3c25;
   }
 
-  .x1gf0w96 {
-    border-left-color: #b72d25;
-  }
-
   .x1qm8o2d {
     border-left-color: var(--line);
   }
@@ -3048,10 +3004,6 @@
 
   .x1vo0akb {
     border-left-width: 3px;
-  }
-
-  .xc8hjz9 {
-    border-left-width: 4px;
   }
 
   .x1qbpyof {
@@ -3524,10 +3476,6 @@
 
   .x141feeh {
     min-height: 38px;
-  }
-
-  .x2xcw19 {
-    min-height: 440px;
   }
 
   .x1wjjzik {

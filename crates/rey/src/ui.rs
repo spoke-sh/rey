@@ -1278,10 +1278,10 @@ impl UiServer {
                 },
                 UiCadenceSchedule {
                     id: "ui.channels.passive-revalidation".to_owned(),
-                    label: "Channel topology scan".to_owned(),
+                    label: "Channel-backed Feed scan".to_owned(),
                     source: "/api/v1/channels".to_owned(),
                     interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "channels_route_mounted".to_owned(),
+                    activation: "feed_route_mounted".to_owned(),
                     authority: "mounted_browser_projection".to_owned(),
                     retention: "last_good_document".to_owned(),
                 },
@@ -1632,7 +1632,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(40 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(39 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -1823,6 +1823,7 @@ mod tests {
         assert!(cadence.contains("\"repository_state\":null"));
         assert!(cadence.contains("ui.portfolio.passive-revalidation"));
         assert!(cadence.contains("ui.channels.passive-revalidation"));
+        assert!(cadence.contains("\"activation\":\"feed_route_mounted\""));
         assert!(cadence.contains("ui.observations.passive-revalidation"));
         assert!(cadence.contains("ui.cadence.passive-revalidation"));
 
@@ -2027,9 +2028,8 @@ mod tests {
         assert!(application.contains("ADD STREAM"));
         assert!(application.contains("APPLY LENS"));
         assert!(application.contains("Rename stream"));
-        assert!(application.contains("Channel operator index"));
-        assert!(application.contains("WRITE CHANNEL WORKING"));
-        assert!(application.contains("NO INDEX · NO HEAD · NO RELAY · NO EXECUTION"));
+        assert!(!application.contains("Channel operator index"));
+        assert!(!application.contains("WRITE CHANNEL WORKING"));
         assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
         assert!(application.contains("ADMISSION CONTROL"));
@@ -2074,10 +2074,6 @@ mod tests {
         let cadence = request(&address, "GET /cadence HTTP/1.1");
         assert!(cadence.starts_with("HTTP/1.1 200"));
         assert!(cadence.contains("<title>Rey / Explore</title>"));
-
-        let channels = request(&address, "GET /channels HTTP/1.1");
-        assert!(channels.starts_with("HTTP/1.1 200"));
-        assert!(channels.contains("<title>Rey / Explore</title>"));
 
         let agents = request(&address, "GET /agents HTTP/1.1");
         assert!(agents.starts_with("HTTP/1.1 200"));

@@ -19,12 +19,11 @@
       ]
     },
     {
-      "bytes": 233566,
+      "bytes": 233052,
       "dynamic_entry": false,
       "dynamic_imports": [
         "assets/agents.js",
         "assets/cadence.js",
-        "assets/channels.js",
         "assets/explore.js",
         "assets/workload-evidence.js",
         "assets/workloads.js"
@@ -62,19 +61,6 @@
       "imports": []
     },
     {
-      "bytes": 9670,
-      "dynamic_entry": true,
-      "dynamic_imports": [],
-      "entry": false,
-      "file": "assets/channels.js",
-      "imports": [
-        "assets/KineticDenseTable.js",
-        "assets/app.js",
-        "assets/react.js",
-        "assets/rolldown-runtime.js"
-      ]
-    },
-    {
       "bytes": 2130,
       "dynamic_entry": false,
       "dynamic_imports": [],
@@ -98,17 +84,6 @@
         "assets/react.js",
         "assets/rolldown-runtime.js",
         "assets/tanstack-router.js"
-      ]
-    },
-    {
-      "bytes": 2242,
-      "dynamic_entry": false,
-      "dynamic_imports": [],
-      "entry": false,
-      "file": "assets/KineticDenseTable.js",
-      "imports": [
-        "assets/app.js",
-        "assets/react.js"
       ]
     },
     {
@@ -429,26 +404,24 @@
       ]
     },
     {
-      "bytes": 18624,
+      "bytes": 20756,
       "dynamic_entry": true,
       "dynamic_imports": [],
       "entry": false,
       "file": "assets/workload-evidence.js",
       "imports": [
-        "assets/KineticDenseTable.js",
         "assets/app.js",
         "assets/camera.js",
         "assets/react.js"
       ]
     },
     {
-      "bytes": 17239,
+      "bytes": 17203,
       "dynamic_entry": true,
       "dynamic_imports": [],
       "entry": false,
       "file": "assets/workloads.js",
       "imports": [
-        "assets/KineticDenseTable.js",
         "assets/app.js",
         "assets/domain.js",
         "assets/react.js",

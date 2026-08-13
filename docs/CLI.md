@@ -562,11 +562,10 @@ project has already been mapped.
 An explicit non-loopback listener exposes unauthenticated Journal and
 conversation admission, Channel WORKING replacement, and exact workload
 approval to reachable clients; Rey reports that boundary and the surrounding deployment must protect
-it when required. `/channels` reads the same exact Channel status as the CLI.
-Its editor requires the displayed HEAD and WORKING snapshot identities, passes
-the complete graph through the existing validator/store, and writes WORKING
-only. It cannot stage, commit, relay, or execute anything.
-`/feed` uses that Channel projection in `URL preview → WORKING → HEAD → built-in`
+it when required. Channel topology is non-navigable browser substrate for Feed,
+mailbox, and conversation; `rey agent` exposes no `/channels` route or primary
+navigation item. `/feed` uses the Channel projection in
+`URL preview → WORKING → HEAD → built-in`
 order. URL tuning stays detached until the operator adopts it; stable drag,
 move-button, and `Alt+Arrow` layout movement conditionally replaces WORKING,
 shows the returned semantic delta, and restores the prior layout after a stale

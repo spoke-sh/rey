@@ -29,16 +29,18 @@ describe("operator routes", () => {
     ).toBe("/");
   });
 
-  it("keeps Channel collaboration visible while preserving the primary order", () => {
+  it("keeps Channel topology behind the operator-facing navigation", () => {
     expect(PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Feed",
       "Explore",
       "Agents",
       "Cadence",
-      "Channels",
       "Workloads",
       "Environment",
     ]);
+    expect(PRIMARY_NAV_ITEMS.map((item) => String(item.to))).not.toContain(
+      "/channels",
+    );
   });
 
   it("gives Feed and Explorer the remaining viewport without document scroll", () => {
@@ -126,10 +128,12 @@ describe("operator routes", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("matches feed, cadence, channels, agents, Journal documents, exact workload evidence, and coordinate views", () => {
+  it("matches operator routes without exposing a Channels page", () => {
     expect(router.matchRoutes("/feed").at(-1)?.routeId).toBe("/feed");
     expect(router.matchRoutes("/cadence").at(-1)?.routeId).toBe("/cadence");
-    expect(router.matchRoutes("/channels").at(-1)?.routeId).toBe("/channels");
+    expect(
+      router.matchRoutes("/channels").map((match) => String(match.routeId)),
+    ).not.toContain("/channels");
     expect(router.matchRoutes("/agents").at(-1)?.routeId).toBe("/agents");
     expect(router.matchRoutes("/journal/new").at(-1)?.routeId).toBe(
       "/journal/new",

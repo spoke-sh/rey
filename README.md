@@ -107,10 +107,11 @@ Rey organizes collaboration around two clients with one evidence plane:
 
 - **Humans navigate and consent.** Explorer provides the spatial bearing;
   Feed carries incoming signals and admission attention; Journal retains
-  addressable human/agent synthesis; Channels exposes the exact collaboration
-  topology and a bounded WORKING-only editor. Feed resolves detached URL
-  previews ahead of Channel WORKING, HEAD, and built-in layouts; adoption and
-  stream movement remain explicit WORKING-only writes. Immutable observations,
+  addressable human/agent synthesis. Channel topology stays behind the scenes
+  as substrate for Feed, mailbox, and conversation rather than appearing as a
+  top-level browser destination. Feed resolves detached URL previews ahead of
+  Channel WORKING, HEAD, and built-in layouts; adoption and stream movement
+  remain explicit WORKING-only writes. Immutable observations,
   their local Channel-admission edges, partial broadcast receipts, and catch-up
   frontier remain a separate bounded state plane; Feed and mailbox read that
   unresolved frontier without adding unread, priority, assignment, action, or

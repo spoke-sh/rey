@@ -1057,7 +1057,7 @@ None is authenticated or origin-gated on
 an explicitly configured listener. Other methods are rejected. Deep browser
 routes receive the embedded application shell; `GET|HEAD /` redirects to
 `/explore`. The application routes are `/feed`, coordinate-bound `/explore`
-query views, `/cadence`, `/channels`, `/agents`, `/journal/new`, `/journal/{slug}`,
+query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, `/workloads/$workloadId`,
 `/workloads/$workloadId/scenarios/$executionId`, and
 `/workloads/$workloadId/deltas/$deltaId`. The workload endpoint is
@@ -1211,12 +1211,12 @@ The separate `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING` revision loop 
 complete for full-graph staging. Immutable file-backed messages can be admitted
 only against Channel HEAD, and explicit `relay` or one-shot `beacon` commands
 require an exact environment-HEAD application plus admitted graph declarations.
-`/channels` projects the same exact status, limits, sources, stream order, and
-directed deltas. Its bounded unauthenticated editor calls the same graph
-validator/store, rejects stale expected HEAD or WORKING snapshots, and can
-write WORKING only; INDEX, HEAD, relay, and execution remain CLI/runtime
-boundaries. Feed layout resolution, deliberate adoption, and stable
-pointer/keyboard reorder persistence are implemented through that boundary.
+Channel status and conditional WORKING APIs remain non-navigable substrate
+behind Feed, mailbox, and conversation; the operator exposes no `/channels`
+route or navigation item. Feed layout resolution, deliberate adoption, and
+stable pointer/keyboard reorder persistence use the same graph validator/store,
+reject stale expected HEAD or WORKING snapshots, and can write WORKING only;
+INDEX, HEAD, relay, and execution remain CLI/runtime boundaries.
 Remote inbound polling, resident scheduling, and the richer
 `rey observations add|list|show|resolve` now provides human and typed JSON
 rendering over the observation store. It retains immutable content-derived

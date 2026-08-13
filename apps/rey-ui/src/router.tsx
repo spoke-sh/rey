@@ -78,10 +78,6 @@ const CadencePage = lazyRouteComponent(
   () => import("./cadence"),
   "CadencePage",
 );
-const ChannelsPage = lazyRouteComponent(
-  () => import("./channels"),
-  "ChannelsPage",
-);
 const ExplorePage = lazyRouteComponent(
   () => import("./explore"),
   "ExplorePage",
@@ -120,7 +116,6 @@ export const PRIMARY_NAV_ITEMS = [
   { label: "Explore", to: "/explore", prefixes: ["/explore"] },
   { label: "Agents", to: "/agents", prefixes: ["/agents", "/journal"] },
   { label: "Cadence", to: "/cadence", prefixes: ["/cadence"] },
-  { label: "Channels", to: "/channels", prefixes: ["/channels"] },
   { label: "Workloads", to: "/workloads", prefixes: ["/workloads"] },
   { label: "Environment", to: "/environment", prefixes: ["/environment"] },
 ] as const;
@@ -1387,27 +1382,6 @@ function CadenceRoutePage() {
   return <CadencePage cadence={cadence} />;
 }
 
-function ChannelsRoutePage() {
-  const initialChannels = channelsRoute.useLoaderData();
-  const {
-    document: projection,
-    error,
-    publish,
-  } = usePassiveDocument(initialChannels, loadChannels);
-  return (
-    <ChannelsPage
-      onWrite={async (write) => {
-        await writeChannelWorking(write);
-        const current = await loadChannels();
-        publish(current);
-        return current;
-      }}
-      projection={projection}
-      refreshError={error}
-    />
-  );
-}
-
 function AgentsRoutePage() {
   const initial = agentsRoute.useLoaderData();
   const { document } = usePassiveDocument(initial, loadAgentJournal);
@@ -1517,13 +1491,6 @@ const cadenceRoute = createRoute({
   component: CadenceRoutePage,
 });
 
-const channelsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "channels",
-  loader: loadChannels,
-  component: ChannelsRoutePage,
-});
-
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
@@ -1602,7 +1569,6 @@ const routeTree = rootRoute.addChildren([
   feedRoute,
   exploreRoute,
   cadenceRoute,
-  channelsRoute,
   agentsRoute,
   journalNewRoute,
   journalEntryRoute,
@@ -1634,7 +1600,6 @@ function routeCoordinate(pathname: string): string {
   if (pathname.startsWith("/feed")) return "FEED / SIGNALS · ADMISSION · FLOW";
   if (pathname.startsWith("/explore")) return "EXPLORE / CONTEXT TOPOLOGY";
   if (pathname.startsWith("/cadence")) return "CADENCE / TICKS";
-  if (pathname.startsWith("/channels")) return "CHANNELS / OPERATOR INDEX";
   if (pathname.startsWith("/agents")) return "AGENTS";
   if (pathname.startsWith("/journal")) return "JOURNAL";
   if (pathname.startsWith("/environment")) return "ENVIRONMENT";
