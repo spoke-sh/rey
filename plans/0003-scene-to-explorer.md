@@ -75,7 +75,14 @@ deterministic label engine applies the grammar's 70-label World and 96-label
 Atlas budgets across globe rotation, morph, and chart copies. Selected canonical
 focus wins, then depth/copy priority and identity provide stable ordering;
 collided or over-limit labels collapse without removing markers or pick targets.
-Its compiler revision enters immutable scene lineage. Admitted County fabric,
+Its compiler revision enters immutable scene lineage. Closer zoom without an
+explicit regional focus now stops at Atlas. An explicit region selection enters
+only after Rust admission and the browser adapter both verify one exact
+native-to-County-local transform centered on the admitted native envelope.
+`rey.county-frame-projection@1` then applies a bounded `35.26439°` pitch / `45°`
+yaw isometric forward/inverse plane projection, retains the frame in the
+immutable scene, and discloses that object-envelope presentation is neither
+source footprint geometry nor physical distance. Exact County footprint fabric,
 render-graph completion, clipmap reuse, and retained visual/performance proof
 remain open.
 
@@ -135,8 +142,13 @@ remain open.
 
 ### 4. Enter a bounded County
 
-- [ ] Require one selected admitted footprint and expand its revision-bound
-  local tangent frame into the bounded isometric camera.
+- [x] Stop closer navigation at Atlas until an admitted regional identity is
+  explicitly selected; never fall back to the first available scene.
+- [x] Verify the selected scene's exact envelope-centered County-local
+  transform and expand that revision-bound plane through a bounded reversible
+  isometric camera while disclosing that envelope geometry is not a footprint.
+- [ ] Admit one exact County footprint identity and use it as the County fabric
+  and validity boundary instead of substituting the scene envelope.
 - [ ] Add independently typed terrain, hydrology, boundary, highway, road,
   district, lot, structure, utility, POI, label, beacon, construction, and
   connector layers only where admitted evidence supports them.

@@ -77,6 +77,7 @@ const terrainScene = {
   terrain_programs: [],
   globe: null,
   world_atlas_transition: null,
+  county_frame: null,
 } satisfies TopologyScene;
 
 describe("reference renderer", () => {

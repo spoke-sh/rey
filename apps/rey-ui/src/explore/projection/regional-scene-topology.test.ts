@@ -5,6 +5,7 @@ import { buildTopologyScene } from "../../topology";
 import { compileSceneSnapshot } from "../engine/scene";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "../engine/labels";
 import { ReferenceRenderer } from "../renderers/reference";
+import { COUNTY_FRAME_PROJECTION_REVISION } from "./county-frame";
 import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "./semantic-mercator";
 
 const contract = (id: string, digest = `${id}:digest`) => ({
@@ -153,7 +154,16 @@ const regionalPortfolio = {
               { space: "native_crs84" },
               { space: "synthetic_semantic" },
               { space: "semantic_mercator" },
-              { space: "county_local" },
+              {
+                space: "county_local",
+                status: "bound",
+                dimensions: ["east", "north", "up"],
+                units: [
+                  "local_microunit",
+                  "local_microunit",
+                  "local_microunit",
+                ],
+              },
               { space: "camera" },
             ],
             transforms: [
@@ -161,6 +171,20 @@ const regionalPortfolio = {
                 source_space: "native_crs84",
                 target_space: "synthetic_semantic",
                 target_origin: [-42_000_000, 18_000_000],
+              },
+              {
+                transform: contract(
+                  "rey.scene.native-to-county-local",
+                  "county-transform:1",
+                ),
+                source_space: "native_crs84",
+                target_space: "county_local",
+                source_origin: [-122_500_000, 37_500_000],
+                target_origin: [0, 0, 0],
+                parameters: ["east_north_up_microunits"],
+                inverse_policy:
+                  "bounded analytic inverse inside admitted envelope",
+                distortion: "presentation only",
               },
             ],
             layers: [
@@ -272,6 +296,9 @@ describe("regional scene topology projection", () => {
     expect(compiledAtlas.compiler_revisions).toContain(
       SEMANTIC_LABEL_LAYOUT_REVISION,
     );
+    expect(compiledAtlas.compiler_revisions).toContain(
+      COUNTY_FRAME_PROJECTION_REVISION,
+    );
     expect(Object.isFrozen(compiledAtlas.scene.world_atlas_transition)).toBe(
       true,
     );
@@ -319,6 +346,21 @@ describe("regional scene topology projection", () => {
     );
     expect(wrappedMarkup).toContain('data-label-disposition="selected"');
 
+    const unselectedCloserView = buildTopologyScene(
+      regionalPortfolio,
+      0.58,
+      "cluster:portfolio",
+    );
+    expect(unselectedCloserView.regime).toBe("atlas");
+    expect(unselectedCloserView.county_frame).toBeNull();
+    const unknownSelection = buildTopologyScene(
+      regionalPortfolio,
+      0.58,
+      "regional:unknown",
+    );
+    expect(unknownSelection.regime).toBe("atlas");
+    expect(unknownSelection.county_frame).toBeNull();
+
     const county = buildTopologyScene(
       regionalPortfolio,
       0.58,
@@ -326,6 +368,17 @@ describe("regional scene topology projection", () => {
     );
     expect(county.label).toBe("ADMITTED COUNTY");
     expect(county.terrain).toBe(false);
+    expect(county.county_frame).toMatchObject({
+      schema: "rey.county-frame.v1",
+      scene_id: "scene:1",
+      source_origin: [-122_500_000, 37_500_000],
+      target_origin: [0, 0, 0],
+      transform_digest: "county-transform:1",
+      pitch_degrees: 35.26439,
+      yaw_degrees: 45,
+    });
+    expect(county.regions[0]?.variant).toBe("county-frame");
+    expect(county.bearing.label).toBe("EXACT COUNTY FRAME");
     expect(county.nodes[0]).toMatchObject({
       focus_id: "regional-object:ridge",
       workload_id: "scene-admission",
@@ -346,6 +399,15 @@ describe("regional scene topology projection", () => {
     expect(markup).toContain("ridge");
     expect(markup).toContain("terrain.geojson");
     expect(markup).not.toContain("topology-terrain-field");
+    const compiledCounty = compileSceneSnapshot(
+      regionalPortfolio,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(Object.isFrozen(compiledCounty.scene.county_frame)).toBe(true);
+    expect(
+      Object.isFrozen(compiledCounty.scene.county_frame?.source_origin),
+    ).toBe(true);
   });
 
   it("does not project rejected or scenario-fixture results", () => {

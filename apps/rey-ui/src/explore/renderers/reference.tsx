@@ -122,6 +122,7 @@ export function ReferenceRenderer({
                 styles.region,
                 region.variant === "map-boundary" && styles.mapBoundary,
                 region.variant === "map-zone" && styles.mapZone,
+                region.variant === "county-frame" && styles.countyFrame,
                 toneStyle(region.tone, "region"),
                 scene.regime === "world" &&
                   region.variant === "map-zone" &&

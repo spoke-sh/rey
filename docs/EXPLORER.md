@@ -197,7 +197,11 @@ candidate-terrain authority rejection. Workload/CLI production of these
 documents and the accepted-result Explorer adapter now exist. The browser shows
 exact regional point placement, stable occupied fixed-grid sector polygons, and
 native object envelopes. A sector expresses synthetic membership only; it is
-not surveyed coverage or a native County footprint. Footprint geometry,
+not surveyed coverage or a native County footprint. Closer zoom without an
+explicit regional selection stops at Atlas. An explicit selection verifies the
+scene envelope's exact County-local transform and enters a bounded isometric
+plane; its forward/inverse projection and immutable compiler identity do not
+fill the envelope or manufacture footprint geometry. Footprint geometry,
 constructed layers, qualified regional terrain, and the complete posture
 transitions frozen by the grammar remain open.
 
@@ -627,9 +631,11 @@ reference backend renders an accessible orthographic sphere and the Three.js
 backend renders a lit WebGPU-first globe; both bind the same admitted evidence.
 Regional results must match their retained atlas member, which preserves the
 packet's exact synthetic point with no inferred radius. Atlas applies semantic
-Mercator to that same point and its stable occupied synthetic sector, and closer
-lenses show exact native object bounds inside the scene envelope. Native County
-footprint geometry and regional terrain remain explicitly absent. Survey
+Mercator to that same point and its stable occupied synthetic sector. Closer
+zoom stops at Atlas until an exact regional identity is selected; the selected
+scene then shows exact native object bounds through its verified,
+envelope-centered County-local isometric frame. Native County footprint
+geometry and regional terrain remain explicitly absent. Survey
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
@@ -680,10 +686,9 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: require one
-selected admitted County footprint, expand its revision-bound tangent frame into
-a local
-isometric surface with exact links, finish the engine/render-graph boundary,
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: admit one
+exact County footprint identity without substituting the implemented envelope
+frame, add exact selected-object links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser
 without adding an independent assessment. Travel, trade, and economic layers

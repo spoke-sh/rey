@@ -31,6 +31,12 @@ import {
   SEMANTIC_MERCATOR_PROJECTION_REVISION,
 } from "./explore/projection/semantic-mercator";
 import {
+  countyFrameView,
+  nativeBoundsToCountyLocal,
+  projectCountyLocal,
+  type CountyFrame,
+} from "./explore/projection/county-frame";
+import {
   fieldPoint,
   type MaskField2D,
   type ScalarField2D,
@@ -146,7 +152,7 @@ export interface TopologyRegion {
   width: number;
   height: number;
   tone: TopologyTone;
-  variant?: "panel" | "map-boundary" | "map-zone";
+  variant?: "panel" | "map-boundary" | "map-zone" | "county-frame";
 }
 
 export interface TopologyContour {
@@ -250,6 +256,7 @@ export interface TopologyScene {
   terrain_programs: TerrainProgram[];
   globe: TopologyGlobe | null;
   world_atlas_transition: TopologyWorldAtlasTransition | null;
+  county_frame: CountyFrame | null;
 }
 
 export interface TopologyWorldAtlasPoint {
@@ -299,6 +306,9 @@ export function buildTopologyScene(
     focusId.startsWith("seed:") ||
     focusId.startsWith("anchor:") ||
     focusId.startsWith("frontier:");
+  const regionalFocus = regionalScenes.some(({ scene }) =>
+    regionalSceneMatchesFocus(scene, focusId),
+  );
   let projection: TopologyProjection;
   if (isFreshProjectOrientation(portfolio))
     projection = buildOrientationWorld(portfolio, focusId);
@@ -310,8 +320,11 @@ export function buildTopologyScene(
     );
   else if (regionalScenes.length > 0 && regime === "atlas" && !surveyFocus)
     projection = buildRegionalAtlas(regionalScenes, focusId);
+  else if (regionalScenes.length > 0 && !surveyFocus && !regionalFocus)
+    projection = buildRegionalAtlas(regionalScenes, focusId);
   else if (
     regionalScenes.length > 0 &&
+    regionalFocus &&
     !surveyFocus &&
     !focusId.startsWith("agent:")
   )
@@ -347,6 +360,7 @@ export function buildTopologyScene(
       (regime === "world" || regime === "atlas")
         ? buildWorldAtlasTransition(regionalScenes)
         : null,
+    county_frame: projection.county_frame ?? null,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
@@ -380,6 +394,7 @@ type TopologyProjection = Omit<
   | "terrain_programs"
   | "world"
   | "world_atlas_transition"
+  | "county_frame"
 > & {
   bearing?: TopologyBearing;
   contours?: TopologyContour[];
@@ -393,6 +408,7 @@ type TopologyProjection = Omit<
   fit_world?: TopologyWorld;
   globe?: TopologyGlobe | null;
   world_atlas_transition?: TopologyWorldAtlasTransition | null;
+  county_frame?: CountyFrame | null;
 };
 
 function buildWorldAtlasTransition(
@@ -897,12 +913,15 @@ function buildRegionalCounty(
   regime: LensRegime,
 ): TopologyProjection {
   const selected = selectRegionalScene(regionalScenes, focusId);
-  const { workload, result, scene } = selected;
+  const { workload, result, scene, county_frame: countyFrame } = selected;
   const world = TOPOLOGY_WORLD;
   const bounds = scene.native_bounds;
   const objects = scene.projection.objects;
+  const frameView = countyFrameView(countyFrame, world);
   const nodes = objects.map((object) => {
-    const position = countyObjectPosition(bounds, object.native_bounds, world);
+    const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
+    const screen = projectCountyLocal(countyFrame, local, frameView);
+    const width = countyObjectWidth(bounds, object.native_bounds, world);
     const exactDetail = `${object.layer.replaceAll("_", " ")} · ${object.geometry_kind} · ${object.source_path} · ${shortCoordinate(object.object_revision)}`;
     return node(
       `regional-object:${object.object_id}`,
@@ -912,9 +931,9 @@ function buildRegionalCounty(
       regime === "evidence"
         ? `${exactDetail} · source artifact ${shortCoordinate(object.source_artifact_id)}`
         : exactDetail,
-      position.x,
-      position.y,
-      position.width,
+      screen.x,
+      screen.y,
+      width,
       regionalLayerTone(object.layer),
       workload.workload.id,
     );
@@ -965,7 +984,7 @@ function buildRegionalCounty(
         width: world.width - 140,
         height: world.height - 110,
         tone: scene.complete ? "healthy" : "omitted",
-        variant: "map-boundary",
+        variant: "county-frame",
       },
     ],
     nodes,
@@ -976,17 +995,19 @@ function buildRegionalCounty(
         (validity) => `${validity.class}: ${validity.scope} · ${validity.rule}`,
       ),
       "native objects are positioned from exact bounds; source geometry is available through the bound CLI evidence and is not reconstructed in the browser",
+      countyFrame.authority,
     ],
     bearing: {
       status: "charted",
       label: "EXACT COUNTY FRAME",
-      detail: `result ${shortCoordinate(result.result_id)} · packet ${shortCoordinate(scene.projection.packet_id)} · County-local presentation retains native CRS84 source identity`,
+      detail: `result ${shortCoordinate(result.result_id)} · packet ${shortCoordinate(scene.projection.packet_id)} · frame ${shortCoordinate(countyFrame.transform_digest)} · ${countyFrame.pitch_degrees}° pitch / ${countyFrame.yaw_degrees}° yaw · County-local presentation retains native CRS84 source identity`,
       sampled_conditions: objects.length,
       unresolved_boundaries: scene.omissions.length + validityBoundaries.length,
     },
     world,
     fit_world: world,
     terrain: false,
+    county_frame: countyFrame,
   };
 }
 
@@ -994,17 +1015,23 @@ function selectRegionalScene(
   regionalScenes: AdmittedRegionalProjection[],
   focusId: string,
 ): AdmittedRegionalProjection {
+  const selected = regionalScenes.find(({ scene }) =>
+    regionalSceneMatchesFocus(scene, focusId),
+  );
+  if (!selected)
+    throw new Error("County projection requires an admitted focus");
+  return selected;
+}
+
+function regionalSceneMatchesFocus(
+  scene: AdmittedRegionalProjection["scene"],
+  focusId: string,
+) {
   return (
-    regionalScenes.find(
-      ({ scene }) =>
-        focusId === `regional:${scene.scene_id}` ||
-        scene.projection.objects.some(
-          (object) => focusId === `regional-object:${object.object_id}`,
-        ),
-    ) ??
-    [...regionalScenes].sort((left, right) =>
-      left.scene.region_id.localeCompare(right.scene.region_id),
-    )[0]!
+    focusId === `regional:${scene.scene_id}` ||
+    scene.projection.objects.some(
+      (object) => focusId === `regional-object:${object.object_id}`,
+    )
   );
 }
 
@@ -1017,7 +1044,7 @@ function semanticMercatorFrame() {
   };
 }
 
-function countyObjectPosition(
+function countyObjectWidth(
   sceneBounds: AdmittedRegionalProjection["scene"]["native_bounds"],
   objectBounds: AdmittedRegionalProjection["scene"]["native_bounds"],
   world: TopologyWorld,
@@ -1035,20 +1062,11 @@ function countyObjectPosition(
     sceneBounds,
     objectBounds.east_microdegrees,
   );
-  const south =
-    objectBounds.south_microdegrees - sceneBounds.south_microdegrees;
-  const north =
-    objectBounds.north_microdegrees - sceneBounds.south_microdegrees;
   const usableWidth = world.width - 220;
-  const usableHeight = world.height - 180;
-  return {
-    x: 110 + ((west + east) / 2 / longitudeSpan) * usableWidth,
-    y: 90 + (1 - (south + north) / 2 / latitudeSpan) * usableHeight,
-    width: Math.max(
-      120,
-      Math.min(260, ((east - west) / longitudeSpan) * usableWidth),
-    ),
-  };
+  return Math.max(
+    120,
+    Math.min(260, ((east - west) / longitudeSpan) * usableWidth),
+  );
 }
 
 function regionalLongitudeSpan(

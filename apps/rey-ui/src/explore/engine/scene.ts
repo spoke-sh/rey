@@ -7,6 +7,8 @@ import {
 import { admittedTopographies } from "../projection/topography-projector";
 import { admittedRegionalScenes } from "../projection/regional-scene-projector";
 import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "../projection/semantic-mercator";
+import { COUNTY_FRAME_PROJECTION_REVISION } from "../projection/county-frame";
+import type { CountyFrame } from "../projection/county-frame";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "./labels";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 
@@ -82,6 +84,7 @@ export function compileSceneSnapshot(
   if (regionalScenes.length > 0) {
     compilerRevisions.push(SEMANTIC_MERCATOR_PROJECTION_REVISION);
     compilerRevisions.push(SEMANTIC_LABEL_LAYOUT_REVISION);
+    compilerRevisions.push(COUNTY_FRAME_PROJECTION_REVISION);
   }
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
@@ -147,6 +150,21 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
           }),
           points: freezeRows(scene.world_atlas_transition.points),
           sectors: freezeRows(scene.world_atlas_transition.sectors),
+        })
+      : null,
+    county_frame: scene.county_frame
+      ? Object.freeze({
+          ...scene.county_frame,
+          source_bounds: Object.freeze({ ...scene.county_frame.source_bounds }),
+          source_origin: Object.freeze([
+            scene.county_frame.source_origin[0],
+            scene.county_frame.source_origin[1],
+          ]) as CountyFrame["source_origin"],
+          target_origin: Object.freeze([
+            scene.county_frame.target_origin[0],
+            scene.county_frame.target_origin[1],
+            scene.county_frame.target_origin[2],
+          ]) as CountyFrame["target_origin"],
         })
       : null,
     bearing: Object.freeze({ ...scene.bearing }),

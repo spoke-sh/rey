@@ -504,7 +504,15 @@ rendered chart width. `rey.semantic-label-layout@1` applies the grammar's 70/96
 World/Atlas budgets after projection with selected focus first and stable
 depth/copy/identity ordering. Collision or limit removes presentation labels,
 not markers, pick targets, focus, or identity; the layout revision enters scene
-compiler lineage. See
+compiler lineage. Closer zoom without a `regional:*` focus stops at Atlas.
+With an explicit regional selection, Explorer additionally verifies one exact
+native-to-County-local transform whose origin is the antimeridian-aware center
+of the admitted native envelope, then projects that local plane through
+`rey.county-frame-projection@1` at a fixed `35.26439°` pitch and `45°` yaw.
+The transform identity, source/target origins, envelope, disclosure, and
+compiler revision enter the immutable scene. Forward/inverse plane projection
+does not turn the envelope into admitted footprint geometry or physical
+distance. See
 [Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to

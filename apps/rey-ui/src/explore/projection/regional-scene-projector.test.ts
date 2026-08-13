@@ -89,6 +89,13 @@ const portfolio = {
           schema: "rey.admitted-regional-scene.v1",
           scene_id: "scene:1",
           region_id: "regional-demo",
+          native_bounds: {
+            west_microdegrees: -123_000_000,
+            south_microdegrees: 37_000_000,
+            east_microdegrees: -122_000_000,
+            north_microdegrees: 38_000_000,
+            crosses_antimeridian: false,
+          },
           admission: {
             admission_id: "admission:1",
             workload: contract("scene-admission", "workload:1"),
@@ -112,7 +119,16 @@ const portfolio = {
               { space: "native_crs84" },
               { space: "synthetic_semantic" },
               { space: "semantic_mercator" },
-              { space: "county_local" },
+              {
+                space: "county_local",
+                status: "bound",
+                dimensions: ["east", "north", "up"],
+                units: [
+                  "local_microunit",
+                  "local_microunit",
+                  "local_microunit",
+                ],
+              },
               { space: "camera" },
             ],
             transforms: [
@@ -120,6 +136,20 @@ const portfolio = {
                 source_space: "native_crs84",
                 target_space: "synthetic_semantic",
                 target_origin: [-42_000_000, 18_000_000],
+              },
+              {
+                transform: contract(
+                  "rey.scene.native-to-county-local",
+                  "county-transform:1",
+                ),
+                source_space: "native_crs84",
+                target_space: "county_local",
+                source_origin: [-122_500_000, 37_500_000],
+                target_origin: [0, 0, 0],
+                parameters: ["east_north_up_microunits"],
+                inverse_policy:
+                  "bounded analytic inverse inside admitted envelope",
+                distortion: "presentation only",
               },
             ],
           },
@@ -143,6 +173,34 @@ describe("regional scene evidence adapter", () => {
             latest_scene_admission: {
               ...result,
               scenario: contract("fixture"),
+            },
+          },
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      admittedRegionalScenes({
+        ...portfolio,
+        workloads: [
+          {
+            ...workload,
+            latest_scene_admission: {
+              ...result,
+              scene: {
+                ...result.scene!,
+                projection: {
+                  ...result.scene!.projection,
+                  transforms: result.scene!.projection.transforms.map(
+                    (transform) =>
+                      transform.target_space === "county_local"
+                        ? {
+                            ...transform,
+                            source_origin: [-122_499_999, 37_500_000],
+                          }
+                        : transform,
+                  ),
+                },
+              },
             },
           },
         ],

@@ -440,6 +440,17 @@ export const exploreStyles = stylex.create({
     opacity: 0.72,
     pointerEvents: "none",
   },
+  countyFrame: {
+    backgroundColor: "color-mix(in srgb, #89a76f 7%, transparent)",
+    borderRadius: 0,
+    borderStyle: "solid",
+    borderWidth: 1.5,
+    clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+    color: "color-mix(in srgb, var(--rey-foreground) 75%, transparent)",
+    paddingBlock: "9%",
+    paddingInline: "26%",
+    pointerEvents: "none",
+  },
   worldUnexploredZone: {
     backgroundColor: "transparent",
     borderColor: "color-mix(in srgb, var(--muted) 38%, transparent)",
