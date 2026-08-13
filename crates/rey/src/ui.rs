@@ -3,6 +3,11 @@ use std::{
     io::{Cursor, Read},
     net::{IpAddr, SocketAddr},
     path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 
 use rey::{
@@ -40,7 +45,7 @@ use thiserror::Error;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
-const UI_HEALTH_SCHEMA: &str = "rey.ui-health.v1";
+const AGENT_HEALTH_SCHEMA: &str = "rey.agent-health.v1";
 const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
@@ -54,6 +59,7 @@ const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
 const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c5";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
+const REQUEST_RECEIVE_POLL_INTERVAL_MS: u64 = 50;
 
 const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
 const APP_JAVASCRIPT: &[u8] = include_bytes!("../../../apps/rey-ui/dist/assets/app.js");
@@ -301,10 +307,22 @@ impl UiServer {
         self.descriptor.clone()
     }
 
-    pub fn serve(self) -> Result<(), UiError> {
-        self.serve_bounded(None)
+    pub fn serve_until(self, cancelled: Arc<AtomicBool>) -> Result<(), UiError> {
+        while !cancelled.load(Ordering::Relaxed) {
+            let Some(mut request) = self
+                .server
+                .recv_timeout(Duration::from_millis(REQUEST_RECEIVE_POLL_INTERVAL_MS))
+                .map_err(UiError::Receive)?
+            else {
+                continue;
+            };
+            let response = self.route(&mut request);
+            request.respond(response).map_err(UiError::Respond)?;
+        }
+        Ok(())
     }
 
+    #[cfg(test)]
     fn serve_bounded(self, max_requests: Option<usize>) -> Result<(), UiError> {
         let mut served = 0_usize;
         loop {
@@ -358,6 +376,7 @@ impl UiServer {
         let response = match path {
             "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
+            "/api/v1/agent" => self.agent(),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/channels" => self.channels(),
             "/api/v1/conversations" => self.conversations(),
@@ -400,13 +419,22 @@ impl UiServer {
     }
 
     fn health(&self) -> Response<Cursor<Vec<u8>>> {
+        let agent = crate::agent::AgentProcessDescriptor::from_operator(self.descriptor());
         json_response(
             StatusCode(200),
             &json!({
-                "schema": UI_HEALTH_SCHEMA,
+                "schema": AGENT_HEALTH_SCHEMA,
                 "status": "ready",
+                "agent": agent,
                 "server": self.descriptor,
             }),
+        )
+    }
+
+    fn agent(&self) -> Response<Cursor<Vec<u8>>> {
+        json_response(
+            StatusCode(200),
+            &crate::agent::AgentProcessDescriptor::from_operator(self.descriptor()),
         )
     }
 
@@ -1474,13 +1502,13 @@ fn with_header(
 
 #[derive(Debug, Error)]
 pub enum UiError {
-    #[error("UI could not bind {address}: {detail}")]
+    #[error("operator server could not bind {address}: {detail}")]
     Bind { address: SocketAddr, detail: String },
-    #[error("UI listener did not resolve to an IP socket")]
+    #[error("operator listener did not resolve to an IP socket")]
     NonIpListener,
-    #[error("UI request receive failed: {0}")]
+    #[error("operator request receive failed: {0}")]
     Receive(std::io::Error),
-    #[error("UI response failed: {0}")]
+    #[error("operator response failed: {0}")]
     Respond(std::io::Error),
 }
 
@@ -1616,7 +1644,8 @@ mod tests {
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
-        assert!(health.contains("\"schema\":\"rey.ui-health.v1\""));
+        assert!(health.contains("\"schema\":\"rey.agent-health.v1\""));
+        assert!(health.contains("\"schema\":\"rey.agent-process.v1\""));
         assert!(health.contains("\"loopback_only\":true"));
 
         let conversation = request(&address, "GET /api/v1/conversations HTTP/1.1");
@@ -1939,6 +1968,8 @@ mod tests {
         assert!(application.contains("Inputs and topology"));
         assert!(application.contains("RETAINED SEQUENCE"));
         assert!(application.contains("01 / JOURNAL"));
+        assert!(application.contains("Supervised agent topology"));
+        assert!(application.contains("02 / REY PROCESS"));
         assert!(application.contains("WRITE A JOURNAL ENTRY"));
         assert!(application.contains("HUMAN + AGENT · EXPLORE-BOUND"));
         assert!(application.contains("UNAUTHENTICATED · VALIDATED DOCUMENT ADMISSION"));

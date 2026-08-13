@@ -9,8 +9,8 @@ The implemented local surface includes Git-shaped environment, workload,
 editor, and Channel topology histories; file-backed workload qualification;
 deterministic workload/mining/portfolio execution; immutable Channel messages
 and explicit relay attempts; bounded local conversation transcripts; bounded
-Journal admission; and an explicitly
-started embedded operator UI over the same evidence. Lower-level proof and
+Journal admission; and a foreground `rey agent` process whose orchestrator
+supervises the embedded operator UI over the same evidence. Lower-level proof and
 local-bundle contracts remain library/runtime capabilities rather than manual
 commands. Automatic graph-proposal policy, recurring activation, scene
 admission, general provider execution, and remote conversation transports remain
@@ -87,7 +87,7 @@ rey journal [--workspace PATH] [--state-dir PATH] opportunities [-n COUNT]
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query admit <entry-id> <block-id>
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query execute <admission-id> --author <agent-id> --proposal-out <result.json>
 rey journal [--workspace PATH] [--state-dir PATH] query list
-rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--conversation-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
+rey agent [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--conversation-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 `channels` exposes bounded collaboration topology through a complete local
@@ -108,13 +108,15 @@ Mining follows the same rule. Search, parse, index, group, traverse, diff, and
 visualize are discoverable operation contracts composed inside workloads and
 reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 
-`ui` is primarily a presentation command, not a peer runtime resource. It starts on
-`127.0.0.1:5714` unless configured otherwise, reports exact exposure and
-provenance, `/explore` human entry, and passive revalidation interval. It
-serves read-only workload, environment, cadence, and Explorer projections and
-admits bounded human Journal documents and conversation messages, conditionally
-replaces Channel WORKING, and approves exact workload files without
-authentication. An explicit
+`agent` starts the foreground Rey process. Its root orchestrator owns every
+in-process background worker and initially registers only the operator HTTP
+server. The operator is primarily a presentation resource, not a peer runtime
+or scheduler. It starts on `127.0.0.1:5714` unless configured otherwise,
+reports exact exposure and provenance, `/explore` human entry, and passive
+revalidation interval. It serves read-only workload, environment, cadence, and
+Explorer projections and admits bounded human Journal documents and
+conversation messages, conditionally replaces Channel WORKING, and approves
+exact workload files without authentication. An explicit
 non-loopback bind exposes those narrow writes to reachable clients and emits a
 warning.
 
@@ -989,11 +991,51 @@ Errors must report which state changed and which did not. Retrying a read,
 proposal, compute submission, artifact publication, or mutation follows that
 operation's idempotency contract rather than one generic retry rule.
 
+## Rey Agent Process And Supervision
+
+`rey agent` is the hard-cut replacement for `rey ui`; the old command has no
+alias. The invocation starts one foreground OS process described by
+`rey.process.v1` with role `orchestrator`. The process projects its bounded
+runtime graph as `rey.agent-topology.v1`:
+
+```text
+rey.orchestrator (OS process)
+  └─ supervises → rey.operator-http (bound background worker)
+```
+
+The topology records node kind, parent, execution placement, lifecycle, live
+state, restart policy, authority, endpoint, the supervision edge, and the
+fixed one-worker bound. `rey.agent-process.v1` combines that topology with the
+nested `rey.ui-server.v1` operator descriptor. Human startup output exposes
+the same facts. `GET|HEAD /api/v1/agent` returns the process document, while
+`GET|HEAD /api/v1/health` returns `rey.agent-health.v1` with both agent and
+operator identity.
+
+The operator's `/agents` route projects that same health-bound topology after
+the Journal's current-bearing recommendations and before the work ledger. It
+does not infer agent activity: discovered agent runtimes remain absent, and the
+page renders that omission and the process's bounded lifecycle authority
+explicitly.
+
+The orchestrator installs cooperative SIGINT/SIGTERM cancellation before it
+starts the worker, polls worker state at a bounded 50 ms interval, joins the
+worker at its request boundary, and fails the Rey process closed if the worker
+errors, panics, or exits without cancellation. V1 has no worker restart,
+daemonization, multi-process fencing, process-crash durability, or retained
+process history. The runtime-only OS PID is not a semantic evidence identity.
+
+This is lifecycle authority only. Starting the agent process does not discover
+more applications, invoke or assign a discovered agent runtime, schedule a
+workload, execute a Git activation, relay a Channel message, or expand the
+operator listener's declared authority. Browser passive refresh remains
+browser-owned work rather than a supervised server worker.
+
 ## Local Operator UI, Not A Public Rey Service
 
-`rey ui` is the implemented exception to a CLI-only topology: a bounded HTTP
-operator projection started explicitly by the operator. It serves the embedded
-TanStack Router application plus `GET|HEAD /api/v1/health`,
+The operator worker under `rey agent` is the implemented exception to a
+CLI-only interface: a bounded HTTP projection started explicitly with the Rey
+process. It serves the embedded TanStack Router application plus
+`GET|HEAD /api/v1/health`, `GET|HEAD /api/v1/agent`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
 `GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, bounded read-only
 `GET|HEAD /api/v1/journal/seed?observations=id[,id]`, and
@@ -1226,7 +1268,9 @@ and derives its author only from the declared human browser writer. Missing
 transport or writer leaves the composer disabled; a stale append is rejected
 before publication. See [Conversations](CONVERSATIONS.md).
 
-The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
+The startup table and `rey.agent-process.v1` JSON expose the running process
+id and PID, orchestrator role, bounded supervised topology, worker lifecycle,
+restart/agent-runtime omissions, and the nested `rey.ui-server.v1` exact address, URL,
 loopback status, unauthenticated Journal/conversation-write authority,
 workspace, catalog, Channel, and conversation roots, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,

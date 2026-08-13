@@ -62,10 +62,13 @@ development environment described in [Development](docs/DEVELOPMENT.md).
 From a project containing Rey workload packages, start the operator surface:
 
 ```sh
-rey ui
+rey agent
 ```
 
-Rey listens on `127.0.0.1:5714` by default and enters `/explore`. Incoming
+`rey agent` starts the foreground Rey process. Its orchestrator supervises the
+operator HTTP server, prints the live process and agent topology, and owns the
+lifecycle of every in-process background worker. Rey listens on
+`127.0.0.1:5714` by default and enters `/explore`. Incoming
 file-backed workload proposals appear as beacons without being treated as
 admitted knowledge. Select a beacon to inspect its exact source and revision,
 then use the admission surface when you are ready to consent.
@@ -79,8 +82,8 @@ rey workloads status
 rey workloads diff
 ```
 
-The agent can inspect and propose through the CLI while the human remains in
-the browser. Starting the UI, opening a deep link, panning, zooming, or
+An agent can inspect and propose through the CLI while the human remains in
+the browser. Starting the Rey agent process, opening a deep link, panning, zooming, or
 selecting a beacon never runs a survey or silently broadens read authority.
 
 When developing Rey itself, use the repository wrapper:
@@ -88,7 +91,7 @@ When developing Rey itself, use the repository wrapper:
 ```sh
 nix develop
 just setup
-just rey ui
+just rey agent
 ```
 
 ## The Client-Oriented Surface

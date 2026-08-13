@@ -68,7 +68,8 @@ pure runtime-state, frontier/progress/scheduling, and
 reasoning-surface contracts, plus a bounded workspace workload-package catalog,
 an explicitly selected built-in conformance catalog, typed DAG executor,
 scenario evaluator, qualification record, local result provider, five
-workload commands, and a read-only `rey ui` operator surface. Humans land on
+workload commands, and a supervised `rey agent` process with an embedded
+operator surface. Humans land on
 the `/explore` context-topology canvas and normally remain in the UI; agents
 use the CLI as their primary runtime interface, with humans descending to it
 for exact diagnosis. `/explore` is a high-fidelity spatial game engine
@@ -85,7 +86,10 @@ admissions, and mounted browser scans on explicit partial-order clocks. `/agents
 evidence-backed system recommendations and summarizes retained work results;
 agent-runtime discovery remains on `/environment`. Generator provenance remains
 workload evidence, not the definition of an available or assigned agent. The
-UI starts from the CLI, passively revalidates the same workload-list
+foreground Rey process owns an orchestrator that supervises the operator HTTP
+worker, fails closed on unexpected worker exit, and stops it cooperatively on
+SIGINT or SIGTERM. It does not invoke a discovered agent runtime or schedule a
+workload. The UI starts from that CLI process, passively revalidates the same workload-list
 derivation, defaults to loopback, and is not a general mutation plane or public
 Rey service. Its explicit Channel editor writes only validated WORKING state
 against expected snapshots and grants no INDEX, HEAD, relay, or execution
@@ -105,7 +109,8 @@ Do not generalize that fixed provider, workload-specific derivation, or local
 operator server into
 regex or parser breadth, external tool execution beyond declared identity probes, recurring scheduling,
 activation, browser mutation, authentication, remote service topology, remote
-durability, or process-lineage behavior.
+durability, worker restart, daemonization, multi-process fencing, or crash
+durability.
 
 Enter the environment and use:
 

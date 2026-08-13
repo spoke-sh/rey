@@ -1389,11 +1389,13 @@ function ChannelsRoutePage() {
 function AgentsRoutePage() {
   const initial = agentsRoute.useLoaderData();
   const { document } = usePassiveDocument(initial, loadAgentJournal);
+  const portfolio = usePortfolio();
   return (
     <AgentsPage
+      agent={portfolio.agent_process}
       journal={document.journal}
       opportunities={document.opportunities}
-      portfolio={usePortfolio()}
+      portfolio={portfolio}
     />
   );
 }

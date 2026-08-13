@@ -144,6 +144,11 @@ The local profile means evidence reached the declared local boundary; it does
 not claim process-crash durability, remote durability, or external-service
 semantics.
 
+The foreground process started by `rey agent` is orthogonal to this semantic
+state machine. Its orchestrator supervises background-worker lifecycle and
+cancellation; process liveness or worker success cannot advance a runtime
+phase, select frontier work, or establish convergence.
+
 ## Delta Roles And Progress
 
 A transition can cite two independent delta sets:

@@ -33,7 +33,7 @@ Usage:
   pnpm qualify:explorer -- --base-url URL --backend BACKEND [options]
 
 Required:
-  --base-url URL        Running rey ui origin, for example http://127.0.0.1:5715
+  --base-url URL        Running rey agent origin, for example http://127.0.0.1:5715
   --backend BACKEND     reference, webgl2, or webgpu
 
 Options:
@@ -1048,8 +1048,8 @@ async function runVoyage(options) {
         "cold isolated browser profile; each later stage reuses the same page and renderer lifecycle",
       transport_posture:
         options.transport === "fulfilled"
-          ? "Chrome HTTP requests were fulfilled from bounded reads of the named rey ui origin because direct browser sockets were unavailable in the qualification environment"
-          : "Chrome fetched the named rey ui origin directly",
+          ? "Chrome HTTP requests were fulfilled from bounded reads of the named rey agent origin because direct browser sockets were unavailable in the qualification environment"
+          : "Chrome fetched the named rey agent origin directly",
     },
     request: {
       backend: options.backend,

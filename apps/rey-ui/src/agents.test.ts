@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { AgentsPage, deriveJournalEntries, deriveWorkInsights } from "./agents";
 import type { WorkloadList, WorkloadSummary } from "./domain";
 import type { JournalOpportunitySurface, JournalProjection } from "./journal";
+import type { AgentProcessDescriptor } from "./api";
 
 describe("agent collaboration intelligence", () => {
   it("ranks typed recommendations without duplicating request attention", () => {
@@ -72,6 +73,7 @@ describe("agent collaboration intelligence", () => {
   it("renders a quiet Journal with an honest shared-write affordance", () => {
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
+        agent: agentProcess(),
         journal: emptyJournal(),
         opportunities: emptyOpportunities(),
         portfolio: emptyPortfolio(),
@@ -79,6 +81,15 @@ describe("agent collaboration intelligence", () => {
     );
 
     expect(markup).toContain('data-rey-section="01 / JOURNAL"');
+    expect(markup).toContain("Supervised agent topology");
+    expect(markup).toContain("local-process:4200");
+    expect(markup).toContain("rey.orchestrator");
+    expect(markup).toContain("rey.operator-http");
+    expect(markup).toContain("NO AUTONOMOUS WORKLOAD SCHEDULING");
+    expect(markup).toContain('data-rey-section="02 / REY PROCESS"');
+    expect(markup.indexOf("What should happen next")).toBeLessThan(
+      markup.indexOf("Supervised agent topology"),
+    );
     expect(markup).toContain("NO AGENT WORK RECOMMENDED BY CURRENT EVIDENCE");
     expect(markup).toContain('data-journal-admission="available"');
     expect(markup).toContain("WRITE A JOURNAL ENTRY");
@@ -92,6 +103,7 @@ describe("agent collaboration intelligence", () => {
   it("keeps Journal admission available without an authentication boundary", () => {
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
+        agent: agentProcess(),
         journal: emptyJournal(),
         opportunities: emptyOpportunities(),
         portfolio: emptyPortfolio(),
@@ -135,6 +147,7 @@ describe("agent collaboration intelligence", () => {
 
     const markup = renderToStaticMarkup(
       createElement(AgentsPage, {
+        agent: agentProcess(),
         journal: emptyJournal(),
         opportunities,
         portfolio: emptyPortfolio(),
@@ -184,6 +197,75 @@ function emptyJournal(): JournalProjection {
       log_id: "blake3:empty",
       entries: [],
     },
+  };
+}
+
+function agentProcess(): AgentProcessDescriptor {
+  return {
+    schema: "rey.agent-process.v1",
+    state: "running",
+    process: {
+      schema: "rey.process.v1",
+      process_id: "local-process:4200",
+      os_pid: 4200,
+      role: "orchestrator",
+      topology_node_id: "rey.orchestrator",
+      invocation: "rey agent",
+      lifecycle: "foreground; owns every in-process background worker",
+      shutdown: "cooperative SIGINT/SIGTERM at a bounded worker boundary",
+      implementation_revision: "git:agent",
+    },
+    topology: {
+      schema: "rey.agent-topology.v1",
+      root_node_id: "rey.orchestrator",
+      nodes: [
+        {
+          node_id: "rey.orchestrator",
+          kind: "rey_process",
+          parent_node_id: null,
+          execution: "os_process",
+          lifecycle: "foreground",
+          state: "running",
+          restart_policy: "external",
+          authority:
+            "background_lifecycle_only; no workload or agent-runtime authority",
+          endpoint: null,
+        },
+        {
+          node_id: "rey.operator-http",
+          kind: "background_work",
+          parent_node_id: "rey.orchestrator",
+          execution: "supervised_thread",
+          lifecycle: "bound_to_rey_process",
+          state: "running",
+          restart_policy: "never; fail the Rey process closed",
+          authority: "operator HTTP projection and its declared bounded writes",
+          endpoint: "http://127.0.0.1:4200/",
+        },
+      ],
+      edges: [
+        {
+          source_node_id: "rey.orchestrator",
+          target_node_id: "rey.operator-http",
+          relationship: "supervises",
+        },
+      ],
+      max_background_workers: 1,
+      supervision_poll_interval_ms: 50,
+      agent_runtime_invocation:
+        "none; discovery, assignment, and execution authority remain separate",
+    },
+    operator: {
+      source_repository: null,
+      implementation_revision: "git:agent",
+      journal_write_enabled: true,
+      workload_admission_enabled: true,
+      channel_write_enabled: true,
+      conversation_write_enabled: true,
+      read_only: false,
+    },
+    authority: "local orchestration and operator projection only",
+    omissions: ["no autonomous workload scheduling"],
   };
 }
 

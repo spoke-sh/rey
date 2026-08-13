@@ -65,6 +65,9 @@ target-state prose.
 - Treat the capability snapshot as a first-class, changing runtime input.
 - Keep agent-runtime discovery, task assignment, and execution authority
   separate. Finding an agent application grants no permission to invoke it.
+- Keep every in-process background worker under the foreground Rey process's
+  bounded orchestrator topology. Supervision owns lifecycle and cancellation;
+  it does not grant workload, agent-runtime, mutation, or proof authority.
 - Treat tasks as bounded current coordination envelopes over intent,
   operation, artifact references, desired delta, readiness, and assignment.
   Derive workflow journeys for humans; do not retain a parallel journey store.
@@ -164,7 +167,7 @@ target-state prose.
 The implemented and target ownership map is:
 
 ```text
-rey                 env/workload/UI CLI, local revision state, catalog/orchestration
+rey                 env/workload/agent-process/UI CLI, local revision state, catalog/orchestration and supervised background-work lifecycle
 rey-core            identities, revisions, limits, and shared contracts
 rey-mining          mining operations, requests/results, artifacts, and views
 rey-locator         canonical locator syntax, dimensions, and resolution outcomes

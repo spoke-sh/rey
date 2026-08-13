@@ -17,6 +17,7 @@ import {
   type JournalOpportunitySurface,
   type JournalProjection,
 } from "./journal";
+import type { AgentProcessDescriptor, AgentTopologyNode } from "./api";
 
 export type JournalOperation = "AUTHOR" | "REFINE" | "RESOLVE" | "TEST";
 
@@ -203,10 +204,12 @@ function readinessOrder(readiness: AttentionReadiness): number {
 }
 
 export function AgentsPage({
+  agent,
   journal,
   opportunities,
   portfolio,
 }: {
+  agent: AgentProcessDescriptor;
   journal: JournalProjection;
   opportunities: JournalOpportunitySurface;
   portfolio: WorkloadList;
@@ -261,11 +264,43 @@ export function AgentsPage({
 
       <section
         className={sx(styles.section)}
-        data-rey-section="02 / WORK LEDGER"
+        data-rey-section="02 / REY PROCESS"
+      >
+        <AgentHeading
+          detail={`${agent.topology.nodes.length} nodes · ${agent.topology.edges.length} supervision edge · ${agent.topology.max_background_workers} worker bound`}
+          index="02"
+          kicker="REY PROCESS"
+          title="Supervised agent topology"
+        />
+        <ProcessSummary agent={agent} />
+        <div className={sx(styles.table)} role="table">
+          <div className={sx(chrome.micro, styles.topologyHeader)} role="row">
+            <span>NODE / PARENT</span>
+            <span>EXECUTION</span>
+            <span>LIFECYCLE</span>
+            <span>STATE / RESTART</span>
+            <span>AUTHORITY / ENDPOINT</span>
+          </div>
+          {agent.topology.nodes.map((node, index) => (
+            <TopologyRow index={index} key={node.node_id} node={node} />
+          ))}
+        </div>
+        <div className={sx(chrome.micro, styles.topologyBoundary)}>
+          AGENT RUNTIME /{" "}
+          {agent.topology.agent_runtime_invocation.toUpperCase()}
+          {agent.omissions.map((omission) => (
+            <span key={omission}> · {omission.toUpperCase()}</span>
+          ))}
+        </div>
+      </section>
+
+      <section
+        className={sx(styles.section)}
+        data-rey-section="03 / WORK LEDGER"
       >
         <AgentHeading
           detail={`${portfolio.workloads.length} admitted · ${portfolio.drafts.length} requested · current bounded portfolio`}
-          index="02"
+          index="03"
           kicker="WORK LEDGER"
           title="Observed work"
         />
@@ -290,6 +325,72 @@ export function AgentsPage({
         )}
       </section>
     </main>
+  );
+}
+
+function ProcessSummary({ agent }: { agent: AgentProcessDescriptor }) {
+  return (
+    <div className={sx(styles.processSummary)}>
+      <div className={sx(styles.processCell)}>
+        <span className={sx(chrome.micro)}>PROCESS</span>
+        <strong>{agent.process.process_id}</strong>
+        <code>{agent.process.schema}</code>
+      </div>
+      <div className={sx(styles.processCell)}>
+        <span className={sx(chrome.micro)}>ROLE / PID</span>
+        <strong>
+          {agent.process.role.toUpperCase()} · {agent.process.os_pid}
+        </strong>
+        <code>{agent.process.topology_node_id}</code>
+      </div>
+      <div className={sx(styles.processCell)}>
+        <span className={sx(chrome.micro)}>SHUTDOWN</span>
+        <strong>{agent.process.shutdown}</strong>
+        <code>{agent.process.invocation}</code>
+      </div>
+      <div className={sx(styles.processCell)}>
+        <span className={sx(chrome.micro)}>AUTHORITY</span>
+        <strong>{agent.authority}</strong>
+        <code>{agent.process.implementation_revision}</code>
+      </div>
+    </div>
+  );
+}
+
+function TopologyRow({
+  index,
+  node,
+}: {
+  index: number;
+  node: AgentTopologyNode;
+}) {
+  return (
+    <article className={sx(styles.topologyRow)} role="row">
+      <div className={sx(styles.identity)}>
+        <span className={sx(styles.ordinal)}>
+          {String(index + 1).padStart(2, "0")}
+        </span>
+        <div className={sx(styles.identityDetail)}>
+          <strong>{node.node_id}</strong>
+          <span className={sx(chrome.micro)}>{node.kind}</span>
+          <code>{node.parent_node_id ?? "ROOT"}</code>
+        </div>
+      </div>
+      <div className={sx(styles.operation)}>
+        <strong>{node.execution}</strong>
+      </div>
+      <div className={sx(styles.bounds)}>
+        <strong>{node.lifecycle}</strong>
+      </div>
+      <div className={sx(styles.readiness)}>
+        <strong>{node.state.toUpperCase()}</strong>
+        <span>{node.restart_policy}</span>
+      </div>
+      <div className={sx(styles.reason)}>
+        <strong>{node.authority}</strong>
+        {node.endpoint ? <code>{node.endpoint}</code> : null}
+      </div>
+    </article>
   );
 }
 

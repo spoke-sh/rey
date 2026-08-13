@@ -1,7 +1,7 @@
 # Rey Command-Line Interface
 
 The `rey` CLI is the agent's primary runtime interface and the human
-operator's exact diagnostic surface beneath `rey ui`. It is diff-directed,
+operator's exact diagnostic surface beneath `rey agent`. It is diff-directed,
 read-first, bounded, and explicit about mutation. A command should let an
 operator verify inputs, revisions, deltas, evidence, omissions, limits, and
 lineage without reading implementation code.
@@ -115,7 +115,7 @@ already admitted in HEAD.
 | `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
 | `conversations` | Immutable sessions plus append-only per-session transcript sequence | Admission retains local dialogue only; it does not deliver, invoke an agent, relay, schedule work, or grant proof authority. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
-| `ui` | Explicit server process over the same typed state | Human projection with narrow Journal/conversation admission, Channel WORKING, and workload-admission writes, not a second runtime. |
+| `agent` | Foreground Rey process with a bounded supervised topology | Orchestrator-owned operator projection with narrow Journal/conversation admission, Channel WORKING, and workload-admission writes; no autonomous workload or agent-runtime invocation. |
 
 Channel message admission is append-only and independent of the topology
 INDEX. Journal sequence is not HEAD/INDEX state.
@@ -132,7 +132,7 @@ rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | execute-activation | verify-activation | run
 rey journal    add | list | seed | opportunities | query
-rey ui
+rey agent
 ```
 
 Global options belong to their surface rather than to the root command.
@@ -515,17 +515,25 @@ bounded unresolved frontier and its completeness, omissions, and state counts.
 and closure. `resolve` appends one idempotent resolution. None changes Channel
 INDEX/HEAD, relays, schedules, assigns, executes, or proves work.
 
-### `rey ui`
+### `rey agent`
 
 ```text
-rey ui [--workspace PATH] [--state-dir PATH]
+rey agent [--workspace PATH] [--state-dir PATH]
   [--journal-state-dir PATH] [--channel-state-dir PATH]
   [--conversation-state-dir PATH] [--catalog-dir sys]
   [--host 127.0.0.1] [--port 5714]
 ```
 
-`ui` starts the browser operator projection over the same workload,
-environment, cadence, Journal, and Explorer evidence. It defaults to loopback.
+`agent` starts the foreground Rey process. Its orchestrator registers the
+embedded operator HTTP server as its single bounded background worker, exposes
+the `rey.process.v1` and `rey.agent-topology.v1` documents in table/JSON startup
+output, and defaults the listener to loopback. SIGINT and SIGTERM stop the
+worker cooperatively; an unexpected exit fails the process closed. V1 never
+restarts or detaches a worker and does not invoke discovered agent runtimes or
+autonomously schedule workloads.
+
+The operator worker projects the same workload, environment, cadence, Journal,
+and Explorer evidence.
 Its human entry route is `/explore`. A fresh workload state opens on an
 unmapped orientation globe whose beacons are exact file-backed workload
 candidates; inspection and consent descend into the existing workload and
@@ -592,7 +600,7 @@ latest result.
 | `journal seed`, `journal opportunities` | Read-only deterministic projections; neither retains a document, schedules work, or executes a block. |
 | `journal query admit` | Retains one exact read-only query admission; executes nothing and leaves the Journal unchanged. |
 | `journal query execute` | Revalidates exact admitted inputs, retains bounded query evidence, and authors a create-new superseding proposal; leaves the Journal unchanged. |
-| `ui` | Starts a server; its narrow writes are Journal admission, expected-log/session conversation append, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
+| `agent` | Starts the supervised foreground Rey process; its operator worker's narrow writes are Journal admission, expected-log/session conversation append, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
 
 Process success and semantic convergence remain separate. A successful status
 may report differences, an unready INDEX, omissions, or unresolved work.

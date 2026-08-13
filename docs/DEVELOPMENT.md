@@ -311,7 +311,7 @@ authority.
 Direct browser HTTP is the default transport. A socket-restricted execution
 environment may add `--transport fulfilled`; that posture runs the exact built
 JS/CSS assets in Chrome and supplies only the bounded root-loader GET documents
-read from the named `rey ui` origin through a local-file bootstrap. The
+read from the named `rey agent` origin through a local-file bootstrap. The
 manifest discloses that it did not exercise direct browser networking. Such a
 voyage remains useful for rendering and interaction qualification but cannot
 close a direct-transport claim.

@@ -43,6 +43,62 @@ export const agentsStyles = stylex.create({
     borderWidth: 1,
     marginTop: 20,
   },
+  processSummary: {
+    backgroundColor: "var(--line)",
+    borderColor: "var(--line)",
+    borderStyle: "solid",
+    borderWidth: 1,
+    display: "grid",
+    gap: 1,
+    gridTemplateColumns: {
+      default: "repeat(4, minmax(0, 1fr))",
+      "@media (max-width: 980px)": "repeat(2, minmax(0, 1fr))",
+      "@media (max-width: 560px)": "1fr",
+    },
+    marginTop: 28,
+  },
+  processCell: {
+    backgroundColor: "var(--surface)",
+    display: "grid",
+    gap: 9,
+    lineHeight: 1.4,
+    minWidth: 0,
+    padding: "20px",
+  },
+  topologyBoundary: {
+    color: "var(--muted)",
+    lineHeight: 1.6,
+    marginTop: 14,
+  },
+  topologyHeader: {
+    backgroundColor: "var(--rey-foreground)",
+    color: "var(--rey-background)",
+    display: {
+      default: "grid",
+      "@media (max-width: 980px)": "none",
+    },
+    gap: 18,
+    gridTemplateColumns:
+      "minmax(210px, 1fr) minmax(145px, 0.6fr) minmax(180px, 0.72fr) minmax(180px, 0.72fr) minmax(260px, 1.1fr)",
+    padding: "12px 20px",
+  },
+  topologyRow: {
+    alignItems: "center",
+    backgroundColor: "var(--surface)",
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "grid",
+    gap: 18,
+    gridTemplateColumns: {
+      default:
+        "minmax(210px, 1fr) minmax(145px, 0.6fr) minmax(180px, 0.72fr) minmax(180px, 0.72fr) minmax(260px, 1.1fr)",
+      "@media (max-width: 980px)": "repeat(2, minmax(0, 1fr))",
+      "@media (max-width: 560px)": "1fr",
+    },
+    minWidth: 0,
+    padding: "clamp(20px, 3vw, 32px)",
+  },
   opportunityBoundary: {
     backgroundColor: "var(--surface-strong)",
     borderTopColor: "var(--line)",

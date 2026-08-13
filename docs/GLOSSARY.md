@@ -112,6 +112,14 @@ An application capable of hosting agent work, such as `codex`, `claude`,
 executable presence without starting them; discovery is neither assignment nor
 execution authority.
 
+### Agent topology
+
+The bounded live graph rooted at the foreground Rey process. It identifies
+process and background-work nodes, parentage, supervision edges, placement,
+lifecycle, state, restart policy, endpoints, authority, and limits. A topology
+node is not an assigned or invoked agent runtime unless a separate exact
+admission contract establishes that fact.
+
 ### Application inventory
 
 The exact desired set of applications Rey intends to search for, including the
@@ -184,6 +192,14 @@ language, not a retained runtime state or scheduler object.
 Rey's content identity for many semantic documents. Inputs are canonically
 encoded and domain-separated before hashing. A BLAKE3 digest is not a Git
 commit SHA and must not be linked or presented as one.
+
+### Background work
+
+Work whose lifetime extends beyond the request or command stack that admitted
+it. In the current `rey agent` process, all such in-process work must be
+registered under the orchestrator, bounded, visible in agent topology, and
+stopped cooperatively. Browser-owned passive revalidation is not server-side
+background work.
 
 ### Blocker
 
@@ -1151,6 +1167,14 @@ A versioned semantic unit that can be composed in a graph or task. Operations
 declare inputs, outputs, effects, capabilities, limits, and completeness;
 free-form generated code is not an operation contract.
 
+### Orchestrator
+
+The root role of the foreground Rey process started by `rey agent`. It owns
+the lifecycle of registered background work, observes worker termination,
+coordinates cancellation, and fails closed on unexpected worker loss. This
+lifecycle authority does not admit workloads, invoke agent runtimes, or decide
+semantic convergence.
+
 ### Operator projection
 
 A bounded human-facing view over authoritative typed evidence. CLI tables,
@@ -1249,11 +1273,12 @@ world geometry. The current Explorer retains the
 frontier POI and its prerequisite and may show a local weather front, but draws
 no crossing or source connection.
 
-### Process
+### PROCESS phase
 
 The fourth context-lifecycle phase, in which Rey incrementally consumes survey
 artifacts and independent cadence ticks, derives deltas and attention, and
-continues from committed transition boundaries.
+continues from committed transition boundaries. The uppercase phase name is
+distinct from the foreground Rey OS process.
 
 ### Progress
 
@@ -1506,6 +1531,14 @@ owns workload composition, deterministic transition and evidence semantics,
 delta/frontier rationale, and local operator projection while leaving source
 and execution capabilities with their owning providers.
 
+### Rey process
+
+The foreground local OS process started by `rey agent`. Its runtime-only
+`rey.process.v1` descriptor exposes PID, orchestrator role, invocation,
+lifecycle, shutdown boundary, and implementation revision. The PID is not a
+semantic evidence identity, retained process history, or crash-durability
+claim.
+
 ### `rg` awareness
 
 Bounded discovery of the `rg` executable as a possible source-mining tool. The
@@ -1757,6 +1790,14 @@ and limits. The built-in graph now declares the first local subscription; its
 future observation projection is not implemented. A Feed stream projects a
 subscription through a human visual lens; the subscription does not copy
 observations or establish order across channel sequences.
+
+### Supervision
+
+The orchestrator's bounded ownership of background-work start, observation,
+cancellation, and terminal failure. Current supervision binds one operator
+worker to the Rey process, uses no restart, and treats unexpected exit, error,
+or panic as a process failure. It is lifecycle mechanism, not sandboxing,
+semantic success, or proof.
 
 ### Survey
 

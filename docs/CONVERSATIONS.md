@@ -116,4 +116,4 @@ history, or implies delivery beyond local admission.
 
 The UI listener has no authentication. Any client that can reach an explicitly
 configured listener can append as the session's self-asserted human browser
-writer, so `rey ui` reports that exposure and warns on non-loopback binds.
+writer, so `rey agent` reports that exposure and warns on non-loopback binds.

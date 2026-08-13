@@ -55,12 +55,27 @@ Rey separates ten responsibilities:
    graph revision or another admissible action.
 
 These are responsibility boundaries, not requirements for separate processes.
-The first topology is a local Rey process. `rey ui` attaches an operator
-projection to that process. Its explicit browser writes are bounded
+The first topology is the foreground local Rey process started by `rey agent`.
+Its root role is an orchestrator that owns all in-process background-work
+lifecycle. The first registered worker is the embedded operator HTTP server;
+the startup document and `GET /api/v1/agent` expose the exact process, worker,
+and supervision edge. SIGINT or SIGTERM requests cooperative shutdown, and an
+unexpected worker exit fails the Rey process closed. V1 has a fixed one-worker
+bound and no restart, daemonization, multi-process fencing, or crash-durability
+claim.
+
+The operator projection attaches to that process. Its explicit browser writes are bounded
 unauthenticated Journal admission, conditional Channel WORKING replacement,
 and exact workload file qualification/admission on any explicitly configured
 listener. It is not a separate runtime or scheduler; none of those writes
 grants general compute or proof authority.
+
+The topology is a lifecycle graph, not agent execution authority. Discovered
+agent runtimes remain potential environment capabilities; the orchestrator
+does not invoke, assign, or supervise one until a later explicit admission
+contract exists. Browser passive revalidation remains browser-owned work and
+does not become server-side scheduling merely because its HTTP server is
+supervised.
 
 ## System Graph
 
@@ -137,6 +152,9 @@ poll cursors, and delta-triggered workloads.
 
 | Concept             | Meaning                                                                                                                                                                                                | Owner or retention boundary                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Rey process         | Foreground local OS process started by `rey agent`, with orchestrator role, runtime-only PID, implementation revision, and cooperative shutdown boundary                                                | Process lifetime; not retained semantic evidence or process-crash durability                                    |
+| Agent topology      | Bounded live graph of the Rey process, supervised background-work nodes, lifecycle edges, authority, limits, and omissions                                                                               | Foreground orchestrator; projected through CLI and HTTP status                                                   |
+| Background work     | Work whose lifetime extends beyond one request or command stack and must therefore be registered, bounded, supervised, and cooperatively cancelled                                                      | Owning orchestrator and the provider that owns the work's effects/evidence                                      |
 | Environment         | Explicit boundary from which providers may discover context                                                                                                                                            | Host/deployment configuration; observed by Rey                                                                  |
 | Capability snapshot | Frozen inventory of providers, tools, operations, trust, and limits                                                                                                                                    | Local Rey evidence                                                                                              |
 | Workload            | Public versioned composition of graph contract, scenarios, environment, claims, policy, qualification, effects, and budgets                                                                            | Rey declaration and catalog provider                                                                            |
@@ -183,8 +201,9 @@ requirements demand it.
 
 ## Operator Projection
 
-`rey ui` embeds a TanStack Router single-page application and serves the live
-bounded workload-list document used by the CLI. The human operator lands on
+The operator worker started by `rey agent` embeds a TanStack Router
+single-page application and serves the live bounded workload-list document
+used by the CLI. The human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. Before any workload HEAD or admitted topography
 exists, Explorer projects exact request/WORKING/INDEX workload file state as
@@ -273,15 +292,16 @@ separately and places its typed blocks in a bounded 12-column broadsheet.
 retains the exact catalog/detail routes and aligns admitted revisions plus
 creation requests as separate Hifi dense evidence relations. Exact workload
 routes continue that relation grammar across runtime or request posture, exact
-bindings, and retained mining output. `/agents` begins with the Journal: current
-requests and non-excluded attention produce derived system entries; retained
-human and agent entries use one bounded typed contract and point to exact
+bindings, and retained mining output. `/agents` begins with the Journal:
+current requests and non-excluded attention produce derived system entries;
+retained human and agent entries use one bounded typed contract and point to exact
 `/explore` coordinates. `/journal/new` and exact `/journal/{slug}` routes share
 one live editing surface; a retained edit appends an exact superseding entry
 instead of rewriting history. Entry blocks expose stable fragment permalinks.
 Agents admit through `rey journal add`, and neither path executes notebook
-blocks. It then projects an
-observed-work ledger from exact workload revisions, tests, runs, mining
+blocks. The live supervised Rey process and agent topology follow with exact
+nodes, lifecycle, restart policy, endpoint, authority, and explicit omissions.
+The route then projects an observed-work ledger from exact workload revisions, tests, runs, mining
 outputs, deltas, and attention. Journal entries communicate direction without
 becoming assignments or execution authority. Tasks still organize intent,
 operation, artifact references, desired delta, readiness, and assignment;
@@ -341,7 +361,7 @@ language. StyleX owns compiled structural and stateful presentation while
 typed Kinetic material values remain runtime data; Rey's typed documents
 remain authoritative.
 
-The listener defaults to loopback and carries no authentication, multi-user,
+The supervised operator listener defaults to loopback and carries no authentication, multi-user,
 or remote-service guarantee. Its explicit writes are bounded Journal and
 conversation admission, conditional Channel WORKING replacement, and qualified
 exact workload-INDEX approval. An explicit non-loopback bind exposes all four writes
@@ -824,7 +844,7 @@ The first design proposes these Rust ownership boundaries:
 
 | Crate             | Ownership                                                                                                                                                     |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rey`             | Workload CLI, catalog/configuration composition, and user-facing orchestration                                                                                |
+| `rey`             | Workload CLI, catalog/configuration composition, the foreground agent-process orchestrator, and user-facing orchestration                                    |
 | `rey-core`        | identities, revisions, limits, statuses, and shared value contracts                                                                                           |
 | `rey-mining`      | provider-neutral mining operation/request/result, artifact, completeness, dependency, and visualization contracts; no query engine, parser bundle, or storage |
 | `rey-locator`     | canonical coordinate bindings, locator syntax, resolution outcomes, and exact resolver limits; no retrieval authority                                 |
@@ -900,6 +920,12 @@ formal state reducer through an explicit scheduling phase; `rey-frontier`
 implements canonical frontier, progress, and bounded selection contracts; and
 `rey-policy` implements the bounded reasoning-surface document and DataFrame
 projection.
+The `rey` CLI now hard-cuts the former `ui` command to `agent`. That command
+starts one foreground `rey.process.v1` orchestrator, supervises the embedded
+operator HTTP worker under `rey.agent-topology.v1`, exposes the topology in
+human/JSON startup output and the HTTP health plane, and cooperatively closes
+the worker on SIGINT/SIGTERM. No autonomous workload or discovered agent
+runtime starts with it.
 The workload slice implements a bounded workspace package catalog, typed DAG
 execution, scenario deltas, exact qualification, verified local result state,
 and the `list`, `status`, `test`, and `run` commands. The prior compiled

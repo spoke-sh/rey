@@ -36,7 +36,7 @@ The intended division of labor is:
 
 | Persona                    | Primary surface                   | Normal use                                                                                                                    |
 | -------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Human operator             | `rey ui`, `/feed`, and `/explore` | Triage bounded change, orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
+| Human operator             | `rey agent`, `/feed`, and `/explore` | Triage bounded change, orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
 | Agent or coding harness    | `rey` CLI and structured output   | Create, test, run, diagnose, and revise workloads through admitted contracts                                                  |
 | Human diagnosing a problem | `rey` CLI                         | Drop beneath the visual projection to inspect exact command evidence, verbosity layers, stderr, and exit semantics            |
 
@@ -380,7 +380,8 @@ retain the same immutable scene on the visible reference surface, mark the
 backend degraded, and continue browser traversal without changing evidence or
 creating a general renderer-control interface.
 The production build emits stable lazy chunk names for the globe, terrain,
-WebGPU adapter, and pinned Three.js module, and the `rey ui` server embeds and
+WebGPU adapter, and pinned Three.js module, and the operator server supervised
+by `rey agent` embeds and
 serves each chunk. Starting the documented CLI surface therefore reaches the
 same accelerated path as a direct Vite build.
 

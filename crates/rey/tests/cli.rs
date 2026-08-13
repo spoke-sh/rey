@@ -5556,13 +5556,13 @@ supersedes: null
 }
 
 #[test]
-fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure() {
+fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_exposure() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
 
     let mut table_child = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([
-            "ui",
+            "agent",
             "--workspace",
             workspace_path,
             "--host",
@@ -5588,8 +5588,12 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         }
     }
     for evidence in [
-        "REY UI",
-        "Status                 LISTENING",
+        "REY AGENT",
+        "Status                 RUNNING",
+        "Role                   ORCHESTRATOR",
+        "Supervision            1 BOUNDED WORKER · FAIL CLOSED · NO RESTART",
+        "Topology               REY PROCESS → SUPERVISED OPERATOR HTTP",
+        "Agent runtimes         NONE INVOKED · DISCOVERY / ASSIGNMENT / EXECUTION REMAIN SEPARATE",
         "Exposure               LOOPBACK ONLY",
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
@@ -5599,7 +5603,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Channel write          ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
         "Conversation write     ENDPOINT ENABLED · EXACT SESSION DECIDES COMPOSER · UNAUTHENTICATED APPEND ONLY",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/conversations · /api/v1/conversations/messages · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/evidence · /api/v1/workloads/{id}/scenarios/{execution} · /api/v1/workloads/{id}/deltas/{delta} · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/agent · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/conversations · /api/v1/conversations/messages · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/evidence · /api/v1/workloads/{id}/scenarios/{execution} · /api/v1/workloads/{id}/deltas/{delta} · /api/v1/workloads/admit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         UNBOUND · ",
     ] {
@@ -5612,7 +5616,13 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         .unwrap();
     let response = http_request(address, "GET /api/v1/health HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
+    assert!(response.contains("\"schema\":\"rey.agent-health.v1\""));
     assert!(response.contains("\"theme\":\"precision\""));
+    let agent = http_request(address, "GET /api/v1/agent HTTP/1.1");
+    assert!(agent.starts_with("HTTP/1.1 200"));
+    assert!(agent.contains("\"schema\":\"rey.agent-process.v1\""));
+    assert!(agent.contains("\"role\":\"orchestrator\""));
+    assert!(agent.contains("\"relationship\":\"supervises\""));
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
     assert!(environment.contains("\"schema\":\"rey.environment-status.v1\""));
@@ -5631,7 +5641,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
 
     let mut network_child = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([
-            "ui",
+            "agent",
             "--workspace",
             workspace_path,
             "--host",
@@ -5649,35 +5659,44 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut descriptor_line = String::new();
     network_stdout.read_line(&mut descriptor_line).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor_line).unwrap();
-    assert_eq!(descriptor["schema"], "rey.ui-server.v1");
-    assert_eq!(descriptor["host"], "0.0.0.0");
-    assert_eq!(descriptor["loopback_only"], false);
-    assert_eq!(descriptor["read_only"], false);
-    assert_eq!(descriptor["journal_write_enabled"], true);
-    assert_eq!(descriptor["workload_admission_enabled"], true);
-    assert_eq!(descriptor["channel_write_enabled"], true);
-    assert_eq!(descriptor["conversation_write_enabled"], true);
+    assert_eq!(descriptor["schema"], "rey.agent-process.v1");
+    assert_eq!(descriptor["process"]["role"], "orchestrator");
+    assert_eq!(descriptor["topology"]["schema"], "rey.agent-topology.v1");
+    assert_eq!(descriptor["topology"]["nodes"].as_array().unwrap().len(), 2);
     assert_eq!(
-        descriptor["channel_root"],
+        descriptor["topology"]["edges"][0]["relationship"],
+        "supervises"
+    );
+    assert_eq!(descriptor["topology"]["max_background_workers"], 1);
+    assert_eq!(descriptor["operator"]["schema"], "rey.ui-server.v1");
+    assert_eq!(descriptor["operator"]["host"], "0.0.0.0");
+    assert_eq!(descriptor["operator"]["loopback_only"], false);
+    assert_eq!(descriptor["operator"]["read_only"], false);
+    assert_eq!(descriptor["operator"]["journal_write_enabled"], true);
+    assert_eq!(descriptor["operator"]["workload_admission_enabled"], true);
+    assert_eq!(descriptor["operator"]["channel_write_enabled"], true);
+    assert_eq!(descriptor["operator"]["conversation_write_enabled"], true);
+    assert_eq!(
+        descriptor["operator"]["channel_root"],
         workspace.path().join(".rey/channels").display().to_string()
     );
     assert_eq!(
-        descriptor["conversation_root"],
+        descriptor["operator"]["conversation_root"],
         workspace
             .path()
             .join(".rey/conversations")
             .display()
             .to_string()
     );
-    assert_eq!(descriptor["application"], "tanstack_router");
-    assert_eq!(descriptor["grammar"], "kinetic");
-    assert_eq!(descriptor["theme"], "precision");
-    assert_eq!(descriptor["entry_route"], "/explore");
-    assert_eq!(descriptor["live_refresh_interval_ms"], 5_000);
-    assert!(descriptor["source_repository"].is_null());
-    assert!(descriptor["implementation_revision"].is_string());
+    assert_eq!(descriptor["operator"]["application"], "tanstack_router");
+    assert_eq!(descriptor["operator"]["grammar"], "kinetic");
+    assert_eq!(descriptor["operator"]["theme"], "precision");
+    assert_eq!(descriptor["operator"]["entry_route"], "/explore");
+    assert_eq!(descriptor["operator"]["live_refresh_interval_ms"], 5_000);
+    assert!(descriptor["operator"]["source_repository"].is_null());
+    assert!(descriptor["operator"]["implementation_revision"].is_string());
     assert_eq!(
-        descriptor["grammar_revision"],
+        descriptor["operator"]["grammar_revision"],
         "git:058c6504fc10740360717e97e687fd77bef6a5c5"
     );
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
@@ -5686,7 +5705,10 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(warning.contains("unauthenticated Journal, conversation, and Channel WORKING writes"));
     assert!(warning.contains("exact workload approval enabled"));
 
-    let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
+    let network_address = format!(
+        "127.0.0.1:{}",
+        descriptor["operator"]["port"].as_u64().unwrap()
+    );
     let proposal = serde_json::json!({
         "schema": "rey.journal-entry-proposal.v2",
         "title": "Write through the network listener",
@@ -5725,6 +5747,55 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert!(channels.contains("without authentication"));
     network_child.kill().unwrap();
     network_child.wait().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn agent_cli_is_a_hard_cutover_and_stops_supervised_work_cooperatively() {
+    let retired = run_rey_workspace(&["ui"]);
+    assert_eq!(retired.status.code(), Some(2));
+    assert!(retired.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&retired.stderr).contains("unrecognized subcommand 'ui'"));
+
+    let workspace = TempDir::new().unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rey"))
+        .args([
+            "agent",
+            "--workspace",
+            workspace.path().to_str().unwrap(),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdout = BufReader::new(child.stdout.take().unwrap());
+    let mut line = String::new();
+    stdout.read_line(&mut line).unwrap();
+    let descriptor: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(descriptor["process"]["os_pid"], child.id());
+    let address = format!(
+        "127.0.0.1:{}",
+        descriptor["operator"]["port"].as_u64().unwrap()
+    );
+    assert!(http_request(&address, "GET /api/v1/agent HTTP/1.1").starts_with("HTTP/1.1 200"));
+
+    assert!(
+        Command::new("kill")
+            .args(["-INT", &child.id().to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let stopped = child.wait_with_output().unwrap();
+    assert!(stopped.status.success());
+    assert!(stopped.stderr.is_empty());
+    assert!(TcpStream::connect(address).is_err());
 }
 
 #[test]
@@ -6588,7 +6659,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
 
     let mut ui = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([
-            "ui",
+            "agent",
             "--workspace",
             workspace_path,
             "--host",
@@ -6606,7 +6677,10 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let mut descriptor = String::new();
     reader.read_line(&mut descriptor).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor).unwrap();
-    let address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
+    let address = format!(
+        "127.0.0.1:{}",
+        descriptor["operator"]["port"].as_u64().unwrap()
+    );
     let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"latest_scene_admission\""));
@@ -6943,7 +7017,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
 
     let mut ui = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([
-            "ui",
+            "agent",
             "--workspace",
             workspace_path,
             "--host",
@@ -6961,7 +7035,10 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     let mut descriptor = String::new();
     reader.read_line(&mut descriptor).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor).unwrap();
-    let address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
+    let address = format!(
+        "127.0.0.1:{}",
+        descriptor["operator"]["port"].as_u64().unwrap()
+    );
     let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"topography_patch\""));

@@ -49,7 +49,7 @@ rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input 
 rey workloads [--workspace PATH] [--catalog-dir PATH] run context-anchor-survey --source <path> [--source <path>...]
 rey workloads [--workspace PATH] [--catalog-dir PATH] run scene-admission --scene SCENE@n [--editor-state-dir PATH]
 rey workloads --catalog conformance list|test|run|status ...
-rey ui [--workspace PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
+rey agent [--workspace PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 The environment group inventories available compute. The workloads group
@@ -57,7 +57,8 @@ declares what that compute is for, hands creation requests to a coding harness,
 measures whether a staged generated graph behaves as expected, admits an exact
 qualified INDEX through human approval, and runs HEAD against admitted inputs.
 
-`rey ui` is the human admission surface for this same workload plane. It opens
+The operator worker supervised by `rey agent` is the human admission surface
+for this same workload plane. It opens
 on `/explore`; before survey evidence exists, exact workload beacons link to
 inspection and the admission Feed. The UI derives incoming candidates and
 admitted HEAD from the same typed state as the CLI and advances HEAD by

@@ -35,6 +35,56 @@ export interface UiServerIdentity {
   read_only: boolean;
 }
 
+export interface ReyProcessDescriptor {
+  schema: "rey.process.v1";
+  process_id: string;
+  os_pid: number;
+  role: string;
+  topology_node_id: string;
+  invocation: string;
+  lifecycle: string;
+  shutdown: string;
+  implementation_revision: string;
+}
+
+export interface AgentTopologyNode {
+  node_id: string;
+  kind: string;
+  parent_node_id: string | null;
+  execution: string;
+  lifecycle: string;
+  state: string;
+  restart_policy: string;
+  authority: string;
+  endpoint: string | null;
+}
+
+export interface AgentTopologyEdge {
+  source_node_id: string;
+  target_node_id: string;
+  relationship: string;
+}
+
+export interface AgentTopologyDescriptor {
+  schema: "rey.agent-topology.v1";
+  root_node_id: string;
+  nodes: AgentTopologyNode[];
+  edges: AgentTopologyEdge[];
+  max_background_workers: number;
+  supervision_poll_interval_ms: number;
+  agent_runtime_invocation: string;
+}
+
+export interface AgentProcessDescriptor {
+  schema: "rey.agent-process.v1";
+  state: string;
+  process: ReyProcessDescriptor;
+  topology: AgentTopologyDescriptor;
+  operator: UiServerIdentity;
+  authority: string;
+  omissions: string[];
+}
+
 export interface WorkloadApprovalRequest {
   message: string;
   expected_head: string;
@@ -42,6 +92,7 @@ export interface WorkloadApprovalRequest {
 }
 
 export type OperatorContext = WorkloadList & {
+  agent_process: AgentProcessDescriptor;
   observations: ObservationFrontier;
   conversation: ConversationTranscript;
   workload_evidence: WorkloadEvidenceCatalog;
@@ -88,9 +139,11 @@ export async function loadPortfolio(): Promise<OperatorContext> {
   }
   const portfolio = (await portfolioResponse.json()) as WorkloadList;
   const health = (await healthResponse.json()) as {
+    agent: AgentProcessDescriptor;
     server: UiServerIdentity;
   };
   return Object.assign(portfolio, {
+    agent_process: health.agent,
     observations,
     conversation,
     ui_server: health.server,
