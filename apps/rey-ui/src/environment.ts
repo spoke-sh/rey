@@ -130,53 +130,72 @@ export interface EnvironmentDiffLine {
   admission: "clean" | "staged" | "working" | "mixed";
 }
 
+export interface EnvironmentApplicationDiffLine {
+  key: string;
+  kind: EnvironmentDiffLine["kind"];
+  observation: EnvironmentApplicationObservation;
+  admission: EnvironmentDiffLine["admission"];
+}
+
+interface EnvironmentObservationDiffLine<T> {
+  objectId: string;
+  kind: EnvironmentDiffLine["kind"];
+  observation: T;
+  admission: EnvironmentDiffLine["admission"];
+}
+
 export function environmentVariableDiff(
   variables: EnvironmentObjectStatus<EnvironmentVariableObservation>[],
 ): EnvironmentDiffLine[] {
-  return variables.flatMap((variable) => {
-    const admission = admissionState(variable.changes);
-    switch (variable.changes.head_to_working) {
+  return environmentObservationDiff(variables).map((entry) =>
+    line(entry.objectId, entry.kind, entry.observation, entry.admission),
+  );
+}
+
+export function environmentApplicationDiff(
+  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[],
+): EnvironmentApplicationDiffLine[] {
+  return environmentObservationDiff(applications).map((entry) =>
+    applicationLine(
+      entry.objectId,
+      entry.kind,
+      entry.observation,
+      entry.admission,
+    ),
+  );
+}
+
+function environmentObservationDiff<T>(
+  objects: EnvironmentObjectStatus<T>[],
+): EnvironmentObservationDiffLine<T>[] {
+  return objects.flatMap((object) => {
+    const admission = admissionState(object.changes);
+    const entry = (
+      kind: EnvironmentDiffLine["kind"],
+      observation: T,
+    ): EnvironmentObservationDiffLine<T> => ({
+      objectId: object.object_id,
+      kind,
+      observation,
+      admission,
+    });
+
+    switch (object.changes.head_to_working) {
       case "unchanged": {
-        const observation = variable.working ?? variable.head;
-        return observation
-          ? [line(variable.object_id, "context", observation, admission)]
-          : [];
+        const observation = object.working ?? object.head;
+        return observation ? [entry("context", observation)] : [];
       }
       case "inserted":
-        return variable.working
-          ? [line(variable.object_id, "inserted", variable.working, admission)]
-          : [];
+        return object.working ? [entry("inserted", object.working)] : [];
       case "deleted":
-        return variable.head
-          ? [line(variable.object_id, "deleted", variable.head, admission)]
-          : [];
+        return object.head ? [entry("deleted", object.head)] : [];
       case "modified":
         return [
-          ...(variable.head
-            ? [line(variable.object_id, "deleted", variable.head, admission)]
-            : []),
-          ...(variable.working
-            ? [
-                line(
-                  variable.object_id,
-                  "inserted",
-                  variable.working,
-                  admission,
-                ),
-              ]
-            : []),
+          ...(object.head ? [entry("deleted", object.head)] : []),
+          ...(object.working ? [entry("inserted", object.working)] : []),
         ];
     }
   });
-}
-
-export function currentApplications(
-  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[],
-  availability: EnvironmentAvailability,
-): EnvironmentObjectStatus<EnvironmentApplicationObservation>[] {
-  return applications.filter(
-    (application) => application.working?.availability === availability,
-  );
 }
 
 export function admissionState(
@@ -200,6 +219,20 @@ function line(
     key: `${objectId}:${kind}:${formatVariable(observation)}`,
     kind,
     text: formatVariable(observation),
+    admission,
+  };
+}
+
+function applicationLine(
+  objectId: string,
+  kind: EnvironmentApplicationDiffLine["kind"],
+  observation: EnvironmentApplicationObservation,
+  admission: EnvironmentApplicationDiffLine["admission"],
+): EnvironmentApplicationDiffLine {
+  return {
+    key: `${objectId}:${kind}:${observation.name}:${observation.resolved_path ?? "unresolved"}:${observation.groups.join(",")}`,
+    kind,
+    observation,
     admission,
   };
 }

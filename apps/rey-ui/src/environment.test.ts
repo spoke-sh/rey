@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   admissionState,
-  currentApplications,
+  environmentApplicationDiff,
   environmentVariableDiff,
   type EnvironmentApplicationObservation,
   type EnvironmentObjectStatus,
@@ -38,23 +38,66 @@ describe("environment operator projection", () => {
     ]);
   });
 
-  it("keeps searched-but-not-found applications visible", () => {
-    const missing: EnvironmentObjectStatus<EnvironmentApplicationObservation> =
+  it("renders application modifications as deleted and inserted observations", () => {
+    const before = applicationObservation("/usr/bin/rg", ["retrieval"]);
+    const after = applicationObservation("/opt/bin/rg", ["code", "retrieval"]);
+    const application: EnvironmentObjectStatus<EnvironmentApplicationObservation> =
       {
         object_id: "rg",
+        head: before,
+        index: before,
+        working: after,
+        changes: {
+          head_to_index: "unchanged",
+          index_to_working: "modified",
+          head_to_working: "modified",
+        },
+      };
+
+    expect(environmentApplicationDiff([application])).toEqual([
+      {
+        key: "rg:deleted:rg:/usr/bin/rg:retrieval",
+        kind: "deleted",
+        observation: before,
+        admission: "working",
+      },
+      {
+        key: "rg:inserted:rg:/opt/bin/rg:code,retrieval",
+        kind: "inserted",
+        observation: after,
+        admission: "working",
+      },
+    ]);
+    expect(admissionState(application.changes)).toBe("working");
+  });
+
+  it("keeps unresolved application observations in the browser projection", () => {
+    const resolved = applicationObservation("/usr/bin/rg", ["retrieval"]);
+    const unresolved = applicationObservation(
+      null,
+      ["retrieval"],
+      "unavailable",
+    );
+    const removed: EnvironmentObjectStatus<EnvironmentApplicationObservation> =
+      {
+        object_id: "rg",
+        head: resolved,
+        index: resolved,
+        working: unresolved,
+        changes: {
+          head_to_index: "unchanged",
+          index_to_working: "modified",
+          head_to_working: "modified",
+        },
+      };
+    const missing: EnvironmentObjectStatus<EnvironmentApplicationObservation> =
+      {
+        object_id: "ag",
         head: null,
         index: null,
         working: {
-          name: "rg",
-          groups: ["code", "retrieval"],
-          purpose: "Extend bounded source mining with fast text search",
-          required: false,
-          availability: "unavailable",
-          resolved_path: null,
-          content_digest: null,
-          potential_capabilities: ["source.search.literal"],
-          searched_path_count: 14,
-          error_code: null,
+          ...unresolved,
+          name: "ag",
         },
         changes: {
           head_to_index: "unchanged",
@@ -63,10 +106,50 @@ describe("environment operator projection", () => {
         },
       };
 
-    expect(currentApplications([missing], "unavailable")).toEqual([missing]);
-    expect(admissionState(missing.changes)).toBe("working");
+    expect(environmentApplicationDiff([removed, missing])).toEqual([
+      {
+        key: "rg:deleted:rg:/usr/bin/rg:retrieval",
+        kind: "deleted",
+        observation: resolved,
+        admission: "working",
+      },
+      {
+        key: "rg:inserted:rg:unresolved:retrieval",
+        kind: "inserted",
+        observation: unresolved,
+        admission: "working",
+      },
+      {
+        key: "ag:inserted:ag:unresolved:retrieval",
+        kind: "inserted",
+        observation: {
+          ...unresolved,
+          name: "ag",
+        },
+        admission: "working",
+      },
+    ]);
   });
 });
+
+function applicationObservation(
+  resolvedPath: string | null,
+  groups: string[],
+  availability: EnvironmentApplicationObservation["availability"] = "available",
+): EnvironmentApplicationObservation {
+  return {
+    name: "rg",
+    groups,
+    purpose: "Extend bounded source mining with fast text search",
+    required: false,
+    availability,
+    resolved_path: resolvedPath,
+    content_digest: null,
+    potential_capabilities: ["source.search.literal"],
+    searched_path_count: 14,
+    error_code: null,
+  };
+}
 
 function observation(
   name: string,

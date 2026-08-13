@@ -1446,13 +1446,29 @@ coordinate. Candidate terrain controls never enter that program.
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded
 application search, and the input/reference plane. The application plane renders
-only the flattened working search outcomes, one row per application, and names
-each row's declared group memberships. The typed document retains the separate
-application-inventory identity and declaration evidence without duplicating it
-as a browser section. Section headers show only concise searched/found counts;
+the complete flattened application search from the shared environment operator
+projection, including unresolved and error outcomes, and names each row's
+application, resolved path or unresolved state, and declared group memberships.
+The plane splits those rows into `FOUND` and `NOT FOUND` groups. Found rows use
+the same directed added/deleted styling and admission-state treatment as
+environment variables; modifications render exact before/after rows. Not-found
+rows use a neutral warning treatment, `?` marker, and explicit `NOT FOUND`
+outcome rather than the green insertion or admission styling. Observation errors
+remain in the not-found group with a distinct error treatment.
+PATH search counts and redundant resolved/change labels stay out of the browser
+projection. The typed document retains the separate application-inventory
+identity and declaration evidence without duplicating it as a browser section.
+Section headers show only concise support/found accounting;
 environment state, mapping, completeness, and admission details remain in the
 typed document and exact CLI evidence rather than becoming browser metadata
 cards.
+
+The agent-hosted route and `rey env status` both derive that typed document
+through `current_environment_status`; neither owns an independent discovery or
+environment-diff path. Their final presentation policies intentionally differ:
+the browser shows unresolved application searches for operator awareness, while
+the compact human CLI status suppresses unsuccessful searches. Structured CLI
+JSON retains the same complete application evidence as the browser endpoint.
 
 The coordinate rail directly beneath the application header remains sticky on
 scrolling routes. Major operator sections declare exact rail coordinates; as a

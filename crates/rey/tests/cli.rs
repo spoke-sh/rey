@@ -5688,6 +5688,20 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
     assert!(environment.contains("\"schema\":\"rey.environment-status.v2\""));
+    let agent_environment: EnvironmentStatus =
+        serde_json::from_slice(&http_response_body(&environment)).unwrap();
+    let cli_environment = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert!(cli_environment.status.success());
+    let cli_environment: EnvironmentStatus =
+        serde_json::from_slice(&cli_environment.stdout).unwrap();
+    assert_eq!(agent_environment.operator, cli_environment.operator);
     let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
     assert!(cadence.starts_with("HTTP/1.1 200"));
     assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
@@ -7539,6 +7553,48 @@ fn run_rey_with_stdin_env(
 
 fn http_request(address: &str, request_line: &str) -> String {
     http_request_with_body(address, request_line, &[], "")
+}
+
+fn http_response_body(response: &str) -> Vec<u8> {
+    let (headers, encoded_body) = response
+        .split_once("\r\n\r\n")
+        .expect("HTTP response carries a header boundary");
+    let chunked = headers.lines().any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.eq_ignore_ascii_case("transfer-encoding")
+                && value.trim().eq_ignore_ascii_case("chunked")
+        })
+    });
+    if !chunked {
+        return encoded_body.as_bytes().to_vec();
+    }
+
+    let mut encoded = encoded_body.as_bytes();
+    let mut decoded = Vec::new();
+    loop {
+        let line_end = encoded
+            .windows(2)
+            .position(|window| window == b"\r\n")
+            .expect("chunk carries a size line");
+        let size = usize::from_str_radix(
+            std::str::from_utf8(&encoded[..line_end])
+                .expect("chunk size is UTF-8")
+                .split(';')
+                .next()
+                .expect("chunk carries a size"),
+            16,
+        )
+        .expect("chunk size is hexadecimal");
+        encoded = &encoded[line_end + 2..];
+        if size == 0 {
+            break;
+        }
+        assert!(encoded.len() >= size + 2, "chunk body is complete");
+        decoded.extend_from_slice(&encoded[..size]);
+        assert_eq!(&encoded[size..size + 2], b"\r\n");
+        encoded = &encoded[size + 2..];
+    }
+    decoded
 }
 
 fn http_request_with_body(

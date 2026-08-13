@@ -44,10 +44,9 @@ import {
   type ObservationMailboxRow,
 } from "./observations";
 import {
-  currentApplications,
+  environmentApplicationDiff,
   environmentVariableDiff,
-  type EnvironmentApplicationObservation,
-  type EnvironmentObjectStatus,
+  type EnvironmentApplicationDiffLine,
 } from "./environment";
 import {
   channelWorkingWriteForFeedLayout,
@@ -824,14 +823,15 @@ function EnvironmentPage() {
   const variablesNotFound = searchedVariables.filter(
     (variable) => variable.working?.availability === "unavailable",
   ).length;
+  const applicationLines = environmentApplicationDiff(projection.applications);
+  const foundApplicationLines = applicationLines.filter(
+    (line) => line.observation.availability === "available",
+  );
+  const notFoundApplicationLines = applicationLines.filter(
+    (line) => line.observation.availability !== "available",
+  );
   const supported = projection.applications.filter(
     (application) => application.working !== null,
-  );
-  const found = currentApplications(projection.applications, "available");
-  const notFound = currentApplications(projection.applications, "unavailable");
-  const errors = currentApplications(projection.applications, "error");
-  const removed = projection.applications.filter(
-    (application) => application.working === null && application.head !== null,
   );
 
   return (
@@ -912,26 +912,30 @@ function EnvironmentPage() {
             {projection.summary.applications_not_found} NOT FOUND
           </span>
         </div>
-        <ApplicationGroup label="FOUND" applications={found} tone="found" />
-        <ApplicationGroup
-          label="SEARCHED, NOT FOUND"
-          applications={notFound}
-          tone="missing"
-        />
-        {errors.length > 0 ? (
-          <ApplicationGroup
-            label="OBSERVATION ERRORS"
-            applications={errors}
-            tone="error"
-          />
-        ) : null}
-        {removed.length > 0 ? (
-          <ApplicationGroup
-            label="NO LONGER SEARCHED"
-            applications={removed}
-            tone="removed"
-          />
-        ) : null}
+        <div
+          className={sx(styles.environmentDiffDocument)}
+          role="table"
+          aria-label="Application diff"
+        >
+          {applicationLines.length === 0 ? (
+            <div className={sx(styles.environmentDiffEmpty)}>
+              NO APPLICATION SEARCH OUTCOMES
+            </div>
+          ) : (
+            <>
+              <ApplicationDiffGroup
+                label="FOUND"
+                lines={foundApplicationLines}
+                outcome="found"
+              />
+              <ApplicationDiffGroup
+                label="NOT FOUND"
+                lines={notFoundApplicationLines}
+                outcome="not-found"
+              />
+            </>
+          )}
+        </div>
       </section>
 
       <section
@@ -1014,74 +1018,91 @@ function EnvironmentPage() {
   );
 }
 
-function ApplicationGroup({
+function ApplicationDiffGroup({
   label,
-  applications,
-  tone,
+  lines,
+  outcome,
 }: {
   label: string;
-  applications: EnvironmentObjectStatus<EnvironmentApplicationObservation>[];
-  tone: "found" | "missing" | "error" | "removed";
+  lines: EnvironmentApplicationDiffLine[];
+  outcome: "found" | "not-found";
 }) {
   return (
-    <div className={sx(styles.environmentApplicationGroup)}>
-      <div className={sx(styles.environmentApplicationGroupHeader)}>
+    <section
+      className={sx(styles.environmentApplicationGroup)}
+      aria-label={`${label} applications`}
+      role="rowgroup"
+    >
+      <header className={sx(styles.environmentApplicationGroupHeader)}>
         <span className={sx(styles.micro)}>{label}</span>
-        <strong>{String(applications.length).padStart(2, "0")}</strong>
-      </div>
-      {applications.length === 0 ? (
-        <p className={sx(styles.micro, styles.muted)}>NONE</p>
+        <strong>{String(lines.length).padStart(2, "0")}</strong>
+      </header>
+      {lines.length === 0 ? (
+        <div className={sx(styles.environmentApplicationGroupEmpty)}>NONE</div>
       ) : (
-        applications.map((application) => {
-          const observation = application.working ?? application.head;
-          if (!observation) return null;
+        lines.map((line, index) => {
+          const found = outcome === "found";
+          const error = line.observation.availability === "error";
+          const groups =
+            line.observation.groups.length > 0
+              ? line.observation.groups
+              : ["ungrouped"];
           return (
             <div
-              className={sx(styles.environmentApplicationRow)}
-              key={application.object_id}
+              className={sx(
+                styles.environmentDiffRow,
+                found &&
+                  line.kind === "inserted" &&
+                  styles.environmentDiffInserted,
+                found &&
+                  line.kind === "deleted" &&
+                  styles.environmentDiffDeleted,
+                found &&
+                  line.kind === "context" &&
+                  styles.environmentDiffContext,
+                !found && !error && styles.environmentApplicationNotFound,
+                !found && error && styles.environmentApplicationError,
+              )}
+              key={`${line.key}:${index}`}
+              role="row"
             >
-              <span
-                className={sx(
-                  styles.environmentApplicationMarker,
-                  tone === "found" && styles.stateGood,
-                  tone === "missing" && styles.toneWarning,
-                  (tone === "error" || tone === "removed") && styles.toneDanger,
-                )}
-              >
-                {tone === "found"
-                  ? "+"
-                  : tone === "missing"
-                    ? "?"
-                    : tone === "removed"
-                      ? "−"
-                      : "!"}
+              <span className={sx(styles.environmentLineNumber)}>
+                {String(index + 1).padStart(2, "0")}
               </span>
-              <div className={sx(styles.environmentApplicationIdentity)}>
-                <strong>{observation.name}</strong>
-                <code>{observation.resolved_path ?? "NOT RESOLVED"}</code>
-                <small className={sx(styles.micro, styles.muted)}>
-                  {observation.searched_path_count} PATH ENTRIES ·{" "}
-                  {application.changes.head_to_working.toUpperCase()} ·{" "}
-                  {(observation.groups.length > 0
-                    ? observation.groups
-                    : ["ungrouped"]
-                  ).join(" / ")}
+              <span className={sx(styles.environmentDiffMarker)}>
+                {found
+                  ? line.kind === "inserted"
+                    ? "+"
+                    : line.kind === "deleted"
+                      ? "−"
+                      : "·"
+                  : error
+                    ? "!"
+                    : "?"}
+              </span>
+              <div className={sx(styles.environmentApplicationDiffValue)}>
+                <strong>{line.observation.name}</strong>
+                <code className={sx(styles.environmentApplicationDiffPath)}>
+                  {line.observation.resolved_path ?? "NOT RESOLVED"}
+                </code>
+                <small className={sx(styles.environmentApplicationDiffGroups)}>
+                  {groups.join(", ")}
                 </small>
               </div>
-              <span className={sx(styles.micro, styles.muted)}>
-                {tone === "found"
-                  ? "RESOLVED"
-                  : tone === "missing"
-                    ? "UNRESOLVED"
-                    : tone === "removed"
-                      ? "REMOVED"
-                      : "ERROR"}
-              </span>
+              {found ? (
+                <span className={sx(styles.environmentAdmissionTag)}>
+                  {line.admission}
+                </span>
+              ) : (
+                <span className={sx(styles.environmentApplicationOutcome)}>
+                  {error ? "ERROR" : "NOT FOUND"}
+                </span>
+              )}
             </div>
           );
         })
       )}
-    </div>
+    </section>
   );
 }
 
