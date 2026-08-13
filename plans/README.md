@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
+| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Retain prior atlas revisions and typed movement deltas, then add stable sector identity without conflating sectors and native County footprints. | Implemented editor-to-admission-to-Explorer voyage, projection packets, current synthetic atlas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:
@@ -44,10 +44,12 @@ The current repository already provides:
   explicit retry/cancellation/partial-failure stops, proposal-only activations,
   exact workload admission, replay-stable selected-scenario execution, and
   strict same-transition coalescing;
-- candidate-only native scene authoring and procedural terrain generation; and
+- candidate-only native scene authoring, procedural terrain generation, and a
+  qualified scene-admission bridge whose latest accepted production result is
+  the only regional scene input to Explorer; and
 - a read-first Explorer with consent-first orientation, semantic World globe,
-  synthetic atlas, continuous terrain, WebGPU/WebGL2 acceleration, and a
-  deterministic accessible fallback.
+  synthetic atlas, bounded admitted County object projection, continuous survey
+  terrain, WebGPU/WebGL2 acceleration, and a deterministic accessible fallback.
 
 Those facts are not repeated as completed checklists in this directory.
 

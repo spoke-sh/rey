@@ -51,6 +51,8 @@ const workload = (id: string): WorkloadSummary => ({
   topography_frontier_rows: 0,
   topography_patch: null,
   topography_projection: null,
+  scene_admission_results: 0,
+  latest_scene_admission: null,
   last_run_status: "blocked",
   last_test_result_id: `test:${id}`,
 });

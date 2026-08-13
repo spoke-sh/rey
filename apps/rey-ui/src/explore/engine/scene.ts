@@ -5,6 +5,7 @@ import {
   type TopologyScene,
 } from "../../topology";
 import { admittedTopographies } from "../projection/topography-projector";
+import { admittedRegionalScenes } from "../projection/regional-scene-projector";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 
 export interface SceneSnapshot {
@@ -27,10 +28,17 @@ export function compileSceneSnapshot(
     buildTopologyScene(portfolio, zoom, focusId, retainedRegime),
   );
   const topographies = admittedTopographies(portfolio);
+  const regionalScenes = admittedRegionalScenes(portfolio);
   const sourceRevisions =
-    topographies.length > 0
+    topographies.length > 0 || regionalScenes.length > 0
       ? topographies
           .map(({ projection }) => projection.packet_id)
+          .concat(
+            regionalScenes.flatMap(({ result, scene }) => [
+              result.result_id,
+              scene.projection.packet_id,
+            ]),
+          )
           .sort((left, right) => left.localeCompare(right))
       : [
           portfolio.catalog.schema,
@@ -52,6 +60,12 @@ export function compileSceneSnapshot(
   sourceRevisions.sort((left, right) => left.localeCompare(right));
   const compilerRevisions = topographies
     .map(({ projection }) => projection.scene_compiler.semantic_digest)
+    .concat(
+      regionalScenes.flatMap(({ scene }) => [
+        scene.admission.implementation.semantic_digest,
+        scene.projection.grammar_id,
+      ]),
+    )
     .sort((left, right) => left.localeCompare(right));
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);

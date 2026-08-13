@@ -22,9 +22,11 @@ scene packages. Deterministic generators may author tunable source features in
 WORKING, but generation itself grants no evidence authority. Those packages
 are not Explorer inputs. The file-backed `scene-admission` workload now
 validates one exact current package and its frozen GeoJSON objects, retains a
-typed accepted/rejected result, and emits a regional projection packet. This
-closes the CLI admission path only: `/explore` does not yet consume that result,
-so scene commits and admitted runs still leave the browser unchanged. See
+typed accepted/rejected result, and emits a regional projection packet.
+`/explore` consumes only the latest accepted production result from that
+workload record. It rejects scenario fixtures, rejected results, candidates,
+and mismatched bindings before projection; editor commits alone still leave the
+browser unchanged. See
 [CLI](CLI.md), [Mining](MINING.md), and [Plan
 0003](../plans/0003-scene-to-explorer.md).
 
@@ -189,7 +191,11 @@ contains no camera instance, evidence, admission, or renderer authority. Rust
 fixtures cover overlapping regional footprints, polar and antimeridian
 envelopes, rejected coordinate metadata, typed County boundary objects, and
 candidate-terrain authority rejection. Workload/CLI production of these
-documents remains incomplete Plan 0003 work.
+documents and the accepted-result Explorer adapter now exist. The first browser
+slice shows exact regional point placement and native object envelopes; it does
+not yet implement retained sectors, footprint geometry, constructed layers,
+qualified regional terrain, or the complete posture transitions frozen by the
+grammar.
 
 The engine is high-dimensional because its input basis may project many source
 dimensions into a stable navigable scene. It is not allowed to invent that
@@ -575,12 +581,17 @@ exact workload packages, HEAD/INDEX/WORKING revision state, drafts,
 graph/scenario/mining counts, portfolio
 attention, retained `rey.topography-patch.v1` artifacts, and their exact
 `rey.projection-packet.v1` envelopes. It also consumes the deterministic
-`rey.semantic-atlas.v1` projection of admitted regional patches. With a fresh
+`rey.semantic-atlas.v1` projection of admitted survey patches and the latest
+accepted production `rey.scene-admission-result.v1` for each regional workload.
+With a fresh
 `.rey`, it projects incoming workload file state as an unmapped orientation
 globe and directs the operator toward consensual survey admission. At World the
 reference backend renders an accessible orthographic sphere and the Three.js
-backend renders a lit WebGPU-first globe; both bind the same atlas revision and
-admitted regional POIs. Atlas and closer lenses retain local relief. Survey
+backend renders a lit WebGPU-first globe; both bind the same admitted evidence.
+Regional results use the packet's exact synthetic point with no inferred
+radius. Atlas applies semantic Mercator to that same point, and closer lenses
+show exact native object bounds inside the scene envelope. Atlas sectors,
+footprint geometry, and regional terrain remain explicitly absent. Survey
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
@@ -612,7 +623,10 @@ the semantic globe rather than the local terrain mesh, while the reference
 overlay preserves region labels and accessibility.
 `buildTopologyScene` is a deterministic read-model projection over
 `rey.workload-list.v1` and is tested separately from browser mechanics. It
-requires an exact patch/packet pair before compiling admitted terrain. Typed
+requires an exact patch/packet pair before compiling admitted survey terrain,
+and an accepted non-scenario scene result with exact workload, graph,
+capability, package, snapshot, packet, terrain, coordinate-plane, and placement
+bindings before compiling regional World/Atlas/County objects. Typed
 field derivations live under `src/explore/terrain`; `topology.ts` still owns
 their scene adaptation plus contours and natural-feature overlays.
 
@@ -624,13 +638,15 @@ rather than fetch or invent a second graph inside a visualization component.
 
 ## Next Boundaries
 
-The seed-to-map voyage and World globe rotation are implemented and verified
-through the CLI, structured workload endpoint, and deterministic Explorer
-read-model tests. [Plan 0003](../plans/0003-scene-to-explorer.md) now owns the
-critical path: admit one exact editor package, retain atlas revisions and
-movement deltas, add sector identity, unwrap World through semantic Mercator,
-enter a local isometric County, finish the engine/render-graph boundary, and
-qualify detailed terrain and typed constructed layers. Exact scenario/delta
+The seed-to-map voyage, World globe rotation, and one exact
+editor-to-admission-to-regional-Explorer voyage are implemented and verified
+through the human CLI, structured workload endpoint, deterministic Explorer
+read model, and reference renderer. [Plan
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: retain
+atlas revisions and movement deltas, add sector identity, complete World and
+semantic-Mercator wrapping/morphing, expand the bounded County into a local
+isometric surface with exact links, finish the engine/render-graph boundary,
+and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser
 without adding an independent assessment. Travel, trade, and economic layers
 require their own

@@ -6283,6 +6283,58 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert_eq!(scene.projection.coordinate_bindings.len(), 5);
     assert_eq!(scene.projection.objects.len(), 2);
     assert!(scene.artifacts.terrain_program_id.is_none());
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    assert!(listed.stderr.is_empty());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    let summary = listed
+        .workloads
+        .iter()
+        .find(|summary| summary.workload.id == "scene-admission")
+        .unwrap();
+    assert_eq!(summary.scene_admission_results, 1);
+    let retained = summary.latest_scene_admission.as_ref().unwrap();
+    assert_eq!(retained.result_id, admission.result_id);
+    assert_eq!(retained.status, SceneAdmissionStatus::Accepted);
+    assert!(retained.scenario.is_none());
+    assert_eq!(retained.scene.as_ref(), Some(scene));
+
+    let mut ui = Command::new(env!("CARGO_BIN_EXE_rey"))
+        .args([
+            "ui",
+            "--workspace",
+            workspace_path,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut reader = BufReader::new(ui.stdout.take().unwrap());
+    let mut descriptor = String::new();
+    reader.read_line(&mut descriptor).unwrap();
+    let descriptor: Value = serde_json::from_str(&descriptor).unwrap();
+    let address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());
+    let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
+    assert!(response.starts_with("HTTP/1.1 200"));
+    assert!(response.contains("\"latest_scene_admission\""));
+    assert!(response.contains("\"status\":\"accepted\""));
+    assert!(response.contains("\"scenario\":null"));
+    assert!(response.contains(admission.result_id.as_str()));
+    assert!(response.contains(scene.projection.packet_id.as_str()));
+    assert!(response.contains("\"space\":\"native_crs84\""));
+    assert!(response.contains("\"space\":\"synthetic_semantic\""));
+    assert!(response.contains("\"space\":\"semantic_mercator\""));
+    assert!(response.contains("\"space\":\"county_local\""));
+    assert!(response.contains("\"space\":\"camera\""));
+    ui.kill().unwrap();
+    ui.wait().unwrap();
 }
 
 #[test]

@@ -465,8 +465,15 @@ validity/no-data, limits, omissions, and lineage. Its embedded
 semantic, semantic-Mercator, County-local, and view-only camera coordinate
 records. Separate nullable bindings prevent a candidate package from
 counterfeiting a topography patch, retained atlas revision, or terrain program.
-The contract is implemented and fixture-qualified; the workload and CLI do not
-yet produce it, so no regional scene can become Atlas or County fabric. See
+The file-backed workload and CLI produce the contract from an exact current
+editor transfer envelope. `rey.workload-list.v1` exposes only the last
+production admission result for the exact current workload and graph. Explorer
+then requires accepted status, no scenario identity, and matching workload,
+graph, capability, package, snapshot, packet, terrain, coordinate-plane, and
+synthetic-placement bindings. It projects the accepted synthetic point through
+World and semantic Mercator, then exact native object bounds inside a bounded
+County reference frame; it does not reconstruct source geometry or invent
+sectors, footprint scale, or regional terrain. See
 [Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to
@@ -1260,7 +1267,11 @@ binds workload, graph, suite, campaign, capability snapshot, editor commit,
 package, request, limits, and authority. Human rendering makes native CRS84,
 synthetic semantic, semantic-Mercator, County-local, and camera coordinates
 separate; structured output retains the full regional scene and projection
-packet. This command does not rewrite candidate state or publish to the browser.
+packet. This command does not rewrite candidate or browser state. The workload
+read model exposes the retained production result separately from qualification
+evidence. `/explore` consumes that result only after its acceptance and exact
+bindings pass the browser evidence adapter; candidate state, staged
+qualification results, and rejected runs remain non-projectable.
 
 `generate terrain` writes a deterministic terrain-control GeoJSON source into
 WORKING and registers it in the project. It binds the complete effective recipe

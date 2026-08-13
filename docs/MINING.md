@@ -333,8 +333,10 @@ The file-backed `scene-admission` workload freezes accepted and typed rejection
 oracles for tampering, stale parents, formats, coordinates, identities, missing
 objects, and bounds. Its CLI run path independently revalidates a committed
 editor transfer envelope and retains the result and embedded projection packet.
-This remains incomplete product work until Explorer consumes only the admitted
-result and the retained atlas change path is closed.
+The workload list exposes only the last production result, and Explorer accepts
+only an accepted non-scenario result with exact workload, graph, capability,
+package, snapshot, packet, terrain, coordinate-plane, and placement bindings.
+The retained atlas change path remains incomplete.
 
 ## Workload And Runtime Placement
 

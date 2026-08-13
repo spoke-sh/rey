@@ -63,8 +63,164 @@ export interface WorkloadSummary {
   topography_frontier_rows: number;
   topography_patch: TopographyPatch | null;
   topography_projection: ProjectionPacket | null;
+  scene_admission_results: number;
+  latest_scene_admission: SceneAdmissionResult | null;
   last_run_status: "passed" | "blocked" | null;
   last_test_result_id: string | null;
+}
+
+export type RegionalCoordinateSpace =
+  | "native_crs84"
+  | "synthetic_semantic"
+  | "semantic_mercator"
+  | "county_local"
+  | "camera";
+
+export interface RegionalBounds {
+  west_microdegrees: number;
+  south_microdegrees: number;
+  east_microdegrees: number;
+  north_microdegrees: number;
+  crosses_antimeridian: boolean;
+}
+
+export interface RegionalSceneOmission {
+  kind: string;
+  subject: string;
+  omitted_count: number;
+  reason: string;
+}
+
+export interface RegionalSceneLineage {
+  kind: string;
+  identity: string;
+  revision: string;
+}
+
+export interface RegionalProjectionPacket {
+  schema: "rey.regional-projection-packet.v1";
+  packet_id: string;
+  source_package_id: string;
+  source_snapshot_revision: string;
+  grammar_id: string;
+  coordinate_bindings: Array<{
+    space: RegionalCoordinateSpace;
+    status: "bound" | "derived" | "view_only" | "unsupported";
+    dimensions: string[];
+    units: string[];
+    authority: string;
+    source_revision: string;
+    disclosure: string;
+  }>;
+  transforms: Array<{
+    transform: ContractIdentity;
+    source_space: RegionalCoordinateSpace;
+    target_space: RegionalCoordinateSpace;
+    source_origin: number[];
+    target_origin: number[];
+    parameters: string[];
+    inverse_policy: string;
+    distortion: string;
+  }>;
+  objects: Array<{
+    object_id: string;
+    source_id: string;
+    source_path: string;
+    source_artifact_id: string;
+    object_revision: string;
+    geometry_kind: string;
+    native_bounds: RegionalBounds;
+    layer:
+      "native_feature" | "terrain_control" | "hydrology" | "boundary" | "poi";
+    authority: string;
+  }>;
+  layers: Array<{
+    layer_id: string;
+    kind:
+      "native_feature" | "terrain_control" | "hydrology" | "boundary" | "poi";
+    object_ids: string[];
+    authority: string;
+    semantics: string;
+    source_revision: string;
+  }>;
+  validity: Array<{
+    validity_id: string;
+    class: "valid" | "no_data" | "unknown" | "unsupported";
+    scope: string;
+    source_revision: string;
+    rule: string;
+  }>;
+  terrain_program_id: string | null;
+  limits: {
+    max_sources: number;
+    max_native_objects: number;
+    max_layers: number;
+    max_validity_records: number;
+    max_transforms: number;
+    max_omissions: number;
+    max_native_bytes: number;
+  };
+  complete: boolean;
+  omissions: RegionalSceneOmission[];
+  lineage: RegionalSceneLineage[];
+}
+
+export interface AdmittedRegionalScene {
+  schema: "rey.admitted-regional-scene.v1";
+  scene_id: string;
+  region_id: string;
+  admission: {
+    admission_id: string;
+    operation: ContractIdentity;
+    implementation: ContractIdentity;
+    workload: ContractIdentity;
+    graph: ContractIdentity;
+    scenario_suite: ContractIdentity;
+    evaluator: ContractIdentity;
+    capability_snapshot_id: string;
+    editor_commit_id: string;
+    editor_sequence: number;
+    package_id: string;
+    parent_package_id: string | null;
+    package_snapshot_revision: string;
+    admission_request_id: string;
+  };
+  native_bounds: RegionalBounds;
+  projection: RegionalProjectionPacket;
+  artifacts: {
+    source_topography_patch_id: string | null;
+    admitted_atlas_revision: string | null;
+    projection_packet_id: string;
+    terrain_program_id: string | null;
+    terrain_authority: string;
+  };
+  complete: boolean;
+  omissions: RegionalSceneOmission[];
+  lineage: RegionalSceneLineage[];
+}
+
+export interface SceneAdmissionResult {
+  schema: "rey.scene-admission-result.v1";
+  result_id: string;
+  candidate_id: string;
+  workload: ContractIdentity;
+  graph: ContractIdentity;
+  scenario: ContractIdentity | null;
+  campaign_id: string;
+  capability_snapshot_id: string;
+  status: "accepted" | "rejected";
+  code: string;
+  detail: string;
+  scene: AdmittedRegionalScene | null;
+  limits: {
+    max_sources: number;
+    max_features: number;
+    max_coordinates: number;
+    max_source_bytes: number;
+    max_total_bytes: number;
+    max_omissions: number;
+  };
+  authority: string;
 }
 
 export type TopographyRegionState =

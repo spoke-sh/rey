@@ -270,7 +270,9 @@ function SemanticGlobeLayer({
       aria-label={
         globe.posture === "orientation"
           ? `${globe.beacons.length} exact workload beacons on an unmapped project globe`
-          : `${globe.regions.length} admitted semantic world regions on a synthetic globe`
+          : globe.posture === "semantic_atlas"
+            ? `${globe.regions.length} admitted semantic world regions on a synthetic globe`
+            : `${globe.regions.length} admitted regional projection points on a synthetic globe`
       }
       className={sx(styles.worldGeometryLayer, styles.semanticGlobeLayer)}
       data-atlas-revision={
@@ -284,7 +286,9 @@ function SemanticGlobeLayer({
       <title>
         {globe.posture === "orientation"
           ? "This unmapped globe orients exact file-backed workload candidates. Beacon positions are stable presentation geometry, not admitted semantic coordinates or distance claims."
-          : "Synthetic semantic longitude and latitude place admitted survey regions on a spherical world. They are not Earth coordinates, and zoom never reclusters this atlas revision."}
+          : globe.posture === "semantic_atlas"
+            ? "Synthetic semantic longitude and latitude place admitted survey regions on a spherical world. They are not Earth coordinates, and zoom never reclusters this atlas revision."
+            : "Revision-bound synthetic placements from admitted regional projection packets. They are not Earth coordinates, retained atlas sectors, or physical-distance claims."}
       </title>
       <defs>
         <radialGradient id="rey-semantic-globe-fill" cx="34%" cy="26%" r="76%">
@@ -456,7 +460,7 @@ function SemanticGlobeLayer({
       >
         {globe.posture === "orientation"
           ? `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`
-          : `SEMANTIC SPHERE / ${globe.regions.length} ADMITTED REGIONS / REV ${globe.source_revision.slice(0, 12)}`}
+          : `${globe.posture === "semantic_atlas" ? "SEMANTIC SPHERE" : "REGIONAL WORLD"} / ${globe.regions.length} ADMITTED REGIONS / REV ${globe.source_revision.slice(0, 12)}`}
       </text>
     </svg>
   );

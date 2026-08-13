@@ -191,13 +191,15 @@ unmapped consent surface, not `rey.semantic-atlas.v1`; it claims no semantic
 distance, terrain, project boundary, or agent activity. Inspection and consent
 descend into the exact workload record and Feed approval control. Only an
 explicitly admitted survey followed by a bounded run may replace it with
-mapped evidence. The Explorer projects admitted topography patches
-and, once the qualifying workload exists, admitted regional scenes through one
-persistent semantic scene. World places admitted regions on the synthetic,
-revision-bound sphere from `rey.semantic-atlas.v1`; its longitude/latitude axes
-have no Earth CRS or physical-distance claim. The World globe shows sectors,
-regional POIs, and clusters while local charted envelopes, unresolved probe
-horizons, and boundary weather remain available in closer lenses.
+mapped evidence. The Explorer projects admitted topography patches and the
+latest accepted non-scenario regional result through one persistent semantic
+scene. Survey World placement comes from the current
+`rey.semantic-atlas.v1`. Regional World placement comes from each exact
+native-to-synthetic transform and has zero inferred footprint radius. Both
+synthetic longitude/latitude axes have no Earth CRS or physical-distance claim.
+Retained regional sectors and footprints do not exist yet; local charted
+survey envelopes, unresolved probe horizons, and boundary weather remain
+available in closer survey lenses.
 
 As the lens enters Atlas, that same synthetic sphere unwraps through a
 horizontally wrapping spherical-Mercator transform with explicit pole,
@@ -346,9 +348,12 @@ is not a topography patch, projection packet, browser scene, or proof. The
 editor freezes bounded native GeoJSON and a feature/POI index. The file-backed
 `scene-admission` workload now validates exact current packages and native
 objects, qualifies deterministic acceptance/rejection scenarios, and retains
-an admitted regional scene plus projection packet through the CLI. This is
-still enabling work because creating or admitting a package leaves `/explore`
-unchanged. [Explorer](EXPLORER.md), [Mining](MINING.md), and [Plan
+an admitted regional scene plus projection packet through the CLI. The
+workload-list read model exposes only the last production run, and `/explore`
+projects it only when its accepted status and exact workload, graph,
+capability, package, snapshot, packet, terrain, coordinate-plane, and placement
+bindings agree. Candidate commits and qualification fixtures remain outside
+that projection. [Explorer](EXPLORER.md), [Mining](MINING.md), and [Plan
 0003](../plans/0003-scene-to-explorer.md) own this boundary.
 
 Picking reverses only screen position to a stable scene identity and exact

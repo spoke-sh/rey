@@ -30,8 +30,16 @@ a retained regional scene and projection packet. The verified
 `rey.admitted-regional-scene.v1`,
 `rey.regional-projection-packet.v1`, and `rey.explore-grammar.v1` structural
 contracts plus a bounded multi-region fixture define that path. `/explore`
-does not consume the retained regional result yet. The workload list derives a current synthetic semantic atlas but does
-not retain prior revisions or movement deltas. Explorer implements the fresh
+now consumes only the latest accepted production result retained by the
+workload read model: rejected results, qualification scenarios, candidate
+packages, and mismatched workload/graph/package/packet/coordinate bindings
+fail closed. It projects the exact synthetic point at World, the same point on
+a semantic-Mercator chart at Atlas, and exact native object bounds in a bounded
+County reference view. This first County view explicitly retains absent terrain,
+atlas sectors, footprints, geometry reconstruction, and deep source links as
+boundaries rather than inventing them. The workload list derives a current
+synthetic semantic atlas but does not retain prior revisions or movement
+deltas. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
 material, WebGPU/WebGL2 paths, and an accessible reference path. Semantic
@@ -63,9 +71,9 @@ reuse, and retained visual/performance proof remain open.
 - [x] Qualify one exact `SCENE@n` package, retain the admitted regional result,
   and emit a verified projection packet without copying candidate-only hints
   into observed truth.
-- [ ] Make `/explore` consume only that admitted result; keep candidate preview,
+- [x] Make `/explore` consume only that admitted result; keep candidate preview,
   browser generation, and browser admission absent or persistently separate.
-- [ ] Prove editor WORKING → INDEX → package → workload INDEX → qualification
+- [x] Prove editor WORKING → INDEX → package → workload INDEX → qualification
   → human HEAD admission → Explorer through `rey ... -vv` before calling the
   slice complete.
 

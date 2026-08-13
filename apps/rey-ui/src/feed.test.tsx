@@ -541,6 +541,8 @@ function workload(): WorkloadList["workloads"][number] {
     topography_frontier_rows: 0,
     topography_patch: null,
     topography_projection: null,
+    scene_admission_results: 0,
+    latest_scene_admission: null,
     last_run_status: null,
     last_test_result_id: "blake3:test-alpha",
   };

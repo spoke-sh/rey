@@ -38,6 +38,7 @@ import {
 } from "./explore/engine/camera";
 import { compileSceneSnapshot } from "./explore/engine/scene";
 import { admittedTopographies } from "./explore/projection/topography-projector";
+import { admittedRegionalScenes } from "./explore/projection/regional-scene-projector";
 import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
@@ -98,7 +99,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     | undefined
   >(undefined);
   const initialZoom =
-    admittedTopographies(portfolio).length === 0
+    admittedTopographies(portfolio).length === 0 &&
+    admittedRegionalScenes(portfolio).length === 0
       ? WORLD_LENS_ZOOM
       : DEFAULT_LENS_ZOOM;
   const [zoom, setZoom] = useState(

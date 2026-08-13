@@ -18,11 +18,12 @@ use rey_runtime::{
     PortfolioSnapshot, PortfolioSurfaceObservation, PortfolioWorkloadObservation,
     QualificationRecord, RENDER_ADMITTED_REGIONAL_SCENE_OPERATION_ID,
     RENDER_TOPOGRAPHY_PATCH_OPERATION_ID, RunStatus, SCENE_ADMISSION_OPERATION_ID, Scenario,
-    ScenarioSuite, SceneAdmissionScenario, TestStatus, TopographySurveyScenario, ValueSource,
-    ValueType, WorkloadAttention, WorkloadDefinition, WorkloadDefinitionParts,
-    WorkloadGitDependency, WorkloadGitDependencyKind, WorkloadLimits, WorkloadOwnedSurface,
-    WorkloadPort, WorkloadRunResult, WorkloadScenarioExecutionResult, WorkloadTestResult,
-    WorkloadValue, built_in_operation_contract, built_in_workloads, utf8_exact_comparator_contract,
+    ScenarioSuite, SceneAdmissionResult, SceneAdmissionScenario, TestStatus,
+    TopographySurveyScenario, ValueSource, ValueType, WorkloadAttention, WorkloadDefinition,
+    WorkloadDefinitionParts, WorkloadGitDependency, WorkloadGitDependencyKind, WorkloadLimits,
+    WorkloadOwnedSurface, WorkloadPort, WorkloadRunResult, WorkloadScenarioExecutionResult,
+    WorkloadTestResult, WorkloadValue, built_in_operation_contract, built_in_workloads,
+    utf8_exact_comparator_contract,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -3444,6 +3445,8 @@ pub struct WorkloadSummary {
     pub topography_frontier_rows: u64,
     pub topography_patch: Option<TopographyPatch>,
     pub topography_projection: Option<ProjectionPacket>,
+    pub scene_admission_results: u64,
+    pub latest_scene_admission: Option<SceneAdmissionResult>,
 }
 
 impl WorkloadSummary {
@@ -3565,6 +3568,12 @@ impl WorkloadSummary {
             ProjectionPacket::from_topography_patch(patch)
                 .expect("retained verified topography must produce a projection packet")
         });
+        let production_scene_admissions = record
+            .and_then(|record| record.last_run.as_ref())
+            .filter(|run| run.workload == workload.workload && run.graph == workload.graph.graph)
+            .map(|run| run.scene_admissions.as_slice())
+            .unwrap_or_default();
+        let latest_scene_admission = production_scene_admissions.last().cloned();
         Self {
             provenance: None,
             workload: workload.workload.clone(),
@@ -3604,6 +3613,8 @@ impl WorkloadSummary {
             topography_frontier_rows: last_patch.map_or(0, |patch| patch.frontier.len() as u64),
             topography_patch: last_patch.cloned(),
             topography_projection,
+            scene_admission_results: production_scene_admissions.len() as u64,
+            latest_scene_admission,
         }
     }
 
