@@ -105,12 +105,12 @@ scenarios:
           SEED AGENTS.md · surveyed · 7 candidates
           SEED README.md · surveyed · 2 candidates
           LOCATOR https://example.com/reference · unsupported · no network URI resolver is admitted for this survey
+          LOCATOR https://example.com/%zz · malformed · candidate is not a canonical supported locator
+          LOCATOR README.md · resolved · rey+local://file/README.md?revision=blake3%3A05e586172e604d75343ee0fdd76a1ad42d0d0048099e7863d0140d6452bb0876
           LOCATOR ../../outside.md · unauthorized · reference escapes the admitted workspace root
           LOCATOR docs/GUIDE.md · resolved · rey+local://file/docs%2FGUIDE.md?revision=blake3%3Aaea4ca5b01e503c84ce2593e3813e082a2f5015762277ddeb972a78d24d8d248
-          LOCATOR README.md · resolved · rey+local://file/README.md?revision=blake3%3A05e586172e604d75343ee0fdd76a1ad42d0d0048099e7863d0140d6452bb0876
-          LOCATOR https://example.org/spec · unsupported · no network URI resolver is admitted for this survey
-          LOCATOR https://example.com/%zz · malformed · candidate is not a canonical supported locator
           LOCATOR docs/GUIDE.md · resolved · rey+local://file/docs%2FGUIDE.md?revision=blake3%3Aaea4ca5b01e503c84ce2593e3813e082a2f5015762277ddeb972a78d24d8d248
+          LOCATOR https://example.org/spec · unsupported · no network URI resolver is admitted for this survey
           LOCATOR docs/MISSING.md · missing · reference target is missing
       survey:
         fixture_project: basic
@@ -133,8 +133,8 @@ scenarios:
           DELTA SOURCE → TARGET · +10 -0 ~0
           SEED README.md · surveyed · 2 candidates
           SEED README.rst · missing · 0 candidates
-          LOCATOR https://example.org/spec · unsupported · no network URI resolver is admitted for this survey
           LOCATOR docs/GUIDE.md · resolved · rey+local://file/docs%2FGUIDE.md?revision=blake3%3Aaea4ca5b01e503c84ce2593e3813e082a2f5015762277ddeb972a78d24d8d248
+          LOCATOR https://example.org/spec · unsupported · no network URI resolver is admitted for this survey
       survey:
         fixture_project: basic
         seed_paths:

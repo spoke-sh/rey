@@ -61,7 +61,7 @@ use rey::{
         MAX_GIT_WATCH_ELAPSED_MS, MAX_GIT_WATCH_INTERVAL_MS, MAX_GIT_WATCH_ITERATIONS,
         MAX_GIT_WATCH_RETRIES,
     },
-    inspect_environment, inspect_environment_with_mapping,
+    inspect_environment_with_mapping,
     journal::{
         JournalAdmission, JournalAuthor, JournalAuthorKind, JournalBlock, JournalEntryProposal,
         JournalError, JournalLog, LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
@@ -115,7 +115,8 @@ use rey_runtime::{
     WorkloadDefinition, WorkloadRunResult, WorkloadTestResult, WorkloadValue,
     execute_workload_scenario_selection_with_snapshot, orient_portfolio_attention,
     render_scene_admission_result, run_workload, run_workload_with_scene, run_workload_with_source,
-    run_workload_with_topography, source_fixture_root, test_workload_with_observer_and_snapshot,
+    run_workload_with_topography, runtime_capability_snapshot,
+    test_workload_with_observer_and_snapshot,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -3183,11 +3184,13 @@ fn workload_admit_activation(
         .ok_or(CliError::EmptyWorkloadCatalog)?;
     let environment =
         retained_environment_snapshot(workspace)?.ok_or(CliError::ActivationEnvironmentRequired)?;
+    let runtime = runtime_capability_snapshot()?;
     let admission = WorkloadActivationAdmission::new(
         activation,
         workload_head,
         &resolved.definition,
         environment.semantic_digest,
+        runtime.semantic_digest,
     )?;
     let admission = store.admit_activation(admission)?;
     let mut stdout = io::stdout().lock();
@@ -3288,9 +3291,16 @@ fn workload_execute_activation(
     }
     let environment =
         retained_environment_snapshot(workspace)?.ok_or(CliError::ActivationEnvironmentRequired)?;
-    if environment.semantic_digest != admission.capability_snapshot_id {
+    if environment.semantic_digest != admission.environment_snapshot_id {
         return Err(LocalWorkloadStateError::ActivationPrecondition(
-            "retained capability snapshot changed after activation admission".to_owned(),
+            "retained environment snapshot changed after activation admission".to_owned(),
+        )
+        .into());
+    }
+    let runtime = runtime_capability_snapshot()?;
+    if runtime.semantic_digest != admission.runtime_capability_snapshot_id {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "runtime capability snapshot changed after activation admission".to_owned(),
         )
         .into());
     }
@@ -3315,7 +3325,7 @@ fn workload_execute_activation(
         let result = execute_workload_scenario_selection_with_snapshot(
             &workload,
             &admission.selected_scenario_ids,
-            environment.semantic_digest,
+            runtime.semantic_digest,
         )?;
         WorkloadActivationExecution::new(&admission, &workload, result)?
     };
@@ -3456,9 +3466,16 @@ fn workload_verify_activation(
     }
     let environment =
         retained_environment_snapshot(workspace)?.ok_or(CliError::ActivationEnvironmentRequired)?;
-    if environment.semantic_digest != admission.capability_snapshot_id {
+    if environment.semantic_digest != admission.environment_snapshot_id {
         return Err(LocalWorkloadStateError::ActivationPrecondition(
-            "retained capability snapshot changed after activation admission".to_owned(),
+            "retained environment snapshot changed after activation admission".to_owned(),
+        )
+        .into());
+    }
+    let runtime = runtime_capability_snapshot()?;
+    if runtime.semantic_digest != admission.runtime_capability_snapshot_id {
+        return Err(LocalWorkloadStateError::ActivationPrecondition(
+            "runtime capability snapshot changed after activation admission".to_owned(),
         )
         .into());
     }
@@ -3471,7 +3488,7 @@ fn workload_verify_activation(
     let full_result = execute_workload_scenario_selection_with_snapshot(
         &workload,
         &all_scenario_ids,
-        environment.semantic_digest,
+        runtime.semantic_digest,
     )?;
     let recomputation = WorkloadActivationRecomputation::new(
         &execution,
@@ -3856,23 +3873,9 @@ fn workload_test(
 }
 
 fn workload_test_capability_snapshot(
-    definitions: &[WorkloadDefinition],
+    _definitions: &[WorkloadDefinition],
 ) -> Result<SemanticDigest, CliError> {
-    Ok(
-        if definitions
-            .iter()
-            .any(|workload| workload.workload.id == BUILT_IN_SOURCE_SEARCH_WORKLOAD_ID)
-        {
-            inspect_environment(&source_fixture_root(), DiscoveryLimits::default())?.semantic_digest
-        } else if definitions
-            .iter()
-            .any(|workload| workload.workload.id == CONTEXT_ANCHOR_SURVEY_WORKLOAD_ID)
-        {
-            SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish()
-        } else {
-            SemanticHasher::new("rey.no-mining-capability-snapshot.v1").finish()
-        },
-    )
+    Ok(runtime_capability_snapshot()?.semantic_digest)
 }
 
 fn admit_workload_files(
@@ -4008,7 +4011,7 @@ fn workload_run(
             let candidate = editor.admission_candidate(
                 scene_sequence.expect("scene workload established an exact sequence"),
             )?;
-            let snapshot = inspect_environment(workspace, DiscoveryLimits::default())?;
+            let snapshot = runtime_capability_snapshot()?;
             let scene = SceneAdmissionInput {
                 candidate,
                 limits: SceneAdmissionLimits::default(),
@@ -4023,7 +4026,7 @@ fn workload_run(
             if args.max_matches == 0 {
                 return Err(CliError::InvalidLimit);
             }
-            let snapshot = inspect_environment(workspace, DiscoveryLimits::default())?;
+            let snapshot = runtime_capability_snapshot()?;
             let mining_limits = MiningLimits {
                 max_matches: args.max_matches,
                 max_rows: args.max_matches,
@@ -4044,7 +4047,7 @@ fn workload_run(
             if args.context_before != 0 || args.context_after != 0 {
                 return Err(CliError::UnexpectedTopographyContext);
             }
-            let snapshot = inspect_environment(workspace, DiscoveryLimits::default())?;
+            let snapshot = runtime_capability_snapshot()?;
             let prior = state
                 .record(&workload.workload.id)
                 .and_then(|record| record.last_run.as_ref())
@@ -6355,8 +6358,13 @@ fn write_workload_activation_admission(
     }
     write_portfolio_field(
         output,
-        "Capabilities",
-        admission.capability_snapshot_id.as_str(),
+        "Environment",
+        admission.environment_snapshot_id.as_str(),
+    )?;
+    write_portfolio_field(
+        output,
+        "Runtime",
+        admission.runtime_capability_snapshot_id.as_str(),
     )?;
     write_portfolio_field(
         output,
@@ -7605,8 +7613,10 @@ fn write_activation_admissions(
         } else {
             writeln!(
                 output,
-                "    workload HEAD {} · capabilities {} · revalidate before execution",
-                admission.workload_head_commit_id, admission.capability_snapshot_id,
+                "    workload HEAD {} · environment {} · runtime {} · revalidate before execution",
+                admission.workload_head_commit_id,
+                admission.environment_snapshot_id,
+                admission.runtime_capability_snapshot_id,
             )?;
         }
     }
@@ -10757,10 +10767,7 @@ fn environment_capability_status_description(change: &CapabilityChange) -> Strin
     let record = change.after.as_ref().or(change.before.as_ref());
     let capability_id = change.key.capability_id.as_str();
     let label = match capability_id {
-        "frame.arrow-stream" => "typed interchange: Arrow stream frames",
         "git.repository.inspect" => "Git repository state: HEAD + semantic index",
-        "source.search.literal-utf8" => "mining capability: literal UTF-8 source search",
-        "workspace.metadata" => "context surface: workspace metadata",
         "tool.git.identity" => "application capability: Git identity probe",
         "tool.ripgrep.identity" => "application capability: ripgrep identity probe",
         "env.mapping.graph" => "reasoning map",
@@ -10981,6 +10988,7 @@ fn write_environment_application_planes(
         .iter()
         .filter(|application| direction.target(application).is_some())
         .collect::<Vec<_>>();
+    let desired_groups = environment_application_groups(&desired, direction);
     let applications_found =
         environment_application_count(&projection.applications, direction, Availability::Available);
     let applications_not_found = environment_application_count(
@@ -11004,7 +11012,11 @@ fn write_environment_application_planes(
     writeln!(
         output,
         "{}",
-        style.bold(&format!("DESIRED INVENTORY · {} declared", desired.len()))
+        style.bold(&format!(
+            "DESIRED INVENTORY · {} declared · {} groups",
+            desired.len(),
+            desired_groups.len()
+        ))
     )?;
     let inventory = match direction {
         EnvironmentProjectionDirection::HeadToIndex => {
@@ -11030,30 +11042,38 @@ fn write_environment_application_planes(
     if desired.is_empty() {
         writeln!(output, "  NONE")?;
     } else {
-        for application in &desired {
-            let observation = direction
-                .target(application)
-                .expect("desired application has a target declaration");
-            let requirement = if observation.required {
-                "required"
-            } else {
-                "optional"
-            };
-            let capabilities = if observation.potential_capabilities.is_empty() {
-                "no desired capabilities".to_owned()
-            } else {
-                observation.potential_capabilities.join(" · ")
-            };
+        for (group, applications) in desired_groups {
             writeln!(
                 output,
-                "  {:<22} {} · {requirement} · {capabilities}",
-                application.object_id, observation.name
+                "  {} · {}",
+                group.to_ascii_uppercase(),
+                applications.len()
             )?;
-            writeln!(
-                output,
-                "    Purpose              {}",
-                observation.purpose.as_deref().unwrap_or("not declared")
-            )?;
+            for application in applications {
+                let observation = direction
+                    .target(application)
+                    .expect("desired application has a target declaration");
+                let requirement = if observation.required {
+                    "required"
+                } else {
+                    "optional"
+                };
+                let capabilities = if observation.potential_capabilities.is_empty() {
+                    "no desired capabilities".to_owned()
+                } else {
+                    observation.potential_capabilities.join(" · ")
+                };
+                writeln!(
+                    output,
+                    "    {:<20} {} · {requirement} · {capabilities}",
+                    application.object_id, observation.name
+                )?;
+                writeln!(
+                    output,
+                    "      Purpose            {}",
+                    observation.purpose.as_deref().unwrap_or("not declared")
+                )?;
+            }
         }
     }
 
@@ -11068,7 +11088,7 @@ fn write_environment_application_planes(
     )?;
     writeln!(
         output,
-        "  Method                 declared adapters · bounded PATH resolution · fixed identity probes only"
+        "  Method                 flattened declarations · bounded PATH resolution · fixed identity probes only"
     )?;
     writeln!(
         output,
@@ -11116,6 +11136,47 @@ fn write_environment_application_planes(
         )?;
     }
     Ok(())
+}
+
+fn environment_application_groups<'a>(
+    applications: &[&'a EnvironmentObjectStatus<EnvironmentApplicationObservation>],
+    direction: EnvironmentProjectionDirection,
+) -> Vec<(
+    String,
+    Vec<&'a EnvironmentObjectStatus<EnvironmentApplicationObservation>>,
+)> {
+    let mut groups = BTreeMap::<String, Vec<_>>::new();
+    for application in applications {
+        let observation = direction
+            .target(application)
+            .expect("desired application has a target declaration");
+        if observation.groups.is_empty() {
+            groups
+                .entry("ungrouped".to_owned())
+                .or_default()
+                .push(*application);
+        } else {
+            for group in &observation.groups {
+                groups.entry(group.clone()).or_default().push(*application);
+            }
+        }
+    }
+    let mut groups = groups.into_iter().collect::<Vec<_>>();
+    groups.sort_by(|(left, _), (right, _)| {
+        (environment_application_group_rank(left), left)
+            .cmp(&(environment_application_group_rank(right), right))
+    });
+    groups
+}
+
+fn environment_application_group_rank(group: &str) -> u8 {
+    match group {
+        "communications" => 0,
+        "agents" => 1,
+        "retrieval" => 2,
+        "code" => 3,
+        _ => 4,
+    }
 }
 
 fn write_application_group(

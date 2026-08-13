@@ -1715,7 +1715,7 @@ mod tests {
             &[("Content-Type", "application/json")],
             &approval,
         );
-        assert!(approved.starts_with("HTTP/1.1 201"));
+        assert!(approved.starts_with("HTTP/1.1 201"), "{approved}");
         assert!(approved.contains("\"schema\":\"rey.workload-commit-result.v1\""));
         assert!(approved.contains("\"sequence\":1"));
 
@@ -1808,10 +1808,10 @@ mod tests {
 
         let environment = request(&address, "GET /api/v1/environment HTTP/1.1");
         assert!(environment.starts_with("HTTP/1.1 200"));
-        assert!(environment.contains("\"schema\":\"rey.environment-status.v1\""));
+        assert!(environment.contains("\"schema\":\"rey.environment-status.v2\""));
         assert!(
             environment
-                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v1\"")
+                .contains("\"operator\":{\"schema\":\"rey.environment-operator-projection.v2\"")
         );
 
         let cadence = request(&address, "GET /api/v1/cadence HTTP/1.1");

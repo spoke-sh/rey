@@ -218,7 +218,9 @@ convergence.
 
 The environment's `02 / BOUNDED SEARCH` evidence plane. It places the exact
 desired application inventory beside the bounded found, missing, and errored
-search record without implying that a discovered application may be invoked.
+search record. The inventory may place one declaration in multiple logical
+groups, while the search record contains one observation per application and
+never implies that a discovered application may be invoked.
 
 ### Bootstrap
 
@@ -295,6 +297,8 @@ changes that may invalidate dependent evidence or actions.
 The frozen typed relation of providers, tools, operations, trust, availability,
 and limits available to one transition. It is a first-class runtime input and
 participates in action, mining-result, reasoning-surface, and proof identity.
+An admitted environment snapshot and an automatic intrinsic-runtime snapshot
+are separate capability snapshots; neither substitutes for the other.
 
 ### Capability requirement
 
@@ -587,9 +591,10 @@ identity and replay verification.
 
 ### Desired application inventory
 
-The canonical declaration of applications Rey intends to locate and why. Its
-identity is separate from the capability snapshot that records the bounded
-search outcomes.
+The canonical declaration of applications Rey intends to locate, their
+many-to-many logical groups, and why they belong. Its identity is separate from
+the flattened capability snapshot that records one bounded search outcome per
+application.
 
 ### Directed text
 
@@ -654,13 +659,15 @@ and creates an unadmitted workload request.
 
 ### Environment
 
-The explicit boundary from which Rey discovers context surfaces and available
-compute. It is represented by versioned capability evidence, not by sourcing
-ambient shell startup or assuming conventional project variables.
+The explicit boundary from which Rey observes process seeds, declared external
+applications, provider guarantees, and reasoning-map surfaces. It is
+represented by admitted versioned evidence, not by sourcing ambient shell
+startup, assuming conventional project variables, or listing Rey's own
+compiled operations.
 
 ### Environment map
 
-An explicitly supplied `rey.env-map.v1` reasoning resource that declares
+An explicitly supplied `rey.env-map.v2` reasoning resource that declares
 relevant variables, input files, desired applications, and directed
 relationships. It is agent-generatable context, not bootstrap configuration,
 provider implementation, proof, or execution authority.
@@ -1555,6 +1562,13 @@ One of Rey's canonical repository commands—`setup`, `rey`, `check`, `test`,
 Execution of an exact fresh qualified graph against admitted real inputs and
 providers. Test and run use the same graph contract, but test binds fixtures
 and safe substitutions while run binds caller-admitted real inputs.
+
+### Runtime capability snapshot
+
+The automatic, content-identified relation of deterministic operations
+compiled into the running Rey package. It is workspace-independent and does
+not pass through `rey env add` or `rey env commit`; workload admissions bind it
+separately from the retained environment snapshot.
 
 ### Runtime state
 

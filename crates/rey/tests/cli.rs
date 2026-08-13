@@ -3303,7 +3303,11 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     assert_eq!(recomputed.full_result.scenarios.len(), 2);
     assert_eq!(
         recomputed.full_result.capability_snapshot_id,
-        admitted.capability_snapshot_id
+        admitted.runtime_capability_snapshot_id
+    );
+    assert_ne!(
+        admitted.environment_snapshot_id,
+        admitted.runtime_capability_snapshot_id
     );
     assert_eq!(
         recomputed.authority,
@@ -3480,9 +3484,6 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "Changes not staged for environment commit:",
         "new:       environment variable: HOME",
         "new:       application: git",
-        "new:       typed interchange: Arrow stream frames (frame.arrow-stream)",
-        "new:       mining capability: literal UTF-8 source search (source.search.literal-utf8)",
-        "new:       context surface: workspace metadata (workspace.metadata)",
         "No environment commits yet. Use `rey env add`",
     ] {
         assert!(
@@ -3490,6 +3491,23 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
             "missing status evidence: {evidence}"
         );
     }
+    assert!(unborn.contains(concat!(
+        "        new:       application: agy\n",
+        "        new:       application: claude\n",
+        "        new:       application: codex\n",
+        "        new:       application: copilot\n",
+        "        new:       application: discord\n",
+        "        new:       application: droid\n",
+        "        new:       application: git\n",
+        "        new:       application: github\n",
+        "        new:       application: imessage\n",
+        "        new:       application: microsoft-teams\n",
+        "        new:       application: opencode\n",
+        "        new:       application: rg\n",
+        "        new:       application: signal\n",
+        "        new:       application: slack\n",
+        "        new:       application: telegram",
+    )));
     for inventory_detail in [
         "Workspace              ",
         "Working tree           ",
@@ -3669,6 +3687,11 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "01 / DIRECTED TEXT",
         "Environment variables · 3 tracked · 1 changed",
         "02 / BOUNDED SEARCH",
+        "DESIRED INVENTORY · 15 declared · 4 groups",
+        "COMMUNICATIONS · 7",
+        "AGENTS · 6",
+        "RETRIEVAL · 1",
+        "CODE · 3",
         "APPLICATIONS · 15 searched",
         "15 changed",
         "REFERENCE PLANE",
@@ -3942,7 +3965,7 @@ fn env_mapping_graph_is_visible_secret_safe_and_diff_directed() {
     fs::set_permissions(&probe, permissions).unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: mode
     kind: variable
@@ -3960,6 +3983,7 @@ nodes:
   - id: probe
     kind: executable
     name: rey-map-probe
+    groups: [retrieval, code]
     purpose: Search the bounded fixture corpus
     required: true
     potential_capabilities: [source.search]
@@ -4098,12 +4122,16 @@ edges:
         "Search the bounded fixture corpus"
     );
     assert_eq!(
+        probe_application["working"]["groups"],
+        serde_json::json!(["code", "retrieval"])
+    );
+    assert_eq!(
         status_document["operator"]["schema"],
-        "rey.environment-operator-projection.v1"
+        "rey.environment-operator-projection.v2"
     );
     assert_eq!(
         status_document["operator"]["application_inventory"]["working"]["schema"],
-        "rey.environment-application-inventory.v1"
+        "rey.environment-application-inventory.v2"
     );
     assert!(
         status_document["operator"]["application_inventory"]["working"]["inventory_id"]
@@ -4335,7 +4363,7 @@ edges:
         "Evidence               ENV@1 → ENV@2 · DIFFERENT",
         "Environment            5 variables · 17 applications · 1 input · 2 references · complete",
         "Changes                1 variable · 0 applications · 1 input · 0 references",
-        "Reasoning map          rey.env.yaml · rey.env-map.v1",
+        "Reasoning map          rey.env.yaml · rey.env-map.v2",
         "    update mapped environment",
     ] {
         assert!(
@@ -4409,7 +4437,7 @@ edges:
 
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v1\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
+        "schema: rey.env-map.v2\nnodes:\n  - id: secret\n    kind: variable\n    name: REY_SECRET\n    sensitive: true\n    capture: digest\n",
     )
     .unwrap();
     let invalid = run_rey_with_env(
@@ -4456,7 +4484,7 @@ fn env_add_patch_stages_selected_capabilities_and_commit_ignores_later_drift() {
     fs::write(workspace.path().join("beta.txt"), "beta one\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: alpha
     kind: file
@@ -4601,7 +4629,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
     fs::write(workspace.path().join("beta.txt"), "beta\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v1\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n",
+        "schema: rey.env-map.v2\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n",
     )
     .unwrap();
     assert!(
@@ -4630,7 +4658,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
     );
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        "schema: rey.env-map.v1\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n  - id: beta\n    kind: file\n    path: beta.txt\n    required: true\n",
+        "schema: rey.env-map.v2\nnodes:\n  - id: alpha\n    kind: file\n    path: alpha.txt\n    required: true\n  - id: beta\n    kind: file\n    path: beta.txt\n    required: true\n",
     )
     .unwrap();
 
@@ -5026,7 +5054,7 @@ fn selected_create_attention_binds_the_harness_response_through_human_admission(
     fs::write(workspace.path().join("input.txt"), "unowned surface\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: input
     kind: file
@@ -5652,7 +5680,7 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert!(agent.contains("\"relationship\":\"supervises\""));
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
     assert!(environment.starts_with("HTTP/1.1 200"));
-    assert!(environment.contains("\"schema\":\"rey.environment-status.v1\""));
+    assert!(environment.contains("\"schema\":\"rey.environment-status.v2\""));
     let cadence = http_request(address, "GET /api/v1/cadence HTTP/1.1");
     assert!(cadence.starts_with("HTTP/1.1 200"));
     assert!(cadence.contains("\"schema\":\"rey.ui-cadence.v1\""));
@@ -7260,7 +7288,7 @@ fn portfolio_mining_is_verifiable_across_test_list_status_and_run() {
     fs::write(workspace.path().join("input.txt"), "portfolio surface\n").unwrap();
     fs::write(
         workspace.path().join("rey.env.yaml"),
-        r#"schema: rey.env-map.v1
+        r#"schema: rey.env-map.v2
 nodes:
   - id: input
     kind: file

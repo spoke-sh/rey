@@ -415,12 +415,12 @@ backend-reported draw calls; label candidates; JavaScript heap; interaction
 convergence; and `requestAnimationFrame` presentation cadence. The last two
 timing families do not measure GPU completion or establish a frame-rate claim.
 
-The mapping parser hard-cuts to `rey.env-map.v1`; the process-owned discovery
+The mapping parser hard-cuts to `rey.env-map.v2`; the process-owned discovery
 seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit
 `--map`; desired executables require a bounded purpose; and bounded
 UTF-8 values are retained only for explicit
 non-sensitive `capture: value` nodes. `crates/rey/src/env.rs` derives the
-shared `rey.environment-operator-projection.v1` from the same frozen HEAD,
+shared `rey.environment-operator-projection.v2` from the same frozen HEAD,
 index, and working capability snapshots used by the authoritative deltas.
 `GET|HEAD /api/v1/environment`, `rey env status`, and the React environment
 workbench consume that common derivation. TypeScript projection tests and the

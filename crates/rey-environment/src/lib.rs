@@ -38,9 +38,10 @@ use std::os::unix::process::CommandExt;
 pub const CAPABILITY_RELATION: &str = "rey.capabilities";
 pub const CAPABILITY_SCHEMA_VERSION: &str = "1";
 pub const LOCAL_PROVIDER_REVISION: u64 = 1;
+const DISCOVERY_APPLICATION_PROVIDER_REVISION: u64 = 2;
 pub const DISCOVERY_SEED_PROVIDER_ID: &str = "rey.discovery-seed";
 pub const DISCOVERY_SEED_SCHEMA: &str = "rey.discovery-seeds.v1";
-pub const DISCOVERY_APPLICATION_SCHEMA: &str = "rey.discovery-application.v1";
+pub const DISCOVERY_APPLICATION_SCHEMA: &str = "rey.discovery-application.v2";
 pub const DISCOVERY_SEED_NAMES: [&str; 3] = ["HOME", "PWD", "PATH"];
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -362,6 +363,7 @@ pub struct DiscoverySeedProvenance {
 pub struct DiscoveryApplicationProvenance {
     pub schema: String,
     pub name: String,
+    pub groups: Vec<String>,
     pub purpose: String,
     pub required: bool,
     pub potential_capabilities: Vec<String>,
@@ -396,11 +398,7 @@ impl LocalDiscovery {
             return Err(DiscoveryError::WorkspaceNotDirectory(workspace));
         }
 
-        let mut capabilities = vec![
-            builtin_capability(),
-            workspace_capability(&workspace),
-            source_search_capability(&workspace),
-        ];
+        let mut capabilities = Vec::new();
         for name in DISCOVERY_SEED_NAMES {
             capabilities.push(discovery_seed_capability(
                 name,
@@ -515,6 +513,7 @@ struct ToolAdapter {
     name: &'static str,
     executable: &'static str,
     capability_id: &'static str,
+    groups: &'static [&'static str],
     purpose: &'static str,
     required: bool,
     identity_args: Option<&'static [&'static str]>,
@@ -525,6 +524,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "agy",
         executable: "agy",
         capability_id: "agent.runtime.agy.identity",
+        groups: &["agents"],
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
         identity_args: None,
@@ -533,6 +533,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "claude",
         executable: "claude",
         capability_id: "agent.runtime.claude.identity",
+        groups: &["agents"],
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
         identity_args: None,
@@ -541,6 +542,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "codex",
         executable: "codex",
         capability_id: "agent.runtime.codex.identity",
+        groups: &["agents"],
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
         identity_args: None,
@@ -549,6 +551,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "copilot",
         executable: "copilot",
         capability_id: "agent.runtime.copilot.identity",
+        groups: &["agents"],
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
         identity_args: None,
@@ -557,6 +560,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "droid",
         executable: "droid",
         capability_id: "agent.runtime.droid.identity",
+        groups: &["agents"],
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
         identity_args: None,
@@ -565,6 +569,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "git",
         executable: "git",
         capability_id: "tool.git.identity",
+        groups: &["code"],
         purpose: "Inspect repository identity and activation inputs",
         required: false,
         identity_args: Some(&["--version"]),
@@ -573,6 +578,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "rg",
         executable: "rg",
         capability_id: "tool.ripgrep.identity",
+        groups: &["code", "retrieval"],
         purpose: "Extend bounded source mining with fast text search",
         required: false,
         identity_args: Some(&["--version"]),
@@ -581,6 +587,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "opencode",
         executable: "opencode",
         capability_id: "agent.runtime.opencode.identity",
+        groups: &["agents"],
         purpose: "Potential agent runtime for bounded collaboration tasks",
         required: false,
         identity_args: None,
@@ -589,6 +596,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "slack",
         executable: "slack",
         capability_id: "comms.application.slack.identity",
+        groups: &["communications"],
         purpose: "Potential Slack communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
@@ -597,6 +605,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "github",
         executable: "gh",
         capability_id: "comms.application.github.identity",
+        groups: &["code", "communications"],
         purpose: "Potential GitHub communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
@@ -605,6 +614,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "telegram",
         executable: "telegram-cli",
         capability_id: "comms.application.telegram.identity",
+        groups: &["communications"],
         purpose: "Potential Telegram communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
@@ -613,6 +623,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "imessage",
         executable: "imsg",
         capability_id: "comms.application.imessage.identity",
+        groups: &["communications"],
         purpose: "Potential iMessage communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
@@ -621,6 +632,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "microsoft-teams",
         executable: "m365",
         capability_id: "comms.application.microsoft-teams.identity",
+        groups: &["communications"],
         purpose: "Potential Microsoft 365 and Teams communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
@@ -629,6 +641,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "signal",
         executable: "signal-cli",
         capability_id: "comms.application.signal.identity",
+        groups: &["communications"],
         purpose: "Potential Signal communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
@@ -637,6 +650,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         name: "discord",
         executable: "discord",
         capability_id: "comms.application.discord.identity",
+        groups: &["communications"],
         purpose: "Potential Discord client identity; discovery grants no CLI or relay authority",
         required: false,
         identity_args: None,
@@ -710,102 +724,17 @@ fn application_provenance(adapter: &ToolAdapter, search_path_count: u64) -> Stri
     serde_json::json!(DiscoveryApplicationProvenance {
         schema: DISCOVERY_APPLICATION_SCHEMA.to_owned(),
         name: adapter.name.to_owned(),
+        groups: adapter
+            .groups
+            .iter()
+            .map(|group| (*group).to_owned())
+            .collect(),
         purpose: adapter.purpose.to_owned(),
         required: adapter.required,
         potential_capabilities: vec![adapter.capability_id.to_owned()],
         search_path_count,
     })
     .to_string()
-}
-
-fn builtin_capability() -> CapabilityRecord {
-    CapabilityRecord {
-        provider_id: "rey.builtin".to_owned(),
-        provider_revision: LOCAL_PROVIDER_REVISION,
-        provider_kind: "builtin".to_owned(),
-        capability_id: "frame.arrow-stream".to_owned(),
-        capability_kind: "typed_frame".to_owned(),
-        resolved_location: None,
-        version: Some(env!("CARGO_PKG_VERSION").to_owned()),
-        content_digest: None,
-        provenance: Some("compiled_rey_runtime".to_owned()),
-        availability: Availability::Available,
-        trust_class: TrustClass::BuiltIn,
-        operations: vec!["encode_arrow_stream".to_owned(), "render_table".to_owned()],
-        enforced_limits: vec!["bounded_input_rows".to_owned()],
-        unsupported_limits: Vec::new(),
-        observed_at: None,
-        error_code: None,
-        error_detail: None,
-    }
-}
-
-fn workspace_capability(workspace: &Path) -> CapabilityRecord {
-    CapabilityRecord {
-        provider_id: "rey.workspace".to_owned(),
-        provider_revision: LOCAL_PROVIDER_REVISION,
-        provider_kind: "workspace".to_owned(),
-        capability_id: "workspace.metadata".to_owned(),
-        capability_kind: "context_surface".to_owned(),
-        resolved_location: Some(workspace.display().to_string()),
-        version: None,
-        content_digest: None,
-        provenance: Some("explicit_canonical_root".to_owned()),
-        availability: Availability::Available,
-        trust_class: TrustClass::ExplicitLocal,
-        operations: vec!["inspect_metadata".to_owned()],
-        enforced_limits: vec!["canonical_workspace_root".to_owned()],
-        unsupported_limits: vec!["filesystem_sandbox".to_owned()],
-        observed_at: None,
-        error_code: None,
-        error_detail: None,
-    }
-}
-
-fn source_search_capability(workspace: &Path) -> CapabilityRecord {
-    let operation = builtin_source_search_operation();
-    let capability = source_search_capability_identity();
-    CapabilityRecord {
-        provider_id: operation.implementation.id.clone(),
-        provider_revision: operation.implementation.revision,
-        provider_kind: "builtin_local_source".to_owned(),
-        capability_id: capability.id,
-        capability_kind: "source_mining".to_owned(),
-        resolved_location: Some(workspace.display().to_string()),
-        version: Some(env!("CARGO_PKG_VERSION").to_owned()),
-        content_digest: Some(capability.semantic_digest.to_string()),
-        provenance: Some("compiled_deterministic_baseline".to_owned()),
-        availability: Availability::Available,
-        trust_class: TrustClass::ExplicitLocal,
-        operations: vec![
-            "bind_explicit_source_corpus".to_owned(),
-            "search_literal_utf8".to_owned(),
-            format!(
-                "{}@{}#{}",
-                operation.operation.id,
-                operation.operation.revision,
-                operation.operation.semantic_digest
-            ),
-        ],
-        enforced_limits: vec![
-            "canonical_workspace_root".to_owned(),
-            "context_lines".to_owned(),
-            "explicit_file_set".to_owned(),
-            "file_bytes".to_owned(),
-            "match_rows".to_owned(),
-            "no_symlink_traversal".to_owned(),
-            "total_bytes".to_owned(),
-        ],
-        unsupported_limits: vec![
-            "filesystem_sandbox".to_owned(),
-            "generated_file_policy".to_owned(),
-            "ignore_file_semantics".to_owned(),
-            "regex".to_owned(),
-        ],
-        observed_at: None,
-        error_code: None,
-        error_detail: None,
-    }
 }
 
 fn available_tool(
@@ -848,7 +777,7 @@ fn available_tool(
     }
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
-        provider_revision: LOCAL_PROVIDER_REVISION,
+        provider_revision: DISCOVERY_APPLICATION_PROVIDER_REVISION,
         provider_kind: "known_tool".to_owned(),
         capability_id: adapter.capability_id.to_owned(),
         capability_kind: "identity_probe".to_owned(),
@@ -938,7 +867,7 @@ fn failed_tool(
     }
     CapabilityRecord {
         provider_id: format!("rey.tool.{}", adapter.name),
-        provider_revision: LOCAL_PROVIDER_REVISION,
+        provider_revision: DISCOVERY_APPLICATION_PROVIDER_REVISION,
         provider_kind: "known_tool".to_owned(),
         capability_id: adapter.capability_id.to_owned(),
         capability_kind: "identity_probe".to_owned(),
@@ -1201,13 +1130,13 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        Availability, CapabilityRecord, CapabilitySnapshot, CommandRequest, DiscoveryError,
-        DiscoveryLimits, LOCAL_PROVIDER_REVISION, LocalDiscovery, TrustClass, resolve_executable,
-        run_bounded,
+        Availability, CapabilityRecord, CapabilitySnapshot, CommandRequest,
+        DiscoveryApplicationProvenance, DiscoveryError, DiscoveryLimits, LOCAL_PROVIDER_REVISION,
+        LocalDiscovery, TrustClass, resolve_executable, run_bounded,
     };
 
     #[test]
-    fn zero_tool_discovery_is_still_a_useful_standalone_snapshot() {
+    fn zero_tool_discovery_contains_only_environment_observations() {
         let workspace = TempDir::new().unwrap();
         let snapshot = LocalDiscovery {
             workspace: workspace.path().to_owned(),
@@ -1219,35 +1148,20 @@ mod tests {
         .unwrap();
 
         assert_eq!(snapshot.profile, "standalone");
-        assert_eq!(snapshot.capabilities.len(), 21);
+        assert_eq!(snapshot.capabilities.len(), 18);
         assert_eq!(
             snapshot
                 .capabilities
                 .iter()
                 .filter(|row| row.availability == Availability::Available)
                 .count(),
-            3
+            0
         );
-        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 21);
-        let source_search = snapshot
-            .capabilities
-            .iter()
-            .find(|row| row.capability_id == "source.search.literal-utf8")
-            .expect("built-in source search capability");
-        assert_eq!(source_search.availability, Availability::Available);
-        assert!(
-            source_search
-                .operations
-                .iter()
-                .any(|operation| operation.starts_with("rey.source-search.literal-utf8@1#"))
-        );
-        for unsupported in ["generated_file_policy", "ignore_file_semantics", "regex"] {
-            assert!(
-                source_search
-                    .unsupported_limits
-                    .contains(&unsupported.to_owned())
-            );
-        }
+        assert_eq!(snapshot.to_frame().unwrap().dataframe().height(), 18);
+        assert!(snapshot.capabilities.iter().all(|capability| !matches!(
+            capability.capability_id.as_str(),
+            "frame.arrow-stream" | "source.search.literal-utf8" | "workspace.metadata"
+        )));
         let repeated = LocalDiscovery {
             workspace: workspace.path().to_owned(),
             search_paths: Vec::new(),
@@ -1393,7 +1307,48 @@ mod tests {
                     .unsupported_limits
                     .contains(&"relay_authority".to_owned())
             );
+            let provenance: DiscoveryApplicationProvenance =
+                serde_json::from_str(application.provenance.as_deref().unwrap()).unwrap();
+            assert!(provenance.groups.contains(&"communications".to_owned()));
         }
+    }
+
+    #[test]
+    fn process_owned_application_groups_are_many_to_many_without_duplicate_search_rows() {
+        let workspace = TempDir::new().unwrap();
+        let snapshot = LocalDiscovery {
+            workspace: workspace.path().to_owned(),
+            search_paths: Vec::new(),
+            seed_values: BTreeMap::new(),
+            limits: DiscoveryLimits::default(),
+        }
+        .inspect()
+        .unwrap();
+
+        let applications = snapshot
+            .capabilities
+            .iter()
+            .filter(|row| row.capability_kind == "identity_probe")
+            .collect::<Vec<_>>();
+        assert_eq!(applications.len(), 15);
+
+        let groups = |capability_id: &str| {
+            let application = applications
+                .iter()
+                .find(|row| row.capability_id == capability_id)
+                .unwrap();
+            serde_json::from_str::<DiscoveryApplicationProvenance>(
+                application.provenance.as_deref().unwrap(),
+            )
+            .unwrap()
+            .groups
+        };
+        assert_eq!(groups("tool.ripgrep.identity"), ["code", "retrieval"]);
+        assert_eq!(
+            groups("comms.application.github.identity"),
+            ["code", "communications"]
+        );
+        assert_eq!(groups("agent.runtime.codex.identity"), ["agents"]);
     }
 
     #[cfg(unix)]

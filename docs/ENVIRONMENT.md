@@ -3,14 +3,16 @@
 This document defines Rey's target environment-discovery and capability
 contracts. Environment awareness lets Rey use the best context surfaces
 available without making any host tool an invisible boot dependency.
-The implemented version-1 capability relation covers built-in frames, one
-explicit workspace, allowlisted `git` and `rg` identity probes, and a contained
-Git repository observation. Capability deltas, required-capability
-certificates, bounded local-only proof bundles, a deterministic built-in local
-source binding, and literal search compose through the workload CLI. External
-`rg`, parser, index, and other action adapters remain later work.
+The implemented version-1 capability relation covers the process-owned seed
+set, a grouped desired-application inventory flattened into bounded executable
+search records, and explicitly supplied reasoning-map observations.
+Intrinsic Rey operations and the workspace binding are not environment
+entries: runtime capabilities are frozen separately, while the workspace is
+request and source lineage. Git repository state likewise belongs to the Git
+cadence/activation provider. External `rg`, parser, index, and other action
+adapters remain later work.
 
-The current `rey.env-map.v1` keeps desired-application declarations separate
+The current `rey.env-map.v2` keeps desired-application declarations separate
 from bounded search records and permits bounded non-sensitive value capture.
 Bootstrap never loads a conventional map: the process owns only `HOME`, `PWD`,
 and `PATH`, while maps are explicit agent-generatable reasoning resources. The
@@ -25,8 +27,9 @@ Git-shaped environment history revisions those observations.
 - A **capability** is one typed operation or guarantee advertised by a provider.
 - A **mining capability** is a versioned relational or source operation such as
   retrieve, search, parse, index, traverse, group, compare, or visualize.
-- A **capability snapshot** is the frozen typed relation of capabilities
-  available to one Rey transition.
+- A **capability snapshot** is a frozen typed relation of capabilities bound to
+  one Rey transition. Environment and intrinsic-runtime snapshots have
+  separate identities and admission semantics.
 - A **profile** describes provider selection and required guarantee policy; it
   does not select a different Rey runtime.
 
@@ -113,12 +116,17 @@ are typed `environment_seed` capability rows under
 not load a project configuration file, enumerate arbitrary variables, source
 shell profiles, or recursively scan any seed path.
 
-The current compiled desired-application inventory contains the declared
-`git` and `rg` adapters plus `agy`, `claude`, `codex`, `copilot`, `droid`, and
-`opencode` as major agent-runtime options. PATH resolution records executable
-presence for agent runtimes without starting them; fixed bounded identity
-probes remain limited to the non-interactive `git` and `rg` adapters. Discovery
-does not turn a found application into assignment or execution authority.
+The current compiled desired-application inventory classifies each declaration
+under one or more canonical groups: `communications`, `agents`, `retrieval`,
+and `code`. The groups are many-to-many declaration metadata—GitHub participates
+in communications and code, while `rg` participates in retrieval and code.
+Discovery flattens those declarations by application identity before PATH
+resolution, so one application is searched and observed exactly once even when
+it appears in multiple groups. Each search record carries complete
+`rey.discovery-application.v2` provenance. PATH resolution records executable presence for
+agent runtimes without starting them; fixed bounded identity probes remain
+limited to the non-interactive `git` and `rg` adapters. Discovery does not turn
+a found application into assignment or execution authority.
 `/environment` is the human owner of this desired/search evidence; higher-order
 views may consume exact capabilities but do not repeat the executable inventory.
 
@@ -138,13 +146,14 @@ evidence supports their relevance; secret values remain presence-only.
 An explicit workspace-relative `--map` resource declares environment surfaces
 an agent, programmer, or deterministic rule has judged relevant after
 discovery. A file named `rey.env.yaml` has no conventional meaning and is not
-loaded unless the caller names it. The closed `rey.env-map.v1` schema contains:
+loaded unless the caller names it. The closed `rey.env-map.v2` schema contains:
 
 - variable nodes with exact names, sensitivity, and `presence`, `digest`, or
   bounded UTF-8 `value` capture;
 - workspace-relative regular-file nodes with a required-admission marker;
-- desired executable nodes with a required purpose, resolved from the captured
-  search path, and declared potential capabilities; and
+- desired executable nodes with zero or more canonical group identifiers, a
+  required purpose, resolution from the captured search path, and declared
+  potential capabilities; and
 - exact directed edges naming the declared relationship between nodes.
 
 The loader bounds document bytes, strings, nodes, edges, projection rows,
@@ -158,10 +167,12 @@ Observation never retains mapped file bytes. A sensitive variable records
 presence only. A non-sensitive variable may retain presence, a
 domain-separated digest, or its exact bounded UTF-8 value when the mapping
 author explicitly selects `capture: value`. A file records its
-workspace-relative path, regular status, length, and bounded digest. An
+workspace-relative path, regular status, length, and bounded digest. A
 canonical executable-declaration subset has its own desired-application
-inventory identity. An executable records its purpose, resolved path, length,
-digest, and bounded search-path
+inventory identity under `rey.environment-application-inventory.v2`. An
+executable's normalized groups participate in that
+identity alongside its purpose and potential capabilities. It records its
+resolved path, length, digest, and bounded search-path
 count without invocation in a separate capability-snapshot search record. Its
 potential capabilities remain explicitly `unadmitted` until a separate adapter
 freezes operation semantics, arguments, effects, trust, and limits.
@@ -180,11 +191,12 @@ configuration, execution authority, or proof of a dependency.
 
 ## Discovery Lifecycle
 
-1. **Discovery:** capture the process-owned `HOME`, `PWD`, and `PATH` seed set,
-   explicit workspace, built-in capabilities, and declared adapter search
-   results under total time, row, and byte limits.
+1. **Discovery:** capture the process-owned `HOME`, `PWD`, and `PATH` seed set
+   plus declared application and reasoning-map observations under total time,
+   row, and byte limits. The workspace scopes the observation but is not
+   emitted as an environment capability.
 2. **Reasoning over discovery:** present the frozen record to policy. An agent
-   may generate a bounded `rey.env-map.v1` resource; Rey parses it only when
+   may generate a bounded `rey.env-map.v2` resource; Rey parses it only when
    explicitly supplied and never accepts it as action authority.
 3. **Survey:** resolve admitted locators to exact source anchors with explicit
    provider, revision, limit, completeness, and error evidence. See
@@ -197,13 +209,13 @@ providers unless the selected profile requires all of them.
 
 ## Built-In And Local Providers
 
-The minimum standalone profile may provide:
+The minimum standalone runtime may provide:
 
-- bounded access to one explicitly selected workspace root;
+- bounded access to one explicitly selected workspace root as request lineage;
 - Git repository, commit/ref/index, and bounded worktree observations when the
   workspace is a supported repository;
 - file metadata and content hashing;
-- built-in frame, delta, and proof operations; and
+- intrinsic frame, mining, delta, and proof operations in a runtime snapshot;
 - local content-addressed evidence-bundle output.
 
 Known-tool providers may add version control, text search, language toolchains,
@@ -218,9 +230,10 @@ admissible capability only after its provider contract validates it.
 
 ## Mining Providers
 
-Mining capabilities use the same discovery and admission boundary as every
-other provider operation. A capability row may eventually advertise operation
-contracts such as:
+External mining capabilities use the same environment discovery and admission
+boundary as other provider operations. Intrinsic deterministic mining belongs
+to the separately identified runtime snapshot and requires no environment
+admission. Either relation may advertise operation contracts such as:
 
 ```text
 relation.retrieve · relation.group · relation.traverse
@@ -230,10 +243,11 @@ delta.relational · delta.text · delta.structural
 visualize.table · visualize.patch · visualize.tree · visualize.graph
 ```
 
-Most names remain architectural vocabulary. The implemented baseline
+Most names remain architectural vocabulary. The implemented runtime baseline
 advertises exact capability `source.search.literal-utf8`, operation
 `rey.source-search.literal-utf8`, corpus schema `rey.source-corpus.v1`, and
-match relation `rey.source-matches` version `1`.
+match relation `rey.source-matches` version `1`. This record is absent from
+`rey env status`, `add`, `diff`, and `commit`.
 
 An adapter records its accepted source kinds, output artifact/schema kinds,
 canonical parameters, encoding/language support, completeness behavior,
@@ -259,8 +273,9 @@ new source authority but still binds its operation revision and limits.
 
 ### Built-In Local Source Baseline
 
-The standalone snapshot advertises a compiled deterministic literal-search
-baseline separately from the generic `rg` identity probe. Callers explicitly
+The standalone runtime snapshot advertises a compiled deterministic
+literal-search baseline separately from the environment's generic `rg`
+identity probe. Callers explicitly
 select regular files beneath one canonical root. Binding rejects absolute,
 parent, empty, duplicate, non-regular, escaping, and symlinked paths; applies
 file, total-byte, line, path, and file-count limits; reads twice to reject drift
@@ -298,7 +313,7 @@ surface those facts without adding a separate mining command hierarchy.
 
 The initial semantic profiles are:
 
-- **standalone** — use allowed built-in and local providers; and
+- **standalone** — use the intrinsic runtime plus allowed local providers; and
 - **required capabilities** — declare exact capabilities/guarantees a space,
   lens, action, or claim needs regardless of profile.
 
@@ -353,9 +368,9 @@ and fresh `WORKING` evidence.
 Before the first commit, HEAD and the effective index are typed empty
 capability relations. Without a retained index, the effective index equals
 HEAD. The command reads but never creates or repairs local state. Explicit JSON
-emits `rey.environment-status.v1` with the complete working snapshot, both
+emits `rey.environment-status.v2` with the complete working snapshot, both
 authoritative capability deltas, and
-`rey.environment-operator-projection.v1`. Every process seed and explicitly
+`rey.environment-operator-projection.v2`. Every process seed and explicitly
 mapped object carries exact
 HEAD/index/working observations plus staged, unstaged, and overall change
 classification. Its default human projection is a compact working-tree view:
@@ -385,8 +400,9 @@ operator projection for `INDEX → WORKING`; `--staged` selects `HEAD → INDEX`
 Human output is one compact delta coordinate followed by exactly three
 environment-native evidence planes: directed variable text, bounded
 application search, and input/reference topology. The bounded-search plane
-shows the exact target application-declaration identity as `DESIRED INVENTORY`
-before the target capability snapshot as `SEARCH RECORD`. Unchanged mapped objects remain bounded context,
+shows the exact target application-declaration identity grouped by logical
+group as `DESIRED INVENTORY`, then the flattened target capability snapshot
+as `SEARCH RECORD`. Unchanged mapped objects remain bounded context,
 while insertions, deletions, and modifications use the selected source and
 target observations. The header preserves the authoritative
 capability-delta assessment and retained change count, including changes that

@@ -393,18 +393,18 @@ Git delta does not directly execute a tool or mutation.
 The implemented admission accepts only an activation in acknowledged history
 whose target snapshot and transition still define the current cursor. It binds
 the exact workload HEAD commit and snapshot, matching workload/graph contracts,
-resolved scenario ids, retained capability snapshot, proposal completeness,
-and narrowed effective budget into
-`rey.workload-activation-admission.v1`. Repeating the same admission is
+resolved scenario ids, retained environment snapshot, automatic intrinsic
+runtime snapshot, proposal completeness, and narrowed effective budget into
+`rey.workload-activation-admission.v2`. Repeating the same admission is
 identity-stable. A pending proposal, stale cursor, changed graph, unknown
-scenario, or missing capability snapshot fails closed. The admission says only
+scenario, or missing environment/runtime snapshot fails closed. The admission says only
 `admitted_for_runtime_scheduling`; no graph has run and no progress is implied.
 
 For a new execution, `rey workloads execute-activation <admission-id>` accepts
 only a current unexecuted admission, revalidates its acknowledged Git cursor,
 workload HEAD,
-exact workload/graph/suite/scenario contracts, and retained capability
-snapshot, then evaluates the selected scenarios. The typed
+exact workload/graph/suite/scenario contracts, retained environment snapshot,
+and current intrinsic runtime snapshot, then evaluates the selected scenarios. The typed
 `rey.workload-activation-execution.v1` binds the admission and activation to
 `rey.workload-scenario-execution-result.v1`, its directed deltas and mining or
 topography evidence, and the measured serialized evidence bytes. Evidence

@@ -284,7 +284,7 @@ rey env [--workspace <path>] [--state-dir <path>] log [-p]
 
 `status` is the single environment inventory and revision view. It performs a
 fresh observation, retains the complete working snapshot in
-`rey.environment-status.v1`, and derives one typed variable, application,
+`rey.environment-status.v2`, and derives one typed variable, application,
 input, and reference projection over `HEAD → INDEX → WORKING`. Human output is
 a compact working-tree view: current `ENV@n`, then environment-native staged
 and unstaged groups when present. Clean status contains only the coordinate and
@@ -302,8 +302,10 @@ structured diff. `diff` selects `INDEX → WORKING` by
 default and `HEAD → INDEX` with `--staged`. Its table projection uses the same
 three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
 `02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. Bounded search first renders
-the exact application-declaration identity as `DESIRED INVENTORY`, then the
-exact target capability snapshot as `SEARCH RECORD`. The authoritative
+the exact many-to-many application groups as `DESIRED INVENTORY`, then the
+flattened target capability snapshot as `SEARCH RECORD`, with one search row
+per application regardless of group count. The declaration coordinate is
+`rey.environment-application-inventory.v2`. The authoritative
 capability assessment remains in the coordinate header; JSON is
 `rey.environment-diff.v1` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the
@@ -321,15 +323,16 @@ The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 `${workspace}/.rey/env/index.json` by default. Plain human history is a compact
 revision/evidence/environment/change/mapping/message chronology; patch mode
 adds directed variables, application search, inputs, and topology. Explicit
-JSON uses `rey.environment-status.v1`,
+JSON uses `rey.environment-status.v2`,
 `rey.environment-commit-result.v1`, and `rey.environment-log.v1`.
 
 Discovery always records the process-owned `HOME`, `PWD`, and `PATH` seeds and
 the compiled desired-adapter inventory. It loads no project configuration by
 convention. `--map` explicitly selects an agent-generated workspace-relative
-regular YAML resource. `rey.env-map.v1` is a closed, bounded
+regular YAML resource. `rey.env-map.v2` is a closed, bounded
 graph of variable, file, and desired executable nodes plus declared reference
-edges. Every desired executable records why it belongs in the inventory.
+edges. Every desired executable records why it belongs in the inventory and
+may carry multiple normalized group identifiers.
 Mapped file bytes are not retained. Sensitive variables are presence-only.
 Non-sensitive variables may opt into presence, a value digest, or an exact
 bounded UTF-8 value; files retain bounded identities; executable candidates
@@ -342,6 +345,12 @@ The desired inventory includes the `git` executable, but environment snapshots
 exclude repository HEAD, ref, semantic-index, and reachability observations.
 Those remain first-class through `rey-git`, cadence, and exact workload
 activation evidence; Git movement alone is not an environment delta.
+
+Environment snapshots also exclude `frame.arrow-stream`,
+`source.search.literal-utf8`, and synthetic workspace metadata. The first two
+belong to the automatic intrinsic runtime snapshot; the workspace root is
+bound directly in requests and source lineage. None requires environment
+admission.
 
 Admission accepts evidence into history; it does not admit executable action or
 turn potential capabilities into provider contracts. There is no pathspec,
@@ -1437,8 +1446,8 @@ coordinate. Candidate terrain controls never enter that program.
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded
 application search, and the input/reference plane. The application plane keeps
-the application-inventory identity and declared purposes distinct from the
-working search snapshot identity and outcomes. Environment state, mapping, completeness, and
+the application-inventory identity, declared groups, and purposes distinct from
+the flattened working search snapshot identity and outcomes. Environment state, mapping, completeness, and
 admission counts remain compact metadata within those sections rather than
 separate visual destinations.
 

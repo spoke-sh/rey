@@ -50,7 +50,7 @@ pub const WORKLOAD_ADD_RESULT_SCHEMA: &str = "rey.workload-add-result.v1";
 pub const WORKLOAD_COMMIT_SCHEMA: &str = "rey.workload-commit.v1";
 pub const WORKLOAD_COMMIT_RESULT_SCHEMA: &str = "rey.workload-commit-result.v1";
 pub const WORKLOAD_LOG_SCHEMA: &str = "rey.workload-log.v1";
-pub const WORKLOAD_ACTIVATION_ADMISSION_SCHEMA: &str = "rey.workload-activation-admission.v1";
+pub const WORKLOAD_ACTIVATION_ADMISSION_SCHEMA: &str = "rey.workload-activation-admission.v2";
 pub const WORKLOAD_ACTIVATION_EXECUTION_SCHEMA: &str = "rey.workload-activation-execution.v1";
 pub const WORKLOAD_ACTIVATION_RECOMPUTATION_SCHEMA: &str =
     "rey.workload-activation-recomputation.v1";
@@ -424,7 +424,8 @@ pub struct WorkloadActivationAdmission {
     pub evaluator: ContractIdentity,
     pub declared_scenarios: Vec<ContractIdentity>,
     pub selected_scenario_ids: Vec<String>,
-    pub capability_snapshot_id: SemanticDigest,
+    pub environment_snapshot_id: SemanticDigest,
+    pub runtime_capability_snapshot_id: SemanticDigest,
     pub effective_budget: GitActivationBudget,
     pub authority: String,
 }
@@ -434,14 +435,16 @@ impl WorkloadActivationAdmission {
         activation: GitActivationProposal,
         workload_head: &WorkloadCommit,
         workload: &WorkloadDefinition,
-        capability_snapshot_id: SemanticDigest,
+        environment_snapshot_id: SemanticDigest,
+        runtime_capability_snapshot_id: SemanticDigest,
     ) -> Result<Self, LocalWorkloadStateError> {
         activation.verify()?;
         workload_head.verify()?;
         workload.verify()?;
         if activation.workload_id != workload.workload.id
             || activation.graph != workload.graph.graph
-            || !is_semantic_digest(&capability_snapshot_id)
+            || !is_semantic_digest(&environment_snapshot_id)
+            || !is_semantic_digest(&runtime_capability_snapshot_id)
             || !workload_head.snapshot.packages.iter().any(|package| {
                 package.workload == workload.workload
                     && package.graph == workload.graph.graph
@@ -499,7 +502,8 @@ impl WorkloadActivationAdmission {
                 max_evidence_bytes: MAX_WORKLOAD_ACTIVATION_EVIDENCE_BYTES,
             },
             selected_scenario_ids,
-            capability_snapshot_id,
+            environment_snapshot_id,
+            runtime_capability_snapshot_id,
             authority: "admitted_for_runtime_scheduling; no workload or Git execution has occurred"
                 .to_owned(),
         };
@@ -531,7 +535,8 @@ impl WorkloadActivationAdmission {
             || !is_semantic_digest(&self.admission_id)
             || !is_semantic_digest(&self.workload_head_commit_id)
             || !is_semantic_digest(&self.workload_head_snapshot_id)
-            || !is_semantic_digest(&self.capability_snapshot_id)
+            || !is_semantic_digest(&self.environment_snapshot_id)
+            || !is_semantic_digest(&self.runtime_capability_snapshot_id)
             || self.activation.workload_id != self.workload.id
             || self.activation.graph != self.graph
             || self.declared_scenarios.is_empty()
@@ -640,7 +645,9 @@ impl WorkloadActivationExecution {
             || admission.evaluator != source_admission.evaluator
             || admission.declared_scenarios != source_admission.declared_scenarios
             || admission.selected_scenario_ids != source_admission.selected_scenario_ids
-            || admission.capability_snapshot_id != source_admission.capability_snapshot_id
+            || admission.environment_snapshot_id != source_admission.environment_snapshot_id
+            || admission.runtime_capability_snapshot_id
+                != source_admission.runtime_capability_snapshot_id
             || source.evidence_bytes > admission.effective_budget.max_evidence_bytes
         {
             return Ok(None);
@@ -695,7 +702,7 @@ impl WorkloadActivationExecution {
             || self.result.graph != admission.graph
             || self.result.scenario_suite != admission.scenario_suite
             || self.result.evaluator != admission.evaluator
-            || self.result.capability_snapshot_id != admission.capability_snapshot_id
+            || self.result.capability_snapshot_id != admission.runtime_capability_snapshot_id
             || self.result.selected_scenario_ids != admission.selected_scenario_ids
             || self.result.scenarios.len() != declared_scenarios.len()
             || self
@@ -853,7 +860,7 @@ impl WorkloadActivationRecomputation {
             || self.full_result.graph != admission.graph
             || self.full_result.scenario_suite != admission.scenario_suite
             || self.full_result.evaluator != admission.evaluator
-            || self.full_result.capability_snapshot_id != admission.capability_snapshot_id
+            || self.full_result.capability_snapshot_id != admission.runtime_capability_snapshot_id
             || self.full_result.selected_scenario_ids != declared_scenario_ids
             || self.full_result.scenarios.len() != admission.declared_scenarios.len()
             || !declared_scenarios_match
@@ -4268,7 +4275,8 @@ fn workload_activation_admission_digest(admission: &WorkloadActivationAdmission)
     for scenario_id in &admission.selected_scenario_ids {
         hasher.add_str(scenario_id);
     }
-    hasher.add_str(admission.capability_snapshot_id.as_str());
+    hasher.add_str(admission.environment_snapshot_id.as_str());
+    hasher.add_str(admission.runtime_capability_snapshot_id.as_str());
     hasher.add_u64(admission.effective_budget.max_scenarios);
     hasher.add_u64(admission.effective_budget.max_actions);
     hasher.add_u64(admission.effective_budget.max_evidence_bytes);
@@ -4842,7 +4850,9 @@ mod tests {
         let staged = store.index_catalog().unwrap();
         let result = test_workload_with_observer_and_snapshot(
             &staged.workloads[0].definition,
-            SemanticHasher::new("rey.fixture.topography-capability-snapshot.v1").finish(),
+            rey_runtime::runtime_capability_snapshot()
+                .unwrap()
+                .semantic_digest,
             |_| {},
         )
         .unwrap();

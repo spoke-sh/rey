@@ -25,9 +25,11 @@ use crate::ignore::{ReyIgnoreProjection, retained_environment_ignore};
 pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
 pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
-pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v1";
+pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v2";
 pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v1";
-pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v1";
+pub const ENVIRONMENT_OPERATOR_PROJECTION_SCHEMA: &str = "rey.environment-operator-projection.v2";
+pub const ENVIRONMENT_APPLICATION_INVENTORY_SCHEMA: &str =
+    "rey.environment-application-inventory.v2";
 pub const ENVIRONMENT_ADMISSION_INDEX_SCHEMA: &str = "rey.environment-admission-index.v1";
 pub const ENVIRONMENT_ADD_RESULT_SCHEMA: &str = "rey.environment-add-result.v1";
 pub const ENVIRONMENT_LOG_SCHEMA: &str = "rey.environment-log.v1";
@@ -366,6 +368,7 @@ pub struct EnvironmentVariableObservation {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EnvironmentApplicationObservation {
     pub name: String,
+    pub groups: Vec<String>,
     pub purpose: Option<String>,
     pub required: bool,
     pub availability: Availability,
@@ -582,6 +585,7 @@ impl MappedEnvironmentPlane {
                     format!("process-{}", provenance.name),
                     EnvironmentApplicationObservation {
                         name: provenance.name,
+                        groups: provenance.groups,
                         purpose: Some(provenance.purpose),
                         required: provenance.required,
                         availability: record.availability,
@@ -657,6 +661,7 @@ impl MappedEnvironmentPlane {
                     let EnvironmentMapNode::Executable {
                         id,
                         name,
+                        groups,
                         purpose,
                         required,
                         potential_capabilities,
@@ -670,6 +675,7 @@ impl MappedEnvironmentPlane {
                         id,
                         EnvironmentApplicationObservation {
                             name,
+                            groups,
                             purpose,
                             required,
                             availability: record.availability,
@@ -778,11 +784,15 @@ fn application_inventory_coordinate(
     source_path: String,
     applications: &BTreeMap<String, EnvironmentApplicationObservation>,
 ) -> EnvironmentApplicationInventoryCoordinate {
-    let mut hasher = SemanticHasher::new("rey.environment-application-inventory.v1");
+    let mut hasher = SemanticHasher::new(ENVIRONMENT_APPLICATION_INVENTORY_SCHEMA);
     hasher.add_u64(applications.len() as u64);
     for (id, application) in applications {
         hasher.add_str(id);
         hasher.add_str(&application.name);
+        hasher.add_u64(application.groups.len() as u64);
+        for group in &application.groups {
+            hasher.add_str(group);
+        }
         hasher.add_optional_str(application.purpose.as_deref());
         hasher.add_bool(application.required);
         hasher.add_u64(application.potential_capabilities.len() as u64);
@@ -791,7 +801,7 @@ fn application_inventory_coordinate(
         }
     }
     EnvironmentApplicationInventoryCoordinate {
-        schema: "rey.environment-application-inventory.v1".to_owned(),
+        schema: ENVIRONMENT_APPLICATION_INVENTORY_SCHEMA.to_owned(),
         source_path,
         inventory_id: hasher.finish().to_string(),
     }
@@ -1726,6 +1736,7 @@ mod tests {
     fn application_inventory_identity_excludes_search_outcomes() {
         let application = |availability, path: Option<&str>| EnvironmentApplicationObservation {
             name: "rg".to_owned(),
+            groups: vec!["code".to_owned(), "retrieval".to_owned()],
             purpose: Some("Search bounded source".to_owned()),
             required: false,
             availability,
@@ -1743,18 +1754,24 @@ mod tests {
             "rg".to_owned(),
             application(Availability::Unavailable, None),
         )]);
+        let mut regrouped = found.clone();
+        regrouped.get_mut("rg").unwrap().groups = vec!["retrieval".to_owned()];
 
         assert_eq!(
             application_inventory_coordinate("rey process".to_owned(), &found).inventory_id,
             application_inventory_coordinate("rey process".to_owned(), &missing).inventory_id
         );
+        assert_ne!(
+            application_inventory_coordinate("rey process".to_owned(), &found).inventory_id,
+            application_inventory_coordinate("rey process".to_owned(), &regrouped).inventory_id
+        );
     }
 
     #[test]
-    fn application_provenance_requires_the_complete_v1_document() {
+    fn application_provenance_requires_the_complete_v2_document() {
         let record = CapabilityRecord {
             provider_id: "rey.tool.rg".to_owned(),
-            provider_revision: 1,
+            provider_revision: 2,
             provider_kind: "known_tool".to_owned(),
             capability_id: "tool.ripgrep.identity".to_owned(),
             capability_kind: "identity_probe".to_owned(),
@@ -1782,6 +1799,7 @@ mod tests {
             serde_json::json!({
                 "schema": "rey.discovery-application.unsupported",
                 "name": "rg",
+                "groups": ["code", "retrieval"],
                 "purpose": "fixture",
                 "required": false,
                 "potential_capabilities": ["tool.ripgrep.identity"],

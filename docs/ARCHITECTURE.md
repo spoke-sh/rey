@@ -24,8 +24,10 @@ Rey separates ten responsibilities:
 
 1. **Workload plane** — versioned workloads compose generated compute graphs,
    scenarios, claims, policy, qualification, effects, and total limits.
-2. **Context-surface plane** — environment providers expose explicit local and
-   remote sources, tools, runtimes, and guarantees as a capability snapshot.
+2. **Context-surface plane** — environment providers expose observed process
+   seeds, declared external applications, maps, and provider guarantees as an
+   admitted environment snapshot. Workspace roots remain request/source
+   bindings, not synthetic capabilities.
 3. **Mining plane** — provider-neutral relational and source operations
    retrieve, extract, organize, compare, and visualize bounded evidence while
    concrete providers retain source and execution ownership.
@@ -49,8 +51,9 @@ Rey separates ten responsibilities:
    typed frames or native artifact references.
 8. **Delta plane** — relational, text, and structural comparison preserves
    directed changes and derives invalidation.
-9. **Runtime plane** — transitions validate proposals, execute bounded probes or
-   effects, update the frontier, and stop on convergence or an explicit bound.
+9. **Runtime plane** — compiled intrinsic capabilities have their own automatic
+   snapshot; transitions validate proposals, execute bounded probes or effects,
+   update the frontier, and stop on convergence or an explicit bound.
 10. **Policy plane** — an agent, deterministic rule, or human proposes a compute
    graph revision or another admissible action.
 
@@ -90,12 +93,17 @@ supervised.
                     │                         │
                     │        ┌────────────────┴────────────────┐
                     │        ▼                                 ▼
-                    │ local workspace                   discovered tools
+                    │ process seeds                  declared applications
+                    │ reasoning maps                provider observations
                     │        └────────────────┬────────────────┘
                     │                         ▼
-                    │              capability snapshot frame
+                    │               environment snapshot
+                    │
+                    │      compiled Rey operations
+                    │                         ▼
+                    │              runtime capability snapshot
                     └───────────────────┬─────┘
-                                        │
+                                        │ both exact identities
                     ┌───────────────────▼───────────────────┐
                     │ mining capabilities                   │
                     │ relational          source            │
@@ -499,11 +507,11 @@ Environment awareness is provided through narrow providers rather than an
 unbounded host scan. Initial provider classes may include:
 
 - process-owned `HOME`, `PWD`, and `PATH` discovery seeds;
-- built-in Rey functions that require no external executable;
+- built-in Rey functions retained in a separate automatic runtime snapshot;
 - an explicitly supplied, agent-authored environment mapping resource for
   relevant variables, input files, desired executable inventory, and reference
   edges;
-- an explicit local workspace with bounded filesystem access;
+- an explicit local workspace bound as request and source lineage;
 - a Git provider with commit/ref/index/worktree frames and polling;
 - known developer tools resolved from configured paths or `PATH`; and
 - language-specific toolchains, analyzers, build systems, and test runners.
@@ -529,14 +537,15 @@ environment history. Exact variable values are retained only for explicit
 non-sensitive `capture: value` declarations under a byte bound. Sensitive
 variables remain presence-only, and mapped file bytes are never retained.
 
-The capability snapshot is a typed relation. A first schema should be able to
+Environment and runtime capability snapshots are separate typed relations. A
+capability schema should be able to
 represent provider id/revision, capability id, kind, resolved location,
 version, content or provenance digest when available, availability, trust,
 supported operations, enforcement claims, observation time, and errors.
 
-Capability discovery is repeatable during a trace. A delta between snapshots
+Environment discovery is repeatable during a trace. A delta between snapshots
 can invalidate actions, lenses, and proofs. An executable path, version, digest,
-provider health, or capability change is part of runtime state rather
+provider health, or capability change is part of transition input rather
 than ambient trivia.
 
 The human environment revision loop adds a separate admission index between a

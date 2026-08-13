@@ -12,10 +12,10 @@ use thiserror::Error;
 
 use crate::{Availability, CapabilityRecord, TrustClass};
 
-pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v1";
-pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v1";
+pub const ENVIRONMENT_MAP_SCHEMA: &str = "rey.env-map.v2";
+pub const ENVIRONMENT_MAP_OBSERVATION_SCHEMA: &str = "rey.env-map-observation.v2";
 pub const ENVIRONMENT_MAP_PROVIDER_ID: &str = "rey.env-map";
-pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 3;
+pub const ENVIRONMENT_MAP_PROVIDER_REVISION: u64 = 4;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -106,6 +106,8 @@ pub enum EnvironmentMapNode {
         id: String,
         name: String,
         #[serde(default)]
+        groups: Vec<String>,
+        #[serde(default)]
         purpose: Option<String>,
         #[serde(default)]
         required: bool,
@@ -133,10 +135,13 @@ impl EnvironmentMapNode {
 
     fn normalize(&mut self) {
         if let Self::Executable {
+            groups,
             potential_capabilities,
             ..
         } = self
         {
+            groups.sort();
+            groups.dedup();
             potential_capabilities.sort();
             potential_capabilities.dedup();
         }
@@ -162,12 +167,14 @@ impl EnvironmentMapNode {
             }
             Self::Executable {
                 name,
+                groups,
                 purpose,
                 required,
                 potential_capabilities,
                 ..
             } => {
                 hasher.add_str(name);
+                add_strings(hasher, groups);
                 hasher.add_optional_str(purpose.as_deref());
                 hasher.add_bool(*required);
                 add_strings(hasher, potential_capabilities);
@@ -765,11 +772,15 @@ fn validate_node(
         }
         EnvironmentMapNode::Executable {
             name,
+            groups,
             purpose,
             potential_capabilities,
             ..
         } => {
             validate_identifier("executable name", name, limits)?;
+            for group in groups {
+                validate_identifier("application group", group, limits)?;
+            }
             let purpose = purpose
                 .as_deref()
                 .ok_or_else(|| EnvironmentMapError::MissingExecutablePurpose(name.clone()))?;
@@ -1066,11 +1077,12 @@ mod tests {
 
     use super::{
         Availability, EnvironmentMap, EnvironmentMapError, EnvironmentMapInputs,
-        EnvironmentMapLimits, EnvironmentMapNodeProvenance, EnvironmentMapObservation,
+        EnvironmentMapLimits, EnvironmentMapNode, EnvironmentMapNodeProvenance,
+        EnvironmentMapObservation,
     };
 
     const VALID: &str = r#"
-schema: rey.env-map.v1
+schema: rey.env-map.v2
 nodes:
   - id: config
     kind: variable
@@ -1084,6 +1096,7 @@ nodes:
   - id: tool
     kind: executable
     name: rey-tool
+    groups: [retrieval, code, retrieval]
     purpose: Search the bounded workspace source corpus
     required: true
     potential_capabilities: [source.search]
@@ -1104,6 +1117,19 @@ edges:
         graph.verify().unwrap();
         assert_eq!(graph.nodes[0].id(), "config");
         assert_eq!(graph.edges[0].from, "config");
+        let EnvironmentMapNode::Executable { groups, .. } = &graph.nodes[2] else {
+            panic!("expected executable node");
+        };
+        assert_eq!(groups, &["code", "retrieval"]);
+
+        let old_schema = VALID.replace("rey.env-map.v2", "rey.env-map.v1");
+        assert!(matches!(
+            EnvironmentMap::from_yaml_slice(
+                old_schema.as_bytes(),
+                EnvironmentMapLimits::default()
+            ),
+            Err(EnvironmentMapError::UnsupportedSchema(schema)) if schema == "rey.env-map.v1"
+        ));
 
         let duplicate = VALID.replace(
             "  - from: input\n    to: tool\n    relation: input_to",
@@ -1166,6 +1192,21 @@ edges:
                 EnvironmentMapLimits::default()
             ),
             Err(EnvironmentMapError::MissingExecutablePurpose(name)) if name == "rey-tool"
+        ));
+
+        let invalid_group = VALID.replace(
+            "groups: [retrieval, code, retrieval]",
+            "groups: ['invalid group']",
+        );
+        assert!(matches!(
+            EnvironmentMap::from_yaml_slice(
+                invalid_group.as_bytes(),
+                EnvironmentMapLimits::default()
+            ),
+            Err(EnvironmentMapError::InvalidIdentifier {
+                field: "application group",
+                ..
+            })
         ));
     }
 
@@ -1247,7 +1288,7 @@ edges:
         let workspace = TempDir::new().unwrap();
         fs::write(
             workspace.path().join("rey.env.yaml"),
-            "schema: rey.env-map.v1\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
+            "schema: rey.env-map.v2\nnodes:\n  - id: mode\n    kind: variable\n    name: REY_MODE\n    capture: value\n",
         )
         .unwrap();
         let inputs = EnvironmentMapInputs {

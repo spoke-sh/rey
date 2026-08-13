@@ -28,6 +28,14 @@ attempts, retry/cancellation/partial-failure boundaries, and terminal receipts
 without entering this runtime machine. Cross-poll debounce and autonomous
 activation scheduling remain future work.
 
+The implemented intrinsic runtime snapshot is deterministic and
+workspace-independent. It currently binds `frame.arrow-stream` and
+`source.search.literal-utf8` to the running Rey package. It is constructed
+automatically; it never appears in `rey env status` and requires no environment
+`add` or `commit`. Workspace roots remain explicit request/source bindings.
+Activation admission records this runtime identity separately from the retained
+environment snapshot, and execution revalidates both.
+
 ## Nested Campaigns
 
 The phase machine governs one admitted unit of work. It can be used inside two
@@ -64,8 +72,9 @@ next frontier, and commit evidence before it can continue or stop as converged.
 
 ## Bootstrap
 
-Bootstrap has no imaginary predecessor. Rey discovers a bounded capability
-snapshot, materializes declared initial observations, and commits a baseline.
+Bootstrap has no imaginary predecessor. Rey discovers a bounded environment
+snapshot, freezes the intrinsic runtime snapshot, materializes declared initial
+observations, and commits a baseline with those identities kept distinct.
 It then either:
 
 - retains an unresolved frontier and enters `ready`; or

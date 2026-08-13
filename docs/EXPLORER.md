@@ -745,7 +745,7 @@ exact native objects within it. Regional terrain remains explicitly absent. Surv
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
-separate `/environment` route consumes `rey.environment-status.v1` and renders
+separate `/environment` route consumes `rey.environment-status.v2` and renders
 its exact variable, application, input, and reference operator projection.
 `/agents` consumes the workload-list document at a higher semantic level: it
 ranks current requests and attention as recommendations, then summarizes work

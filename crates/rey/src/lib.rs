@@ -104,6 +104,10 @@ mod tests {
 
         assert_eq!(snapshot.profile, "standalone");
         assert!(!snapshot.capabilities.is_empty());
+        assert!(snapshot.capabilities.iter().all(|capability| !matches!(
+            capability.capability_id.as_str(),
+            "frame.arrow-stream" | "source.search.literal-utf8" | "workspace.metadata"
+        )));
     }
 
     #[test]

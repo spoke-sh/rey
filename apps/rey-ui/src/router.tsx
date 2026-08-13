@@ -46,6 +46,7 @@ import {
 import {
   currentApplications,
   environmentVariableDiff,
+  groupApplications,
   type EnvironmentApplicationObservation,
   type EnvironmentObjectStatus,
 } from "./environment";
@@ -1068,11 +1069,15 @@ function ApplicationInventory({
   inventoryId: string | null;
   sourcePath: string | null;
 }) {
+  const groups = groupApplications(applications);
   return (
     <div className={sx(styles.environmentApplicationGroup)}>
       <div className={sx(styles.environmentApplicationGroupHeader)}>
         <span className={sx(styles.micro)}>DESIRED INVENTORY</span>
-        <strong>{String(applications.length).padStart(2, "0")}</strong>
+        <strong>
+          {String(applications.length).padStart(2, "0")} · {groups.length}{" "}
+          GROUPS
+        </strong>
       </div>
       <div className={sx(styles.environmentInventoryRecord)}>
         <span className={sx(styles.micro, styles.muted)}>RECORD</span>
@@ -1083,33 +1088,48 @@ function ApplicationInventory({
       {applications.length === 0 ? (
         <p className={sx(styles.micro, styles.muted)}>NONE</p>
       ) : (
-        applications.map((application) => {
-          const observation = application.working;
-          if (!observation) return null;
-          return (
-            <div
-              className={sx(styles.environmentApplicationRow)}
-              key={application.object_id}
-            >
-              <span className={sx(styles.environmentApplicationMarker)}>→</span>
-              <div className={sx(styles.environmentApplicationIdentity)}>
-                <strong>{application.object_id}</strong>
-                <code>{observation.name}</code>
-                <small className={sx(styles.micro, styles.muted)}>
-                  {observation.purpose ?? "PURPOSE NOT RECORDED"}
-                </small>
-              </div>
-              <span className={sx(styles.micro, styles.muted)}>
-                {observation.required ? "REQUIRED" : "OPTIONAL"}
-              </span>
-              <p className={sx(styles.environmentCapabilityList)}>
-                {observation.potential_capabilities.length > 0
-                  ? observation.potential_capabilities.join(" · ")
-                  : "NO DESIRED CAPABILITIES"}
-              </p>
+        groups.map((group) => (
+          <div
+            className={sx(styles.environmentApplicationCategory)}
+            key={group.id}
+          >
+            <div className={sx(styles.environmentApplicationCategoryHeader)}>
+              <span className={sx(styles.micro)}>{group.id}</span>
+              <strong>
+                {String(group.applications.length).padStart(2, "0")}
+              </strong>
             </div>
-          );
-        })
+            {group.applications.map((application) => {
+              const observation = application.working;
+              if (!observation) return null;
+              return (
+                <div
+                  className={sx(styles.environmentApplicationRow)}
+                  key={`${group.id}:${application.object_id}`}
+                >
+                  <span className={sx(styles.environmentApplicationMarker)}>
+                    →
+                  </span>
+                  <div className={sx(styles.environmentApplicationIdentity)}>
+                    <strong>{application.object_id}</strong>
+                    <code>{observation.name}</code>
+                    <small className={sx(styles.micro, styles.muted)}>
+                      {observation.purpose ?? "PURPOSE NOT RECORDED"}
+                    </small>
+                  </div>
+                  <span className={sx(styles.micro, styles.muted)}>
+                    {observation.required ? "REQUIRED" : "OPTIONAL"}
+                  </span>
+                  <p className={sx(styles.environmentCapabilityList)}>
+                    {observation.potential_capabilities.length > 0
+                      ? observation.potential_capabilities.join(" · ")
+                      : "NO DESIRED CAPABILITIES"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ))
       )}
     </div>
   );
@@ -1162,7 +1182,11 @@ function ApplicationGroup({
                 <code>{observation.resolved_path ?? "NOT RESOLVED"}</code>
                 <small className={sx(styles.micro, styles.muted)}>
                   {observation.searched_path_count} PATH ENTRIES ·{" "}
-                  {application.changes.head_to_working.toUpperCase()}
+                  {application.changes.head_to_working.toUpperCase()} ·{" "}
+                  {(observation.groups.length > 0
+                    ? observation.groups
+                    : ["ungrouped"]
+                  ).join(" / ")}
                 </small>
               </div>
               <span className={sx(styles.micro, styles.muted)}>

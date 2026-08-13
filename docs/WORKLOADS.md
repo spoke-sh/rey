@@ -169,18 +169,20 @@ acknowledged history whose target is still the current cursor and whose
 transition is the cursor's exact retained evidence.
 
 Admission revalidates the current workload HEAD, exact workload and graph
-contracts, declared scenario selection, retained capability snapshot, proposal
-completeness, and scenario/action/evidence budgets. An empty trigger scenario
+contracts, declared scenario selection, retained environment snapshot,
+automatic intrinsic runtime snapshot, proposal completeness, and
+scenario/action/evidence budgets. An empty trigger scenario
 selection resolves to the complete admitted suite; named selections must be
 canonical, known, and within both proposal and workload limits. The effective
 admission narrows actions to one and evidence to the local four-megabyte bound.
 Pending proposals, stale cursors, unknown scenarios, graph drift, empty HEAD,
 or missing capability evidence fail before state changes.
 
-The retained `rey.workload-activation-admission.v1` is content identified and
+The retained `rey.workload-activation-admission.v2` is content identified and
 idempotent. It carries the complete Git proposal, Git target and transition,
 workload HEAD commit/snapshot, workload/graph/suite contracts, resolved
-scenario ids, capability snapshot, effective budget, and explicit
+scenario ids, separate environment and runtime snapshot identities, effective
+budget, and explicit
 schedule-only authority. `workloads list` exposes the same typed admissions in
 JSON and a `RUNTIME ADMISSIONS` human section. Admission does not run a
 scenario, mutate Git, claim progress, or consume the activation. Admission is
@@ -188,7 +190,8 @@ not a permanent freshness label.
 
 `workloads execute-activation <admission-id>` revalidates the frozen Git
 cursor, workload HEAD, exact workload/graph/suite/scenario contracts, retained
-capabilities, and effective action/evidence budget. It executes only the
+environment, intrinsic runtime capabilities, and effective action/evidence
+budget. It executes only the
 selected scenarios and retains their directed deltas and native evidence as
 `rey.workload-scenario-execution-result.v1`, wrapped by the exact admission in
 `rey.workload-activation-execution.v1`. The measured serialized evidence must
@@ -200,7 +203,8 @@ through semantic exit codes and the human receipt. No path mutates Git.
 
 `workloads verify-activation <execution-id>` revalidates the execution's exact
 acknowledged Git cursor, workload HEAD, workload/graph/suite/scenario
-contracts, and retained capability snapshot. It then executes the complete
+contracts, retained environment snapshot, and current intrinsic runtime
+snapshot. It then executes the complete
 declared scenario suite, retains the bounded full result, and compares each
 originally selected scenario result exactly with its counterpart. The
 content-identified `rey.workload-activation-recomputation.v1` records
@@ -212,7 +216,8 @@ existing proof without executing scenarios again.
 Before running a new graph, execution checks retained results from other
 admissions in the same Git transition. Reuse is permitted only when source and
 target Git snapshots, workload HEAD, workload/graph/suite/evaluator contracts,
-declared and selected scenarios, and capability snapshot are identical, and
+declared and selected scenarios, and both snapshot identities are identical,
+and
 the retained evidence fits the new admission's possibly stricter byte budget.
 The new execution receipt preserves its own admission and activation ids and
 records the exact `source_execution_id`; the original result is not relabeled.

@@ -1,11 +1,13 @@
 #![forbid(unsafe_code)]
 
+mod capabilities;
 mod portfolio;
 mod scene_admission;
 mod topography;
 mod workload;
 mod workload_mining;
 
+pub use capabilities::{RUNTIME_CAPABILITY_PROFILE, runtime_capability_snapshot};
 pub use scene_admission::*;
 pub use topography::*;
 

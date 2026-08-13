@@ -341,6 +341,16 @@ export const environmentStyles = stylex.create({
     justifyContent: "space-between",
     marginBottom: 18,
   },
+  environmentApplicationCategory: {
+    marginTop: 20,
+  },
+  environmentApplicationCategoryHeader: {
+    alignItems: "center",
+    display: "flex",
+    justifyContent: "space-between",
+    paddingBlockEnd: 6,
+    textTransform: "uppercase",
+  },
   environmentInventoryRecord: {
     alignItems: "center",
     backgroundColor: "var(--rey-background)",

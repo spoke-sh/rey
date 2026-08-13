@@ -230,6 +230,11 @@ runtimes plus Slack (`slack`), GitHub CLI (`gh`), Telegram CLI
 discovery candidates, not claims that each project offers an official or
 compatible messaging CLI. Their discovery records explicitly leave transport,
 message admission, polling-beacon, and relay authority unsupported.
+Declarations carry a normalized many-to-many group set. The initial groups are
+`communications`, `agents`, `retrieval`, and `code`; `env diff` groups the
+desired inventory in that order but keeps the search record flattened to one
+row per application. The compact `env status` change list likewise remains one
+application per line.
 
 ### `rey editor`
 
@@ -417,12 +422,13 @@ frontier and evaluated transition exist. JSON retains the full verified
 frontier/scheduling/surface envelope rather than the human summary.
 `admit-activation` resolves only a proposal retained in acknowledged Git
 history and requires it to match the current cursor, admitted workload HEAD,
-graph, scenario selection, capability snapshot, and effective bounds. It
+graph, scenario selection, admitted environment snapshot, automatic intrinsic
+runtime snapshot, and effective bounds. It
 retains a content-identified, idempotent scheduling admission. The human
 receipt and `list` runtime-admissions section expose every binding and state
 plainly that no execution occurred; JSON carries the complete typed contract.
 `execute-activation` revalidates that admission against current acknowledged
-Git, workload HEAD, exact scenario contracts, retained capabilities, and its
+Git, workload HEAD, exact scenario contracts, both frozen snapshots, and its
 action/evidence budget. It evaluates only the selected scenarios, retains
 their exact deltas and evidence separately from `last_test`, and returns exit
 `0`, `2`, or `3` for passed, failed, or inconclusive evidence. Repeating an
