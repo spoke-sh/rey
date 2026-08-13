@@ -1107,9 +1107,11 @@ function regionalLongitudeOffset(
 function regionalLayerTone(
   layer: AdmittedRegionalProjection["scene"]["projection"]["objects"][number]["layer"],
 ): TopologyTone {
-  if (layer === "hydrology") return "accent";
-  if (layer === "boundary") return "neutral";
-  if (layer === "poi") return "attention";
+  if (["hydrology", "highway", "road", "connector"].includes(layer))
+    return "accent";
+  if (["boundary", "district", "lot"].includes(layer)) return "neutral";
+  if (["poi", "label", "beacon", "construction"].includes(layer))
+    return "attention";
   if (layer === "terrain_control") return "unsupported";
   return "healthy";
 }

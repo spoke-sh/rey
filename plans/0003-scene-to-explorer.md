@@ -156,9 +156,11 @@ render-graph completion, clipmap reuse, and retained visual/performance proof re
   isometric camera while disclosing that envelope geometry is not a footprint.
 - [x] Admit one exact County footprint identity and use it as the County fabric
   and validity boundary instead of substituting the scene envelope.
-- [ ] Add independently typed terrain, hydrology, boundary, highway, road,
+- [x] Preserve independently typed hydrology, boundary, highway, road,
   district, lot, structure, utility, POI, label, beacon, construction, and
-  connector layers only where admitted evidence supports them.
+  connector layers only from explicit admitted source roles.
+- [ ] Admit independently qualified regional terrain height/material evidence;
+  terrain controls remain candidate-only geometry.
 - [ ] Deep-link every selected object to its native source, admission result,
   revision, delta, validity, limits, omissions, and lineage.
 - [ ] Extend deterministic editor authoring only after the admission path can

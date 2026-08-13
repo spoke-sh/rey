@@ -1251,6 +1251,16 @@ fn layer_kind(role: &str) -> Result<RegionalLayerKind, SceneAdmissionError> {
         "hydrology" => Ok(RegionalLayerKind::Hydrology),
         "boundary" => Ok(RegionalLayerKind::Boundary),
         "markers" => Ok(RegionalLayerKind::Poi),
+        "highway" => Ok(RegionalLayerKind::Highway),
+        "road" => Ok(RegionalLayerKind::Road),
+        "district" => Ok(RegionalLayerKind::District),
+        "lot" => Ok(RegionalLayerKind::Lot),
+        "structure" => Ok(RegionalLayerKind::Structure),
+        "utility" => Ok(RegionalLayerKind::Utility),
+        "label" => Ok(RegionalLayerKind::Label),
+        "beacon" => Ok(RegionalLayerKind::Beacon),
+        "construction" => Ok(RegionalLayerKind::Construction),
+        "connector" => Ok(RegionalLayerKind::Connector),
         _ => Err(SceneAdmissionError::UnsupportedRole(role.to_owned())),
     }
 }
@@ -1262,6 +1272,16 @@ const fn layer_label(kind: RegionalLayerKind) -> &'static str {
         RegionalLayerKind::Hydrology => "hydrology",
         RegionalLayerKind::Boundary => "boundary",
         RegionalLayerKind::Poi => "poi",
+        RegionalLayerKind::Highway => "highway",
+        RegionalLayerKind::Road => "road",
+        RegionalLayerKind::District => "district",
+        RegionalLayerKind::Lot => "lot",
+        RegionalLayerKind::Structure => "structure",
+        RegionalLayerKind::Utility => "utility",
+        RegionalLayerKind::Label => "label",
+        RegionalLayerKind::Beacon => "beacon",
+        RegionalLayerKind::Construction => "construction",
+        RegionalLayerKind::Connector => "connector",
     }
 }
 
@@ -1700,6 +1720,42 @@ mod tests {
         assert!(scene.projection.validity.iter().any(|record| {
             record.class == RegionalValidityClass::Unsupported && record.scope == "terrain_height"
         }));
+    }
+
+    #[test]
+    fn explicit_source_roles_preserve_independent_regional_layer_kinds() {
+        for (role, kind, label) in [
+            (
+                "features",
+                RegionalLayerKind::NativeFeature,
+                "native-feature",
+            ),
+            (
+                "terrain_control",
+                RegionalLayerKind::TerrainControl,
+                "terrain-control",
+            ),
+            ("hydrology", RegionalLayerKind::Hydrology, "hydrology"),
+            ("boundary", RegionalLayerKind::Boundary, "boundary"),
+            ("markers", RegionalLayerKind::Poi, "poi"),
+            ("highway", RegionalLayerKind::Highway, "highway"),
+            ("road", RegionalLayerKind::Road, "road"),
+            ("district", RegionalLayerKind::District, "district"),
+            ("lot", RegionalLayerKind::Lot, "lot"),
+            ("structure", RegionalLayerKind::Structure, "structure"),
+            ("utility", RegionalLayerKind::Utility, "utility"),
+            ("label", RegionalLayerKind::Label, "label"),
+            ("beacon", RegionalLayerKind::Beacon, "beacon"),
+            (
+                "construction",
+                RegionalLayerKind::Construction,
+                "construction",
+            ),
+            ("connector", RegionalLayerKind::Connector, "connector"),
+        ] {
+            assert_eq!(layer_kind(role).unwrap(), kind, "{role}");
+            assert_eq!(layer_label(kind), label, "{role}");
+        }
     }
 
     #[test]

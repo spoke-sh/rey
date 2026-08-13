@@ -320,7 +320,9 @@ limit, and replay contracts are qualified.
 implements its deterministic bounded admission operation.
 `rey.admitted-regional-scene.v1` binds exact editor and
 workload lineage, native objects, five distinct coordinate planes, transforms,
-typed layers, validity/no-data, and an optional content-identified County
+independently typed native-feature, terrain-control, hydrology, boundary,
+highway, road, district, lot, structure, utility, POI, label, beacon,
+construction, and connector layers, validity/no-data, and an optional content-identified County
 footprint. A footprint exists only when one admitted boundary Polygon matches
 the exact scene envelope; it retains the source object/artifact/revision and
 bounded closed native rings. Missing or ambiguous boundary geometry remains an
@@ -328,7 +330,11 @@ explicit omission rather than an inferred envelope polygon. This evidence is
 carried by the embedded `rey.regional-projection-packet.v1`. Topography, atlas,
 projection, and terrain
 identities remain separate; an absent qualified terrain adapter forces an
-absent terrain program and explicit unsupported height validity. The separate
+absent terrain program and explicit unsupported height validity. A
+terrain-control layer therefore remains candidate control geometry and cannot
+be interpreted as observed terrain. Layer kinds come only from explicit source
+roles retained through the admitted object and layer records; geometry and
+filenames do not infer a kind. The separate
 `rey.explore-grammar.v1` binds projection posture, hysteresis, morphing,
 semantic/geometric LOD, inverse picking, polar/antimeridian behavior, and
 camera bounds without containing a camera instance. Bounded multi-region tests

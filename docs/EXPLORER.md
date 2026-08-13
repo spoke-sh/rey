@@ -158,7 +158,12 @@ native survey files → editor WORKING → INDEX → candidate package
 ```
 
 The first adapter accepts only geographic RFC 7946 GeoJSON in OGC CRS84. It
-indexes explicit features and marker POIs while preserving native bytes.
+indexes explicit features and marker POIs while preserving native bytes. An
+editor source may explicitly declare `features`, `markers`, `terrain_control`,
+`hydrology`, `boundary`, `highway`, `road`, `district`, `lot`, `structure`,
+`utility`, `label`, `beacon`, `construction`, or `connector`; admission keeps
+that role as an independently typed native object/layer and Explorer renders
+the retained kind without guessing from geometry, path, or appearance.
 GeoJSON coordinates cannot stand in for an unbound high-dimensional semantic
 chart, and line features do not become paths or source relationships. Detailed
 raster terrain and provider-qualified semantic chart formats require separate
@@ -203,8 +208,9 @@ scene envelope's exact County-local transform and enters a bounded isometric
 plane only when the scene also binds one unique, source-revision-exact boundary
 Polygon. `rey.county-footprint-projection@1` projects those closed native rings
 as the County fabric and even-odd validity boundary; no envelope substitute is
-drawn. Constructed layers, qualified regional terrain, and the complete posture
-transitions frozen by the grammar remain open.
+drawn. All explicit native source roles retain independent County layer kinds;
+qualified regional terrain and the complete posture transitions frozen by the
+grammar remain open.
 
 The engine is high-dimensional because its input basis may project many source
 dimensions into a stable navigable scene. It is not allowed to invent that
@@ -688,10 +694,9 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: admit one
-exact County footprint identity without substituting the implemented envelope
-frame, add exact selected-object links, finish the engine/render-graph boundary,
-and qualify detailed terrain and typed constructed layers. Exact scenario/delta
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: add an
+exact selected-object evidence route, finish the engine/render-graph boundary,
+and qualify detailed regional terrain. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser
 without adding an independent assessment. Travel, trade, and economic layers
 require their own

@@ -32,8 +32,10 @@ Rey separates ten responsibilities:
    The implemented survey slice uses `rey-locator` bindings and emits retained
    topography patches; browser projections never become a resolver.
 4. **Scene-editor candidate plane** — agents, surveys, and eventually humans
-   assemble bounded native terrain, feature, marker, hydrology, and boundary
-   artifacts into reviewable INDEX state and linear `SCENE@n` commits with
+   assemble bounded native feature, marker/POI, terrain-control, hydrology,
+   boundary, highway, road, district, lot, structure, utility, label, beacon,
+   construction, and connector artifacts into reviewable INDEX state and
+   linear `SCENE@n` commits with
    immutable candidate packages; deterministic generators retain their exact
    recipes, packages grant no admission authority, and they reach Explorer only
    through a qualified workload.
@@ -156,7 +158,7 @@ poll cursors, and delta-triggered workloads.
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
 | Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
 | Semantic atlas      | Content-identified bounded layout over separately typed admitted survey and regional-scene evidence with stable region identity, synthetic spherical coordinates, clusters, occupied fixed-grid sectors, compiler, limits, omissions, lineage, and a directed typed revision delta | Retained production history includes survey patches and accepted regional scenes with verified non-owning scene back-references and explicit stable sector membership |
-| Admitted regional scene | Qualified result binding one exact editor package to native-to-semantic and county-local transforms, an optional exact source-bound County footprint, normalized terrain/feature layers, validity/no-data, limits, omissions, and lineage | Workload result and Explorer input; candidate packages remain outside this boundary |
+| Admitted regional scene | Qualified result binding one exact editor package to native-to-semantic and county-local transforms, an optional exact source-bound County footprint, independently typed native layers, validity/no-data, limits, omissions, and lineage | Workload result and Explorer input; candidate packages remain outside this boundary |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Terrain program     | Deterministic evaluator, seed, absolute-coordinate and validity rules, multiscale bands, and bounded camera-working-set policy compiled from one exact projection packet                         | Pure projection input; authored controls and admitted sources remain authoritative, while evaluated buffers are disposable |
 | Terrain working set | Camera-relative scalar/vector/mask buffers and geometry sampled from one exact terrain program under declared cell/byte limits                                                                   | Browser/GPU working state and optional bounded proof capture; never an admitted tile or sole source copy          |
@@ -206,7 +208,13 @@ Polygon matches its exact envelope. Closer regional lenses stop at Atlas until
 the operator selects an exact admitted regional identity with that footprint.
 The selected footprint's native rings become the County fabric and validity
 boundary under the revision-bound County-local frame; the envelope remains only
-a frame bound and physical-distance claims remain absent. Local charted survey envelopes,
+a frame bound and physical-distance claims remain absent. Explicit admitted
+source roles remain separate County layers for native features, terrain
+controls, hydrology, boundaries, highways, roads, districts, lots, structures,
+utilities, POIs, labels, beacons, construction, and connectors. The role is
+source-declared and admission-bound; shape, path, or styling never reclassifies
+an object. Terrain controls remain candidate geometry, not qualified terrain.
+Local charted survey envelopes,
 unresolved probe horizons, and boundary weather remain available in closer
 survey lenses.
 

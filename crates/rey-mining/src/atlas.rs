@@ -158,6 +158,16 @@ pub struct SemanticAtlasRegionalSource {
     pub hydrology_objects: u64,
     pub boundary_objects: u64,
     pub poi_objects: u64,
+    pub highway_objects: u64,
+    pub road_objects: u64,
+    pub district_objects: u64,
+    pub lot_objects: u64,
+    pub structure_objects: u64,
+    pub utility_objects: u64,
+    pub label_objects: u64,
+    pub beacon_objects: u64,
+    pub construction_objects: u64,
+    pub connector_objects: u64,
     pub validity_boundaries: u64,
     pub omissions: u64,
 }
@@ -210,6 +220,16 @@ impl SemanticAtlasRegionalSource {
             hydrology_objects: count(RegionalLayerKind::Hydrology),
             boundary_objects: count(RegionalLayerKind::Boundary),
             poi_objects: count(RegionalLayerKind::Poi),
+            highway_objects: count(RegionalLayerKind::Highway),
+            road_objects: count(RegionalLayerKind::Road),
+            district_objects: count(RegionalLayerKind::District),
+            lot_objects: count(RegionalLayerKind::Lot),
+            structure_objects: count(RegionalLayerKind::Structure),
+            utility_objects: count(RegionalLayerKind::Utility),
+            label_objects: count(RegionalLayerKind::Label),
+            beacon_objects: count(RegionalLayerKind::Beacon),
+            construction_objects: count(RegionalLayerKind::Construction),
+            connector_objects: count(RegionalLayerKind::Connector),
             validity_boundaries: scene
                 .projection
                 .validity
@@ -526,6 +546,16 @@ impl SemanticAtlas {
                     .saturating_add(source.hydrology_objects)
                     .saturating_add(source.boundary_objects)
                     .saturating_add(source.poi_objects)
+                    .saturating_add(source.highway_objects)
+                    .saturating_add(source.road_objects)
+                    .saturating_add(source.district_objects)
+                    .saturating_add(source.lot_objects)
+                    .saturating_add(source.structure_objects)
+                    .saturating_add(source.utility_objects)
+                    .saturating_add(source.label_objects)
+                    .saturating_add(source.beacon_objects)
+                    .saturating_add(source.construction_objects)
+                    .saturating_add(source.connector_objects)
                     != source.native_objects
             {
                 return Err(SemanticAtlasError::Shape("regional source"));
@@ -1630,6 +1660,16 @@ fn regional_dominant_feature(source: &SemanticAtlasRegionalSource) -> String {
         ("hydrology", source.hydrology_objects),
         ("boundary", source.boundary_objects),
         ("poi", source.poi_objects),
+        ("highway", source.highway_objects),
+        ("road", source.road_objects),
+        ("district", source.district_objects),
+        ("lot", source.lot_objects),
+        ("structure", source.structure_objects),
+        ("utility", source.utility_objects),
+        ("label", source.label_objects),
+        ("beacon", source.beacon_objects),
+        ("construction", source.construction_objects),
+        ("connector", source.connector_objects),
     ]
     .into_iter()
     .enumerate()
@@ -1904,6 +1944,16 @@ mod tests {
             hydrology_objects: 0,
             boundary_objects: 0,
             poi_objects: 1,
+            highway_objects: 0,
+            road_objects: 0,
+            district_objects: 0,
+            lot_objects: 0,
+            structure_objects: 0,
+            utility_objects: 0,
+            label_objects: 0,
+            beacon_objects: 0,
+            construction_objects: 0,
+            connector_objects: 0,
             validity_boundaries: 1,
             omissions: 2,
         }

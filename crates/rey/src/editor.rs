@@ -86,6 +86,16 @@ pub enum SceneSourceRole {
     TerrainControl,
     Hydrology,
     Boundary,
+    Highway,
+    Road,
+    District,
+    Lot,
+    Structure,
+    Utility,
+    Label,
+    Beacon,
+    Construction,
+    Connector,
 }
 
 impl SceneSourceRole {
@@ -97,6 +107,16 @@ impl SceneSourceRole {
             Self::TerrainControl => "terrain_control",
             Self::Hydrology => "hydrology",
             Self::Boundary => "boundary",
+            Self::Highway => "highway",
+            Self::Road => "road",
+            Self::District => "district",
+            Self::Lot => "lot",
+            Self::Structure => "structure",
+            Self::Utility => "utility",
+            Self::Label => "label",
+            Self::Beacon => "beacon",
+            Self::Construction => "construction",
+            Self::Connector => "connector",
         }
     }
 }
@@ -2878,6 +2898,34 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{LocalEditorStore, SceneSourceDeclaration, SceneSourceFormat, SceneSourceRole};
+
+    #[test]
+    fn scene_source_roles_have_exact_project_document_labels() {
+        for (role, label) in [
+            (SceneSourceRole::Features, "features"),
+            (SceneSourceRole::Markers, "markers"),
+            (SceneSourceRole::TerrainControl, "terrain_control"),
+            (SceneSourceRole::Hydrology, "hydrology"),
+            (SceneSourceRole::Boundary, "boundary"),
+            (SceneSourceRole::Highway, "highway"),
+            (SceneSourceRole::Road, "road"),
+            (SceneSourceRole::District, "district"),
+            (SceneSourceRole::Lot, "lot"),
+            (SceneSourceRole::Structure, "structure"),
+            (SceneSourceRole::Utility, "utility"),
+            (SceneSourceRole::Label, "label"),
+            (SceneSourceRole::Beacon, "beacon"),
+            (SceneSourceRole::Construction, "construction"),
+            (SceneSourceRole::Connector, "connector"),
+        ] {
+            assert_eq!(role.label(), label);
+            assert_eq!(serde_json::to_value(role).unwrap(), label);
+            assert_eq!(
+                serde_json::from_value::<SceneSourceRole>(label.into()).unwrap(),
+                role
+            );
+        }
+    }
 
     fn declare_geojson_source(
         store: &LocalEditorStore,

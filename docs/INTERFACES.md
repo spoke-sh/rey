@@ -485,6 +485,15 @@ records. Separate nullable bindings prevent a candidate package or qualification
 fixture from counterfeiting a topography patch, retained atlas revision, or
 terrain program; accepted production retention fills and cross-verifies the
 atlas binding.
+The source declaration admits only the explicit `features`, `markers`,
+`terrain_control`, `hydrology`, `boundary`, `highway`, `road`, `district`,
+`lot`, `structure`, `utility`, `label`, `beacon`, `construction`, and
+`connector` roles. The projection packet preserves these as independent
+native-feature, POI, terrain-control, hydrology, boundary, highway, road,
+district, lot, structure, utility, label, beacon, construction, and connector
+layer kinds. No path, geometry, style, or visual proximity can infer or change
+the kind. Terrain-control authority explicitly excludes observed height,
+material, and terrain validity.
 The file-backed workload and CLI produce the contract from an exact current
 editor transfer envelope. `rey.workload-list.v1` exposes only the last
 production admission result for the exact current workload and graph. Explorer

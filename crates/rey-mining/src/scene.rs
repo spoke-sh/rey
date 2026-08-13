@@ -71,6 +71,16 @@ pub enum RegionalLayerKind {
     Hydrology,
     Boundary,
     Poi,
+    Highway,
+    Road,
+    District,
+    Lot,
+    Structure,
+    Utility,
+    Label,
+    Beacon,
+    Construction,
+    Connector,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

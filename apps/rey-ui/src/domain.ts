@@ -142,15 +142,13 @@ export interface RegionalProjectionPacket {
     object_revision: string;
     geometry_kind: string;
     native_bounds: RegionalBounds;
-    layer:
-      "native_feature" | "terrain_control" | "hydrology" | "boundary" | "poi";
+    layer: RegionalLayerKind;
     authority: string;
   }>;
   footprint: RegionalFootprint | null;
   layers: Array<{
     layer_id: string;
-    kind:
-      "native_feature" | "terrain_control" | "hydrology" | "boundary" | "poi";
+    kind: RegionalLayerKind;
     object_ids: string[];
     authority: string;
     semantics: string;
@@ -178,6 +176,23 @@ export interface RegionalProjectionPacket {
   omissions: RegionalSceneOmission[];
   lineage: RegionalSceneLineage[];
 }
+
+export type RegionalLayerKind =
+  | "native_feature"
+  | "terrain_control"
+  | "hydrology"
+  | "boundary"
+  | "poi"
+  | "highway"
+  | "road"
+  | "district"
+  | "lot"
+  | "structure"
+  | "utility"
+  | "label"
+  | "beacon"
+  | "construction"
+  | "connector";
 
 export interface AdmittedRegionalScene {
   schema: "rey.admitted-regional-scene.v1";
@@ -425,6 +440,16 @@ export interface SemanticAtlasRegionalSource {
   hydrology_objects: number;
   boundary_objects: number;
   poi_objects: number;
+  highway_objects: number;
+  road_objects: number;
+  district_objects: number;
+  lot_objects: number;
+  structure_objects: number;
+  utility_objects: number;
+  label_objects: number;
+  beacon_objects: number;
+  construction_objects: number;
+  connector_objects: number;
   validity_boundaries: number;
   omissions: number;
 }

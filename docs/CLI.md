@@ -269,8 +269,10 @@ prints the Mercator `360000000µ°` wrap, `±85051129µ°` polar cutoff/disclosu
 and analytic inverse boundary plus the envelope-bound County-local inverse and
 its explicit non-footprint disclosure beside the admitted/absent County
 footprint state, exact package, packet, validity, limits, omissions, and
-lineage. `-vv` prints the footprint identity, source bindings, native rings,
-coordinate count, and authority. JSON
+lineage. Each explicitly declared native source role remains a separately
+named layer in this output; terrain controls retain candidate-only authority.
+`-vv` prints every layer's exact kind/object membership/source revision and the
+footprint identity, source bindings, native rings, coordinate count, and authority. JSON
 retains the complete `rey.scene-admission-result.v1`. Rejected validation
 scenarios are conclusive typed results; no run mutates editor state or admits a
 browser scene.
