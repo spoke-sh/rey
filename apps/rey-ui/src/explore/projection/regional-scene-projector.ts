@@ -1,6 +1,7 @@
 import type {
   AdmittedRegionalScene,
   ContractIdentity,
+  SemanticAtlas,
   SemanticAtlasRegionalRegion,
   SceneAdmissionResult,
   WorkloadList,
@@ -12,6 +13,7 @@ export interface AdmittedRegionalProjection {
   result: SceneAdmissionResult;
   scene: AdmittedRegionalScene;
   atlas_region: SemanticAtlasRegionalRegion;
+  atlas_sector: SemanticAtlas["sectors"][number];
 }
 
 const coordinateSpaces = [
@@ -59,6 +61,11 @@ export function admittedRegionalScenes(
           atlasSource.source_package_revision &&
         region.projection_packet_id === atlasSource.projection_packet_id,
     );
+    const atlasSector = atlas?.sectors.find(
+      (sector) =>
+        sector.sector_id === atlasRegion?.sector_id &&
+        sector.member_region_ids.includes(atlasRegion.region_id),
+    );
     if (
       !result ||
       result.schema !== "rey.scene-admission-result.v1" ||
@@ -94,13 +101,22 @@ export function admittedRegionalScenes(
         portfolio.semantic_atlas_deltas.length ||
       !atlasSource ||
       !atlasRegion ||
+      !atlasSector ||
       atlasRegion.semantic_longitude_microdegrees !==
         semanticPlacement.target_origin[0] ||
       atlasRegion.semantic_latitude_microdegrees !==
         semanticPlacement.target_origin[1]
     )
       return [];
-    return [{ workload, result, scene, atlas_region: atlasRegion }];
+    return [
+      {
+        workload,
+        result,
+        scene,
+        atlas_region: atlasRegion,
+        atlas_sector: atlasSector,
+      },
+    ];
   });
 }
 

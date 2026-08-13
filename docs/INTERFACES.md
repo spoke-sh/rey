@@ -244,9 +244,12 @@ equal linear sequence of `rey.semantic-atlas-delta.v1` documents. Each delta is
 content identified, binds exact source and target revisions, and keeps inserted,
 removed, moved, interest-changed, merged, and split changes distinct. The first
 delta starts at the typed empty atlas revision. `workloads list` exposes the
-current atlas, history, exact deltas, compiler, survey/regional region and
-cluster counts, boundedness, admission-revision recluster rule, and the fact that zoom cannot
-recluster it. List and UI reads do not advance history.
+current atlas, history, exact deltas, compiler, survey/regional region, cluster,
+and occupied-sector counts, boundedness, admission-revision recluster rule, and
+the fact that zoom cannot recluster it. The v1 sector grid uses stable occupied
+30-degree synthetic cells with explicit members. Its polygons cannot claim
+surveyed coverage or native County footprint authority. List and UI reads do
+not advance history.
 
 ## Implemented Environment CLI
 

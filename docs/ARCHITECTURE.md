@@ -155,7 +155,7 @@ poll cursors, and delta-triggered workloads.
 | Scene generation recipe | Generator revision, source identity, seed, bounds, and complete effective geometry/effect hyperparameters embedded in its native output                                                            | Workspace source lineage; deterministic authoring, never evidence authority                                     |
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
 | Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
-| Semantic atlas      | Content-identified bounded layout over separately typed admitted survey and regional-scene evidence with stable region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, lineage, and a directed typed revision delta | Retained production history includes survey patches and accepted regional scenes with verified non-owning scene back-references; stable sector polygons remain target work |
+| Semantic atlas      | Content-identified bounded layout over separately typed admitted survey and regional-scene evidence with stable region identity, synthetic spherical coordinates, clusters, occupied fixed-grid sectors, compiler, limits, omissions, lineage, and a directed typed revision delta | Retained production history includes survey patches and accepted regional scenes with verified non-owning scene back-references and explicit stable sector membership |
 | Admitted regional scene | Qualified result binding one exact editor package to native-to-semantic and county-local transforms, normalized terrain/feature layers, validity/no-data, limits, omissions, and lineage                  | Workload result and Explorer input; candidate packages remain outside this boundary                              |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Terrain program     | Deterministic evaluator, seed, absolute-coordinate and validity rules, multiscale bands, and bounded camera-working-set policy compiled from one exact projection packet                         | Pure projection input; authored controls and admitted sources remain authoritative, while evaluated buffers are disposable |
@@ -199,8 +199,10 @@ admission, package revision, projection packet, and unchanged
 native-to-synthetic placement; Explorer rejects a mismatch and assigns zero
 inferred footprint radius. Both
 synthetic longitude/latitude axes have no Earth CRS or physical-distance claim.
-Retained regional sectors and footprints do not exist yet; local charted
-survey envelopes, unresolved probe horizons, and boundary weather remain
+Occupied fixed-grid synthetic sectors now organize atlas membership without
+claiming surveyed coverage or native footprints. Admitted County footprint
+identity does not exist yet; local charted survey envelopes, unresolved probe
+horizons, and boundary weather remain
 available in closer survey lenses.
 
 As the lens enters Atlas, that same synthetic sphere unwraps through a
@@ -909,8 +911,10 @@ scene, admission, package revision, packet, and synthetic point, then projects
 that point and exact native object bounds. The retained scene carries the exact
 atlas revision as a non-owning back-reference: it is excluded from `scene_id`
 to avoid recursive content identity, included in result/run identity, and
-verified against the retained atlas member before state can be saved. No stable
-sector identity exists.
+verified against the retained atlas member before state can be saved. Each
+region also names one stable occupied 30-degree synthetic sector. The sector
+polygon is membership geometry only, never surveyed coverage or a native County
+footprint.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.

@@ -7174,11 +7174,12 @@ fn write_workload_list(
             output,
             "Semantic atlas",
             &format!(
-                "{} · {} survey + {} admitted regional regions in {} world clusters · {}",
+                "{} · {} survey + {} admitted regional regions in {} world clusters and {} occupied sectors · {}",
                 atlas.atlas_revision,
                 atlas.regions.len(),
                 atlas.regional_regions.len(),
                 atlas.clusters.len(),
+                atlas.sectors.len(),
                 if atlas.complete {
                     "COMPLETE"
                 } else {
@@ -7207,6 +7208,14 @@ fn write_workload_list(
             &format!(
                 "{}@{} · zoom selects retained LOD and never reclusters",
                 atlas.compiler.id, atlas.compiler.revision,
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Sector grid",
+            &format!(
+                "{}@{} · fixed synthetic membership cells · not surveyed coverage or native County footprints",
+                atlas.sector_grid.id, atlas.sector_grid.revision,
             ),
         )?;
         write_portfolio_field(

@@ -49,7 +49,9 @@ history. Explorer binds a latest delta only when its target is the current
 retained atlas and rejects mismatched regional membership. Each retained scene
 also carries that atlas revision as a verified non-owning back-reference:
 `scene_id` excludes the recursive link while the scene-admission result, run,
-and retained state bind it exactly. No sector identity exists. Explorer implements the fresh
+and retained state bind it exactly. Stable occupied fixed-grid sectors now bind
+explicit region membership without claiming surveyed coverage or native County
+footprints. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
 material, WebGPU/WebGL2 paths, and an accessible reference path. Complete
@@ -96,7 +98,7 @@ remain open.
   native/package identity or synthetic placement.
 - [x] Record the exact admitted atlas revision back on each regional scene
   without creating circular scene/atlas content identity.
-- [ ] Add stable synthetic sector polygons and explicit region membership;
+- [x] Add stable synthetic sector polygons and explicit region membership;
   keep sectors separate from admitted County footprints.
 - [ ] Implement spherical Mercator wrap, latitude cutoff, polar disclosure,
   antimeridian-safe drawing, inverse picking, and stable World-to-Atlas morphs.

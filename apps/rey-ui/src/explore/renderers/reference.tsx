@@ -288,7 +288,7 @@ function SemanticGlobeLayer({
           ? "This unmapped globe orients exact file-backed workload candidates. Beacon positions are stable presentation geometry, not admitted semantic coordinates or distance claims."
           : globe.posture === "semantic_atlas"
             ? "Synthetic semantic longitude and latitude place admitted survey regions on a spherical world. They are not Earth coordinates, and zoom never reclusters this atlas revision."
-            : "Revision-bound synthetic placements from admitted regional projection packets. They are not Earth coordinates, retained atlas sectors, or physical-distance claims."}
+            : "Revision-bound synthetic placements and occupied sector membership from the retained atlas. They are not Earth coordinates, native County footprints, or physical-distance claims."}
       </title>
       <defs>
         <radialGradient id="rey-semantic-globe-fill" cx="34%" cy="26%" r="76%">

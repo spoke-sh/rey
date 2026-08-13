@@ -6312,6 +6312,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(atlas.sources.is_empty());
     assert_eq!(atlas.regional_sources.len(), 1);
     assert_eq!(atlas.regional_regions.len(), 1);
+    assert_eq!(atlas.sectors.len(), 1);
     let atlas_source = &atlas.regional_sources[0];
     let atlas_region = &atlas.regional_regions[0];
     assert_eq!(atlas_source.workload_id, "scene-admission");
@@ -6340,6 +6341,20 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         atlas_source.semantic_latitude_microdegrees
     );
     assert_eq!(atlas_region.angular_radius_microdegrees, 0);
+    let sector = &atlas.sectors[0];
+    assert_eq!(atlas_region.sector_id, sector.sector_id);
+    assert_eq!(
+        sector.member_region_ids,
+        vec![atlas_region.region_id.clone()]
+    );
+    assert_eq!(
+        sector.east_microdegrees - sector.west_microdegrees,
+        30_000_000
+    );
+    assert_eq!(
+        sector.north_microdegrees - sector.south_microdegrees,
+        30_000_000
+    );
     assert_eq!(listed.semantic_atlas_history.len(), 1);
     assert_eq!(listed.semantic_atlas_deltas.len(), 1);
     assert_eq!(listed.semantic_atlas_deltas[0].inserted, 1);
@@ -6369,6 +6384,9 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(listed_table.status.success());
     let listed_table = String::from_utf8(listed_table.stdout).unwrap();
     assert!(listed_table.contains("0 survey + 1 admitted regional regions"));
+    assert!(listed_table.contains("1 world clusters and 1 occupied sectors"));
+    assert!(listed_table.contains("Sector grid"));
+    assert!(listed_table.contains("not surveyed coverage or native County footprints"));
     assert!(listed_table.contains("1 exact scene/package/packet memberships"));
     assert!(listed_table.contains("admitted synthetic placements retained"));
     assert!(listed_table.contains("sectors absent"));
@@ -6706,7 +6724,9 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(listed_table.stderr.is_empty());
     let listed_table = String::from_utf8(listed_table.stdout).unwrap();
     assert!(listed_table.contains("Semantic atlas"));
-    assert!(listed_table.contains("1 survey + 0 admitted regional regions in 1 world clusters"));
+    assert!(listed_table.contains(
+        "1 survey + 0 admitted regional regions in 1 world clusters and 1 occupied sectors"
+    ));
     assert!(listed_table.contains("synthetic semantic longitude/latitude"));
     assert!(listed_table.contains("not Earth CRS84"));
     assert!(listed_table.contains("zoom selects retained LOD and never reclusters"));

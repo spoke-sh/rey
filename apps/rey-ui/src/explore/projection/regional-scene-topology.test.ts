@@ -31,6 +31,7 @@ const regionalAtlas = {
     {
       region_id: "atlas-region:1",
       cluster_id: "cluster:1",
+      sector_id: "sector:1",
       workload_id: "scene-admission",
       scene_region_id: "regional-demo",
       source_scene_id: "scene:1",
@@ -40,6 +41,19 @@ const regionalAtlas = {
       projection_packet_id: "packet:1",
       semantic_longitude_microdegrees: -42_000_000,
       semantic_latitude_microdegrees: 18_000_000,
+    },
+  ],
+  sectors: [
+    {
+      sector_id: "sector:1",
+      longitude_band: 4,
+      latitude_band: 3,
+      west_microdegrees: -60_000_000,
+      south_microdegrees: 0,
+      east_microdegrees: -30_000_000,
+      north_microdegrees: 30_000_000,
+      member_region_ids: ["atlas-region:1"],
+      authority: "synthetic fixture partition",
     },
   ],
   clusters: [
@@ -211,8 +225,13 @@ describe("regional scene topology projection", () => {
     );
     expect(atlas.label).toBe("SEMANTIC MERCATOR ATLAS");
     expect(atlas.nodes[0]?.focus_id).toBe("regional:scene:1");
+    expect(atlas.regions[0]).toMatchObject({
+      id: "atlas-sector:sector:1",
+      label: "SECTOR 5.4",
+      variant: "map-zone",
+    });
     expect(atlas.omissions).toContain(
-      "retained atlas membership is point-only; sector polygons remain absent",
+      "synthetic sector polygons express membership only; they are not surveyed coverage or native County footprints",
     );
 
     const county = buildTopologyScene(

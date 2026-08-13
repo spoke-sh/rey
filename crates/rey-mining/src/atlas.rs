@@ -14,6 +14,9 @@ pub const SEMANTIC_ATLAS_SCHEMA: &str = "rey.semantic-atlas.v1";
 pub const SEMANTIC_ATLAS_DELTA_SCHEMA: &str = "rey.semantic-atlas-delta.v1";
 const MICRODEGREES_PER_DEGREE: f64 = 1_000_000.0;
 const MAX_ATLAS_DELTA_CHANGES: usize = 512;
+const SECTOR_LONGITUDE_BANDS: u16 = 12;
+const SECTOR_LATITUDE_BANDS: u16 = 6;
+const SECTOR_SIZE_MICRODEGREES: i64 = 30_000_000;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +24,7 @@ pub struct SemanticAtlasLimits {
     pub max_regions: u64,
     pub max_world_clusters: u64,
     pub max_members_per_cluster: u64,
+    pub max_sectors: u64,
     pub max_omissions: u64,
 }
 
@@ -30,6 +34,7 @@ impl Default for SemanticAtlasLimits {
             max_regions: 128,
             max_world_clusters: 16,
             max_members_per_cluster: 128,
+            max_sectors: 72,
             max_omissions: 32,
         }
     }
@@ -238,6 +243,7 @@ impl SemanticAtlasRegionalSource {
 pub struct SemanticAtlasRegion {
     pub region_id: SemanticDigest,
     pub cluster_id: SemanticDigest,
+    pub sector_id: SemanticDigest,
     pub workload_id: String,
     pub source_patch_id: SemanticDigest,
     pub source_topography_revision: SemanticDigest,
@@ -255,6 +261,7 @@ pub struct SemanticAtlasRegion {
 pub struct SemanticAtlasRegionalRegion {
     pub region_id: SemanticDigest,
     pub cluster_id: SemanticDigest,
+    pub sector_id: SemanticDigest,
     pub workload_id: String,
     pub scene_region_id: String,
     pub source_scene_id: SemanticDigest,
@@ -301,6 +308,20 @@ pub struct SemanticAtlasCluster {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct SemanticAtlasSector {
+    pub sector_id: SemanticDigest,
+    pub longitude_band: u16,
+    pub latitude_band: u16,
+    pub west_microdegrees: i64,
+    pub south_microdegrees: i64,
+    pub east_microdegrees: i64,
+    pub north_microdegrees: i64,
+    pub member_region_ids: Vec<SemanticDigest>,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SemanticAtlasOmission {
     pub kind: String,
     pub omitted_count: u64,
@@ -324,11 +345,14 @@ pub struct SemanticAtlas {
     pub compiler: ContractIdentity,
     pub coordinate_system: SemanticAtlasCoordinateSystem,
     pub layout_policy: SemanticAtlasLayoutPolicy,
+    pub sector_grid: ContractIdentity,
     pub submitted_sources: u64,
     pub sources: Vec<SemanticAtlasSource>,
     #[serde(default)]
     pub regional_sources: Vec<SemanticAtlasRegionalSource>,
     pub clusters: Vec<SemanticAtlasCluster>,
+    #[serde(default)]
+    pub sectors: Vec<SemanticAtlasSector>,
     pub regions: Vec<SemanticAtlasRegion>,
     #[serde(default)]
     pub regional_regions: Vec<SemanticAtlasRegionalRegion>,
@@ -456,6 +480,9 @@ impl SemanticAtlas {
         {
             return Err(SemanticAtlasError::CoordinateSystem);
         }
+        if self.sector_grid != atlas_sector_grid() {
+            return Err(SemanticAtlasError::Sector);
+        }
         unique(
             self.sources.iter().map(|source| source.region_id.as_str()),
             "source region",
@@ -520,6 +547,10 @@ impl SemanticAtlas {
                 .map(|cluster| cluster.cluster_id.as_str()),
             "cluster",
         )?;
+        unique(
+            self.sectors.iter().map(|sector| sector.sector_id.as_str()),
+            "sector",
+        )?;
         let source_count = self
             .sources
             .len()
@@ -533,6 +564,7 @@ impl SemanticAtlas {
                     .saturating_add(self.regional_sources.len()) as u64
             || source_count as u64 > self.limits.max_regions
             || self.clusters.len() as u64 > self.limits.max_world_clusters
+            || self.sectors.len() as u64 > self.limits.max_sectors
             || self.omissions.len() as u64 > self.limits.max_omissions
         {
             return Err(SemanticAtlasError::Shape("bounded rows"));
@@ -549,6 +581,71 @@ impl SemanticAtlas {
             .collect::<BTreeSet<_>>();
         if source_ids.len() != source_count {
             return Err(SemanticAtlasError::Duplicate("evidence region"));
+        }
+        if self.regions.iter().any(|region| {
+            !valid_coordinate(
+                region.semantic_longitude_microdegrees,
+                region.semantic_latitude_microdegrees,
+            )
+        }) {
+            return Err(SemanticAtlasError::Shape("region"));
+        }
+        if self.regional_regions.iter().any(|region| {
+            !valid_coordinate(
+                region.semantic_longitude_microdegrees,
+                region.semantic_latitude_microdegrees,
+            )
+        }) {
+            return Err(SemanticAtlasError::Shape("regional region"));
+        }
+        let region_sector_by_id = self
+            .regions
+            .iter()
+            .map(|region| {
+                (
+                    region.region_id.clone(),
+                    sector_id_for_coordinate(
+                        region.semantic_longitude_microdegrees,
+                        region.semantic_latitude_microdegrees,
+                    ),
+                )
+            })
+            .chain(self.regional_regions.iter().map(|region| {
+                (
+                    region.region_id.clone(),
+                    sector_id_for_coordinate(
+                        region.semantic_longitude_microdegrees,
+                        region.semantic_latitude_microdegrees,
+                    ),
+                )
+            }))
+            .collect::<BTreeMap<_, _>>();
+        let mut sectored = BTreeSet::new();
+        for sector in &self.sectors {
+            let (west, south, east, north) =
+                sector_bounds(sector.longitude_band, sector.latitude_band);
+            if sector.longitude_band >= SECTOR_LONGITUDE_BANDS
+                || sector.latitude_band >= SECTOR_LATITUDE_BANDS
+                || sector.sector_id != sector_identity(sector.longitude_band, sector.latitude_band)
+                || (sector.west_microdegrees, sector.south_microdegrees) != (west, south)
+                || (sector.east_microdegrees, sector.north_microdegrees) != (east, north)
+                || !canonical_nonempty_digests(&sector.member_region_ids)
+                || sector.member_region_ids.len() as u64 > self.limits.max_members_per_cluster
+                || sector.authority
+                    != "fixed synthetic partition cell used only for atlas membership; not surveyed coverage, native County footprint, source topology, or physical area"
+            {
+                return Err(SemanticAtlasError::Sector);
+            }
+            for region_id in &sector.member_region_ids {
+                if region_sector_by_id.get(region_id) != Some(&sector.sector_id)
+                    || !sectored.insert(region_id.as_str())
+                {
+                    return Err(SemanticAtlasError::Sector);
+                }
+            }
+        }
+        if sectored != source_ids {
+            return Err(SemanticAtlasError::Sector);
         }
         let mut clustered = BTreeSet::new();
         for cluster in &self.clusters {
@@ -575,10 +672,16 @@ impl SemanticAtlas {
             if !valid_coordinate(
                 region.semantic_longitude_microdegrees,
                 region.semantic_latitude_microdegrees,
-            ) || !self.clusters.iter().any(|cluster| {
-                cluster.cluster_id == region.cluster_id
-                    && cluster.member_region_ids.contains(&region.region_id)
-            }) {
+            ) || region.sector_id
+                != sector_id_for_coordinate(
+                    region.semantic_longitude_microdegrees,
+                    region.semantic_latitude_microdegrees,
+                )
+                || !self.clusters.iter().any(|cluster| {
+                    cluster.cluster_id == region.cluster_id
+                        && cluster.member_region_ids.contains(&region.region_id)
+                })
+            {
                 return Err(SemanticAtlasError::Shape("region"));
             }
             let source = self
@@ -599,10 +702,16 @@ impl SemanticAtlas {
             if !valid_coordinate(
                 region.semantic_longitude_microdegrees,
                 region.semantic_latitude_microdegrees,
-            ) || !self.clusters.iter().any(|cluster| {
-                cluster.cluster_id == region.cluster_id
-                    && cluster.member_region_ids.contains(&region.region_id)
-            }) {
+            ) || region.sector_id
+                != sector_id_for_coordinate(
+                    region.semantic_longitude_microdegrees,
+                    region.semantic_latitude_microdegrees,
+                )
+                || !self.clusters.iter().any(|cluster| {
+                    cluster.cluster_id == region.cluster_id
+                        && cluster.member_region_ids.contains(&region.region_id)
+                })
+            {
                 return Err(SemanticAtlasError::Shape("regional region"));
             }
             let source = self
@@ -912,6 +1021,7 @@ fn atlas_region_moved(
             SemanticAtlasRegionEvidence::SurveyTopography(right),
         ) => {
             left.cluster_id != right.cluster_id
+                || left.sector_id != right.sector_id
                 || left.semantic_longitude_microdegrees != right.semantic_longitude_microdegrees
                 || left.semantic_latitude_microdegrees != right.semantic_latitude_microdegrees
                 || left.angular_radius_microdegrees != right.angular_radius_microdegrees
@@ -921,6 +1031,7 @@ fn atlas_region_moved(
             SemanticAtlasRegionEvidence::AdmittedRegionalScene(right),
         ) => {
             left.cluster_id != right.cluster_id
+                || left.sector_id != right.sector_id
                 || left.semantic_longitude_microdegrees != right.semantic_longitude_microdegrees
                 || left.semantic_latitude_microdegrees != right.semantic_latitude_microdegrees
                 || left.angular_radius_microdegrees != right.angular_radius_microdegrees
@@ -1193,6 +1304,7 @@ fn build_atlas(
                     regions.push(SemanticAtlasRegion {
                         region_id: source.region_id.clone(),
                         cluster_id: cluster_id.clone(),
+                        sector_id: sector_id_for_coordinate(longitude, latitude),
                         workload_id: source.workload_id.clone(),
                         source_patch_id: source.source_patch_id.clone(),
                         source_topography_revision: source.source_topography_revision.clone(),
@@ -1214,6 +1326,10 @@ fn build_atlas(
                     regional_regions.push(SemanticAtlasRegionalRegion {
                         region_id: source.region_id.clone(),
                         cluster_id: cluster_id.clone(),
+                        sector_id: sector_id_for_coordinate(
+                            source.semantic_longitude_microdegrees,
+                            source.semantic_latitude_microdegrees,
+                        ),
                         workload_id: source.workload_id.clone(),
                         scene_region_id: source.scene_region_id.clone(),
                         source_scene_id: source.source_scene_id.clone(),
@@ -1237,6 +1353,7 @@ fn build_atlas(
     clusters.sort_by(|left, right| left.cluster_id.cmp(&right.cluster_id));
     regions.sort_by(|left, right| left.region_id.cmp(&right.region_id));
     regional_regions.sort_by(|left, right| left.region_id.cmp(&right.region_id));
+    let sectors = build_atlas_sectors(&regions, &regional_regions);
     let mut omissions = Vec::new();
     if omitted > 0 {
         omissions.push(SemanticAtlasOmission {
@@ -1288,10 +1405,12 @@ fn build_atlas(
             zoom_rule: "zoom selects retained level of detail and never reclusters".to_owned(),
             distance_claim: "cluster membership reflects only separately typed admitted structure features; angular distance is presentation, not semantic similarity evidence".to_owned(),
         },
+        sector_grid: atlas_sector_grid(),
         submitted_sources,
         sources,
         regional_sources,
         clusters,
+        sectors,
         regions,
         regional_regions,
         limits,
@@ -1519,6 +1638,87 @@ fn regional_dominant_feature(source: &SemanticAtlasRegionalSource) -> String {
     .to_owned()
 }
 
+fn sector_indices(longitude: i64, latitude: i64) -> (u16, u16) {
+    let longitude_band = ((longitude + 180_000_000) / SECTOR_SIZE_MICRODEGREES)
+        .clamp(0, i64::from(SECTOR_LONGITUDE_BANDS - 1)) as u16;
+    let latitude_band = ((latitude + 90_000_000) / SECTOR_SIZE_MICRODEGREES)
+        .clamp(0, i64::from(SECTOR_LATITUDE_BANDS - 1)) as u16;
+    (longitude_band, latitude_band)
+}
+
+fn sector_identity(longitude_band: u16, latitude_band: u16) -> SemanticDigest {
+    let mut hasher = SemanticHasher::new("rey.semantic-atlas-sector.v1");
+    hasher.add_u64(u64::from(longitude_band));
+    hasher.add_u64(u64::from(latitude_band));
+    hasher.finish()
+}
+
+fn sector_id_for_coordinate(longitude: i64, latitude: i64) -> SemanticDigest {
+    let (longitude_band, latitude_band) = sector_indices(longitude, latitude);
+    sector_identity(longitude_band, latitude_band)
+}
+
+fn sector_bounds(longitude_band: u16, latitude_band: u16) -> (i64, i64, i64, i64) {
+    let west = -180_000_000 + i64::from(longitude_band) * SECTOR_SIZE_MICRODEGREES;
+    let south = -90_000_000 + i64::from(latitude_band) * SECTOR_SIZE_MICRODEGREES;
+    (
+        west,
+        south,
+        west + SECTOR_SIZE_MICRODEGREES,
+        south + SECTOR_SIZE_MICRODEGREES,
+    )
+}
+
+fn build_atlas_sectors(
+    regions: &[SemanticAtlasRegion],
+    regional_regions: &[SemanticAtlasRegionalRegion],
+) -> Vec<SemanticAtlasSector> {
+    let mut members = BTreeMap::<(u16, u16), Vec<SemanticDigest>>::new();
+    for (region_id, longitude, latitude) in regions
+        .iter()
+        .map(|region| {
+            (
+                &region.region_id,
+                region.semantic_longitude_microdegrees,
+                region.semantic_latitude_microdegrees,
+            )
+        })
+        .chain(regional_regions.iter().map(|region| {
+            (
+                &region.region_id,
+                region.semantic_longitude_microdegrees,
+                region.semantic_latitude_microdegrees,
+            )
+        }))
+    {
+        members
+            .entry(sector_indices(longitude, latitude))
+            .or_default()
+            .push(region_id.clone());
+    }
+    let authority = "fixed synthetic partition cell used only for atlas membership; not surveyed coverage, native County footprint, source topology, or physical area";
+    let mut sectors = members
+        .into_iter()
+        .map(|((longitude_band, latitude_band), mut member_region_ids)| {
+            member_region_ids.sort();
+            let (west, south, east, north) = sector_bounds(longitude_band, latitude_band);
+            SemanticAtlasSector {
+                sector_id: sector_identity(longitude_band, latitude_band),
+                longitude_band,
+                latitude_band,
+                west_microdegrees: west,
+                south_microdegrees: south,
+                east_microdegrees: east,
+                north_microdegrees: north,
+                member_region_ids,
+                authority: authority.to_owned(),
+            }
+        })
+        .collect::<Vec<_>>();
+    sectors.sort_by(|left, right| left.sector_id.cmp(&right.sector_id));
+    sectors
+}
+
 fn cluster_identity(region_ids: &[SemanticDigest]) -> SemanticDigest {
     let mut hasher = SemanticHasher::new("rey.semantic-atlas-cluster.v1");
     for region_id in region_ids {
@@ -1529,7 +1729,7 @@ fn cluster_identity(region_ids: &[SemanticDigest]) -> SemanticDigest {
 
 fn atlas_compiler() -> ContractIdentity {
     let id = "rey.semantic-atlas.polar-cluster";
-    let revision = 2;
+    let revision = 3;
     let mut hasher = SemanticHasher::new("rey.contract.v1");
     hasher.add_str(id);
     hasher.add_u64(revision);
@@ -1538,6 +1738,14 @@ fn atlas_compiler() -> ContractIdentity {
         revision,
         semantic_digest: hasher.finish(),
     }
+}
+
+fn atlas_sector_grid() -> ContractIdentity {
+    ContractIdentity::new(
+        "rey.semantic-atlas.fixed-30-degree-sectors",
+        1,
+        "stable occupied synthetic longitude/latitude cells; membership is not surveyed coverage, native footprint, source topology, or physical area",
+    )
 }
 
 fn atlas_revision_digest(atlas: &SemanticAtlas) -> Result<SemanticDigest, SemanticAtlasError> {
@@ -1568,6 +1776,7 @@ fn validate_limits(limits: &SemanticAtlasLimits) -> Result<(), SemanticAtlasErro
         limits.max_regions,
         limits.max_world_clusters,
         limits.max_members_per_cluster,
+        limits.max_sectors,
         limits.max_omissions,
     ]
     .contains(&0)
@@ -1619,6 +1828,8 @@ pub enum SemanticAtlasError {
     Shape(&'static str),
     #[error("semantic atlas cluster membership is invalid")]
     Membership,
+    #[error("semantic atlas sector grid or membership is invalid")]
+    Sector,
     #[error("semantic atlas workload does not match its source topography")]
     WorkloadBinding,
     #[error("admitted regional scene has no exact native-to-semantic atlas placement")]
@@ -1736,6 +1947,16 @@ mod tests {
         assert_eq!(placed.semantic_longitude_microdegrees, -42_000_000);
         assert_eq!(placed.semantic_latitude_microdegrees, 18_000_000);
         assert_eq!(placed.angular_radius_microdegrees, 0);
+        let sector = atlas
+            .sectors
+            .iter()
+            .find(|sector| sector.sector_id == placed.sector_id)
+            .expect("regional sector");
+        assert_eq!(sector.longitude_band, 4);
+        assert_eq!(sector.latitude_band, 3);
+        assert_eq!(sector.west_microdegrees, -60_000_000);
+        assert_eq!(sector.east_microdegrees, -30_000_000);
+        assert!(sector.member_region_ids.contains(&placed.region_id));
         assert!(
             atlas
                 .clusters
@@ -1766,6 +1987,10 @@ mod tests {
             tampered.verify(),
             Err(SemanticAtlasError::Membership)
         ));
+
+        let mut tampered = atlas;
+        tampered.sectors[0].authority = "native county footprint".to_owned();
+        assert!(matches!(tampered.verify(), Err(SemanticAtlasError::Sector)));
     }
 
     #[test]

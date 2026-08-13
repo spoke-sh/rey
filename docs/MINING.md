@@ -476,7 +476,9 @@ recomputes it from both documents. Qualification fixtures and read-only
 projection do not advance this history. Each retained regional scene carries
 the resulting atlas revision as a non-owning link excluded from `scene_id` but
 included in its result/run identity; retained state verifies that link against
-the exact atlas member. Stable sectors remain Plan 0003 work.
+the exact atlas member. A versioned fixed 30-degree synthetic grid derives
+stable occupied sector polygons and explicit region membership; those cells are
+neither surveyed coverage nor native County footprints.
 
 The remaining render-graph extraction, transient-patch transitions, retained
 visual proof, and named performance qualification remain

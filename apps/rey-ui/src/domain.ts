@@ -418,6 +418,7 @@ export interface SemanticAtlasRegionalSource {
 export interface SemanticAtlasRegionalRegion {
   region_id: string;
   cluster_id: string;
+  sector_id: string;
   workload_id: string;
   scene_region_id: string;
   source_scene_id: string;
@@ -457,6 +458,7 @@ export interface SemanticAtlas {
     zoom_rule: string;
     distance_claim: string;
   };
+  sector_grid: ContractIdentity;
   submitted_sources: number;
   sources: SemanticAtlasSource[];
   regional_sources: SemanticAtlasRegionalSource[];
@@ -468,9 +470,21 @@ export interface SemanticAtlas {
     member_region_ids: string[];
     dominant_feature: string;
   }>;
+  sectors: Array<{
+    sector_id: string;
+    longitude_band: number;
+    latitude_band: number;
+    west_microdegrees: number;
+    south_microdegrees: number;
+    east_microdegrees: number;
+    north_microdegrees: number;
+    member_region_ids: string[];
+    authority: string;
+  }>;
   regions: Array<{
     region_id: string;
     cluster_id: string;
+    sector_id: string;
     workload_id: string;
     source_patch_id: string;
     source_topography_revision: string;
@@ -487,6 +501,7 @@ export interface SemanticAtlas {
     max_regions: number;
     max_world_clusters: number;
     max_members_per_cluster: number;
+    max_sectors: number;
     max_omissions: number;
   };
   complete: boolean;

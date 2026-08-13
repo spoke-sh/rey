@@ -194,11 +194,12 @@ contains no camera instance, evidence, admission, or renderer authority. Rust
 fixtures cover overlapping regional footprints, polar and antimeridian
 envelopes, rejected coordinate metadata, typed County boundary objects, and
 candidate-terrain authority rejection. Workload/CLI production of these
-documents and the accepted-result Explorer adapter now exist. The first browser
-slice shows exact regional point placement and native object envelopes; it does
-not yet implement retained sectors, footprint geometry, constructed layers,
-qualified regional terrain, or the complete posture transitions frozen by the
-grammar.
+documents and the accepted-result Explorer adapter now exist. The browser shows
+exact regional point placement, stable occupied fixed-grid sector polygons, and
+native object envelopes. A sector expresses synthetic membership only; it is
+not surveyed coverage or a native County footprint. Footprint geometry,
+constructed layers, qualified regional terrain, and the complete posture
+transitions frozen by the grammar remain open.
 
 The engine is high-dimensional because its input basis may project many source
 dimensions into a stable navigable scene. It is not allowed to invent that
@@ -600,9 +601,9 @@ reference backend renders an accessible orthographic sphere and the Three.js
 backend renders a lit WebGPU-first globe; both bind the same admitted evidence.
 Regional results must match their retained atlas member, which preserves the
 packet's exact synthetic point with no inferred radius. Atlas applies semantic
-Mercator to that same point, and closer lenses show exact native object bounds
-inside the scene envelope. Atlas sectors, footprint geometry, and regional
-terrain remain explicitly absent. Survey
+Mercator to that same point and its stable occupied synthetic sector, and closer
+lenses show exact native object bounds inside the scene envelope. Native County
+footprint geometry and regional terrain remain explicitly absent. Survey
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the

@@ -612,7 +612,7 @@ function buildRegionalWorld(
         focus_id: `regional:${scene.scene_id}`,
         workload_id: workload.workload.id,
         label: scene.region_id,
-        detail: `SCENE@${scene.admission.editor_sequence} · exact admitted point placement · footprint scale withheld · ${shortCoordinate(result.result_id)}`,
+        detail: `SCENE@${scene.admission.editor_sequence} · sector ${shortCoordinate(atlasRegion.sector_id)} · exact admitted point placement · footprint scale withheld · ${shortCoordinate(result.result_id)}`,
         longitude_degrees: longitude / 1_000_000,
         latitude_degrees: latitude / 1_000_000,
         angular_radius_degrees: 0,
@@ -654,7 +654,7 @@ function buildRegionalWorld(
     nodes: [],
     edges: [],
     omissions: [
-      "regional atlas members retain exact admitted synthetic placement points; no sector or footprint radius is inferred",
+      "regional atlas members retain exact admitted synthetic placement points; sector membership grants no footprint radius",
       ...regionalScenes.flatMap(({ scene }) =>
         scene.omissions.map((omission) => omission.reason),
       ),
@@ -689,7 +689,7 @@ function buildRegionalWorld(
         .sort((left, right) => left.localeCompare(right))
         .join("+"),
       coordinate_authority:
-        "revision-bound synthetic scene placement only; native coordinates, atlas sectors, physical distance, and footprint scale remain separate",
+        "revision-bound synthetic scene placement and sector membership only; native coordinates, County footprints, physical distance, and footprint scale remain separate",
       regions: [...surveyRegions, ...regionalRegions],
       clusters: (atlas?.clusters ?? []).map((cluster) => ({
         id: cluster.cluster_id,
@@ -718,7 +718,7 @@ function buildRegionalAtlas(
         `regional:${scene.scene_id}`,
         "COUNTY",
         scene.region_id,
-        `SCENE@${scene.admission.editor_sequence} · point placement only · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
+        `SCENE@${scene.admission.editor_sequence} · sector ${shortCoordinate(atlasRegion.sector_id)} · point placement only · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
         mercator.x,
         mercator.y,
         230,
@@ -727,16 +727,43 @@ function buildRegionalAtlas(
       );
     },
   );
+  const sectors = new Map(
+    regionalScenes.map(({ atlas_sector: sector }) => [
+      sector.sector_id,
+      sector,
+    ]),
+  );
+  const regions = [...sectors.values()].map((sector) => {
+    const northWest = semanticMercatorPoint(
+      sector.west_microdegrees,
+      sector.north_microdegrees,
+    );
+    const southEast = semanticMercatorPoint(
+      sector.east_microdegrees,
+      sector.south_microdegrees,
+    );
+    return {
+      id: `atlas-sector:${sector.sector_id}`,
+      label: `SECTOR ${sector.longitude_band + 1}.${sector.latitude_band + 1}`,
+      detail: `${sector.member_region_ids.length} admitted ${sector.member_region_ids.length === 1 ? "member" : "members"} · synthetic partition only · not a County footprint`,
+      x: northWest.x,
+      y: northWest.y,
+      width: Math.max(1, southEast.x - northWest.x),
+      height: Math.max(1, southEast.y - northWest.y),
+      tone: "neutral" as const,
+      variant: "map-zone" as const,
+    };
+  });
   return {
     regime: "atlas",
     label: "SEMANTIC MERCATOR ATLAS",
-    detail: `${regionalScenes.length} admitted regional point ${regionalScenes.length === 1 ? "placement" : "placements"} · sectors not retained`,
+    detail: `${regionalScenes.length} admitted regional point ${regionalScenes.length === 1 ? "placement" : "placements"} · ${regions.length} stable occupied ${regions.length === 1 ? "sector" : "sectors"}`,
     focus_id: focusId,
-    regions: [],
+    regions,
     nodes,
     edges: [],
     omissions: [
-      "retained atlas membership is point-only; sector polygons remain absent",
+      "synthetic sector polygons express membership only; they are not surveyed coverage or native County footprints",
       "semantic Mercator positions are not Earth CRS84, EPSG:3857, physical distance, or geographic area",
       ...regionalScenes.flatMap(({ scene }) =>
         scene.omissions.map((omission) => omission.reason),

@@ -37,6 +37,7 @@ const regionalAtlas = {
     {
       region_id: "atlas-region:1",
       cluster_id: "cluster:1",
+      sector_id: "sector:1",
       workload_id: "scene-admission",
       scene_region_id: "regional-demo",
       source_scene_id: "scene:1",
@@ -52,6 +53,19 @@ const regionalAtlas = {
       omissions: 0,
       complete: true,
       dominant_feature: "terrain_control",
+    },
+  ],
+  sectors: [
+    {
+      sector_id: "sector:1",
+      longitude_band: 4,
+      latitude_band: 3,
+      west_microdegrees: -60_000_000,
+      south_microdegrees: 0,
+      east_microdegrees: -30_000_000,
+      north_microdegrees: 30_000_000,
+      member_region_ids: ["atlas-region:1"],
+      authority: "synthetic fixture partition",
     },
   ],
 };

@@ -756,6 +756,7 @@ function atlasFor(patch: TopographyPatch): SemanticAtlas {
       zoom_rule: "zoom selects retained level of detail and never reclusters",
       distance_claim: "no semantic distance claim",
     },
+    sector_grid: identity("rey.semantic-atlas.fixed-30-degree-sectors"),
     submitted_sources: 1,
     sources: [
       {
@@ -785,10 +786,24 @@ function atlasFor(patch: TopographyPatch): SemanticAtlas {
         dominant_feature: "file",
       },
     ],
+    sectors: [
+      {
+        sector_id: "sector:1",
+        longitude_band: 6,
+        latitude_band: 3,
+        west_microdegrees: 0,
+        south_microdegrees: 0,
+        east_microdegrees: 30_000_000,
+        north_microdegrees: 30_000_000,
+        member_region_ids: ["region:1"],
+        authority: "synthetic fixture partition",
+      },
+    ],
     regions: [
       {
         region_id: "region:1",
         cluster_id: "cluster:1",
+        sector_id: "sector:1",
         workload_id: "rey.example",
         source_patch_id: patch.patch_id,
         source_topography_revision: patch.topography_revision,
@@ -806,6 +821,7 @@ function atlasFor(patch: TopographyPatch): SemanticAtlas {
       max_regions: 128,
       max_world_clusters: 16,
       max_members_per_cluster: 128,
+      max_sectors: 72,
       max_omissions: 32,
     },
     complete: true,

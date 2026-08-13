@@ -1614,10 +1614,12 @@ workload result, action admission, or proof.
 
 ### Sector
 
-A stable revision-bound partition polygon on the synthetic semantic atlas. It
-organizes admitted regions and may expose a named admitted interest measure.
-Its boundary, area, hover lift, and visual proximity are projection geometry,
-not source topology, terrain height, authority, or an inferred relationship.
+A stable revision-bound partition polygon on the synthetic semantic atlas. The
+implemented v1 grid retains only occupied fixed 30-degree cells and explicit
+region membership. A cell does not claim its unsurveyed interior as evidence
+and is not a native County footprint. Its boundary, area, hover lift, and visual
+proximity are projection geometry, not source topology, terrain height,
+authority, or an inferred relationship.
 
 ### Search record
 
