@@ -90,8 +90,11 @@ source footprint geometry nor physical distance. Scene admission now derives a
 footprint only from one exact envelope-matching boundary Polygon and otherwise
 retains an explicit omission. Explorer requires that identity for County,
 projects its native rings with holes preserved, and binds the footprint and
-compiler revisions into the immutable scene. Typed County layers,
-render-graph completion, clipmap reuse, and retained visual/performance proof remain open.
+compiler revisions into the immutable scene. Typed County layers and exact
+regional terrain evidence are admitted. Survey terrain now uses bounded haloed
+absolute-coordinate patches with exact shared render borders and a budgeted
+retained cache. Render-graph completion and retained visual/performance proof
+remain open.
 
 ## Completion Checklist
 
@@ -170,9 +173,11 @@ render-graph completion, clipmap reuse, and retained visual/performance proof re
 
 - [ ] Finish evidence-adapter, immutable-scene, camera, invalidation,
   render-graph, renderer, picking, and React ownership separation.
-- [ ] Replace full CPU window rebuilds with bounded crack-free transient
-  patches or clipmaps, including stable absolute sampling, hydrology halos,
-  seam behavior, cache keys, and byte/GPU budgets.
+- [x] Replace full CPU window rebuilds with bounded crack-free transient
+  patches, including stable absolute sampling, hydrology halos, exact shared
+  channel seams, cache keys, and CPU cell/byte budgets.
+- [ ] Bind accelerated patch residency and upload to an explicit GPU budget;
+  retain its measurements with renderer qualification.
 - [ ] Qualify GPU height/normal/material evaluation against deterministic CPU
   reference samples and preserve visible fallback on context/device loss.
 - [ ] Compose LOD-aware terrain, contours, hydrology, validity boundaries,

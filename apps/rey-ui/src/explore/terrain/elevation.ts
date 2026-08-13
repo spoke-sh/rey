@@ -30,7 +30,10 @@ export function deriveAnchorElevation(
   procedural?: { seed: number; bands: readonly ProjectionTerrainBand[] },
 ): ElevationResult {
   const values = new Float32Array(fieldCellCount(grid));
-  let maximum = 0;
+  const normalization = anchors.reduce(
+    (total, anchor) => total + Math.max(0, anchor.prominence),
+    0,
+  );
   for (let row = 0; row < grid.rows; row += 1) {
     for (let column = 0; column < grid.columns; column += 1) {
       const index = row * grid.columns + column;
@@ -44,13 +47,12 @@ export function deriveAnchorElevation(
           anchor.prominence * Math.exp(-distanceSquared / (2 * sigma * sigma));
       }
       values[index] = height;
-      maximum = Math.max(maximum, height);
     }
   }
 
   const validityValues = new Uint8Array(values.length);
-  const supportThreshold = maximum * 0.006;
-  if (maximum > 0) {
+  const supportThreshold = normalization * 0.006;
+  if (normalization > 0) {
     for (let index = 0; index < values.length; index += 1) {
       const base = values[index]!;
       const supported = base >= supportThreshold;
@@ -64,7 +66,7 @@ export function deriveAnchorElevation(
         index % grid.columns,
         Math.floor(index / grid.columns),
       );
-      const normalized = base / maximum;
+      const normalized = base / normalization;
       const edgeFade = smoothstep(supportThreshold, supportThreshold * 7, base);
       const detail = procedural
         ? procedural.bands.reduce(

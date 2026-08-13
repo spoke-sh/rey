@@ -241,17 +241,19 @@ immutable scene wrapper, typed terrain-field modules, SVG/DOM reference
 renderer, and pinned Three.js `0.185.1` WebGPU adapter are separated. The
 projection packet now retains a deterministic terrain evaluator, seed,
 macro/meso/micro bands, absolute-coordinate and validity rules, and a bounded
-transient working set. The browser evaluates an exact camera window with
-validity, elevation, rainfall, flow, erosion, normal, curvature, and
-presentation-only material buffers. Its frequency-band selection may add
+transient working set. The browser divides an exact camera window into bounded
+absolute-coordinate patches, evaluates validity, elevation, finite-horizon
+hydrology, erosion, normal, curvature, and presentation-only material through
+explicit halos, then crops one shared render border. Exact patch results enter
+an LRU constrained by the packet's cell and byte budgets. Frequency-band selection may add
 visual detail as sample spacing tightens but never adds semantic evidence or
 fills invalid support. A TSL node material consumes the active buffers as one
 continuous relief mesh in `/explore`; React retains the controls, accessible
 overlays, exact evidence links, active band/backend status, and current/maximum
 working-set allocation. `topology.ts` still combines portfolio adaptation,
 scene assembly, contour extraction, and lens data. [Plan
-0003](../plans/0003-scene-to-explorer.md) owns transient-patch transitions,
-the remaining render-graph extraction, device-loss qualification, and retained
+0003](../plans/0003-scene-to-explorer.md) owns the remaining render-graph
+extraction, device-loss qualification, and retained
 visual and performance proof.
 
 ### Terrain fidelity

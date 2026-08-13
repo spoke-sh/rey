@@ -7,6 +7,7 @@ import {
   type VectorField2D,
 } from "../engine/fields";
 import { PROJECTED_SUPPORT } from "./elevation";
+import { HYDROLOGY_ACCUMULATION_NORMALIZATION } from "./hydrology";
 
 export function deriveTerrainMaterial(
   elevation: ScalarField2D,
@@ -20,7 +21,6 @@ export function deriveTerrainMaterial(
   const tint = new Float32Array(cells * 3);
   const occlusion = new Float32Array(cells);
   const roughness = new Float32Array(cells);
-  const maximumFlow = Math.max(1, flowAccumulation.maximum);
   for (let index = 0; index < cells; index += 1) {
     if (validity.values[index] !== PROJECTED_SUPPORT) continue;
     const height = elevation.values[index]!;
@@ -28,7 +28,10 @@ export function deriveTerrainMaterial(
     const slope = 1 - normalZ;
     const valley = Math.max(0, curvature.values[index]!);
     const ridge = Math.max(0, -curvature.values[index]!);
-    const wetness = Math.min(1, flowAccumulation.values[index]! / maximumFlow);
+    const wetness = Math.min(
+      1,
+      flowAccumulation.values[index]! / HYDROLOGY_ACCUMULATION_NORMALIZATION,
+    );
     const low = [0.27, 0.3, 0.3] as const;
     const middle = [0.45, 0.47, 0.43] as const;
     const high = [0.68, 0.67, 0.61] as const;

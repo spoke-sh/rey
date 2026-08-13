@@ -929,11 +929,11 @@ the atlas revision, region/cluster counts, synthetic coordinate authority,
 reclustering rule, and the packet's
 terrain evaluator, macro/meso/micro bands, absolute-coordinate validity rules,
 and maximum transient working-set allocation. Explorer requires those
-identities to match. The browser compiles camera-relative typed
-validity/elevation/hydrology/normal/curvature/material buffers and renders
-continuous relief through the Three.js WebGPU/TSL adapter with WebGL2 and
-deterministic reference paths. Render-graph extraction, transient-patch reuse,
-retained voyages, and a qualified terrain-fidelity result remain incomplete
+identities to match. The browser compiles bounded haloed absolute-coordinate
+validity/elevation/hydrology/normal/curvature/material patches, retains exact
+patch identities in a byte/cell-bounded LRU, and renders continuous relief
+through the Three.js WebGPU/TSL adapter with WebGL2 and deterministic reference
+paths. Render-graph extraction, retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
 activation, persistent cross-poll activation processing, and policy proposals
 remain target architecture. Compatible admissions within one

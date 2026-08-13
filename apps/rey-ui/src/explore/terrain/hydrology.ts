@@ -6,8 +6,12 @@ import {
   type MaskField2D,
   type ScalarField2D,
   type VectorField2D,
+  type FieldBounds,
 } from "../engine/fields";
 import { PROJECTED_SUPPORT } from "./elevation";
+
+export const HYDROLOGY_PROPAGATION_STEPS = 4;
+export const HYDROLOGY_ACCUMULATION_NORMALIZATION = 6;
 
 export interface TerrainAtmosphereSample {
   x: number;
@@ -28,6 +32,7 @@ export function deriveHydrology(
   validity: MaskField2D,
   atmosphere: readonly TerrainAtmosphereSample[],
   unresolvedPressure: number,
+  absoluteBounds: FieldBounds,
   revisions: {
     rainfall: string;
     flow_direction: string;
@@ -40,7 +45,7 @@ export function deriveHydrology(
   const count = fieldCellCount(grid);
   const rainfallValues = new Float32Array(count);
   const hydraulicHeight = new Float32Array(count);
-  const accumulationValues = new Float32Array(count);
+  let accumulationValues = new Float32Array(count);
   const flowValues = new Int8Array(count * 2);
   const downstream = new Int32Array(count);
   downstream.fill(-1);
@@ -66,8 +71,8 @@ export function deriveHydrology(
         unresolvedPressure * 0.12;
       const tilt =
         0.035 *
-        ((column / Math.max(1, grid.columns - 1)) * xDirection +
-          (row / Math.max(1, grid.rows - 1)) * yDirection);
+        (((point.x - absoluteBounds.x) / absoluteBounds.width) * xDirection +
+          ((point.y - absoluteBounds.y) / absoluteBounds.height) * yDirection);
       rainfallValues[index] = rain;
       accumulationValues[index] = rain;
       hydraulicHeight[index] = elevation.values[index]! + tilt;
@@ -108,31 +113,30 @@ export function deriveHydrology(
     }
   }
 
-  const ordered = Array.from({ length: count }, (_, index) => index)
-    .filter((index) => validity.values[index] === PROJECTED_SUPPORT)
-    .sort(
-      (left, right) =>
-        hydraulicHeight[right]! - hydraulicHeight[left]! || left - right,
-    );
-  for (const index of ordered) {
-    const target = downstream[index]!;
-    if (target >= 0)
-      accumulationValues[target] =
-        accumulationValues[target]! + accumulationValues[index]!;
+  for (let step = 0; step < HYDROLOGY_PROPAGATION_STEPS; step += 1) {
+    const propagated = rainfallValues.slice();
+    for (let index = 0; index < count; index += 1) {
+      if (validity.values[index] !== PROJECTED_SUPPORT) continue;
+      const target = downstream[index]!;
+      if (target >= 0)
+        propagated[target] = propagated[target]! + accumulationValues[index]!;
+    }
+    accumulationValues = propagated;
   }
 
-  let maximumAccumulation = 0;
-  for (const accumulation of accumulationValues)
-    maximumAccumulation = Math.max(maximumAccumulation, accumulation);
   const erosionValues = new Float32Array(count);
   const erodedValues = new Float32Array(count);
   for (let index = 0; index < count; index += 1) {
     if (validity.values[index] !== PROJECTED_SUPPORT) continue;
     const erosion =
-      maximumAccumulation === 0
-        ? 0
-        : 0.18 *
-          Math.pow(accumulationValues[index]! / maximumAccumulation, 0.72);
+      0.18 *
+      Math.pow(
+        Math.min(
+          1,
+          accumulationValues[index]! / HYDROLOGY_ACCUMULATION_NORMALIZATION,
+        ),
+        0.72,
+      );
     erosionValues[index] = erosion;
     erodedValues[index] = Math.max(0, elevation.values[index]! - erosion);
   }

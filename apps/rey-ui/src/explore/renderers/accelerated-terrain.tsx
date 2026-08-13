@@ -5,10 +5,10 @@ import type { GlobeCameraView } from "../engine/camera";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import {
-  materializeTerrainWorkingSet,
-  terrainWorkingSetForView,
+  terrainPatchRequestsForView,
   type TerrainCameraView,
 } from "../terrain/compile";
+import { TerrainPatchCache } from "../terrain/patch-cache";
 
 export type RendererPreference = "auto" | "webgpu" | "webgl2" | "reference";
 
@@ -80,15 +80,19 @@ export function AcceleratedTerrainSurface({
     import("./three-terrain").ThreeTerrainBundle | undefined
   >(undefined);
   const [ready, setReady] = useState(false);
+  const patchCacheRef = useRef<{
+    limits: string;
+    cache: TerrainPatchCache;
+  } | null>(null);
   const semanticGlobe =
     snapshot.scene.regime === "world" ? snapshot.scene.globe : null;
   const workingSetRequests = semanticGlobe
     ? []
     : snapshot.scene.terrain_programs.map((program) =>
-        terrainWorkingSetForView(program, view),
+        terrainPatchRequestsForView(program, view),
       );
   const workingSetRevision = workingSetRequests
-    .map((request) => request.working_set_id)
+    .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
 
   useEffect(() => {
@@ -101,11 +105,30 @@ export function AcceleratedTerrainSurface({
       onReport(REFERENCE_TERRAIN_REPORT);
       return;
     }
+    const programTotals = snapshot.scene.terrain_programs.reduce(
+      (result, program) => ({
+        cells:
+          result.cells +
+          program.projection.terrain_program.working_set.max_cells,
+        bytes:
+          result.bytes +
+          program.projection.terrain_program.working_set.max_bytes,
+      }),
+      { cells: 0, bytes: 0 },
+    );
+    const limitsRevision = `${programTotals.cells}:${programTotals.bytes}`;
+    if (!semanticGlobe && patchCacheRef.current?.limits !== limitsRevision)
+      patchCacheRef.current = {
+        limits: limitsRevision,
+        cache: new TerrainPatchCache(programTotals.cells, programTotals.bytes),
+      };
     const runtimeFields = snapshot.scene.terrain_programs.flatMap(
-      (program, index) =>
-        semanticGlobe
-          ? []
-          : [materializeTerrainWorkingSet(program, workingSetRequests[index]!)],
+      (program, index) => {
+        if (semanticGlobe) return [];
+        return workingSetRequests[index]!.map((request) =>
+          patchCacheRef.current!.cache.materialize(program, request),
+        );
+      },
     );
     const activeBandIds = Object.freeze(
       [
@@ -119,17 +142,6 @@ export function AcceleratedTerrainSurface({
         field_bytes: result.field_bytes + fields.field_bytes,
       }),
       { field_cells: 0, field_bytes: 0 },
-    );
-    const programTotals = snapshot.scene.terrain_programs.reduce(
-      (result, program) => ({
-        cells:
-          result.cells +
-          program.projection.terrain_program.working_set.max_cells,
-        bytes:
-          result.bytes +
-          program.projection.terrain_program.working_set.max_bytes,
-      }),
-      { cells: 0, bytes: 0 },
     );
     const preference = rendererPreference(window.location.search);
     if (preference === "reference") {

@@ -6689,7 +6689,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
         "OMISSION candidate_limit",
         "Exact topography bindings:",
         "Exact projection bindings:",
-        "terrain program rey.projection.procedural-terrain@1",
+        "terrain program rey.projection.procedural-terrain@2",
         "working set ≤255×255 · ≤65025 cells · ≤3576375 bytes",
         "terrain band macro · wavelength 420 · amplitude 0.210 · 2 octave(s)",
         "terrain band micro · wavelength 24 · amplitude 0.018 · 2 octave(s)",

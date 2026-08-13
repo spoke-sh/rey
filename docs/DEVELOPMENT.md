@@ -217,7 +217,11 @@ paths share one scene revision.
 `src/explore/engine/scene.ts` freezes the current scene, and
 `src/explore/engine/fields.ts` owns bounded typed scalar, vector, mask, and
 material buffers. `src/explore/terrain` derives anchor elevation, validity,
-hydrology, erosion, physical-scale normals, curvature, and material inputs.
+finite-horizon hydrology, erosion, physical-scale normals, curvature, and
+material inputs. Its compiler splits camera working sets into
+absolute-coordinate patches with explicit hydrology/relief halos, proves
+shared render-channel seams, and retains patch identities within packet-owned
+cell and byte limits.
 `src/explore/renderers/reference.tsx` owns the accessible SVG/DOM overlays and
 fallback beneath the React canvas shell. Remaining scene assembly, contours,
 and natural-feature adaptation still live in `src/topology.ts`. Seed edges

@@ -647,8 +647,8 @@ fn topography_terrain_program(revision: &SemanticDigest) -> ProjectionTerrainPro
         schema: TERRAIN_PROGRAM_SCHEMA.to_owned(),
         evaluator: ContractIdentity::new(
             "rey.projection.procedural-terrain",
-            1,
-            "evaluate deterministic absolute-coordinate anchor relief and bounded multiscale surface detail into a transient camera working set",
+            2,
+            "evaluate deterministic absolute-coordinate anchor relief, finite-horizon hydrology, and bounded multiscale surface detail into haloed transient patches",
         ),
         seed: stable_seed(revision.as_str()),
         bands: vec![
@@ -687,7 +687,7 @@ fn topography_terrain_program(revision: &SemanticDigest) -> ProjectionTerrainPro
                 * TERRAIN_FIELD_BYTES_PER_CELL,
             target_sample_spacing_pixels: 4,
             overscan_samples: 3,
-            recenter_rule: "snap the camera-relative working-set origin to its absolute-coordinate sample spacing; discard and regenerate derived buffers as the view changes".to_owned(),
+            recenter_rule: "snap camera-relative working sets to absolute-coordinate sample spacing; compile bounded overlapping patches with finite hydrology and relief halos; retain exact patch identities within declared cell and byte budgets".to_owned(),
         },
         coordinate_rule: "evaluate every band from absolute synthetic scene coordinates so camera movement cannot move a landform".to_owned(),
         validity_rule: "evaluate relief only inside deterministic admitted anchor support; unsupported samples remain invalid and transparent".to_owned(),
@@ -806,7 +806,7 @@ fn topography_field_channels(revision: &SemanticDigest) -> Vec<ProjectionFieldCh
                 units: units.to_owned(),
                 normalization: normalization.to_owned(),
                 source_revision: revision.clone(),
-                implementation: ContractIdentity::new(implementation, 1, definition),
+                implementation: ContractIdentity::new(implementation, 2, definition),
             }
         },
     )

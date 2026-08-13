@@ -4,6 +4,10 @@ import {
   createFieldGrid,
   fieldByteLength,
   fieldCellCount,
+  maskField,
+  materialField,
+  scalarField,
+  vectorField,
   type FieldBounds,
   type FieldGrid,
   type MaskField2D,
@@ -12,12 +16,19 @@ import {
   type VectorField2D,
 } from "../engine/fields";
 import { deriveAnchorElevation, type TerrainAnchorSample } from "./elevation";
-import { deriveHydrology, type TerrainAtmosphereSample } from "./hydrology";
+import {
+  HYDROLOGY_PROPAGATION_STEPS,
+  deriveHydrology,
+  type TerrainAtmosphereSample,
+} from "./hydrology";
 import { deriveTerrainMaterial } from "./materials";
 import { deriveTerrainNormals } from "./normals";
 
 export const COMPILED_TERRAIN_PROGRAM_SCHEMA =
   "rey.compiled-terrain-program.v1" as const;
+export const TERRAIN_PATCH_COMPILER_REVISION =
+  "rey.terrain.absolute-patches@1" as const;
+export const TERRAIN_PATCH_HALO_SAMPLES = HYDROLOGY_PROPAGATION_STEPS + 2;
 
 export interface TerrainProgram {
   schema: typeof COMPILED_TERRAIN_PROGRAM_SCHEMA;
@@ -70,6 +81,16 @@ export interface TerrainWorkingSetRequest {
   columns: number;
   rows: number;
   detail_authority: string;
+  render_window?: TerrainRenderWindow;
+}
+
+export interface TerrainRenderWindow {
+  column_offset: number;
+  row_offset: number;
+  columns: number;
+  rows: number;
+  bounds: FieldBounds;
+  halo_samples: number;
 }
 
 export interface TerrainCameraView {
@@ -146,6 +167,150 @@ export function terrainWorkingSetForView(
     detail_authority:
       "transient camera-relative evaluation of the admitted terrain program",
   };
+}
+
+export function terrainPatchRequestsForView(
+  program: TerrainProgram,
+  view: TerrainCameraView,
+  maxPatchColumns = 65,
+  maxPatchRows = 65,
+): readonly TerrainWorkingSetRequest[] {
+  if (
+    !Number.isInteger(maxPatchColumns) ||
+    !Number.isInteger(maxPatchRows) ||
+    maxPatchColumns < 3 ||
+    maxPatchRows < 3
+  )
+    throw new Error("terrain patch dimensions are invalid");
+  let request = terrainWorkingSetForView(program, view);
+  const working = program.projection.terrain_program.working_set;
+  const maximumCells = Math.min(
+    working.max_cells,
+    program.projection.limits.max_working_set_cells,
+    Math.floor(
+      Math.min(
+        working.max_bytes,
+        program.projection.limits.max_working_set_bytes,
+      ) / working.bytes_per_cell,
+    ),
+  );
+  for (;;) {
+    if (request.columns <= maxPatchColumns && request.rows <= maxPatchRows)
+      return Object.freeze([request]);
+    const patches = compileTerrainPatches(
+      request,
+      maxPatchColumns,
+      maxPatchRows,
+    );
+    const cells = patches.reduce(
+      (total, patch) => total + patch.columns * patch.rows,
+      0,
+    );
+    if (cells <= maximumCells) return Object.freeze(patches);
+    const reduction = Math.min(0.98, Math.sqrt(maximumCells / cells) * 0.98);
+    const columns = Math.max(
+      2,
+      Math.min(
+        request.columns - 1,
+        Math.floor((request.columns - 1) * reduction) + 1,
+      ),
+    );
+    const rows = Math.max(
+      2,
+      Math.min(
+        request.rows - 1,
+        Math.floor((request.rows - 1) * reduction) + 1,
+      ),
+    );
+    request = {
+      ...request,
+      working_set_id: `${request.working_set_id}:budget:${columns}x${rows}`,
+      columns,
+      rows,
+      detail_authority:
+        "transient camera-relative evaluation reduced deterministically to reserve bounded terrain-patch halos",
+    };
+  }
+}
+
+function compileTerrainPatches(
+  request: TerrainWorkingSetRequest,
+  maxPatchColumns: number,
+  maxPatchRows: number,
+): TerrainWorkingSetRequest[] {
+  const columnRanges = overlappingRanges(request.columns, maxPatchColumns);
+  const rowRanges = overlappingRanges(request.rows, maxPatchRows);
+  const columnSpacing = request.bounds.width / (request.columns - 1);
+  const rowSpacing = request.bounds.height / (request.rows - 1);
+  return rowRanges.flatMap(([rowStart, rows]) =>
+    columnRanges.map(([columnStart, columns]) => {
+      const computeColumnStart = Math.max(
+        0,
+        columnStart - TERRAIN_PATCH_HALO_SAMPLES,
+      );
+      const computeRowStart = Math.max(
+        0,
+        rowStart - TERRAIN_PATCH_HALO_SAMPLES,
+      );
+      const computeColumnEnd = Math.min(
+        request.columns,
+        columnStart + columns + TERRAIN_PATCH_HALO_SAMPLES,
+      );
+      const computeRowEnd = Math.min(
+        request.rows,
+        rowStart + rows + TERRAIN_PATCH_HALO_SAMPLES,
+      );
+      const computeColumns = computeColumnEnd - computeColumnStart;
+      const computeRows = computeRowEnd - computeRowStart;
+      const renderBounds = Object.freeze({
+        x: request.bounds.x + columnStart * columnSpacing,
+        y: request.bounds.y + rowStart * rowSpacing,
+        width: (columns - 1) * columnSpacing,
+        height: (rows - 1) * rowSpacing,
+      });
+      return Object.freeze({
+        working_set_id: [
+          TERRAIN_PATCH_COMPILER_REVISION,
+          `${renderBounds.x.toFixed(4)},${renderBounds.y.toFixed(4)}`,
+          `${renderBounds.width.toFixed(4)},${renderBounds.height.toFixed(4)}`,
+          `${columns}x${rows}`,
+          `halo:${TERRAIN_PATCH_HALO_SAMPLES}`,
+        ].join(":"),
+        bounds: Object.freeze({
+          x: request.bounds.x + computeColumnStart * columnSpacing,
+          y: request.bounds.y + computeRowStart * rowSpacing,
+          width: (computeColumns - 1) * columnSpacing,
+          height: (computeRows - 1) * rowSpacing,
+        }),
+        columns: computeColumns,
+        rows: computeRows,
+        detail_authority:
+          "bounded absolute-coordinate terrain patch with finite hydrology and relief halos; one shared render border preserves neighboring channel identity",
+        render_window: Object.freeze({
+          column_offset: columnStart - computeColumnStart,
+          row_offset: rowStart - computeRowStart,
+          columns,
+          rows,
+          bounds: renderBounds,
+          halo_samples: TERRAIN_PATCH_HALO_SAMPLES,
+        }),
+      });
+    }),
+  );
+}
+
+function overlappingRanges(
+  sampleCount: number,
+  maximumPatchSamples: number,
+): Array<readonly [number, number]> {
+  const ranges: Array<readonly [number, number]> = [];
+  let start = 0;
+  while (start < sampleCount - 1) {
+    const count = Math.min(maximumPatchSamples, sampleCount - start);
+    ranges.push([start, count]);
+    start += count - 1;
+  }
+  return ranges;
 }
 
 export function compileTerrainProgram(
@@ -253,6 +418,7 @@ export function materializeTerrainWorkingSet(
     anchor.validity,
     program.atmosphere,
     program.unresolved_pressure,
+    program.bounds,
     {
       rainfall: revision("rainfall"),
       flow_direction: revision("flow_direction"),
@@ -275,7 +441,7 @@ export function materializeTerrainWorkingSet(
     anchor.validity,
     revision("material"),
   );
-  const fields = [
+  const computedFields = [
     anchor.validity,
     hydrology.elevation,
     hydrology.rainfall,
@@ -286,24 +452,64 @@ export function materializeTerrainWorkingSet(
     relief.curvature,
     material,
   ] as const;
+  const computedBytes = computedFields.reduce(
+    (total, field) => total + fieldByteLength(field),
+    0,
+  );
+  if (computedFields.length > program.projection.limits.max_field_channels)
+    throw new Error("terrain channel limit exceeded");
+  if (computedBytes !== expectedBytes)
+    throw new Error(
+      `terrain working-set allocation ${computedBytes} does not match declared ${expectedBytes}`,
+    );
+  const cropped = request.render_window
+    ? cropTerrainFields(
+        request.render_window,
+        anchor.validity,
+        hydrology.elevation,
+        hydrology.rainfall,
+        hydrology.flow_direction,
+        hydrology.flow_accumulation,
+        hydrology.erosion,
+        relief.normal,
+        relief.curvature,
+        material,
+      )
+    : {
+        grid,
+        validity: anchor.validity,
+        elevation: hydrology.elevation,
+        rainfall: hydrology.rainfall,
+        flow_direction: hydrology.flow_direction,
+        flow_accumulation: hydrology.flow_accumulation,
+        erosion: hydrology.erosion,
+        normal: relief.normal,
+        curvature: relief.curvature,
+        material,
+      };
+  const fields = [
+    cropped.validity,
+    cropped.elevation,
+    cropped.rainfall,
+    cropped.flow_direction,
+    cropped.flow_accumulation,
+    cropped.erosion,
+    cropped.normal,
+    cropped.curvature,
+    cropped.material,
+  ] as const;
   const fieldBytes = fields.reduce(
     (total, field) => total + fieldByteLength(field),
     0,
   );
-  if (fields.length > program.projection.limits.max_field_channels)
-    throw new Error("terrain channel limit exceeded");
-  if (fieldBytes !== expectedBytes)
-    throw new Error(
-      `terrain working-set allocation ${fieldBytes} does not match declared ${expectedBytes}`,
-    );
   const result = Object.freeze({
     schema: TERRAIN_FIELD_SCHEMA,
     field_set_id: [
       TERRAIN_FIELD_SCHEMA,
       program.program_id,
       request.working_set_id,
-      `${grid.columns}x${grid.rows}`,
-      `${grid.bounds.x},${grid.bounds.y},${grid.bounds.width},${grid.bounds.height}`,
+      `${cropped.grid.columns}x${cropped.grid.rows}`,
+      `${cropped.grid.bounds.x},${cropped.grid.bounds.y},${cropped.grid.bounds.width},${cropped.grid.bounds.height}`,
       ...activeBands.map((band) => band.band_id),
       ...fields.map((field) => field.implementation_revision),
     ].join("|"),
@@ -312,22 +518,138 @@ export function materializeTerrainWorkingSet(
     active_band_ids: Object.freeze(activeBands.map((band) => band.band_id)),
     detail_authority: request.detail_authority,
     source_revision: program.source_revision,
-    grid,
+    grid: cropped.grid,
     elevation_scale: elevationScale,
-    validity: anchor.validity,
-    elevation: hydrology.elevation,
-    rainfall: hydrology.rainfall,
-    flow_direction: hydrology.flow_direction,
-    flow_accumulation: hydrology.flow_accumulation,
-    erosion: hydrology.erosion,
-    normal: relief.normal,
-    curvature: relief.curvature,
-    material,
-    field_cells: cells,
+    validity: cropped.validity,
+    elevation: cropped.elevation,
+    rainfall: cropped.rainfall,
+    flow_direction: cropped.flow_direction,
+    flow_accumulation: cropped.flow_accumulation,
+    erosion: cropped.erosion,
+    normal: cropped.normal,
+    curvature: cropped.curvature,
+    material: cropped.material,
+    field_cells: fieldCellCount(cropped.grid),
     field_bytes: fieldBytes,
   });
   verifyTerrainWorkingSet(result, program);
   return result;
+}
+
+function cropTerrainFields(
+  window: TerrainRenderWindow,
+  validity: MaskField2D,
+  elevation: ScalarField2D,
+  rainfall: ScalarField2D,
+  flowDirection: VectorField2D,
+  flowAccumulation: ScalarField2D,
+  erosion: ScalarField2D,
+  normal: VectorField2D,
+  curvature: ScalarField2D,
+  material: MaterialField2D,
+) {
+  const source = validity.grid;
+  if (
+    !Number.isInteger(window.column_offset) ||
+    !Number.isInteger(window.row_offset) ||
+    !Number.isInteger(window.columns) ||
+    !Number.isInteger(window.rows) ||
+    window.column_offset < 0 ||
+    window.row_offset < 0 ||
+    window.columns < 2 ||
+    window.rows < 2 ||
+    window.column_offset + window.columns > source.columns ||
+    window.row_offset + window.rows > source.rows ||
+    window.halo_samples < TERRAIN_PATCH_HALO_SAMPLES
+  )
+    throw new Error("terrain patch render window or halo is invalid");
+  const spacingX = source.bounds.width / (source.columns - 1);
+  const spacingY = source.bounds.height / (source.rows - 1);
+  const expectedBounds = {
+    x: source.bounds.x + window.column_offset * spacingX,
+    y: source.bounds.y + window.row_offset * spacingY,
+    width: (window.columns - 1) * spacingX,
+    height: (window.rows - 1) * spacingY,
+  };
+  if (
+    !sameNumber(expectedBounds.x, window.bounds.x) ||
+    !sameNumber(expectedBounds.y, window.bounds.y) ||
+    !sameNumber(expectedBounds.width, window.bounds.width) ||
+    !sameNumber(expectedBounds.height, window.bounds.height)
+  )
+    throw new Error("terrain patch render bounds do not match its grid");
+  const grid = createFieldGrid(window.columns, window.rows, window.bounds);
+  const scalar = (field: ScalarField2D) =>
+    scalarField(
+      field.channel,
+      field.implementation_revision,
+      grid,
+      cropComponents(field.values, source, window, 1),
+    );
+  const vector = (field: VectorField2D) =>
+    vectorField(
+      field.channel,
+      field.implementation_revision,
+      grid,
+      field.components,
+      cropComponents(field.values, source, window, field.components),
+    );
+  return {
+    grid,
+    validity: maskField(
+      validity.channel,
+      validity.implementation_revision,
+      grid,
+      cropComponents(validity.values, source, window, 1),
+    ),
+    elevation: scalar(elevation),
+    rainfall: scalar(rainfall),
+    flow_direction: vector(flowDirection),
+    flow_accumulation: scalar(flowAccumulation),
+    erosion: scalar(erosion),
+    normal: vector(normal),
+    curvature: scalar(curvature),
+    material: materialField(
+      material.channel,
+      material.implementation_revision,
+      grid,
+      cropComponents(material.tint, source, window, 3),
+      cropComponents(material.occlusion, source, window, 1),
+      cropComponents(material.roughness, source, window, 1),
+    ),
+  };
+}
+
+function cropComponents<T extends Float32Array | Int8Array | Uint8Array>(
+  sourceValues: T,
+  sourceGrid: FieldGrid,
+  window: TerrainRenderWindow,
+  components: number,
+): T {
+  const Constructor = sourceValues.constructor as {
+    new (length: number): T;
+  };
+  const values = new Constructor(window.columns * window.rows * components);
+  for (let row = 0; row < window.rows; row += 1) {
+    const sourceOffset =
+      ((window.row_offset + row) * sourceGrid.columns + window.column_offset) *
+      components;
+    const targetOffset = row * window.columns * components;
+    values.set(
+      sourceValues.subarray(
+        sourceOffset,
+        sourceOffset + window.columns * components,
+      ),
+      targetOffset,
+    );
+  }
+  return values;
+}
+
+function sameNumber(left: number, right: number): boolean {
+  return (
+    Math.abs(left - right) <= Number.EPSILON * Math.max(1, left, right) * 8
+  );
 }
 
 export function verifyTerrainWorkingSet(
