@@ -253,7 +253,9 @@ allocation, the accelerated terrain path totals its exact vertex attributes
 and index bytes, rejects more than the explicit 64 MiB engine budget, and
 reports current/maximum GPU bytes beside CPU field allocation. Frequency-band selection may add
 visual detail as sample spacing tightens but never adds semantic evidence or
-fills invalid support. A TSL node material consumes the active buffers as one
+fills invalid support. The snapshot also binds a revisioned immutable picking
+index. Repeated Atlas chart copies resolve through its analytic inverse to one
+retained semantic identity; React only forwards the selected result. A TSL node material consumes the active buffers as one
 continuous relief mesh in `/explore`; React retains the controls, accessible
 overlays, exact evidence links, active band/backend status, and current/maximum
 working-set allocation. `topology.ts` still combines portfolio adaptation,

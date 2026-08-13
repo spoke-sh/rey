@@ -401,6 +401,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             onFocus={focusNode}
             projectionMorphProgress={projectionMorphProgress}
             renderGraph={snapshot.render_graph}
+            pickingIndex={snapshot.picking_index}
             scene={scene}
           />
         </div>

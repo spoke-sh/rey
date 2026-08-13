@@ -18,6 +18,11 @@ import type {
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "./labels";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 import {
+  EXPLORER_PICKING_REVISION,
+  compileScenePickingIndex,
+  type ScenePickingIndex,
+} from "./picking";
+import {
   EXPLORER_RENDER_GRAPH_REVISION,
   compileExplorerRenderGraph,
   type ExplorerRenderGraph,
@@ -31,6 +36,7 @@ export interface SceneSnapshot {
   readonly regime: LensRegime;
   readonly focus_id: string;
   readonly render_graph: ExplorerRenderGraph;
+  readonly picking_index: ScenePickingIndex;
   readonly scene: TopologyScene;
 }
 
@@ -44,6 +50,7 @@ export function compileSceneSnapshot(
     buildTopologyScene(portfolio, zoom, focusId, retainedRegime),
   );
   const renderGraph = compileExplorerRenderGraph(scene);
+  const pickingIndex = compileScenePickingIndex(scene);
   const topographies = admittedTopographies(portfolio);
   const regionalScenes = admittedRegionalScenes(portfolio);
   const sourceRevisions =
@@ -111,6 +118,7 @@ export function compileSceneSnapshot(
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   compilerRevisions.sort((left, right) => left.localeCompare(right));
   compilerRevisions.push(EXPLORER_RENDER_GRAPH_REVISION);
+  compilerRevisions.push(EXPLORER_PICKING_REVISION);
   compilerRevisions.sort((left, right) => left.localeCompare(right));
   const snapshotId = [
     "rey.reference-scene-snapshot.v1",
@@ -119,6 +127,7 @@ export function compileSceneSnapshot(
     scene.regime,
     scene.focus_id,
     renderGraph.graph_id,
+    pickingIndex.picking_id,
   ].join("|");
   return Object.freeze({
     schema: "rey.reference-scene-snapshot.v1",
@@ -128,6 +137,7 @@ export function compileSceneSnapshot(
     regime: scene.regime,
     focus_id: scene.focus_id,
     render_graph: renderGraph,
+    picking_index: pickingIndex,
     scene,
   });
 }

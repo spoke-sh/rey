@@ -175,6 +175,9 @@ remain open.
   snapshot and drive both renderers from its identity; make exact scene,
   camera, material, and graph invalidation explicit and suppress identical
   accelerated frames.
+- [x] Compile semantic Atlas candidates and inverse projection into one
+  immutable scene-picking index consumed by the renderer; React forwards
+  selected scene identity but does not own inverse-picking semantics.
 - [ ] Move remaining portfolio adaptation, survey scene assembly, contours,
   and natural-feature derivation out of `topology.ts`; finish the
   evidence-adapter, compiler, engine, renderer, picking, and React ownership

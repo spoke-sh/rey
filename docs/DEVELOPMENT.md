@@ -234,6 +234,8 @@ consume the immutable snapshot graph, and the accelerated adapter leaves an
 identical frame quiet. `src/explore/renderers/three-terrain.ts` measures every
 uploaded position, normal, material attribute, curvature, and index byte before
 allocation and fails visibly above its explicit 64 MiB GPU budget.
+`src/explore/engine/picking.ts` compiles the immutable semantic candidate index
+and owns inverse scene selection across repeated Atlas chart copies.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
@@ -242,7 +244,7 @@ the root redirect.
 Explorer is a high-fidelity spatial game engine for evidence-bound projection.
 Its current boundary separates projection packets, immutable scenes,
 data-oriented fields, camera/LOD, backend lifecycle, and the React shell while
-remaining scene adaptation, invalidation, render-graph, and picking extraction
+remaining scene adaptation and pass implementation
 is [Plan 0003](../plans/0003-scene-to-explorer.md) work. A pinned Three.js
 `WebGPURenderer` and TSL adapter prefers WebGPU and uses Three.js's WebGL2
 backend as compatibility fallback. The current package pins Three.js

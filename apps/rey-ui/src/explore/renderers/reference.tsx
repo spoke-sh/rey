@@ -18,18 +18,20 @@ import type {
 } from "../../topology";
 import { contextGlobeSamples } from "./globe-samples";
 import {
-  pickSemanticMercator,
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
   projectWorldAtlasMorph,
-  type ProjectionFrame,
   type SemanticCoordinate,
-  type SemanticMercatorPickCandidate,
 } from "../projection/semantic-mercator";
 import {
   compileExplorerRenderGraph,
   type ExplorerRenderGraph,
 } from "../engine/render-graph";
+import {
+  compileScenePickingIndex,
+  pickSceneNode,
+  type ScenePickingIndex,
+} from "../engine/picking";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -56,6 +58,7 @@ export function ReferenceRenderer({
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
   projectionMorphProgress = scene.regime === "world" ? 0 : 1,
   renderGraph,
+  pickingIndex,
 }: {
   accelerated?: boolean;
   layers: ReferenceLayerVisibility;
@@ -64,6 +67,7 @@ export function ReferenceRenderer({
   globeView?: GlobeCameraView;
   projectionMorphProgress?: number;
   renderGraph?: ExplorerRenderGraph;
+  pickingIndex?: ScenePickingIndex;
 }) {
   const activeRenderGraph = renderGraph ?? compileExplorerRenderGraph(scene);
   const globeWorld = scene.regime === "world" && scene.globe !== null;
@@ -76,15 +80,7 @@ export function ReferenceRenderer({
     scene.world_atlas_transition !== null &&
     projectionMorphProgress >= 1;
   const chartWrapIndexes = wrappedAtlas ? [-1, 0, 1] : [0];
-  const pickCandidates: SemanticMercatorPickCandidate[] =
-    scene.world_atlas_transition?.points.map((point) => ({
-      identity: point.identity,
-      focus_id: point.focus_id,
-      coordinate: {
-        longitude_microdegrees: point.longitude_microdegrees,
-        latitude_microdegrees: point.latitude_microdegrees,
-      },
-    })) ?? [];
+  const activePickingIndex = pickingIndex ?? compileScenePickingIndex(scene);
   const atlasLabelPlacements = new Map(
     (wrappedAtlas
       ? layoutSemanticLabels(
@@ -204,7 +200,6 @@ export function ReferenceRenderer({
         chartWrapIndexes.flatMap((wrapIndex) =>
           scene.nodes.map((node) => (
             <TopologyObject
-              atlasFrame={scene.world_atlas_transition?.atlas_frame}
               chartWrapIndex={wrapIndex}
               counterScale={scene.terrain}
               key={`${wrapIndex}:${node.id}`}
@@ -214,7 +209,7 @@ export function ReferenceRenderer({
               }
               node={node}
               onFocus={onFocus}
-              pickCandidates={pickCandidates}
+              pickingIndex={activePickingIndex}
               labelPlacement={atlasLabelPlacements.get(
                 `${wrapIndex}:${node.id}`,
               )}
@@ -1045,24 +1040,22 @@ function PointOfInterest({
 }
 
 function TopologyObject({
-  atlasFrame,
   chartWrapIndex,
   counterScale,
   linkToWorkload,
   labelPlacement,
   node,
   onFocus,
-  pickCandidates,
+  pickingIndex,
   worldWidth,
 }: {
-  atlasFrame?: ProjectionFrame;
   chartWrapIndex: number;
   counterScale: boolean;
   linkToWorkload: boolean;
   labelPlacement?: SemanticLabelPlacement;
   node: TopologyNode;
   onFocus: (node: FocusableTopologyObject) => void;
-  pickCandidates: readonly SemanticMercatorPickCandidate[];
+  pickingIndex: ScenePickingIndex;
   worldWidth: number;
 }) {
   const projectedX = node.x + chartWrapIndex * worldWidth;
@@ -1084,25 +1077,11 @@ function TopologyObject({
     width: labelVisible ? node.width : 20,
   } as CSSProperties;
   const select = () => {
-    if (node.semantic_identity && node.semantic_coordinate && atlasFrame) {
-      const pick = pickSemanticMercator(
-        { x: projectedX, y: node.y },
-        pickCandidates,
-        atlasFrame,
-      );
-      if (!pick || pick.identity !== node.semantic_identity) return;
-      onFocus({
-        focus_id: pick.focus_id,
-        x: projectedX,
-        y: node.y,
-        semantic_identity: pick.identity,
-        semantic_coordinate: pick.coordinate,
-        inverse_coordinate: pick.inverse_coordinate,
-        chart_wrap_index: pick.wrap_index,
-      });
-      return;
-    }
-    onFocus({ focus_id: node.focus_id, x: projectedX, y: node.y });
+    const pick = pickSceneNode(pickingIndex, node, {
+      x: projectedX,
+      y: node.y,
+    });
+    if (pick) onFocus(pick);
   };
   const content = (
     <>
