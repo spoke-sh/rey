@@ -608,9 +608,6 @@ async function runVoyage(options) {
       options.timeoutMs,
     );
     process.stdout.write(`READY world / ${options.backend}\n`);
-    captures.push(
-      await captureStage(connection, voyageDirectory, "world", startedAt),
-    );
 
     const region = JSON.stringify(options.region);
     const worldRegion = `[...document.querySelectorAll('[data-semantic-region]')].find((element) => element.getAttribute('aria-label')?.startsWith(${region} + ':'))`;
@@ -628,6 +625,9 @@ async function runVoyage(options) {
         options.timeoutMs,
       );
     }
+    captures.push(
+      await captureStage(connection, voyageDirectory, "world", startedAt),
+    );
     await dispatchClick(
       connection,
       worldRegion,

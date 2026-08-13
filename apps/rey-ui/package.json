@@ -13,6 +13,7 @@
     "format": "prettier --write index.html scripts src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
     "format:check": "prettier --check index.html scripts src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
     "qualify:explorer": "node scripts/qualify-explorer.mjs",
+    "qualify:explorer-parity": "node scripts/qualify-explorer-parity.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

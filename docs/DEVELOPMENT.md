@@ -309,6 +309,22 @@ manifest discloses that it did not exercise direct browser networking. Such a
 voyage remains useful for rendering and interaction qualification but cannot
 close a direct-transport or passive-live-revalidation claim.
 
+After retaining one bound trio, record structural and rendered parity with:
+
+```sh
+pnpm --dir apps/rey-ui qualify:explorer-parity -- \
+  --reference .rey/qualification/explorer/<reference>/manifest.json \
+  --webgl2 .rey/qualification/explorer/<webgl2>/manifest.json \
+  --webgpu .rey/qualification/explorer/<webgpu>/manifest.json
+```
+
+This optional ImageMagick-backed check first requires exact scene snapshot,
+focus, source revision, render graph/pass, and evidence-link equality. It then
+retains per-stage normalized RMSE for all backend pairs and bounds WebGL2 ↔
+WebGPU output at `0.02`. Reference and accelerated materials intentionally
+differ, so their pixel measurements are retained without inventing a semantic
+pass threshold.
+
 The mapping parser hard-cuts to `rey.env-map.v1`; the process-owned discovery
 seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit
 `--map`; desired executables require a bounded purpose; and bounded
