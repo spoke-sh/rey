@@ -316,6 +316,21 @@ system. GeoPackage, GeoTIFF/COG, Arrow, and Rey-native terrain manifests remain
 unsupported until their source, validity, no-data, unit, CRS/chart, tiling,
 limit, and replay contracts are qualified.
 
+`rey-mining` now defines and verifies the admission output without claiming the
+operation exists. `rey.admitted-regional-scene.v1` binds exact editor and
+workload lineage, native objects, five distinct coordinate planes, transforms,
+typed layers, validity/no-data, and the embedded
+`rey.regional-projection-packet.v1`. Topography, atlas, projection, and terrain
+identities remain separate; an absent qualified terrain adapter forces an
+absent terrain program and explicit unsupported height validity. The separate
+`rey.explore-grammar.v1` binds projection posture, hysteresis, morphing,
+semantic/geometric LOD, inverse picking, polar/antimeridian behavior, and
+camera bounds without containing a camera instance. Bounded multi-region tests
+cover overlap, polar and antimeridian envelopes, typed County objects, rejected
+coordinate metadata, identity tampering, and candidate-control authority.
+These contracts are incomplete enabling work until the file-backed workload
+qualifies and the CLI exposes an exact result.
+
 ## Workload And Runtime Placement
 
 Workloads declare which mining operations a graph may compose, the context

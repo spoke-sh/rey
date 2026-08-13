@@ -879,6 +879,17 @@ remain target architecture. Compatible admissions within one
 retained Git transition already reuse a directly evaluated scenario result
 under exact input equality and the receiving evidence budget.
 
+`rey-mining` also defines and verifies `rey.explore-grammar.v1`,
+`rey.admitted-regional-scene.v1`, and
+`rey.regional-projection-packet.v1`. Those contracts bind projection posture,
+LOD, picking, camera bounds, exact editor/workload lineage, distinct native,
+synthetic, Mercator, County-local, and camera coordinate planes, typed native
+objects/layers, validity, limits, omissions, and explicit optional
+topography/atlas/terrain relationships. Multi-region fixtures prove their
+bounded structural invariants. This remains incomplete enabling work: no
+file-backed scene-admission workload or CLI result producer exists yet, and
+the browser consumes none of these regional documents.
+
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.
 Canonical semantic identities include evidence-changing

@@ -24,7 +24,10 @@ editor WORKING → INDEX → SCENE@n package
 
 The editor generates and validates bounded native CRS84 GeoJSON, stages exact
 objects, and retains candidate-only packages. No scene-admission workload
-exists. The workload list derives a current synthetic semantic atlas but does
+exists. The verified `rey.admitted-regional-scene.v1`,
+`rey.regional-projection-packet.v1`, and `rey.explore-grammar.v1` structural
+contracts plus a bounded multi-region fixture now define the workload target,
+but no CLI path produces them. The workload list derives a current synthetic semantic atlas but does
 not retain prior revisions or movement deltas. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
@@ -36,16 +39,16 @@ reuse, and retained visual/performance proof remain open.
 
 ### 1. Close the CLI evidence contract
 
-- [ ] Define the admitted regional-scene result and its exact relationship to
+- [x] Define the admitted regional-scene result and its exact relationship to
   topography patches, atlas revisions, projection packets, terrain programs,
   native objects, transforms, validity/no-data, layers, limits, omissions, and
   lineage.
-- [ ] Add a versioned Explorer grammar contract for projection posture,
+- [x] Add a versioned Explorer grammar contract for projection posture,
   hysteresis, morphing, semantic/geometric LOD budgets, picking, and
   renderer-independent camera constraints.
 - [ ] Make workload human/JSON output distinguish native CRS84, synthetic
   semantic, Mercator chart, County-local, and camera coordinates.
-- [ ] Add one bounded multi-region fixture with accepted/rejected candidates,
+- [x] Add one bounded multi-region fixture with accepted/rejected candidates,
   polar and antimeridian cases, overlapping footprints, and typed County
   features.
 

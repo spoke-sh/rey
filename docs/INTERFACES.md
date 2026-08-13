@@ -451,16 +451,23 @@ When a semantic atlas is present, Explorer also binds the atlas and layout
 compiler revisions into its immutable World scene. This adds a spherical
 layout authority; it does not change the native coordinate or evidence
 authority inside any regional packet.
-The target `rey.explore-grammar.v1` additionally binds the renderer-independent
+The implemented `rey.explore-grammar.v1` additionally binds the renderer-independent
 World-globe, semantic-Mercator, and local-isometric posture bands; hysteresis;
 geometry-morph and inverse-picking policy; polar/antimeridian behavior; and
 semantic/geometric LOD budgets. It is presentation mechanism and therefore
-does not contain admission authority or camera instances. An admitted regional
-scene must separately bind its exact editor package, native-to-semantic region
-transform, county-local tangent transform, terrain and feature layers,
-validity/no-data semantics, limits, omissions, and admission lineage before it
-can become Atlas or County fabric. See [Explorer](EXPLORER.md) and
-[Plan 0003](../plans/0003-scene-to-explorer.md).
+does not contain admission authority or camera instances. The implemented
+`rey.admitted-regional-scene.v1` result contract separately binds its exact
+editor commit/package/snapshot/request, qualifying workload/graph/suite and
+capability input, native OGC CRS84 bounds and object revisions,
+native-to-semantic and County-local transforms, typed layers,
+validity/no-data, limits, omissions, and lineage. Its embedded
+`rey.regional-projection-packet.v1` carries explicit native CRS84, synthetic
+semantic, semantic-Mercator, County-local, and view-only camera coordinate
+records. Separate nullable bindings prevent a candidate package from
+counterfeiting a topography patch, retained atlas revision, or terrain program.
+The contract is implemented and fixture-qualified; the workload and CLI do not
+yet produce it, so no regional scene can become Atlas or County fabric. See
+[Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to
 absolute scene coordinates and selects only frequency bands supported by the

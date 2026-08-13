@@ -95,7 +95,8 @@ A qualified workload result binding one exact editor package to a stable
 semantic region, native-to-semantic and county-local coordinate transforms,
 normalized terrain and feature layers, validity/no-data behavior, limits,
 omissions, and lineage. It may become Explorer fabric; its candidate package
-alone may not.
+alone may not. The verified `rey.admitted-regional-scene.v1` structural
+contract exists; no implemented workload emits one yet.
 
 ### Agent
 
@@ -708,6 +709,15 @@ probes, labels, relationships, objects, and evidence enter progressively,
 preserving identity, scope, omissions, and authority. Source edges do not
 appear as far-map transport, and no displayed natural feature is a path.
 
+### Explorer grammar
+
+The content-identified `rey.explore-grammar.v1` presentation contract binding
+the six semantic levels independently from World-globe, semantic-Mercator,
+County-isometric, and County-evidence postures. It fixes hysteresis, bounded
+geometry morphs, semantic/geometric LOD budgets, inverse picking,
+polar/antimeridian behavior, and renderer-independent camera constraints. It
+contains no evidence, camera instance, admission, or renderer authority.
+
 ### Explorer view
 
 A presentation envelope over one selected coordinate: camera center,
@@ -1279,6 +1289,10 @@ coordinate or embedding basis, scalar/vector channel semantics, typed field
 dimensions and byte allocation, validity masks, world bounds, layer inventory,
 implementation revisions, limits, completeness, omissions, and lineage without
 becoming a second source store.
+
+`rey.regional-projection-packet.v1` is the editor-scene member of this family.
+It binds native CRS84, synthetic semantic, semantic-Mercator, County-local, and
+view-only camera coordinates without treating them as interchangeable.
 
 ### Pure projection
 

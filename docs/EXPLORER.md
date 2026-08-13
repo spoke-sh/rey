@@ -160,6 +160,31 @@ chart, and line features do not become paths or source relationships. Detailed
 raster terrain and provider-qualified semantic chart formats require separate
 adapters and admission scenarios.
 
+The renderer-independent result contracts now exist even though the admitting
+workload does not. `rey.admitted-regional-scene.v1` binds one exact editor
+commit, package, snapshot, admission request, qualifying workload/graph/suite,
+capability snapshot, native bounds and objects, coordinate transforms, typed
+layers, validity/no-data records, limits, omissions, and lineage. Its embedded
+`rey.regional-projection-packet.v1` keeps five coordinate planes explicit:
+native OGC CRS84, synthetic semantic placement, semantic-Mercator chart,
+County-local east/north/up, and camera view state. The last is always
+view-only. Topography patch, retained atlas revision, projection packet, and
+terrain program identities are separate nullable bindings. With no qualified
+terrain adapter, the contract must retain an unsupported terrain-height
+validity row, an absent terrain program, and the fact that candidate controls
+were not copied into observed terrain truth.
+
+`rey.explore-grammar.v1` freezes the six semantic levels independently from
+World-globe, semantic-Mercator, County-isometric, and County-evidence postures.
+It binds scale thresholds and hysteresis, bounded posture morphs, semantic and
+geometric LOD budgets, inverse picking, polar disclosure, antimeridian draw
+fragment identity, and renderer-independent camera constraints. The grammar
+contains no camera instance, evidence, admission, or renderer authority. Rust
+fixtures cover overlapping regional footprints, polar and antimeridian
+envelopes, rejected coordinate metadata, typed County boundary objects, and
+candidate-terrain authority rejection. Workload/CLI production of these
+documents remains incomplete Plan 0003 work.
+
 The engine is high-dimensional because its input basis may project many source
 dimensions into a stable navigable scene. It is not allowed to invent that
 basis. An admitted provider or operation must bind dimensions, exact inputs,
@@ -217,8 +242,8 @@ height through blur, interpolation, erosion, or shading. Visual feathering may
 blend a known boundary into the application background while the exact mask
 and disclosure remain available.
 
-The continuous grammar now couples a lit 3D World sphere, a flat semantic
-Mercator Atlas, and a stylized isometric County surface. This supersedes the
+The continuous `rey.explore-grammar.v1` contract couples a lit 3D World sphere,
+a flat semantic Mercator Atlas, and a stylized isometric County surface. This supersedes the
 former single top-down 2.5D target while retaining bounded cameras rather than
 unrestricted free orbit. Volumetric space, physics, and a general ECS remain
 deferred. World and County camera posture is presentation state; neither can

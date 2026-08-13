@@ -1,11 +1,15 @@
 #![forbid(unsafe_code)]
 
 mod atlas;
+mod explorer_grammar;
 mod projection;
+mod scene;
 mod topography;
 
 pub use atlas::*;
+pub use explorer_grammar::*;
 pub use projection::*;
+pub use scene::*;
 pub use topography::*;
 
 use std::collections::{BTreeMap, BTreeSet};
