@@ -22,6 +22,7 @@ setup:
   @pnpm --dir apps/rey-ui install --frozen-lockfile
 
 rey *args:
+  @if [[ "${1:-}" == "agent" ]]; then pnpm --dir apps/rey-ui run build >&2; fi
   @cargo run --quiet -p rey --bin rey -- "$@"
 
 check:

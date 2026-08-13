@@ -1006,10 +1006,12 @@ rey.orchestrator (OS process)
 The topology records node kind, parent, execution placement, lifecycle, live
 state, restart policy, authority, endpoint, the supervision edge, and the
 fixed one-worker bound. `rey.agent-process.v1` combines that topology with the
-nested `rey.ui-server.v1` operator descriptor. Human startup output exposes
-the same facts. `GET|HEAD /api/v1/agent` returns the process document, while
-`GET|HEAD /api/v1/health` returns `rey.agent-health.v1` with both agent and
-operator identity.
+nested `rey.ui-server.v1` operator descriptor. `--format json` emits that exact
+document; the default human startup output emits only the listening URL while
+stderr reports process and worker lifecycle transitions.
+`GET|HEAD /api/v1/agent` returns the process document, while
+`GET|HEAD /api/v1/health`
+returns `rey.agent-health.v1` with both agent and operator identity.
 
 The operator's `/agents` route projects that same health-bound topology after
 the Journal's current-bearing recommendations and before the work ledger. It
@@ -1268,10 +1270,13 @@ and derives its author only from the declared human browser writer. Missing
 transport or writer leaves the composer disabled; a stale append is rejected
 before publication. See [Conversations](CONVERSATIONS.md).
 
-The startup table and `rey.agent-process.v1` JSON expose the running process
-id and PID, orchestrator role, bounded supervised topology, worker lifecycle,
-restart/agent-runtime omissions, and the nested `rey.ui-server.v1` exact address, URL,
-loopback status, unauthenticated Journal/conversation-write authority,
+The default human startup line exposes the exact listening URL without
+repeating the complete process document. Lifecycle logs expose process and
+worker startup, cooperative shutdown, and failure transitions. The
+`rey.agent-process.v1` JSON, `/api/v1/agent`, and `/agents` expose the running
+process id and PID, orchestrator role, bounded supervised topology, worker
+lifecycle, restart/agent-runtime omissions, and the nested `rey.ui-server.v1`
+exact address, URL, loopback status, unauthenticated Journal/conversation-write authority,
 workspace, catalog, Channel, and conversation roots, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
 5000 ms passive revalidation interval, canonical Rey source repository, and

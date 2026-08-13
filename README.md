@@ -66,9 +66,11 @@ rey agent
 ```
 
 `rey agent` starts the foreground Rey process. Its orchestrator supervises the
-operator HTTP server, prints the live process and agent topology, and owns the
-lifecycle of every in-process background worker. Rey listens on
-`127.0.0.1:5714` by default and enters `/explore`. Incoming
+operator HTTP server and owns the lifecycle of every in-process background
+worker. Startup prints one framework-style listening URL while lifecycle
+events are logged as the process and workers start and stop. Rey listens on
+`127.0.0.1:5714` by default and enters `/explore`; exact live topology remains
+available through `/agents`, `/api/v1/agent`, and `--format json`. Incoming
 file-backed workload proposals appear as beacons without being treated as
 admitted knowledge. Select a beacon to inspect its exact source and revision,
 then use the admission surface when you are ready to consent.
@@ -93,6 +95,10 @@ nix develop
 just setup
 just rey agent
 ```
+
+The development wrapper visibly builds the embedded static UI assets before
+Cargo starts the agent process, so the browser always serves the just-built
+application and the Vite build result remains in the terminal transcript.
 
 ## The Client-Oriented Surface
 

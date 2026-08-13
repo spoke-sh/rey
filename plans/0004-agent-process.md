@@ -30,9 +30,9 @@ owns cooperative SIGINT/SIGTERM shutdown, and fails the process closed on an
 unexpected worker error, exit, or panic. `rey.agent-process.v1`,
 `rey.process.v1`, and `rey.agent-topology.v1` expose the live PID, roles,
 parent/child edge, placement, state, restart policy, endpoint, authority,
-one-worker bound, and omissions through CLI startup, `GET /api/v1/agent`, and
-the operator's `/agents` route; health returns the same topology beside the
-existing operator descriptor.
+one-worker bound, and omissions through `--format json`,
+`GET /api/v1/agent`, and the operator's `/agents` route; health returns the
+same topology beside the existing operator descriptor.
 
 This topology is runtime-only local status. It is not a retained proof or
 process history. V1 has no restart, daemonization, crash durability,
@@ -48,8 +48,9 @@ invocation. Browser passive revalidation remains browser-owned work.
 - [x] Define one foreground `rey.process.v1` orchestrator and a bounded
   `rey.agent-topology.v1` graph without conflating an agent runtime with the
   Rey process.
-- [x] Expose table and JSON startup evidence plus an exact HTTP process/status
-  route with process, topology, authority, limits, and omissions.
+- [x] Keep default startup to one listening URL, emit useful process/worker
+  lifecycle logs, and expose exact JSON plus HTTP/browser process status with
+  topology, authority, limits, and omissions.
 - [x] Project the exact health-bound topology through the browser `/agents`
   collaboration surface without inferring agent activity.
 

@@ -923,7 +923,8 @@ projection.
 The `rey` CLI now hard-cuts the former `ui` command to `agent`. That command
 starts one foreground `rey.process.v1` orchestrator, supervises the embedded
 operator HTTP worker under `rey.agent-topology.v1`, exposes the topology in
-human/JSON startup output and the HTTP health plane, and cooperatively closes
+JSON, browser, and HTTP health projections, logs lifecycle transitions, emits
+only the listening URL in default human startup output, and cooperatively closes
 the worker on SIGINT/SIGTERM. No autonomous workload or discovered agent
 runtime starts with it.
 The workload slice implements a bounded workspace package catalog, typed DAG

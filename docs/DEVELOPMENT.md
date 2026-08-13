@@ -96,6 +96,7 @@ deliberately omits editor-only rust-analyzer.
 ```sh
 just setup
 just rey
+just rey agent
 just check
 just test
 just dist-check
@@ -123,9 +124,12 @@ Current behavior is:
   feature so the Rust binary embeds the current application.
 - `fmt` formats authored TypeScript/StyleX, pnpm workspace policy, Rust, and
   `flake.nix`; installed Hifi packages remain immutable dependency artifacts.
-- `rey` runs the `rey` binary through Cargo with build progress suppressed so
-  the terminal surface is Rey's output; compiler diagnostics and failures still
-  reach stderr.
+- `rey` runs the `rey` binary through Cargo with Rust build progress suppressed
+  so the terminal surface is Rey's output; compiler diagnostics and failures
+  still reach stderr. When its first argument is `agent`, the recipe first runs
+  the static UI build without suppressing TypeScript/Vite output, routes that
+  build transcript to diagnostics so JSON stdout stays machine-clean, then
+  starts the binary that embeds those freshly built assets.
 
 ## Rust Conventions
 

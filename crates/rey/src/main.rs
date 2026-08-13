@@ -1009,8 +1009,8 @@ struct AgentArgs {
     #[arg(long, default_value_t = 5_714)]
     port: u16,
 
-    /// Startup representation; auto uses a table on a terminal and JSON when piped.
-    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    /// Startup representation; table prints the listening URL and JSON exposes the typed process.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Table)]
     format: WorkloadOutputFormat,
 }
 
@@ -2929,11 +2929,6 @@ fn agent_command(args: AgentArgs) -> Result<ExitCode, CliError> {
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     stdout.flush()?;
-    if !descriptor.operator.loopback_only {
-        eprintln!(
-            "rey: warning: the agent operator listener is exposed beyond loopback with unauthenticated Journal, conversation, and Channel WORKING writes plus exact workload approval enabled; protect access externally"
-        );
-    }
     orchestrator.wait()?;
     Ok(ExitCode::SUCCESS)
 }
@@ -4266,102 +4261,10 @@ fn write_agent_startup(
     output: &mut impl Write,
     descriptor: &agent::AgentProcessDescriptor,
 ) -> Result<(), CliError> {
-    let style = TerminalStyle::stdout();
-    writeln!(output)?;
-    writeln!(output, "{}", style.bold("REY AGENT"))?;
-    write_portfolio_field(output, "Status", &style.green("RUNNING"))?;
-    write_portfolio_field(output, "Process", &descriptor.process.process_id)?;
-    write_portfolio_field(output, "PID", &descriptor.process.os_pid.to_string())?;
-    write_portfolio_field(output, "Role", "ORCHESTRATOR")?;
-    write_portfolio_field(
-        output,
-        "Supervision",
-        "1 BOUNDED WORKER · FAIL CLOSED · NO RESTART",
-    )?;
-    write_portfolio_field(output, "Topology", "REY PROCESS → SUPERVISED OPERATOR HTTP")?;
-    write_portfolio_field(
-        output,
-        "Agent runtimes",
-        "NONE INVOKED · DISCOVERY / ASSIGNMENT / EXECUTION REMAIN SEPARATE",
-    )?;
-    write_portfolio_field(output, "Address", &descriptor.operator.address)?;
-    write_portfolio_field(output, "URL", &descriptor.operator.url)?;
-    write_portfolio_field(
-        output,
-        "Exposure",
-        &if descriptor.operator.loopback_only {
-            style.green("LOOPBACK ONLY")
-        } else {
-            style.yellow("NETWORK EXPOSED · NO AUTHENTICATION")
-        },
-    )?;
-    write_portfolio_field(output, "Application", "TANSTACK ROUTER · EMBEDDED")?;
-    write_portfolio_field(output, "Grammar", "HIFI KINETIC · PRECISION")?;
-    write_portfolio_field(
-        output,
-        "Data plane",
-        "LIVE READS · JOURNAL/CONVERSATION WRITE · CHANNEL WORKING WRITE · WORKLOAD APPROVAL",
-    )?;
-    write_portfolio_field(output, "Human entry", &descriptor.operator.entry_route)?;
-    write_portfolio_field(
-        output,
-        "Workload admission",
-        "ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
-    )?;
-    write_portfolio_field(
-        output,
-        "Channel write",
-        "ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
-    )?;
-    write_portfolio_field(
-        output,
-        "Conversation write",
-        "ENDPOINT ENABLED · EXACT SESSION DECIDES COMPOSER · UNAUTHENTICATED APPEND ONLY",
-    )?;
-    write_portfolio_field(
-        output,
-        "Revalidation",
-        &format!(
-            "{}ms · PASSIVE · NO REFRESH CONTROL",
-            descriptor.operator.live_refresh_interval_ms
-        ),
-    )?;
-    write_portfolio_field(output, "Workspace", &descriptor.operator.workspace)?;
-    write_portfolio_field(output, "Catalog", &descriptor.operator.catalog_root)?;
-    write_portfolio_field(output, "Channels", &descriptor.operator.channel_root)?;
-    write_portfolio_field(
-        output,
-        "Conversations",
-        &descriptor.operator.conversation_root,
-    )?;
-    write_portfolio_field(
-        output,
-        "API",
-        "/api/v1/health · /api/v1/agent · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/conversations · /api/v1/conversations/messages · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/evidence · /api/v1/workloads/{id}/scenarios/{execution} · /api/v1/workloads/{id}/deltas/{delta} · /api/v1/workloads/admit",
-    )?;
-    write_portfolio_field(
-        output,
-        "Grammar revision",
-        &descriptor.operator.grammar_revision,
-    )?;
-    write_portfolio_field(
-        output,
-        "Implementation",
-        &format!(
-            "{} · {}",
-            descriptor
-                .operator
-                .source_repository
-                .as_deref()
-                .unwrap_or("UNBOUND"),
-            descriptor.operator.implementation_revision
-        ),
-    )?;
-    writeln!(output)?;
     writeln!(
         output,
-        "  {}",
-        style.dim("Press Ctrl-C to stop the Rey process and its background work")
+        "INFO:     Listening on {} (Press CTRL+C to quit)",
+        descriptor.operator.url
     )?;
     Ok(())
 }

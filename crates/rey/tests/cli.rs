@@ -5569,8 +5569,6 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
             "127.0.0.1",
             "--port",
             "0",
-            "--format",
-            "table",
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -5578,42 +5576,16 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
         .unwrap();
     let table_stdout = table_child.stdout.take().unwrap();
     let mut table_reader = BufReader::new(table_stdout);
-    let mut table = String::new();
-    loop {
-        let mut line = String::new();
-        assert!(table_reader.read_line(&mut line).unwrap() > 0);
-        table.push_str(&line);
-        if line.contains("Press Ctrl-C") {
-            break;
-        }
-    }
-    for evidence in [
-        "REY AGENT",
-        "Status                 RUNNING",
-        "Role                   ORCHESTRATOR",
-        "Supervision            1 BOUNDED WORKER · FAIL CLOSED · NO RESTART",
-        "Topology               REY PROCESS → SUPERVISED OPERATOR HTTP",
-        "Agent runtimes         NONE INVOKED · DISCOVERY / ASSIGNMENT / EXECUTION REMAIN SEPARATE",
-        "Exposure               LOOPBACK ONLY",
-        "Application            TANSTACK ROUTER · EMBEDDED",
-        "Grammar                HIFI KINETIC · PRECISION",
-        "Data plane             LIVE READS · JOURNAL/CONVERSATION WRITE · CHANNEL WORKING WRITE · WORKLOAD APPROVAL",
-        "Human entry            /explore",
-        "Workload admission     ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
-        "Channel write          ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
-        "Conversation write     ENDPOINT ENABLED · EXACT SESSION DECIDES COMPOSER · UNAUTHENTICATED APPEND ONLY",
-        "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/agent · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/conversations · /api/v1/conversations/messages · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/evidence · /api/v1/workloads/{id}/scenarios/{execution} · /api/v1/workloads/{id}/deltas/{delta} · /api/v1/workloads/admit",
-        "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
-        "Implementation         UNBOUND · ",
-    ] {
-        assert!(table.contains(evidence), "missing UI evidence: {evidence}");
-    }
-    let address = table
-        .lines()
-        .find_map(|line| line.trim_start().strip_prefix("Address").map(str::trim))
-        .filter(|address| !address.is_empty())
+    let mut startup = String::new();
+    assert!(table_reader.read_line(&mut startup).unwrap() > 0);
+    assert_eq!(startup.lines().count(), 1);
+    let url = startup
+        .trim_end()
+        .strip_prefix("INFO:     Listening on ")
+        .and_then(|line| line.strip_suffix(" (Press CTRL+C to quit)"))
+        .filter(|url| !url.is_empty())
         .unwrap();
+    let address = url.strip_prefix("http://").unwrap();
     let response = http_request(address, "GET /api/v1/health HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"schema\":\"rey.agent-health.v1\""));
@@ -5637,7 +5609,11 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert!(channels.contains("\"loopback_only\":true"));
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();
-    assert!(table_output.stderr.is_empty());
+    let lifecycle = String::from_utf8_lossy(&table_output.stderr);
+    assert!(lifecycle.contains("INFO:     Started Rey process ["));
+    assert!(lifecycle.contains(
+        "INFO:     Agent startup complete; background worker rey.operator-http is running"
+    ));
 
     let mut network_child = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([
@@ -5700,10 +5676,16 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
         "git:058c6504fc10740360717e97e687fd77bef6a5c5"
     );
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
-    let mut warning = String::new();
-    network_stderr.read_line(&mut warning).unwrap();
-    assert!(warning.contains("unauthenticated Journal, conversation, and Channel WORKING writes"));
-    assert!(warning.contains("exact workload approval enabled"));
+    let mut diagnostics = String::new();
+    for _ in 0..2 {
+        let mut line = String::new();
+        assert!(network_stderr.read_line(&mut line).unwrap() > 0);
+        diagnostics.push_str(&line);
+    }
+    assert!(diagnostics.contains("INFO:     Started Rey process ["));
+    assert!(diagnostics.contains(
+        "INFO:     Agent startup complete; background worker rey.operator-http is running"
+    ));
 
     let network_address = format!(
         "127.0.0.1:{}",
@@ -5747,6 +5729,8 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert!(channels.contains("without authentication"));
     network_child.kill().unwrap();
     network_child.wait().unwrap();
+    network_stderr.read_to_string(&mut diagnostics).unwrap();
+    assert!(!diagnostics.contains("WARNING:"));
 }
 
 #[cfg(unix)]
@@ -5794,7 +5778,20 @@ fn agent_cli_is_a_hard_cutover_and_stops_supervised_work_cooperatively() {
     );
     let stopped = child.wait_with_output().unwrap();
     assert!(stopped.status.success());
-    assert!(stopped.stderr.is_empty());
+    let lifecycle = String::from_utf8_lossy(&stopped.stderr);
+    for message in [
+        "INFO:     Started Rey process [",
+        "INFO:     Agent startup complete; background worker rey.operator-http is running",
+        "INFO:     Shutdown requested",
+        "INFO:     Agent shutdown started; stopping background worker rey.operator-http",
+        "INFO:     Agent shutdown complete; background worker rey.operator-http stopped",
+        "INFO:     Finished Rey process [",
+    ] {
+        assert!(
+            lifecycle.contains(message),
+            "missing lifecycle log: {message}"
+        );
+    }
     assert!(TcpStream::connect(address).is_err());
 }
 

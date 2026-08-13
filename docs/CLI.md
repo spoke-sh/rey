@@ -521,15 +521,19 @@ INDEX/HEAD, relays, schedules, assigns, executes, or proves work.
 rey agent [--workspace PATH] [--state-dir PATH]
   [--journal-state-dir PATH] [--channel-state-dir PATH]
   [--conversation-state-dir PATH] [--catalog-dir sys]
-  [--host 127.0.0.1] [--port 5714]
+  [--host 127.0.0.1] [--port 5714] [--format auto|table|json]
 ```
 
 `agent` starts the foreground Rey process. Its orchestrator registers the
-embedded operator HTTP server as its single bounded background worker, exposes
-the `rey.process.v1` and `rey.agent-topology.v1` documents in table/JSON startup
-output, and defaults the listener to loopback. SIGINT and SIGTERM stop the
-worker cooperatively; an unexpected exit fails the process closed. V1 never
-restarts or detaches a worker and does not invoke discovered agent runtimes or
+embedded operator HTTP server as its single bounded background worker and
+defaults the listener to loopback. The default human startup output is one
+line—`INFO:     Listening on http://127.0.0.1:5714 (Press CTRL+C to quit)`—and
+stderr logs process, agent-startup, worker, shutdown, and failure lifecycle
+events. `--format json` exposes the complete `rey.agent-process.v1` document
+with its nested `rey.process.v1` and `rey.agent-topology.v1`; the same exact
+topology remains human-visible on `/agents`. SIGINT and SIGTERM stop the worker
+cooperatively; an unexpected exit fails the process closed. V1 never restarts
+or detaches a worker and does not invoke discovered agent runtimes or
 autonomously schedule workloads.
 
 The operator worker projects the same workload, environment, cadence, Journal,

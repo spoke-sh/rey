@@ -165,6 +165,10 @@ impl AgentOrchestrator {
             .name(OPERATOR_SERVER_NODE_ID.to_owned())
             .spawn(move || operator.serve_until(worker_cancelled))
             .map_err(AgentError::Spawn)?;
+        log_info(format_args!("Started Rey process [{}]", std::process::id()));
+        log_info(format_args!(
+            "Agent startup complete; background worker {OPERATOR_SERVER_NODE_ID} is running"
+        ));
         Ok(Self {
             cancelled,
             operator_worker,
@@ -173,18 +177,27 @@ impl AgentOrchestrator {
 
     pub fn wait(self) -> Result<(), AgentError> {
         loop {
-            if self.operator_worker.is_finished() {
-                return finish_operator_worker(
-                    self.operator_worker,
-                    self.cancelled.load(Ordering::Relaxed),
-                );
-            }
             if self.cancelled.load(Ordering::Relaxed) {
+                log_info("Shutdown requested");
+                log_info(format_args!(
+                    "Agent shutdown started; stopping background worker {OPERATOR_SERVER_NODE_ID}"
+                ));
                 return finish_operator_worker(self.operator_worker, true);
+            }
+            if self.operator_worker.is_finished() {
+                return finish_operator_worker(self.operator_worker, false);
             }
             thread::park_timeout(Duration::from_millis(SUPERVISION_POLL_INTERVAL_MS));
         }
     }
+}
+
+fn log_info(message: impl std::fmt::Display) {
+    eprintln!("INFO:     {message}");
+}
+
+fn log_error(message: impl std::fmt::Display) {
+    eprintln!("ERROR:    {message}");
 }
 
 fn finish_operator_worker(
@@ -192,14 +205,38 @@ fn finish_operator_worker(
     cancelled: bool,
 ) -> Result<(), AgentError> {
     match worker.join() {
-        Ok(Ok(())) if cancelled => Ok(()),
-        Ok(Ok(())) => Err(AgentError::UnexpectedWorkerExit(
-            OPERATOR_SERVER_NODE_ID.to_owned(),
-        )),
-        Ok(Err(error)) => Err(AgentError::Operator(error)),
-        Err(_) => Err(AgentError::WorkerPanicked(
-            OPERATOR_SERVER_NODE_ID.to_owned(),
-        )),
+        Ok(Ok(())) if cancelled => {
+            log_info(format_args!(
+                "Agent shutdown complete; background worker {OPERATOR_SERVER_NODE_ID} stopped"
+            ));
+            log_info(format_args!(
+                "Finished Rey process [{}]",
+                std::process::id()
+            ));
+            Ok(())
+        }
+        Ok(Ok(())) => {
+            log_error(format_args!(
+                "Agent lifecycle failed; background worker {OPERATOR_SERVER_NODE_ID} exited without a shutdown request"
+            ));
+            Err(AgentError::UnexpectedWorkerExit(
+                OPERATOR_SERVER_NODE_ID.to_owned(),
+            ))
+        }
+        Ok(Err(error)) => {
+            log_error(format_args!(
+                "Agent lifecycle failed; background worker {OPERATOR_SERVER_NODE_ID}: {error}"
+            ));
+            Err(AgentError::Operator(error))
+        }
+        Err(_) => {
+            log_error(format_args!(
+                "Agent lifecycle failed; background worker {OPERATOR_SERVER_NODE_ID} panicked"
+            ));
+            Err(AgentError::WorkerPanicked(
+                OPERATOR_SERVER_NODE_ID.to_owned(),
+            ))
+        }
     }
 }
 
