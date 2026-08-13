@@ -185,6 +185,7 @@ export function AcceleratedTerrainSurface({
     let adapter:
       import("./three-webgpu").ThreeWebGpuRendererAdapter | undefined;
     let bundle: import("./three-terrain").ThreeTerrainBundle | undefined;
+    let unsubscribeStatus: (() => void) | undefined;
     const report = (
       status: RendererStatus,
       statistics?: {
@@ -242,6 +243,10 @@ export function AcceleratedTerrainSurface({
         const rendererModule = await import("./three-webgpu");
         if (cancelled) return;
         adapter = new rendererModule.ThreeWebGpuRendererAdapter();
+        unsubscribeStatus = adapter.onStatusChange((status) => {
+          setReady(false);
+          report(status);
+        });
         adapterRef.current = adapter;
         adapter.resize({
           width: semanticGlobe
@@ -300,6 +305,7 @@ export function AcceleratedTerrainSurface({
       cancelled = true;
       canvas.removeEventListener("webglcontextlost", handleContextLoss);
       bundle?.dispose();
+      unsubscribeStatus?.();
       adapter?.dispose();
       if (bundleRef.current === bundle) bundleRef.current = undefined;
       if (adapterRef.current === adapter) adapterRef.current = undefined;

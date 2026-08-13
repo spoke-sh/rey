@@ -116,4 +116,31 @@ describe("Three.js WebGPU renderer adapter", () => {
       "disposed",
     );
   });
+
+  it("reports WebGPU device loss as a visible reference fallback", async () => {
+    let loseDevice!: (info: { reason?: string; message?: string }) => void;
+    const renderer = rendererFacade("webgpu");
+    Object.assign(renderer.backend, {
+      device: {
+        lost: new Promise<{ reason?: string; message?: string }>((resolve) => {
+          loseDevice = resolve;
+        }),
+      },
+    });
+    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+    const statuses: string[] = [];
+    adapter.onStatusChange(({ detail }) => statuses.push(detail));
+    await adapter.initialize({} as HTMLCanvasElement);
+
+    loseDevice({ reason: "destroyed", message: "qualification fixture" });
+    await Promise.resolve();
+
+    expect(adapter.status).toMatchObject({
+      lifecycle: "failed",
+      backend: "reference",
+      degraded: true,
+    });
+    expect(statuses.at(-1)).toContain("qualification fixture");
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+  });
 });

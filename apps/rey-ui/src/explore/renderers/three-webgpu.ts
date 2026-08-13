@@ -14,6 +14,9 @@ export interface ThreeRendererFacade {
   readonly backend: {
     readonly isWebGPUBackend?: boolean;
     readonly isWebGLBackend?: boolean;
+    readonly device?: {
+      readonly lost: Promise<{ reason?: string; message?: string }>;
+    };
   };
   init(): Promise<unknown>;
   setPixelRatio(value: number): void;
@@ -53,6 +56,9 @@ export class ThreeWebGpuRendererAdapter {
     device_pixel_ratio: 1,
   };
   #lastFrame: RenderFrameIdentity | undefined;
+  readonly #statusListeners = new Set<
+    (status: Readonly<RendererStatus>) => void
+  >();
 
   constructor(factory: ThreeRendererFactory = defaultFactory) {
     this.#factory = factory;
@@ -64,6 +70,11 @@ export class ThreeWebGpuRendererAdapter {
 
   get lastFrame(): Readonly<RenderFrameIdentity> | undefined {
     return this.#lastFrame ? Object.freeze({ ...this.#lastFrame }) : undefined;
+  }
+
+  onStatusChange(listener: (status: Readonly<RendererStatus>) => void) {
+    this.#statusListeners.add(listener);
+    return () => this.#statusListeners.delete(listener);
   }
 
   async initialize(
@@ -99,6 +110,21 @@ export class ThreeWebGpuRendererAdapter {
               ? "Three.js WebGL2 compatibility backend was forced for qualification"
               : "Three.js selected its WebGL2 compatibility backend",
       };
+      if (backend === "webgpu" && renderer.backend.device)
+        void renderer.backend.device.lost.then((info) => {
+          if (this.#renderer !== renderer) return;
+          renderer.dispose();
+          this.#renderer = undefined;
+          this.#lastFrame = undefined;
+          this.#status = {
+            lifecycle: "failed",
+            backend: "reference",
+            renderer_revision: THREE_RENDERER_REVISION,
+            degraded: true,
+            detail: `WebGPU device lost${info.reason ? ` (${info.reason})` : ""}${info.message ? `: ${info.message}` : ""}; the reference renderer remains active`,
+          };
+          this.notifyStatus();
+        });
       return this.status;
     } catch (error) {
       this.#renderer?.dispose();
@@ -146,6 +172,11 @@ export class ThreeWebGpuRendererAdapter {
     if (!this.#renderer) return;
     this.#renderer.setPixelRatio(this.#viewport.device_pixel_ratio);
     this.#renderer.setSize(this.#viewport.width, this.#viewport.height, false);
+  }
+
+  private notifyStatus(): void {
+    const status = this.status;
+    for (const listener of this.#statusListeners) listener(status);
   }
 }
 

@@ -191,7 +191,10 @@ remain open.
 - [ ] Retain GPU residency and upload measurements with named backend
   qualification voyages.
 - [ ] Qualify GPU height/normal/material evaluation against deterministic CPU
-  reference samples and preserve visible fallback on context/device loss.
+  reference samples.
+- [x] Preserve the visible reference renderer through initialization failure,
+  WebGL context loss, and asynchronous WebGPU device loss; retain real-backend
+  loss captures with the named qualification voyages.
 - [ ] Compose LOD-aware terrain, contours, hydrology, validity boundaries,
   features, labels, collision/culling, selection, and accessibility while
   keeping the base landform independently legible.

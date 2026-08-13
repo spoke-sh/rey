@@ -236,6 +236,9 @@ uploaded position, normal, material attribute, curvature, and index byte before
 allocation and fails visibly above its explicit 64 MiB GPU budget.
 `src/explore/engine/picking.ts` compiles the immutable semantic candidate index
 and owns inverse scene selection across repeated Atlas chart copies.
+The Three.js adapter observes both WebGL context loss and WebGPU `device.lost`;
+either returns the live surface to a degraded reference-renderer status without
+changing scene assessment.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
