@@ -292,7 +292,11 @@ describe("high-cadence operator feed", () => {
 
     expect(markup).toContain('data-feed-stream="signals"');
     expect(markup).toContain('data-feed-stream-id="signals"');
-    expect(markup).toContain("DETACHED PREVIEW · NOT RETAINED");
+    expect(markup).not.toContain("FEED LAYOUT /");
+    expect(markup).not.toContain("STABLE STREAM IDENTITIES");
+    expect(markup).not.toContain("SNAPSHOT / DETACHED");
+    expect(markup).not.toContain("MOVEMENT WRITES WORKING ONLY");
+    expect(markup).toContain("PREVIEW ONLY · ADOPTION UNAVAILABLE");
     expect(markup).toContain("Alt+ArrowLeft Alt+ArrowRight");
     expect(markup).toContain('data-feed-stream="admission"');
     expect(markup).toContain('data-feed-stream="flow"');

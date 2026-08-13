@@ -14,7 +14,7 @@ export const feedStyles = stylex.create({
     overflow: "hidden",
     width: "100%",
   },
-  layoutBoundary: {
+  layoutFeedback: {
     alignItems: "center",
     backgroundColor:
       "color-mix(in srgb, var(--rey-background) 91%, var(--rey-accent))",
@@ -28,18 +28,6 @@ export const feedStyles = stylex.create({
     overflowX: "auto",
     paddingBlock: 6,
     paddingInline: 14,
-  },
-  layoutIdentity: {
-    display: "grid",
-    flexShrink: 0,
-    gap: 2,
-  },
-  layoutRevision: {
-    display: "grid",
-    flexShrink: 0,
-    fontFamily: mono,
-    fontSize: "0.56rem",
-    gap: 2,
   },
   layoutOmission: {
     color: "#9a3d22",
@@ -58,7 +46,7 @@ export const feedStyles = stylex.create({
     fontSize: "0.58rem",
     fontWeight: 800,
   },
-  layoutAuthority: {
+  previewAuthority: {
     fontFamily: mono,
     fontSize: "0.56rem",
     marginLeft: "auto",

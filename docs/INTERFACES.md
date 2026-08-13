@@ -1213,7 +1213,10 @@ against exact HEAD and WORKING snapshot ids through the existing Channel API.
 With no URL preview, resolution selects an explicit Channel WORKING graph, then
 Channel HEAD, then the canonical built-in graph. The TanStack route owns this
 search state rather than writing around the router with the raw browser History
-API.
+API. Resolved built-in, HEAD, and WORKING layouts do not occupy the Feed with a
+passive layout-metadata strip. Layout feedback appears only when a detached
+preview needs adoption, a bound omission exists, or a WORKING write returns a
+result or rejection.
 
 Each resolved Channel stream retains its graph identity and revision. Pointer
 drag, the move buttons, and `Alt+ArrowLeft`/`Alt+ArrowRight` move those identities

@@ -754,7 +754,7 @@ export function FeedPage({
 
   return (
     <main className={sx(styles.page)} data-feed-streams={streams.length}>
-      <FeedLayoutBoundary
+      <FeedLayoutFeedback
         layout={resolvedLayout}
         onAdopt={onLayoutWrite ? () => void adoptPreview() : null}
         result={layoutResult}
@@ -849,7 +849,7 @@ function detachedFeedLayout(
   };
 }
 
-function FeedLayoutBoundary({
+function FeedLayoutFeedback({
   layout,
   onAdopt,
   result,
@@ -862,34 +862,19 @@ function FeedLayoutBoundary({
   writeError: Error | null;
   writing: boolean;
 }) {
-  const source = layout.source.replaceAll("_", " ").toUpperCase();
+  if (
+    !layout.detached &&
+    layout.omissions.length === 0 &&
+    !result &&
+    !writeError
+  ) {
+    return null;
+  }
   return (
     <aside
-      className={sx(styles.layoutBoundary)}
-      aria-label="Feed layout source"
+      className={sx(styles.layoutFeedback)}
+      aria-label="Feed layout feedback"
     >
-      <div className={sx(styles.layoutIdentity)}>
-        <span className={sx(chrome.micro)}>FEED LAYOUT / {source}</span>
-        <strong>
-          {layout.detached
-            ? "DETACHED PREVIEW · NOT RETAINED"
-            : `${layout.streams.length} STABLE STREAM IDENTITIES`}
-        </strong>
-      </div>
-      <div className={sx(styles.layoutRevision)}>
-        {layout.snapshotId ? (
-          <code title={layout.snapshotId}>
-            SNAPSHOT / {shortDigest(layout.snapshotId)}
-          </code>
-        ) : (
-          <code>SNAPSHOT / DETACHED</code>
-        )}
-        {layout.graphId ? (
-          <code title={layout.graphId}>
-            GRAPH / {shortDigest(layout.graphId)}
-          </code>
-        ) : null}
-      </div>
       {layout.omissions.map((omission) => (
         <span className={sx(styles.layoutOmission)} key={omission}>
           OMITTED / {omission}
@@ -918,15 +903,11 @@ function FeedLayoutBoundary({
             {writing ? "ADOPTING…" : "ADOPT INTO CHANNEL WORKING"}
           </button>
         ) : (
-          <span className={sx(styles.layoutAuthority)}>
+          <span className={sx(styles.previewAuthority)}>
             PREVIEW ONLY · ADOPTION UNAVAILABLE
           </span>
         )
-      ) : (
-        <span className={sx(styles.layoutAuthority)}>
-          {writing ? "WRITING EXACT WORKING…" : "MOVEMENT WRITES WORKING ONLY"}
-        </span>
-      )}
+      ) : null}
     </aside>
   );
 }
