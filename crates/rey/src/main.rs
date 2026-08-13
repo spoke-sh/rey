@@ -29,6 +29,14 @@ use rey::{
         POLLING_BEACON_TICK_SCHEMA, PollingBeaconTick, RelayAttempt, RelayAttemptOutcome,
         relay_output_digest,
     },
+    conversations::{
+        ConversationError, ConversationLog, ConversationMessageAdmission,
+        ConversationMessageProposal, ConversationSessionAdmission, ConversationSessionProposal,
+        ConversationSource, ConversationTranscript, ConversationTranscriptCompleteness,
+        ConversationTransportAvailability, DEFAULT_CONVERSATION_TRANSCRIPT_LIMIT,
+        LocalConversationStore, MAX_CONVERSATION_MESSAGE_INPUT_BYTES,
+        MAX_CONVERSATION_SESSION_INPUT_BYTES,
+    },
     editor::{
         EditorAddResult, EditorCommitResult, EditorError, EditorGenerateResult, EditorLog,
         EditorStatus, LocalEditorStore, SceneBounds, SceneChangeKind, SceneChangeSet, SceneCommit,
@@ -125,6 +133,8 @@ struct Cli {
 enum Command {
     /// Inspect and propose workspace-local collaboration topology.
     Channels(ChannelsArgs),
+    /// Admit and inspect bounded workspace-local conversation transcripts.
+    Conversations(ConversationsArgs),
     /// Admit and inspect bounded collaboration observations.
     Observations(ObservationsArgs),
     /// Track bounded compute environment revisions.
@@ -139,6 +149,94 @@ enum Command {
     Journal(JournalArgs),
     /// Serve the Rey operator interface.
     Ui(UiArgs),
+}
+
+#[derive(Debug, Args)]
+struct ConversationsArgs {
+    /// Workspace used as the conversation and default local-state boundary.
+    #[arg(long, global = true, default_value = ".")]
+    workspace: PathBuf,
+
+    /// Explicit local conversation-state directory; relative paths resolve below the workspace.
+    #[arg(long, global = true)]
+    state_dir: Option<PathBuf>,
+
+    #[command(subcommand)]
+    command: ConversationsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ConversationsCommand {
+    /// Show transport availability, authority, bounds, and one exact transcript.
+    Status(ConversationStatusArgs),
+    /// Admit or list immutable conversation sessions.
+    Session(ConversationSessionArgs),
+    /// Admit an immutable message to an exact session transcript.
+    Message(ConversationMessageArgs),
+}
+
+#[derive(Debug, Args)]
+struct ConversationStatusArgs {
+    /// Exact retained session identity; defaults to the newest admitted session.
+    #[arg(long)]
+    session: Option<String>,
+
+    /// Maximum newest transcript messages to return in ascending session order.
+    #[arg(short = 'n', long = "max-count", default_value_t = DEFAULT_CONVERSATION_TRANSCRIPT_LIMIT)]
+    max_count: usize,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ConversationSessionArgs {
+    #[command(subcommand)]
+    command: ConversationSessionCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ConversationSessionCommand {
+    /// Admit a workspace-contained local-transcript session proposal.
+    Add(ConversationSessionAddArgs),
+    /// List retained immutable sessions without selecting or mutating one.
+    List(ConversationOutputArgs),
+}
+
+#[derive(Debug, Args)]
+struct ConversationSessionAddArgs {
+    /// Workspace-contained rey.conversation-session-proposal.v1 YAML file.
+    proposal: PathBuf,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ConversationMessageArgs {
+    #[command(subcommand)]
+    command: ConversationMessageCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum ConversationMessageCommand {
+    /// Admit a workspace-contained message proposal; no agent invocation or relay occurs.
+    Add(ConversationMessageAddArgs),
+}
+
+#[derive(Debug, Args)]
+struct ConversationMessageAddArgs {
+    /// Workspace-contained rey.conversation-message-proposal.v1 YAML file.
+    proposal: PathBuf,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ConversationOutputArgs {
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -1224,6 +1322,7 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
         Command::Channels(args) => channels_command(args),
+        Command::Conversations(args) => conversations_command(args),
         Command::Observations(args) => observations_command(args),
         Command::Env(args) => env_command(args),
         Command::Git(args) => git_command(args),
@@ -1232,6 +1331,97 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
         Command::Journal(args) => journal_command(args),
         Command::Ui(args) => ui_command(args),
     }
+}
+
+fn conversations_command(args: ConversationsArgs) -> Result<ExitCode, CliError> {
+    let workspace = args
+        .workspace
+        .canonicalize()
+        .map_err(|source| CliError::Workspace {
+            path: args.workspace.clone(),
+            source,
+        })?;
+    if !workspace.is_dir() {
+        return Err(CliError::WorkspaceDirectory(workspace));
+    }
+    let directory = match args.state_dir {
+        Some(path) if path.is_absolute() => path,
+        Some(path) if relative_path_escapes(&path) => {
+            return Err(CliError::StateDirectoryEscape(path));
+        }
+        Some(path) => workspace.join(path),
+        None => workspace.join(".rey").join("conversations"),
+    };
+    let store = LocalConversationStore::new(directory);
+    match args.command {
+        ConversationsCommand::Status(args) => {
+            let transcript = store.transcript(args.session.as_deref(), args.max_count)?;
+            let mut stdout = io::stdout().lock();
+            match args.format.resolve() {
+                WorkloadOutputFormat::Json => write_json_line(&mut stdout, &transcript)?,
+                WorkloadOutputFormat::Table => {
+                    write_conversation_transcript(&mut stdout, &transcript)?
+                }
+                WorkloadOutputFormat::Auto => unreachable!(),
+            }
+        }
+        ConversationsCommand::Session(args) => match args.command {
+            ConversationSessionCommand::Add(args) => {
+                let bytes = read_workspace_conversation_input(
+                    &workspace,
+                    &args.proposal,
+                    MAX_CONVERSATION_SESSION_INPUT_BYTES,
+                )?;
+                let proposal: ConversationSessionProposal = serde_saphyr::from_slice(&bytes)?;
+                let source = ConversationSource::from_bytes(
+                    format!("worktree:///{}", args.proposal.to_string_lossy()),
+                    &bytes,
+                );
+                let result = store.admit_session(proposal, source, Utc::now().timestamp())?;
+                let mut stdout = io::stdout().lock();
+                match args.format.resolve() {
+                    WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+                    WorkloadOutputFormat::Table => {
+                        write_conversation_session_admission(&mut stdout, &result)?
+                    }
+                    WorkloadOutputFormat::Auto => unreachable!(),
+                }
+            }
+            ConversationSessionCommand::List(args) => {
+                let log = store.load()?;
+                let mut stdout = io::stdout().lock();
+                match args.format.resolve() {
+                    WorkloadOutputFormat::Json => write_json_line(&mut stdout, &log)?,
+                    WorkloadOutputFormat::Table => write_conversation_log(&mut stdout, &log)?,
+                    WorkloadOutputFormat::Auto => unreachable!(),
+                }
+            }
+        },
+        ConversationsCommand::Message(args) => match args.command {
+            ConversationMessageCommand::Add(args) => {
+                let bytes = read_workspace_conversation_input(
+                    &workspace,
+                    &args.proposal,
+                    MAX_CONVERSATION_MESSAGE_INPUT_BYTES,
+                )?;
+                let proposal: ConversationMessageProposal = serde_saphyr::from_slice(&bytes)?;
+                let source = ConversationSource::from_bytes(
+                    format!("worktree:///{}", args.proposal.to_string_lossy()),
+                    &bytes,
+                );
+                let result = store.admit_message(proposal, source, Utc::now().timestamp())?;
+                let mut stdout = io::stdout().lock();
+                match args.format.resolve() {
+                    WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+                    WorkloadOutputFormat::Table => {
+                        write_conversation_message_admission(&mut stdout, &result)?
+                    }
+                    WorkloadOutputFormat::Auto => unreachable!(),
+                }
+            }
+        },
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn observations_command(args: ObservationsArgs) -> Result<ExitCode, CliError> {
@@ -2291,6 +2481,53 @@ fn read_workspace_channel_input(
         })?;
     if bytes.len() as u64 > limit {
         return Err(CliError::ChannelInputLimit(limit));
+    }
+    Ok(bytes)
+}
+
+fn read_workspace_conversation_input(
+    workspace: &Path,
+    relative: &Path,
+    limit: u64,
+) -> Result<Vec<u8>, CliError> {
+    if relative.is_absolute() || relative_path_escapes(relative) {
+        return Err(CliError::ConversationInputEscape(relative.to_owned()));
+    }
+    let input_path = workspace.join(relative);
+    let metadata =
+        fs::symlink_metadata(&input_path).map_err(|source| CliError::ConversationInput {
+            path: input_path.clone(),
+            source,
+        })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::ConversationInputType(input_path));
+    }
+    let canonical = input_path
+        .canonicalize()
+        .map_err(|source| CliError::ConversationInput {
+            path: input_path,
+            source,
+        })?;
+    if !canonical.starts_with(workspace) {
+        return Err(CliError::ConversationInputEscape(canonical));
+    }
+    if metadata.len() > limit {
+        return Err(CliError::ConversationInputLimit(limit));
+    }
+    let mut bytes = Vec::new();
+    File::open(&canonical)
+        .map_err(|source| CliError::ConversationInput {
+            path: canonical.clone(),
+            source,
+        })?
+        .take(limit.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|source| CliError::ConversationInput {
+            path: canonical,
+            source,
+        })?;
+    if bytes.len() as u64 > limit {
+        return Err(CliError::ConversationInputLimit(limit));
     }
     Ok(bytes)
 }
@@ -5111,6 +5348,213 @@ fn write_journal_query_proposal(
     let mut hasher = SemanticHasher::new("rey.journal-query-proposal-source.v1");
     hasher.add_bytes(&bytes);
     Ok((relative.display().to_string(), hasher.finish()))
+}
+
+fn write_conversation_session_admission(
+    output: &mut impl Write,
+    result: &ConversationSessionAdmission,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "CONVERSATION SESSION")?;
+    write_portfolio_field(
+        output,
+        "Admission",
+        if result.admitted {
+            "ADMITTED · IMMUTABLE"
+        } else {
+            "UNCHANGED · IDENTICAL SESSION ALREADY RETAINED"
+        },
+    )?;
+    write_portfolio_field(output, "Session", result.session.session_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Sequence",
+        &format!("S@{}", result.session.sequence),
+    )?;
+    write_portfolio_field(output, "Source", &result.session.source.locator)?;
+    write_conversation_transcript(output, &result.transcript)
+}
+
+fn write_conversation_message_admission(
+    output: &mut impl Write,
+    result: &ConversationMessageAdmission,
+) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "CONVERSATION MESSAGE")?;
+    write_portfolio_field(
+        output,
+        "Admission",
+        if result.admitted {
+            "ADMITTED · LOCAL TRANSCRIPT ONLY"
+        } else {
+            "UNCHANGED · IDENTICAL MESSAGE ALREADY RETAINED"
+        },
+    )?;
+    write_portfolio_field(output, "Message", result.message.message_id.as_str())?;
+    write_portfolio_field(
+        output,
+        "Position",
+        &format!("C@{}", result.message.sequence),
+    )?;
+    write_portfolio_field(output, "Source", &result.message.source.locator)?;
+    write_portfolio_field(
+        output,
+        "Delivery",
+        "NOT ATTEMPTED · NO AGENT INVOCATION OR CHANNEL RELAY",
+    )?;
+    write_conversation_transcript(output, &result.transcript)
+}
+
+fn write_conversation_log(output: &mut impl Write, log: &ConversationLog) -> Result<(), CliError> {
+    writeln!(output)?;
+    writeln!(output, "CONVERSATION SESSIONS")?;
+    write_portfolio_field(output, "Identity", log.log_id.as_str())?;
+    write_portfolio_field(output, "Sessions", &log.sessions.len().to_string())?;
+    write_portfolio_field(output, "Messages", &log.messages.len().to_string())?;
+    if log.sessions.is_empty() {
+        writeln!(output)?;
+        writeln!(output, "No conversation sessions are admitted.")?;
+        return Ok(());
+    }
+    for session in &log.sessions {
+        let message_count = log
+            .messages
+            .iter()
+            .filter(|message| message.proposal.session_id == session.session_id)
+            .count();
+        writeln!(output)?;
+        writeln!(
+            output,
+            "S@{} {} · {}",
+            session.sequence, session.proposal.title, session.session_id
+        )?;
+        writeln!(
+            output,
+            "  {} / {} · {} participants · {} writers · {} messages",
+            session.proposal.transport.provider,
+            session.proposal.transport.provider_revision,
+            session.proposal.participants.len(),
+            session.proposal.writer_ids.len(),
+            message_count
+        )?;
+        writeln!(
+            output,
+            "  browser writer: {} · source: {}",
+            session
+                .proposal
+                .browser_writer_id
+                .as_deref()
+                .unwrap_or("none"),
+            session.source.locator
+        )?;
+    }
+    writeln!(output)?;
+    Ok(())
+}
+
+fn write_conversation_transcript(
+    output: &mut impl Write,
+    transcript: &ConversationTranscript,
+) -> Result<(), CliError> {
+    let style = TerminalStyle::stdout();
+    writeln!(output)?;
+    writeln!(output, "{}", style.bold("CONVERSATION"))?;
+    let transport = match transcript.availability {
+        ConversationTransportAvailability::Available => {
+            style.green("AVAILABLE · WORKSPACE-LOCAL TRANSCRIPT")
+        }
+        ConversationTransportAvailability::Unavailable => {
+            style.yellow("UNAVAILABLE · NO ADMITTED SESSION")
+        }
+    };
+    write_portfolio_field(output, "Transport", &transport)?;
+    write_portfolio_field(output, "Availability", &transcript.availability_detail)?;
+    write_portfolio_field(output, "Transcript", transcript.transcript_id.as_str())?;
+    write_portfolio_field(output, "Log", transcript.log_id.as_str())?;
+    if let Some(session) = &transcript.session {
+        write_portfolio_field(output, "Session", session.session_id.as_str())?;
+        write_portfolio_field(output, "Title", &session.proposal.title)?;
+        write_portfolio_field(
+            output,
+            "Provider",
+            &format!(
+                "{} / {}",
+                session.proposal.transport.provider, session.proposal.transport.provider_revision
+            ),
+        )?;
+        write_portfolio_field(
+            output,
+            "Participants",
+            &session
+                .proposal
+                .participants
+                .iter()
+                .map(|participant| {
+                    format!(
+                        "{}:{} ({})",
+                        participant.kind.label(),
+                        participant.participant_id,
+                        participant.label
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" · "),
+        )?;
+        write_portfolio_field(
+            output,
+            "Declared writers",
+            &session.proposal.writer_ids.join(" · "),
+        )?;
+    } else {
+        write_portfolio_field(output, "Session", "NONE")?;
+    }
+    write_portfolio_field(output, "Ordering", &transcript.ordering)?;
+    write_portfolio_field(output, "Retention", &transcript.retention)?;
+    write_portfolio_field(output, "Read authority", &transcript.read_authority)?;
+    write_portfolio_field(output, "CLI write", &transcript.cli_write_authority)?;
+    write_portfolio_field(output, "Browser write", &transcript.browser_write_authority)?;
+    write_portfolio_field(output, "Effect authority", &transcript.effect_authority)?;
+    write_portfolio_field(output, "Failure", &transcript.failure_contract)?;
+    write_portfolio_field(
+        output,
+        "Coverage",
+        &format!(
+            "{} / {} messages · {} · {} omitted",
+            transcript.messages.len(),
+            transcript.total_messages,
+            match transcript.completeness {
+                ConversationTranscriptCompleteness::Complete => "COMPLETE",
+                ConversationTranscriptCompleteness::Truncated => "TRUNCATED",
+            },
+            transcript.omitted_messages
+        ),
+    )?;
+    for message in &transcript.messages {
+        let participant = transcript
+            .session
+            .as_ref()
+            .and_then(|session| session.participant(&message.proposal.author_id));
+        writeln!(output)?;
+        writeln!(
+            output,
+            "C@{} {} / {} · SELF-ASSERTED · {}",
+            message.sequence,
+            participant.map_or("unknown", |participant| participant.kind.label()),
+            message.proposal.author_id,
+            message.message_id
+        )?;
+        writeln!(output, "  {}", message.proposal.body)?;
+        writeln!(
+            output,
+            "  admitted {} · delivery not attempted · source {}",
+            message.admitted_at_unix, message.source.locator
+        )?;
+        if let Some(reply_to) = &message.proposal.reply_to {
+            writeln!(output, "  replies to {reply_to}")?;
+        }
+    }
+    writeln!(output)?;
+    Ok(())
 }
 
 fn write_journal_log(output: &mut impl Write, log: &JournalLog) -> Result<(), CliError> {
@@ -11517,6 +11961,14 @@ enum CliError {
     ChannelInputEncoding(PathBuf),
     #[error("channel graph exceeds {0} bytes")]
     ChannelInputLimit(u64),
+    #[error("conversation proposal {path} could not be read: {source}")]
+    ConversationInput { path: PathBuf, source: io::Error },
+    #[error("conversation proposal must be a regular non-symlinked file: {0}")]
+    ConversationInputType(PathBuf),
+    #[error("conversation proposal resolves outside the workspace: {0}")]
+    ConversationInputEscape(PathBuf),
+    #[error("conversation proposal exceeds {0} bytes")]
+    ConversationInputLimit(u64),
     #[error("unknown admitted channel message {0}")]
     UnknownChannelMessage(String),
     #[error("unknown admitted relay {0}")]
@@ -11589,6 +12041,8 @@ enum CliError {
     JournalQueryProposalWrite { path: PathBuf, source: io::Error },
     #[error(transparent)]
     ChannelGraph(#[from] ChannelGraphError),
+    #[error(transparent)]
+    Conversation(#[from] ConversationError),
     #[error(transparent)]
     Observation(#[from] ObservationError),
     #[error(transparent)]

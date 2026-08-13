@@ -8,11 +8,12 @@ typed contracts projected by those commands.
 The implemented local surface includes Git-shaped environment, workload,
 editor, and Channel topology histories; file-backed workload qualification;
 deterministic workload/mining/portfolio execution; immutable Channel messages
-and explicit relay attempts; bounded Journal admission; and an explicitly
+and explicit relay attempts; bounded local conversation transcripts; bounded
+Journal admission; and an explicitly
 started embedded operator UI over the same evidence. Lower-level proof and
 local-bundle contracts remain library/runtime capabilities rather than manual
 commands. Automatic graph-proposal policy, recurring activation, scene
-admission, general provider execution, and a conversation transport remain
+admission, general provider execution, and remote conversation transports remain
 incomplete. The [current decision plane](decisions/README.md) summarizes the
 accepted structure; subject documents own its exact semantics.
 
@@ -60,6 +61,10 @@ rey channels [--workspace PATH] [--state-dir PATH] message add <message.yaml>
 rey channels [--workspace PATH] [--state-dir PATH] message list
 rey channels [--workspace PATH] [--state-dir PATH] relay <message-id> --relay <relay-id>
 rey channels [--workspace PATH] [--state-dir PATH] beacon <beacon-id>
+rey conversations [--workspace PATH] [--state-dir PATH] status [--session ID] [-n COUNT]
+rey conversations [--workspace PATH] [--state-dir PATH] session add <session.yaml>
+rey conversations [--workspace PATH] [--state-dir PATH] session list
+rey conversations [--workspace PATH] [--state-dir PATH] message add <message.yaml>
 rey env [--workspace PATH] [--state-dir PATH] status [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] add [-p] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
@@ -87,7 +92,10 @@ rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--chann
 
 `channels` exposes bounded collaboration topology through a complete local
 revision loop, admits immutable file-backed messages, and gates explicit relay
-and polling-beacon effects on exact Channel and environment HEAD identities. `env`
+and polling-beacon effects on exact Channel and environment HEAD identities.
+`conversations` admits separate workspace-local sessions and messages through a
+declared-writer append-only transcript contract; it performs no delivery,
+agent invocation, relay, scheduling, action, or proof effect. `env`
 inventories and revisions the available compute boundary. `workloads` is the
 public unit for composing and using runtime concepts. `journal` is the
 agent-facing admission and retrieval surface for typed collaboration entries;
@@ -1108,6 +1116,25 @@ step. `GET|HEAD /api/v1/journal/queries` exposes retained query admission and
 execution evidence; no browser query write or execution endpoint exists.
 Relay declarations do not enable transport until a provider contract is
 separately admitted.
+
+The implemented `rey conversations status|session add|session list|message
+add` surface owns the narrow `rey.local-transcript/v1` conversation provider.
+An immutable session binds its exact provider revision, participants, declared
+writers, optional human browser writer, source, identity, admission sequence,
+and limits. An immutable message binds one exact session, one declared writer,
+canonical body, optional prior same-session reply, source, identity, admission
+time, and contiguous per-session sequence. Admission is idempotent and always
+retains `delivery: not_attempted`.
+
+`rey.conversation-transcript.v1` reports transport availability, exact log and
+session identity, ordering, local retention, read/CLI/browser write authority,
+effect authority, failure behavior, selected rows, completeness, omissions,
+and effective bounds. Missing state is a read-only unavailable projection.
+The default `.rey/conversations/conversations.json` log is bounded, locked,
+atomically replaced, and verified after restart; tamper or append failure
+leaves prior state authoritative. The current browser conversation surface
+does not consume this contract yet, so its transcript remains empty and its
+composer disabled. See [Conversations](CONVERSATIONS.md).
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
 loopback status, unauthenticated Journal-write authority,

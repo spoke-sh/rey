@@ -251,8 +251,10 @@ passive-revalidation health. A quiet mailbox means no operator attention is
 requested; it is not filled with synthetic heartbeat activity. The mailbox
 control selects the history axis. The center chevrons select a separate
 operator/Rey/agent conversation axis with a conventional transcript and
-composer. The current operator server has no admitted chat transport, so the
-composer is disabled and no UI-owned transcript is invented.
+composer. A bounded workspace-local transcript provider now admits exact
+sessions and messages through the CLI without delivery or execution effects.
+The current operator server does not project that provider yet, so the
+composer remains disabled and no UI-owned transcript is invented.
 
 The collaboration substrate preserves those boundaries. A workspace-local
 Channel graph addresses channels, subscriptions, Feed
@@ -278,8 +280,11 @@ admission edges, retained partial broadcast receipts, single supersession or
 resolution closure, and the bounded collaboration frontier. Its CLI exposes
 add/list/show/resolve and exact partial broadcast receipts. Browser Feed and
 mailbox projection plus deterministic unretained Journal seeding are
-implemented. Resident beacon scheduling and remote inbound cursors remain
-planned behavior.
+implemented. The separate local conversation log now retains immutable
+sessions, declared participants/writers, per-session message order, exact
+sources, availability, authority, limits, and failure posture; no append
+invokes an agent or uses Channel relay. Browser conversation projection,
+resident beacon scheduling, and remote inbound cursors remain planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

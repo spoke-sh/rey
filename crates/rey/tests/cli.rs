@@ -10,6 +10,10 @@ use std::{
 use rey::channels::{
     ChannelApplyResult, ChannelDiff, ChannelGraphSnapshot, ChannelStatus, ChannelWorkingState,
 };
+use rey::conversations::{
+    ConversationLog, ConversationMessageAdmission, ConversationSessionAdmission,
+    ConversationTranscript, ConversationTransportAvailability,
+};
 use rey::editor::{EditorCommitResult, EditorStatus, EditorWorkingState};
 use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
@@ -39,6 +43,187 @@ use rey_runtime::{
 };
 use serde_json::Value;
 use tempfile::TempDir;
+
+#[test]
+fn conversation_cli_admits_exact_local_sessions_and_messages_without_transport_effects() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let initial = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert!(initial.status.success());
+    assert!(initial.stderr.is_empty());
+    let initial: ConversationTranscript = serde_json::from_slice(&initial.stdout).unwrap();
+    assert_eq!(
+        initial.availability,
+        ConversationTransportAvailability::Unavailable
+    );
+    assert!(!initial.browser_write_enabled);
+    assert!(!workspace.path().join(".rey").exists());
+
+    fs::write(
+        workspace.path().join("session.yaml"),
+        r#"schema: rey.conversation-session-proposal.v1
+title: Plan coordination
+transport:
+  kind: local_transcript
+  provider: rey.local-transcript
+  provider_revision: v1
+participants:
+  - participant_id: operator
+    kind: human
+    label: Operator
+  - participant_id: codex
+    kind: agent
+    label: Codex
+  - participant_id: observer
+    kind: agent
+    label: Observer
+writer_ids:
+  - operator
+  - codex
+browser_writer_id: operator
+"#,
+    )
+    .unwrap();
+    let admitted = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "session",
+        "add",
+        "session.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        admitted.status.success(),
+        "{}",
+        String::from_utf8_lossy(&admitted.stderr)
+    );
+    assert!(admitted.stderr.is_empty());
+    let admitted: ConversationSessionAdmission = serde_json::from_slice(&admitted.stdout).unwrap();
+    assert!(admitted.admitted);
+    assert_eq!(
+        admitted.transcript.availability,
+        ConversationTransportAvailability::Available
+    );
+    assert!(admitted.transcript.browser_write_enabled);
+    let session_id = admitted.session.session_id;
+
+    fs::write(
+        workspace.path().join("message.yaml"),
+        format!(
+            "schema: rey.conversation-message-proposal.v1\nsession_id: {session_id}\nauthor_id: codex\nbody: The exact local transcript is ready for operator review.\nreply_to: null\n"
+        ),
+    )
+    .unwrap();
+    let message = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "message",
+        "add",
+        "message.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        message.status.success(),
+        "{}",
+        String::from_utf8_lossy(&message.stderr)
+    );
+    assert!(message.stderr.is_empty());
+    let message: ConversationMessageAdmission = serde_json::from_slice(&message.stdout).unwrap();
+    assert!(message.admitted);
+    assert_eq!(message.message.sequence, 1);
+    assert_eq!(
+        message.message.delivery,
+        rey::conversations::ConversationDeliveryState::NotAttempted
+    );
+    assert_eq!(message.transcript.messages.len(), 1);
+
+    let human = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--session",
+        session_id.as_str(),
+        "--format",
+        "table",
+    ]);
+    assert!(human.status.success());
+    assert!(human.stderr.is_empty());
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "CONVERSATION",
+        "AVAILABLE · WORKSPACE-LOCAL TRANSCRIPT",
+        "human:operator (Operator)",
+        "agent:codex (Codex)",
+        "SELF-ASSERTED",
+        "delivery not attempted",
+        "does not invoke an agent",
+        "The exact local transcript is ready for operator review.",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing evidence: {evidence}\n{human}"
+        );
+    }
+
+    let listed = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "session",
+        "list",
+        "--format",
+        "json",
+    ]);
+    assert!(listed.status.success());
+    let log: ConversationLog = serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(log.sessions.len(), 1);
+    assert_eq!(log.messages.len(), 1);
+
+    fs::write(
+        workspace.path().join("denied.yaml"),
+        format!(
+            "schema: rey.conversation-message-proposal.v1\nsession_id: {session_id}\nauthor_id: observer\nbody: This writer is deliberately read-only.\nreply_to: null\n"
+        ),
+    )
+    .unwrap();
+    let denied = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "message",
+        "add",
+        "denied.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(!denied.status.success());
+    assert!(denied.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&denied.stderr).contains("has no write authority"));
+
+    let retained = run_rey(&[
+        "conversations",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    let retained: ConversationTranscript = serde_json::from_slice(&retained.stdout).unwrap();
+    assert_eq!(retained.messages.len(), 1);
+}
 
 #[test]
 fn editor_status_is_read_only_before_a_scene_is_initialized() {

@@ -38,6 +38,7 @@ is which.
 | [Git](GIT.md) | Repository identity, refs, commits, semantic index state, polling cursors, ref movement, and workload activation. |
 | [Journal](JOURNAL.md) | Retained human/agent synthesis, typed notebook blocks, exact browser addresses, authored opportunities, separately admitted read-only query evidence, and deliberately narrow authority. |
 | [Observations](OBSERVATIONS.md) | Immutable collaboration statements, exact evidence/source bindings, Channel-admission edges, retained partial broadcast outcomes, resolution/supersession, and the bounded catch-up frontier. |
+| [Conversations](CONVERSATIONS.md) | Bounded workspace-local sessions and append-only transcripts, declared participants/writers, ordering, retention, availability, and effect boundaries. |
 
 ## Interfaces And Delivery
 

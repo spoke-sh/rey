@@ -473,9 +473,23 @@ exact locator resolution, and ongoing delta/attention processing.
 ### Conversation axis
 
 The communication-plane axis intended for operator ↔ Rey ↔ agent dialogue.
-The current UI shows the conventional transcript/composer grammar but disables
-sending because no session, transport, admission, or retention contract is
-implemented.
+The CLI now retains bounded workspace-local sessions and append-only messages;
+the current UI shows the conventional transcript/composer grammar but remains
+disabled until it projects that same provider and authority contract.
+
+### Conversation session
+
+An immutable local transcript envelope binding the exact transport provider
+revision, bounded declared participants, declared writers, optional human
+browser writer, source, identity, retention limits, and local admission
+sequence. It grants append authority only, never agent invocation or delivery.
+
+### Conversation transcript
+
+A bounded exact projection of one retained conversation session in ascending
+per-session message sequence. It exposes availability, participants, writers,
+read/write/effect authority, retention, failures, completeness, omissions, and
+limits. It is not mailbox history, a Channel relay log, or observed agent work.
 
 ### Coordinate
 

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod channels;
+pub mod conversations;
 pub mod editor;
 pub mod env;
 pub mod git;

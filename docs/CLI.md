@@ -113,6 +113,7 @@ already admitted in HEAD.
 | `workloads` | `WORKLOAD HEAD → INDEX → WORKING` plus staged qualification | Only qualified HEAD packages are runnable. |
 | `editor` | `SCENE HEAD → INDEX → WORKING` | Commits candidate packages; it does not admit `/explore` evidence. |
 | `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
+| `conversations` | Immutable sessions plus append-only per-session transcript sequence | Admission retains local dialogue only; it does not deliver, invoke an agent, relay, schedule work, or grant proof authority. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
 | `ui` | Explicit server process over the same typed state | Human projection with narrow Journal, Channel WORKING, and workload-admission writes, not a second runtime. |
 
@@ -125,6 +126,7 @@ The implemented top-level surface is:
 
 ```text
 rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
+rey conversations status | session | message
 rey env        status | add | diff | commit | log
 rey git        status | init | poll | ack
 rey editor     generate | status | add | diff | commit | log
@@ -176,6 +178,30 @@ was discovered.
 deduplicates already delivered message/relay pairs and invokes at most the
 beacon's admitted batch bound. It is not a resident daemon and it does not poll
 remote inboxes; scheduling and inbound cursors require a later runtime slice.
+
+### `rey conversations`
+
+```text
+rey conversations [--workspace PATH] [--state-dir PATH] status [--session ID] [-n COUNT]
+rey conversations [--workspace PATH] [--state-dir PATH] session add SESSION.yaml
+rey conversations [--workspace PATH] [--state-dir PATH] session list
+rey conversations [--workspace PATH] [--state-dir PATH] message add MESSAGE.yaml
+```
+
+`session add` admits an immutable exact `rey.local-transcript/v1` session with
+declared participants, writers, and optional human browser writer. `message
+add` appends only when its exact session, self-asserted author, write authority,
+and optional prior same-session reply all verify. Identical proposals are
+idempotent. `status` exposes provider availability, exact session/log/source
+identities, per-session ordering, retention, read/write authority, effect
+boundary, completeness, omissions, bounds, and failure behavior.
+
+Every message has `delivery: not_attempted`. The command never invokes an
+agent, contacts a remote provider, uses Channel relay, creates an observation
+or Journal entry, schedules work, mutates runtime state, or proves a claim.
+The default store is `.rey/conversations`; missing state is an explicit
+read-only unavailable transcript and creates nothing. See
+[Conversations](CONVERSATIONS.md).
 
 ### `rey env`
 

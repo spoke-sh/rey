@@ -175,6 +175,10 @@ and the conversation boundary.
 - Preserve exact scenario-execution and directed-delta browser routes as
   read-only projections over verified retained results; never replace an
   unknown content identity with a mutable latest result.
+- Preserve the delivered workspace-local conversation session/message
+  contract as append-only transcript admission with declared writers,
+  per-session order, bounded retention, and no delivery or execution claim;
+  project it into the browser before enabling send.
 - Extend the implemented exact direct relay only after remote provider, cursor,
   hop, idempotency, loop-prevention, delivery, and omission contracts are
   accepted and proved.
