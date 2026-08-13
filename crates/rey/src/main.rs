@@ -135,6 +135,16 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Track bounded compute environment revisions.
+    Env(EnvArgs),
+    /// Inspect, test, qualify, and execute bounded compute graphs.
+    Workloads(WorkloadsArgs),
+    /// Read and admit bounded collaboration journal entries.
+    Journal(JournalArgs),
+    /// Start the supervised Rey process and operator interface.
+    Agent(AgentArgs),
+    /// Track and generate read-first scene revisions for explicit Rey admission.
+    Editor(EditorArgs),
     /// Show the exact Rey package version and build commit.
     Version(VersionArgs),
     /// Inspect and propose workspace-local collaboration topology.
@@ -143,18 +153,8 @@ enum Command {
     Conversations(ConversationsArgs),
     /// Admit and inspect bounded collaboration observations.
     Observations(ObservationsArgs),
-    /// Track bounded compute environment revisions.
-    Env(EnvArgs),
     /// Observe Git transitions and retain proposal-only activation evidence.
     Git(GitArgs),
-    /// Track and generate read-first scene revisions for explicit Rey admission.
-    Editor(EditorArgs),
-    /// Inspect, test, qualify, and execute bounded compute graphs.
-    Workloads(WorkloadsArgs),
-    /// Read and admit bounded collaboration journal entries.
-    Journal(JournalArgs),
-    /// Start the supervised Rey process and operator interface.
-    Agent(AgentArgs),
 }
 
 #[derive(Debug, Args)]
@@ -1432,16 +1432,16 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
+        Command::Env(args) => env_command(args),
+        Command::Workloads(args) => workloads(args),
+        Command::Journal(args) => journal_command(args),
+        Command::Agent(args) => agent_command(args),
+        Command::Editor(args) => editor_command(args),
         Command::Version(args) => version_command(args),
         Command::Channels(args) => channels_command(args),
         Command::Conversations(args) => conversations_command(args),
         Command::Observations(args) => observations_command(args),
-        Command::Env(args) => env_command(args),
         Command::Git(args) => git_command(args),
-        Command::Editor(args) => editor_command(args),
-        Command::Workloads(args) => workloads(args),
-        Command::Journal(args) => journal_command(args),
-        Command::Agent(args) => agent_command(args),
     }
 }
 

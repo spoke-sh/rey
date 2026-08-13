@@ -125,15 +125,16 @@ INDEX. Journal sequence is not HEAD/INDEX state.
 The implemented top-level surface is:
 
 ```text
-rey version    [--format table|json]
-rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
-rey conversations status | session | message
 rey env        status | add | diff | commit | log
-rey git        status | init | poll | ack
-rey editor     generate | status | add | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | execute-activation | verify-activation | run
 rey journal    add | list | seed | opportunities | query
 rey agent
+rey editor     generate | status | add | diff | commit | log
+rey version    [--format table|json]
+rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
+rey conversations status | session | message
+rey observations add | list | show | resolve
+rey git        status | init | poll | watch | ack
 ```
 
 Global options belong to their surface rather than to the root command.

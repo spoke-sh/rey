@@ -48,6 +48,38 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 #[test]
+fn root_help_orders_commands_by_primary_operator_bearing() {
+    let help = run_rey(&["--help"]);
+    assert!(help.status.success());
+    assert!(help.stderr.is_empty());
+
+    let help = String::from_utf8(help.stdout).unwrap();
+    let commands = help
+        .split_once("Commands:\n")
+        .unwrap()
+        .1
+        .split_once("\nOptions:")
+        .unwrap()
+        .0;
+    assert_eq!(
+        commands,
+        concat!(
+            "  env            Track bounded compute environment revisions\n",
+            "  workloads      Inspect, test, qualify, and execute bounded compute graphs\n",
+            "  journal        Read and admit bounded collaboration journal entries\n",
+            "  agent          Start the supervised Rey process and operator interface\n",
+            "  editor         Track and generate read-first scene revisions for explicit Rey admission\n",
+            "  version        Show the exact Rey package version and build commit\n",
+            "  channels       Inspect and propose workspace-local collaboration topology\n",
+            "  conversations  Admit and inspect bounded workspace-local conversation transcripts\n",
+            "  observations   Admit and inspect bounded collaboration observations\n",
+            "  git            Observe Git transitions and retain proposal-only activation evidence\n",
+            "  help           Print this message or the help of the given subcommand(s)\n",
+        )
+    );
+}
+
+#[test]
 fn version_cli_exposes_the_exact_package_and_build_commit() {
     let human = run_rey(&["version"]);
     assert!(human.status.success());
