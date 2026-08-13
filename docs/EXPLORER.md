@@ -248,7 +248,10 @@ explicit halos, then crops one shared render border. Exact patch results enter
 an LRU constrained by the packet's cell and byte budgets. The immutable scene
 also retains one revisioned ordered pass graph shared by the reference and
 accelerated surfaces. Exact scene, camera, material, and graph revisions form
-the renderer invalidation key; an identical frame is quiet. Frequency-band selection may add
+the renderer invalidation key; an identical frame is quiet. Before geometry
+allocation, the accelerated terrain path totals its exact vertex attributes
+and index bytes, rejects more than the explicit 64 MiB engine budget, and
+reports current/maximum GPU bytes beside CPU field allocation. Frequency-band selection may add
 visual detail as sample spacing tightens but never adds semantic evidence or
 fills invalid support. A TSL node material consumes the active buffers as one
 continuous relief mesh in `/explore`; React retains the controls, accessible

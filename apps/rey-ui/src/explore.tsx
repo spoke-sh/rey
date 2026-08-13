@@ -445,6 +445,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               <span data-render-graph={terrainRenderer.render_graph_id}>
                 GRAPH / {terrainRenderer.active_render_passes.length} PASSES
               </span>
+              {terrainRenderer.gpu_budget_bytes > 0 ? (
+                <span>
+                  GPU / {Math.ceil(terrainRenderer.gpu_bytes / 1024)} KIB /{" "}
+                  LIMIT {Math.ceil(terrainRenderer.gpu_budget_bytes / 1024)} KIB
+                </span>
+              ) : null}
             </>
           ) : null}
         </div>

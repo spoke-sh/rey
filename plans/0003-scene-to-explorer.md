@@ -182,8 +182,11 @@ remain open.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient
   patches, including stable absolute sampling, hydrology halos, exact shared
   channel seams, cache keys, and CPU cell/byte budgets.
-- [ ] Bind accelerated patch residency and upload to an explicit GPU budget;
-  retain its measurements with renderer qualification.
+- [x] Measure exact accelerated terrain vertex/index upload bytes, reject an
+  allocation beyond the explicit 64 MiB engine budget, and expose current and
+  maximum GPU bytes in Explorer diagnostics.
+- [ ] Retain GPU residency and upload measurements with named backend
+  qualification voyages.
 - [ ] Qualify GPU height/normal/material evaluation against deterministic CPU
   reference samples and preserve visible fallback on context/device loss.
 - [ ] Compose LOD-aware terrain, contours, hydrology, validity boundaries,

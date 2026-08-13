@@ -31,6 +31,7 @@ import type { GlobeCameraView } from "../engine/camera";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
+export const MAX_ACCELERATED_TERRAIN_GPU_BYTES = 64 * 1024 * 1024;
 
 export interface ThreeTerrainBundle {
   scene: Object3D;
@@ -41,6 +42,8 @@ export interface ThreeTerrainBundle {
     vertices: number;
     triangles: number;
     field_bytes: number;
+    gpu_bytes: number;
+    gpu_budget_bytes: number;
   };
   updateView?(view: TerrainCameraView): void;
   updateGlobeView?(view: GlobeCameraView): void;
@@ -55,6 +58,18 @@ export interface TerrainMeshData {
   roughness: Float32Array;
   curvature: Float32Array;
   indices: Uint32Array;
+}
+
+export function terrainMeshByteLength(mesh: TerrainMeshData): number {
+  return (
+    mesh.positions.byteLength +
+    mesh.normals.byteLength +
+    mesh.tint.byteLength +
+    mesh.occlusion.byteLength +
+    mesh.roughness.byteLength +
+    mesh.curvature.byteLength +
+    mesh.indices.byteLength
+  );
 }
 
 export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
@@ -115,7 +130,19 @@ export function createContinuousReliefBundle(
   fields: readonly TerrainFieldSet[],
   world: { width: number; height: number },
   view?: TerrainCameraView,
+  gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
 ): ThreeTerrainBundle {
+  if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
+    throw new Error("accelerated terrain GPU budget is invalid");
+  const meshData = fields.map(buildTerrainMeshData);
+  const gpuBytes = meshData.reduce(
+    (total, data) => total + terrainMeshByteLength(data),
+    0,
+  );
+  if (gpuBytes > gpuBudgetBytes)
+    throw new Error(
+      `accelerated terrain upload ${gpuBytes} exceeds GPU budget ${gpuBudgetBytes}`,
+    );
   const scene = new Scene();
   const terrain = new Group();
   terrain.name = "rey-continuous-relief";
@@ -125,8 +152,8 @@ export function createContinuousReliefBundle(
   let vertices = 0;
   let triangles = 0;
   let fieldBytes = 0;
-  for (const fieldSet of fields) {
-    const data = buildTerrainMeshData(fieldSet);
+  for (const [index, fieldSet] of fields.entries()) {
+    const data = meshData[index]!;
     const geometry = new BufferGeometry();
     geometry.setAttribute(
       "position",
@@ -191,6 +218,8 @@ export function createContinuousReliefBundle(
       vertices,
       triangles,
       field_bytes: fieldBytes,
+      gpu_bytes: gpuBytes,
+      gpu_budget_bytes: gpuBudgetBytes,
     }),
     updateView(nextView) {
       updateTerrainCamera(camera, world, nextView);

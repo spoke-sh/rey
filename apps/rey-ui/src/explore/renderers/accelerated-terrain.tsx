@@ -25,6 +25,8 @@ export interface AcceleratedTerrainReport {
   triangles: number;
   render_graph_id: string;
   active_render_passes: readonly string[];
+  gpu_bytes: number;
+  gpu_budget_bytes: number;
 }
 
 export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
@@ -47,6 +49,8 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     triangles: 0,
     render_graph_id: "unbound",
     active_render_passes: Object.freeze([]),
+    gpu_bytes: 0,
+    gpu_budget_bytes: 0,
   } satisfies AcceleratedTerrainReport,
 );
 
@@ -171,6 +175,8 @@ export function AcceleratedTerrainSurface({
             .filter(({ enabled }) => enabled)
             .map(({ id }) => id),
         ),
+        gpu_bytes: 0,
+        gpu_budget_bytes: 0,
       });
       return;
     }
@@ -181,7 +187,12 @@ export function AcceleratedTerrainSurface({
     let bundle: import("./three-terrain").ThreeTerrainBundle | undefined;
     const report = (
       status: RendererStatus,
-      statistics?: { field_sets: number; triangles: number },
+      statistics?: {
+        field_sets: number;
+        triangles: number;
+        gpu_bytes: number;
+        gpu_budget_bytes: number;
+      },
     ) => {
       if (cancelled) return;
       onReport({
@@ -201,6 +212,8 @@ export function AcceleratedTerrainSurface({
             .filter(({ enabled }) => enabled)
             .map(({ id }) => id),
         ),
+        gpu_bytes: statistics?.gpu_bytes ?? 0,
+        gpu_budget_bytes: statistics?.gpu_budget_bytes ?? 0,
       });
     };
     report({

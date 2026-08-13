@@ -144,6 +144,8 @@ export function createContextGlobeBundle(
       vertices: sphereGeometry.getAttribute("position").count + samples.length,
       triangles: sphereTriangles + sampleTriangleCount + markerTriangles,
       field_bytes: samples.length * 16,
+      gpu_bytes: samples.length * 16,
+      gpu_budget_bytes: samples.length * 16,
     }),
     updateGlobeView(view) {
       applyGlobeView(globeGroup, view);

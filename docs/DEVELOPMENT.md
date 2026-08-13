@@ -231,7 +231,9 @@ paths.
 manifest and its evidence/derived/presentation/interface authority labels.
 `src/explore/engine/renderer.ts` owns exact frame invalidation; both surfaces
 consume the immutable snapshot graph, and the accelerated adapter leaves an
-identical frame quiet.
+identical frame quiet. `src/explore/renderers/three-terrain.ts` measures every
+uploaded position, normal, material attribute, curvature, and index byte before
+allocation and fails visibly above its explicit 64 MiB GPU budget.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
