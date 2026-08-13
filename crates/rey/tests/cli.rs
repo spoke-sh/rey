@@ -48,6 +48,29 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 #[test]
+fn version_cli_exposes_the_exact_package_and_build_commit() {
+    let human = run_rey(&["version"]);
+    assert!(human.status.success());
+    assert!(human.stderr.is_empty());
+    assert_eq!(
+        String::from_utf8(human.stdout).unwrap(),
+        format!(
+            "rey {} (commit {})\n",
+            env!("CARGO_PKG_VERSION"),
+            env!("REY_BUILD_REVISION")
+        )
+    );
+
+    let structured = run_rey(&["version", "--format", "json"]);
+    assert!(structured.status.success());
+    assert!(structured.stderr.is_empty());
+    let structured: Value = serde_json::from_slice(&structured.stdout).unwrap();
+    assert_eq!(structured["schema"], "rey.version.v1");
+    assert_eq!(structured["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(structured["commit_sha"], env!("REY_BUILD_REVISION"));
+}
+
+#[test]
 fn conversation_cli_admits_exact_local_sessions_and_messages_without_transport_effects() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();
@@ -5610,6 +5633,11 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();
     let lifecycle = String::from_utf8_lossy(&table_output.stderr);
+    assert!(lifecycle.contains(&format!(
+        "INFO:     Rey version {}; commit {}",
+        env!("CARGO_PKG_VERSION"),
+        env!("REY_BUILD_REVISION")
+    )));
     assert!(lifecycle.contains("INFO:     Started Rey process ["));
     assert!(lifecycle.contains(
         "INFO:     Agent startup complete; background worker rey.operator-http is running"
@@ -5677,11 +5705,16 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     );
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
     let mut diagnostics = String::new();
-    for _ in 0..2 {
+    for _ in 0..3 {
         let mut line = String::new();
         assert!(network_stderr.read_line(&mut line).unwrap() > 0);
         diagnostics.push_str(&line);
     }
+    assert!(diagnostics.contains(&format!(
+        "INFO:     Rey version {}; commit {}",
+        env!("CARGO_PKG_VERSION"),
+        env!("REY_BUILD_REVISION")
+    )));
     assert!(diagnostics.contains("INFO:     Started Rey process ["));
     assert!(diagnostics.contains(
         "INFO:     Agent startup complete; background worker rey.operator-http is running"
@@ -5779,7 +5812,13 @@ fn agent_cli_is_a_hard_cutover_and_stops_supervised_work_cooperatively() {
     let stopped = child.wait_with_output().unwrap();
     assert!(stopped.status.success());
     let lifecycle = String::from_utf8_lossy(&stopped.stderr);
+    let version_log = format!(
+        "INFO:     Rey version {}; commit {}",
+        env!("CARGO_PKG_VERSION"),
+        env!("REY_BUILD_REVISION")
+    );
     for message in [
+        version_log.as_str(),
         "INFO:     Started Rey process [",
         "INFO:     Agent startup complete; background worker rey.operator-http is running",
         "INFO:     Shutdown requested",

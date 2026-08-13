@@ -58,9 +58,11 @@ These are responsibility boundaries, not requirements for separate processes.
 The first topology is the foreground local Rey process started by `rey agent`.
 Its root role is an orchestrator that owns all in-process background-work
 lifecycle. The first registered worker is the embedded operator HTTP server;
-the startup document and `GET /api/v1/agent` expose the exact process, worker,
-and supervision edge. SIGINT or SIGTERM requests cooperative shutdown, and an
-unexpected worker exit fails the Rey process closed. V1 has a fixed one-worker
+the startup log binds that process to its package version and build commit,
+while the startup document and `GET /api/v1/agent` expose the exact process,
+worker, and supervision edge. `rey version` projects the same immutable build
+identity without starting the process. SIGINT or SIGTERM requests cooperative
+shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a fixed one-worker
 bound and no restart, daemonization, multi-process fencing, or crash-durability
 claim.
 
@@ -152,7 +154,7 @@ poll cursors, and delta-triggered workloads.
 
 | Concept             | Meaning                                                                                                                                                                                                | Owner or retention boundary                                                                                     |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Rey process         | Foreground local OS process started by `rey agent`, with orchestrator role, runtime-only PID, implementation revision, and cooperative shutdown boundary                                                | Process lifetime; not retained semantic evidence or process-crash durability                                    |
+| Rey process         | Foreground local OS process started by `rey agent`, with package version, orchestrator role, runtime-only PID, implementation revision, and cooperative shutdown boundary                               | Process lifetime; not retained semantic evidence or process-crash durability                                    |
 | Agent topology      | Bounded live graph of the Rey process, supervised background-work nodes, lifecycle edges, authority, limits, and omissions                                                                               | Foreground orchestrator; projected through CLI and HTTP status                                                   |
 | Background work     | Work whose lifetime extends beyond one request or command stack and must therefore be registered, bounded, supervised, and cooperatively cancelled                                                      | Owning orchestrator and the provider that owns the work's effects/evidence                                      |
 | Environment         | Explicit boundary from which providers may discover context                                                                                                                                            | Host/deployment configuration; observed by Rey                                                                  |

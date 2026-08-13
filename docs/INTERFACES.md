@@ -87,6 +87,7 @@ rey journal [--workspace PATH] [--state-dir PATH] opportunities [-n COUNT]
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query admit <entry-id> <block-id>
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query execute <admission-id> --author <agent-id> --proposal-out <result.json>
 rey journal [--workspace PATH] [--state-dir PATH] query list
+rey version [--format table|json]
 rey agent [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--conversation-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
@@ -1008,7 +1009,9 @@ state, restart policy, authority, endpoint, the supervision edge, and the
 fixed one-worker bound. `rey.agent-process.v1` combines that topology with the
 nested `rey.ui-server.v1` operator descriptor. `--format json` emits that exact
 document; the default human startup output emits only the listening URL while
-stderr reports process and worker lifecycle transitions.
+stderr reports the exact semantic version and build commit before process and
+worker lifecycle transitions. `rey version` exposes the same immutable build
+identity as human text or `rey.version.v1` JSON without reading a workspace.
 `GET|HEAD /api/v1/agent` returns the process document, while
 `GET|HEAD /api/v1/health`
 returns `rey.agent-health.v1` with both agent and operator identity.
@@ -1271,8 +1274,9 @@ transport or writer leaves the composer disabled; a stale append is rejected
 before publication. See [Conversations](CONVERSATIONS.md).
 
 The default human startup line exposes the exact listening URL without
-repeating the complete process document. Lifecycle logs expose process and
-worker startup, cooperative shutdown, and failure transitions. The
+repeating the complete process document. A preceding INFO log binds the binary
+to its semantic package version and build commit; subsequent lifecycle logs
+expose process and worker startup, cooperative shutdown, and failure transitions. The
 `rey.agent-process.v1` JSON, `/api/v1/agent`, and `/agents` expose the running
 process id and PID, orchestrator role, bounded supervised topology, worker
 lifecycle, restart/agent-runtime omissions, and the nested `rey.ui-server.v1`

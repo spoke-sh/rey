@@ -12,6 +12,7 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::ui::{UiError, UiServer, UiServerDescriptor};
+use crate::version;
 
 pub const AGENT_PROCESS_SCHEMA: &str = "rey.agent-process.v1";
 pub const REY_PROCESS_SCHEMA: &str = "rey.process.v1";
@@ -165,6 +166,11 @@ impl AgentOrchestrator {
             .name(OPERATOR_SERVER_NODE_ID.to_owned())
             .spawn(move || operator.serve_until(worker_cancelled))
             .map_err(AgentError::Spawn)?;
+        log_info(format_args!(
+            "Rey version {}; commit {}",
+            version::VERSION,
+            version::COMMIT_SHA
+        ));
         log_info(format_args!("Started Rey process [{}]", std::process::id()));
         log_info(format_args!(
             "Agent startup complete; background worker {OPERATOR_SERVER_NODE_ID} is running"

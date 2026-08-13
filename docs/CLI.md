@@ -125,6 +125,7 @@ INDEX. Journal sequence is not HEAD/INDEX state.
 The implemented top-level surface is:
 
 ```text
+rey version    [--format table|json]
 rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
 rey conversations status | session | message
 rey env        status | add | diff | commit | log
@@ -515,6 +516,19 @@ bounded unresolved frontier and its completeness, omissions, and state counts.
 and closure. `resolve` appends one idempotent resolution. None changes Channel
 INDEX/HEAD, relays, schedules, assigns, executes, or proves work.
 
+### `rey version`
+
+```text
+rey version [--format table|json]
+```
+
+`version` prints the semantic package version and the exact Git commit captured
+when the binary was built. Human output is `rey VERSION (commit SHA)`;
+`--format json` emits the equivalent `rey.version.v1` document with `version`
+and `commit_sha` fields. The command reads no workspace or mutable repository
+state. A source archive built without an admitted build revision reports the
+existing explicit `unknown` boundary instead of guessing a commit.
+
 ### `rey agent`
 
 ```text
@@ -528,8 +542,9 @@ rey agent [--workspace PATH] [--state-dir PATH]
 embedded operator HTTP server as its single bounded background worker and
 defaults the listener to loopback. The default human startup output is one
 line—`INFO:     Listening on http://127.0.0.1:5714 (Press CTRL+C to quit)`—and
-stderr logs process, agent-startup, worker, shutdown, and failure lifecycle
-events. `--format json` exposes the complete `rey.agent-process.v1` document
+stderr first identifies the exact Rey version and build commit, then logs
+process, agent-startup, worker, shutdown, and failure lifecycle events.
+`--format json` exposes the complete `rey.agent-process.v1` document
 with its nested `rey.process.v1` and `rey.agent-topology.v1`; the same exact
 topology remains human-visible on `/agents`. SIGINT and SIGTERM stop the worker
 cooperatively; an unexpected exit fails the process closed. V1 never restarts

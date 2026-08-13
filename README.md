@@ -67,8 +67,9 @@ rey agent
 
 `rey agent` starts the foreground Rey process. Its orchestrator supervises the
 operator HTTP server and owns the lifecycle of every in-process background
-worker. Startup prints one framework-style listening URL while lifecycle
-events are logged as the process and workers start and stop. Rey listens on
+worker. Startup prints one framework-style listening URL while stderr records
+the exact `rey version` identity and lifecycle events as the process and
+workers start and stop. Rey listens on
 `127.0.0.1:5714` by default and enters `/explore`; exact live topology remains
 available through `/agents`, `/api/v1/agent`, and `--format json`. Incoming
 file-backed workload proposals appear as beacons without being treated as

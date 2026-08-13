@@ -2,6 +2,7 @@
 
 mod agent;
 mod ui;
+mod version;
 
 use std::{
     collections::BTreeMap,
@@ -134,6 +135,8 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Show the exact Rey package version and build commit.
+    Version(VersionArgs),
     /// Inspect and propose workspace-local collaboration topology.
     Channels(ChannelsArgs),
     /// Admit and inspect bounded workspace-local conversation transcripts.
@@ -152,6 +155,19 @@ enum Command {
     Journal(JournalArgs),
     /// Start the supervised Rey process and operator interface.
     Agent(AgentArgs),
+}
+
+#[derive(Debug, Args)]
+struct VersionArgs {
+    /// Output representation.
+    #[arg(long, value_enum, default_value_t = VersionOutputFormat::Table)]
+    format: VersionOutputFormat,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum VersionOutputFormat {
+    Table,
+    Json,
 }
 
 #[derive(Debug, Args)]
@@ -1416,6 +1432,7 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode, CliError> {
     match cli.command {
+        Command::Version(args) => version_command(args),
         Command::Channels(args) => channels_command(args),
         Command::Conversations(args) => conversations_command(args),
         Command::Observations(args) => observations_command(args),
@@ -1426,6 +1443,20 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
         Command::Journal(args) => journal_command(args),
         Command::Agent(args) => agent_command(args),
     }
+}
+
+fn version_command(args: VersionArgs) -> Result<ExitCode, CliError> {
+    let descriptor = version::VersionDescriptor::current();
+    let mut stdout = io::stdout().lock();
+    match args.format {
+        VersionOutputFormat::Table => writeln!(
+            stdout,
+            "rey {} (commit {})",
+            descriptor.version, descriptor.commit_sha
+        )?,
+        VersionOutputFormat::Json => write_json_line(&mut stdout, &descriptor)?,
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn conversations_command(args: ConversationsArgs) -> Result<ExitCode, CliError> {
