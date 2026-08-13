@@ -204,9 +204,10 @@ remain open.
 - [x] Keep base terrain independently active while contour, water, weather,
   and probe overlays are toggled; label the former relief control by its actual
   contour scope.
-- [ ] Compose LOD-aware terrain, contours, hydrology, validity boundaries,
+- [x] Compose LOD-aware terrain, contours, hydrology, validity boundaries,
   features, labels, collision/culling, selection, and accessibility while
-  keeping the base landform independently legible.
+  keeping the base landform independently legible; derive transient active
+  passes from view controls without changing the immutable graph identity.
 
 ### 6. Qualify the complete voyage
 

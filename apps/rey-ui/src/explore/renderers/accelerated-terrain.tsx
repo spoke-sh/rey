@@ -9,6 +9,10 @@ import {
   type TerrainCameraView,
 } from "../terrain/compile";
 import { TerrainPatchCache } from "../terrain/patch-cache";
+import {
+  activeExplorerRenderPasses,
+  type ExplorerRenderVisibility,
+} from "../engine/render-graph";
 
 export type RendererPreference = "auto" | "webgpu" | "webgl2" | "reference";
 
@@ -74,12 +78,14 @@ export function AcceleratedTerrainSurface({
   snapshot,
   view,
   visible,
+  renderVisibility,
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
 }: {
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
   view: TerrainCameraView;
   visible: boolean;
+  renderVisibility: ExplorerRenderVisibility;
   globeView?: GlobeCameraView;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -106,6 +112,12 @@ export function AcceleratedTerrainSurface({
   const workingSetRevision = workingSetRequests
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
+  const activeRenderPassIds = Object.freeze(
+    activeExplorerRenderPasses(snapshot.render_graph, renderVisibility).map(
+      ({ id }) => id,
+    ),
+  );
+  const activeRenderPassRevision = activeRenderPassIds.join("|");
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -174,11 +186,7 @@ export function AcceleratedTerrainSurface({
         working_set_limit_cells: programTotals.cells,
         working_set_limit_bytes: programTotals.bytes,
         render_graph_id: snapshot.render_graph.graph_id,
-        active_render_passes: Object.freeze(
-          snapshot.render_graph.passes
-            .filter(({ enabled }) => enabled)
-            .map(({ id }) => id),
-        ),
+        active_render_passes: activeRenderPassIds,
         gpu_bytes: 0,
         gpu_budget_bytes: 0,
         parity_revision: "unbound",
@@ -216,11 +224,7 @@ export function AcceleratedTerrainSurface({
         working_set_limit_bytes: programTotals.bytes,
         triangles: statistics?.triangles ?? 0,
         render_graph_id: snapshot.render_graph.graph_id,
-        active_render_passes: Object.freeze(
-          snapshot.render_graph.passes
-            .filter(({ enabled }) => enabled)
-            .map(({ id }) => id),
-        ),
+        active_render_passes: activeRenderPassIds,
         gpu_bytes: statistics?.gpu_bytes ?? 0,
         gpu_budget_bytes: statistics?.gpu_budget_bytes ?? 0,
         parity_revision: statistics?.parity_revision ?? "unbound",
@@ -320,7 +324,12 @@ export function AcceleratedTerrainSurface({
       if (bundleRef.current === bundle) bundleRef.current = undefined;
       if (adapterRef.current === adapter) adapterRef.current = undefined;
     };
-  }, [onReport, snapshot.snapshot_id, workingSetRevision]);
+  }, [
+    activeRenderPassRevision,
+    onReport,
+    snapshot.snapshot_id,
+    workingSetRevision,
+  ]);
 
   useEffect(() => {
     const adapter = adapterRef.current;

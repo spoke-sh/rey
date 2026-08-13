@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { TopologyScene } from "../../topology";
-import { compileExplorerRenderGraph } from "./render-graph";
+import {
+  activeExplorerRenderPasses,
+  compileExplorerRenderGraph,
+} from "./render-graph";
 
 const scene = {
   regime: "landscape",
@@ -48,5 +51,20 @@ describe("Explorer render graph", () => {
         terrain: false,
       } as TopologyScene).graph_id,
     ).not.toBe(first.graph_id);
+  });
+
+  it("projects transient controls without changing graph identity", () => {
+    const graph = compileExplorerRenderGraph(scene);
+    const active = activeExplorerRenderPasses(graph, {
+      contours: false,
+      water: false,
+      weather: false,
+      probes: false,
+    });
+    expect(active.map(({ id }) => id)).not.toContain("contours");
+    expect(active.map(({ id }) => id)).toContain("base_terrain");
+    expect(graph.passes.find(({ id }) => id === "contours")?.enabled).toBe(
+      true,
+    );
   });
 });

@@ -155,6 +155,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     terrainRenderer.status.lifecycle === "ready" &&
     (terrainRenderer.status.backend === "webgpu" ||
       terrainRenderer.status.backend === "webgl2");
+  const renderVisibility = {
+    contours: layers.relief,
+    water: layers.water,
+    weather: layers.weather,
+    probes: layers.probes,
+  };
 
   useEffect(() => {
     if (!coordinate) return;
@@ -358,6 +364,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         {scene.terrain && scene.globe === null ? (
           <AcceleratedTerrainSurface
             onReport={setTerrainRenderer}
+            renderVisibility={renderVisibility}
             snapshot={snapshot}
             view={{
               world_width: scene.world.width,
@@ -379,6 +386,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             <AcceleratedTerrainSurface
               globeView={globeView}
               onReport={setTerrainRenderer}
+              renderVisibility={renderVisibility}
               snapshot={snapshot}
               view={{
                 world_width: scene.world.width,

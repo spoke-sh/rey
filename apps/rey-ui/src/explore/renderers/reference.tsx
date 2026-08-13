@@ -24,6 +24,7 @@ import {
   type SemanticCoordinate,
 } from "../projection/semantic-mercator";
 import {
+  activeExplorerRenderPasses,
   compileExplorerRenderGraph,
   type ExplorerRenderGraph,
 } from "../engine/render-graph";
@@ -70,6 +71,12 @@ export function ReferenceRenderer({
   pickingIndex?: ScenePickingIndex;
 }) {
   const activeRenderGraph = renderGraph ?? compileExplorerRenderGraph(scene);
+  const activeRenderPasses = activeExplorerRenderPasses(activeRenderGraph, {
+    contours: layers.relief,
+    water: layers.water,
+    weather: layers.weather,
+    probes: layers.probes,
+  });
   const globeWorld = scene.regime === "world" && scene.globe !== null;
   const morphActive =
     scene.world_atlas_transition !== null &&
@@ -114,10 +121,7 @@ export function ReferenceRenderer({
       )}
       data-lens-regime={scene.regime}
       data-render-graph={activeRenderGraph.graph_id}
-      data-render-passes={activeRenderGraph.passes
-        .filter(({ enabled }) => enabled)
-        .map(({ id }) => id)
-        .join(",")}
+      data-render-passes={activeRenderPasses.map(({ id }) => id).join(",")}
       data-renderer={accelerated ? "reference-overlays" : "reference"}
     >
       {!globeWorld &&

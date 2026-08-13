@@ -26,6 +26,26 @@ export interface ExplorerRenderGraph {
   passes: readonly ExplorerRenderPass[];
 }
 
+export interface ExplorerRenderVisibility {
+  contours: boolean;
+  water: boolean;
+  weather: boolean;
+  probes: boolean;
+}
+
+export function activeExplorerRenderPasses(
+  graph: ExplorerRenderGraph,
+  visibility: ExplorerRenderVisibility,
+): readonly ExplorerRenderPass[] {
+  return Object.freeze(
+    graph.passes.filter((pass) => {
+      if (!pass.enabled) return false;
+      if (pass.id === "contours") return visibility.contours;
+      return true;
+    }),
+  );
+}
+
 export function compileExplorerRenderGraph(
   scene: TopologyScene,
 ): ExplorerRenderGraph {

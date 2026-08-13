@@ -273,6 +273,10 @@ The base terrain remains active independently from optional contour, water,
 weather, and probe overlays. The UI names the old relief toggle `CONTOURS` to
 match its actual scope; disabling it cannot hide the landform or validity
 boundary.
+The immutable render graph records pass availability. A separate transient
+projection applies contour/water/weather/probe view controls and feeds the same
+active pass identities to reference markup and accelerated diagnostics; view
+controls do not revise semantic scene or graph identity.
 [Plan 0003](../plans/0003-scene-to-explorer.md) owns remaining pass
 implementation and topology extraction, device-loss qualification, and retained
 visual and performance proof.

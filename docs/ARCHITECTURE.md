@@ -940,6 +940,9 @@ exact vertex/index upload bytes before geometry allocation, enforces a 64 MiB
 engine budget, verifies every upload sample against isolated deterministic CPU
 fields, and exposes the allocation and parity revision through the live
 renderer report.
+Transient layer controls project the active subset of that graph for both
+surfaces without changing the immutable graph or scene identity; base terrain
+and validity remain independently present when optional contours are hidden.
 The revisioned survey-terrain scene compiler owns reference field evaluation,
 contours, projected hydrology/weather, and natural-feature derivation. Remaining
 pass implementation and portfolio/scene-layout extraction, retained voyages,
