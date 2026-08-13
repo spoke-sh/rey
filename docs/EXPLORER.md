@@ -164,6 +164,9 @@ editor source may explicitly declare `features`, `markers`, `terrain_control`,
 `utility`, `label`, `beacon`, `construction`, or `connector`; admission keeps
 that role as an independently typed native object/layer and Explorer renders
 the retained kind without guessing from geometry, path, or appearance.
+`rey editor source add INPUT.geojson --id SOURCE --role ROLE` is the CLI-first
+registration path; its verified WORKING change remains reviewable through
+`status` and `diff`, and only `add`/`commit` can freeze it for later admission.
 GeoJSON coordinates cannot stand in for an unbound high-dimensional semantic
 chart, and line features do not become paths or source relationships. Detailed
 raster terrain and provider-qualified semantic chart formats require separate

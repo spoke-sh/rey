@@ -1296,6 +1296,8 @@ Explorer](EXPLORER.md).
 The agent-facing scene authoring surface is separate:
 
 ```text
+rey editor source add <input.geojson> --id <source> --role <role> \
+  [--scene-id <project>]
 rey editor generate terrain <output.geojson> --id <source> --seed <seed> \
   [--scene-id <project>] \
   --west <lon> --south <lat> --east <lon> --north <lat> [hyperparameters]
@@ -1311,11 +1313,16 @@ All editor commands accept `--format table|json` (and terminal-sensitive
 `project.json` (`.rey/editor/project.json` by default); the CLI never reads or
 writes a workspace `rey.scene.json` and exposes no project-path override.
 Declared native inputs remain bounded, regular, non-symlinked, and contained
-by the workspace. `generate` creates the internal project when it is absent;
-`--scene-id` sets that initial identity and otherwise defaults to the generated
-source ID. Before initialization, `status` returns `rey.editor-status.v2` with
+by the workspace. `source add` verifies and registers an existing RFC 7946
+GeoJSON path in WORKING under one explicit feature, marker/POI,
+terrain-control, hydrology, boundary, highway, road, district, lot, structure,
+utility, label, beacon, construction, or connector role. It rejects path/role
+rebinding and writes only the canonical internal project declaration; it does
+not rewrite native bytes or touch INDEX. `source add` and `generate` create the
+internal project when it is absent; `--scene-id` sets that initial identity and
+otherwise defaults to the source ID. Before initialization, `status` returns `rey.editor-status.v2` with
 `initialized=false` and no WORKING snapshot without creating local state.
-The agent then fine-tunes the generated native source directly in WORKING.
+The agent may then author or fine-tune the native source directly in WORKING.
 `status` and `diff` compare `HEAD → INDEX → WORKING`. `add` is the only
 staging operation and freezes the exact agent-edited native bytes. `commit`
 reads and validates only INDEX, advances `SCENE@n`, writes
@@ -1345,7 +1352,12 @@ evidence. `/explore` consumes that result only after its acceptance and exact
 bindings pass the browser evidence adapter; candidate state, staged
 qualification results, and rejected runs remain non-projectable.
 
-`generate terrain` writes a deterministic terrain-control GeoJSON source into
+`rey.editor-source-add-result.v1` is the human/machine verification receipt for
+registration. It binds changed/idempotent state, project bootstrap, exact
+source declaration and role, source content revision/bytes, parsed feature and
+coordinate counts, native bounds, and candidate-only authority. The semantic
+`status`/`diff` path exposes the resulting source and feature insertions before
+`add` freezes them. `generate terrain` writes a deterministic terrain-control GeoJSON source into
 WORKING and registers it in the project. It binds the complete effective recipe
 in `rey.scene-generation.v1`: seed, CRS84 bounds, feature and vertex counts,
 scale interval, uplift ratio, strength, roughness, anisotropy, orientation,

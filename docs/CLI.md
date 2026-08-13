@@ -233,6 +233,7 @@ message admission, polling-beacon, and relay authority unsupported.
 
 ```text
 rey editor [--workspace PATH] [--state-dir PATH]
+  source add INPUT.geojson --id SOURCE --role ROLE [--scene-id PROJECT]
   generate terrain OUTPUT.geojson --id SOURCE --west N --south N --east N --north N [PARAMETERS]
 rey editor ... status
 rey editor ... add
@@ -241,6 +242,16 @@ rey editor ... commit -m MESSAGE
 rey editor ... log [-p] [-n COUNT]
 ```
 
+`source add` verifies one existing workspace-relative RFC 7946 GeoJSON file,
+its stable feature identities, coordinate bounds, and role-specific geometry,
+then registers its explicit semantic role in editor WORKING. It creates the
+internal project when absent, using `--scene-id` or the source ID. Repeating the
+same registration is idempotent; changing an existing source ID's path/role or
+reusing its path under another ID is rejected rather than silently rebound.
+The human receipt exposes the exact content revision, bytes, feature/coordinate
+coverage, native bounds, and candidate-only authority. It does not copy,
+rewrite, stage, commit, admit, or fetch the source.
+
 `generate terrain` deterministically creates or updates an owned native
 GeoJSON terrain-control source and bootstraps `.rey/editor/project.json` when
 absent. The selected `--state-dir` owns that project declaration; there is no
@@ -248,10 +259,10 @@ workspace `rey.scene.json` input or output and no `--project` override. Native
 source paths remain workspace-relative, bounded, regular, and non-symlinked.
 Its seed and hyperparameters are retained as generation lineage; use
 `rey editor generate terrain --help` for the complete tunable set. Agents may
-then fine-tune the native WORKING files. `add` freezes exact objects, `commit`
+then add or fine-tune native WORKING files. `add` freezes exact objects, `commit`
 validates only the frozen INDEX, and the resulting `SCENE@n` package remains an
-unadmitted candidate. There is intentionally no separate `init`, `import`, or
-`validate` command.
+unadmitted candidate. There is intentionally no separate `init` or `validate`
+command; `source add` is registration, not a copy-style import.
 
 Admission crosses the normal workload plane:
 

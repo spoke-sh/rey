@@ -387,7 +387,10 @@ admitted evidence
 
 The editor arrow cannot bypass the admission workload. `rey.scene-package.v1`
 is not a topography patch, projection packet, browser scene, or proof. The
-editor freezes bounded native GeoJSON and a feature/POI index. The file-backed
+editor registers existing native GeoJSON through a bounded, non-symlinked,
+explicit-role `source add` receipt; status/diff retain the reviewable WORKING
+change, and the editor freezes bytes and feature/POI indexes only through
+INDEX. The file-backed
 `scene-admission` workload now validates exact current packages and native
 objects, qualifies deterministic acceptance/rejection scenarios, and retains
 an admitted regional scene plus projection packet through the CLI. The

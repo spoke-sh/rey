@@ -32,6 +32,7 @@ pub const EDITOR_COMMIT_RESULT_SCHEMA: &str = "rey.editor-commit-result.v1";
 pub const EDITOR_LOG_SCHEMA: &str = "rey.editor-log.v1";
 pub const SCENE_GENERATION_SCHEMA: &str = "rey.scene-generation.v1";
 pub const EDITOR_GENERATE_RESULT_SCHEMA: &str = "rey.editor-generate-result.v1";
+pub const EDITOR_SOURCE_ADD_RESULT_SCHEMA: &str = "rey.editor-source-add-result.v1";
 
 const PROJECT_FILE_NAME: &str = "project.json";
 const STATE_FILE_NAME: &str = "state.json";
@@ -765,6 +766,22 @@ pub struct EditorGenerateResult {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct EditorSourceAddResult {
+    pub schema: String,
+    pub changed: bool,
+    pub project_created: bool,
+    pub project_path: String,
+    pub source: SceneSourceDeclaration,
+    pub source_revision: SemanticDigest,
+    pub source_bytes: u64,
+    pub feature_count: u64,
+    pub coordinate_count: u64,
+    pub native_bounds: Option<SceneBounds>,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 struct EditorStateDocument {
     schema: String,
     commits: Vec<SceneCommit>,
@@ -825,6 +842,101 @@ impl LocalEditorStore {
             .and_then(|()| file.flush())
             .map_err(|source| EditorError::Write { path, source })?;
         Ok(project)
+    }
+
+    pub fn add_source(
+        &self,
+        source_path: &Path,
+        scene_id: Option<String>,
+        source_id: String,
+        role: SceneSourceRole,
+    ) -> Result<EditorSourceAddResult, EditorError> {
+        validate_identifier("source id", &source_id)?;
+        if let Some(scene_id) = &scene_id {
+            validate_identifier("scene id", scene_id)?;
+        }
+        let relative = workspace_relative(&self.workspace, source_path, MAX_SOURCE_BYTES)?;
+        if relative
+            .extension()
+            .and_then(|extension| extension.to_str())
+            != Some("geojson")
+        {
+            return Err(EditorError::SourceExtension(relative));
+        }
+        let source_path = path_string(&relative)?;
+        let bytes = read_bounded_file(
+            &self.workspace.join(&relative),
+            MAX_SOURCE_BYTES,
+            "scene source",
+        )?;
+        let parsed = parse_geojson(&source_id, role, &bytes)?;
+        let source_revision = content_identity(&bytes);
+        let source = SceneSourceDeclaration {
+            source_id: source_id.clone(),
+            path: source_path.clone(),
+            format: SceneSourceFormat::GeoJson,
+            role,
+        };
+        self.with_lock(|| {
+            let (project_file, mut project, project_created) =
+                match self.load_optional_project()? {
+                    Some((path, project)) => (path, project, false),
+                    None => {
+                        let project = EditorProject::new(
+                            scene_id.clone().unwrap_or_else(|| source_id.clone()),
+                        )?;
+                        (
+                            self.directory.join(PROJECT_FILE_NAME),
+                            project,
+                            true,
+                        )
+                    }
+                };
+            if scene_id
+                .as_ref()
+                .is_some_and(|scene_id| scene_id != &project.project_id)
+            {
+                return Err(EditorError::ProjectIdentity {
+                    expected: project.project_id,
+                    actual: scene_id.expect("scene id was present"),
+                });
+            }
+            if let Some(existing) = project
+                .sources
+                .iter()
+                .find(|existing| existing.source_id == source_id)
+                && existing != &source
+            {
+                return Err(EditorError::DuplicateSourceId(source_id));
+            }
+            if let Some(existing) = project
+                .sources
+                .iter()
+                .find(|existing| existing.path == source_path)
+                && existing != &source
+            {
+                return Err(EditorError::DuplicateSourcePath(source_path));
+            }
+            let changed = !project.sources.iter().any(|existing| existing == &source);
+            if changed {
+                project.sources.push(source.clone());
+                project = project.canonicalize()?;
+                self.write_project(&project_file, &project)?;
+            }
+            Ok(EditorSourceAddResult {
+                schema: EDITOR_SOURCE_ADD_RESULT_SCHEMA.to_owned(),
+                changed,
+                project_created,
+                project_path: self.project_storage_path()?,
+                source: source.clone(),
+                source_revision: source_revision.clone(),
+                source_bytes: bytes.len() as u64,
+                feature_count: parsed.features.len() as u64,
+                coordinate_count: parsed.coordinate_count,
+                native_bounds: parsed.bounds.clone(),
+                authority: "verified native GeoJSON registered in editor WORKING only; the source remains mutable until `rey editor add` freezes its exact bytes and identity in INDEX".to_owned(),
+            })
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2733,7 +2845,9 @@ pub enum EditorError {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[error("editor project is not initialized in {0}; run `rey editor generate terrain --help`")]
+    #[error(
+        "editor project is not initialized in {0}; run `rey editor source add --help` or `rey editor generate terrain --help`"
+    )]
     UninitializedProject(PathBuf),
     #[error("editor project state is missing from {0} while retained INDEX or HEAD exists")]
     MissingProject(PathBuf),
@@ -2761,13 +2875,15 @@ pub enum EditorError {
     #[error("duplicate editor source path: {0}")]
     DuplicateSourcePath(String),
     #[error(
-        "generated scene identity does not match the project: expected {expected}, found {actual}"
+        "requested scene identity does not match the project: expected {expected}, found {actual}"
     )]
     ProjectIdentity { expected: String, actual: String },
     #[error("duplicate scene feature id: {0}")]
     DuplicateFeatureId(String),
     #[error("generated scene output must use the .geojson extension: {0}")]
     GeneratedOutputExtension(PathBuf),
+    #[error("editor scene sources must use the .geojson extension: {0}")]
+    SourceExtension(PathBuf),
     #[error("refusing to overwrite a source not owned by the declared generator: {0}")]
     GeneratedOutputAuthority(String),
     #[error("invalid terrain generation parameter: {0}")]
@@ -2924,6 +3040,114 @@ mod tests {
                 serde_json::from_value::<SceneSourceRole>(label.into()).unwrap(),
                 role
             );
+        }
+    }
+
+    #[test]
+    fn source_add_registers_verified_native_geometry_through_index_and_commit() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        fs::write(
+            workspace.path().join("boundary.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"county","properties":{},"geometry":{"type":"Polygon","coordinates":[[[-123.0,37.0],[-122.0,37.0],[-122.0,38.0],[-123.0,37.0]]]}}]}"#,
+        )
+        .unwrap();
+
+        let added = store
+            .add_source(
+                std::path::Path::new("boundary.geojson"),
+                Some("county-demo".to_owned()),
+                "county-boundary".to_owned(),
+                SceneSourceRole::Boundary,
+            )
+            .unwrap();
+        assert!(added.changed);
+        assert!(added.project_created);
+        assert_eq!(added.source.path, "boundary.geojson");
+        assert_eq!(added.source.role, SceneSourceRole::Boundary);
+        assert_eq!(added.feature_count, 1);
+        assert_eq!(added.coordinate_count, 4);
+        assert!(
+            !store
+                .add_source(
+                    std::path::Path::new("boundary.geojson"),
+                    Some("county-demo".to_owned()),
+                    "county-boundary".to_owned(),
+                    SceneSourceRole::Boundary,
+                )
+                .unwrap()
+                .changed
+        );
+
+        let status = store.status().unwrap();
+        assert_eq!(status.state, super::EditorWorkingState::Working);
+        assert_eq!(status.unstaged.inserted, 2);
+        let index = store.add().unwrap();
+        assert!(index.staged);
+        assert_eq!(index.snapshot.sources[0].role, SceneSourceRole::Boundary);
+        let committed = store.commit("Admit county boundary".to_owned()).unwrap();
+        let candidate = store.admission_candidate(1).unwrap();
+        assert_eq!(candidate.package_id, committed.package.package_id);
+        assert_eq!(candidate.sources[0].role, "boundary");
+        assert_eq!(candidate.features[0].role, "boundary");
+        assert_eq!(
+            candidate.features[0].feature_revision,
+            index.snapshot.features[0].feature_revision
+        );
+    }
+
+    #[test]
+    fn source_add_rejects_symlinks_and_role_or_identity_rebinding() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        fs::write(
+            workspace.path().join("roads.geojson"),
+            r#"{"type":"Feature","id":"main","properties":{},"geometry":{"type":"LineString","coordinates":[[-123.0,37.0],[-122.0,38.0]]}}"#,
+        )
+        .unwrap();
+        store
+            .add_source(
+                std::path::Path::new("roads.geojson"),
+                Some("county-demo".to_owned()),
+                "roads".to_owned(),
+                SceneSourceRole::Road,
+            )
+            .unwrap();
+        assert!(matches!(
+            store.add_source(
+                std::path::Path::new("roads.geojson"),
+                None,
+                "roads".to_owned(),
+                SceneSourceRole::Highway,
+            ),
+            Err(super::EditorError::DuplicateSourceId(_))
+        ));
+        assert!(matches!(
+            store.add_source(
+                std::path::Path::new("roads.geojson"),
+                None,
+                "other".to_owned(),
+                SceneSourceRole::Road,
+            ),
+            Err(super::EditorError::DuplicateSourcePath(_))
+        ));
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                workspace.path().join("roads.geojson"),
+                workspace.path().join("linked.geojson"),
+            )
+            .unwrap();
+            assert!(matches!(
+                store.add_source(
+                    std::path::Path::new("linked.geojson"),
+                    None,
+                    "linked".to_owned(),
+                    SceneSourceRole::Road,
+                ),
+                Err(super::EditorError::UnsafePath(_))
+            ));
         }
     }
 

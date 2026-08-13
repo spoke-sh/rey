@@ -14,7 +14,9 @@ use rey::conversations::{
     ConversationLog, ConversationMessageAdmission, ConversationSessionAdmission,
     ConversationTranscript, ConversationTransportAvailability,
 };
-use rey::editor::{EditorCommitResult, EditorStatus, EditorWorkingState};
+use rey::editor::{
+    EditorCommitResult, EditorSourceAddResult, EditorStatus, EditorWorkingState, SceneSourceRole,
+};
 use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
     EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
@@ -270,7 +272,7 @@ fn editor_status_is_read_only_before_a_scene_is_initialized() {
     for evidence in [
         "On scene no commits yet",
         "No scene project initialized.",
-        "Use `rey editor generate terrain --help` to create WORKING in `.rey/editor`.",
+        "Use `rey editor source add --help` or `rey editor generate terrain --help` to create WORKING in `.rey/editor`.",
     ] {
         assert!(
             human.contains(evidence),
@@ -615,6 +617,125 @@ fn editor_generate_retains_tunable_deterministic_terrain_lineage() {
     ]);
     assert_eq!(refused.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&refused.stderr).contains("refusing to overwrite"));
+}
+
+#[test]
+fn editor_source_add_is_a_reviewable_native_identity_path() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    fs::write(
+        workspace.path().join("county.geojson"),
+        r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"county","properties":{"name":"Exact county"},"geometry":{"type":"Polygon","coordinates":[[[-123.0,37.0],[-122.0,37.0],[-122.0,38.0],[-123.0,37.0]]]}}]}"#,
+    )
+    .unwrap();
+
+    let human = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "source",
+        "add",
+        "county.geojson",
+        "--id",
+        "county-boundary",
+        "--role",
+        "boundary",
+        "--scene-id",
+        "county-demo",
+        "--format",
+        "table",
+    ]);
+    assert!(
+        human.status.success(),
+        "{}",
+        String::from_utf8_lossy(&human.stderr)
+    );
+    let human = String::from_utf8(human.stdout).unwrap();
+    for evidence in [
+        "Registered native source county-boundary",
+        "created scene project",
+        "source       county.geojson",
+        "role         boundary",
+        "format       geojson",
+        "1 features · 4 coordinate positions",
+        "OGC:CRS84",
+        "editor WORKING only",
+        "`rey editor add` freezes its exact bytes",
+    ] {
+        assert!(
+            human.contains(evidence),
+            "missing source evidence: {evidence}"
+        );
+    }
+
+    let structured = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "source",
+        "add",
+        "county.geojson",
+        "--id",
+        "county-boundary",
+        "--role",
+        "boundary",
+        "--scene-id",
+        "county-demo",
+        "--format",
+        "json",
+    ]);
+    assert!(structured.status.success());
+    let structured: EditorSourceAddResult = serde_json::from_slice(&structured.stdout).unwrap();
+    assert!(!structured.changed);
+    assert_eq!(structured.source.role, SceneSourceRole::Boundary);
+
+    let status = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "table",
+    ]);
+    let status = String::from_utf8(status.stdout).unwrap();
+    assert!(status.contains("new:       source: county-boundary"));
+    assert!(status.contains("new:       feature: county-boundary/county"));
+
+    let added = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "add",
+        "--format",
+        "json",
+    ]);
+    assert!(added.status.success());
+    let committed = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "Freeze exact county boundary",
+        "--format",
+        "json",
+    ]);
+    let committed: EditorCommitResult = serde_json::from_slice(&committed.stdout).unwrap();
+    assert_eq!(
+        committed.package.snapshot.sources[0].role,
+        SceneSourceRole::Boundary
+    );
+    assert_eq!(
+        committed.package.snapshot.sources[0]
+            .artifact
+            .content_digest,
+        structured.source_revision
+    );
+    assert_eq!(
+        committed.package.snapshot.features[0].feature_id,
+        "county-boundary/county"
+    );
+    assert!(!committed.admission_request.admitted);
 }
 
 #[test]

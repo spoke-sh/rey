@@ -307,6 +307,13 @@ so an operator can review what a future admission workload would inspect.
 INDEX freezes exact bytes; `commit` advances `SCENE@n`, packages only that
 verified index, and emits a separate unadmitted request. Generator recipes,
 seeds, and hyperparameters are source lineage, not evidence claims.
+`rey editor source add` supplies the deterministic authoring entry for existing
+native GeoJSON: it verifies bounded non-symlinked workspace bytes and stable
+feature identities, registers one explicit semantic role in WORKING, and
+returns an exact revision/coverage/bounds receipt. The command neither copies
+the source nor changes INDEX; the ordinary status/diff/add/commit path remains
+the sole review and history path. Rebinding an existing source ID or path is
+rejected.
 
 An admission operation must verify every frozen object identity, qualify its
 format adapter, preserve native artifacts, and bind coordinate semantics before

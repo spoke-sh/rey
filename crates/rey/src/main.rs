@@ -39,8 +39,9 @@ use rey::{
     },
     editor::{
         EditorAddResult, EditorCommitResult, EditorError, EditorGenerateResult, EditorLog,
-        EditorStatus, LocalEditorStore, SceneBounds, SceneChangeKind, SceneChangeSet, SceneCommit,
-        SceneObjectKind, SceneTerrainGenerationParameters,
+        EditorSourceAddResult, EditorStatus, LocalEditorStore, SceneBounds, SceneChangeKind,
+        SceneChangeSet, SceneCommit, SceneObjectKind, SceneSourceRole,
+        SceneTerrainGenerationParameters,
     },
     env::{
         EnvironmentAddResult, EnvironmentAdmissionIndex, EnvironmentApplicationObservation,
@@ -447,6 +448,8 @@ struct EditorArgs {
 enum EditorCommand {
     /// Deterministically generate tunable scene features into WORKING.
     Generate(EditorGenerateArgs),
+    /// Register verified workspace-native scene sources in WORKING.
+    Source(EditorSourceArgs),
     /// Show HEAD, INDEX, and WORKING state without changing it.
     Status(EditorOutputArgs),
     /// Stage the exact verified project and immutable native-source objects.
@@ -457,6 +460,82 @@ enum EditorCommand {
     Log(EditorLogArgs),
     /// Show INDEX to WORKING changes, or HEAD to INDEX with --staged.
     Diff(EditorDiffArgs),
+}
+
+#[derive(Debug, Args)]
+struct EditorSourceArgs {
+    #[command(subcommand)]
+    command: EditorSourceCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum EditorSourceCommand {
+    /// Verify and register one existing workspace-relative GeoJSON source.
+    Add(EditorSourceAddArgs),
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum EditorSourceRoleArg {
+    Features,
+    Markers,
+    TerrainControl,
+    Hydrology,
+    Boundary,
+    Highway,
+    Road,
+    District,
+    Lot,
+    Structure,
+    Utility,
+    Label,
+    Beacon,
+    Construction,
+    Connector,
+}
+
+impl EditorSourceRoleArg {
+    const fn into_role(self) -> SceneSourceRole {
+        match self {
+            Self::Features => SceneSourceRole::Features,
+            Self::Markers => SceneSourceRole::Markers,
+            Self::TerrainControl => SceneSourceRole::TerrainControl,
+            Self::Hydrology => SceneSourceRole::Hydrology,
+            Self::Boundary => SceneSourceRole::Boundary,
+            Self::Highway => SceneSourceRole::Highway,
+            Self::Road => SceneSourceRole::Road,
+            Self::District => SceneSourceRole::District,
+            Self::Lot => SceneSourceRole::Lot,
+            Self::Structure => SceneSourceRole::Structure,
+            Self::Utility => SceneSourceRole::Utility,
+            Self::Label => SceneSourceRole::Label,
+            Self::Beacon => SceneSourceRole::Beacon,
+            Self::Construction => SceneSourceRole::Construction,
+            Self::Connector => SceneSourceRole::Connector,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct EditorSourceAddArgs {
+    /// Existing workspace-relative RFC 7946 GeoJSON source.
+    source: PathBuf,
+
+    /// Stable source identity registered in the scene project.
+    #[arg(long)]
+    id: String,
+
+    /// Explicit semantic role retained through admission and Explorer.
+    #[arg(long, value_enum)]
+    role: EditorSourceRoleArg,
+
+    /// Scene identity used when source add creates the project; defaults to source id.
+    #[arg(long)]
+    scene_id: Option<String>,
+
+    /// Human verification receipt or typed JSON contract.
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -1919,12 +1998,25 @@ fn editor_command(args: EditorArgs) -> Result<ExitCode, CliError> {
     };
     match args.command {
         EditorCommand::Generate(command) => editor_generate(&store, command),
+        EditorCommand::Source(command) => editor_source(&store, command),
         EditorCommand::Status(command) => editor_status(&store, command),
         EditorCommand::Add(command) => editor_add(&store, command),
         EditorCommand::Commit(command) => editor_commit(&store, command),
         EditorCommand::Log(command) => editor_log(&store, command),
         EditorCommand::Diff(command) => editor_diff(&store, command),
     }
+}
+
+fn editor_source(store: &LocalEditorStore, args: EditorSourceArgs) -> Result<ExitCode, CliError> {
+    let EditorSourceCommand::Add(args) = args.command;
+    let result = store.add_source(&args.source, args.scene_id, args.id, args.role.into_role())?;
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &result)?,
+        WorkloadOutputFormat::Table => write_editor_source_add(&mut stdout, &result)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn editor_status(store: &LocalEditorStore, args: EditorOutputArgs) -> Result<ExitCode, CliError> {
@@ -11831,6 +11923,55 @@ fn write_editor_generate(
     Ok(())
 }
 
+fn write_editor_source_add(
+    output: &mut impl Write,
+    result: &EditorSourceAddResult,
+) -> Result<(), CliError> {
+    writeln!(
+        output,
+        "{} native source {}",
+        if result.changed {
+            "Registered"
+        } else {
+            "Verified"
+        },
+        result.source.source_id
+    )?;
+    writeln!(output, "project      {}", result.project_path)?;
+    writeln!(
+        output,
+        "bootstrap    {}",
+        if result.project_created {
+            "created scene project"
+        } else {
+            "existing scene project"
+        }
+    )?;
+    writeln!(output, "source       {}", result.source.path)?;
+    writeln!(output, "role         {}", result.source.role.label())?;
+    writeln!(output, "format       {}", result.source.format.extension())?;
+    writeln!(
+        output,
+        "revision     {} · {} bytes",
+        result.source_revision, result.source_bytes
+    )?;
+    writeln!(
+        output,
+        "coverage     {} features · {} coordinate positions",
+        result.feature_count, result.coordinate_count
+    )?;
+    match &result.native_bounds {
+        Some(bounds) => writeln!(
+            output,
+            "bounds       [{:.6}, {:.6}] → [{:.6}, {:.6}] · OGC:CRS84",
+            bounds.west, bounds.south, bounds.east, bounds.north
+        )?,
+        None => writeln!(output, "bounds       empty source · no native envelope")?,
+    }
+    writeln!(output, "authority    {}", result.authority)?;
+    Ok(())
+}
+
 fn write_editor_status(
     output: &mut impl Write,
     status: &EditorStatus,
@@ -11847,7 +11988,7 @@ fn write_editor_status(
         writeln!(output, "No scene project initialized.")?;
         writeln!(
             output,
-            "Use `rey editor generate terrain --help` to create WORKING in `.rey/editor`."
+            "Use `rey editor source add --help` or `rey editor generate terrain --help` to create WORKING in `.rey/editor`."
         )?;
         return Ok(());
     }
