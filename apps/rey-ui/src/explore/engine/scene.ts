@@ -7,8 +7,14 @@ import {
 import { admittedTopographies } from "../projection/topography-projector";
 import { admittedRegionalScenes } from "../projection/regional-scene-projector";
 import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "../projection/semantic-mercator";
-import { COUNTY_FRAME_PROJECTION_REVISION } from "../projection/county-frame";
-import type { CountyFrame } from "../projection/county-frame";
+import {
+  COUNTY_FOOTPRINT_PROJECTION_REVISION,
+  COUNTY_FRAME_PROJECTION_REVISION,
+} from "../projection/county-frame";
+import type {
+  CountyFrame,
+  ProjectedCountyFootprint,
+} from "../projection/county-frame";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "./labels";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 
@@ -38,9 +44,15 @@ export function compileSceneSnapshot(
       ? topographies
           .map(({ projection }) => projection.packet_id)
           .concat(
-            regionalScenes.flatMap(({ result, scene }) => [
+            regionalScenes.flatMap(({ county_footprint, result, scene }) => [
               result.result_id,
               scene.projection.packet_id,
+              ...(county_footprint
+                ? [
+                    county_footprint.footprint_id,
+                    county_footprint.source_object_revision,
+                  ]
+                : []),
             ]),
           )
           .sort((left, right) => left.localeCompare(right))
@@ -86,6 +98,8 @@ export function compileSceneSnapshot(
     compilerRevisions.push(SEMANTIC_LABEL_LAYOUT_REVISION);
     compilerRevisions.push(COUNTY_FRAME_PROJECTION_REVISION);
   }
+  if (regionalScenes.some(({ county_footprint }) => county_footprint))
+    compilerRevisions.push(COUNTY_FOOTPRINT_PROJECTION_REVISION);
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   compilerRevisions.sort((left, right) => left.localeCompare(right));
@@ -165,6 +179,34 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
             scene.county_frame.target_origin[1],
             scene.county_frame.target_origin[2],
           ]) as CountyFrame["target_origin"],
+        })
+      : null,
+    county_footprint: scene.county_footprint
+      ? Object.freeze({
+          ...scene.county_footprint,
+          native_bounds: Object.freeze({
+            ...scene.county_footprint.native_bounds,
+          }),
+          rings: Object.freeze(
+            scene.county_footprint.rings.map((ring) =>
+              Object.freeze(
+                ring.map(
+                  (position) =>
+                    Object.freeze([position[0], position[1]]) as readonly [
+                      number,
+                      number,
+                    ],
+                ),
+              ),
+            ),
+          ) as ProjectedCountyFootprint["rings"],
+          screen_rings: Object.freeze(
+            scene.county_footprint.screen_rings.map((ring) =>
+              Object.freeze(
+                ring.map((position) => Object.freeze({ ...position })),
+              ),
+            ),
+          ) as ProjectedCountyFootprint["screen_rings"],
         })
       : null,
     bearing: Object.freeze({ ...scene.bearing }),

@@ -5,7 +5,10 @@ import { buildTopologyScene } from "../../topology";
 import { compileSceneSnapshot } from "../engine/scene";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "../engine/labels";
 import { ReferenceRenderer } from "../renderers/reference";
-import { COUNTY_FRAME_PROJECTION_REVISION } from "./county-frame";
+import {
+  COUNTY_FOOTPRINT_PROJECTION_REVISION,
+  COUNTY_FRAME_PROJECTION_REVISION,
+} from "./county-frame";
 import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "./semantic-mercator";
 
 const contract = (id: string, digest = `${id}:digest`) => ({
@@ -187,13 +190,61 @@ const regionalPortfolio = {
                 distortion: "presentation only",
               },
             ],
+            footprint: {
+              footprint_id: "footprint:1",
+              source_object_id: "county-boundary",
+              source_artifact_id: "artifact:boundary",
+              source_object_revision: "object:boundary",
+              geometry_kind: "Polygon",
+              native_bounds: {
+                west_microdegrees: -123_000_000,
+                south_microdegrees: 37_000_000,
+                east_microdegrees: -122_000_000,
+                north_microdegrees: 38_000_000,
+                crosses_antimeridian: false,
+              },
+              rings: [
+                [
+                  [-123_000_000, 37_000_000],
+                  [-122_000_000, 37_000_000],
+                  [-122_200_000, 38_000_000],
+                  [-122_800_000, 37_800_000],
+                  [-123_000_000, 37_000_000],
+                ],
+              ],
+              coordinate_count: 5,
+              authority:
+                "exact admitted native boundary polygon; footprint validity ends at its rings",
+            },
             layers: [
               {
+                layer_id: "regional-demo.boundary",
+                kind: "boundary",
+                object_ids: ["county-boundary"],
+              },
+              {
                 layer_id: "regional-demo.terrain-control",
+                kind: "terrain_control",
                 object_ids: ["ridge"],
               },
             ],
             objects: [
+              {
+                object_id: "county-boundary",
+                source_id: "boundary",
+                source_path: "boundary.geojson",
+                source_artifact_id: "artifact:boundary",
+                object_revision: "object:boundary",
+                geometry_kind: "Polygon",
+                layer: "boundary",
+                native_bounds: {
+                  west_microdegrees: -123_000_000,
+                  south_microdegrees: 37_000_000,
+                  east_microdegrees: -122_000_000,
+                  north_microdegrees: 38_000_000,
+                  crosses_antimeridian: false,
+                },
+              },
               {
                 object_id: "ridge",
                 source_id: "controls",
@@ -211,6 +262,7 @@ const regionalPortfolio = {
                 },
               },
             ],
+            limits: { max_native_coordinates: 100 },
             validity: [
               {
                 class: "valid",
@@ -299,6 +351,9 @@ describe("regional scene topology projection", () => {
     expect(compiledAtlas.compiler_revisions).toContain(
       COUNTY_FRAME_PROJECTION_REVISION,
     );
+    expect(compiledAtlas.compiler_revisions).toContain(
+      COUNTY_FOOTPRINT_PROJECTION_REVISION,
+    );
     expect(Object.isFrozen(compiledAtlas.scene.world_atlas_transition)).toBe(
       true,
     );
@@ -353,6 +408,7 @@ describe("regional scene topology projection", () => {
     );
     expect(unselectedCloserView.regime).toBe("atlas");
     expect(unselectedCloserView.county_frame).toBeNull();
+    expect(unselectedCloserView.county_footprint).toBeNull();
     const unknownSelection = buildTopologyScene(
       regionalPortfolio,
       0.58,
@@ -360,6 +416,17 @@ describe("regional scene topology projection", () => {
     );
     expect(unknownSelection.regime).toBe("atlas");
     expect(unknownSelection.county_frame).toBeNull();
+    expect(unknownSelection.county_footprint).toBeNull();
+    const withoutFootprint = structuredClone(regionalPortfolio);
+    withoutFootprint.workloads[0]!.latest_scene_admission!.scene!.projection.footprint =
+      null;
+    const footprintRequired = buildTopologyScene(
+      withoutFootprint,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(footprintRequired.regime).toBe("atlas");
+    expect(footprintRequired.county_footprint).toBeNull();
 
     const county = buildTopologyScene(
       regionalPortfolio,
@@ -377,9 +444,16 @@ describe("regional scene topology projection", () => {
       pitch_degrees: 35.26439,
       yaw_degrees: 45,
     });
-    expect(county.regions[0]?.variant).toBe("county-frame");
-    expect(county.bearing.label).toBe("EXACT COUNTY FRAME");
-    expect(county.nodes[0]).toMatchObject({
+    expect(county.regions).toEqual([]);
+    expect(county.county_footprint).toMatchObject({
+      footprint_id: "footprint:1",
+      source_object_id: "county-boundary",
+      coordinate_count: 5,
+    });
+    expect(county.bearing.label).toBe("EXACT COUNTY FOOTPRINT");
+    expect(
+      county.nodes.find(({ focus_id }) => focus_id === "regional-object:ridge"),
+    ).toMatchObject({
       focus_id: "regional-object:ridge",
       workload_id: "scene-admission",
       tone: "unsupported",
@@ -395,7 +469,9 @@ describe("regional scene topology projection", () => {
         scene: county,
       }),
     );
-    expect(markup).toContain("regional-demo / SCENE@1");
+    expect(markup).toContain('data-county-footprint="footprint:1"');
+    expect(markup).toContain('data-source-object="county-boundary"');
+    expect(markup).toContain('fill-rule="evenodd"');
     expect(markup).toContain("ridge");
     expect(markup).toContain("terrain.geojson");
     expect(markup).not.toContain("topology-terrain-field");
@@ -405,6 +481,10 @@ describe("regional scene topology projection", () => {
       "regional:scene:1",
     );
     expect(Object.isFrozen(compiledCounty.scene.county_frame)).toBe(true);
+    expect(Object.isFrozen(compiledCounty.scene.county_footprint)).toBe(true);
+    expect(Object.isFrozen(compiledCounty.scene.county_footprint?.rings)).toBe(
+      true,
+    );
     expect(
       Object.isFrozen(compiledCounty.scene.county_frame?.source_origin),
     ).toBe(true);

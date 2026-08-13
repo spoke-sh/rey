@@ -122,7 +122,6 @@ export function ReferenceRenderer({
                 styles.region,
                 region.variant === "map-boundary" && styles.mapBoundary,
                 region.variant === "map-zone" && styles.mapZone,
-                region.variant === "county-frame" && styles.countyFrame,
                 toneStyle(region.tone, "region"),
                 scene.regime === "world" &&
                   region.variant === "map-zone" &&
@@ -144,6 +143,7 @@ export function ReferenceRenderer({
             </div>
           )),
         )}
+      <CountyFootprintLayer scene={scene} />
       <WorldGeometryLayer
         accelerated={accelerated}
         globeView={globeView}
@@ -208,6 +208,29 @@ export function ReferenceRenderer({
           )),
         )}
     </div>
+  );
+}
+
+function CountyFootprintLayer({ scene }: { scene: TopologyScene }) {
+  const footprint = scene.county_footprint;
+  if (!footprint) return null;
+  return (
+    <svg
+      aria-label={`Exact admitted County footprint ${footprint.footprint_id}`}
+      className={sx(styles.worldGeometryLayer, styles.countyFootprintLayer)}
+      data-county-footprint={footprint.footprint_id}
+      data-source-object={footprint.source_object_id}
+      data-source-revision={footprint.source_object_revision}
+      role="img"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>{`${footprint.source_object_id} / ${footprint.coordinate_count} exact native coordinates / ${footprint.authority}`}</title>
+      <path
+        className={sx(styles.countyFootprint)}
+        d={footprint.path}
+        fillRule="evenodd"
+      />
+    </svg>
   );
 }
 

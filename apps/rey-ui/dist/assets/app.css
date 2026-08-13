@@ -669,10 +669,6 @@
     padding-block: 8px;
   }
 
-  .x924e4a {
-    padding-block: 9%;
-  }
-
   .x1m7iz9m {
     padding-block: 9px;
   }
@@ -715,10 +711,6 @@
 
   .x4l9tsp {
     padding-inline: 24px;
-  }
-
-  .xxw8x2v {
-    padding-inline: 26%;
   }
 
   .xfn1xvj {
@@ -973,10 +965,6 @@
     background-color: #89a76f0d;
   }
 
-  .xz11lgb {
-    background-color: #89a76f12;
-  }
-
   .xacroc1 {
     background-color: #8a5a1914;
   }
@@ -1221,10 +1209,6 @@
     box-sizing: border-box;
   }
 
-  .xv9vyza {
-    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  }
-
   .x1alzgzc {
     color: #175c39;
   }
@@ -1395,6 +1379,10 @@
 
   .x1cxaj65 {
     fill: #78959b0d;
+  }
+
+  .xpko7jm {
+    fill: color-mix(in srgb,#89a76f 15%,var(--rey-background));
   }
 
   .xr1886l {
@@ -2273,6 +2261,10 @@
     stroke-width: 2.4px;
   }
 
+  .xvlca1e {
+    stroke-width: 2px;
+  }
+
   .xefhp24 {
     stroke-width: 5px;
   }
@@ -2347,6 +2339,10 @@
 
   .x1myr0z6 {
     stroke: color-mix(in srgb,#47604d 58%,var(--rey-foreground));
+  }
+
+  .xvdocs3 {
+    stroke: color-mix(in srgb,#47604d 70%,var(--rey-foreground));
   }
 
   .xpdewn0 {

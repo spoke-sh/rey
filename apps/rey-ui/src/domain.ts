@@ -84,6 +84,18 @@ export interface RegionalBounds {
   crosses_antimeridian: boolean;
 }
 
+export interface RegionalFootprint {
+  footprint_id: string;
+  source_object_id: string;
+  source_artifact_id: string;
+  source_object_revision: string;
+  geometry_kind: "Polygon";
+  native_bounds: RegionalBounds;
+  rings: Array<Array<[number, number]>>;
+  coordinate_count: number;
+  authority: string;
+}
+
 export interface RegionalSceneOmission {
   kind: string;
   subject: string;
@@ -134,6 +146,7 @@ export interface RegionalProjectionPacket {
       "native_feature" | "terrain_control" | "hydrology" | "boundary" | "poi";
     authority: string;
   }>;
+  footprint: RegionalFootprint | null;
   layers: Array<{
     layer_id: string;
     kind:
@@ -154,6 +167,7 @@ export interface RegionalProjectionPacket {
   limits: {
     max_sources: number;
     max_native_objects: number;
+    max_native_coordinates: number;
     max_layers: number;
     max_validity_records: number;
     max_transforms: number;

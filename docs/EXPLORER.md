@@ -200,9 +200,10 @@ native object envelopes. A sector expresses synthetic membership only; it is
 not surveyed coverage or a native County footprint. Closer zoom without an
 explicit regional selection stops at Atlas. An explicit selection verifies the
 scene envelope's exact County-local transform and enters a bounded isometric
-plane; its forward/inverse projection and immutable compiler identity do not
-fill the envelope or manufacture footprint geometry. Footprint geometry,
-constructed layers, qualified regional terrain, and the complete posture
+plane only when the scene also binds one unique, source-revision-exact boundary
+Polygon. `rey.county-footprint-projection@1` projects those closed native rings
+as the County fabric and even-odd validity boundary; no envelope substitute is
+drawn. Constructed layers, qualified regional terrain, and the complete posture
 transitions frozen by the grammar remain open.
 
 The engine is high-dimensional because its input basis may project many source
@@ -633,9 +634,10 @@ Regional results must match their retained atlas member, which preserves the
 packet's exact synthetic point with no inferred radius. Atlas applies semantic
 Mercator to that same point and its stable occupied synthetic sector. Closer
 zoom stops at Atlas until an exact regional identity is selected; the selected
-scene then shows exact native object bounds through its verified,
-envelope-centered County-local isometric frame. Native County footprint
-geometry and regional terrain remain explicitly absent. Survey
+scene enters County only when it also retains an exact admitted footprint. The
+reference renderer draws that footprint's native rings through the verified,
+envelope-centered County-local isometric frame, preserves holes, and positions
+exact native objects within it. Regional terrain remains explicitly absent. Survey
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the

@@ -33,8 +33,10 @@ import {
 import {
   countyFrameView,
   nativeBoundsToCountyLocal,
+  projectCountyFootprint,
   projectCountyLocal,
   type CountyFrame,
+  type ProjectedCountyFootprint,
 } from "./explore/projection/county-frame";
 import {
   fieldPoint,
@@ -152,7 +154,7 @@ export interface TopologyRegion {
   width: number;
   height: number;
   tone: TopologyTone;
-  variant?: "panel" | "map-boundary" | "map-zone" | "county-frame";
+  variant?: "panel" | "map-boundary" | "map-zone";
 }
 
 export interface TopologyContour {
@@ -257,6 +259,7 @@ export interface TopologyScene {
   globe: TopologyGlobe | null;
   world_atlas_transition: TopologyWorldAtlasTransition | null;
   county_frame: CountyFrame | null;
+  county_footprint: ProjectedCountyFootprint | null;
 }
 
 export interface TopologyWorldAtlasPoint {
@@ -306,8 +309,9 @@ export function buildTopologyScene(
     focusId.startsWith("seed:") ||
     focusId.startsWith("anchor:") ||
     focusId.startsWith("frontier:");
-  const regionalFocus = regionalScenes.some(({ scene }) =>
-    regionalSceneMatchesFocus(scene, focusId),
+  const regionalFocus = regionalScenes.some(
+    ({ scene, county_footprint }) =>
+      Boolean(county_footprint) && regionalSceneMatchesFocus(scene, focusId),
   );
   let projection: TopologyProjection;
   if (isFreshProjectOrientation(portfolio))
@@ -361,6 +365,7 @@ export function buildTopologyScene(
         ? buildWorldAtlasTransition(regionalScenes)
         : null,
     county_frame: projection.county_frame ?? null,
+    county_footprint: projection.county_footprint ?? null,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
@@ -395,6 +400,7 @@ type TopologyProjection = Omit<
   | "world"
   | "world_atlas_transition"
   | "county_frame"
+  | "county_footprint"
 > & {
   bearing?: TopologyBearing;
   contours?: TopologyContour[];
@@ -409,6 +415,7 @@ type TopologyProjection = Omit<
   globe?: TopologyGlobe | null;
   world_atlas_transition?: TopologyWorldAtlasTransition | null;
   county_frame?: CountyFrame | null;
+  county_footprint?: ProjectedCountyFootprint | null;
 };
 
 function buildWorldAtlasTransition(
@@ -913,11 +920,24 @@ function buildRegionalCounty(
   regime: LensRegime,
 ): TopologyProjection {
   const selected = selectRegionalScene(regionalScenes, focusId);
-  const { workload, result, scene, county_frame: countyFrame } = selected;
+  const {
+    workload,
+    result,
+    scene,
+    county_frame: countyFrame,
+    county_footprint: countyFootprint,
+  } = selected;
+  if (!countyFootprint)
+    throw new Error("County projection requires an admitted footprint");
   const world = TOPOLOGY_WORLD;
   const bounds = scene.native_bounds;
   const objects = scene.projection.objects;
   const frameView = countyFrameView(countyFrame, world);
+  const projectedFootprint = projectCountyFootprint(
+    countyFrame,
+    countyFootprint,
+    frameView,
+  );
   const nodes = objects.map((object) => {
     const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
     const screen = projectCountyLocal(countyFrame, local, frameView);
@@ -944,7 +964,7 @@ function buildRegionalCounty(
   const copyByRegime: Record<LensRegime, readonly [string, string]> = {
     landscape: [
       "ADMITTED COUNTY",
-      `${scene.region_id} · exact native envelope · terrain height unsupported`,
+      `${scene.region_id} · exact admitted footprint · terrain height unsupported`,
     ],
     neighborhoods: [
       "COUNTY NEIGHBORHOODS",
@@ -974,19 +994,7 @@ function buildRegionalCounty(
     label: copy[0],
     detail: copy[1],
     focus_id: focusId,
-    regions: [
-      {
-        id: `regional-county:${scene.scene_id}`,
-        label: `${scene.region_id} / SCENE@${scene.admission.editor_sequence}`,
-        detail: `native OGC:CRS84 envelope · ${formatRegionalBounds(bounds)}`,
-        x: 70,
-        y: 55,
-        width: world.width - 140,
-        height: world.height - 110,
-        tone: scene.complete ? "healthy" : "omitted",
-        variant: "county-frame",
-      },
-    ],
+    regions: [],
     nodes,
     edges: [],
     omissions: [
@@ -994,13 +1002,13 @@ function buildRegionalCounty(
       ...validityBoundaries.map(
         (validity) => `${validity.class}: ${validity.scope} · ${validity.rule}`,
       ),
-      "native objects are positioned from exact bounds; source geometry is available through the bound CLI evidence and is not reconstructed in the browser",
+      `County fabric and validity end at exact footprint ${shortCoordinate(countyFootprint.footprint_id)} from ${countyFootprint.source_object_id}; holes remain holes`,
       countyFrame.authority,
     ],
     bearing: {
       status: "charted",
-      label: "EXACT COUNTY FRAME",
-      detail: `result ${shortCoordinate(result.result_id)} · packet ${shortCoordinate(scene.projection.packet_id)} · frame ${shortCoordinate(countyFrame.transform_digest)} · ${countyFrame.pitch_degrees}° pitch / ${countyFrame.yaw_degrees}° yaw · County-local presentation retains native CRS84 source identity`,
+      label: "EXACT COUNTY FOOTPRINT",
+      detail: `result ${shortCoordinate(result.result_id)} · packet ${shortCoordinate(scene.projection.packet_id)} · footprint ${shortCoordinate(countyFootprint.footprint_id)} · frame ${shortCoordinate(countyFrame.transform_digest)} · ${countyFrame.pitch_degrees}° pitch / ${countyFrame.yaw_degrees}° yaw · County-local presentation retains native CRS84 source identity`,
       sampled_conditions: objects.length,
       unresolved_boundaries: scene.omissions.length + validityBoundaries.length,
     },
@@ -1008,6 +1016,7 @@ function buildRegionalCounty(
     fit_world: world,
     terrain: false,
     county_frame: countyFrame,
+    county_footprint: projectedFootprint,
   };
 }
 

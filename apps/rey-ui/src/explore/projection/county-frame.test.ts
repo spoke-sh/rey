@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AdmittedRegionalScene } from "../../domain";
 import {
+  compileCountyFootprint,
   compileCountyFrame,
   invertCountyScreen,
   nativeBoundsToCountyLocal,
+  projectCountyFootprint,
   projectCountyLocal,
 } from "./county-frame";
 
@@ -17,6 +19,49 @@ const scene = {
     crosses_antimeridian: false,
   },
   projection: {
+    limits: { max_native_coordinates: 100 },
+    objects: [
+      {
+        object_id: "boundary",
+        source_artifact_id: "artifact:one",
+        object_revision: "object:one",
+        geometry_kind: "Polygon",
+        layer: "boundary",
+        native_bounds: {
+          west_microdegrees: -123_000_000,
+          south_microdegrees: 37_000_000,
+          east_microdegrees: -122_000_000,
+          north_microdegrees: 38_000_000,
+          crosses_antimeridian: false,
+        },
+      },
+    ],
+    footprint: {
+      footprint_id: "footprint:one",
+      source_object_id: "boundary",
+      source_artifact_id: "artifact:one",
+      source_object_revision: "object:one",
+      geometry_kind: "Polygon",
+      native_bounds: {
+        west_microdegrees: -123_000_000,
+        south_microdegrees: 37_000_000,
+        east_microdegrees: -122_000_000,
+        north_microdegrees: 38_000_000,
+        crosses_antimeridian: false,
+      },
+      rings: [
+        [
+          [-123_000_000, 37_000_000],
+          [-122_000_000, 37_000_000],
+          [-122_000_000, 38_000_000],
+          [-123_000_000, 38_000_000],
+          [-123_000_000, 37_000_000],
+        ],
+      ],
+      coordinate_count: 5,
+      authority:
+        "exact admitted native boundary polygon; footprint validity ends at its rings",
+    },
     transforms: [
       {
         transform: {
@@ -69,5 +114,24 @@ describe("County-local frame", () => {
     if (!transform) throw new Error("missing fixture transform");
     transform.source_origin = [transform.source_origin[0]! + 1, 37_500_000];
     expect(() => compileCountyFrame(tampered)).toThrow("exact County-local");
+  });
+
+  it("projects exact footprint rings and rejects envelope substitution", () => {
+    const frame = compileCountyFrame(scene);
+    const footprint = compileCountyFootprint(scene);
+    expect(footprint).not.toBeNull();
+    const projected = projectCountyFootprint(frame, footprint!, {
+      center: { x: 600, y: 360 },
+      scale: 0.0004,
+    });
+    expect(projected.path).toContain("M");
+    expect(projected.path).toContain("Z");
+    expect(projected.screen_rings[0]).toHaveLength(5);
+
+    const tampered = structuredClone(scene);
+    tampered.projection.footprint!.rings[0]![1]![0] += 1;
+    expect(() => compileCountyFootprint(tampered)).toThrow(
+      "County footprint is invalid",
+    );
   });
 });

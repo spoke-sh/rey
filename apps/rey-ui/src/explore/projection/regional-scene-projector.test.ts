@@ -152,6 +152,7 @@ const portfolio = {
                 distortion: "presentation only",
               },
             ],
+            footprint: null,
           },
         },
       },
@@ -161,7 +162,9 @@ const portfolio = {
 
 describe("regional scene evidence adapter", () => {
   it("admits only a production accepted result with exact scene bindings", () => {
-    expect(admittedRegionalScenes(portfolio)).toHaveLength(1);
+    expect(admittedRegionalScenes(portfolio)).toMatchObject([
+      { county_footprint: null },
+    ]);
     const workload = portfolio.workloads[0]!;
     const result = workload.latest_scene_admission!;
     expect(

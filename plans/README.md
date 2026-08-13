@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Admit one exact County footprint identity and use it as the County fabric and validity boundary instead of substituting the scene envelope. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, reversible Mercator geometry, immutable/continuous World/Atlas transition, bounded wrapping/inverse picking/recentering, focus-preserving deterministic label layout, explicit regional selection, and a verified reversible envelope-centered County frame. |
+| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Expand independently typed County layers only where admitted evidence supports their semantics and validity. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, reversible Mercator geometry, immutable/continuous World/Atlas transition, bounded wrapping/inverse picking/recentering, focus-preserving deterministic label layout, explicit regional selection, a verified reversible envelope-centered County frame, and exact admitted footprint fabric/validity. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:

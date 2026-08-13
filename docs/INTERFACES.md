@@ -493,14 +493,16 @@ delta, and matching workload, graph, capability, package, snapshot, packet,
 terrain, coordinate-plane, regional-member, and synthetic-placement bindings.
 It projects the atlas member's exact accepted synthetic point through
 World and the revisioned `rey.semantic-mercator-projection@1`, then exact native
-object bounds inside a bounded County reference frame. The primitive provides
+object bounds inside a bounded County reference frame only when the selected
+scene has an admitted footprint. The primitive provides
 the declared horizontal wrap, polar cutoff/disclosure, shared-identity
 antimeridian fragments, analytic chart inverse, and stable World/Atlas
 endpoints; its compiler revision and renderer-neutral transition manifest enter
 the immutable scene snapshot. The reference renderer presents the exact
 region/focus and sector identities continuously through the declared morph
-band. The browser does not reconstruct source geometry or invent footprint
-scale or regional terrain. Settled Atlas renders three bounded chart copies;
+band. The browser consumes retained footprint rings without reconstructing
+source geometry and does not invent footprint scale or regional terrain.
+Settled Atlas renders three bounded chart copies;
 duplicates are pointer-only and accessibility-hidden, inverse selection returns
 the canonical coordinate plus unchanged identity, and pan recenters modulo the
 rendered chart width. `rey.semantic-label-layout@1` applies the grammar's 70/96
@@ -515,7 +517,11 @@ of the admitted native envelope, then projects that local plane through
 The transform identity, source/target origins, envelope, disclosure, and
 compiler revision enter the immutable scene. Forward/inverse plane projection
 does not turn the envelope into admitted footprint geometry or physical
-distance. See
+distance. `rey.county-footprint-projection@1` separately verifies the exact
+source object/artifact/revision, closed native rings, bounds, and coordinate
+limit before those rings become the County fabric and even-odd validity
+boundary. A missing or invalid footprint keeps the selected scene at Atlas.
+See
 [Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to

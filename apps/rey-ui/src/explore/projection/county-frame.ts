@@ -1,6 +1,12 @@
-import type { AdmittedRegionalScene, RegionalBounds } from "../../domain";
+import type {
+  AdmittedRegionalScene,
+  RegionalBounds,
+  RegionalFootprint,
+} from "../../domain";
 
 export const COUNTY_FRAME_PROJECTION_REVISION = "rey.county-frame-projection@1";
+export const COUNTY_FOOTPRINT_PROJECTION_REVISION =
+  "rey.county-footprint-projection@1";
 export const COUNTY_CAMERA_PITCH_DEGREES = 35.26439;
 export const COUNTY_CAMERA_YAW_DEGREES = 45;
 
@@ -28,6 +34,23 @@ export interface CountyFrame {
   pitch_degrees: number;
   yaw_degrees: number;
   authority: string;
+}
+
+export interface CountyFootprint {
+  footprint_id: string;
+  scene_id: string;
+  source_object_id: string;
+  source_artifact_id: string;
+  source_object_revision: string;
+  native_bounds: RegionalBounds;
+  rings: ReadonlyArray<ReadonlyArray<readonly [number, number]>>;
+  coordinate_count: number;
+  authority: string;
+}
+
+export interface ProjectedCountyFootprint extends CountyFootprint {
+  path: string;
+  screen_rings: ReadonlyArray<ReadonlyArray<CountyScreenPoint>>;
 }
 
 export function compileCountyFrame(scene: AdmittedRegionalScene): CountyFrame {
@@ -92,6 +115,61 @@ export function compileCountyFrame(scene: AdmittedRegionalScene): CountyFrame {
   });
 }
 
+export function compileCountyFootprint(
+  scene: AdmittedRegionalScene,
+): CountyFootprint | null {
+  const footprint = scene.projection.footprint;
+  if (!footprint) return null;
+  const source = scene.projection.objects.find(
+    (object) => object.object_id === footprint.source_object_id,
+  );
+  const positions = footprint.rings.flat();
+  if (
+    footprint.geometry_kind !== "Polygon" ||
+    footprint.rings.length === 0 ||
+    footprint.rings.some(
+      (ring) => ring.length < 4 || !samePosition(ring[0], ring.at(-1)),
+    ) ||
+    positions.length !== footprint.coordinate_count ||
+    footprint.coordinate_count >
+      scene.projection.limits.max_native_coordinates ||
+    !sameBounds(footprint.native_bounds, scene.native_bounds) ||
+    !sameBounds(boundsForPositions(positions), footprint.native_bounds) ||
+    !source ||
+    source.layer !== "boundary" ||
+    source.geometry_kind !== "Polygon" ||
+    source.source_artifact_id !== footprint.source_artifact_id ||
+    source.object_revision !== footprint.source_object_revision ||
+    !sameBounds(source.native_bounds, footprint.native_bounds) ||
+    footprint.authority !==
+      "exact admitted native boundary polygon; footprint validity ends at its rings"
+  )
+    throw new Error("admitted scene County footprint is invalid");
+  return Object.freeze({
+    footprint_id: footprint.footprint_id,
+    scene_id: scene.scene_id,
+    source_object_id: footprint.source_object_id,
+    source_artifact_id: footprint.source_artifact_id,
+    source_object_revision: footprint.source_object_revision,
+    native_bounds: Object.freeze({ ...footprint.native_bounds }),
+    rings: Object.freeze(
+      footprint.rings.map((ring) =>
+        Object.freeze(
+          ring.map(
+            (position) =>
+              Object.freeze([position[0], position[1]]) as readonly [
+                number,
+                number,
+              ],
+          ),
+        ),
+      ),
+    ),
+    coordinate_count: footprint.coordinate_count,
+    authority: footprint.authority,
+  });
+}
+
 export function nativeBoundsToCountyLocal(
   frame: CountyFrame,
   bounds: RegionalBounds,
@@ -102,6 +180,54 @@ export function nativeBoundsToCountyLocal(
     north: center[1] - frame.source_origin[1],
     up: 0,
   };
+}
+
+export function nativePositionToCountyLocal(
+  frame: CountyFrame,
+  position: readonly [number, number],
+): CountyLocalPoint {
+  return {
+    east: longitudeOffset(frame.source_origin[0], position[0]),
+    north: position[1] - frame.source_origin[1],
+    up: 0,
+  };
+}
+
+export function projectCountyFootprint(
+  frame: CountyFrame,
+  footprint: CountyFootprint,
+  view: { center: { x: number; y: number }; scale: number },
+): ProjectedCountyFootprint {
+  if (frame.scene_id !== footprint.scene_id)
+    throw new Error("County footprint does not bind the selected frame");
+  const screenRings = footprint.rings.map((ring) =>
+    ring.map((position) =>
+      projectCountyLocal(
+        frame,
+        nativePositionToCountyLocal(frame, position),
+        view,
+      ),
+    ),
+  );
+  return Object.freeze({
+    ...footprint,
+    path: screenRings
+      .map(
+        (ring) =>
+          ring
+            .map(
+              ({ x, y }, index) =>
+                `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`,
+            )
+            .join(" ") + " Z",
+      )
+      .join(" "),
+    screen_rings: Object.freeze(
+      screenRings.map((ring) =>
+        Object.freeze(ring.map((position) => Object.freeze(position))),
+      ),
+    ),
+  });
 }
 
 export function projectCountyLocal(
@@ -188,6 +314,56 @@ function longitudeOffset(origin: number, longitude: number) {
   if (offset > 180_000_000) offset -= 360_000_000;
   if (offset < -180_000_000) offset += 360_000_000;
   return offset;
+}
+
+function samePosition(
+  left: readonly [number, number] | undefined,
+  right: readonly [number, number] | undefined,
+) {
+  return !!left && !!right && left[0] === right[0] && left[1] === right[1];
+}
+
+function sameBounds(left: RegionalBounds, right: RegionalBounds) {
+  return (
+    left.west_microdegrees === right.west_microdegrees &&
+    left.south_microdegrees === right.south_microdegrees &&
+    left.east_microdegrees === right.east_microdegrees &&
+    left.north_microdegrees === right.north_microdegrees &&
+    left.crosses_antimeridian === right.crosses_antimeridian
+  );
+}
+
+function boundsForPositions(
+  positions: ReadonlyArray<readonly [number, number]>,
+): RegionalBounds {
+  if (positions.length === 0)
+    throw new Error("County footprint has no positions");
+  const latitudes = positions.map((position) => position[1]);
+  const longitudes = [
+    ...new Set(positions.map((position) => position[0])),
+  ].sort((left, right) => left - right);
+  let west = longitudes[0]!;
+  let east = longitudes[0]!;
+  let largestGap = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < longitudes.length; index += 1) {
+    const current = longitudes[index]!;
+    const next =
+      index + 1 < longitudes.length
+        ? longitudes[index + 1]!
+        : longitudes[0]! + 360_000_000;
+    if (next - current > largestGap) {
+      largestGap = next - current;
+      west = longitudes[(index + 1) % longitudes.length]!;
+      east = current;
+    }
+  }
+  return {
+    west_microdegrees: west,
+    south_microdegrees: Math.min(...latitudes),
+    east_microdegrees: east,
+    north_microdegrees: Math.max(...latitudes),
+    crosses_antimeridian: west > east,
+  };
 }
 
 function verifyView(view: { center: { x: number; y: number }; scale: number }) {

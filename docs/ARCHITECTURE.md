@@ -200,12 +200,13 @@ native-to-synthetic placement; Explorer rejects a mismatch and assigns zero
 inferred footprint radius. Both
 synthetic longitude/latitude axes have no Earth CRS or physical-distance claim.
 Occupied fixed-grid synthetic sectors now organize atlas membership without
-claiming surveyed coverage or native footprints. Admitted County footprint
-identity does not exist yet. Closer regional lenses therefore stop at Atlas
-until the operator selects an exact admitted regional identity. That selection
-may enter only the revision-bound County-local frame centered on the scene's
-exact native envelope; the envelope remains a presentation boundary, not a
-footprint or physical-distance claim. Local charted survey envelopes,
+claiming surveyed coverage or native footprints. A regional scene may now bind
+one content-identified County footprint only when a unique admitted boundary
+Polygon matches its exact envelope. Closer regional lenses stop at Atlas until
+the operator selects an exact admitted regional identity with that footprint.
+The selected footprint's native rings become the County fabric and validity
+boundary under the revision-bound County-local frame; the envelope remains only
+a frame bound and physical-distance claims remain absent. Local charted survey envelopes,
 unresolved probe horizons, and boundary weather remain available in closer
 survey lenses.
 
@@ -237,9 +238,9 @@ targets. Its revision participates in immutable scene compiler lineage.
 Atlas derives terrain-style contour isolines from bounded anchor-sample
 influence. An explicit admitted-region selection now expands its verified
 native-envelope-centered tangent frame under a bounded stylized isometric
-camera with analytic forward/inverse plane projection. Exact County footprint
-geometry is still absent, so the frame cannot fill or imply the envelope
-interior. Landscape, Neighborhood, Object, and Evidence progressively add
+camera with analytic forward/inverse plane projection. The renderer projects
+the selected footprint's exact closed native rings with even-odd hole validity
+and does not draw an envelope substitute. Landscape, Neighborhood, Object, and Evidence progressively add
 terrain, watersheds, admitted highways/roads/lots/structures/artifacts, labels,
 relationships, inspection objects, and exact basis without replacing the map.
 Exact survey edges remain deep inspection evidence rather than relief, roads,

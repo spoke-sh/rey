@@ -232,6 +232,16 @@ export const exploreStyles = stylex.create({
     width: "100%",
     zIndex: 0,
   },
+  countyFootprintLayer: {
+    zIndex: 0,
+  },
+  countyFootprint: {
+    fill: "color-mix(in srgb, #89a76f 15%, var(--rey-background))",
+    stroke: "color-mix(in srgb, #47604d 70%, var(--rey-foreground))",
+    strokeLinejoin: "round",
+    strokeWidth: 2,
+    vectorEffect: "non-scaling-stroke",
+  },
   worldGraticule: {
     fill: "none",
     opacity: 0.22,
@@ -438,17 +448,6 @@ export const exploreStyles = stylex.create({
     borderRadius: 28,
     fontSize: "0.5rem",
     opacity: 0.72,
-    pointerEvents: "none",
-  },
-  countyFrame: {
-    backgroundColor: "color-mix(in srgb, #89a76f 7%, transparent)",
-    borderRadius: 0,
-    borderStyle: "solid",
-    borderWidth: 1.5,
-    clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-    color: "color-mix(in srgb, var(--rey-foreground) 75%, transparent)",
-    paddingBlock: "9%",
-    paddingInline: "26%",
     pointerEvents: "none",
   },
   worldUnexploredZone: {

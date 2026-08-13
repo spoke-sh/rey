@@ -34,10 +34,14 @@ now consumes only the latest accepted production result retained by the
 workload read model: rejected results, qualification scenarios, candidate
 packages, and mismatched workload/graph/package/packet/coordinate bindings
 fail closed. It projects the exact synthetic point at World, the same point on
-a semantic-Mercator chart at Atlas, and exact native object bounds in a bounded
-County reference view. This first County view explicitly retains absent terrain,
-atlas sectors, footprints, geometry reconstruction, and deep source links as
-boundaries rather than inventing them. Production evidence runs now retain up to
+a semantic-Mercator chart at Atlas, and enters County only for an explicit
+selection whose projection packet binds one unique envelope-matching boundary
+Polygon. That content-identified footprint retains its exact source object,
+artifact, revision, bounded closed native rings, coordinate count, and
+authority. `rey.county-footprint-projection@1` projects those rings as the
+County fabric and even-odd validity boundary; the former envelope-shaped
+background is gone. Terrain, geometry not retained in the packet, and deep
+source links remain boundaries rather than inventions. Production evidence runs now retain up to
 64 verified synthetic atlas revisions and one directed
 `rey.semantic-atlas-delta.v1` per revision. Accepted production regional scenes
 now enter the same bounded history as separately typed atlas members whose
@@ -82,9 +86,12 @@ native-to-County-local transform centered on the admitted native envelope.
 `rey.county-frame-projection@1` then applies a bounded `35.26439°` pitch / `45°`
 yaw isometric forward/inverse plane projection, retains the frame in the
 immutable scene, and discloses that object-envelope presentation is neither
-source footprint geometry nor physical distance. Exact County footprint fabric,
-render-graph completion, clipmap reuse, and retained visual/performance proof
-remain open.
+source footprint geometry nor physical distance. Scene admission now derives a
+footprint only from one exact envelope-matching boundary Polygon and otherwise
+retains an explicit omission. Explorer requires that identity for County,
+projects its native rings with holes preserved, and binds the footprint and
+compiler revisions into the immutable scene. Typed County layers,
+render-graph completion, clipmap reuse, and retained visual/performance proof remain open.
 
 ## Completion Checklist
 
@@ -147,7 +154,7 @@ remain open.
 - [x] Verify the selected scene's exact envelope-centered County-local
   transform and expand that revision-bound plane through a bounded reversible
   isometric camera while disclosing that envelope geometry is not a footprint.
-- [ ] Admit one exact County footprint identity and use it as the County fabric
+- [x] Admit one exact County footprint identity and use it as the County fabric
   and validity boundary instead of substituting the scene envelope.
 - [ ] Add independently typed terrain, hydrology, boundary, highway, road,
   district, lot, structure, utility, POI, label, beacon, construction, and

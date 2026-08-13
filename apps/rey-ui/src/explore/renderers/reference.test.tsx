@@ -78,6 +78,7 @@ const terrainScene = {
   globe: null,
   world_atlas_transition: null,
   county_frame: null,
+  county_footprint: null,
 } satisfies TopologyScene;
 
 describe("reference renderer", () => {

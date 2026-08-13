@@ -7,7 +7,12 @@ import type {
   WorkloadList,
   WorkloadSummary,
 } from "../../domain";
-import { compileCountyFrame, type CountyFrame } from "./county-frame";
+import {
+  compileCountyFootprint,
+  compileCountyFrame,
+  type CountyFootprint,
+  type CountyFrame,
+} from "./county-frame";
 
 export interface AdmittedRegionalProjection {
   workload: WorkloadSummary;
@@ -16,6 +21,7 @@ export interface AdmittedRegionalProjection {
   atlas_region: SemanticAtlasRegionalRegion;
   atlas_sector: SemanticAtlas["sectors"][number];
   county_frame: CountyFrame;
+  county_footprint: CountyFootprint | null;
 }
 
 const coordinateSpaces = [
@@ -69,6 +75,7 @@ export function admittedRegionalScenes(
         sector.member_region_ids.includes(atlasRegion.region_id),
     );
     const countyFrame = scene ? safeCountyFrame(scene) : null;
+    const countyFootprint = scene ? safeCountyFootprint(scene) : undefined;
     if (
       !result ||
       result.schema !== "rey.scene-admission-result.v1" ||
@@ -106,6 +113,7 @@ export function admittedRegionalScenes(
       !atlasRegion ||
       !atlasSector ||
       !countyFrame ||
+      countyFootprint === undefined ||
       atlasRegion.semantic_longitude_microdegrees !==
         semanticPlacement.target_origin[0] ||
       atlasRegion.semantic_latitude_microdegrees !==
@@ -120,6 +128,7 @@ export function admittedRegionalScenes(
         atlas_region: atlasRegion,
         atlas_sector: atlasSector,
         county_frame: countyFrame,
+        county_footprint: countyFootprint,
       },
     ];
   });
@@ -130,6 +139,14 @@ function safeCountyFrame(scene: AdmittedRegionalScene) {
     return compileCountyFrame(scene);
   } catch {
     return null;
+  }
+}
+
+function safeCountyFootprint(scene: AdmittedRegionalScene) {
+  try {
+    return compileCountyFootprint(scene);
+  } catch {
+    return undefined;
   }
 }
 
