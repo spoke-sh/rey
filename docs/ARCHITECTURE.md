@@ -938,8 +938,10 @@ both surfaces, and the accelerated adapter suppresses frames whose exact scene,
 camera, material, and graph identity is unchanged. Accelerated terrain totals
 exact vertex/index upload bytes before geometry allocation, enforces a 64 MiB
 engine budget, and exposes that allocation through the live renderer report.
-Remaining pass
-implementation and topology extraction, retained voyages, and a qualified terrain-fidelity result remain incomplete
+The revisioned survey-terrain scene compiler owns reference field evaluation,
+contours, projected hydrology/weather, and natural-feature derivation. Remaining
+pass implementation and portfolio/scene-layout extraction, retained voyages,
+and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
 activation, persistent cross-poll activation processing, and policy proposals
 remain target architecture. Compatible admissions within one

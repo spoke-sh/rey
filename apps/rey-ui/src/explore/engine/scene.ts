@@ -17,6 +17,7 @@ import type {
 } from "../projection/county-frame";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "./labels";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
+import { SURVEY_TERRAIN_SCENE_COMPILER_REVISION } from "../projection/survey-terrain";
 import {
   EXPLORER_PICKING_REVISION,
   compileScenePickingIndex,
@@ -107,6 +108,8 @@ export function compileSceneSnapshot(
       ]),
     )
     .sort((left, right) => left.localeCompare(right));
+  if (topographies.length > 0)
+    compilerRevisions.push(SURVEY_TERRAIN_SCENE_COMPILER_REVISION);
   if (regionalScenes.length > 0) {
     compilerRevisions.push(SEMANTIC_MERCATOR_PROJECTION_REVISION);
     compilerRevisions.push(SEMANTIC_LABEL_LAYOUT_REVISION);

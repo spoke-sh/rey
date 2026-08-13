@@ -223,8 +223,8 @@ absolute-coordinate patches with explicit hydrology/relief halos, proves
 shared render-channel seams, and retains patch identities within packet-owned
 cell and byte limits.
 `src/explore/renderers/reference.tsx` owns the accessible SVG/DOM overlays and
-fallback beneath the React canvas shell. Remaining scene assembly, contours,
-and natural-feature adaptation still live in `src/topology.ts`. Seed edges
+fallback beneath the React canvas shell. Remaining portfolio adaptation and
+survey scene layout still live in `src/topology.ts`. Seed edges
 remain deep inspection evidence and do not become relief, natural features, or
 paths.
 `src/explore/engine/render-graph.ts` owns the renderer-neutral ordered pass
@@ -236,6 +236,9 @@ uploaded position, normal, material attribute, curvature, and index byte before
 allocation and fails visibly above its explicit 64 MiB GPU budget.
 `src/explore/engine/picking.ts` compiles the immutable semantic candidate index
 and owns inverse scene selection across repeated Atlas chart copies.
+`src/explore/projection/survey-terrain.ts` owns revisioned survey reference
+field evaluation, contour extraction, and projected natural-feature
+derivation; its compiler revision participates in immutable scene lineage.
 The Three.js adapter observes both WebGL context loss and WebGPU `device.lost`;
 either returns the live surface to a degraded reference-renderer status without
 changing scene assessment.

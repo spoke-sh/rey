@@ -178,8 +178,11 @@ remain open.
 - [x] Compile semantic Atlas candidates and inverse projection into one
   immutable scene-picking index consumed by the renderer; React forwards
   selected scene identity but does not own inverse-picking semantics.
-- [ ] Move remaining portfolio adaptation, survey scene assembly, contours,
-  and natural-feature derivation out of `topology.ts`; finish the
+- [x] Move survey field compilation, contours, projected hydrology/weather,
+  and natural-feature derivation out of `topology.ts` behind a revisioned
+  scene compiler that enters immutable scene lineage.
+- [ ] Move remaining portfolio adaptation and survey scene layout out of
+  `topology.ts`; finish the
   evidence-adapter, compiler, engine, renderer, picking, and React ownership
   boundary without introducing a parallel scene truth.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient

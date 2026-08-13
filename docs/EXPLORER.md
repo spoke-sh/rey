@@ -258,14 +258,15 @@ index. Repeated Atlas chart copies resolve through its analytic inverse to one
 retained semantic identity; React only forwards the selected result. A TSL node material consumes the active buffers as one
 continuous relief mesh in `/explore`; React retains the controls, accessible
 overlays, exact evidence links, active band/backend status, and current/maximum
-working-set allocation. `topology.ts` still combines portfolio adaptation,
-The reference surface remains mounted during accelerated initialization and is
+working-set allocation. The revisioned survey-terrain scene compiler owns
+reference field evaluation, contours, projected hydrology/weather, and natural
+features. `topology.ts` still combines portfolio adaptation, survey scene
+layout, and lens data. The reference surface remains mounted during accelerated initialization and is
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.
-scene assembly, contour extraction, and lens data. [Plan
-0003](../plans/0003-scene-to-explorer.md) owns remaining pass implementation
-and topology extraction, device-loss qualification, and retained
+[Plan 0003](../plans/0003-scene-to-explorer.md) owns remaining pass
+implementation and topology extraction, device-loss qualification, and retained
 visual and performance proof.
 
 ### Terrain fidelity
