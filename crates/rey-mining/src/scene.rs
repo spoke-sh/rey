@@ -259,6 +259,7 @@ impl AdmittedRegionalScene {
         validate_identifier(&self.region_id)?;
         validate_bounds(&self.native_bounds)?;
         self.projection.verify()?;
+        validate_county_frame(self)?;
         if self.admission.editor_sequence == 0
             || self.admission.package_id != self.projection.source_package_id
             || self.admission.package_snapshot_revision != self.projection.source_snapshot_revision
@@ -307,6 +308,56 @@ impl AdmittedRegionalScene {
         self.verify()?;
         Ok(self)
     }
+}
+
+fn validate_county_frame(scene: &AdmittedRegionalScene) -> Result<(), RegionalSceneError> {
+    let transforms = scene
+        .projection
+        .transforms
+        .iter()
+        .filter(|transform| {
+            transform.source_space == RegionalCoordinateSpace::NativeCrs84
+                && transform.target_space == RegionalCoordinateSpace::CountyLocal
+        })
+        .collect::<Vec<_>>();
+    let binding = scene
+        .projection
+        .coordinate_bindings
+        .iter()
+        .find(|binding| binding.space == RegionalCoordinateSpace::CountyLocal);
+    if transforms.len() != 1
+        || transforms[0].source_origin != regional_bounds_center(&scene.native_bounds)
+        || transforms[0].target_origin != [0, 0, 0]
+        || transforms[0].parameters != ["east_north_up_microunits"]
+        || !transforms[0]
+            .inverse_policy
+            .contains("bounded analytic inverse")
+        || transforms[0].distortion.is_empty()
+        || binding.is_none_or(|binding| {
+            binding.status != RegionalCoordinateStatus::Bound
+                || binding.dimensions != ["east", "north", "up"]
+                || binding.units != ["local_microunit", "local_microunit", "local_microunit"]
+        })
+    {
+        return Err(RegionalSceneError::CountyFrame);
+    }
+    Ok(())
+}
+
+fn regional_bounds_center(bounds: &RegionalBounds) -> Vec<i64> {
+    let east = if bounds.crosses_antimeridian {
+        bounds.east_microdegrees + 360_000_000
+    } else {
+        bounds.east_microdegrees
+    };
+    let mut longitude = (bounds.west_microdegrees + east) / 2;
+    if longitude > 180_000_000 {
+        longitude -= 360_000_000;
+    }
+    vec![
+        longitude,
+        (bounds.south_microdegrees + bounds.north_microdegrees) / 2,
+    ]
 }
 
 fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), RegionalSceneError> {
@@ -506,6 +557,8 @@ pub enum RegionalSceneError {
     Identity,
     #[error("admitted regional scene atlas back-reference is invalid")]
     AtlasBinding,
+    #[error("admitted regional scene County-local frame is invalid")]
+    CountyFrame,
     #[error("regional scene completeness does not match its projection")]
     Completeness,
     #[error(transparent)]
@@ -538,6 +591,13 @@ mod tests {
         let package = digest("fixture.package", region);
         let snapshot = digest("fixture.snapshot", region);
         let grammar = ExplorerGrammar::v1().unwrap();
+        let native_bounds = RegionalBounds {
+            west_microdegrees: west,
+            south_microdegrees: south,
+            east_microdegrees: east,
+            north_microdegrees: north,
+            crosses_antimeridian: west > east,
+        };
         let object_id = format!("{region}/boundary");
         let object = RegionalNativeObject {
             object_id: object_id.clone(),
@@ -546,13 +606,7 @@ mod tests {
             source_artifact_id: digest("fixture.artifact", region),
             object_revision: digest("fixture.object", region),
             geometry_kind: "Polygon".to_owned(),
-            native_bounds: RegionalBounds {
-                west_microdegrees: west,
-                south_microdegrees: south,
-                east_microdegrees: east,
-                north_microdegrees: north,
-                crosses_antimeridian: west > east,
-            },
+            native_bounds: native_bounds.clone(),
             layer: RegionalLayerKind::Boundary,
             authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
         };
@@ -605,7 +659,11 @@ mod tests {
                 ],
                 _ => vec!["longitude".to_owned(), "latitude".to_owned()],
             },
-            units: vec!["declared_by_space".to_owned()],
+            units: match space {
+                RegionalCoordinateSpace::CountyLocal => vec!["local_microunit".to_owned(); 3],
+                RegionalCoordinateSpace::Camera => vec!["view_state".to_owned(); 3],
+                _ => vec!["microdegree".to_owned(); 2],
+            },
             authority: authority.to_owned(),
             source_revision: snapshot.clone(),
             disclosure: "coordinate space is not interchangeable with another binding".to_owned(),
@@ -628,10 +686,11 @@ mod tests {
                 transform: contract("rey.scene.native-to-county"),
                 source_space: RegionalCoordinateSpace::NativeCrs84,
                 target_space: RegionalCoordinateSpace::CountyLocal,
-                source_origin: vec![(west + east) / 2, (south + north) / 2],
+                source_origin: regional_bounds_center(&native_bounds),
                 target_origin: vec![0, 0, 0],
-                parameters: vec!["local_tangent_east_north_up".to_owned()],
-                inverse_policy: "bounded analytic inverse inside admitted footprint".to_owned(),
+                parameters: vec!["east_north_up_microunits".to_owned()],
+                inverse_policy: "bounded analytic inverse inside admitted native envelope"
+                    .to_owned(),
                 distortion: "declared local tangent approximation; not physical survey accuracy"
                     .to_owned(),
             }],
@@ -678,13 +737,7 @@ mod tests {
                 package_snapshot_revision: snapshot,
                 admission_request_id: digest("fixture.request", region),
             },
-            native_bounds: RegionalBounds {
-                west_microdegrees: west,
-                south_microdegrees: south,
-                east_microdegrees: east,
-                north_microdegrees: north,
-                crosses_antimeridian: west > east,
-            },
+            native_bounds,
             artifacts: RegionalArtifactBindings {
                 source_topography_patch_id: None,
                 admitted_atlas_revision: None,
@@ -764,6 +817,24 @@ mod tests {
         assert!(matches!(
             scene.verify(),
             Err(RegionalSceneError::TerrainAuthority)
+        ));
+    }
+
+    #[test]
+    fn county_frame_must_bind_the_exact_native_envelope_center() {
+        let mut scene = fixture_scene(
+            "frame-county",
+            -123_000_000,
+            -122_000_000,
+            37_000_000,
+            38_000_000,
+        );
+        scene.projection.transforms[0].source_origin[0] += 1;
+        scene.projection = scene.projection.finalize().expect("projection");
+        scene.artifacts.projection_packet_id = scene.projection.packet_id.clone();
+        assert!(matches!(
+            scene.finalize(),
+            Err(RegionalSceneError::CountyFrame)
         ));
     }
 

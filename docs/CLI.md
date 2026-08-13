@@ -266,8 +266,9 @@ The run requires a fresh qualified `scene-admission` graph in workload HEAD and
 one exact committed editor revision. Human output distinguishes native CRS84,
 synthetic semantic, semantic-Mercator, County-local, and camera coordinates and
 prints the Mercator `360000000µ°` wrap, `±85051129µ°` polar cutoff/disclosure,
-and analytic inverse boundary beside exact package, packet, validity, limits,
-omissions, and lineage. JSON
+and analytic inverse boundary plus the envelope-bound County-local inverse and
+its explicit non-footprint disclosure beside exact package, packet, validity,
+limits, omissions, and lineage. JSON
 retains the complete `rey.scene-admission-result.v1`. Rejected validation
 scenarios are conclusive typed results; no run mutates editor state or admits a
 browser scene.

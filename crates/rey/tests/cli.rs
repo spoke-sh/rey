@@ -6210,6 +6210,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "SYNTHETIC semantic longitude/latitude",
         "MERCATOR spherical chart",
         "COUNTY local east/north/up",
+        "bounded inverse inside admitted native envelope · envelope is not footprint geometry",
         "CAMERA view only",
         "COORDINATE {\"space\":\"native_crs84\"",
         "VALIDITY {",

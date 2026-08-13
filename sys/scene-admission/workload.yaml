@@ -71,7 +71,7 @@ scenarios:
           NATIVE OGC:CRS84 longitude/latitude · -123000000µ°, 37000000µ° → -122000000µ°, 38000000µ° · exact geographic source evidence
           SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
           MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857
-          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint
+          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry
           CAMERA view only · center/scale/viewport/selection are not evidence identity
           ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
           COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
@@ -93,7 +93,7 @@ scenarios:
           NATIVE OGC:CRS84 longitude/latitude · 179000000µ°, -1000000µ° → -179000000µ°, 1000000µ° · exact geographic source evidence
           SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
           MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857
-          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint
+          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry
           CAMERA view only · center/scale/viewport/selection are not evidence identity
           ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
           COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
@@ -206,7 +206,7 @@ scenarios:
           NATIVE OGC:CRS84 longitude/latitude · 10000000µ°, 86000000µ° → 11000000µ°, 87000000µ° · exact geographic source evidence
           SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
           MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857
-          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint
+          COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry
           CAMERA view only · center/scale/viewport/selection are not evidence identity
           ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
           COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
