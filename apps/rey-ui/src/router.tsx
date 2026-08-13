@@ -809,12 +809,21 @@ function ConversationContract({
 
 function EnvironmentPage() {
   const initialStatus = environmentRoute.useLoaderData();
-  const { document: status, error: refreshError } = usePassiveDocument(
+  const { document: status } = usePassiveDocument(
     initialStatus,
     loadEnvironment,
   );
   const projection = status.operator;
   const variableLines = environmentVariableDiff(projection.variables);
+  const searchedVariables = projection.variables.filter(
+    (variable) => variable.working !== null,
+  );
+  const foundVariables = searchedVariables.filter(
+    (variable) => variable.working?.availability === "available",
+  ).length;
+  const variablesNotFound = searchedVariables.filter(
+    (variable) => variable.working?.availability === "unavailable",
+  ).length;
   const supported = projection.applications.filter(
     (application) => application.working !== null,
   );
@@ -838,44 +847,10 @@ function EnvironmentPage() {
             </p>
             <h1 className={sx(styles.sectionTitle)}>Environment variables</h1>
           </div>
-          <div className={sx(styles.environmentPanelMeta)}>
-            <span className={sx(styles.micro, styles.muted)}>
-              @@ {projection.source_label} → {projection.target_label} ·{" "}
-              {status.state}
-            </span>
-            <span
-              className={sx(
-                styles.micro,
-                refreshError
-                  ? styles.toneWarning
-                  : projection.complete
-                    ? styles.stateGood
-                    : styles.toneDanger,
-              )}
-              title={refreshError?.message}
-            >
-              {projection.mapping?.source_path ?? "PROCESS SEEDS"} ·{" "}
-              {projection.mapping?.schema ?? "REY.DISCOVERY-SEEDS.V1"} ·{" "}
-              {refreshError
-                ? "REVALIDATION DELAYED"
-                : projection.complete
-                  ? "COMPLETE"
-                  : "INCOMPLETE"}
-            </span>
-            <span className={sx(styles.micro, styles.muted)}>
-              {status.staged_delta.changes.length} STAGED ·{" "}
-              {status.unstaged_delta.changes.length} WORKING
-            </span>
-            {status.ignored ? (
-              <span
-                className={sx(styles.micro, styles.toneWarning)}
-                title={`${status.ignored.source} · ${status.ignored.source_digest}`}
-              >
-                {status.ignored.source} · {status.ignored.rules.length} RULES ·{" "}
-                {status.ignored.ignored} OMITTED
-              </span>
-            ) : null}
-          </div>
+          <span className={sx(styles.micro, styles.muted)}>
+            {searchedVariables.length} SEARCHED · {foundVariables} FOUND ·{" "}
+            {variablesNotFound} NOT FOUND
+          </span>
         </div>
         <div
           className={sx(styles.environmentDiffDocument)}

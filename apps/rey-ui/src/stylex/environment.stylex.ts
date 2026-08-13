@@ -244,15 +244,6 @@ export const environmentStyles = stylex.create({
     paddingBlock: 22,
     paddingInline: 24,
   },
-  environmentPanelMeta: {
-    display: "grid",
-    gap: 6,
-    justifyItems: {
-      default: "end",
-      "@media (max-width: 760px)": "start",
-    },
-    textAlign: { default: "right", "@media (max-width: 760px)": "left" },
-  },
   environmentDiffDocument: {
     backgroundColor: "color-mix(in srgb, var(--rey-background) 94%, black)",
     minHeight: 250,

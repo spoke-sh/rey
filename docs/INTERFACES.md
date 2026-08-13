@@ -1449,9 +1449,10 @@ application search, and the input/reference plane. The application plane renders
 only the flattened working search outcomes, one row per application, and names
 each row's declared group memberships. The typed document retains the separate
 application-inventory identity and declaration evidence without duplicating it
-as a browser section. Environment state, mapping, completeness, and
-admission counts remain compact metadata within those sections rather than
-separate visual destinations.
+as a browser section. Section headers show only concise searched/found counts;
+environment state, mapping, completeness, and admission details remain in the
+typed document and exact CLI evidence rather than becoming browser metadata
+cards.
 
 The coordinate rail directly beneath the application header remains sticky on
 scrolling routes. Major operator sections declare exact rail coordinates; as a
