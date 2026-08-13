@@ -19,6 +19,7 @@ function stylexCssTarget(): Plugin {
 }
 
 export default defineConfig({
+  base: "./",
   build: {
     cssCodeSplit: false,
     rollupOptions: {

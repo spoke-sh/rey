@@ -278,6 +278,37 @@ perceptual fidelity. GPU pixels and frame timing are not semantic identities;
 performance results must name the fixture, browser/backend, viewport, DPR,
 hardware, warm/cold posture, revisions, and budgets.
 
+Run a retained Explorer browser voyage against an explicitly started CLI
+surface with:
+
+```sh
+pnpm --dir apps/rey-ui qualify:explorer -- \
+  --base-url http://127.0.0.1:5714 \
+  --backend webgpu \
+  --width 1920 \
+  --height 1080
+```
+
+The harness uses an isolated Chrome/Chromium profile, traverses World → Atlas
+→ County → Objects → Evidence through browser controls, and retains a typed
+manifest plus exact PNG digests beneath ignored
+`.rey/qualification/explorer`. Repeat the named voyage for `webgpu`, `webgl2`,
+and `reference` at both required viewports. The manifest binds the admitted
+region, atlas and workload inputs, machine/browser identity, requested and
+observed backend, scene/focus/source/compiler lineage, render passes, bounded
+GPU/source measurements, exact evidence links, console failures, omissions,
+and capture identities. It is local qualification evidence, not semantic
+evidence, GPU execution timing, a frame-rate claim, action authority, or proof
+authority.
+
+Direct browser HTTP is the default transport. A socket-restricted execution
+environment may add `--transport fulfilled`; that posture runs the exact built
+JS/CSS assets in Chrome and supplies only the bounded root-loader GET documents
+read from the named `rey ui` origin through a local-file bootstrap. The
+manifest discloses that it did not exercise direct browser networking. Such a
+voyage remains useful for rendering and interaction qualification but cannot
+close a direct-transport or passive-live-revalidation claim.
+
 The mapping parser hard-cuts to `rey.env-map.v1`; the process-owned discovery
 seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit
 `--map`; desired executables require a bounded purpose; and bounded

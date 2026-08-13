@@ -312,6 +312,13 @@ export function AcceleratedTerrainSurface({
               snapshot.scene.world,
               view,
             );
+        if (adapter.status.lifecycle !== "ready") {
+          bundle.dispose();
+          bundle = undefined;
+          setReady(false);
+          report(adapter.status);
+          return;
+        }
         bundleRef.current = bundle;
         adapter.render(bundle.scene, bundle.camera, {
           snapshot_id: snapshot.snapshot_id,

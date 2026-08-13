@@ -10,8 +10,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "check": "pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run build",
-    "format": "prettier --write index.html src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
-    "format:check": "prettier --check index.html src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
+    "format": "prettier --write index.html scripts src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
+    "format:check": "prettier --check index.html scripts src vite.config.ts vitest.config.ts tsconfig.json package.json pnpm-workspace.yaml",
+    "qualify:explorer": "node scripts/qualify-explorer.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

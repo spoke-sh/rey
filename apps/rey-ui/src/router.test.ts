@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ConversationTranscript } from "./conversations";
 import {
   activateCommunicationAxis,
+  browserRouterBasepath,
   CommunicationBackdrop,
   ConversationSurface,
   isViewportLockedPath,
@@ -16,6 +17,18 @@ import {
 } from "./router";
 
 describe("operator routes", () => {
+  it("derives a qualification-only base path for local-file browser voyages", () => {
+    expect(
+      browserRouterBasepath({
+        pathname: "/tmp/rey-qualification/explore.html",
+        protocol: "file:",
+      }),
+    ).toBe("/tmp/rey-qualification");
+    expect(
+      browserRouterBasepath({ pathname: "/explore", protocol: "http:" }),
+    ).toBe("/");
+  });
+
   it("keeps Channel collaboration visible while preserving the primary order", () => {
     expect(PRIMARY_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Feed",

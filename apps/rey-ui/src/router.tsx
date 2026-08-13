@@ -132,6 +132,15 @@ export function normalizeExplorerSearch(search: Record<string, unknown>): {
   };
 }
 
+export function browserRouterBasepath(location: {
+  pathname: string;
+  protocol: string;
+}): string {
+  if (location.protocol !== "file:") return "/";
+  const separator = location.pathname.lastIndexOf("/");
+  return separator <= 0 ? "/" : location.pathname.slice(0, separator);
+}
+
 export function journalSeedObservationIds(value: unknown): string[] {
   if (typeof value !== "string" || value.length > 1_200) return [];
   const ids = value.split(",");
@@ -1461,7 +1470,10 @@ const indexRoute = createRoute({
 
 const exploreRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "explore",
+  path:
+    typeof window !== "undefined" && window.location.protocol === "file:"
+      ? "explore.html"
+      : "explore",
   validateSearch: normalizeExplorerSearch,
   component: ExploreRoutePage,
 });
@@ -1579,6 +1591,10 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export const router = createRouter({
+  basepath:
+    typeof window === "undefined"
+      ? "/"
+      : browserRouterBasepath(window.location),
   defaultPendingMinMs: 180,
   defaultPreload: "intent",
   routeTree,

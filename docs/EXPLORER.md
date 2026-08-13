@@ -352,6 +352,13 @@ change evidence or execute a probe.
 The router retains only those three declared values in the view envelope;
 unknown backend requests are discarded rather than becoming an untyped
 qualification mode.
+The named browser-voyage harness reads these diagnostics from the human
+surface, performs the semantic traversal through browser controls, and retains
+captures and a typed manifest only beneath ignored `.rey` runtime state. Its
+optional local-file route/base-path posture exists solely for
+socket-restricted qualification over the exact built assets and bounded API
+snapshots; the production HTTP route remains `/explore`, and the manifest must
+disclose when direct browser transport was not exercised.
 The production build emits stable lazy chunk names for the globe, terrain,
 WebGPU adapter, and pinned Three.js module, and the `rey ui` server embeds and
 serves each chunk. Starting the documented CLI surface therefore reaches the

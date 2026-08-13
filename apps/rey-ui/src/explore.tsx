@@ -437,6 +437,22 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             scene.globe?.posture === "orientation" &&
               styles.orientationCoordinates,
           )}
+          data-renderer-backend={terrainRenderer.status.backend}
+          data-renderer-degraded={String(terrainRenderer.status.degraded)}
+          data-renderer-diagnostics="rey.explorer-renderer-diagnostics.v1"
+          data-renderer-field-bytes={terrainRenderer.field_bytes}
+          data-renderer-field-cells={terrainRenderer.field_cells}
+          data-renderer-geometry-compilation-ms={
+            terrainRenderer.geometry_compilation_ms
+          }
+          data-renderer-gpu-budget-bytes={terrainRenderer.gpu_budget_bytes}
+          data-renderer-gpu-bytes={terrainRenderer.gpu_bytes}
+          data-renderer-lifecycle={terrainRenderer.status.lifecycle}
+          data-renderer-parity-samples={terrainRenderer.parity_samples}
+          data-renderer-preference={terrainRenderer.preference}
+          data-renderer-revision={terrainRenderer.status.renderer_revision}
+          data-renderer-submission-ms={terrainRenderer.render_submission_ms}
+          data-renderer-triangles={terrainRenderer.triangles}
           aria-hidden="true"
         >
           <span>ZOOM {Math.round(zoom * 100)}%</span>
