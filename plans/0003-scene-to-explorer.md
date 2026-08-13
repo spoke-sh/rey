@@ -104,7 +104,12 @@ before pixel error. Separate real-backend loss voyages return WebGL2 and WebGPU
 to the same visibly identified reference scene. These voyages used the
 disclosed fulfilled transport because direct Chrome loopback networking was
 unavailable; direct browser transport, passive revalidation, and named
-GPU/frame-performance proof remain open.
+GPU-execution/frame-rate proof remain open. A named local SwiftShader budget
+now bounds the complete six-voyage matrix for observable scene/field/geometry
+CPU work, upload residency, backend draw calls, label candidates, JavaScript
+heap, interaction convergence, and browser presentation cadence. It does not
+upgrade `requestAnimationFrame` cadence or synchronous submission into GPU
+execution timing.
 
 ## Completion Checklist
 
@@ -246,9 +251,10 @@ GPU/frame-performance proof remain open.
 - [x] Retain and visibly identify the last-good immutable Explorer scene when
   a later portfolio projection fails compilation, then recover on the next
   valid projection; keep an invalid initial scene fail-closed.
-- [ ] Record compilation, residency, evaluation/upload, draw, geometry, label,
+- [x] Record compilation, residency, evaluation/upload, draw, geometry, label,
   memory, frame-time, and interaction budgets on a named reference machine
-  before making fidelity or frame-rate claims.
+  while retaining that presentation cadence and submission are not GPU
+  execution or a frame-rate claim.
 - [x] Expose transient CPU field-evaluation, geometry-compilation, and render-
   submission timing with explicit unretained authority; never label submission
   latency as GPU execution or retained performance proof.

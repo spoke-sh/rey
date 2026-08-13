@@ -950,7 +950,12 @@ reference, WebGL2, and WebGPU voyages retain both target viewports; parity
 manifests require exact scene/source/pass/evidence equality before measuring
 pixels, and native backend-loss voyages preserve the visibly degraded reference
 scene. Direct browser networking/passive revalidation and named GPU/frame-time
-budgets remain incomplete [Plan 0003](../plans/0003-scene-to-explorer.md) work.
+proof remain incomplete [Plan 0003](../plans/0003-scene-to-explorer.md) work.
+The local software-renderer qualification separately binds versioned ceilings
+for observable CPU compilation, upload residency, backend draw calls, label
+candidates, JavaScript heap, interaction convergence, and browser presentation
+cadence across that six-voyage matrix without calling presentation cadence GPU
+execution.
 Generic graph-entry
 activation, persistent cross-poll activation processing, and policy proposals
 remain target architecture. Compatible admissions within one

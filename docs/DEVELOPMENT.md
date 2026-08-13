@@ -270,9 +270,11 @@ occlusion, roughness, curvature, and normal attributes. Retained voyages now
 cover both real backends and the reference renderer at both target viewports,
 semantic-first rendered parity, WebGL context loss, and WebGPU device loss.
 The fulfilled transport used in the current socket-restricted environment does
-not qualify direct browser networking or passive live revalidation. Named GPU
-execution/frame-rate budgets also remain open; Rey's deterministic reference
-renderer remains independent of Three.js.
+not qualify direct browser networking or passive live revalidation. A named
+local SwiftShader budget now bounds observable CPU, resource, interaction, and
+browser-presentation measurements across the full matrix; it makes no GPU
+execution or frame-rate claim. Rey's deterministic reference renderer remains
+independent of Three.js.
 
 Backend-independent tests own semantic correctness: field values, validity
 masks, scene manifests, stable ordering, LOD selection, render-pass order,
@@ -336,6 +338,26 @@ must retain a visibly degraded reference surface before continuing to exact
 Evidence. The WebGPU destroy hook exists only on the renderer adapter and is
 reachable from the canvas only through the explicit qualification event; it
 does not change scene evidence or expose a production action path.
+
+After retaining all six viewport/backend voyages with performance fields,
+evaluate the versioned local ceiling with:
+
+```sh
+pnpm --dir apps/rey-ui qualify:explorer-performance -- \
+  --machine-name rey-local-swiftshader \
+  --manifest .rey/qualification/explorer/<voyage>/manifest.json \
+  --manifest .rey/qualification/explorer/<voyage>/manifest.json
+```
+
+Supply one `--manifest` for every required backend and viewport. The aggregator
+requires one exact machine/browser and transport posture, exact admitted input
+and scene/source lineage within each viewport, required interactions, positive
+accelerated draw/upload observations, and every ceiling in
+`qualification/explorer-performance-budget.json`. It retains maximum scene,
+field, geometry, and synchronous render-submission CPU duration; upload bytes;
+backend-reported draw calls; label candidates; JavaScript heap; interaction
+convergence; and `requestAnimationFrame` presentation cadence. The last two
+timing families do not measure GPU completion or establish a frame-rate claim.
 
 The mapping parser hard-cuts to `rey.env-map.v1`; the process-owned discovery
 seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit

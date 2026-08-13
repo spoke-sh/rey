@@ -286,8 +286,8 @@ match its actual scope; disabling it cannot hide the landform or validity
 boundary.
 Explorer exposes field evaluation, geometry construction, and renderer
 submission duration as transient unretained CPU measurements. Submission time
-is not GPU execution time, a frame-rate claim, or retained qualification; named
-machine voyages remain required for those claims.
+is not GPU execution time or a frame-rate claim. Named machine voyages may
+retain and bound it only with that authority.
 The same human diagnostics remain visible for accelerated semantic globes even
 though a globe is not a terrain field: they name the selected backend, bounded
 source/GPU bytes, triangle count, geometry construction, and submission time.
@@ -299,9 +299,10 @@ projection applies contour/water/weather/probe view controls and feeds the same
 active pass identities to reference markup and accelerated diagnostics; view
 controls do not revise semantic scene or graph identity.
 [Plan 0003](../plans/0003-scene-to-explorer.md) owns the remaining
-direct-browser transport/passive-revalidation voyage and named GPU/frame-time
-performance proof. Projection extraction, pass implementation, both native
-backend-loss paths, retained visual voyages, and rendered parity are complete.
+direct-browser transport/passive-revalidation voyage. Projection extraction,
+pass implementation, both native backend-loss paths, retained visual voyages,
+rendered parity, and the named observable local performance budget are
+complete; GPU-execution/frame-rate claims remain absent.
 
 ### Terrain fidelity
 
@@ -360,6 +361,14 @@ optional local-file route/base-path posture exists solely for
 socket-restricted qualification over the exact built assets and bounded API
 snapshots; the production HTTP route remains `/explore`, and the manifest must
 disclose when direct browser transport was not exercised.
+The voyage also retains scene/field/geometry CPU duration, upload residency,
+backend draw calls, label candidates, JavaScript heap, semantic interaction
+convergence, and a short browser presentation-cadence sample. A separate
+versioned matrix budget binds those observable values to one exact
+machine/browser, viewport, backend, transport, admitted input, and scene/source
+lineage. Presentation cadence is `requestAnimationFrame` scheduling and
+submission is a synchronous CPU boundary; neither is reported as GPU execution
+or a frame-rate result.
 Explicit loss voyages may destroy only the disposable selected WebGPU device
 or invoke the selected WebGL2 context's standard loss extension. They must
 retain the same immutable scene on the visible reference surface, mark the
