@@ -251,7 +251,11 @@ accelerated surfaces. Exact scene, camera, material, and graph revisions form
 the renderer invalidation key; an identical frame is quiet. Before geometry
 allocation, the accelerated terrain path totals its exact vertex attributes
 and index bytes, rejects more than the explicit 64 MiB engine budget, and
-reports current/maximum GPU bytes beside CPU field allocation. Frequency-band selection may add
+reports current/maximum GPU bytes beside CPU field allocation. Before upload,
+every height, transformed normal, tint, occlusion, roughness, curvature, and
+validity-bound index is compared to the deterministic CPU field under
+`rey.terrain.cpu-mesh-upload-parity@1`. Upload arrays are separate copies, so
+renderer mutation cannot rewrite the reference fields. Frequency-band selection may add
 visual detail as sample spacing tightens but never adds semantic evidence or
 fills invalid support. The snapshot also binds a revisioned immutable picking
 index. Repeated Atlas chart copies resolve through its analytic inverse to one

@@ -9,6 +9,7 @@ import {
   createContinuousReliefBundle,
   createContinuousReliefMaterial,
   terrainMeshByteLength,
+  verifyTerrainMeshParity,
 } from "./three-terrain";
 
 function fields() {
@@ -37,6 +38,7 @@ describe("Three.js continuous terrain", () => {
     expect(mesh.positions).toHaveLength(fieldSet.field_cells * 3);
     expect(mesh.indices.length).toBeGreaterThan(0);
     expect(terrainMeshByteLength(mesh)).toBeGreaterThan(fieldSet.field_bytes);
+    expect(verifyTerrainMeshParity(fieldSet, mesh)).toBe(fieldSet.field_cells);
     for (const index of mesh.indices)
       expect(fieldSet.validity.values[index]).not.toBe(0);
   });
@@ -58,10 +60,21 @@ describe("Three.js continuous terrain", () => {
       vertices: fieldSet.field_cells,
       field_bytes: fieldSet.field_bytes,
       gpu_budget_bytes: 64 * 1024 * 1024,
+      parity_revision: "rey.terrain.cpu-mesh-upload-parity@1",
+      parity_samples: fieldSet.field_cells,
     });
     expect(bundle.statistics.triangles).toBeGreaterThan(0);
     expect(bundle.statistics.gpu_bytes).toBeGreaterThan(0);
     bundle.dispose();
+  });
+
+  it("fails closed when an accelerated input diverges from its CPU field", () => {
+    const fieldSet = fields();
+    const mesh = buildTerrainMeshData(fieldSet);
+    mesh.tint[6] = Math.fround(mesh.tint[6]! + 0.01);
+    expect(() => verifyTerrainMeshParity(fieldSet, mesh)).toThrow(
+      "diverges from CPU fields at sample 2",
+    );
   });
 
   it("rejects mesh allocation beyond the explicit GPU budget", () => {

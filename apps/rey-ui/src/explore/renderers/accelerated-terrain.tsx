@@ -27,6 +27,8 @@ export interface AcceleratedTerrainReport {
   active_render_passes: readonly string[];
   gpu_bytes: number;
   gpu_budget_bytes: number;
+  parity_revision: string;
+  parity_samples: number;
 }
 
 export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
@@ -51,6 +53,8 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     active_render_passes: Object.freeze([]),
     gpu_bytes: 0,
     gpu_budget_bytes: 0,
+    parity_revision: "unbound",
+    parity_samples: 0,
   } satisfies AcceleratedTerrainReport,
 );
 
@@ -177,6 +181,8 @@ export function AcceleratedTerrainSurface({
         ),
         gpu_bytes: 0,
         gpu_budget_bytes: 0,
+        parity_revision: "unbound",
+        parity_samples: 0,
       });
       return;
     }
@@ -193,6 +199,8 @@ export function AcceleratedTerrainSurface({
         triangles: number;
         gpu_bytes: number;
         gpu_budget_bytes: number;
+        parity_revision: string;
+        parity_samples: number;
       },
     ) => {
       if (cancelled) return;
@@ -215,6 +223,8 @@ export function AcceleratedTerrainSurface({
         ),
         gpu_bytes: statistics?.gpu_bytes ?? 0,
         gpu_budget_bytes: statistics?.gpu_budget_bytes ?? 0,
+        parity_revision: statistics?.parity_revision ?? "unbound",
+        parity_samples: statistics?.parity_samples ?? 0,
       });
     };
     report({

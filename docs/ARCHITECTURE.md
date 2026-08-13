@@ -937,7 +937,9 @@ paths. The immutable scene binds a revisioned ordered pass graph consumed by
 both surfaces, and the accelerated adapter suppresses frames whose exact scene,
 camera, material, and graph identity is unchanged. Accelerated terrain totals
 exact vertex/index upload bytes before geometry allocation, enforces a 64 MiB
-engine budget, and exposes that allocation through the live renderer report.
+engine budget, verifies every upload sample against isolated deterministic CPU
+fields, and exposes the allocation and parity revision through the live
+renderer report.
 The revisioned survey-terrain scene compiler owns reference field evaluation,
 contours, projected hydrology/weather, and natural-feature derivation. Remaining
 pass implementation and portfolio/scene-layout extraction, retained voyages,

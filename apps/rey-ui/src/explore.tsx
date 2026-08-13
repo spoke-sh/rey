@@ -452,6 +452,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                   LIMIT {Math.ceil(terrainRenderer.gpu_budget_bytes / 1024)} KIB
                 </span>
               ) : null}
+              {terrainRenderer.parity_samples > 0 ? (
+                <span data-terrain-parity={terrainRenderer.parity_revision}>
+                  PARITY / {terrainRenderer.parity_samples} CPU-BOUND SAMPLES
+                </span>
+              ) : null}
             </>
           ) : null}
         </div>

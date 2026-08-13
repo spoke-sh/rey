@@ -32,6 +32,8 @@ import type { GlobeCameraView } from "../engine/camera";
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
 export const MAX_ACCELERATED_TERRAIN_GPU_BYTES = 64 * 1024 * 1024;
+export const TERRAIN_MESH_PARITY_REVISION =
+  "rey.terrain.cpu-mesh-upload-parity@1";
 
 export interface ThreeTerrainBundle {
   scene: Object3D;
@@ -44,6 +46,8 @@ export interface ThreeTerrainBundle {
     field_bytes: number;
     gpu_bytes: number;
     gpu_budget_bytes: number;
+    parity_revision: string;
+    parity_samples: number;
   };
   updateView?(view: TerrainCameraView): void;
   updateGlobeView?(view: GlobeCameraView): void;
@@ -70,6 +74,64 @@ export function terrainMeshByteLength(mesh: TerrainMeshData): number {
     mesh.curvature.byteLength +
     mesh.indices.byteLength
   );
+}
+
+export function verifyTerrainMeshParity(
+  fields: TerrainFieldSet,
+  mesh: TerrainMeshData,
+): number {
+  if (
+    mesh.positions.length !== fields.field_cells * 3 ||
+    mesh.normals.length !== fields.field_cells * 3 ||
+    mesh.tint.length !== fields.field_cells * 3 ||
+    mesh.occlusion.length !== fields.field_cells ||
+    mesh.roughness.length !== fields.field_cells ||
+    mesh.curvature.length !== fields.field_cells
+  )
+    throw new Error("accelerated terrain mesh shape diverges from CPU fields");
+  for (let row = 0; row < fields.grid.rows; row += 1) {
+    for (let column = 0; column < fields.grid.columns; column += 1) {
+      const index = row * fields.grid.columns + column;
+      const offset = index * 3;
+      const point = fieldPoint(fields.grid, column, row);
+      const expected = [
+        point.x,
+        fields.elevation.values[index]! * fields.elevation_scale,
+        point.y,
+        fields.normal.values[offset]!,
+        fields.normal.values[offset + 2]!,
+        fields.normal.values[offset + 1]!,
+        fields.material.tint[offset]!,
+        fields.material.tint[offset + 1]!,
+        fields.material.tint[offset + 2]!,
+        fields.material.occlusion[index]!,
+        fields.material.roughness[index]!,
+        fields.curvature.values[index]!,
+      ].map(Math.fround);
+      const actual = [
+        mesh.positions[offset],
+        mesh.positions[offset + 1],
+        mesh.positions[offset + 2],
+        mesh.normals[offset],
+        mesh.normals[offset + 1],
+        mesh.normals[offset + 2],
+        mesh.tint[offset],
+        mesh.tint[offset + 1],
+        mesh.tint[offset + 2],
+        mesh.occlusion[index],
+        mesh.roughness[index],
+        mesh.curvature[index],
+      ];
+      if (actual.some((value, component) => value !== expected[component]))
+        throw new Error(
+          `accelerated terrain mesh diverges from CPU fields at sample ${index}`,
+        );
+    }
+  }
+  for (const index of mesh.indices)
+    if (fields.validity.values[index] === 0)
+      throw new Error("accelerated terrain mesh indexes invalid CPU support");
+  return fields.field_cells;
 }
 
 export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
@@ -118,10 +180,10 @@ export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
   return {
     positions,
     normals,
-    tint: fields.material.tint,
-    occlusion: fields.material.occlusion,
-    roughness: fields.material.roughness,
-    curvature: fields.curvature.values,
+    tint: fields.material.tint.slice(),
+    occlusion: fields.material.occlusion.slice(),
+    roughness: fields.material.roughness.slice(),
+    curvature: fields.curvature.values.slice(),
     indices: Uint32Array.from(indices),
   };
 }
@@ -135,6 +197,11 @@ export function createContinuousReliefBundle(
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
     throw new Error("accelerated terrain GPU budget is invalid");
   const meshData = fields.map(buildTerrainMeshData);
+  const paritySamples = fields.reduce(
+    (total, fieldSet, index) =>
+      total + verifyTerrainMeshParity(fieldSet, meshData[index]!),
+    0,
+  );
   const gpuBytes = meshData.reduce(
     (total, data) => total + terrainMeshByteLength(data),
     0,
@@ -220,6 +287,8 @@ export function createContinuousReliefBundle(
       field_bytes: fieldBytes,
       gpu_bytes: gpuBytes,
       gpu_budget_bytes: gpuBudgetBytes,
+      parity_revision: TERRAIN_MESH_PARITY_REVISION,
+      parity_samples: paritySamples,
     }),
     updateView(nextView) {
       updateTerrainCamera(camera, world, nextView);

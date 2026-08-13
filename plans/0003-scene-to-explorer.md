@@ -193,8 +193,11 @@ remain open.
   maximum GPU bytes in Explorer diagnostics.
 - [ ] Retain GPU residency and upload measurements with named backend
   qualification voyages.
-- [ ] Qualify GPU height/normal/material evaluation against deterministic CPU
-  reference samples.
+- [x] Qualify every accelerated height/normal/material upload sample against
+  deterministic CPU fields before allocation and isolate upload arrays from
+  the immutable reference buffers.
+- [ ] Retain real-backend rendered-output parity captures; the current GPU
+  consumes qualified CPU fields and does not independently assess evidence.
 - [x] Preserve the visible reference renderer through initialization failure,
   WebGL context loss, and asynchronous WebGPU device loss; retain real-backend
   loss captures with the named qualification voyages.
