@@ -93,7 +93,6 @@ export const environmentStyles = stylex.create({
     justifyContent: "center",
     width: 38,
   },
-  wordmarkText: { display: "grid" },
   wordmarkStrong: {
     fontFamily: display,
     fontSize: "1.1rem",
@@ -106,10 +105,6 @@ export const environmentStyles = stylex.create({
     fontSize: "0.59rem",
     letterSpacing: "0.11em",
     textTransform: "uppercase",
-  },
-  wordmarkSmall: {
-    color: "var(--muted)",
-    marginTop: 4,
   },
   primaryNav: {
     alignItems: "stretch",

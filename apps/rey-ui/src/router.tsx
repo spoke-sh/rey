@@ -256,12 +256,7 @@ function RootLayout() {
         >
           <Link className={sx(styles.focusable, styles.wordmark)} to="/explore">
             <span className={sx(styles.wordmarkMark)}>R</span>
-            <span className={sx(styles.wordmarkText)}>
-              <strong className={sx(styles.wordmarkStrong)}>REY</strong>
-              <small className={sx(styles.micro, styles.wordmarkSmall)}>
-                DIFF-DIRECTED RUNTIME
-              </small>
-            </span>
+            <strong className={sx(styles.wordmarkStrong)}>REY</strong>
           </Link>
           <nav
             aria-label="Primary navigation"

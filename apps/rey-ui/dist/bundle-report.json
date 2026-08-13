@@ -19,7 +19,7 @@
       ]
     },
     {
-      "bytes": 233819,
+      "bytes": 233566,
       "dynamic_entry": false,
       "dynamic_imports": [
         "assets/agents.js",
