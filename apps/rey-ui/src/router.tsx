@@ -113,13 +113,20 @@ export function normalizeFeedSearch(search: Record<string, unknown>): {
 
 export function normalizeExplorerSearch(search: Record<string, unknown>): {
   coordinate?: string;
+  renderer?: "reference" | "webgl2" | "webgpu";
   scale?: string;
 } {
   const coordinate = search.coordinate;
+  const renderer = search.renderer;
   const scale = search.scale;
   return {
     ...(typeof coordinate === "string" && coordinate.length <= 4_096
       ? { coordinate }
+      : {}),
+    ...(renderer === "reference" ||
+    renderer === "webgl2" ||
+    renderer === "webgpu"
+      ? { renderer }
       : {}),
     ...(typeof scale === "string" && scale.length <= 64 ? { scale } : {}),
   };

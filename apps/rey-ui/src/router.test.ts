@@ -152,12 +152,15 @@ describe("operator routes", () => {
       normalizeExplorerSearch({
         coordinate:
           "rey+local://agent/codex?revision=gpt-5&role=coding_harness",
+        renderer: "webgl2",
         scale: "1.46",
       }),
     ).toEqual({
       coordinate: "rey+local://agent/codex?revision=gpt-5&role=coding_harness",
+      renderer: "webgl2",
       scale: "1.46",
     });
+    expect(normalizeExplorerSearch({ renderer: "unknown" })).toEqual({});
   });
 });
 

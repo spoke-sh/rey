@@ -349,6 +349,9 @@ preserves scene semantics and visible degradation when acceleration is
 unavailable. `?renderer=webgpu`, `?renderer=webgl2`, and
 `?renderer=reference` are view-envelope qualification controls; they do not
 change evidence or execute a probe.
+The router retains only those three declared values in the view envelope;
+unknown backend requests are discarded rather than becoming an untyped
+qualification mode.
 The production build emits stable lazy chunk names for the globe, terrain,
 WebGPU adapter, and pinned Three.js module, and the `rey ui` server embeds and
 serves each chunk. Starting the documented CLI surface therefore reaches the
