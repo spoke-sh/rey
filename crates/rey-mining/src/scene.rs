@@ -8,6 +8,7 @@ use crate::{ExplorerGrammar, ExplorerGrammarError};
 
 pub const ADMITTED_REGIONAL_SCENE_SCHEMA: &str = "rey.admitted-regional-scene.v1";
 pub const REGIONAL_PROJECTION_PACKET_SCHEMA: &str = "rey.regional-projection-packet.v1";
+pub const REGIONAL_TERRAIN_PROGRAM_SCHEMA: &str = "rey.regional-terrain-program.v1";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -67,6 +68,7 @@ pub struct RegionalTransform {
 #[serde(rename_all = "snake_case")]
 pub enum RegionalLayerKind {
     NativeFeature,
+    Terrain,
     TerrainControl,
     Hydrology,
     Boundary,
@@ -81,6 +83,80 @@ pub enum RegionalLayerKind {
     Beacon,
     Construction,
     Connector,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegionalTerrainSample {
+    pub sample_id: SemanticDigest,
+    pub source_object_id: String,
+    pub source_artifact_id: SemanticDigest,
+    pub source_object_revision: SemanticDigest,
+    pub position: [i64; 3],
+    pub material: String,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegionalTerrainProgram {
+    pub schema: String,
+    pub program_id: SemanticDigest,
+    pub evaluator: ContractIdentity,
+    pub samples: Vec<RegionalTerrainSample>,
+    pub height_unit: String,
+    pub interpolation: String,
+    pub material_semantics: String,
+    pub authority: String,
+}
+
+impl RegionalTerrainProgram {
+    pub fn finalize(mut self) -> Result<Self, RegionalSceneError> {
+        self.program_id = regional_terrain_program_digest(&self)?;
+        self.verify()?;
+        Ok(self)
+    }
+
+    pub fn verify(&self) -> Result<(), RegionalSceneError> {
+        if self.schema != REGIONAL_TERRAIN_PROGRAM_SCHEMA
+            || self.samples.is_empty()
+            || !self
+                .samples
+                .windows(2)
+                .all(|pair| pair[0].sample_id < pair[1].sample_id)
+            || self.height_unit != "micrometer"
+            || self.interpolation != "none; exact admitted samples only"
+            || self.material_semantics
+                != "source-declared bounded material identifier; no inferred physical properties"
+            || self.authority
+                != "qualified exact height/material samples; no interpolated terrain coverage"
+            || self.program_id != regional_terrain_program_digest(self)?
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        unique(
+            self.samples.iter().map(|sample| sample.sample_id.as_str()),
+            "terrain sample",
+        )?;
+        for sample in &self.samples {
+            validate_identifier_path(&sample.source_object_id)?;
+            if !(-180_000_000..=180_000_000).contains(&sample.position[0])
+                || !(-90_000_000..=90_000_000).contains(&sample.position[1])
+                || !(-12_000_000_000..=100_000_000_000).contains(&sample.position[2])
+                || sample.material.is_empty()
+                || sample.material.chars().count() > 64
+                || !sample.material.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+                })
+                || sample.authority
+                    != "exact admitted Point altitude and material property; valid only at this source coordinate"
+                || sample.sample_id != regional_terrain_sample_digest(sample)?
+            {
+                return Err(RegionalSceneError::TerrainAuthority);
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -258,6 +334,8 @@ pub struct RegionalProjectionPacket {
     pub footprint: Option<RegionalFootprint>,
     pub layers: Vec<RegionalLayer>,
     pub validity: Vec<RegionalValidity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain: Option<RegionalTerrainProgram>,
     pub terrain_program_id: Option<SemanticDigest>,
     pub limits: RegionalSceneLimits,
     pub complete: bool,
@@ -333,6 +411,12 @@ impl AdmittedRegionalScene {
         if self.artifacts.terrain_program_id.is_none()
             && self.artifacts.terrain_authority
                 != "none; candidate-only terrain controls were not copied into observed terrain truth"
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        if self.artifacts.terrain_program_id.is_some()
+            && self.artifacts.terrain_authority
+                != "qualified exact height/material samples; interpolation and terrain coverage remain absent"
         {
             return Err(RegionalSceneError::TerrainAuthority);
         }
@@ -500,6 +584,35 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
             return Err(RegionalSceneError::Footprint);
         }
     }
+    if packet.terrain.as_ref().map(|terrain| &terrain.program_id)
+        != packet.terrain_program_id.as_ref()
+    {
+        return Err(RegionalSceneError::TerrainAuthority);
+    }
+    if let Some(terrain) = &packet.terrain {
+        terrain.verify()?;
+        if terrain.samples.len() as u64 > packet.limits.max_native_objects
+            || terrain.samples.iter().any(|sample| {
+                packet
+                    .objects
+                    .iter()
+                    .find(|object| {
+                        object.object_id == sample.source_object_id
+                            && object.layer == RegionalLayerKind::Terrain
+                            && object.geometry_kind == "Point"
+                            && object.source_artifact_id == sample.source_artifact_id
+                            && object.object_revision == sample.source_object_revision
+                            && object.native_bounds.west_microdegrees == sample.position[0]
+                            && object.native_bounds.east_microdegrees == sample.position[0]
+                            && object.native_bounds.south_microdegrees == sample.position[1]
+                            && object.native_bounds.north_microdegrees == sample.position[1]
+                    })
+                    .is_none()
+            })
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+    }
     for layer in &packet.layers {
         if !layer.object_ids.windows(2).all(|pair| pair[0] < pair[1])
             || layer
@@ -515,9 +628,22 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
         {
             return Err(RegionalSceneError::TerrainAuthority);
         }
+        if layer.kind == RegionalLayerKind::Terrain
+            && layer.authority
+                != "qualified exact height/material samples; no interpolated terrain coverage"
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
     }
     if packet.terrain_program_id.is_none()
         && !packet.validity.iter().any(|record| {
+            record.class == RegionalValidityClass::Unsupported && record.scope == "terrain_height"
+        })
+    {
+        return Err(RegionalSceneError::TerrainAuthority);
+    }
+    if packet.terrain_program_id.is_some()
+        && packet.validity.iter().any(|record| {
             record.class == RegionalValidityClass::Unsupported && record.scope == "terrain_height"
         })
     {
@@ -589,6 +715,33 @@ fn regional_footprint_digest(
     let mut normalized = footprint.clone();
     normalized.footprint_id = placeholder_digest();
     let mut hasher = SemanticHasher::new("rey.regional-footprint.v1");
+    hasher.add_bytes(&serde_json::to_vec(&normalized)?);
+    Ok(hasher.finish())
+}
+
+pub fn finalize_regional_terrain_sample(
+    mut sample: RegionalTerrainSample,
+) -> Result<RegionalTerrainSample, RegionalSceneError> {
+    sample.sample_id = regional_terrain_sample_digest(&sample)?;
+    Ok(sample)
+}
+
+fn regional_terrain_sample_digest(
+    sample: &RegionalTerrainSample,
+) -> Result<SemanticDigest, RegionalSceneError> {
+    let mut normalized = sample.clone();
+    normalized.sample_id = placeholder_digest();
+    let mut hasher = SemanticHasher::new("rey.regional-terrain-sample.v1");
+    hasher.add_bytes(&serde_json::to_vec(&normalized)?);
+    Ok(hasher.finish())
+}
+
+fn regional_terrain_program_digest(
+    program: &RegionalTerrainProgram,
+) -> Result<SemanticDigest, RegionalSceneError> {
+    let mut normalized = program.clone();
+    normalized.program_id = placeholder_digest();
+    let mut hasher = SemanticHasher::new(REGIONAL_TERRAIN_PROGRAM_SCHEMA);
     hasher.add_bytes(&serde_json::to_vec(&normalized)?);
     Ok(hasher.finish())
 }
@@ -852,6 +1005,7 @@ mod tests {
                 source_revision: snapshot.clone(),
             }],
             validity: vec![unsupported],
+            terrain: None,
             terrain_program_id: None,
             limits: RegionalSceneLimits::default(),
             complete: false,

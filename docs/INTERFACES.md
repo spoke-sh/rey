@@ -486,10 +486,10 @@ fixture from counterfeiting a topography patch, retained atlas revision, or
 terrain program; accepted production retention fills and cross-verifies the
 atlas binding.
 The source declaration admits only the explicit `features`, `markers`,
-`terrain_control`, `hydrology`, `boundary`, `highway`, `road`, `district`,
+`terrain`, `terrain_control`, `hydrology`, `boundary`, `highway`, `road`, `district`,
 `lot`, `structure`, `utility`, `label`, `beacon`, `construction`, and
 `connector` roles. The projection packet preserves these as independent
-native-feature, POI, terrain-control, hydrology, boundary, highway, road,
+native-feature, POI, terrain, terrain-control, hydrology, boundary, highway, road,
 district, lot, structure, utility, label, beacon, construction, and connector
 layer kinds. No path, geometry, style, or visual proximity can infer or change
 the kind. Terrain-control authority explicitly excludes observed height,
@@ -1314,7 +1314,7 @@ All editor commands accept `--format table|json` (and terminal-sensitive
 writes a workspace `rey.scene.json` and exposes no project-path override.
 Declared native inputs remain bounded, regular, non-symlinked, and contained
 by the workspace. `source add` verifies and registers an existing RFC 7946
-GeoJSON path in WORKING under one explicit feature, marker/POI,
+GeoJSON path in WORKING under one explicit feature, marker/POI, terrain,
 terrain-control, hydrology, boundary, highway, road, district, lot, structure,
 utility, label, beacon, construction, or connector role. It rejects path/role
 rebinding and writes only the canonical internal project declaration; it does
@@ -1367,6 +1367,17 @@ post-generation agent edits are retained by the source digest and scene delta,
 not folded back into an invented recipe. Generated effect values are candidate
 hints and gain no admission authority. See [Context Topology
 Explorer](EXPLORER.md).
+
+A `terrain` source is deliberately narrower than `terrain_control`. Each
+feature must be a Point with `[longitude, latitude, elevation_meters]` and a
+bounded ASCII `material` property. Editor INDEX and the admission candidate
+retain the exact parsed micrometer elevation/material beside the feature and
+source revisions. Admission re-parses the frozen native bytes and rejects any
+index disagreement. A successful packet embeds
+`rey.regional-terrain-program.v1`, whose samples bind object, artifact, object
+revision, exact three-dimensional position, material, evaluator, units, and
+authority. Its interpolation is exactly `none`; validity ends at the sample
+coordinate. Candidate terrain controls never enter that program.
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 three full-width stacked evidence sections: directed variable text, bounded

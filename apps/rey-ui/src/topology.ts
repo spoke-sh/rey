@@ -944,7 +944,10 @@ function buildRegionalCounty(
     const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
     const screen = projectCountyLocal(countyFrame, local, frameView);
     const width = countyObjectWidth(bounds, object.native_bounds, world);
-    const exactDetail = `${object.layer.replaceAll("_", " ")} · ${object.geometry_kind} · ${object.source_path} · ${shortCoordinate(object.object_revision)}`;
+    const terrainSample = scene.projection.terrain?.samples.find(
+      (sample) => sample.source_object_id === object.object_id,
+    );
+    const exactDetail = `${object.layer.replaceAll("_", " ")} · ${object.geometry_kind} · ${object.source_path} · ${shortCoordinate(object.object_revision)}${terrainSample ? ` · ${terrainSample.position[2]}µm · ${terrainSample.material}` : ""}`;
     return {
       ...node(
         `regional-object:${object.object_id}`,
@@ -973,7 +976,7 @@ function buildRegionalCounty(
   const copyByRegime: Record<LensRegime, readonly [string, string]> = {
     landscape: [
       "ADMITTED COUNTY",
-      `${scene.region_id} · exact admitted footprint · terrain height unsupported`,
+      `${scene.region_id} · exact admitted footprint · ${scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
     ],
     neighborhoods: [
       "COUNTY NEIGHBORHOODS",
@@ -1116,6 +1119,7 @@ function regionalLongitudeOffset(
 function regionalLayerTone(
   layer: AdmittedRegionalProjection["scene"]["projection"]["objects"][number]["layer"],
 ): TopologyTone {
+  if (layer === "terrain") return "healthy";
   if (["hydrology", "highway", "road", "connector"].includes(layer))
     return "accent";
   if (["boundary", "district", "lot"].includes(layer)) return "neutral";

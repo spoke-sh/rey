@@ -154,6 +154,7 @@ pub struct SemanticAtlasRegionalSource {
     pub complete: bool,
     pub native_objects: u64,
     pub native_feature_objects: u64,
+    pub terrain_objects: u64,
     pub terrain_control_objects: u64,
     pub hydrology_objects: u64,
     pub boundary_objects: u64,
@@ -216,6 +217,7 @@ impl SemanticAtlasRegionalSource {
             complete: scene.complete,
             native_objects: scene.projection.objects.len() as u64,
             native_feature_objects: count(RegionalLayerKind::NativeFeature),
+            terrain_objects: count(RegionalLayerKind::Terrain),
             terrain_control_objects: count(RegionalLayerKind::TerrainControl),
             hydrology_objects: count(RegionalLayerKind::Hydrology),
             boundary_objects: count(RegionalLayerKind::Boundary),
@@ -246,7 +248,10 @@ impl SemanticAtlasRegionalSource {
         [
             10_000,
             ratio(self.native_feature_objects),
-            ratio(self.terrain_control_objects),
+            ratio(
+                self.terrain_objects
+                    .saturating_add(self.terrain_control_objects),
+            ),
             ratio(self.hydrology_objects),
             ratio(self.boundary_objects),
             ratio(self.poi_objects),
@@ -542,6 +547,7 @@ impl SemanticAtlas {
                 || source.projection_packet_id.as_str().is_empty()
                 || source
                     .native_feature_objects
+                    .saturating_add(source.terrain_objects)
                     .saturating_add(source.terrain_control_objects)
                     .saturating_add(source.hydrology_objects)
                     .saturating_add(source.boundary_objects)
@@ -1656,6 +1662,7 @@ fn dominant_layout_feature(features: Vec<&str>) -> String {
 fn regional_dominant_feature(source: &SemanticAtlasRegionalSource) -> String {
     [
         ("native_feature", source.native_feature_objects),
+        ("terrain", source.terrain_objects),
         ("terrain_control", source.terrain_control_objects),
         ("hydrology", source.hydrology_objects),
         ("boundary", source.boundary_objects),
@@ -1940,6 +1947,7 @@ mod tests {
             complete: false,
             native_objects: 3,
             native_feature_objects: 1,
+            terrain_objects: 0,
             terrain_control_objects: 1,
             hydrology_objects: 0,
             boundary_objects: 0,

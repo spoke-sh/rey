@@ -159,7 +159,7 @@ native survey files → editor WORKING → INDEX → candidate package
 
 The first adapter accepts only geographic RFC 7946 GeoJSON in OGC CRS84. It
 indexes explicit features and marker POIs while preserving native bytes. An
-editor source may explicitly declare `features`, `markers`, `terrain_control`,
+editor source may explicitly declare `features`, `markers`, `terrain`, `terrain_control`,
 `hydrology`, `boundary`, `highway`, `road`, `district`, `lot`, `structure`,
 `utility`, `label`, `beacon`, `construction`, or `connector`; admission keeps
 that role as an independently typed native object/layer and Explorer renders
@@ -167,6 +167,10 @@ the retained kind without guessing from geometry, path, or appearance.
 `rey editor source add INPUT.geojson --id SOURCE --role ROLE` is the CLI-first
 registration path; its verified WORKING change remains reviewable through
 `status` and `diff`, and only `add`/`commit` can freeze it for later admission.
+The distinct `terrain` role requires Point geometry, an exact third-coordinate
+altitude, and a bounded `material` property. Admission retains those values as
+exact point-valid samples; County shows their height/material identity but does
+not generate a continuous surface. `terrain_control` remains candidate-only.
 GeoJSON coordinates cannot stand in for an unbound high-dimensional semantic
 chart, and line features do not become paths or source relationships. Detailed
 raster terrain and provider-qualified semantic chart formats require separate

@@ -25,6 +25,7 @@ const regionalAtlas = {
       complete: true,
       native_objects: 1,
       native_feature_objects: 0,
+      terrain_objects: 0,
       terrain_control_objects: 1,
       hydrology_objects: 0,
       boundary_objects: 0,

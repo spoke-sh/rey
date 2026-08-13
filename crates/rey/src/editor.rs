@@ -84,6 +84,7 @@ impl SceneCoordinateSystem {
 pub enum SceneSourceRole {
     Features,
     Markers,
+    Terrain,
     TerrainControl,
     Hydrology,
     Boundary,
@@ -105,6 +106,7 @@ impl SceneSourceRole {
         match self {
             Self::Features => "features",
             Self::Markers => "markers",
+            Self::Terrain => "terrain",
             Self::TerrainControl => "terrain_control",
             Self::Hydrology => "hydrology",
             Self::Boundary => "boundary",
@@ -308,6 +310,17 @@ pub struct SceneFeatureIndex {
     pub properties_digest: SemanticDigest,
     pub feature_revision: SemanticDigest,
     pub marker: Option<SceneMarkerIndex>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terrain_sample: Option<SceneTerrainSample>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTerrainSample {
+    pub longitude_microdegrees: i64,
+    pub latitude_microdegrees: i64,
+    pub elevation_micrometers: i64,
+    pub material: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1303,6 +1316,14 @@ impl LocalEditorStore {
                 coordinate_count: feature.coordinate_count,
                 properties_digest: feature.properties_digest.clone(),
                 feature_revision: feature.feature_revision.clone(),
+                terrain_sample: feature.terrain_sample.as_ref().map(|sample| {
+                    rey_runtime::SceneAdmissionTerrainSample {
+                        longitude_microdegrees: sample.longitude_microdegrees,
+                        latitude_microdegrees: sample.latitude_microdegrees,
+                        elevation_micrometers: sample.elevation_micrometers,
+                        material: sample.material.clone(),
+                    }
+                }),
             })
             .collect();
         SceneAdmissionCandidate {
@@ -2048,6 +2069,13 @@ fn parse_geojson(
         } else {
             None
         };
+        let terrain_sample = terrain_sample(
+            role,
+            &source_feature_id,
+            geometry,
+            &geometry_summary.kind,
+            properties,
+        )?;
         let feature_id = format!("{source_id}/{source_feature_id}");
         let feature_bytes = serde_json::to_vec(feature)?;
         let feature_revision = feature_identity(source_id, role, &feature_bytes);
@@ -2069,6 +2097,7 @@ fn parse_geojson(
             properties_digest,
             feature_revision,
             marker,
+            terrain_sample,
         });
     }
     features.sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
@@ -2077,6 +2106,61 @@ fn parse_geojson(
         coordinate_count: source_coordinates,
         bounds: source_bounds,
     })
+}
+
+fn terrain_sample(
+    role: SceneSourceRole,
+    feature_id: &str,
+    geometry: &serde_json::Map<String, Value>,
+    geometry_kind: &str,
+    properties: &serde_json::Map<String, Value>,
+) -> Result<Option<SceneTerrainSample>, EditorError> {
+    if role != SceneSourceRole::Terrain {
+        return Ok(None);
+    }
+    if geometry_kind != "Point" {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} requires Point geometry"
+        )));
+    }
+    let coordinates = geometry
+        .get("coordinates")
+        .and_then(Value::as_array)
+        .ok_or_else(|| EditorError::TerrainSample(feature_id.to_owned()))?;
+    if coordinates.len() != 3 {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} requires longitude, latitude, and elevation"
+        )));
+    }
+    let longitude = finite_number(&coordinates[0])?;
+    let latitude = finite_number(&coordinates[1])?;
+    let elevation = finite_number(&coordinates[2])?;
+    if !(-12_000.0..=100_000.0).contains(&elevation) {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} elevation is outside -12000..=100000 meters"
+        )));
+    }
+    let material = properties
+        .get("material")
+        .and_then(Value::as_str)
+        .filter(|material| {
+            !material.is_empty()
+                && material.chars().count() <= 64
+                && material.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+                })
+        })
+        .ok_or_else(|| {
+            EditorError::TerrainSample(format!(
+                "{feature_id} requires a bounded material identifier"
+            ))
+        })?;
+    Ok(Some(SceneTerrainSample {
+        longitude_microdegrees: (longitude * 1_000_000.0).round() as i64,
+        latitude_microdegrees: (latitude * 1_000_000.0).round() as i64,
+        elevation_micrometers: (elevation * 1_000_000.0).round() as i64,
+        material: material.to_owned(),
+    }))
 }
 
 #[derive(Debug, Default)]
@@ -2904,6 +2988,8 @@ pub enum EditorError {
     GeoJsonProperties(String),
     #[error("GeoJSON Feature has no admitted geometry: {0}")]
     MissingGeometry(String),
+    #[error("qualified terrain sample is invalid: {0}")]
+    TerrainSample(String),
     #[error("unsupported GeoJSON geometry type: {0}")]
     GeometryType(String),
     #[error("GeoJSON {kind} requires at least {minimum} positions, found {actual}")]
@@ -3020,6 +3106,7 @@ mod tests {
         for (role, label) in [
             (SceneSourceRole::Features, "features"),
             (SceneSourceRole::Markers, "markers"),
+            (SceneSourceRole::Terrain, "terrain"),
             (SceneSourceRole::TerrainControl, "terrain_control"),
             (SceneSourceRole::Hydrology, "hydrology"),
             (SceneSourceRole::Boundary, "boundary"),
@@ -3149,6 +3236,51 @@ mod tests {
                 Err(super::EditorError::UnsafePath(_))
             ));
         }
+    }
+
+    #[test]
+    fn qualified_terrain_requires_exact_point_altitude_and_material() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        fs::write(
+            workspace.path().join("terrain.geojson"),
+            r#"{"type":"Feature","id":"summit","properties":{"material":"granite"},"geometry":{"type":"Point","coordinates":[-122.5,37.5,153.25]}}"#,
+        )
+        .unwrap();
+        let added = store
+            .add_source(
+                std::path::Path::new("terrain.geojson"),
+                Some("county-demo".to_owned()),
+                "terrain-samples".to_owned(),
+                SceneSourceRole::Terrain,
+            )
+            .unwrap();
+        assert_eq!(added.feature_count, 1);
+        let snapshot = store.add().unwrap().snapshot;
+        assert_eq!(
+            snapshot.features[0].terrain_sample,
+            Some(super::SceneTerrainSample {
+                longitude_microdegrees: -122_500_000,
+                latitude_microdegrees: 37_500_000,
+                elevation_micrometers: 153_250_000,
+                material: "granite".to_owned(),
+            })
+        );
+
+        fs::write(
+            workspace.path().join("invalid.geojson"),
+            r#"{"type":"Feature","id":"unknown","properties":{},"geometry":{"type":"Point","coordinates":[-122.5,37.5]}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            store.add_source(
+                std::path::Path::new("invalid.geojson"),
+                None,
+                "invalid-terrain".to_owned(),
+                SceneSourceRole::Terrain,
+            ),
+            Err(super::EditorError::TerrainSample(_))
+        ));
     }
 
     fn declare_geojson_source(

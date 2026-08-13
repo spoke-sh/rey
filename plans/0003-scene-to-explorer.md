@@ -159,7 +159,7 @@ render-graph completion, clipmap reuse, and retained visual/performance proof re
 - [x] Preserve independently typed hydrology, boundary, highway, road,
   district, lot, structure, utility, POI, label, beacon, construction, and
   connector layers only from explicit admitted source roles.
-- [ ] Admit independently qualified regional terrain height/material evidence;
+- [x] Admit independently qualified regional terrain height/material evidence;
   terrain controls remain candidate-only geometry.
 - [x] Deep-link every selected object to its native source, admission result,
   revision, delta, validity, limits, omissions, and lineage.

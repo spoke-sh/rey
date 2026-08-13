@@ -32,7 +32,7 @@ Rey separates ten responsibilities:
    The implemented survey slice uses `rey-locator` bindings and emits retained
    topography patches; browser projections never become a resolver.
 4. **Scene-editor candidate plane** — agents, surveys, and eventually humans
-   assemble bounded native feature, marker/POI, terrain-control, hydrology,
+   assemble bounded native feature, marker/POI, exact terrain-sample, terrain-control, hydrology,
    boundary, highway, road, district, lot, structure, utility, label, beacon,
    construction, and connector artifacts into reviewable INDEX state and
    linear `SCENE@n` commits with
@@ -209,11 +209,14 @@ the operator selects an exact admitted regional identity with that footprint.
 The selected footprint's native rings become the County fabric and validity
 boundary under the revision-bound County-local frame; the envelope remains only
 a frame bound and physical-distance claims remain absent. Explicit admitted
-source roles remain separate County layers for native features, terrain
-controls, hydrology, boundaries, highways, roads, districts, lots, structures,
+source roles remain separate County layers for native features, qualified
+terrain samples, terrain controls, hydrology, boundaries, highways, roads, districts, lots, structures,
 utilities, POIs, labels, beacons, construction, and connectors. The role is
 source-declared and admission-bound; shape, path, or styling never reclassifies
-an object. Terrain controls remain candidate geometry, not qualified terrain.
+an object. A `terrain` source admits only Point positions with exact altitude
+and a bounded material identifier. Those samples remain point-valid with no
+interpolation or coverage expansion. Terrain controls remain candidate
+geometry, not qualified terrain.
 At Object and Evidence lenses each regional object links by workload, exact
 scene identity, and object revision to one read-only evidence route. That route
 projects its source path/artifact, admission, typed layer, validity, native

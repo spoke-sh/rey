@@ -327,7 +327,7 @@ limit, and replay contracts are qualified.
 implements its deterministic bounded admission operation.
 `rey.admitted-regional-scene.v1` binds exact editor and
 workload lineage, native objects, five distinct coordinate planes, transforms,
-independently typed native-feature, terrain-control, hydrology, boundary,
+independently typed native-feature, terrain, terrain-control, hydrology, boundary,
 highway, road, district, lot, structure, utility, POI, label, beacon,
 construction, and connector layers, validity/no-data, and an optional content-identified County
 footprint. A footprint exists only when one admitted boundary Polygon matches
@@ -336,9 +336,14 @@ bounded closed native rings. Missing or ambiguous boundary geometry remains an
 explicit omission rather than an inferred envelope polygon. This evidence is
 carried by the embedded `rey.regional-projection-packet.v1`. Topography, atlas,
 projection, and terrain
-identities remain separate; an absent qualified terrain adapter forces an
-absent terrain program and explicit unsupported height validity. A
-terrain-control layer therefore remains candidate control geometry and cannot
+identities remain separate. The qualified `terrain` adapter admits only exact
+RFC 7946 Point positions with a third-coordinate altitude in meters and a
+bounded `material` property. `rey.regional-terrain-program.v1` content-identifies
+the resulting source-bound height/material samples in micrometers and declares
+`none; exact admitted samples only` interpolation; it does not claim a
+continuous field, material physics, or coverage. Without those samples the
+program remains absent and height validity remains explicitly unsupported. A
+terrain-control layer remains candidate control geometry and cannot
 be interpreted as observed terrain. Layer kinds come only from explicit source
 roles retained through the admitted object and layer records; geometry and
 filenames do not infer a kind. The separate

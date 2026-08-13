@@ -251,6 +251,11 @@ reusing its path under another ID is rejected rather than silently rebound.
 The human receipt exposes the exact content revision, bytes, feature/coordinate
 coverage, native bounds, and candidate-only authority. It does not copy,
 rewrite, stage, commit, admit, or fetch the source.
+For `--role terrain`, each feature must be a Point with longitude, latitude,
+and elevation in meters plus a bounded `material` property. The receipt and
+later `-vv` admission evidence retain exact content/object revisions; an
+accepted scene prints `TERRAIN` with its program, evaluator, micrometer samples,
+materials, and no-interpolation authority. `terrain_control` does not qualify.
 
 `generate terrain` deterministically creates or updates an owned native
 GeoJSON terrain-control source and bootstraps `.rey/editor/project.json` when

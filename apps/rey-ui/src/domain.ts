@@ -161,6 +161,24 @@ export interface RegionalProjectionPacket {
     source_revision: string;
     rule: string;
   }>;
+  terrain?: {
+    schema: "rey.regional-terrain-program.v1";
+    program_id: string;
+    evaluator: ContractIdentity;
+    samples: Array<{
+      sample_id: string;
+      source_object_id: string;
+      source_artifact_id: string;
+      source_object_revision: string;
+      position: [number, number, number];
+      material: string;
+      authority: string;
+    }>;
+    height_unit: "micrometer";
+    interpolation: string;
+    material_semantics: string;
+    authority: string;
+  };
   terrain_program_id: string | null;
   limits: {
     max_sources: number;
@@ -179,6 +197,7 @@ export interface RegionalProjectionPacket {
 
 export type RegionalLayerKind =
   | "native_feature"
+  | "terrain"
   | "terrain_control"
   | "hydrology"
   | "boundary"
@@ -436,6 +455,7 @@ export interface SemanticAtlasRegionalSource {
   complete: boolean;
   native_objects: number;
   native_feature_objects: number;
+  terrain_objects: number;
   terrain_control_objects: number;
   hydrology_objects: number;
   boundary_objects: number;

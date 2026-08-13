@@ -647,6 +647,107 @@ describe("regional scene topology projection", () => {
     ).toBe(true);
   });
 
+  it("retains qualified exact terrain samples without interpolating a surface", () => {
+    const terrainPortfolio = structuredClone(regionalPortfolio);
+    const scene = terrainPortfolio.workloads[0]!.latest_scene_admission!.scene!;
+    scene.artifacts.terrain_program_id = "terrain-program:1";
+    scene.artifacts.terrain_authority =
+      "qualified exact height/material samples; interpolation and terrain coverage remain absent";
+    scene.omissions = [];
+    scene.projection.terrain_program_id = "terrain-program:1";
+    scene.projection.terrain = {
+      schema: "rey.regional-terrain-program.v1",
+      program_id: "terrain-program:1",
+      evaluator: contract(
+        "rey.regional-terrain.exact-samples",
+        "terrain-evaluator:1",
+      ),
+      samples: [
+        {
+          sample_id: "terrain-sample:1",
+          source_object_id: "summit",
+          source_artifact_id: "artifact:terrain",
+          source_object_revision: "object:terrain",
+          position: [-122_500_000, 37_500_000, 153_250_000],
+          material: "granite",
+          authority:
+            "exact admitted Point altitude and material property; valid only at this source coordinate",
+        },
+      ],
+      height_unit: "micrometer",
+      interpolation: "none; exact admitted samples only",
+      material_semantics:
+        "source-declared bounded material identifier; no inferred physical properties",
+      authority:
+        "qualified exact height/material samples; no interpolated terrain coverage",
+    };
+    scene.projection.objects.push({
+      object_id: "summit",
+      source_id: "terrain-samples",
+      source_path: "terrain.geojson",
+      source_artifact_id: "artifact:terrain",
+      object_revision: "object:terrain",
+      geometry_kind: "Point",
+      layer: "terrain",
+      authority: "exact admitted native geometry",
+      native_bounds: {
+        west_microdegrees: -122_500_000,
+        south_microdegrees: 37_500_000,
+        east_microdegrees: -122_500_000,
+        north_microdegrees: 37_500_000,
+        crosses_antimeridian: false,
+      },
+    });
+    scene.projection.layers.push({
+      layer_id: "regional-demo.terrain",
+      kind: "terrain",
+      object_ids: ["summit"],
+      authority:
+        "qualified exact height/material samples; no interpolated terrain coverage",
+      semantics:
+        "exact Point altitude and bounded material property retained only at admitted sample coordinates",
+      source_revision: "snapshot:1",
+    });
+    scene.projection.validity = scene.projection.validity
+      .filter((validity) => validity.scope !== "terrain_height")
+      .concat({
+        validity_id: "validity:summit",
+        class: "valid",
+        scope: "native_geometry:summit",
+        source_revision: "object:terrain",
+        rule: "exact native terrain sample",
+      });
+    scene.projection.omissions = [];
+
+    const county = buildTopologyScene(
+      terrainPortfolio,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(county.terrain).toBe(false);
+    expect(county.detail).toContain(
+      "1 exact terrain samples; no interpolation",
+    );
+    expect(
+      county.nodes.find(
+        ({ focus_id }) => focus_id === "regional-object:summit",
+      ),
+    ).toMatchObject({
+      family: "TERRAIN",
+      detail: expect.stringContaining("153250000µm · granite"),
+      tone: "healthy",
+    });
+    expect(county.omissions.join(" ")).not.toContain(
+      "terrain height explicitly unsupported",
+    );
+
+    scene.projection.terrain.samples[0]!.source_object_revision = "tampered";
+    expect(
+      buildTopologyScene(terrainPortfolio, 0.1, "regional:scene:1").globe
+        ?.posture,
+    ).not.toBe("regional_scenes");
+  });
+
   it("does not project rejected or scenario-fixture results", () => {
     const workload = regionalPortfolio.workloads[0]!;
     const accepted = workload.latest_scene_admission!;

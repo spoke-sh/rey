@@ -76,6 +76,7 @@ export function admittedRegionalScenes(
     );
     const countyFrame = scene ? safeCountyFrame(scene) : null;
     const countyFootprint = scene ? safeCountyFootprint(scene) : undefined;
+    const terrainValid = scene ? validRegionalTerrain(scene) : false;
     if (
       !result ||
       result.schema !== "rey.scene-admission-result.v1" ||
@@ -97,6 +98,7 @@ export function admittedRegionalScenes(
       scene.artifacts.admitted_atlas_revision !== atlas?.atlas_revision ||
       scene.artifacts.terrain_program_id !==
         scene.projection.terrain_program_id ||
+      !terrainValid ||
       scene.projection.coordinate_bindings.length !== coordinateSpaces.length ||
       scene.projection.coordinate_bindings.some(
         (binding, index) => binding.space !== coordinateSpaces[index],
@@ -131,6 +133,37 @@ export function admittedRegionalScenes(
         county_footprint: countyFootprint,
       },
     ];
+  });
+}
+
+function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
+  const terrain = scene.projection.terrain;
+  if (!terrain)
+    return (
+      scene.projection.terrain_program_id === null &&
+      scene.artifacts.terrain_program_id === null
+    );
+  if (
+    terrain.schema !== "rey.regional-terrain-program.v1" ||
+    terrain.program_id !== scene.projection.terrain_program_id ||
+    terrain.program_id !== scene.artifacts.terrain_program_id ||
+    terrain.samples.length === 0
+  )
+    return false;
+  return terrain.samples.every((sample) => {
+    const object = scene.projection.objects.find(
+      (candidate) => candidate.object_id === sample.source_object_id,
+    );
+    return (
+      object?.layer === "terrain" &&
+      object.geometry_kind === "Point" &&
+      object.source_artifact_id === sample.source_artifact_id &&
+      object.object_revision === sample.source_object_revision &&
+      object.native_bounds.west_microdegrees === sample.position[0] &&
+      object.native_bounds.east_microdegrees === sample.position[0] &&
+      object.native_bounds.south_microdegrees === sample.position[1] &&
+      object.native_bounds.north_microdegrees === sample.position[1]
+    );
   });
 }
 

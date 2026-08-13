@@ -479,6 +479,7 @@ enum EditorSourceCommand {
 enum EditorSourceRoleArg {
     Features,
     Markers,
+    Terrain,
     TerrainControl,
     Hydrology,
     Boundary,
@@ -499,6 +500,7 @@ impl EditorSourceRoleArg {
         match self {
             Self::Features => SceneSourceRole::Features,
             Self::Markers => SceneSourceRole::Markers,
+            Self::Terrain => SceneSourceRole::Terrain,
             Self::TerrainControl => SceneSourceRole::TerrainControl,
             Self::Hydrology => SceneSourceRole::Hydrology,
             Self::Boundary => SceneSourceRole::Boundary,
@@ -10052,6 +10054,9 @@ fn write_scene_admission_evidence(
         }
         for layer in &scene.projection.layers {
             writeln!(output, "{pad}LAYER {}", json_io(layer)?)?;
+        }
+        if let Some(terrain) = &scene.projection.terrain {
+            writeln!(output, "{pad}TERRAIN {}", json_io(terrain)?)?;
         }
         for validity in &scene.projection.validity {
             writeln!(output, "{pad}VALIDITY {}", json_io(validity)?)?;

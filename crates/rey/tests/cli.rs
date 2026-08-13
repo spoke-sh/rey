@@ -689,6 +689,31 @@ fn editor_source_add_is_a_reviewable_native_identity_path() {
     assert!(!structured.changed);
     assert_eq!(structured.source.role, SceneSourceRole::Boundary);
 
+    fs::write(
+        workspace.path().join("terrain.geojson"),
+        r#"{"type":"Feature","id":"summit","properties":{"material":"granite"},"geometry":{"type":"Point","coordinates":[-122.5,37.5,153.25]}}"#,
+    )
+    .unwrap();
+    let terrain = run_rey(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "source",
+        "add",
+        "terrain.geojson",
+        "--id",
+        "terrain-samples",
+        "--role",
+        "terrain",
+        "--format",
+        "table",
+    ]);
+    assert!(terrain.status.success());
+    let terrain = String::from_utf8(terrain.stdout).unwrap();
+    assert!(terrain.contains("Registered native source terrain-samples"));
+    assert!(terrain.contains("role         terrain"));
+    assert!(terrain.contains("1 features · 1 coordinate positions"));
+
     let status = run_rey(&[
         "editor",
         "--workspace",
@@ -700,6 +725,8 @@ fn editor_source_add_is_a_reviewable_native_identity_path() {
     let status = String::from_utf8(status.stdout).unwrap();
     assert!(status.contains("new:       source: county-boundary"));
     assert!(status.contains("new:       feature: county-boundary/county"));
+    assert!(status.contains("new:       source: terrain-samples"));
+    assert!(status.contains("new:       feature: terrain-samples/summit"));
 
     let added = run_rey(&[
         "editor",
@@ -734,6 +761,18 @@ fn editor_source_add_is_a_reviewable_native_identity_path() {
     assert_eq!(
         committed.package.snapshot.features[0].feature_id,
         "county-boundary/county"
+    );
+    assert_eq!(
+        committed.package.snapshot.sources[1].role,
+        SceneSourceRole::Terrain
+    );
+    assert_eq!(
+        committed.package.snapshot.features[1]
+            .terrain_sample
+            .as_ref()
+            .unwrap()
+            .elevation_micrometers,
+        153_250_000
     );
     assert!(!committed.admission_request.admitted);
 }
@@ -6279,6 +6318,24 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "5",
     ]);
     assert!(generated.status.success());
+    fs::write(
+        workspace.path().join("terrain-samples.geojson"),
+        r#"{"type":"Feature","id":"summit","properties":{"material":"granite"},"geometry":{"type":"Point","coordinates":[-122.5,37.5,153.25]}}"#,
+    )
+    .unwrap();
+    let registered = run_rey_workspace(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "source",
+        "add",
+        "terrain-samples.geojson",
+        "--id",
+        "regional-terrain",
+        "--role",
+        "terrain",
+    ]);
+    assert!(registered.status.success());
     assert!(
         run_rey_workspace(&["editor", "--workspace", workspace_path, "add",])
             .status
@@ -6376,14 +6433,15 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     for evidence in [
         "Result                 PASSED",
         "Node order             admit → render",
-        "SCENE regional-demo · SCENE@1 · 2 native objects",
+        "SCENE regional-demo · SCENE@1 · 3 native objects",
         "BINDING scene=blake3:",
         "package=blake3:",
         "packet=blake3:",
         "atlas=blake3:",
         "FOOTPRINT none · no unique admitted boundary Polygon",
+        "TERRAIN {\"schema\":\"rey.regional-terrain-program.v1\"",
         "COORDINATE {\"space\":\"camera\"",
-        "terrain height explicitly unsupported",
+        "1 exact height/material samples; interpolation and terrain coverage absent",
     ] {
         assert!(human.contains(evidence), "missing run evidence: {evidence}");
     }
@@ -6407,10 +6465,20 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let scene = admission.scene.as_ref().unwrap();
     assert_eq!(scene.admission.editor_sequence, 1);
     assert_eq!(scene.projection.coordinate_bindings.len(), 5);
-    assert_eq!(scene.projection.objects.len(), 2);
+    assert_eq!(scene.projection.objects.len(), 3);
     assert!(scene.projection.footprint.is_none());
-    assert!(scene.artifacts.terrain_program_id.is_none());
-
+    let terrain = scene.projection.terrain.as_ref().unwrap();
+    assert_eq!(terrain.samples.len(), 1);
+    assert_eq!(terrain.samples[0].material, "granite");
+    assert_eq!(terrain.samples[0].position[2], 153_250_000);
+    assert_eq!(
+        scene.artifacts.terrain_program_id.as_ref(),
+        Some(&terrain.program_id)
+    );
+    assert!(!scene.projection.validity.iter().any(|validity| {
+        validity.scope == "terrain_height"
+            && validity.class == rey_mining::RegionalValidityClass::Unsupported
+    }));
     let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
     assert!(listed.status.success());
     assert!(listed.stderr.is_empty());
