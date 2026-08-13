@@ -46,9 +46,10 @@ placement are bound explicitly. The delta keeps inserted, removed, moved,
 interest-changed, merged, and split states distinct across both evidence
 families; qualification fixtures and read-only list/UI access cannot advance
 history. Explorer binds a latest delta only when its target is the current
-retained atlas and rejects mismatched regional membership. The admitted scene
-does not yet carry the resulting atlas revision back into its nullable artifact
-binding, and no sector identity exists. Explorer implements the fresh
+retained atlas and rejects mismatched regional membership. Each retained scene
+also carries that atlas revision as a verified non-owning back-reference:
+`scene_id` excludes the recursive link while the scene-admission result, run,
+and retained state bind it exactly. No sector identity exists. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
 material, WebGPU/WebGL2 paths, and an accessible reference path. Complete
@@ -93,7 +94,7 @@ remain open.
   moved, merged, split, and interest-change deltas.
 - [x] Bind accepted regional scenes into the retained atlas without changing
   native/package identity or synthetic placement.
-- [ ] Record the exact admitted atlas revision back on each regional scene
+- [x] Record the exact admitted atlas revision back on each regional scene
   without creating circular scene/atlas content identity.
 - [ ] Add stable synthetic sector polygons and explicit region membership;
   keep sectors separate from admitted County footprints.

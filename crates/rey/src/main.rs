@@ -3880,7 +3880,7 @@ fn workload_run(
     }
     let atlas_definitions = catalog.definitions();
     let atlas_source = derive_semantic_atlas(&atlas_definitions, &state)?;
-    let result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
+    let mut result = match fresh_qualification(&workload, state.record(&workload.workload.id)) {
         Some(qualification) if workload.workload.id == SCENE_ADMISSION_WORKLOAD_ID => {
             let editor = editor_store_for_workspace(workspace, args.editor_state_dir.as_deref())?;
             let candidate = editor.admission_candidate(
@@ -3946,15 +3946,35 @@ fn workload_run(
         }
         None => WorkloadRunResult::blocked(&workload, inputs),
     };
+    state.retain_run(result.clone());
+    let mut atlas_target = derive_semantic_atlas(&atlas_definitions, &state)?;
+    let admitted_scenes = result
+        .scene_admissions
+        .iter()
+        .filter_map(|admission| admission.scene.clone())
+        .collect::<Vec<_>>();
+    if !admitted_scenes.is_empty() {
+        let atlas = atlas_target
+            .as_ref()
+            .ok_or(CliError::RegionalSceneAtlasBinding)?;
+        for scene in admitted_scenes {
+            let bound = atlas.bind_regional_scene(&workload.workload.id, &scene)?;
+            result = result.with_atlas_bound_scene(bound)?;
+        }
+        state.retain_run(result.clone());
+        let rebound = derive_semantic_atlas(&atlas_definitions, &state)?;
+        if rebound.as_ref() != Some(atlas) {
+            return Err(CliError::RegionalSceneAtlasBinding);
+        }
+        atlas_target = rebound;
+    }
+    state.retain_semantic_atlas_transition(atlas_source, atlas_target)?;
+    state.verify()?;
+    store.save(&state)?;
     let exit_code = match result.status {
         RunStatus::Passed => ExitCode::SUCCESS,
         RunStatus::Blocked => ExitCode::from(3),
     };
-    state.retain_run(result.clone());
-    let atlas_target = derive_semantic_atlas(&atlas_definitions, &state)?;
-    state.retain_semantic_atlas_transition(atlas_source, atlas_target)?;
-    state.verify()?;
-    store.save(&state)?;
     let mut stdout = io::stdout().lock();
     let view = WorkloadRunView::new(catalog.descriptor.clone(), resolved.provenance, result);
     match args.format.resolve() {
@@ -9903,13 +9923,18 @@ fn write_scene_admission_evidence(
     if let Some(scene) = &admission.scene {
         writeln!(
             output,
-            "{pad}BINDING scene={} admission={} editor=SCENE@{} package={} snapshot={} packet={}",
+            "{pad}BINDING scene={} admission={} editor=SCENE@{} package={} snapshot={} packet={} atlas={}",
             scene.scene_id,
             scene.admission.admission_id,
             scene.admission.editor_sequence,
             scene.admission.package_id,
             scene.admission.package_snapshot_revision,
             scene.projection.packet_id,
+            scene
+                .artifacts
+                .admitted_atlas_revision
+                .as_ref()
+                .map_or("none", SemanticDigest::as_str),
         )?;
         writeln!(output, "{pad}BOUNDS {}", json_io(&scene.native_bounds)?)?;
         for binding in &scene.projection.coordinate_bindings {
@@ -12177,6 +12202,8 @@ enum CliError {
     UnexpectedTopographyContext,
     #[error("scene-admission derives its input from --scene and rejects text/source options")]
     UnexpectedSceneInput,
+    #[error("accepted regional scene could not bind its exact retained semantic atlas")]
+    RegionalSceneAtlasBinding,
     #[error("--scene and --editor-state-dir are only valid for scene-admission")]
     UnexpectedSceneOptions,
     #[error("--source and source-context options are only valid for a source-mining workload")]

@@ -264,6 +264,11 @@ impl AdmittedRegionalScene {
             || self.admission.package_snapshot_revision != self.projection.source_snapshot_revision
             || self.artifacts.projection_packet_id != self.projection.packet_id
             || self.artifacts.terrain_program_id != self.projection.terrain_program_id
+            || self
+                .artifacts
+                .admitted_atlas_revision
+                .as_ref()
+                .is_some_and(|revision| revision.as_str().is_empty())
             || self.omissions.len() as u64 > self.projection.limits.max_omissions
         {
             return Err(RegionalSceneError::Binding);
@@ -282,6 +287,25 @@ impl AdmittedRegionalScene {
             return Err(RegionalSceneError::Identity);
         }
         Ok(())
+    }
+
+    pub fn with_admitted_atlas_revision(
+        mut self,
+        atlas_revision: &SemanticDigest,
+    ) -> Result<Self, RegionalSceneError> {
+        self.verify()?;
+        if atlas_revision.as_str().is_empty()
+            || self
+                .artifacts
+                .admitted_atlas_revision
+                .as_ref()
+                .is_some_and(|current| current != atlas_revision)
+        {
+            return Err(RegionalSceneError::AtlasBinding);
+        }
+        self.artifacts.admitted_atlas_revision = Some(atlas_revision.clone());
+        self.verify()?;
+        Ok(self)
     }
 }
 
@@ -448,6 +472,7 @@ fn regional_scene_digest(
 ) -> Result<SemanticDigest, RegionalSceneError> {
     let mut normalized = scene.clone();
     normalized.scene_id = placeholder_digest();
+    normalized.artifacts.admitted_atlas_revision = None;
     let mut hasher = SemanticHasher::new(ADMITTED_REGIONAL_SCENE_SCHEMA);
     hasher.add_bytes(&serde_json::to_vec(&normalized)?);
     Ok(hasher.finish())
@@ -479,6 +504,8 @@ pub enum RegionalSceneError {
     ProjectionIdentity,
     #[error("admitted regional scene identity does not match its semantic content")]
     Identity,
+    #[error("admitted regional scene atlas back-reference is invalid")]
+    AtlasBinding,
     #[error("regional scene completeness does not match its projection")]
     Completeness,
     #[error(transparent)]
@@ -737,6 +764,32 @@ mod tests {
         assert!(matches!(
             scene.verify(),
             Err(RegionalSceneError::TerrainAuthority)
+        ));
+    }
+
+    #[test]
+    fn atlas_back_reference_is_non_owning_and_cannot_be_rebound() {
+        let scene = fixture_scene(
+            "atlas-county",
+            -123_000_000,
+            -122_000_000,
+            37_000_000,
+            38_000_000,
+        );
+        let scene_id = scene.scene_id.clone();
+        let atlas_revision = digest("fixture.atlas", "one");
+        let bound = scene
+            .with_admitted_atlas_revision(&atlas_revision)
+            .expect("bound scene");
+        assert_eq!(bound.scene_id, scene_id);
+        assert_eq!(
+            bound.artifacts.admitted_atlas_revision.as_ref(),
+            Some(&atlas_revision)
+        );
+        assert!(bound.verify().is_ok());
+        assert!(matches!(
+            bound.with_admitted_atlas_revision(&digest("fixture.atlas", "two")),
+            Err(RegionalSceneError::AtlasBinding)
         ));
     }
 }

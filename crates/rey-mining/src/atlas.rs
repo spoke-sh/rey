@@ -391,6 +391,58 @@ impl SemanticAtlas {
         Ok(atlas)
     }
 
+    pub fn bind_regional_scene(
+        &self,
+        workload_id: &str,
+        scene: &AdmittedRegionalScene,
+    ) -> Result<AdmittedRegionalScene, SemanticAtlasError> {
+        self.verify()?;
+        let expected = SemanticAtlasRegionalSource::from_scene(workload_id, scene)?;
+        if self
+            .regional_sources
+            .iter()
+            .find(|source| source.region_id == expected.region_id)
+            != Some(&expected)
+            || !self
+                .regional_regions
+                .iter()
+                .any(|region| region.region_id == expected.region_id)
+        {
+            return Err(SemanticAtlasError::RegionalAtlasBinding);
+        }
+        let bound = scene
+            .clone()
+            .with_admitted_atlas_revision(&self.atlas_revision)?;
+        self.verify_regional_scene_binding(workload_id, &bound)?;
+        Ok(bound)
+    }
+
+    pub fn verify_regional_scene_binding(
+        &self,
+        workload_id: &str,
+        scene: &AdmittedRegionalScene,
+    ) -> Result<(), SemanticAtlasError> {
+        self.verify()?;
+        scene.verify()?;
+        if scene.artifacts.admitted_atlas_revision.as_ref() != Some(&self.atlas_revision) {
+            return Err(SemanticAtlasError::RegionalAtlasBinding);
+        }
+        let expected = SemanticAtlasRegionalSource::from_scene(workload_id, scene)?;
+        if self
+            .regional_sources
+            .iter()
+            .find(|source| source.region_id == expected.region_id)
+            != Some(&expected)
+            || !self
+                .regional_regions
+                .iter()
+                .any(|region| region.region_id == expected.region_id)
+        {
+            return Err(SemanticAtlasError::RegionalAtlasBinding);
+        }
+        Ok(())
+    }
+
     pub fn verify(&self) -> Result<(), SemanticAtlasError> {
         if self.schema != SEMANTIC_ATLAS_SCHEMA {
             return Err(SemanticAtlasError::Schema);
@@ -1571,6 +1623,8 @@ pub enum SemanticAtlasError {
     WorkloadBinding,
     #[error("admitted regional scene has no exact native-to-semantic atlas placement")]
     RegionalPlacement,
+    #[error("admitted regional scene does not bind its exact retained atlas member")]
+    RegionalAtlasBinding,
     #[error("semantic atlas limit is invalid")]
     Limit,
     #[error("semantic atlas digest does not match its content")]

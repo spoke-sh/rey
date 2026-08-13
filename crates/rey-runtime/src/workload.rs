@@ -12,7 +12,7 @@ use rey_environment::{
     LocalSourceCorpus, SourceBindingLimits, builtin_source_search_operation,
     explicit_source_path_identity,
 };
-use rey_mining::{MiningCompleteness, MiningLimits, TopographyPatch};
+use rey_mining::{AdmittedRegionalScene, MiningCompleteness, MiningLimits, TopographyPatch};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -1364,6 +1364,47 @@ impl WorkloadRunResult {
         };
         result.run_id = run_result_digest(&result);
         result
+    }
+
+    pub fn with_atlas_bound_scene(
+        mut self,
+        scene: AdmittedRegionalScene,
+    ) -> Result<Self, WorkloadError> {
+        self.verify()?;
+        let index = self
+            .scene_admissions
+            .iter()
+            .position(|admission| {
+                admission
+                    .scene
+                    .as_ref()
+                    .is_some_and(|current| current.scene_id == scene.scene_id)
+            })
+            .ok_or(WorkloadError::ResultShape(
+                "atlas-bound scene does not match a retained scene admission",
+            ))?;
+        let current = self.scene_admissions[index].clone();
+        let current_result_id = current.result_id.clone();
+        let current_rendering = render_scene_admission_result(&current);
+        let bound = current.with_atlas_bound_scene(scene)?;
+        let bound_rendering = render_scene_admission_result(&bound);
+        for output in self.outputs.values_mut() {
+            match output {
+                WorkloadValue::SceneAdmission(admission)
+                    if admission.result_id == current_result_id =>
+                {
+                    **admission = bound.clone();
+                }
+                WorkloadValue::Utf8(rendered) if *rendered == current_rendering => {
+                    *rendered = bound_rendering.clone();
+                }
+                _ => {}
+            }
+        }
+        self.scene_admissions[index] = bound;
+        self.run_id = run_result_digest(&self);
+        self.verify()?;
+        Ok(self)
     }
 
     pub fn verify(&self) -> Result<(), WorkloadError> {

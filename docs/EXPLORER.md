@@ -173,7 +173,10 @@ layers, validity/no-data records, limits, omissions, and lineage. Its embedded
 native OGC CRS84, synthetic semantic placement, semantic-Mercator chart,
 County-local east/north/up, and camera view state. The last is always
 view-only. Topography patch, retained atlas revision, projection packet, and
-terrain program identities are separate nullable bindings. With no qualified
+terrain program identities are separate bindings; qualification fixtures may
+leave the atlas nullable, while an accepted production run records and
+cross-verifies its exact retained atlas revision without recursively changing
+`scene_id`. With no qualified
 terrain adapter, the contract must retain an unsupported terrain-height
 validity row, an absent terrain program, and the fact that candidate controls
 were not copied into observed terrain truth. `rey workloads test --staged
@@ -650,9 +653,9 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: make
-record an exact non-circular atlas back-binding for each accepted scene, add
-sector identity, complete World and semantic-Mercator wrapping/morphing, expand the bounded County into a local
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: add
+sector identity, complete World and semantic-Mercator wrapping/morphing, expand
+the bounded County into a local
 isometric surface with exact links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser

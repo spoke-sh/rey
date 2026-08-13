@@ -473,8 +473,10 @@ remain typed as inserted, removed, moved, or interest-changed across both
 families; cluster topology changes remain merged or split. Each delta binds
 exact source and target atlas revisions, and replay/tamper verification
 recomputes it from both documents. Qualification fixtures and read-only
-projection do not advance this history. Scene-to-atlas revision back-binding
-and stable sectors remain Plan 0003 work.
+projection do not advance this history. Each retained regional scene carries
+the resulting atlas revision as a non-owning link excluded from `scene_id` but
+included in its result/run identity; retained state verifies that link against
+the exact atlas member. Stable sectors remain Plan 0003 work.
 
 The remaining render-graph extraction, transient-patch transitions, retained
 visual proof, and named performance qualification remain

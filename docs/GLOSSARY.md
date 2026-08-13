@@ -1638,8 +1638,9 @@ inserted, removed, moved, interest-changed, merged, and split changes distinct.
 Survey and regional sources remain separately typed, and a regional member
 binds its exact admitted scene, admission, package revision, packet, and
 unchanged synthetic placement. Qualification fixtures and reads cannot advance
-atlas history. Scene-to-atlas revision back-binding and sector polygons remain
-planned.
+atlas history. Each retained regional scene carries that atlas revision as a
+non-owning back-reference which cannot recursively define `scene_id`; the
+retained result and state verify the exact link. Sector polygons remain planned.
 
 ### Semantic spherical coordinate
 

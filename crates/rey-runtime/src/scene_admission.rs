@@ -265,7 +265,15 @@ impl SceneAdmissionResult {
             return Err(SceneAdmissionError::ResultSchema);
         }
         match (self.status, self.scene.as_ref()) {
-            (SceneAdmissionStatus::Accepted, Some(scene)) => scene.verify()?,
+            (SceneAdmissionStatus::Accepted, Some(scene)) => {
+                scene.verify()?;
+                if scene.admission.workload != self.workload
+                    || scene.admission.graph != self.graph
+                    || scene.admission.capability_snapshot_id != self.capability_snapshot_id
+                {
+                    return Err(SceneAdmissionError::ResultShape);
+                }
+            }
             (SceneAdmissionStatus::Rejected, None) => {}
             _ => return Err(SceneAdmissionError::ResultShape),
         }
@@ -280,6 +288,28 @@ impl SceneAdmissionResult {
             return Err(SceneAdmissionError::ResultIdentity);
         }
         Ok(())
+    }
+
+    pub fn with_atlas_bound_scene(
+        mut self,
+        scene: AdmittedRegionalScene,
+    ) -> Result<Self, SceneAdmissionError> {
+        self.verify()?;
+        scene.verify()?;
+        let current = self
+            .scene
+            .as_ref()
+            .ok_or(SceneAdmissionError::ResultShape)?;
+        let mut without_back_reference = scene.clone();
+        without_back_reference.artifacts.admitted_atlas_revision =
+            current.artifacts.admitted_atlas_revision.clone();
+        if scene.artifacts.admitted_atlas_revision.is_none() || without_back_reference != *current {
+            return Err(SceneAdmissionError::ResultShape);
+        }
+        self.scene = Some(scene);
+        self.result_id = result_digest(&self)?;
+        self.verify()?;
+        Ok(self)
     }
 }
 

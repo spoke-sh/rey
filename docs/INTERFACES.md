@@ -235,14 +235,17 @@ evidence but cannot become atlas or Explorer fabric. The atlas keeps survey
 patches and admitted regional scenes as separate source and region types. A
 regional member binds the exact scene, admission, package revision, projection
 packet, and unchanged integer synthetic semantic longitude/latitude; the atlas
-declares no Earth CRS. Workload state retains at most 64 atlas revisions and an
+declares no Earth CRS. The retained regional scene records the resulting atlas
+revision as a non-owning back-reference. That field is deliberately excluded
+from `scene_id` to prevent a recursive digest, but it changes the admission
+result and run identities; state verification resolves it to the exact retained
+atlas and member before publication. Workload state retains at most 64 atlas revisions and an
 equal linear sequence of `rey.semantic-atlas-delta.v1` documents. Each delta is
 content identified, binds exact source and target revisions, and keeps inserted,
 removed, moved, interest-changed, merged, and split changes distinct. The first
 delta starts at the typed empty atlas revision. `workloads list` exposes the
 current atlas, history, exact deltas, compiler, survey/regional region and
-cluster counts,
-boundedness, admission-revision recluster rule, and the fact that zoom cannot
+cluster counts, boundedness, admission-revision recluster rule, and the fact that zoom cannot
 recluster it. List and UI reads do not advance history.
 
 ## Implemented Environment CLI
@@ -472,8 +475,10 @@ native-to-semantic and County-local transforms, typed layers,
 validity/no-data, limits, omissions, and lineage. Its embedded
 `rey.regional-projection-packet.v1` carries explicit native CRS84, synthetic
 semantic, semantic-Mercator, County-local, and view-only camera coordinate
-records. Separate nullable bindings prevent a candidate package from
-counterfeiting a topography patch, retained atlas revision, or terrain program.
+records. Separate nullable bindings prevent a candidate package or qualification
+fixture from counterfeiting a topography patch, retained atlas revision, or
+terrain program; accepted production retention fills and cross-verifies the
+atlas binding.
 The file-backed workload and CLI produce the contract from an exact current
 editor transfer envelope. `rey.workload-list.v1` exposes only the last
 production admission result for the exact current workload and graph. Explorer

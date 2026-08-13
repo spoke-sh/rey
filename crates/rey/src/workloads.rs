@@ -2463,6 +2463,26 @@ impl LocalWorkloadState {
                         artifact: result.workload.id.clone(),
                     });
                 }
+                for admission in &result.scene_admissions {
+                    let Some(scene) = &admission.scene else {
+                        continue;
+                    };
+                    let atlas_revision = scene
+                        .artifacts
+                        .admitted_atlas_revision
+                        .as_ref()
+                        .ok_or_else(|| {
+                            LocalWorkloadStateError::RegionalSceneAtlasBinding(workload_id.clone())
+                        })?;
+                    let atlas = self
+                        .semantic_atlas_history
+                        .iter()
+                        .find(|atlas| &atlas.atlas_revision == atlas_revision)
+                        .ok_or_else(|| {
+                            LocalWorkloadStateError::RegionalSceneAtlasBinding(workload_id.clone())
+                        })?;
+                    atlas.verify_regional_scene_binding(workload_id, scene)?;
+                }
             }
         }
         let mut previous_admission = None;
@@ -4409,6 +4429,8 @@ pub enum LocalWorkloadStateError {
     EmptyWorkloadId,
     #[error("retained semantic atlas history is invalid, non-linear, or exceeds its bound")]
     SemanticAtlasHistory,
+    #[error("retained regional scene for workload {0} does not bind an exact retained atlas")]
+    RegionalSceneAtlasBinding(String),
     #[error("local workload state record {0} has no retained artifact")]
     EmptyRecord(String),
     #[error("workload activation admission is invalid or has been tampered with")]

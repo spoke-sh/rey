@@ -84,6 +84,7 @@ const portfolio = {
             package_snapshot_revision: "snapshot:1",
           },
           artifacts: {
+            admitted_atlas_revision: "atlas:1",
             projection_packet_id: "packet:1",
             terrain_program_id: null,
           },
@@ -128,6 +129,26 @@ describe("regional scene evidence adapter", () => {
             latest_scene_admission: {
               ...result,
               scenario: contract("fixture"),
+            },
+          },
+        ],
+      }),
+    ).toEqual([]);
+    expect(
+      admittedRegionalScenes({
+        ...portfolio,
+        workloads: [
+          {
+            ...workload,
+            latest_scene_admission: {
+              ...result,
+              scene: {
+                ...result.scene!,
+                artifacts: {
+                  ...result.scene!.artifacts,
+                  admitted_atlas_revision: "atlas:other",
+                },
+              },
             },
           },
         ],

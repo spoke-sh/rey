@@ -24,11 +24,11 @@ use rey::git::{
     GitWatchOutcome, GitWatchStopReason, LocalGitState,
 };
 use rey::workloads::{
-    QualificationState, WorkloadActivationAdmission, WorkloadActivationExecution,
-    WorkloadActivationRecomputation, WorkloadCatalogKind, WorkloadChangeSet, WorkloadCreateResult,
-    WorkloadFreshness, WorkloadList, WorkloadLog, WorkloadOrigin, WorkloadProposalKind,
-    WorkloadRecomputationAssessment, WorkloadRevisionStatus, WorkloadRunView, WorkloadStatusBatch,
-    WorkloadTestBatch,
+    LocalWorkloadStateError, LocalWorkloadStore, QualificationState, WorkloadActivationAdmission,
+    WorkloadActivationExecution, WorkloadActivationRecomputation, WorkloadCatalogKind,
+    WorkloadChangeSet, WorkloadCreateResult, WorkloadFreshness, WorkloadList, WorkloadLog,
+    WorkloadOrigin, WorkloadProposalKind, WorkloadRecomputationAssessment, WorkloadRevisionStatus,
+    WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
 };
 use rey_core::ContractIdentity;
 use rey_git::{
@@ -6256,6 +6256,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "BINDING scene=blake3:",
         "package=blake3:",
         "packet=blake3:",
+        "atlas=blake3:",
         "COORDINATE {\"space\":\"camera\"",
         "terrain height explicitly unsupported",
     ] {
@@ -6301,6 +6302,13 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert_eq!(retained.scene.as_ref(), Some(scene));
     let atlas = listed.semantic_atlas.as_ref().unwrap();
     atlas.verify().unwrap();
+    assert_eq!(
+        scene.artifacts.admitted_atlas_revision.as_ref(),
+        Some(&atlas.atlas_revision)
+    );
+    atlas
+        .verify_regional_scene_binding("scene-admission", scene)
+        .unwrap();
     assert!(atlas.sources.is_empty());
     assert_eq!(atlas.regional_sources.len(), 1);
     assert_eq!(atlas.regional_regions.len(), 1);
@@ -6338,6 +6346,17 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     listed.semantic_atlas_deltas[0]
         .verify_between(None, atlas)
         .unwrap();
+    let state = LocalWorkloadStore::default_for_workspace(workspace.path())
+        .load()
+        .unwrap();
+    let mut missing_atlas = state;
+    missing_atlas.semantic_atlas_history.clear();
+    missing_atlas.semantic_atlas_deltas.clear();
+    assert!(matches!(
+        missing_atlas.verify(),
+        Err(LocalWorkloadStateError::RegionalSceneAtlasBinding(ref workload))
+            if workload == "scene-admission"
+    ));
 
     let listed_table = run_rey_workspace(&[
         "workloads",

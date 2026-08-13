@@ -77,6 +77,7 @@ export function admittedRegionalScenes(
       scene.admission.package_snapshot_revision !==
         scene.projection.source_snapshot_revision ||
       scene.artifacts.projection_packet_id !== scene.projection.packet_id ||
+      scene.artifacts.admitted_atlas_revision !== atlas?.atlas_revision ||
       scene.artifacts.terrain_program_id !==
         scene.projection.terrain_program_id ||
       scene.projection.coordinate_bindings.length !== coordinateSpaces.length ||

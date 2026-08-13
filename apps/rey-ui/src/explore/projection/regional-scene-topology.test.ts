@@ -114,7 +114,7 @@ const regionalPortfolio = {
             package_snapshot_revision: "snapshot:1",
           },
           artifacts: {
-            admitted_atlas_revision: null,
+            admitted_atlas_revision: "atlas:1",
             projection_packet_id: "packet:1",
             terrain_program_id: null,
           },
