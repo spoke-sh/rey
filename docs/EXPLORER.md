@@ -267,8 +267,10 @@ reference field evaluation, contours, projected hydrology/weather, and natural
 features. A separate revisioned survey-scene layout projection owns bounded
 multi-chart placement, validity regions, anchor/frontier placement, landform
 envelopes, field requests, and omissions. Both revisions enter immutable scene
-lineage. `topology.ts` still owns portfolio-to-scene orchestration and legacy
-lens data. The reference surface remains mounted during accelerated initialization and is
+lineage. A third revisioned survey-scene projection owns focus selection,
+semantic-globe adaptation, bearing, exact evidence details, and regime copy;
+`topology.ts` only dispatches admitted survey evidence into that projection.
+The legacy portfolio lenses remain in `topology.ts`. The reference surface remains mounted during accelerated initialization and is
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.

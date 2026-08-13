@@ -188,6 +188,9 @@ remain open.
 - [x] Move deterministic multi-chart survey layout, validity regions,
   anchor/frontier placement, landform envelopes, field requests, and omissions
   behind a revisioned projection module retained in scene lineage.
+- [x] Move admitted-survey focus selection, semantic-globe adaptation,
+  bearings, regime copy, and exact evidence details behind a revisioned
+  survey-scene adapter retained in scene lineage.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient
   patches, including stable absolute sampling, hydrology halos, exact shared
   channel seams, cache keys, and CPU cell/byte budgets.
