@@ -652,9 +652,10 @@ resolution; this document owns World geometry and read-only probe navigation.
 - `/journal/new`: the unauthenticated, validated human Journal composer;
 - `/journal/{slug}`: one exact retained Journal document, with typed blocks
   addressed by `#block-{block-id}` fragments;
-- `/environment`: three stacked Kinetic Precision evidence sections over the
-  exact typed `HEAD → INDEX → WORKING` environment delta—directed text,
-  bounded search, and the reference plane;
+- `/environment`: two stacked Kinetic Precision evidence sections over the
+  exact typed `HEAD → INDEX → WORKING` environment delta—directed text and
+  bounded application search; inputs and topology remain in typed evidence and
+  the exact CLI projection;
 - `/workloads`: separate dense tables for admitted revisions and creation
   requests, preserving aligned conformance, graph, evidence, mining, attention,
   intent, admission, source, and target dimensions; and

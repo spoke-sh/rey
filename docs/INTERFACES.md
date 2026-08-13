@@ -299,9 +299,11 @@ prompts over canonical capability changes as confirmable `diff --rey`
 environment hunks and stages only selected rows; its interactive mode requires
 table output. Generic hunks omit raw structured provenance and point to the
 structured diff. `diff` selects `INDEX → WORKING` by
-default and `HEAD → INDEX` with `--staged`. Its table projection uses the same
-three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
-`02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. Bounded search first renders
+default and `HEAD → INDEX` with `--staged`. Its table projection uses three
+environment-native planes: `01 / DIRECTED TEXT`, `02 / BOUNDED SEARCH`, and
+`03` `REFERENCE PLANE`. The browser `/environment` route intentionally projects
+only the first two; inputs and references remain in this exact CLI surface and
+the shared typed document. Bounded search first renders
 the flattened found matches and explicit losses as `SEARCH RECORD`, with one
 row per application regardless of group count. The complete search outcomes and
 declaration coordinate (`rey.environment-application-inventory.v2`) remain in
@@ -1444,8 +1446,10 @@ authority. Its interpolation is exactly `none`; validity ends at the sample
 coordinate. Candidate terrain controls never enter that program.
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
-three full-width stacked evidence sections: directed variable text, bounded
-application search, and the input/reference plane. The application plane renders
+two full-width stacked evidence sections: directed variable text and bounded
+application search. Inputs and topology remain in the shared typed document and
+the exact `rey env diff` CLI projection rather than becoming a browser section.
+The application plane renders
 the complete flattened application search from the shared environment operator
 projection, including unresolved and error outcomes, and names each row's
 application, resolved path or unresolved state, and declared group memberships.
