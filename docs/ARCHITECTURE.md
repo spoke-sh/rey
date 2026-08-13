@@ -251,10 +251,11 @@ passive-revalidation health. A quiet mailbox means no operator attention is
 requested; it is not filled with synthetic heartbeat activity. The mailbox
 control selects the history axis. The center chevrons select a separate
 operator/Rey/agent conversation axis with a conventional transcript and
-composer. A bounded workspace-local transcript provider now admits exact
-sessions and messages through the CLI without delivery or execution effects.
-The current operator server does not project that provider yet, so the
-composer remains disabled and no UI-owned transcript is invented.
+composer. A bounded workspace-local transcript provider admits exact sessions
+and messages without delivery or execution effects. The operator server now
+projects that provider and conditionally appends only through an exact
+session-declared human browser writer; unavailable transport leaves the
+composer disabled and no UI-owned transcript is invented.
 
 The collaboration substrate preserves those boundaries. A workspace-local
 Channel graph addresses channels, subscriptions, Feed
@@ -283,8 +284,9 @@ mailbox projection plus deterministic unretained Journal seeding are
 implemented. The separate local conversation log now retains immutable
 sessions, declared participants/writers, per-session message order, exact
 sources, availability, authority, limits, and failure posture; no append
-invokes an agent or uses Channel relay. Browser conversation projection,
-resident beacon scheduling, and remote inbound cursors remain planned behavior.
+invokes an agent or uses Channel relay. Browser conversation projection and
+conditional append are delivered. Resident beacon scheduling and remote
+inbound cursors remain planned behavior.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material
@@ -293,9 +295,9 @@ typed Kinetic material values remain runtime data; Rey's typed documents
 remain authoritative.
 
 The listener defaults to loopback and carries no authentication, multi-user,
-or remote-service guarantee. Its explicit writes are bounded Journal
-admission, conditional Channel WORKING replacement, and qualified exact
-workload-INDEX approval. An explicit non-loopback bind exposes all three writes
+or remote-service guarantee. Its explicit writes are bounded Journal and
+conversation admission, conditional Channel WORKING replacement, and qualified
+exact workload-INDEX approval. An explicit non-loopback bind exposes all four writes
 to every client that can reach the listener and therefore emits a warning; no
 bind grants Channel INDEX/HEAD, relay, workload execution, or proof authority. See
 [Context Topology Explorer](EXPLORER.md), [Collaboration Journal](JOURNAL.md),

@@ -87,7 +87,7 @@ rey journal [--workspace PATH] [--state-dir PATH] opportunities [-n COUNT]
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query admit <entry-id> <block-id>
 rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query execute <admission-id> --author <agent-id> --proposal-out <result.json>
 rey journal [--workspace PATH] [--state-dir PATH] query list
-rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
+rey ui [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--conversation-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
 ```
 
 `channels` exposes bounded collaboration topology through a complete local
@@ -112,8 +112,9 @@ reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 `127.0.0.1:5714` unless configured otherwise, reports exact exposure and
 provenance, `/explore` human entry, and passive revalidation interval. It
 serves read-only workload, environment, cadence, and Explorer projections and
-admits bounded human Journal documents, conditionally replaces Channel WORKING,
-and approves exact workload files without authentication. An explicit
+admits bounded human Journal documents and conversation messages, conditionally
+replaces Channel WORKING, and approves exact workload files without
+authentication. An explicit
 non-loopback bind exposes those narrow writes to reachable clients and emits a
 warning.
 
@@ -1132,13 +1133,16 @@ effect authority, failure behavior, selected rows, completeness, omissions,
 and effective bounds. Missing state is a read-only unavailable projection.
 The default `.rey/conversations/conversations.json` log is bounded, locked,
 atomically replaced, and verified after restart; tamper or append failure
-leaves prior state authoritative. The current browser conversation surface
-does not consume this contract yet, so its transcript remains empty and its
-composer disabled. See [Conversations](CONVERSATIONS.md).
+leaves prior state authoritative. `GET|HEAD /api/v1/conversations` projects the
+same default transcript. `POST /api/v1/conversations/messages` conditionally
+appends through the same store against exact expected log/session identities
+and derives its author only from the declared human browser writer. Missing
+transport or writer leaves the composer disabled; a stale append is rejected
+before publication. See [Conversations](CONVERSATIONS.md).
 
 The startup table and `rey.ui-server.v1` JSON expose exact address, URL,
-loopback status, unauthenticated Journal-write authority,
-workspace, catalog root, application,
+loopback status, unauthenticated Journal/conversation-write authority,
+workspace, catalog, Channel, and conversation roots, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
 5000 ms passive revalidation interval, canonical Rey source repository, and
 implementation Git revision. Static assets
@@ -1158,9 +1162,12 @@ axis for operator ↔ Rey ↔ agent communication. Selecting the active axis
 closes the plane, selecting the other switches axes, and either Escape or a
 click on the background closes it.
 The history axis identifies itself as a mounted projection over separately
-retained source records, not a new mailbox event store. The conversation axis exposes a transcript and
-composer but explicitly has no session or transport; sending is disabled and
-no UI-only messages are retained. The footer shortens the implementation revision only for
+retained source records, not a new mailbox event store. The conversation axis
+exposes the separate bounded local transcript and composer. It renders exact
+session participants, writers, message order, delivery posture, source,
+coverage, limits, retention, authority, and failure contract. The composer
+enables only for the exact declared human browser writer and remains disabled
+when unavailable; no UI-only messages are retained. The footer shortens the implementation revision only for
 presentation, and its GitHub link uses the complete 40- or 64-hex Git object
 id. The same invariant applies everywhere in the browser: a contractually Git
 commit SHA is the exact GitHub commit link, never inert text. When no exact

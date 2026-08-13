@@ -1,6 +1,11 @@
 import type { WorkloadList } from "./domain";
 import type { CadenceProjection } from "./cadence";
 import type {
+  ConversationMessageAdmission,
+  ConversationMessageWrite,
+  ConversationTranscript,
+} from "./conversations";
+import type {
   ChannelApplyResult,
   ChannelProjection,
   ChannelWorkingWriteRequest,
@@ -26,6 +31,7 @@ export interface UiServerIdentity {
   journal_write_enabled: boolean;
   workload_admission_enabled: boolean;
   channel_write_enabled: boolean;
+  conversation_write_enabled: boolean;
   read_only: boolean;
 }
 
@@ -37,6 +43,7 @@ export interface WorkloadApprovalRequest {
 
 export type OperatorContext = WorkloadList & {
   observations: ObservationFrontier;
+  conversation: ConversationTranscript;
   workload_evidence: WorkloadEvidenceCatalog;
   ui_server: UiServerIdentity;
 };
@@ -54,13 +61,19 @@ export interface AgentJournalDocument {
 }
 
 export async function loadPortfolio(): Promise<OperatorContext> {
-  const [portfolioResponse, healthResponse, observations, workloadEvidence] =
-    await Promise.all([
-      fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
-      fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
-      loadObservations(),
-      loadWorkloadEvidence(),
-    ]);
+  const [
+    portfolioResponse,
+    healthResponse,
+    observations,
+    workloadEvidence,
+    conversation,
+  ] = await Promise.all([
+    fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
+    fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
+    loadObservations(),
+    loadWorkloadEvidence(),
+    loadConversation(),
+  ]);
   if (!portfolioResponse.ok) {
     const detail = await portfolioResponse.text();
     throw new Error(
@@ -79,9 +92,43 @@ export async function loadPortfolio(): Promise<OperatorContext> {
   };
   return Object.assign(portfolio, {
     observations,
+    conversation,
     ui_server: health.server,
     workload_evidence: workloadEvidence,
   });
+}
+
+export async function loadConversation(): Promise<ConversationTranscript> {
+  const response = await fetch("/api/v1/conversations", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Conversation request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as ConversationTranscript;
+}
+
+export async function writeConversationMessage(
+  write: ConversationMessageWrite,
+): Promise<ConversationMessageAdmission> {
+  const response = await fetch("/api/v1/conversations/messages", {
+    body: JSON.stringify(write),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Conversation append failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as ConversationMessageAdmission;
 }
 
 export async function loadWorkloadEvidence(): Promise<WorkloadEvidenceCatalog> {

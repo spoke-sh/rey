@@ -114,8 +114,9 @@ Rey organizes collaboration around two clients with one evidence plane:
   routes; those browser views preserve the CLI's plain, `-v`, and `-vv`
   evidence layers without reevaluating a result or granting runtime authority.
   Conversation sessions and messages are a separate bounded workspace-local
-  transcript with declared writers and no delivery or execution claim; the
-  browser composer remains disabled until it projects that same contract.
+  transcript with declared writers and no delivery or execution claim. The
+  browser projects that same transcript and enables append only for an exact
+  session-declared human browser writer.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
   diff, add, commit, log, generation, qualification, and execution surfaces
   without requiring implementation-code inspection.

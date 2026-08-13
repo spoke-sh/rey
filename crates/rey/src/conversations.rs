@@ -765,11 +765,45 @@ impl LocalConversationStore {
         source: ConversationSource,
         admitted_at_unix: i64,
     ) -> Result<ConversationMessageAdmission, ConversationError> {
+        self.admit_message_with_expected_log(proposal, source, admitted_at_unix, None)
+    }
+
+    pub fn admit_message_if_log(
+        &self,
+        proposal: ConversationMessageProposal,
+        source: ConversationSource,
+        admitted_at_unix: i64,
+        expected_log_id: &SemanticDigest,
+    ) -> Result<ConversationMessageAdmission, ConversationError> {
+        validate_digest("expected conversation log", expected_log_id)?;
+        self.admit_message_with_expected_log(
+            proposal,
+            source,
+            admitted_at_unix,
+            Some(expected_log_id),
+        )
+    }
+
+    fn admit_message_with_expected_log(
+        &self,
+        proposal: ConversationMessageProposal,
+        source: ConversationSource,
+        admitted_at_unix: i64,
+        expected_log_id: Option<&SemanticDigest>,
+    ) -> Result<ConversationMessageAdmission, ConversationError> {
         proposal.verify()?;
         source.verify()?;
         validate_timestamp(admitted_at_unix)?;
         self.with_lock(|| {
             let mut log = self.load()?;
+            if let Some(expected_log_id) = expected_log_id
+                && &log.log_id != expected_log_id
+            {
+                return Err(ConversationError::StaleLog {
+                    expected: expected_log_id.clone(),
+                    actual: log.log_id,
+                });
+            }
             let session = log.session(proposal.session_id.as_str())?.clone();
             if session.participant(&proposal.author_id).is_none() {
                 return Err(ConversationError::UnknownAuthor(proposal.author_id.clone()));
@@ -1138,6 +1172,11 @@ pub enum ConversationError {
     UnknownSessionText(String),
     #[error("conversation reply references an unknown or non-prior message {0}")]
     UnknownReply(SemanticDigest),
+    #[error("conversation log changed before append: expected {expected}, found {actual}")]
+    StaleLog {
+        expected: SemanticDigest,
+        actual: SemanticDigest,
+    },
     #[error("conversation transcript limit must be between 1 and {limit}, got {actual}")]
     TranscriptLimit { actual: usize, limit: usize },
     #[error("{kind} sequence must be {expected}, got {actual}")]

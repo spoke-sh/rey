@@ -942,8 +942,9 @@ export const environmentStyles = stylex.create({
     overflow: "hidden",
   },
   conversationThread: {
-    alignContent: "end",
+    alignContent: "start",
     display: "grid",
+    gap: 14,
     overflowY: "auto",
     overscrollBehavior: "contain",
     padding: "clamp(22px, 4vw, 48px)",
@@ -957,6 +958,15 @@ export const environmentStyles = stylex.create({
     lineHeight: 1.55,
     maxWidth: 720,
     padding: "clamp(18px, 3vw, 30px)",
+  },
+  conversationMessage: {
+    borderBottomColor: "var(--line)",
+    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    display: "grid",
+    gap: 8,
+    lineHeight: 1.55,
+    paddingBlock: 16,
   },
   conversationComposer: {
     alignItems: "end",
@@ -981,6 +991,9 @@ export const environmentStyles = stylex.create({
     padding: 12,
     resize: "none",
   },
+  conversationInputEnabled: {
+    color: "var(--rey-foreground)",
+  },
   conversationSend: {
     alignSelf: "stretch",
     backgroundColor: "transparent",
@@ -991,6 +1004,12 @@ export const environmentStyles = stylex.create({
     fontFamily: mono,
     minWidth: 94,
     opacity: 0.62,
+  },
+  conversationSendEnabled: {
+    borderColor: "var(--rey-accent)",
+    color: "var(--rey-accent)",
+    cursor: "pointer",
+    opacity: 1,
   },
   conversationBoundaryNote: { gridColumn: "1 / -1" },
   footerLink: {

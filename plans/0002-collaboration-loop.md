@@ -43,8 +43,10 @@ provider now admits immutable sessions with declared participants/writers and
 append-only per-session messages through a high-fidelity CLI. It exposes exact
 ordering, retention, availability, source, limits, omissions, failures, and
 read/write/effect authority; every append retains delivery as not attempted
-and cannot invoke an agent or relay. The footer conversation composer correctly
-remains disabled until it projects this same contract.
+and cannot invoke an agent or relay. The footer conversation axis now passively
+projects that contract separately from mailbox history and conditionally
+appends only through the exact session-declared human browser writer. Missing
+transport or writer and stale append failure leave send visibly disabled.
 
 ## Completion Checklist
 
@@ -93,7 +95,7 @@ remains disabled until it projects this same contract.
 - [x] Define participant, session, message, ordering, retention, read/write
   authority, transport availability, and failure contracts before enabling the
   composer.
-- [ ] Keep mailbox history and the conversation transcript separate and leave
+- [x] Keep mailbox history and the conversation transcript separate and leave
   send visibly disabled whenever the transport is unavailable.
 
 ### 6. Qualify the slice

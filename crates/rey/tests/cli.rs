@@ -5432,12 +5432,13 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
         "Exposure               LOOPBACK ONLY",
         "Application            TANSTACK ROUTER · EMBEDDED",
         "Grammar                HIFI KINETIC · PRECISION",
-        "Data plane             LIVE READS · JOURNAL WRITE · CHANNEL WORKING WRITE · WORKLOAD APPROVAL",
+        "Data plane             LIVE READS · JOURNAL/CONVERSATION WRITE · CHANNEL WORKING WRITE · WORKLOAD APPROVAL",
         "Human entry            /explore",
         "Workload admission     ENABLED · EXACT WORKING FILES → QUALIFIED INDEX → HEAD",
         "Channel write          ENABLED · UNAUTHENTICATED · EXPECTED HEAD/WORKING → WORKING ONLY",
+        "Conversation write     ENDPOINT ENABLED · EXACT SESSION DECIDES COMPOSER · UNAUTHENTICATED APPEND ONLY",
         "Revalidation           5000ms · PASSIVE · NO REFRESH CONTROL",
-        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/evidence · /api/v1/workloads/{id}/scenarios/{execution} · /api/v1/workloads/{id}/deltas/{delta} · /api/v1/workloads/admit",
+        "/api/v1/health · /api/v1/cadence · /api/v1/channels · /api/v1/channels/working · /api/v1/conversations · /api/v1/conversations/messages · /api/v1/environment · /api/v1/journal · /api/v1/journal/opportunities · /api/v1/journal/queries · /api/v1/journal/seed · /api/v1/observations · /api/v1/workloads · /api/v1/workloads/evidence · /api/v1/workloads/{id}/scenarios/{execution} · /api/v1/workloads/{id}/deltas/{delta} · /api/v1/workloads/admit",
         "Grammar revision       git:058c6504fc10740360717e97e687fd77bef6a5c5",
         "Implementation         UNBOUND · ",
     ] {
@@ -5494,9 +5495,18 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     assert_eq!(descriptor["journal_write_enabled"], true);
     assert_eq!(descriptor["workload_admission_enabled"], true);
     assert_eq!(descriptor["channel_write_enabled"], true);
+    assert_eq!(descriptor["conversation_write_enabled"], true);
     assert_eq!(
         descriptor["channel_root"],
         workspace.path().join(".rey/channels").display().to_string()
+    );
+    assert_eq!(
+        descriptor["conversation_root"],
+        workspace
+            .path()
+            .join(".rey/conversations")
+            .display()
+            .to_string()
     );
     assert_eq!(descriptor["application"], "tanstack_router");
     assert_eq!(descriptor["grammar"], "kinetic");
@@ -5512,7 +5522,7 @@ fn ui_cli_serves_the_embedded_precision_operator_surface_with_explicit_exposure(
     let mut network_stderr = BufReader::new(network_child.stderr.take().unwrap());
     let mut warning = String::new();
     network_stderr.read_line(&mut warning).unwrap();
-    assert!(warning.contains("unauthenticated Journal and Channel WORKING writes"));
+    assert!(warning.contains("unauthenticated Journal, conversation, and Channel WORKING writes"));
     assert!(warning.contains("exact workload approval enabled"));
 
     let network_address = format!("127.0.0.1:{}", descriptor["port"].as_u64().unwrap());

@@ -14,6 +14,7 @@ import {
   useEffect,
   useState,
   type CSSProperties,
+  type FormEvent,
 } from "react";
 import { AgentsPage } from "./agents";
 import {
@@ -29,10 +30,16 @@ import {
   loadWorkloadDeltaEvidence,
   loadWorkloadScenarioEvidence,
   writeChannelWorking,
+  writeConversationMessage,
   type OperatorContext,
 } from "./api";
 import { CadencePage } from "./cadence";
 import { ChannelsPage } from "./channels";
+import {
+  conversationBrowserWriter,
+  conversationParticipant,
+  type ConversationTranscript,
+} from "./conversations";
 import { operatorMailboxRows, shortDigest } from "./domain";
 import {
   operatorObservationMailboxRows,
@@ -375,7 +382,7 @@ function CommunicationPlane({
         {visibleAxis === "mailbox" ? (
           <MailboxHistory error={error} portfolio={portfolio} />
         ) : (
-          <ConversationSurface />
+          <ConversationSurface transcript={portfolio.conversation} />
         )}
       </aside>
     </>
@@ -529,7 +536,53 @@ function ObservationMailboxMessage({
   );
 }
 
-export function ConversationSurface() {
+export function ConversationSurface({
+  transcript: currentTranscript,
+}: {
+  transcript: ConversationTranscript;
+}) {
+  const [transcript, setTranscript] = useState(currentTranscript);
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
+  const [writeError, setWriteError] = useState<Error | null>(null);
+  useEffect(() => {
+    setTranscript(currentTranscript);
+    setWriteError(null);
+  }, [currentTranscript]);
+  const session = transcript.session;
+  const browserWriter = conversationBrowserWriter(transcript);
+  const available = transcript.availability === "available" && session !== null;
+  const body = message.trim();
+  const bodyBytes = new TextEncoder().encode(body).length;
+  const enabled = Boolean(
+    available &&
+    browserWriter &&
+    body &&
+    bodyBytes <= transcript.limits.max_message_bytes &&
+    !writeError &&
+    !pending,
+  );
+  const append = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!enabled || !session) return;
+    setPending(true);
+    setWriteError(null);
+    try {
+      const result = await writeConversationMessage({
+        schema: "rey.ui-conversation-message-write.v1",
+        expected_log_id: transcript.log_id,
+        session_id: session.session_id,
+        body,
+        reply_to: null,
+      });
+      setTranscript(result.transcript);
+      setMessage("");
+    } catch (cause) {
+      setWriteError(cause instanceof Error ? cause : new Error(String(cause)));
+    } finally {
+      setPending(false);
+    }
+  };
   return (
     <>
       <header className={sx(styles.communicationsHeader)}>
@@ -540,8 +593,12 @@ export function ConversationSurface() {
           <h2 className={sx(styles.sectionTitle)}>Conversation</h2>
         </div>
         <div className={sx(styles.communicationsCoordinate)}>
-          <span className={sx(styles.micro, styles.muted)}>SESSION / NONE</span>
-          <span className={sx(styles.micro)}>TRANSPORT / UNAVAILABLE</span>
+          <span className={sx(styles.micro, styles.muted)}>
+            SESSION / {session ? shortDigest(session.session_id) : "NONE"}
+          </span>
+          <span className={sx(styles.micro)}>
+            TRANSPORT / {transcript.availability.toUpperCase()}
+          </span>
         </div>
       </header>
       <div className={sx(styles.conversationBody)}>
@@ -550,22 +607,45 @@ export function ConversationSurface() {
           className={sx(styles.conversationThread)}
           role="log"
         >
-          <div className={sx(styles.conversationBoundary)} role="status">
-            <span className={sx(styles.micro, styles.toneWarning)}>
-              NO ADMITTED CONVERSATION
-            </span>
-            <strong>No Rey or agent session is connected.</strong>
-            <p>
-              This server has no conversation admission path. A transport,
-              participant identity, retention contract, and message contract
-              must be bound before communication can begin.
-            </p>
-          </div>
+          <ConversationContract transcript={transcript} />
+          {transcript.messages.map((entry) => {
+            const participant = conversationParticipant(
+              transcript,
+              entry.proposal.author_id,
+            );
+            return (
+              <article
+                className={sx(styles.conversationMessage)}
+                data-conversation-message=""
+                key={entry.message_id}
+              >
+                <span className={sx(styles.micro, styles.communicationAction)}>
+                  C@{entry.sequence} ·{" "}
+                  {participant?.kind.toUpperCase() ?? "UNKNOWN"}/{" "}
+                  {entry.proposal.author_id} · SELF-ASSERTED
+                </span>
+                <strong>
+                  {participant?.label ?? entry.proposal.author_id}
+                </strong>
+                <p>{entry.proposal.body}</p>
+                <small className={sx(styles.micro, styles.muted)}>
+                  DELIVERY / NOT ATTEMPTED · SOURCE / {entry.source.locator}
+                </small>
+                <code title={entry.message_id}>
+                  MESSAGE / {shortDigest(entry.message_id)}
+                </code>
+              </article>
+            );
+          })}
+          {available && transcript.messages.length === 0 ? (
+            <div className={sx(styles.conversationBoundary)} role="status">
+              <span className={sx(styles.micro)}>TRANSCRIPT / EMPTY</span>
+              <strong>No messages retained in this exact session.</strong>
+              <p>Nothing has been delivered or inferred.</p>
+            </div>
+          ) : null}
         </div>
-        <form
-          className={sx(styles.conversationComposer)}
-          onSubmit={(event) => event.preventDefault()}
-        >
+        <form className={sx(styles.conversationComposer)} onSubmit={append}>
           <label
             className={sx(styles.micro, styles.conversationLabel)}
             htmlFor="rey-conversation-message"
@@ -574,18 +654,31 @@ export function ConversationSurface() {
           </label>
           <textarea
             aria-describedby="rey-conversation-boundary"
-            className={sx(styles.conversationInput)}
-            disabled
+            className={sx(
+              styles.conversationInput,
+              browserWriter && styles.conversationInputEnabled,
+            )}
+            disabled={!browserWriter || pending}
             id="rey-conversation-message"
-            placeholder="Connect an admitted Rey / agent session to send a message"
+            maxLength={transcript.limits.max_message_bytes}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder={
+              browserWriter
+                ? `Append as ${browserWriter.label} · self-asserted`
+                : "Admit a session with a human browser writer to append"
+            }
             rows={3}
+            value={message}
           />
           <button
-            className={sx(styles.conversationSend)}
-            disabled
+            className={sx(
+              styles.conversationSend,
+              enabled && styles.conversationSendEnabled,
+            )}
+            disabled={!enabled}
             type="submit"
           >
-            SEND ↗
+            {pending ? "APPENDING…" : "APPEND ↗"}
           </button>
           <small
             className={sx(
@@ -595,11 +688,85 @@ export function ConversationSurface() {
             )}
             id="rey-conversation-boundary"
           >
-            BOUND / NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY
+            {browserWriter
+              ? `BOUND / LOCAL APPEND AS ${browserWriter.participant_id.toUpperCase()} · NO DELIVERY OR EXECUTION`
+              : "BOUND / NO AVAILABLE BROWSER WRITER · SEND DISABLED"}
           </small>
+          {writeError ? (
+            <small
+              className={sx(
+                styles.micro,
+                styles.toneWarning,
+                styles.conversationBoundaryNote,
+              )}
+              role="alert"
+            >
+              APPEND REJECTED · {writeError.message}
+            </small>
+          ) : null}
         </form>
       </div>
     </>
+  );
+}
+
+function ConversationContract({
+  transcript,
+}: {
+  transcript: ConversationTranscript;
+}) {
+  const session = transcript.session;
+  return (
+    <div className={sx(styles.conversationBoundary)} role="status">
+      <span
+        className={sx(
+          styles.micro,
+          transcript.availability === "unavailable" && styles.toneWarning,
+        )}
+      >
+        {transcript.availability === "available"
+          ? "ADMITTED LOCAL TRANSCRIPT"
+          : "NO ADMITTED CONVERSATION"}
+      </span>
+      <strong>
+        {session?.proposal.title ?? "No conversation session is admitted."}
+      </strong>
+      <p>{transcript.availability_detail}</p>
+      {session ? (
+        <p className={sx(styles.micro, styles.muted)}>
+          {session.proposal.transport.provider} /{" "}
+          {session.proposal.transport.provider_revision} · PARTICIPANTS /{" "}
+          {session.proposal.participants
+            .map(
+              (participant) =>
+                `${participant.kind}:${participant.participant_id}`,
+            )
+            .join(" · ")}{" "}
+          · WRITERS / {session.proposal.writer_ids.join(" · ")}
+        </p>
+      ) : null}
+      <p className={sx(styles.micro, styles.muted)}>
+        ORDERING / {transcript.ordering} · COVERAGE /{" "}
+        {transcript.messages.length}/{transcript.total_messages} ·{" "}
+        {transcript.completeness.toUpperCase()} · {transcript.omitted_messages}{" "}
+        OMITTED
+      </p>
+      <p className={sx(styles.micro, styles.muted)}>
+        RETENTION / {transcript.retention}
+      </p>
+      <p className={sx(styles.micro, styles.muted)}>
+        READ / {transcript.read_authority} · BROWSER WRITE /{" "}
+        {transcript.browser_write_authority}
+      </p>
+      <p className={sx(styles.micro, styles.muted)}>
+        EFFECT / {transcript.effect_authority} · FAILURE /{" "}
+        {transcript.failure_contract}
+      </p>
+      <code title={transcript.transcript_id}>
+        TRANSCRIPT / {shortDigest(transcript.transcript_id)} · LOG /{" "}
+        {shortDigest(transcript.log_id)}
+      </code>
+    </div>
   );
 }
 

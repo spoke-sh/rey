@@ -97,7 +97,23 @@ accept only bounded regular non-symlinked files contained by the workspace.
 Human rendering exposes the complete authority and availability boundary in
 addition to the transcript; JSON returns the same typed documents.
 
-The browser transcript and composer remain disabled until they consume this
-same contract through the explicitly configured UI listener. They must never
-fall back to UI-only state, alias mailbox history, or imply delivery beyond
-local admission.
+`GET|HEAD /api/v1/conversations` returns the same default bounded transcript.
+The footer conversation axis passively revalidates it independently from the
+mailbox source relations and renders exact participants, writers, message
+sequence, source, identity, coverage, omissions, retention, authority, limits,
+and failure posture.
+
+`POST /api/v1/conversations/messages` accepts only
+`rey.ui-conversation-message-write.v1`. It conditionally appends against the
+exact expected log and session identities, derives the author only from that
+session's declared human browser writer, calls the same store and validator,
+and returns the retained message/transcript. A stale log, missing session,
+missing browser writer, invalid body/reply, tamper, or persistence failure
+rejects the write. The composer remains visibly disabled when the transport or
+browser writer is unavailable and after a failed stale append until current
+state revalidates. It never falls back to UI-only messages, aliases mailbox
+history, or implies delivery beyond local admission.
+
+The UI listener has no authentication. Any client that can reach an explicitly
+configured listener can append as the session's self-asserted human browser
+writer, so `rey ui` reports that exposure and warns on non-loopback binds.

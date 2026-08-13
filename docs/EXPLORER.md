@@ -533,9 +533,11 @@ open the traditional conversation axis of the same plane, and the shortened Rey 
 the complete revision to the canonical GitHub commit. This is separate from
 the BLAKE3 portfolio-attention identity: semantic evidence digests must never
 be presented as source commits. Mailbox history is currently only the mounted
-projection. The conversation transcript is empty and its composer disabled
-because no transport, agent session, message admission, or retention contract
-exists yet.
+projection. The conversation axis projects the bounded workspace-local
+transcript and conditionally appends through the exact session-declared human
+browser writer. An unavailable transcript or writer keeps the composer
+disabled; every retained append remains delivery-not-attempted and carries no
+agent invocation, Channel relay, action, or proof authority.
 
 The implemented Explorer topology is derived from `rey.workload-list.v1`:
 exact workload packages, HEAD/INDEX/WORKING revision state, drafts,

@@ -10,6 +10,11 @@ use rey::{
         ChannelGraph, ChannelGraphSource, ChannelStatus, LocalChannelStore,
         MAX_CHANNEL_GRAPH_INPUT_BYTES,
     },
+    conversations::{
+        CONVERSATION_MESSAGE_PROPOSAL_SCHEMA, ConversationMessageProposal, ConversationSource,
+        DEFAULT_CONVERSATION_TRANSCRIPT_LIMIT, LocalConversationStore,
+        MAX_CONVERSATION_MESSAGE_INPUT_BYTES,
+    },
     current_environment_status,
     env::LocalEnvironmentStore,
     journal::{
@@ -41,6 +46,7 @@ const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
 const UI_CHANNELS_SCHEMA: &str = "rey.ui-channels.v1";
 const UI_CHANNEL_WORKING_WRITE_SCHEMA: &str = "rey.ui-channel-working-write.v1";
+const UI_CONVERSATION_MESSAGE_WRITE_SCHEMA: &str = "rey.ui-conversation-message-write.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
@@ -68,6 +74,7 @@ pub struct UiServerConfig {
     pub catalog_directory: PathBuf,
     pub journal_directory: PathBuf,
     pub channel_directory: PathBuf,
+    pub conversation_directory: PathBuf,
     pub host: IpAddr,
     pub port: u16,
 }
@@ -84,9 +91,11 @@ pub struct UiServerDescriptor {
     pub journal_write_enabled: bool,
     pub workload_admission_enabled: bool,
     pub channel_write_enabled: bool,
+    pub conversation_write_enabled: bool,
     pub workspace: String,
     pub catalog_root: String,
     pub channel_root: String,
+    pub conversation_root: String,
     pub application: String,
     pub grammar: String,
     pub theme: String,
@@ -231,6 +240,16 @@ struct UiWorkloadApproval {
     expected_working: String,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UiConversationMessageWrite {
+    schema: String,
+    expected_log_id: SemanticDigest,
+    session_id: SemanticDigest,
+    body: String,
+    reply_to: Option<SemanticDigest>,
+}
+
 pub struct UiServer {
     server: Server,
     config: UiServerConfig,
@@ -256,9 +275,11 @@ impl UiServer {
             journal_write_enabled: true,
             workload_admission_enabled: true,
             channel_write_enabled: true,
+            conversation_write_enabled: true,
             workspace: config.workspace.display().to_string(),
             catalog_root: config.catalog_directory.display().to_string(),
             channel_root: config.channel_directory.display().to_string(),
+            conversation_root: config.conversation_directory.display().to_string(),
             application: "tanstack_router".to_owned(),
             grammar: "kinetic".to_owned(),
             theme: "precision".to_owned(),
@@ -319,6 +340,9 @@ impl UiServer {
         if request.method() == &Method::Post && path == "/api/v1/channels/working" {
             return self.write_channel_working(request);
         }
+        if request.method() == &Method::Post && path == "/api/v1/conversations/messages" {
+            return self.write_conversation_message(request);
+        }
         if request.method() != &Method::Get && !head {
             return with_header(
                 json_error(
@@ -336,6 +360,7 @@ impl UiServer {
             "/api/v1/health" => self.health(),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/channels" => self.channels(),
+            "/api/v1/conversations" => self.conversations(),
             "/api/v1/environment" => self.environment(),
             "/api/v1/journal" => self.journal(),
             "/api/v1/journal/opportunities" => self.journal_opportunities(),
@@ -542,6 +567,129 @@ impl UiServer {
             Err(error) => json_error(
                 StatusCode(500),
                 "channel_status_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn conversations(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalConversationStore::new(self.config.conversation_directory.clone());
+        match store.transcript(None, DEFAULT_CONVERSATION_TRANSCRIPT_LIMIT) {
+            Ok(transcript) => json_response(StatusCode(200), &transcript),
+            Err(error) => json_error(
+                StatusCode(500),
+                "conversation_transcript_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn write_conversation_message(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        if request_header(request, "Content-Type") != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "conversation_message_content_type",
+                "conversation message writes require Content-Type: application/json",
+            );
+        }
+        if request
+            .body_length()
+            .is_some_and(|length| length as u64 > MAX_CONVERSATION_MESSAGE_INPUT_BYTES)
+        {
+            return json_error(
+                StatusCode(413),
+                "conversation_message_body_limit",
+                "conversation message write exceeds the 65536-byte limit",
+            );
+        }
+        let mut bytes = Vec::new();
+        if let Err(error) = request
+            .as_reader()
+            .take(MAX_CONVERSATION_MESSAGE_INPUT_BYTES.saturating_add(1))
+            .read_to_end(&mut bytes)
+        {
+            return json_error(
+                StatusCode(400),
+                "conversation_message_body_unreadable",
+                &error.to_string(),
+            );
+        }
+        if bytes.len() as u64 > MAX_CONVERSATION_MESSAGE_INPUT_BYTES {
+            return json_error(
+                StatusCode(413),
+                "conversation_message_body_limit",
+                "conversation message write exceeds the 65536-byte limit",
+            );
+        }
+        let write: UiConversationMessageWrite = match serde_json::from_slice(&bytes) {
+            Ok(write) => write,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "conversation_message_json_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        if write.schema != UI_CONVERSATION_MESSAGE_WRITE_SCHEMA {
+            return json_error(
+                StatusCode(422),
+                "conversation_message_schema_invalid",
+                "expected rey.ui-conversation-message-write.v1",
+            );
+        }
+        let store = LocalConversationStore::new(self.config.conversation_directory.clone());
+        let log = match store.load() {
+            Ok(log) => log,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "conversation_transcript_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let session = match log.session(write.session_id.as_str()) {
+            Ok(session) => session,
+            Err(error) => {
+                return json_error(
+                    StatusCode(409),
+                    "conversation_session_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let Some(author_id) = session.proposal.browser_writer_id.clone() else {
+            return json_error(
+                StatusCode(403),
+                "conversation_browser_writer_unavailable",
+                "the exact conversation session declares no human browser writer",
+            );
+        };
+        let proposal = ConversationMessageProposal {
+            schema: CONVERSATION_MESSAGE_PROPOSAL_SCHEMA.to_owned(),
+            session_id: write.session_id,
+            author_id,
+            body: write.body,
+            reply_to: write.reply_to,
+        };
+        let source = ConversationSource::from_bytes(
+            format!(
+                "rey-ui://{}/conversations/{}",
+                self.descriptor.address, proposal.session_id
+            ),
+            &bytes,
+        );
+        match store.admit_message_if_log(
+            proposal,
+            source,
+            chrono::Utc::now().timestamp(),
+            &write.expected_log_id,
+        ) {
+            Ok(result) => json_response(StatusCode(201), &result),
+            Err(error) => json_error(
+                StatusCode(409),
+                "conversation_message_rejected",
                 &error.to_string(),
             ),
         }
@@ -1350,6 +1498,10 @@ mod tests {
     use super::{UiServer, UiServerConfig};
     use rey::{
         channels::LocalChannelStore,
+        conversations::{
+            ConversationSessionProposal, ConversationSource as TranscriptSource,
+            LocalConversationStore,
+        },
         observations::{LocalObservationStore, ObservationProposal, ObservationSource},
         workloads::LocalWorkloadStore,
     };
@@ -1401,12 +1553,43 @@ mod tests {
             .working
             .snapshot_revision;
         assert!(!workload_store.path().exists());
+        let conversation_directory = workspace.path().join(".rey/conversations");
+        let conversation_store = LocalConversationStore::new(conversation_directory.clone());
+        let conversation_proposal: ConversationSessionProposal =
+            serde_json::from_value(serde_json::json!({
+                "schema": "rey.conversation-session-proposal.v1",
+                "title": "Operator and agent conversation",
+                "transport": {
+                    "kind": "local_transcript",
+                    "provider": "rey.local-transcript",
+                    "provider_revision": "v1"
+                },
+                "participants": [
+                    { "participant_id": "operator", "kind": "human", "label": "Operator" },
+                    { "participant_id": "codex", "kind": "agent", "label": "Codex" }
+                ],
+                "writer_ids": ["operator", "codex"],
+                "browser_writer_id": "operator"
+            }))
+            .unwrap();
+        let conversation_source = serde_json::to_vec(&conversation_proposal).unwrap();
+        conversation_store
+            .admit_session(
+                conversation_proposal,
+                TranscriptSource::from_bytes(
+                    "workspace://conversation-session.yaml".to_owned(),
+                    &conversation_source,
+                ),
+                1,
+            )
+            .unwrap();
         let server = UiServer::bind(UiServerConfig {
             workspace: workspace.path().to_owned(),
             state_directory: workspace.path().join(".rey/workloads"),
             catalog_directory: "sys".into(),
             journal_directory: workspace.path().join(".rey/journal"),
             channel_directory: workspace.path().join(".rey/channels"),
+            conversation_directory,
             host: "127.0.0.1".parse().unwrap(),
             port: 0,
         })
@@ -1418,6 +1601,7 @@ mod tests {
         assert!(descriptor.journal_write_enabled);
         assert!(descriptor.workload_admission_enabled);
         assert!(descriptor.channel_write_enabled);
+        assert!(descriptor.conversation_write_enabled);
         assert_eq!(descriptor.grammar, "kinetic");
         assert_eq!(descriptor.theme, "precision");
         assert_eq!(descriptor.source_repository, None);
@@ -1428,12 +1612,48 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(42)).unwrap());
+        let handle = thread::spawn(move || server.serve_bounded(Some(45)).unwrap());
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
         assert!(health.contains("\"schema\":\"rey.ui-health.v1\""));
         assert!(health.contains("\"loopback_only\":true"));
+
+        let conversation = request(&address, "GET /api/v1/conversations HTTP/1.1");
+        assert!(conversation.starts_with("HTTP/1.1 200"));
+        let conversation: serde_json::Value =
+            serde_json::from_str(response_body(&conversation)).unwrap();
+        assert_eq!(conversation["availability"], "available");
+        assert_eq!(conversation["browser_write_enabled"], true);
+        assert_eq!(
+            conversation["session"]["proposal"]["browser_writer_id"],
+            "operator"
+        );
+        let conversation_write = serde_json::json!({
+            "schema": "rey.ui-conversation-message-write.v1",
+            "expected_log_id": conversation["log_id"],
+            "session_id": conversation["session"]["session_id"],
+            "body": "The operator admitted this exact local transcript message.",
+            "reply_to": null
+        })
+        .to_string();
+        let conversation_message = request_with_body(
+            &address,
+            "POST /api/v1/conversations/messages HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &conversation_write,
+        );
+        assert!(conversation_message.starts_with("HTTP/1.1 201"));
+        assert!(conversation_message.contains("\"delivery\":\"not_attempted\""));
+        assert!(conversation_message.contains("\"author_id\":\"operator\""));
+        let stale_conversation_message = request_with_body(
+            &address,
+            "POST /api/v1/conversations/messages HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &conversation_write,
+        );
+        assert!(stale_conversation_message.starts_with("HTTP/1.1 409"));
+        assert!(stale_conversation_message.contains("conversation log changed before append"));
 
         let workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(workloads.starts_with("HTTP/1.1 200"));
@@ -1749,8 +1969,9 @@ mod tests {
             assert!(response.contains("text/javascript"), "{asset}");
         }
         assert!(application.contains("data-communication-backdrop"));
-        assert!(application.contains("No Rey or agent session is connected"));
-        assert!(application.contains("NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY"));
+        assert!(application.contains("No conversation session is admitted"));
+        assert!(application.contains("NO AVAILABLE BROWSER WRITER · SEND DISABLED"));
+        assert!(application.contains("DELIVERY / NOT ATTEMPTED"));
         assert!(application.contains("MAILBOX"));
         assert!(application.contains("INSPECT EVIDENCE"));
         assert!(application.contains("rey+local://"));
@@ -1855,6 +2076,7 @@ mod tests {
             catalog_directory: "sys".into(),
             journal_directory: workspace.path().join(".rey/journal"),
             channel_directory: channel_directory.clone(),
+            conversation_directory: workspace.path().join(".rey/conversations"),
             host: "127.0.0.1".parse().unwrap(),
             port: 0,
         })

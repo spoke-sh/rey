@@ -177,8 +177,9 @@ and the conversation boundary.
   unknown content identity with a mutable latest result.
 - Preserve the delivered workspace-local conversation session/message
   contract as append-only transcript admission with declared writers,
-  per-session order, bounded retention, and no delivery or execution claim;
-  project it into the browser before enabling send.
+  per-session order, bounded retention, and no delivery or execution claim.
+  Preserve the delivered browser projection and conditional append against the
+  exact log/session writer contract; unavailable authority keeps send disabled.
 - Extend the implemented exact direct relay only after remote provider, cursor,
   hop, idempotency, loop-prevention, delivery, and omission contracts are
   accepted and proved.

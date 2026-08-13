@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type { ConversationTranscript } from "./conversations";
 import {
   activateCommunicationAxis,
   CommunicationBackdrop,
@@ -73,15 +74,34 @@ describe("operator routes", () => {
   });
 
   it("keeps the traditional conversation composer disabled without transport", () => {
-    const markup = renderToStaticMarkup(createElement(ConversationSurface));
+    const markup = renderToStaticMarkup(
+      createElement(ConversationSurface, {
+        transcript: conversationTranscript(false),
+      }),
+    );
 
     expect(markup).toContain("REY / AGENT / OPERATOR");
     expect(markup).toContain("TRANSPORT / UNAVAILABLE");
     expect(markup).toMatch(/<textarea[^>]*disabled=""/);
     expect(markup).toMatch(/<button[^>]*disabled=""/);
-    expect(markup).toContain(
-      "NO TRANSPORT · NO RETENTION · NO WRITE AUTHORITY",
+    expect(markup).toContain("NO AVAILABLE BROWSER WRITER · SEND DISABLED");
+    expect(markup).toContain("NO ADMITTED CONVERSATION");
+  });
+
+  it("projects an exact retained transcript and enables only its declared browser writer", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ConversationSurface, {
+        transcript: conversationTranscript(true),
+      }),
     );
+
+    expect(markup).toContain("TRANSPORT / AVAILABLE");
+    expect(markup).toContain("C@1 · AGENT/ codex · SELF-ASSERTED");
+    expect(markup).toContain("Retained agent context.");
+    expect(markup).toContain("DELIVERY / NOT ATTEMPTED");
+    expect(markup).toContain("Append as Operator · self-asserted");
+    expect(markup).toMatch(/<textarea(?![^>]*disabled)[^>]*>/);
+    expect(markup).toContain("NO DELIVERY OR EXECUTION");
   });
 
   it("closes the communication plane when its backdrop is clicked", () => {
@@ -140,3 +160,105 @@ describe("operator routes", () => {
     });
   });
 });
+
+function conversationTranscript(available: boolean): ConversationTranscript {
+  const limits = {
+    max_sessions: 32,
+    max_messages: 2_048,
+    max_participants_per_session: 16,
+    max_writers_per_session: 16,
+    max_message_bytes: 16_384,
+    max_transcript_rows: 256,
+    max_state_bytes: 4_194_304,
+  };
+  const digest = (character: string) => `blake3:${character.repeat(64)}`;
+  if (!available) {
+    return {
+      schema: "rey.conversation-transcript.v1",
+      transcript_id: digest("a"),
+      log_id: digest("b"),
+      session: null,
+      availability: "unavailable",
+      availability_detail: "no conversation session is admitted",
+      ordering: "none; no session sequence exists",
+      retention: "none; no transcript exists",
+      read_authority: "local projection",
+      cli_write_authority: "none",
+      browser_write_authority: "none",
+      browser_write_enabled: false,
+      effect_authority: "none",
+      failure_contract: "message admission fails closed",
+      completeness: "complete",
+      total_messages: 0,
+      omitted_messages: 0,
+      messages: [],
+      limits,
+    };
+  }
+  const sessionId = digest("c");
+  return {
+    schema: "rey.conversation-transcript.v1",
+    transcript_id: digest("d"),
+    log_id: digest("e"),
+    session: {
+      schema: "rey.conversation-session.v1",
+      session_id: sessionId,
+      sequence: 1,
+      admitted_at_unix: 1,
+      source: {
+        locator: "worktree:///session.yaml",
+        content_digest: digest("f"),
+      },
+      limits,
+      proposal: {
+        schema: "rey.conversation-session-proposal.v1",
+        title: "Operator and agent conversation",
+        transport: {
+          kind: "local_transcript",
+          provider: "rey.local-transcript",
+          provider_revision: "v1",
+        },
+        participants: [
+          { participant_id: "operator", kind: "human", label: "Operator" },
+          { participant_id: "codex", kind: "agent", label: "Codex" },
+        ],
+        writer_ids: ["operator", "codex"],
+        browser_writer_id: "operator",
+      },
+    },
+    availability: "available",
+    availability_detail: "the admitted local transcript is available",
+    ordering: "local_per_session_sequence",
+    retention: "workspace_local_append_only",
+    read_authority: "listener clients",
+    cli_write_authority: "declared writers",
+    browser_write_authority: "self-asserted operator; admission only",
+    browser_write_enabled: true,
+    effect_authority: "none; no delivery or execution",
+    failure_contract: "reject before publication",
+    completeness: "complete",
+    total_messages: 1,
+    omitted_messages: 0,
+    messages: [
+      {
+        schema: "rey.conversation-message.v1",
+        message_id: digest("1"),
+        sequence: 1,
+        admitted_at_unix: 2,
+        source: {
+          locator: "worktree:///message.yaml",
+          content_digest: digest("2"),
+        },
+        delivery: "not_attempted",
+        proposal: {
+          schema: "rey.conversation-message-proposal.v1",
+          session_id: sessionId,
+          author_id: "codex",
+          body: "Retained agent context.",
+          reply_to: null,
+        },
+      },
+    ],
+    limits,
+  };
+}

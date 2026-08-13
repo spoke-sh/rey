@@ -115,7 +115,7 @@ already admitted in HEAD.
 | `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
 | `conversations` | Immutable sessions plus append-only per-session transcript sequence | Admission retains local dialogue only; it does not deliver, invoke an agent, relay, schedule work, or grant proof authority. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
-| `ui` | Explicit server process over the same typed state | Human projection with narrow Journal, Channel WORKING, and workload-admission writes, not a second runtime. |
+| `ui` | Explicit server process over the same typed state | Human projection with narrow Journal/conversation admission, Channel WORKING, and workload-admission writes, not a second runtime. |
 
 Channel message admission is append-only and independent of the topology
 INDEX. Journal sequence is not HEAD/INDEX state.
@@ -479,7 +479,8 @@ INDEX/HEAD, relays, schedules, assigns, executes, or proves work.
 
 ```text
 rey ui [--workspace PATH] [--state-dir PATH]
-  [--journal-state-dir PATH] [--channel-state-dir PATH] [--catalog-dir sys]
+  [--journal-state-dir PATH] [--channel-state-dir PATH]
+  [--conversation-state-dir PATH] [--catalog-dir sys]
   [--host 127.0.0.1] [--port 5714]
 ```
 
@@ -490,9 +491,9 @@ unmapped orientation globe whose beacons are exact file-backed workload
 candidates; inspection and consent descend into the existing workload and
 Feed admission surfaces. The globe does not execute a survey or imply that the
 project has already been mapped.
-An explicit non-loopback listener exposes unauthenticated Journal admission
-and Channel WORKING replacement plus exact workload approval to reachable
-clients; Rey reports that boundary and the surrounding deployment must protect
+An explicit non-loopback listener exposes unauthenticated Journal and
+conversation admission, Channel WORKING replacement, and exact workload
+approval to reachable clients; Rey reports that boundary and the surrounding deployment must protect
 it when required. `/channels` reads the same exact Channel status as the CLI.
 Its editor requires the displayed HEAD and WORKING snapshot identities, passes
 the complete graph through the existing validator/store, and writes WORKING
@@ -502,6 +503,15 @@ order. URL tuning stays detached until the operator adopts it; stable drag,
 move-button, and `Alt+Arrow` layout movement conditionally replaces WORKING,
 shows the returned semantic delta, and restores the prior layout after a stale
 or rejected write. These controls grant no additional Channel authority.
+
+The footer conversation axis reads the same default bounded transcript as
+`rey conversations status`. It enables the composer only when the exact
+session declares a human browser writer. Append binds the displayed log and
+session identities, derives that writer rather than accepting an arbitrary
+author, and retains `delivery: not_attempted` through the same validator/store.
+Stale state, missing transport/writer, invalid content, or persistence failure
+rejects the write and keeps the composer or failure boundary visible. Mailbox
+history remains a separate read projection.
 
 Browser workload approval is a combined human action over visible file state:
 it checks expected HEAD and WORKING identities, freezes the reviewed files in
@@ -542,7 +552,7 @@ latest result.
 | `journal seed`, `journal opportunities` | Read-only deterministic projections; neither retains a document, schedules work, or executes a block. |
 | `journal query admit` | Retains one exact read-only query admission; executes nothing and leaves the Journal unchanged. |
 | `journal query execute` | Revalidates exact admitted inputs, retains bounded query evidence, and authors a create-new superseding proposal; leaves the Journal unchanged. |
-| `ui` | Starts a server; its narrow writes are Journal admission, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
+| `ui` | Starts a server; its narrow writes are Journal admission, expected-log/session conversation append, expected-snapshot Channel WORKING replacement, and qualified workload approval. |
 
 Process success and semantic convergence remain separate. A successful status
 may report differences, an unready INDEX, omissions, or unresolved work.

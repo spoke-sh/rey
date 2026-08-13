@@ -473,9 +473,10 @@ exact locator resolution, and ongoing delta/attention processing.
 ### Conversation axis
 
 The communication-plane axis intended for operator ↔ Rey ↔ agent dialogue.
-The CLI now retains bounded workspace-local sessions and append-only messages;
-the current UI shows the conventional transcript/composer grammar but remains
-disabled until it projects that same provider and authority contract.
+The CLI and browser project the same bounded workspace-local sessions and
+append-only messages. The composer enables only for an exact session-declared
+human browser writer and remains disabled when that transport authority is
+unavailable.
 
 ### Conversation session
 
