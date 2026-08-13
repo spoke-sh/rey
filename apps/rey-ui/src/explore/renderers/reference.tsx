@@ -12,7 +12,11 @@ import type {
   TopologyTone,
 } from "../../topology";
 import { contextGlobeSamples } from "./globe-samples";
-import { projectSemanticGlobe } from "../projection/semantic-mercator";
+import {
+  projectSemanticGlobe,
+  projectWorldAtlasBoundsMorph,
+  projectWorldAtlasMorph,
+} from "../projection/semantic-mercator";
 
 export type FocusableTopologyObject = Pick<
   TopologyNode | TopologyPointOfInterest,
@@ -32,14 +36,20 @@ export function ReferenceRenderer({
   onFocus,
   scene,
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
+  projectionMorphProgress = scene.regime === "world" ? 0 : 1,
 }: {
   accelerated?: boolean;
   layers: ReferenceLayerVisibility;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
   globeView?: GlobeCameraView;
+  projectionMorphProgress?: number;
 }) {
   const globeWorld = scene.regime === "world" && scene.globe !== null;
+  const morphActive =
+    scene.world_atlas_transition !== null &&
+    projectionMorphProgress > 0 &&
+    projectionMorphProgress < 1;
   return (
     <div
       className={sx(
@@ -54,6 +64,7 @@ export function ReferenceRenderer({
       data-renderer={accelerated ? "reference-overlays" : "reference"}
     >
       {!globeWorld &&
+        !morphActive &&
         scene.regions.map((region) => (
           <div
             className={sx(
@@ -83,7 +94,16 @@ export function ReferenceRenderer({
         globeView={globeView}
         onFocus={onFocus}
         scene={scene}
+        suppressSemanticObjects={morphActive}
       />
+      {morphActive ? (
+        <WorldAtlasTransitionLayer
+          globeView={globeView}
+          onFocus={onFocus}
+          progress={projectionMorphProgress}
+          scene={scene}
+        />
+      ) : null}
       {!globeWorld && layers.relief ? <ReliefLayer scene={scene} /> : null}
       {!globeWorld && (layers.water || layers.weather) ? (
         <NaturalFeatureLayer
@@ -113,6 +133,7 @@ export function ReferenceRenderer({
             />
           ))}
       {!globeWorld &&
+        !morphActive &&
         scene.nodes.map((node) => (
           <TopologyObject
             counterScale={scene.terrain}
@@ -131,11 +152,13 @@ function WorldGeometryLayer({
   onFocus,
   scene,
   globeView,
+  suppressSemanticObjects,
 }: {
   accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
   globeView: GlobeCameraView;
+  suppressSemanticObjects: boolean;
 }) {
   if (scene.regime === "world" && scene.globe)
     return (
@@ -144,6 +167,7 @@ function WorldGeometryLayer({
         globeView={globeView}
         onFocus={onFocus}
         scene={scene}
+        suppressSemanticObjects={suppressSemanticObjects}
       />
     );
   if (scene.landforms.length === 0) return null;
@@ -221,11 +245,13 @@ function SemanticGlobeLayer({
   onFocus,
   scene,
   globeView,
+  suppressSemanticObjects,
 }: {
   accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
   globeView: GlobeCameraView;
+  suppressSemanticObjects: boolean;
 }) {
   const globe = scene.globe!;
   const center = { x: scene.world.width / 2, y: scene.world.height / 2 };
@@ -244,14 +270,14 @@ function SemanticGlobeLayer({
         `M${x.toFixed(1)} ${y.toFixed(1)}h${Math.max(0.45, 0.9 + depth * 0.85).toFixed(1)}`,
     )
     .join("");
-  const projectedRegions = globe.regions
+  const projectedRegions = (suppressSemanticObjects ? [] : globe.regions)
     .map((region) => ({
       region,
       ...projectGlobe(region, center, radius, globeView),
     }))
     .filter(({ visible }) => visible)
     .sort((left, right) => left.depth - right.depth);
-  const projectedClusters = globe.clusters
+  const projectedClusters = (suppressSemanticObjects ? [] : globe.clusters)
     .map((cluster) => ({
       cluster,
       ...projectGlobe(cluster, center, radius, globeView),
@@ -463,6 +489,122 @@ function SemanticGlobeLayer({
           ? `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`
           : `${globe.posture === "semantic_atlas" ? "SEMANTIC SPHERE" : "REGIONAL WORLD"} / ${globe.regions.length} ADMITTED REGIONS / REV ${globe.source_revision.slice(0, 12)}`}
       </text>
+    </svg>
+  );
+}
+
+function WorldAtlasTransitionLayer({
+  globeView,
+  onFocus,
+  progress,
+  scene,
+}: {
+  globeView: GlobeCameraView;
+  onFocus: (node: FocusableTopologyObject) => void;
+  progress: number;
+  scene: TopologyScene;
+}) {
+  const transition = scene.world_atlas_transition!;
+  const worldFrame = {
+    center: { x: scene.world.width / 2, y: scene.world.height / 2 },
+    radius: Math.min(scene.world.width, scene.world.height) * 0.41,
+  };
+  const sectorFragments = transition.sectors.flatMap((sector) =>
+    projectWorldAtlasBoundsMorph(
+      sector.identity,
+      sector,
+      worldFrame,
+      transition.atlas_frame,
+      globeView,
+      progress,
+    ).map((fragment) => ({ fragment, sector })),
+  );
+  const points = transition.points.map((point) => ({
+    point,
+    projected: projectWorldAtlasMorph(
+      point.identity,
+      point.focus_id,
+      {
+        longitude_microdegrees: point.longitude_microdegrees,
+        latitude_microdegrees: point.latitude_microdegrees,
+      },
+      worldFrame,
+      transition.atlas_frame,
+      globeView,
+      progress,
+    ),
+  }));
+  return (
+    <svg
+      aria-label={`${points.length} regional identities morphing from World to Atlas`}
+      className={sx(styles.worldGeometryLayer, styles.worldAtlasMorphLayer)}
+      data-atlas-revision={transition.atlas_revision}
+      data-projection-morph={transition.projection_revision}
+      data-projection-morph-progress={progress.toFixed(3)}
+      role="group"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>{transition.authority}</title>
+      <g aria-label={`${transition.sectors.length} retained sector identities`}>
+        {sectorFragments.map(({ fragment, sector }) => (
+          <path
+            className={sx(styles.worldAtlasMorphSector)}
+            d={`${fragment.points.map(({ x, y }, index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ")} Z`}
+            data-semantic-identity={fragment.identity}
+            data-wrap-fragment={fragment.fragment_id}
+            key={fragment.fragment_id}
+          >
+            <title>{`${sector.label} / ${fragment.polar_disclosures.join(" + ") || "inside Mercator latitude cutoff"}`}</title>
+          </path>
+        ))}
+      </g>
+      <g aria-label={`${points.length} retained regional identities`}>
+        {points.map(({ point, projected }) => (
+          <g
+            aria-label={`${point.label}: retained regional identity`}
+            className={sx(
+              styles.worldAtlasMorphPoint,
+              toneStyle(point.tone, "node"),
+            )}
+            data-focus-id={point.focus_id}
+            data-semantic-identity={point.identity}
+            key={point.identity}
+            onClick={() =>
+              onFocus({
+                focus_id: point.focus_id,
+                x: projected.x,
+                y: projected.y,
+              })
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onFocus({
+                  focus_id: point.focus_id,
+                  x: projected.x,
+                  y: projected.y,
+                });
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            <circle
+              className={sx(styles.worldAtlasMorphMarker)}
+              cx={projected.x}
+              cy={projected.y}
+              r={8}
+            />
+            <text
+              className={sx(styles.worldAtlasMorphLabel)}
+              x={projected.x + 13}
+              y={projected.y - 10}
+            >
+              {point.label}
+            </text>
+          </g>
+        ))}
+      </g>
     </svg>
   );
 }

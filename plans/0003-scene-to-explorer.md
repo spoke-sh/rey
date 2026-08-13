@@ -56,13 +56,19 @@ footprints. A revisioned browser projection primitive now owns the exact
 analytic chart inverse, antimeridian fragment identity, shared orthographic
 World endpoint, and identity-stable World-to-Atlas interpolation. Regional
 Atlas points and sector fragments consume that primitive, and its compiler
-revision enters the immutable scene snapshot. Explorer implements the fresh
+revision enters the immutable scene snapshot. The snapshot also retains one
+renderer-neutral transition manifest with the same region/focus and sector
+identities at both endpoints. The reference renderer uses the grammar's
+`0.14 → 0.24` scale band to interpolate those points and bounded sector
+vertices continuously across the World/Atlas regime switch; active globe
+rotation remains the World endpoint and the accelerated duplicate is withheld
+during the transition. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
-material, WebGPU/WebGL2 paths, and an accessible reference path. Complete
-render-time repeated-chart picking and continuous World-to-Atlas presentation,
-focus-preserving label/collision behavior, admitted County fabric, render-graph
-completion, clipmap reuse, and retained visual/performance proof remain open.
+material, WebGPU/WebGL2 paths, and an accessible reference path. Repeated-chart
+drawing/picking/recentering, focus-preserving label/collision behavior,
+admitted County fabric, render-graph completion, clipmap reuse, and retained
+visual/performance proof remain open.
 
 ## Completion Checklist
 
@@ -109,8 +115,11 @@ completion, clipmap reuse, and retained visual/performance proof remain open.
   wrap, latitude cutoff, polar disclosure, antimeridian-safe draw fragments,
   analytic inverse coordinates, and identity-stable World-to-Atlas endpoints;
   consume it for regional Atlas points and sectors.
-- [ ] Drive repeated chart fragments through renderer picking and present the
-  continuous World-to-Atlas morph without replacing focus or semantic identity.
+- [x] Retain one immutable renderer-neutral transition manifest and present its
+  exact region/focus and sector identities continuously across the declared
+  World-to-Atlas morph band.
+- [ ] Drive repeated chart fragments through renderer drawing, inverse picking,
+  and bounded recentering without replacing focus or semantic identity.
 - [ ] Preserve focus, selection, and one semantic identity through globe
   rotation, chart wrap, label culling, collisions, and recentering.
 

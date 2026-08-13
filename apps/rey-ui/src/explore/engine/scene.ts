@@ -127,6 +127,16 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
           regions: freezeRows(scene.globe.regions),
         })
       : null,
+    world_atlas_transition: scene.world_atlas_transition
+      ? Object.freeze({
+          ...scene.world_atlas_transition,
+          atlas_frame: Object.freeze({
+            ...scene.world_atlas_transition.atlas_frame,
+          }),
+          points: freezeRows(scene.world_atlas_transition.points),
+          sectors: freezeRows(scene.world_atlas_transition.sectors),
+        })
+      : null,
     bearing: Object.freeze({ ...scene.bearing }),
     world: Object.freeze({ ...scene.world }),
     fit_world: Object.freeze({ ...scene.fit_world }),

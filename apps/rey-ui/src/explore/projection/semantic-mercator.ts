@@ -77,6 +77,23 @@ export interface WorldAtlasMorphPoint {
   atlas: SemanticMercatorPoint;
 }
 
+export interface WorldAtlasMorphFragment {
+  identity: string;
+  fragment_id: string;
+  fragment_index: number;
+  points: readonly WorldAtlasMorphVertex[];
+  polar_disclosures: readonly PolarDisclosure[];
+}
+
+export interface WorldAtlasMorphVertex {
+  vertex_index: number;
+  progress: number;
+  x: number;
+  y: number;
+  world: SemanticGlobePoint;
+  atlas: SemanticMercatorPoint;
+}
+
 /**
  * Projects one synthetic semantic coordinate into one horizontal chart wrap.
  * The returned wrap index is view geometry, not part of semantic identity.
@@ -160,21 +177,7 @@ export function projectSemanticMercatorBounds(
 ): readonly SemanticMercatorFragment[] {
   verifyFrame(frame);
   verifyBounds(identity, bounds);
-  const crosses =
-    bounds.crosses_antimeridian ||
-    bounds.east_microdegrees < bounds.west_microdegrees;
-  const longitudeFragments = crosses
-    ? [
-        {
-          west: bounds.west_microdegrees,
-          east: HALF_LONGITUDE_WRAP_MICRODEGREES,
-        },
-        {
-          west: -HALF_LONGITUDE_WRAP_MICRODEGREES,
-          east: bounds.east_microdegrees,
-        },
-      ]
-    : [{ west: bounds.west_microdegrees, east: bounds.east_microdegrees }];
+  const longitudeFragments = longitudeBoundsFragments(bounds);
   const north = Math.min(
     bounds.north_microdegrees,
     SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
@@ -289,6 +292,82 @@ export function projectWorldAtlasMorph(
   });
 }
 
+/** Morphs bounded sector geometry without changing its unsplit identity. */
+export function projectWorldAtlasBoundsMorph(
+  identity: string,
+  bounds: SemanticBounds,
+  worldFrame: { center: { x: number; y: number }; radius: number },
+  atlasFrame: ProjectionFrame,
+  view: GlobeCameraView,
+  progress: number,
+): readonly WorldAtlasMorphFragment[] {
+  verifyFrame(atlasFrame);
+  verifyBounds(identity, bounds);
+  const polarDisclosures: PolarDisclosure[] = [];
+  if (
+    bounds.north_microdegrees > SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES
+  )
+    polarDisclosures.push("north_cap");
+  if (
+    bounds.south_microdegrees < -SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES
+  )
+    polarDisclosures.push("south_cap");
+  return Object.freeze(
+    longitudeBoundsFragments(bounds).map(({ west, east }, fragmentIndex) => {
+      const fragmentId = `${identity}#mercator-fragment:${fragmentIndex}`;
+      const coordinates = [
+        {
+          longitude_microdegrees: west,
+          latitude_microdegrees: bounds.north_microdegrees,
+        },
+        {
+          longitude_microdegrees: east,
+          latitude_microdegrees: bounds.north_microdegrees,
+        },
+        {
+          longitude_microdegrees: east,
+          latitude_microdegrees: bounds.south_microdegrees,
+        },
+        {
+          longitude_microdegrees: west,
+          latitude_microdegrees: bounds.south_microdegrees,
+        },
+      ];
+      const points = coordinates.map((coordinate, pointIndex) => {
+        const world = projectSemanticGlobe(
+          coordinate,
+          worldFrame.center,
+          worldFrame.radius,
+          view,
+        );
+        const atlas = projectSemanticMercator(
+          coordinate,
+          atlasFrame,
+          coordinate.longitude_microdegrees === HALF_LONGITUDE_WRAP_MICRODEGREES
+            ? 1
+            : 0,
+        );
+        const boundedProgress = Math.max(0, Math.min(1, progress));
+        return Object.freeze({
+          vertex_index: pointIndex,
+          progress: boundedProgress,
+          x: world.x + (atlas.x - world.x) * boundedProgress,
+          y: world.y + (atlas.y - world.y) * boundedProgress,
+          world,
+          atlas,
+        });
+      });
+      return Object.freeze({
+        identity,
+        fragment_id: fragmentId,
+        fragment_index: fragmentIndex,
+        points: Object.freeze(points),
+        polar_disclosures: Object.freeze([...polarDisclosures]),
+      });
+    }),
+  );
+}
+
 export function wrapSemanticLongitude(longitudeMicrodegrees: number) {
   if (!Number.isFinite(longitudeMicrodegrees))
     throw new Error("semantic longitude must be finite");
@@ -316,6 +395,24 @@ function boundaryX(longitudeMicrodegrees: number, frame: ProjectionFrame) {
       SEMANTIC_LONGITUDE_WRAP_MICRODEGREES) *
       frame.width
   );
+}
+
+function longitudeBoundsFragments(bounds: SemanticBounds) {
+  const crosses =
+    bounds.crosses_antimeridian ||
+    bounds.east_microdegrees < bounds.west_microdegrees;
+  return crosses
+    ? [
+        {
+          west: bounds.west_microdegrees,
+          east: HALF_LONGITUDE_WRAP_MICRODEGREES,
+        },
+        {
+          west: -HALF_LONGITUDE_WRAP_MICRODEGREES,
+          east: bounds.east_microdegrees,
+        },
+      ]
+    : [{ west: bounds.west_microdegrees, east: bounds.east_microdegrees }];
 }
 
 function verifyFrame(frame: ProjectionFrame) {

@@ -217,8 +217,12 @@ The browser implements this transform as
 `360000000µ°` wrap, `±85051129µ°` cutoff and polar disclosure, analytic inverse,
 shared-identity antimeridian fragments, and stable World/Atlas endpoints. Its
 compiler revision is part of each regional immutable scene snapshot. Regional
-Atlas points and occupied sector rectangles use it now; repeated-chart event
-picking and the continuous renderer transition remain incomplete.
+Atlas points and occupied sector rectangles use it now. The snapshot retains a
+renderer-neutral transition manifest over those exact identities, and the
+reference renderer interpolates its point/sector geometry continuously across
+the declared `0.14 → 0.24` World-to-Atlas scale band while retaining globe
+rotation at the World endpoint. Repeated-chart drawing, inverse event picking,
+and recentering remain incomplete.
 
 Atlas derives terrain-style contour isolines from bounded anchor-sample
 influence and will use admitted scene packages as the primary detailed map

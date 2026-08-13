@@ -219,6 +219,20 @@ describe("regional scene topology projection", () => {
       latitude_degrees: 18,
       angular_radius_degrees: 0,
     });
+    expect(world.world_atlas_transition).toMatchObject({
+      schema: "rey.world-atlas-transition.v1",
+      atlas_revision: "atlas:1",
+      projection_revision: "rey.semantic-mercator-projection@1",
+      points: [
+        {
+          identity: "atlas-region:1",
+          focus_id: "regional:scene:1",
+          longitude_microdegrees: -42_000_000,
+          latitude_microdegrees: 18_000_000,
+        },
+      ],
+      sectors: [{ identity: "sector:1" }],
+    });
 
     const atlas = buildTopologyScene(
       regionalPortfolio,
@@ -227,6 +241,7 @@ describe("regional scene topology projection", () => {
     );
     expect(atlas.label).toBe("SEMANTIC MERCATOR ATLAS");
     expect(atlas.nodes[0]?.focus_id).toBe("regional:scene:1");
+    expect(atlas.world_atlas_transition).toEqual(world.world_atlas_transition);
     expect(atlas.regions[0]).toMatchObject({
       id: "atlas-sector:sector:1",
       label: "SECTOR 5.4",
@@ -238,10 +253,41 @@ describe("regional scene topology projection", () => {
     expect(atlas.omissions).toContain(
       "semantic Mercator clips at ±85051129µ°; retained polar-cap membership is disclosed rather than silently dropped",
     );
+    const compiledAtlas = compileSceneSnapshot(
+      regionalPortfolio,
+      0.26,
+      "regional:scene:1",
+    );
+    expect(compiledAtlas.compiler_revisions).toContain(
+      SEMANTIC_MERCATOR_PROJECTION_REVISION,
+    );
+    expect(Object.isFrozen(compiledAtlas.scene.world_atlas_transition)).toBe(
+      true,
+    );
     expect(
-      compileSceneSnapshot(regionalPortfolio, 0.26, "regional:scene:1")
-        .compiler_revisions,
-    ).toContain(SEMANTIC_MERCATOR_PROJECTION_REVISION);
+      Object.isFrozen(compiledAtlas.scene.world_atlas_transition?.points),
+    ).toBe(true);
+    for (const transitionScene of [world, atlas]) {
+      const transitionMarkup = renderToStaticMarkup(
+        ReferenceRenderer({
+          globeView: { yaw_degrees: 24, pitch_degrees: -8 },
+          layers: { relief: true, water: true, weather: true, probes: true },
+          onFocus: () => undefined,
+          projectionMorphProgress: 0.5,
+          scene: transitionScene,
+        }),
+      );
+      expect(transitionMarkup).toContain(
+        'data-projection-morph="rey.semantic-mercator-projection@1"',
+      );
+      expect(transitionMarkup).toContain(
+        'data-projection-morph-progress="0.500"',
+      );
+      expect(transitionMarkup).toContain(
+        'data-semantic-identity="atlas-region:1"',
+      );
+      expect(transitionMarkup).toContain('data-focus-id="regional:scene:1"');
+    }
 
     const county = buildTopologyScene(
       regionalPortfolio,

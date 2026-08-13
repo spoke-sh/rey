@@ -16,6 +16,7 @@ import {
   panForZoomAtPoint,
   renderedSceneScale,
   stepLensZoom,
+  worldAtlasMorphProgress,
 } from "./camera";
 
 describe("Explorer camera engine", () => {
@@ -69,5 +70,13 @@ describe("Explorer camera engine", () => {
       draggedGlobeView({ yaw_degrees: 0, pitch_degrees: 58 }, { x: 0, y: -100 })
         .pitch_degrees,
     ).toBe(62);
+  });
+
+  it("exposes the grammar's bounded World-to-Atlas morph band", () => {
+    expect(worldAtlasMorphProgress(0.1)).toBe(0);
+    expect(worldAtlasMorphProgress(0.14)).toBe(0);
+    expect(worldAtlasMorphProgress(0.19)).toBeCloseTo(0.5);
+    expect(worldAtlasMorphProgress(0.24)).toBe(1);
+    expect(worldAtlasMorphProgress(0.4)).toBe(1);
   });
 });

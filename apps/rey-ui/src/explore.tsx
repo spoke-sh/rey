@@ -33,6 +33,7 @@ import {
   panForZoomAtPoint,
   renderedSceneScale,
   stepLensZoom,
+  worldAtlasMorphProgress,
   type LensRegime,
   type GlobeCameraView,
 } from "./explore/engine/camera";
@@ -134,6 +135,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     [focusId, portfolio, regime],
   );
   const scene = snapshot.scene;
+  const projectionMorphProgress = worldAtlasMorphProgress(zoom);
+  const projectionMorphActive =
+    scene.world_atlas_transition !== null &&
+    projectionMorphProgress > 0 &&
+    projectionMorphProgress < 1;
   const renderedScale = renderedSceneScale(
     scene.terrain,
     fitScale,
@@ -350,7 +356,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               pan_x: pan.x,
               pan_y: pan.y,
             }}
-            visible={layers.relief}
+            visible={layers.relief && !projectionMorphActive}
           />
         ) : null}
         <div
@@ -371,14 +377,17 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 pan_x: pan.x,
                 pan_y: pan.y,
               }}
-              visible={layers.relief}
+              visible={layers.relief && !projectionMorphActive}
             />
           ) : null}
           <ReferenceRenderer
-            accelerated={acceleratedReady && layers.relief}
+            accelerated={
+              acceleratedReady && layers.relief && !projectionMorphActive
+            }
             globeView={globeView}
             layers={layers}
             onFocus={focusNode}
+            projectionMorphProgress={projectionMorphProgress}
             scene={scene}
           />
         </div>

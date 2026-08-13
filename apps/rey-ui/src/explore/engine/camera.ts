@@ -42,6 +42,8 @@ export const LANDSCAPE_LENS_ZOOM = 0.58;
 export const NEIGHBORHOOD_LENS_ZOOM = 1.08;
 export const OBJECT_LENS_ZOOM = 2.05;
 export const EVIDENCE_LENS_ZOOM = 3.55;
+export const WORLD_ATLAS_MORPH_START_ZOOM = 0.14;
+export const WORLD_ATLAS_MORPH_END_ZOOM = 0.24;
 
 const LENS_HYSTERESIS = 0.05;
 const LENS_ORDER: readonly LensRegime[] = [
@@ -78,6 +80,17 @@ export function lensRegimeForZoom(
 
 export function clampLensZoom(zoom: number): number {
   return Math.min(MAX_LENS_ZOOM, Math.max(MIN_LENS_ZOOM, zoom));
+}
+
+export function worldAtlasMorphProgress(zoom: number): number {
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      (zoom - WORLD_ATLAS_MORPH_START_ZOOM) /
+        (WORLD_ATLAS_MORPH_END_ZOOM - WORLD_ATLAS_MORPH_START_ZOOM),
+    ),
+  );
 }
 
 export function stepLensZoom(zoom: number, direction: 1 | -1): number {

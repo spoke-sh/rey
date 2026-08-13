@@ -757,6 +757,10 @@
     outline: 2px solid var(--rey-accent);
   }
 
+  .xk2swo9:focus-visible {
+    outline: none;
+  }
+
   .xxpiy0h:focus {
     outline: 2px solid var(--rey-foreground);
   }
@@ -1379,6 +1383,10 @@
 
   .x1w58h05 {
     fill: #f2a94d38;
+  }
+
+  .x676ewc {
+    fill: color-mix(in srgb,var(--rey-accent) 8%,transparent);
   }
 
   .xbh8q5q {
@@ -2181,6 +2189,10 @@
     stroke-dasharray: 3 3;
   }
 
+  .xysf7qb {
+    stroke-dasharray: 5 5;
+  }
+
   .x1h6d93d {
     stroke-dasharray: 6 5;
   }
@@ -2213,12 +2225,20 @@
     stroke-width: 1.15px;
   }
 
+  .x1dt3t4y {
+    stroke-width: 1.2px;
+  }
+
   .xhr4kjn {
     stroke-width: 1.5px;
   }
 
   .xypvb0r {
     stroke-width: 1.55px;
+  }
+
+  .x68fu6m {
+    stroke-width: 1.8px;
   }
 
   .x1ebhgje {
@@ -2339,6 +2359,14 @@
 
   .xrtbrws {
     stroke: #f7f3e8f5;
+  }
+
+  .xvhhac4 {
+    stroke: color-mix(in srgb,var(--rey-accent) 52%,var(--line));
+  }
+
+  .x14omjs2 {
+    stroke: color-mix(in srgb,var(--rey-background) 88%,transparent);
   }
 
   .x41wegq {

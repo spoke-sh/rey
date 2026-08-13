@@ -361,6 +361,36 @@ export const exploreStyles = stylex.create({
     letterSpacing: "0.08em",
     pointerEvents: "none",
   },
+  worldAtlasMorphLayer: {
+    pointerEvents: "auto",
+    zIndex: 3,
+  },
+  worldAtlasMorphSector: {
+    fill: "color-mix(in srgb, var(--rey-accent) 8%, transparent)",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, var(--rey-accent) 52%, var(--line))",
+    strokeDasharray: "5 5",
+    strokeWidth: 1.2,
+  },
+  worldAtlasMorphPoint: {
+    cursor: "pointer",
+    outline: { default: "none", ":focus-visible": "none" },
+  },
+  worldAtlasMorphMarker: {
+    fill: "color-mix(in srgb, #eef3db 76%, var(--rey-accent))",
+    stroke: "color-mix(in srgb, #283f42 82%, var(--rey-foreground))",
+    strokeWidth: 1.8,
+  },
+  worldAtlasMorphLabel: {
+    fill: "#213532",
+    fontFamily: mono,
+    fontSize: "0.54rem",
+    fontWeight: 800,
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, var(--rey-background) 88%, transparent)",
+    strokeWidth: 5,
+  },
   worldHorizon: {
     fill: "color-mix(in srgb, #78959b 5%, transparent)",
     opacity: 0.8,

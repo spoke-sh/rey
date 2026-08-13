@@ -3,6 +3,7 @@ import {
   invertSemanticMercator,
   projectSemanticMercator,
   projectSemanticMercatorBounds,
+  projectWorldAtlasBoundsMorph,
   projectWorldAtlasMorph,
   SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
   wrapSemanticLongitude,
@@ -128,5 +129,28 @@ describe("semantic Mercator projection", () => {
     expect(atlas).toMatchObject({ x: atlas.atlas.x, y: atlas.atlas.y });
     expect(middle.x).toBeCloseTo((world.x + atlas.x) / 2);
     expect(middle.y).toBeCloseTo((world.y + atlas.y) / 2);
+  });
+
+  it("morphs antimeridian fragments through shared semantic identity", () => {
+    const fragments = projectWorldAtlasBoundsMorph(
+      "sector:wrap",
+      {
+        west_microdegrees: 179_000_000,
+        south_microdegrees: -1_000_000,
+        east_microdegrees: -179_000_000,
+        north_microdegrees: 1_000_000,
+        crosses_antimeridian: true,
+      },
+      { center: { x: 600, y: 360 }, radius: 295.2 },
+      frame,
+      { yaw_degrees: 18, pitch_degrees: -4 },
+      1,
+    );
+    expect(fragments).toHaveLength(2);
+    expect(fragments.every(({ identity }) => identity === "sector:wrap")).toBe(
+      true,
+    );
+    expect(fragments[0]?.points[1]?.x).toBeCloseTo(frame.x + frame.width);
+    expect(fragments[1]?.points[0]?.x).toBeCloseTo(frame.x);
   });
 });

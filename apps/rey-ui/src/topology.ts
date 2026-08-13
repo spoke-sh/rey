@@ -28,6 +28,7 @@ import {
   projectSemanticMercator,
   projectSemanticMercatorBounds,
   SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
+  SEMANTIC_MERCATOR_PROJECTION_REVISION,
 } from "./explore/projection/semantic-mercator";
 import {
   fieldPoint,
@@ -243,6 +244,37 @@ export interface TopologyScene {
   terrain_fields: TerrainFieldSet[];
   terrain_programs: TerrainProgram[];
   globe: TopologyGlobe | null;
+  world_atlas_transition: TopologyWorldAtlasTransition | null;
+}
+
+export interface TopologyWorldAtlasPoint {
+  identity: string;
+  focus_id: string;
+  label: string;
+  longitude_microdegrees: number;
+  latitude_microdegrees: number;
+  tone: TopologyTone;
+}
+
+export interface TopologyWorldAtlasSector {
+  identity: string;
+  label: string;
+  west_microdegrees: number;
+  south_microdegrees: number;
+  east_microdegrees: number;
+  north_microdegrees: number;
+  crosses_antimeridian: boolean;
+  tone: TopologyTone;
+}
+
+export interface TopologyWorldAtlasTransition {
+  schema: "rey.world-atlas-transition.v1";
+  atlas_revision: string;
+  projection_revision: string;
+  atlas_frame: { x: number; y: number; width: number; height: number };
+  points: TopologyWorldAtlasPoint[];
+  sectors: TopologyWorldAtlasSector[];
+  authority: string;
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
@@ -304,6 +336,12 @@ export function buildTopologyScene(
     terrain_fields: projection.terrain_fields ?? [],
     terrain_programs: projection.terrain_programs ?? [],
     globe: projection.globe ?? null,
+    world_atlas_transition:
+      regionalScenes.length > 0 &&
+      !surveyFocus &&
+      (regime === "world" || regime === "atlas")
+        ? buildWorldAtlasTransition(regionalScenes)
+        : null,
     world: projection.world ?? topologyWorld(projection),
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
@@ -336,6 +374,7 @@ type TopologyProjection = Omit<
   | "terrain_fields"
   | "terrain_programs"
   | "world"
+  | "world_atlas_transition"
 > & {
   bearing?: TopologyBearing;
   contours?: TopologyContour[];
@@ -348,7 +387,51 @@ type TopologyProjection = Omit<
   world?: TopologyWorld;
   fit_world?: TopologyWorld;
   globe?: TopologyGlobe | null;
+  world_atlas_transition?: TopologyWorldAtlasTransition | null;
 };
+
+function buildWorldAtlasTransition(
+  regionalScenes: AdmittedRegionalProjection[],
+): TopologyWorldAtlasTransition {
+  const sectors = new Map(
+    regionalScenes.map(({ atlas_sector: sector }) => [
+      sector.sector_id,
+      sector,
+    ]),
+  );
+  const atlasRevision =
+    regionalScenes[0]!.scene.artifacts.admitted_atlas_revision!;
+  return {
+    schema: "rey.world-atlas-transition.v1",
+    atlas_revision: atlasRevision,
+    projection_revision: SEMANTIC_MERCATOR_PROJECTION_REVISION,
+    atlas_frame: semanticMercatorFrame(),
+    points: regionalScenes
+      .map(({ scene, atlas_region: region }) => ({
+        identity: region.region_id,
+        focus_id: `regional:${scene.scene_id}`,
+        label: scene.region_id,
+        longitude_microdegrees: region.semantic_longitude_microdegrees,
+        latitude_microdegrees: region.semantic_latitude_microdegrees,
+        tone: scene.complete ? ("healthy" as const) : ("omitted" as const),
+      }))
+      .sort((left, right) => left.identity.localeCompare(right.identity)),
+    sectors: [...sectors.values()]
+      .map((sector) => ({
+        identity: sector.sector_id,
+        label: `SECTOR ${sector.longitude_band + 1}.${sector.latitude_band + 1}`,
+        west_microdegrees: sector.west_microdegrees,
+        south_microdegrees: sector.south_microdegrees,
+        east_microdegrees: sector.east_microdegrees,
+        north_microdegrees: sector.north_microdegrees,
+        crosses_antimeridian: false,
+        tone: "neutral" as const,
+      }))
+      .sort((left, right) => left.identity.localeCompare(right.identity)),
+    authority:
+      "same retained atlas identities through presentation-only World-to-Atlas geometry; no locate, survey, admission, or distance authority",
+  };
+}
 
 function currentSemanticAtlasDelta(
   portfolio: WorkloadList,
