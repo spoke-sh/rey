@@ -52,9 +52,9 @@ describe("operator routes", () => {
   it("retains bounded Feed stream composition in typed route search", () => {
     expect(
       normalizeFeedSearch({
-        streams: "signals.journal~Review,admission.now",
+        streams: "signals.journal~Review,admission.all",
       }),
-    ).toEqual({ streams: "signals.journal~Review,admission.now" });
+    ).toEqual({ streams: "signals.journal~Review,admission.all" });
     expect(normalizeFeedSearch({ streams: 3 })).toEqual({});
     expect(normalizeFeedSearch({ streams: "x".repeat(4_097) })).toEqual({});
   });

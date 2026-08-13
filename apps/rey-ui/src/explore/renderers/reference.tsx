@@ -1229,20 +1229,19 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
             </code>
             <span className={sx(styles.orientationActions)}>
               <a
-                className={sx(styles.orientationAction)}
+                className={sx(
+                  styles.orientationAction,
+                  (selectedBeacon.state === "working" ||
+                    selectedBeacon.state === "index") &&
+                    styles.consentAction,
+                )}
                 href={`/workloads/${encodeURIComponent(selectedBeacon.workload_id)}`}
               >
-                INSPECT EXACT WORKLOAD →
+                {selectedBeacon.state === "working" ||
+                selectedBeacon.state === "index"
+                  ? "REVIEW & CONSENT →"
+                  : "INSPECT EXACT WORKLOAD →"}
               </a>
-              {selectedBeacon.state === "working" ||
-              selectedBeacon.state === "index" ? (
-                <a
-                  className={sx(styles.orientationAction, styles.consentAction)}
-                  href="/feed?streams=admission.all"
-                >
-                  REVIEW & CONSENT →
-                </a>
-              ) : null}
             </span>
           </div>
         ) : null}

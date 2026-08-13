@@ -1,4 +1,6 @@
 import { KineticDenseTable, type KineticDenseTableColumn } from "@hifi/kinetic";
+import { useState } from "react";
+import { admitWorkloadFiles } from "./api";
 import {
   derivePortfolioMetrics,
   scenarioPercent,
@@ -507,11 +509,20 @@ const candidateColumns: readonly KineticDenseTableColumn<AdmissionCandidateRow>[
     {
       id: "oracle",
       header: "SCENARIO ORACLE",
-      width: "16%",
+      width: "13%",
       render: (row) => (
         <code title={row.package.scenario_suite.semantic_digest}>
           {row.package.scenario_suite.id}@{row.package.scenario_suite.revision}
         </code>
+      ),
+    },
+    {
+      align: "right",
+      id: "location",
+      header: "LOCATION",
+      width: "9%",
+      render: (row) => (
+        <WorkloadLink id={row.package.workload_id}>REVIEW →</WorkloadLink>
       ),
     },
   ];
@@ -607,6 +618,77 @@ export function WorkloadsPage({ portfolio }: { portfolio: WorkloadList }) {
   );
 }
 
+function WorkloadAdmissionControl({
+  revision,
+}: {
+  revision: WorkloadRevisionStatus;
+}) {
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const working = revision.working;
+  const hasPendingFiles =
+    working.packages.length > 0 &&
+    revision.head?.snapshot.snapshot_revision !== working.snapshot_revision;
+  const enabled = hasPendingFiles && message.trim().length > 0;
+
+  const approve = async () => {
+    if (!enabled) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await admitWorkloadFiles({
+        message: message.trim(),
+        expected_head: revision.head?.commit_id ?? "EMPTY",
+        expected_working: working.snapshot_revision,
+      });
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <aside
+      aria-label="Exact workload snapshot approval"
+      className={sx(styles.admissionControl)}
+    >
+      <div className={sx(styles.admissionControlCopy)}>
+        <span className={sx(chrome.micro)}>EXACT SNAPSHOT APPROVAL</span>
+        <strong>
+          {working.packages.length} FILE PACKAGE
+          {working.packages.length === 1 ? "" : "S"}
+        </strong>
+        <p>{revision.admission_boundary}</p>
+        <code title={working.snapshot_revision}>
+          WORKING / {shortDigest(working.snapshot_revision)}
+        </code>
+      </div>
+      <div className={sx(styles.admissionControlAction)}>
+        <input
+          aria-label="Workload approval message"
+          className={sx(styles.admissionMessage)}
+          disabled={submitting || !hasPendingFiles}
+          maxLength={4096}
+          onChange={(event) => setMessage(event.target.value)}
+          placeholder="Why are you admitting this workload revision?"
+          value={message}
+        />
+        <button
+          className={sx(styles.admissionApprove)}
+          disabled={!enabled || submitting}
+          onClick={() => void approve()}
+          type="button"
+        >
+          {submitting ? "QUALIFYING & ADMITTING…" : "ADMIT EXACT FILE SNAPSHOT"}
+        </button>
+        {error ? <p role="alert">{error}</p> : null}
+      </div>
+    </aside>
+  );
+}
+
 export function CandidateWorkloadDetail({
   candidate,
   revision,
@@ -650,6 +732,7 @@ export function CandidateWorkloadDetail({
           rows={[row]}
           theme="precision"
         />
+        <WorkloadAdmissionControl revision={revision} />
       </section>
     </main>
   );

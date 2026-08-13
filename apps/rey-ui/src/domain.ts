@@ -760,6 +760,15 @@ export interface WorkloadCommit {
   qualification_ids: string[];
 }
 
+export interface WorkloadLog {
+  schema: "rey.workload-log.v1";
+  head_commit_id: string | null;
+  total_commits: number;
+  selected_commits: number;
+  patch: boolean;
+  commits: WorkloadCommit[];
+}
+
 export interface WorkloadRevisionStatus {
   schema: "rey.workload-revision-status.v1";
   state: "clean" | "working" | "staged" | "mixed";

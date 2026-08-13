@@ -57,6 +57,7 @@ const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
+const FEED_WORKLOAD_COMMIT_LIMIT: usize = 64;
 const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c5";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 const REQUEST_RECEIVE_POLL_INTERVAL_MS: u64 = 50;
@@ -377,6 +378,7 @@ impl UiServer {
             "/api/v1/journal/seed" => self.journal_seed(query),
             "/api/v1/observations" => self.observations(),
             "/api/v1/workloads" => self.workloads(),
+            "/api/v1/workloads/admissions" => self.workload_admissions(),
             "/api/v1/workloads/evidence" => self.workload_evidence(),
             path if path.starts_with("/api/v1/workloads/") => self.exact_workload_evidence(path),
             path if path.starts_with("/api/") => json_error(
@@ -464,6 +466,18 @@ impl UiServer {
             Err(error) => json_error(
                 StatusCode(500),
                 "workload_evidence_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn workload_admissions(&self) -> Response<Cursor<Vec<u8>>> {
+        let store = LocalWorkloadStore::new(self.config.state_directory.clone());
+        match store.log(FEED_WORKLOAD_COMMIT_LIMIT, false) {
+            Ok(log) => json_response(StatusCode(200), &log),
+            Err(error) => json_error(
+                StatusCode(500),
+                "workload_admissions_unavailable",
                 &error.to_string(),
             ),
         }
@@ -1631,7 +1645,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(39 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(40 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -1724,6 +1738,12 @@ mod tests {
         assert!(admitted.contains("\"sequence\":1"));
         assert!(admitted.contains("\"index\":null"));
         assert!(admitted.contains("\"state\":\"clean\""));
+
+        let admissions = request(&address, "GET /api/v1/workloads/admissions HTTP/1.1");
+        assert!(admissions.starts_with("HTTP/1.1 200"));
+        assert!(admissions.contains("\"schema\":\"rey.workload-log.v1\""));
+        assert!(admissions.contains("\"total_commits\":1"));
+        assert!(admissions.contains("Approve exact context survey"));
 
         let evidence = request(&address, "GET /api/v1/workloads/evidence HTTP/1.1");
         assert!(evidence.starts_with("HTTP/1.1 200"));
@@ -2033,7 +2053,10 @@ mod tests {
         assert!(!application.contains("WRITE CHANNEL WORKING"));
         assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
-        assert!(application.contains("ADMISSION CONTROL"));
+        assert!(!application.contains("REY / CURRENT PROJECTION"));
+        assert!(!application.contains("ADMISSION CONTROL"));
+        assert!(application.contains("EXACT SNAPSHOT APPROVAL"));
+        assert!(application.contains("REY / WORKLOAD COMMIT"));
         assert!(application.contains("ADMIT EXACT FILE SNAPSHOT"));
         assert!(application.contains("Display order is not causal order"));
         assert!(application.contains("data-kinetic-dense-table"));

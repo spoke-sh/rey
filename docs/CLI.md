@@ -588,8 +588,9 @@ The operator worker projects the same workload, environment, cadence, Journal,
 and Explorer evidence.
 Its human entry route is `/explore`. A fresh workload state opens on an
 unmapped orientation globe whose beacons are exact file-backed workload
-candidates; inspection and consent descend into the existing workload and
-Feed admission surfaces. The globe does not execute a survey or imply that the
+candidates; inspection and consent descend into the exact workload review and
+approval surface. Feed projects the resulting retained commit only after that
+admission succeeds. The globe does not execute a survey or imply that the
 project has already been mapped.
 An explicit non-loopback listener exposes unauthenticated Journal and
 conversation admission, Channel WORKING replacement, and exact workload

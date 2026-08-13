@@ -1082,6 +1082,7 @@ process. It serves the embedded TanStack Router application plus
 `GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, bounded read-only
 `GET|HEAD /api/v1/journal/seed?observations=id[,id]`, and
 `GET|HEAD /api/v1/observations`. Workload evidence additionally exposes
+`GET|HEAD /api/v1/workloads/admissions`,
 `GET|HEAD /api/v1/workloads/evidence`, exact
 `GET|HEAD /api/v1/workloads/{workload-id}/scenarios/{execution-id}`, and exact
 `GET|HEAD /api/v1/workloads/{workload-id}/deltas/{delta-id}`. Its explicit writes
@@ -1115,9 +1116,16 @@ outcomes, exact workload/graph/package/test bindings, and mining output as
 three relations; candidate revisions expose their plane, exact package and
 snapshot identity, qualification posture, and approval boundary; creation
 requests expose request posture and exact coding-harness bindings as two
-relations. The Feed starts with admission rows and an exact-index approval
-control. That control advances HEAD through the same local commit contract as
-the CLI; it never edits WORKING or bypasses qualification.
+relations. An exact candidate workload record owns the whole-WORKING-snapshot
+approval control. That control advances HEAD through the same local commit
+contract as the CLI; it never edits WORKING or bypasses qualification. Feed
+does not expose that control or turn a candidate into an Admission post.
+
+The workload-admissions endpoint returns `rey.workload-log.v1`, the same
+verified local commit history exposed by `rey workloads log -n 64`, bounded to
+the 64 newest commits. It does not synthesize entries from WORKING, INDEX,
+attention, repository posture, qualification posture, or browser state. An
+empty local workload log therefore produces an empty Admission stream.
 
 The exact evidence index is `rey.ui-workload-evidence-catalog.v1`. An admitted
 workload detail adds its bounded scenario relation only when a retained result
@@ -1150,8 +1158,9 @@ its file, digest, producer, admission plane, and next consent step. Beacon
 coordinates are stable presentation geometry only; the orientation document is
 not `rey.semantic-atlas.v1`, supplies no semantic-distance claim, and cannot
 execute or admit a workload. The review action enters the exact workload
-record; the consent action enters `/feed?streams=admission.all`, where the
-existing combined qualification and human approval gate remains authoritative.
+record, where the existing combined qualification and human approval gate
+remains authoritative. Only the resulting retained workload commit can later
+appear in Feed Admission.
 
 The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact
@@ -1188,11 +1197,11 @@ viewport as independently scrolling vertical streams plus a Firehose control
 rail. The default composition is Signals, Admission, and Flow, but the Firehose
 can add, tune, reorder, repeat, or remove streams up to an eight-lane display
 bound. Signals filters are `all|observation|journal|git|environment`; Admission filters are
-`all|now|watch|bound`; Flow filters are
+`all`; Flow filters are
 `all|attention|failing|qualified`. The ordered composition uses the query
 grammar `?streams=[{stable-id}=]{plane}.{filter}[~{percent-encoded-name}],...`,
 for example
-`?streams=review=signals.journal~Review,admission=admission.now,flow=flow.failing`.
+`?streams=review=signals.journal~Review,admission=admission.all,flow=flow.failing`.
 Legacy coordinates without an id acquire a bounded stable preview identity. A
 stream title is an inline editor: blur or Enter normalizes and saves at most 48
 Unicode scalar values into the detached URL preview; Escape cancels, and an
@@ -1219,14 +1228,17 @@ Signals renders rich observation, Git, environment, and Journal posts,
 including exact observation source/evidence/limit bindings, bounded Journal
 block previews, and exact Git lineage. Observation records remain order-only
 within their own `O@sequence` clock and expose no effect authority. Evidence
-bodies are collapsed by default and expand in place. Admission ranks unresolved typed attention and
-repository/request/qualification posture without writing a new attention
-relation or exposing an effect control. Flow renders admitted workload
+bodies are collapsed by default and expand in place. Admission renders only
+the bounded verified local workload commit log. Each post retains its commit,
+snapshot, message, package count, and qualification count; it does not rank
+mutable attention, mirror repository/request posture, or expose an effect
+control. Flow renders admitted workload
 qualification, scenario, run, mining, delta, and reasoning-surface posture; it
 does not claim live execution telemetry. Signal wall time is display ordering
 only, and order-only records follow the timestamped window. The recent Signals
 window renders at most 64 records and reports older folded source records;
-Admission retains its authoritative source bound. Feed has no read cursor,
+Admission renders at most 64 newest commits and reports older folded commits.
+Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,
 causal-order claim, or observation mutation endpoint.
 

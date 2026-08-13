@@ -32,7 +32,8 @@ The current repository already provides:
 - deterministic workload DAG/scenario qualification, literal source mining,
   typed deltas, topography survey, portfolio attention, frontier/scheduling,
   reasoning surfaces, and local proof mechanisms;
-- an embedded operator UI with Channel-backed Feed layout adoption, Explorer,
+- an embedded operator UI with Channel-backed Feed layout adoption,
+  committed-only workload Admission history, exact workload review/approval, Explorer,
   Cadence, Environment, Workloads, Journal, bounded conversation transcripts,
   passive revalidation, exact Git links, and exact scenario/delta routes;
 - a foreground `rey agent` process whose orchestrator supervises that operator

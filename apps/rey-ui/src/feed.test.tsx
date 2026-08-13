@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { CadenceProjection } from "./cadence";
 import type { ChannelGraphSnapshot, ChannelProjection } from "./channels";
-import type { WorkloadList } from "./domain";
+import type { WorkloadList, WorkloadLog } from "./domain";
 import {
   channelWorkingWriteForFeedLayout,
   DEFAULT_FEED_STREAMS,
@@ -11,7 +11,6 @@ import {
   FEED_STREAM_LIMIT,
   FeedPage,
   deriveFeedEvents,
-  deriveInspectionQueue,
   parseFeedStreams,
   persistFeedLayoutMovement,
   reorderFeedStreams,
@@ -22,7 +21,7 @@ import type { JournalProjection } from "./journal";
 import type { ObservationFrontier } from "./observations";
 
 describe("high-cadence operator feed", () => {
-  it("ranks current attention ahead of bounded repository state", () => {
+  it("does not turn mutable attention or repository posture into admission posts", () => {
     const portfolio = emptyPortfolio();
     portfolio.attention.rows.push({
       row_id: "attention:alpha",
@@ -42,25 +41,23 @@ describe("high-cadence operator feed", () => {
     cadence.repository_state!.push_state = "unpushed";
     cadence.repository_state!.ahead = 1;
 
-    expect(deriveInspectionQueue(portfolio, cadence)).toMatchObject([
-      {
-        source: "ATTENTION",
-        subject: "alpha",
-        signal: "REFINE",
-        urgency: "NOW",
-        href: "/workloads/alpha",
-      },
-      {
-        source: "REPOSITORY",
-        signal: "REVIEW",
-        urgency: "WATCH",
-      },
-      {
-        source: "REPOSITORY",
-        signal: "PUBLISH",
-        urgency: "WATCH",
-      },
-    ]);
+    const markup = renderToStaticMarkup(
+      createElement(FeedPage, {
+        configuration: [{ kind: "admission", filter: "all" }],
+        portfolio,
+        sources: {
+          cadence,
+          journal: journalProjection(),
+          observations: emptyObservationProjection(),
+          workloadAdmissions: emptyWorkloadAdmissions(),
+        },
+      }),
+    );
+
+    expect(markup).toContain("NO WORKLOAD ADMISSIONS YET");
+    expect(markup).not.toContain("REY / CURRENT PROJECTION");
+    expect(markup).not.toContain("ADMISSION CONTROL");
+    expect(markup).not.toContain("scenario delta remains unresolved");
   });
 
   it("uses wall time only as display order and retains order-only signals", () => {
@@ -109,7 +106,7 @@ describe("high-cadence operator feed", () => {
 
   it("round-trips bounded stream lenses for deep-linked Feed composition", () => {
     const streams = parseFeedStreams(
-      "signals.journal~Review%2C%20now%20%7E%20%CE%94,signals.git,admission.now,flow.failing",
+      "signals.journal~Review%2C%20now%20%7E%20%CE%94,signals.git,admission.all,flow.failing",
     );
 
     expect(streams).toEqual([
@@ -119,11 +116,11 @@ describe("high-cadence operator feed", () => {
         name: "Review, now ~ Δ",
       },
       { kind: "signals", filter: "git" },
-      { kind: "admission", filter: "now" },
+      { kind: "admission", filter: "all" },
       { kind: "flow", filter: "failing" },
     ]);
     expect(serializeFeedStreams(streams)).toBe(
-      "signals.journal~Review%2C%20now%20%7E%20%CE%94,signals.git,admission.now,flow.failing",
+      "signals.journal~Review%2C%20now%20%7E%20%CE%94,signals.git,admission.all,flow.failing",
     );
     expect(
       parseFeedStreams(
@@ -288,6 +285,7 @@ describe("high-cadence operator feed", () => {
           cadence: cadenceProjection(),
           journal: journalProjection(),
           observations: observationProjection(),
+          workloadAdmissions: workloadAdmissions(),
         },
       }),
     );
@@ -311,10 +309,13 @@ describe("high-cadence operator feed", () => {
     expect(markup).toContain("AUTHOR SELF-ASSERTED");
     expect(markup).toContain("NO ASSIGNMENT, ACTION, OR PROOF");
     expect(markup).toContain("DIRECTED DIFF / different");
-    expect(markup).toContain("ADMISSION CONTROL");
-    expect(markup).toContain("NO INCOMING FILE CHANGES");
-    expect(markup).toContain(".reyignore / 1 RULES / 1 OMITTED");
-    expect(markup).toContain("REY / ATTENTION");
+    expect(markup).toContain("REY / WORKLOAD COMMIT");
+    expect(markup).toContain("WORKLOAD@1");
+    expect(markup).toContain("Approve exact workload snapshot");
+    expect(markup).toContain("COMMITTED / RETAINED");
+    expect(markup).not.toContain("ADMISSION CONTROL");
+    expect(markup).not.toContain("REY / CURRENT PROJECTION");
+    expect(markup).not.toContain("WORKING FILES");
     expect(markup).toContain("LOCAL CONFORMANCE");
     expect(markup).toContain("Display order is not causal order");
     expect(markup).toContain("ORDER ONLY");
@@ -473,6 +474,44 @@ function channelProjection(): ChannelProjection {
       staged: delta("BUILT-IN", "INDEX"),
       unstaged: delta("INDEX", "WORKING"),
     },
+  };
+}
+
+function workloadAdmissions(): WorkloadLog {
+  return {
+    schema: "rey.workload-log.v1",
+    head_commit_id: "blake3:workload-commit",
+    total_commits: 1,
+    selected_commits: 1,
+    patch: false,
+    commits: [
+      {
+        schema: "rey.workload-commit.v1",
+        commit_id: "blake3:workload-commit",
+        sequence: 1,
+        parent_commit_id: null,
+        committed_at_unix: 400,
+        message: "Approve exact workload snapshot",
+        snapshot: {
+          schema: "rey.workload-admission-snapshot.v1",
+          snapshot_revision: "blake3:admitted-snapshot",
+          packages: [],
+          ignore: null,
+        },
+        qualification_ids: [],
+      },
+    ],
+  };
+}
+
+function emptyWorkloadAdmissions(): WorkloadLog {
+  return {
+    schema: "rey.workload-log.v1",
+    head_commit_id: null,
+    total_commits: 0,
+    selected_commits: 0,
+    patch: false,
+    commits: [],
   };
 }
 

@@ -784,15 +784,16 @@ provided it does not observe mutable state or invoke a tool.
 ### Feed
 
 The high-cadence human inspection plane at `/feed`. Its default independently
-scrolling, TweetDeck-like streams project rich Signals, inspect-only Admission,
-and observed workload Flow. The Firehose can compose up to eight URL-addressed
-stream lenses without creating another store. Feed owns no event store, read
-cursor, attention rows, admission authority, live telemetry, or causal order.
+scrolling, TweetDeck-like streams project rich Signals, retained workload
+Admission history, and observed workload Flow. The Firehose can compose up to
+eight URL-addressed stream lenses without creating another store. Feed owns no
+event store, read cursor, attention rows, admission authority, live telemetry,
+or causal order. WORKING and INDEX candidates never become Admission posts.
 
 ### Feed stream
 
 One independently scrolling, configured lens over the Feed Firehose. A stream
-selects a source plane and filter, such as `signals.journal`, `admission.now`,
+selects a source plane and filter, such as `signals.journal`, `admission.all`,
 or `flow.failing`, plus an optional human name. Its title is editable inline and
 creates a detached deep-linkable URL preview. Feed resolves URL preview,
 Channel WORKING, Channel HEAD, and built-in layout in that order. Explicit
@@ -805,9 +806,10 @@ operations copies, admits, schedules, or mutates projected source records.
 ### Firehose
 
 The bounded union of records already projected into Feed from Cadence, Journal,
-portfolio attention, repository posture, and admitted workloads. The Firehose
-rail is the configuration surface for adding and tuning Feed streams. It is not
-a durable global event log, an unbounded stream, or a new runtime owner.
+the verified workload commit log, observations, and admitted workload results.
+The Firehose rail is the configuration surface for adding and tuning Feed
+streams. It is not a durable global event log, an unbounded stream, or a new
+runtime owner.
 
 ### Fixture
 
@@ -933,13 +935,6 @@ An assessment meaning available evidence or limits do not permit a sound
 decision. It is neither a pass nor necessarily a conclusive failure; causes
 include missing, incompatible, unsupported, truncated, timed-out, or stale
 inputs.
-
-### Inspection queue
-
-Feed's Admission-stream projection of current signals that deserve a closer look. It
-derives from authoritative attention, qualification/request posture, and local
-repository state; it is not scheduler output, assignment, admission, or a new
-runtime frontier.
 
 ### Index — environment
 

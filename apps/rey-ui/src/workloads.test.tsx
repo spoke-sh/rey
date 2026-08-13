@@ -1,9 +1,15 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { WorkloadList, WorkloadSummary } from "./domain";
+import type {
+  WorkloadList,
+  WorkloadPackageSnapshot,
+  WorkloadRevisionStatus,
+  WorkloadSummary,
+} from "./domain";
 import {
   AdmittedWorkloadDetail,
+  CandidateWorkloadDetail,
   DraftWorkloadDetail,
   WorkloadsPage,
 } from "./workloads";
@@ -108,7 +114,92 @@ describe("workload portfolio tables", () => {
     }
     expect(markup).toContain('href="/workloads"');
   });
+
+  it("keeps exact file approval on the workload review surface", () => {
+    const candidate = candidatePackage();
+    const revision = candidateRevision(candidate);
+    const markup = renderToStaticMarkup(
+      createElement(CandidateWorkloadDetail, { candidate, revision }),
+    );
+
+    expect(markup).toContain("EXACT SNAPSHOT APPROVAL");
+    expect(markup).toContain("ADMIT EXACT FILE SNAPSHOT");
+    expect(markup).toContain('aria-label="Workload approval message"');
+    expect(markup).toContain("WORKING / working");
+  });
 });
+
+function candidatePackage(): WorkloadPackageSnapshot {
+  const contract = (id: string) => ({
+    id,
+    revision: 1,
+    semantic_digest: `blake3:${id}`,
+  });
+  return {
+    workload_id: "rey.incoming",
+    workload_revision: 1,
+    title: "Incoming workload",
+    source: "workloads/incoming/workload.yaml",
+    source_digest: "blake3:incoming",
+    object_path: ".rey/workloads/objects/incoming.yaml",
+    bytes: 128,
+    generation: {
+      kind: "coding_harness",
+      producer: "codex",
+      producer_revision: "gpt-5",
+    },
+    workload: contract("incoming"),
+    graph: contract("incoming.graph"),
+    scenario_suite: contract("incoming.scenarios"),
+  };
+}
+
+function candidateRevision(
+  candidate: WorkloadPackageSnapshot,
+): WorkloadRevisionStatus {
+  return {
+    schema: "rey.workload-revision-status.v1",
+    state: "working",
+    head: null,
+    index: null,
+    working: {
+      schema: "rey.workload-admission-snapshot.v1",
+      snapshot_revision: "blake3:working",
+      packages: [candidate],
+      ignore: null,
+    },
+    staged: changeSet("HEAD", "INDEX", []),
+    unstaged: changeSet("INDEX", "WORKING", [candidate.workload_id]),
+    drafts: [],
+    commit_ready: false,
+    qualification_omissions: [],
+    admission_boundary: "Only the exact qualified snapshot advances HEAD.",
+  };
+}
+
+function changeSet(
+  source: string,
+  target: string,
+  workloadIds: string[],
+): WorkloadRevisionStatus["unstaged"] {
+  return {
+    schema: "rey.workload-change-set.v1",
+    source_label: source,
+    target_label: target,
+    source_revision: null,
+    target_revision: workloadIds.length > 0 ? "blake3:working" : null,
+    assessment: workloadIds.length > 0 ? "different" : "equal",
+    inserted: workloadIds.length,
+    deleted: 0,
+    modified: 0,
+    changes: workloadIds.map((workload_id) => ({
+      workload_id,
+      change_kind: "inserted",
+      source_revision: null,
+      target_revision: "blake3:incoming",
+    })),
+  };
+}
 
 function portfolio(): WorkloadList {
   return {

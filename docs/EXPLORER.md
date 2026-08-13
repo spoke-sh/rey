@@ -1,7 +1,8 @@
 # Operator Feed And Context Topology Explorer
 
 The Rey UI is the human operator's primary collaboration surface. `/feed`
-projects high-cadence change through rich Signals, Admission, and Flow streams,
+projects high-cadence change through rich Signals, committed workload
+Admission history, and Flow streams,
 while Explorer is a high-fidelity spatial game engine for evidence-bound
 projections of high-dimensional context. It maps the bounded context Rey can
 currently explain, lets the operator move between semantic scales, and
@@ -140,8 +141,9 @@ exists. Its stable beacon placement is presentation-only: it is neither
 surveyed project boundary. A beacon may draw attention to exact file state but
 cannot execute, qualify, or admit itself. The initial
 `context-anchor-survey` beacon is the proposed first mapping step; selecting it
-opens exact workload inspection and an explicit route to the Feed admission
-control. Only consent followed by a bounded agent run can reveal terrain.
+opens exact workload inspection and its explicit approval control. Feed receives
+an Admission item only after that exact workload snapshot is committed. Only
+consent followed by a bounded agent run can reveal terrain.
 The orientation renderer uses dense deterministic spherical projection fabric,
 layered atmosphere, limb lighting, and depth-aware beacon occlusion rather than
 a coarse wireframe. Drag orbits that fabric and every label through one shared
@@ -642,8 +644,8 @@ resolution; this document owns World geometry and read-only probe navigation.
 `GET /` redirects to `/explore`. The application routes are:
 
 - `/feed`: a TweetDeck-like workspace whose default rich Git/environment/
-  Journal Signals, current inspect-only Admission, and admitted workload Flow
-  streams can be composed from the Firehose;
+  Journal Signals, retained workload-commit Admission history, and admitted
+  workload Flow streams can be composed from the Firehose;
 - `/explore`: the context-topology canvas and default human entry;
 - `/explore?coordinate=...&scale=...`: an exact coordinate-bound camera view;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
@@ -679,12 +681,14 @@ author paths, and separate execution boundary.
 
 `/feed` does not replace Cadence or portfolio attention. Its independently
 scrollable streams are bounded lenses over one Firehose: Signals carries rich
-posts and source bounds, Admission carries current proposals and rationale, and
-Flow carries admitted workload progress. The default three lanes can be tuned,
-reordered, removed, or repeated, and the Firehose rail can add up to eight
-lanes. Signal lenses select all, Journal, Git, or environment records;
-Admission lenses select all, NOW, WATCH, or BOUND posture; Flow lenses select
-all, attention-bearing, failing, or qualified workloads. The exact composition
+posts and source bounds, Admission carries verified retained workload commits,
+and Flow carries admitted workload progress. WORKING/INDEX candidates,
+attention, qualification, drafts, repository posture, and approval controls do
+not become Admission posts. The default three lanes can be tuned, reordered,
+removed, or repeated, and the Firehose rail can add up to eight lanes. Signal
+lenses select all, Journal, Git, or environment records; Admission has one
+`all` lens; Flow lenses select all, attention-bearing, failing, or qualified
+workloads. The exact composition
 and each optional human stream name are encoded in the `streams` URL parameter
 rather than retained as new runtime state. Clicking a stream title edits it
 inline and autosaves on blur or Enter. Post evidence is collapsed by default
@@ -692,7 +696,9 @@ and expands in place.
 
 Timestamped Signals use newest-first display order followed by source-ordered
 records with no wall time. This is not causal order, unread state, or a durable
-global event log. Admission is inspect-only and cannot move a post into Flow.
+global event log. Admission is commit-backed and inspect-only; it cannot admit
+a candidate or move a post into Flow. Exact candidate review and approval live
+on `/workloads/{workload-id}`.
 The first slice renders at most 64 recent Signals and reports older folded
 records. [Interfaces](INTERFACES.md) owns the exact Feed and HTTP boundary.
 

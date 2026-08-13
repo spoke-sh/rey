@@ -1,4 +1,4 @@
-import { admitWorkloadFiles, type FeedSources } from "./api";
+import type { FeedSources } from "./api";
 import {
   useEffect,
   useState,
@@ -15,11 +15,7 @@ import type {
   ChannelWorkingWriteRequest,
   FeedStreamDefinition,
 } from "./channels";
-import {
-  shortDigest,
-  type AttentionReadiness,
-  type WorkloadList,
-} from "./domain";
+import { shortDigest, type WorkloadCommit, type WorkloadList } from "./domain";
 import { GitCommitLink } from "./git-commit-link";
 import {
   journalEntrySlug,
@@ -36,7 +32,6 @@ import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { feedStyles as styles } from "./stylex/feed.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
-export type FeedUrgency = "NOW" | "WATCH" | "BOUND";
 export const FEED_EVENT_LIMIT = 64;
 export const FEED_STREAM_LIMIT = 8;
 
@@ -47,9 +42,6 @@ export type FeedStreamFilter =
   | "journal"
   | "git"
   | "environment"
-  | "now"
-  | "watch"
-  | "bound"
   | "attention"
   | "failing"
   | "qualified";
@@ -99,7 +91,7 @@ export const DEFAULT_FEED_STREAMS: FeedStreamSpec[] = [
 
 const FEED_STREAM_FILTERS: Record<FeedStreamKind, FeedStreamFilter[]> = {
   signals: ["all", "observation", "journal", "git", "environment"],
-  admission: ["all", "now", "watch", "bound"],
+  admission: ["all"],
   flow: ["all", "attention", "failing", "qualified"],
 };
 
@@ -447,26 +439,6 @@ function isFeedStreamId(value: string): boolean {
   return /^[a-z0-9][a-z0-9._-]{0,79}$/.test(value);
 }
 
-export interface InspectionRow {
-  id: string;
-  source:
-    | "ATTENTION"
-    | "INDEX"
-    | "QUALIFICATION"
-    | "REPOSITORY"
-    | "REQUEST"
-    | "WORKING";
-  subject: string;
-  signal: string;
-  detail: string;
-  urgency: FeedUrgency;
-  priority: number | null;
-  sortPriority: number;
-  basis: string;
-  href: string;
-  location: string;
-}
-
 export interface FeedEvent {
   id: string;
   stream: "GIT" | "JOURNAL" | "OBSERVATION" | "REY ENV";
@@ -484,169 +456,6 @@ export interface FeedEvent {
   journalEntry: RetainedJournalEntry | null;
   observation: ObservationFrontierRow | null;
   tick: CadenceTick | null;
-}
-
-export function deriveInspectionQueue(
-  portfolio: WorkloadList,
-  cadence: CadenceProjection,
-): InspectionRow[] {
-  const rows: InspectionRow[] = [];
-  const revision = portfolio.revision;
-  for (const change of revision?.staged.changes ?? []) {
-    const packageSnapshot = revision?.index?.packages.find(
-      (candidate) => candidate.workload_id === change.workload_id,
-    );
-    rows.push({
-      id: `workload-index:${change.workload_id}:${revision?.index?.snapshot_revision ?? "missing"}`,
-      source: "INDEX",
-      subject: change.workload_id,
-      signal: revision?.commit_ready ? "APPROVE" : "QUALIFY",
-      detail: revision?.commit_ready
-        ? `${packageSnapshot?.title ?? change.workload_id} is frozen, qualified, and awaiting human approval.`
-        : `${packageSnapshot?.title ?? change.workload_id} is staged but cannot be admitted until its exact INDEX revision passes qualification.`,
-      urgency: revision?.commit_ready ? "NOW" : "WATCH",
-      priority: null,
-      sortPriority: revision?.commit_ready ? 100 : 50,
-      basis: `${change.change_kind} · ${packageSnapshot?.source_digest ?? change.target_revision ?? "missing digest"}`,
-      href: `/workloads/${encodeURIComponent(change.workload_id)}`,
-      location: "ADMISSION",
-    });
-  }
-  for (const change of revision?.unstaged.changes ?? []) {
-    const packageSnapshot = revision?.working.packages.find(
-      (candidate) => candidate.workload_id === change.workload_id,
-    );
-    rows.push({
-      id: `workload-working:${change.workload_id}:${revision?.working.snapshot_revision ?? "missing"}`,
-      source: "WORKING",
-      subject: change.workload_id,
-      signal: "REVIEW",
-      detail: `${packageSnapshot?.title ?? change.workload_id} is an incoming agent-authored file package awaiting human admission.`,
-      urgency: "NOW",
-      priority: null,
-      sortPriority: 25,
-      basis: `${change.change_kind} · ${packageSnapshot?.source_digest ?? change.target_revision ?? "missing digest"}`,
-      href: `/workloads/${encodeURIComponent(change.workload_id)}`,
-      location: "ADMISSION",
-    });
-  }
-  rows.push(
-    ...portfolio.attention.rows
-      .filter((row) => row.readiness !== "excluded")
-      .map(
-        (row) =>
-          ({
-            id: `attention:${row.row_id}`,
-            source: "ATTENTION",
-            subject: row.subject_id,
-            signal: row.action.toUpperCase(),
-            detail: row.reason,
-            urgency: urgencyForReadiness(row.readiness),
-            priority: row.priority,
-            sortPriority: row.priority,
-            basis: `${row.evidence_ids.length} evidence · ${row.dependency_ids.length} dependencies · C${row.estimated_cost_units}`,
-            href:
-              row.subject_kind === "workload"
-                ? `/workloads/${encodeURIComponent(row.subject_id)}`
-                : "/explore",
-            location: row.subject_kind === "workload" ? "WORKLOAD" : "EXPLORE",
-          }) satisfies InspectionRow,
-      ),
-  );
-  const subjectsWithAttention = new Set(
-    portfolio.attention.rows.map(
-      (row) => `${row.subject_kind}:${row.subject_id}`,
-    ),
-  );
-
-  for (const draft of portfolio.drafts) {
-    if (subjectsWithAttention.has(`workload:${draft.request.workload_id}`))
-      continue;
-    rows.push({
-      id: `request:${draft.request.request_id}`,
-      source: "REQUEST",
-      subject: draft.request.workload_id,
-      signal: "AUTHOR",
-      detail: draft.request.intent ?? draft.request.title,
-      urgency: "WATCH",
-      priority: null,
-      sortPriority: 0,
-      basis: "graph pending · scenario oracle pending",
-      href: `/workloads/${encodeURIComponent(draft.request.workload_id)}`,
-      location: "HANDOFF",
-    });
-  }
-
-  for (const workload of portfolio.workloads) {
-    if (
-      subjectsWithAttention.has(`workload:${workload.workload.id}`) ||
-      workload.qualification === "qualified"
-    ) {
-      continue;
-    }
-    rows.push({
-      id: `qualification:${workload.workload.id}`,
-      source: "QUALIFICATION",
-      subject: workload.workload.id,
-      signal: qualificationSignal(workload.qualification),
-      detail: `${workload.qualification} · ${workload.passed}/${workload.required} scenarios passing`,
-      urgency:
-        workload.qualification === "failing" ||
-        workload.qualification === "inconclusive"
-          ? "NOW"
-          : "WATCH",
-      priority: null,
-      sortPriority: 0,
-      basis: `${workload.failed} failed · ${workload.inconclusive} inconclusive · ${workload.stale} stale`,
-      href: `/workloads/${encodeURIComponent(workload.workload.id)}`,
-      location: "WORKLOAD",
-    });
-  }
-
-  const repository = cadence.repository_state;
-  if (repository?.working_tree_state === "dirty") {
-    const changed =
-      repository.staged_entries +
-      repository.unstaged_entries +
-      repository.untracked_entries +
-      repository.conflicted_entries;
-    rows.push({
-      id: `repository:${repository.id}:working`,
-      source: "REPOSITORY",
-      subject: repository.branch ?? "detached HEAD",
-      signal: repository.conflicted_entries > 0 ? "RESOLVE" : "REVIEW",
-      detail: `${changed} working-tree paths require inspection before the current source state is quiet`,
-      urgency: repository.conflicted_entries > 0 ? "NOW" : "WATCH",
-      priority: null,
-      sortPriority: repository.conflicted_entries > 0 ? 100 : 10,
-      basis: `${repository.staged_entries} staged · ${repository.unstaged_entries} unstaged · ${repository.untracked_entries} untracked · ${repository.conflicted_entries} conflicted`,
-      href: "/cadence",
-      location: "CADENCE",
-    });
-  }
-  if (repository && repository.push_state !== "pushed") {
-    rows.push({
-      id: `repository:${repository.id}:publication`,
-      source: "REPOSITORY",
-      subject: repository.upstream ?? repository.branch ?? "unbound ref",
-      signal: publicationSignal(repository.push_state),
-      detail: `local source and its retained upstream relation are ${repository.push_state.replaceAll("_", " ")}`,
-      urgency: repository.push_state === "unpushed" ? "WATCH" : "BOUND",
-      priority: null,
-      sortPriority: repository.push_state === "diverged" ? 90 : 5,
-      basis: `${repository.ahead ?? "—"} ahead · ${repository.behind ?? "—"} behind · local tracking ref`,
-      href: "/cadence",
-      location: "CADENCE",
-    });
-  }
-
-  return rows.sort(
-    (left, right) =>
-      urgencyRank(left.urgency) - urgencyRank(right.urgency) ||
-      right.sortPriority - left.sortPriority ||
-      left.subject.localeCompare(right.subject) ||
-      left.id.localeCompare(right.id),
-  );
 }
 
 export function deriveFeedEvents(
@@ -760,9 +569,12 @@ export function FeedPage({
     streams: readonly ResolvedFeedStream[],
   ) => Promise<FeedLayoutWriteOutcome>;
   portfolio: WorkloadList;
-  sources: Pick<FeedSources, "cadence" | "journal" | "observations">;
+  sources: Pick<
+    FeedSources,
+    "cadence" | "journal" | "observations" | "workloadAdmissions"
+  >;
 }) {
-  const queue = deriveInspectionQueue(portfolio, sources.cadence);
+  const admissions = sources.workloadAdmissions.commits;
   const events = deriveFeedEvents(
     sources.cadence,
     sources.journal,
@@ -968,7 +780,7 @@ export function FeedPage({
             onRename={renameStream}
             onTune={openFirehose}
             portfolio={portfolio}
-            queue={queue}
+            admissions={admissions}
             sources={sources}
             stream={stream}
             streamCount={streams.length}
@@ -984,7 +796,7 @@ export function FeedPage({
             <span aria-hidden="true">＋</span>
             <strong>FIREHOSE</strong>
             <small>
-              {events.length + queue.length + portfolio.workloads.length}
+              {events.length + admissions.length + portfolio.workloads.length}
             </small>
           </button>
         ) : (
@@ -1000,7 +812,7 @@ export function FeedPage({
             }
             onSave={saveDraft}
             sourceCounts={{
-              admission: queue.length,
+              admission: admissions.length,
               flow: portfolio.workloads.length,
               signals: events.length,
             }}
@@ -1120,6 +932,7 @@ function FeedLayoutBoundary({
 }
 
 function FeedStream({
+  admissions,
   dragging,
   events,
   index,
@@ -1132,11 +945,11 @@ function FeedStream({
   onRename,
   onTune,
   portfolio,
-  queue,
   sources,
   stream,
   streamCount,
 }: {
+  admissions: WorkloadCommit[];
   dragging: boolean;
   events: FeedEvent[];
   index: number;
@@ -1149,13 +962,14 @@ function FeedStream({
   onRename: (index: number, name: string) => void;
   onTune: (index: number) => void;
   portfolio: WorkloadList;
-  queue: InspectionRow[];
-  sources: Pick<FeedSources, "cadence" | "journal" | "observations">;
+  sources: Pick<
+    FeedSources,
+    "cadence" | "journal" | "observations" | "workloadAdmissions"
+  >;
   stream: ResolvedFeedStream;
   streamCount: number;
 }) {
   const filteredEvents = filterEvents(events, stream.filter);
-  const filteredQueue = filterQueue(queue, stream.filter);
   const filteredWorkloads = filterWorkloads(portfolio, stream.filter);
   const id = `feed-stream-${stream.id}`;
   return (
@@ -1222,17 +1036,20 @@ function FeedStream({
         ) : null}
         {stream.kind === "admission" ? (
           <>
-            {filteredQueue.length > 0 ? (
-              <ReyBriefing queue={filteredQueue} />
-            ) : null}
-            <AdmissionControl portfolio={portfolio} />
-            {filteredQueue.map((row) => (
-              <AdmissionPost key={row.id} row={row} />
+            {admissions.map((commit) => (
+              <WorkloadAdmissionPost commit={commit} key={commit.commit_id} />
             ))}
-            {filteredQueue.length === 0 ? (
+            {admissions.length === 0 ? (
               <QuietPost
-                detail="No proposal or attention row matches this lens. No news is good news."
-                title="NOTHING IS WAITING HERE"
+                detail="This stream receives only retained workload commits. Review WORKING and INDEX revisions on Workloads."
+                title="NO WORKLOAD ADMISSIONS YET"
+              />
+            ) : null}
+            {sources.workloadAdmissions.total_commits >
+            sources.workloadAdmissions.selected_commits ? (
+              <QuietPost
+                detail={`${sources.workloadAdmissions.total_commits - sources.workloadAdmissions.selected_commits} older workload commits are outside this bounded Feed projection.`}
+                title="ADMISSION HISTORY IS BOUNDED"
               />
             ) : null}
           </>
@@ -1252,85 +1069,6 @@ function FeedStream({
         ) : null}
       </div>
     </section>
-  );
-}
-
-function AdmissionControl({ portfolio }: { portfolio: WorkloadList }) {
-  const revision = portfolio.revision;
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const index = revision?.index;
-  const working = revision?.working;
-  const hasPendingFiles = Boolean(
-    working &&
-    working.packages.length > 0 &&
-    revision?.head?.snapshot.snapshot_revision !== working.snapshot_revision,
-  );
-  const enabled = Boolean(hasPendingFiles && message.trim());
-  const approve = async () => {
-    if (!revision || !working || !enabled) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await admitWorkloadFiles({
-        message: message.trim(),
-        expected_head: revision.head?.commit_id ?? "EMPTY",
-        expected_working: working.snapshot_revision,
-      });
-      window.location.reload();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-      setSubmitting(false);
-    }
-  };
-  return (
-    <div className={sx(styles.admissionBoundary)}>
-      <span className={sx(chrome.micro)}>ADMISSION CONTROL</span>
-      <strong>
-        {hasPendingFiles
-          ? `${working?.packages.length ?? 0} FILE PACKAGE${working?.packages.length === 1 ? "" : "S"} / READY FOR REVIEW`
-          : "NO INCOMING FILE CHANGES"}
-      </strong>
-      <p>
-        {revision?.admission_boundary ??
-          "No workload revision state is available."}
-      </p>
-      {revision?.working.ignore ? (
-        <code title={revision.working.ignore.source_digest}>
-          {revision.working.ignore.source} /{" "}
-          {revision.working.ignore.rules.length} RULES /{" "}
-          {revision.working.ignore.ignored} OMITTED
-        </code>
-      ) : null}
-      {hasPendingFiles && working ? (
-        <>
-          <code title={working.snapshot_revision}>
-            WORKING FILES / {shortDigest(working.snapshot_revision)}
-          </code>
-          <input
-            aria-label="Workload approval message"
-            className={sx(styles.admissionMessage)}
-            disabled={submitting}
-            maxLength={4096}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="Why are you admitting this workload revision?"
-            value={message}
-          />
-          <button
-            className={sx(styles.admissionApprove)}
-            disabled={!enabled || submitting}
-            onClick={() => void approve()}
-            type="button"
-          >
-            {submitting
-              ? "QUALIFYING & ADMITTING…"
-              : "ADMIT EXACT FILE SNAPSHOT"}
-          </button>
-        </>
-      ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-    </div>
   );
 }
 
@@ -1464,67 +1202,37 @@ function FirehoseConfigurator({
   );
 }
 
-function ReyBriefing({ queue }: { queue: InspectionRow[] }) {
-  return (
-    <article className={sx(styles.post, styles.briefing)}>
-      <PostHeader
-        avatar={<Avatar label="R" tone="rey" />}
-        identity="REY / CURRENT PROJECTION"
-        moment="PINNED"
-        state={`${queue.length} PROPOSALS`}
-      />
-      <div className={sx(styles.postBody)}>
-        <h2 className={sx(styles.postTitle)}>
-          {queue.length === 0
-            ? "The admission plane is quiet."
-            : "Here is what may need admission next."}
-        </h2>
-        <p className={sx(styles.postLead)}>
-          This briefing is derived from current evidence. It is not an agent
-          assignment, a scheduler decision, or a claim that work began.
-        </p>
-        <div className={sx(styles.briefingCounts)}>
-          <strong>
-            {queue.filter((row) => row.urgency === "NOW").length} NOW
-          </strong>
-          <strong>
-            {queue.filter((row) => row.urgency === "WATCH").length} WATCH
-          </strong>
-          <strong>
-            {queue.filter((row) => row.urgency === "BOUND").length} BOUND
-          </strong>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function AdmissionPost({ row }: { row: InspectionRow }) {
+function WorkloadAdmissionPost({ commit }: { commit: WorkloadCommit }) {
+  const workloadCount = commit.snapshot.packages.length;
   return (
     <article className={sx(styles.post)} role="article">
       <PostHeader
         avatar={<Avatar label="R" tone="rey" />}
-        identity={`REY / ${row.source}`}
-        moment="CURRENT PROJECTION"
-        state={`${row.signal} / ${row.urgency}`}
+        identity="REY / WORKLOAD COMMIT"
+        moment={formatUnixMoment(commit.committed_at_unix)}
+        state={`WORKLOAD@${commit.sequence}`}
       />
       <div className={sx(styles.postBody)}>
-        <h2 className={sx(styles.postTitle)}>{row.subject}</h2>
-        <p className={sx(styles.postLead)}>{row.detail}</p>
+        <h2 className={sx(styles.postTitle)}>{commit.message}</h2>
+        <p className={sx(styles.postLead)}>
+          {workloadCount} workload{" "}
+          {workloadCount === 1 ? "package" : "packages"} in the committed
+          snapshot · {commit.qualification_ids.length} exact passing{" "}
+          qualification{" "}
+          {commit.qualification_ids.length === 1 ? "record" : "records"}.
+        </p>
         <div className={sx(styles.admissionEvidence)}>
-          <span className={sx(chrome.micro)}>ADMISSION BASIS</span>
-          <strong>{row.basis}</strong>
-          <span>
-            {row.priority === null
-              ? "derived inspection posture"
-              : `typed attention priority ${row.priority}`}
-          </span>
+          <span className={sx(chrome.micro)}>COMMITTED SNAPSHOT</span>
+          <code title={commit.snapshot.snapshot_revision}>
+            {shortDigest(commit.snapshot.snapshot_revision)}
+          </code>
+          <code title={commit.commit_id}>{shortDigest(commit.commit_id)}</code>
         </div>
       </div>
       <footer className={sx(styles.postFooter)}>
-        <span className={sx(chrome.micro)}>NO EFFECT AUTHORITY</span>
-        <a className={sx(styles.postAction)} href={row.href}>
-          INSPECT {row.location} →
+        <span className={sx(chrome.micro)}>COMMITTED / RETAINED</span>
+        <a className={sx(styles.postAction)} href="/workloads">
+          INSPECT WORKLOADS →
         </a>
       </footer>
     </article>
@@ -2267,31 +1975,15 @@ function boundedOmissions(
   ];
 }
 
-function urgencyForReadiness(readiness: AttentionReadiness): FeedUrgency {
-  return readiness === "ready" ? "NOW" : "BOUND";
-}
-
-function urgencyRank(urgency: FeedUrgency): number {
-  if (urgency === "NOW") return 0;
-  if (urgency === "WATCH") return 1;
-  return 2;
-}
-
-function qualificationSignal(qualification: string): string {
-  if (qualification === "untested") return "TEST";
-  if (qualification === "stale") return "RETEST";
-  return "REFINE";
-}
-
-function publicationSignal(state: string): string {
-  if (state === "unpushed") return "PUBLISH";
-  if (state === "behind" || state === "diverged") return "RECONCILE";
-  return "BOUND";
-}
-
 function formatMoment(value: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
+  return date.toISOString().replace("T", " ").slice(0, 16) + "Z";
+}
+
+function formatUnixMoment(value: number): string {
+  const date = new Date(value * 1_000);
+  if (!Number.isFinite(date.getTime())) return "COMMITTED / ORDER UNKNOWN";
   return date.toISOString().replace("T", " ").slice(0, 16) + "Z";
 }
 
@@ -2322,16 +2014,6 @@ function filterEvents(
   if (filter === "environment")
     return events.filter((event) => event.kind === "environment");
   return events;
-}
-
-function filterQueue(
-  queue: InspectionRow[],
-  filter: FeedStreamFilter,
-): InspectionRow[] {
-  if (filter === "now") return queue.filter((row) => row.urgency === "NOW");
-  if (filter === "watch") return queue.filter((row) => row.urgency === "WATCH");
-  if (filter === "bound") return queue.filter((row) => row.urgency === "BOUND");
-  return queue;
 }
 
 function filterWorkloads(
@@ -2366,7 +2048,7 @@ function streamTitle(stream: FeedStreamSpec): string {
 function streamDescription(kind: FeedStreamKind): string {
   if (kind === "signals")
     return "Open observations, Journal, Git, and environment records";
-  if (kind === "admission") return "Work proposed from current evidence";
+  if (kind === "admission") return "Retained workload commits only";
   return "Admitted workloads and retained results";
 }
 

@@ -220,7 +220,8 @@ exists, Explorer projects exact request/WORKING/INDEX workload file state as
 attention beacons on a presentation-only orientation globe. That globe is an
 unmapped consent surface, not `rey.semantic-atlas.v1`; it claims no semantic
 distance, terrain, project boundary, or agent activity. Inspection and consent
-descend into the exact workload record and Feed approval control. Only an
+descend into the exact workload record and its approval control. Feed receives
+the resulting admission item only after the workload commit is retained. Only an
 explicitly admitted survey run or qualified regional-scene run may replace it
 with mapped evidence. The Explorer projects admitted topography patches and the
 latest accepted non-scenario regional result through one persistent semantic
@@ -353,6 +354,9 @@ substrate behind Feed, mailbox, and conversation; there is no top-level
 WORKING, HEAD, then built-in layout state; deliberate adoption and stable
 pointer/keyboard movement use the conditional WORKING write under exact HEAD
 and WORKING snapshot preconditions and retain typed deltas or rollback failures.
+Its Admission stream reads the bounded verified workload commit log directly;
+it does not synthesize posts from WORKING, INDEX, attention, qualification, or
+repository posture.
 A separate tamper-detecting observation log
 now owns immutable statements, exact source/evidence bindings, Channel
 admission edges, retained partial broadcast receipts, single supersession or

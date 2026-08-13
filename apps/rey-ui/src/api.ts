@@ -1,4 +1,4 @@
-import type { WorkloadList } from "./domain";
+import type { WorkloadList, WorkloadLog } from "./domain";
 import type { CadenceProjection } from "./cadence";
 import type {
   ConversationMessageAdmission,
@@ -104,6 +104,7 @@ export interface FeedSources {
   channels: ChannelProjection;
   journal: JournalProjection;
   observations: ObservationFrontier;
+  workloadAdmissions: WorkloadLog;
 }
 
 export interface AgentJournalDocument {
@@ -287,13 +288,28 @@ export async function loadCadence(): Promise<CadenceProjection> {
 }
 
 export async function loadFeed(): Promise<FeedSources> {
-  const [cadence, channels, journal, observations] = await Promise.all([
-    loadCadence(),
-    loadChannels(),
-    loadJournal(),
-    loadObservations(),
-  ]);
-  return { cadence, channels, journal, observations };
+  const [cadence, channels, journal, observations, workloadAdmissions] =
+    await Promise.all([
+      loadCadence(),
+      loadChannels(),
+      loadJournal(),
+      loadObservations(),
+      loadWorkloadAdmissions(),
+    ]);
+  return { cadence, channels, journal, observations, workloadAdmissions };
+}
+
+export async function loadWorkloadAdmissions(): Promise<WorkloadLog> {
+  const response = await fetch("/api/v1/workloads/admissions", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Workload admissions request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as WorkloadLog;
 }
 
 export async function loadObservations(): Promise<ObservationFrontier> {

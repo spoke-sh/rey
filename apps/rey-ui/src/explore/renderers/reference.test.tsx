@@ -250,8 +250,8 @@ describe("reference renderer", () => {
     expect(markup).toContain("CONTEXT SURVEY");
     expect(markup).toContain("PROJECTION FABRIC ONLY");
     expect(markup).toContain("FIRST MAPPING STEP");
-    expect(markup).toContain("INSPECT EXACT WORKLOAD");
     expect(markup).toContain("REVIEW &amp; CONSENT");
+    expect(markup).toContain('href="/workloads/context-anchor-survey"');
     expect(markup).toContain("NO SURVEY CLAIM");
     expect(markup).not.toContain('data-world-geometry="charted"');
   });

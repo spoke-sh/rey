@@ -60,12 +60,14 @@ qualified INDEX through human approval, and runs HEAD against admitted inputs.
 The operator worker supervised by `rey agent` is the human admission surface
 for this same workload plane. It opens
 on `/explore`; before survey evidence exists, exact workload beacons link to
-inspection and the admission Feed. The UI derives incoming candidates and
+inspection and the exact workload review surface. The UI derives incoming candidates and
 admitted HEAD from the same typed state as the CLI and advances HEAD by
 freezing, qualifying, and committing the exact reviewed WORKING file snapshot
 with explicit HEAD and WORKING preconditions. It defines no second catalog,
 qualification rule, attention relation, or package mutation path. Journal
-writes and workload approval remain separate authorities.
+writes and workload approval remain separate authorities. `/feed` projects a
+bounded verified workload commit log only after this admission succeeds; it
+does not render candidates, attention, or an approval control as feed items.
 
 The default catalog is the workspace package catalog. Checked-in packages are
 WORKING proposals, not admitted workloads. The initial product proposal is
@@ -148,7 +150,7 @@ later supported by runtime evidence, the normal attention derivation and this
 existing creation/admission path remain authoritative.
 
 A request-only directory is a draft catalog entry. `workloads list`, `status`,
-and the admission Feed render its `HYDRATE` journey, missing graph,
+and `/workloads` render its `HYDRATE` journey, missing graph,
 non-admitted oracle, exact request/source revisions, and `AWAITING HARNESS`
 state. `test` and `run` reject it. Once `workload.yaml` appears, Rey verifies
 that its workload id matches the retained request and that generation inputs
