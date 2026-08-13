@@ -219,8 +219,8 @@ opens the same live editor for review.
 Seeding is read-only and creates no Journal state. A closed, unknown,
 duplicate, malformed, or over-limit selection is rejected. Only ordinary
 `rey journal add` or browser `POST /api/v1/journal` validation and admission
-can retain the proposal. This observation and seed boundary is owned by
-[Plan 0002](../plans/0002-collaboration-loop.md).
+can retain the proposal. [Observations](OBSERVATIONS.md) owns the source log;
+this document owns the deterministic seed and Journal-admission boundary.
 
 ## Authored Opportunity Surface
 

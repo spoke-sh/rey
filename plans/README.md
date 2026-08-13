@@ -10,15 +10,12 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0002 — Close the collaboration loop](0002-collaboration-loop.md) | Active | Run the complete CLI/browser, restart/tamper, stale-write, accessibility, bounds, embedded UI, and packaged-path qualification gate, then retire the completed plan. | Implemented Channel CLI/operator projection, Feed layout adoption/movement, observation store/CLI/browser/broadcast, deterministic unretained Journal seeding, authored-only action opportunities, separately admitted retained-observation query evidence and superseding proposal, exact content-addressed scenario/delta routes, bounded CLI/browser conversation session/message admission, Journal, runtime evidence, and workload/policy admission boundary. |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Qualify one exact editor package through a scene-admission workload and expose the admitted regional result through the CLI before broadening the browser grammar. | Implemented editor, workload admission, projection packet, semantic atlas, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:
 
 ```text
-Channel or Journal proposal ────────→ delivered runtime admission gate
-
 editor candidate → scene admission → retained atlas delta
                  → World/Atlas/County projection → fidelity proof
 ```
@@ -35,9 +32,12 @@ The current repository already provides:
   typed deltas, topography survey, portfolio attention, frontier/scheduling,
   reasoning surfaces, and local proof mechanisms;
 - an embedded operator UI with Channel-backed Feed layout adoption, Explorer,
-  Cadence, Environment, Workloads, Journal, passive revalidation, and exact Git
-  links;
+  Cadence, Environment, Workloads, Journal, bounded conversation transcripts,
+  passive revalidation, exact Git links, and exact scenario/delta routes;
 - immutable Channel messages, explicit relay and one-shot beacon commands;
+- immutable local conversation sessions and append-only messages with exact
+  declared writers, conditional browser admission, and no delivery or
+  execution claim;
 - a bounded Git cursor/pending-transition loop with independently classified
   HEAD and exact watched refs, bounded reachability/path deltas, complete
   supported semantic-index evidence, retained cadence ticks/receipts,

@@ -151,9 +151,9 @@ CLI. The browser now projects bounded Channel status and conditionally replaces
 WORKING under exact preconditions. Feed layout precedence, deliberate adoption,
 stable pointer/keyboard movement, semantic-delta reporting, and failed-write
 rollback are delivered over that boundary.
-[Plan 0002](../plans/0002-collaboration-loop.md) owns observation CLI/browser
-projection, Journal seeding and authored opportunities, exact evidence routes,
-and the conversation boundary.
+The foundational Observations, Journal, Conversations, Workloads, CLI, and
+Interfaces contracts own the delivered collaboration behavior; completed
+delivery history remains in Git.
 
 - Define stable channels, standalone Channel observations, observation
   admissions, subscriptions, Feed streams, ordered layouts, broadcasts, and

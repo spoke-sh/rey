@@ -600,9 +600,9 @@ critical path: admit one exact editor package, retain atlas revisions and
 movement deltas, add sector identity, unwrap World through semantic Mercator,
 enter a local isometric County, finish the engine/render-graph boundary, and
 qualify detailed terrain and typed constructed layers. Exact scenario/delta
-routes belong to [Plan 0002](../plans/0002-collaboration-loop.md) and must carry
-the CLI `-v`/`-vv` evidence ladder into the browser without adding an
-independent assessment. Travel, trade, and economic layers require their own
+routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser
+without adding an independent assessment. Travel, trade, and economic layers
+require their own
 typed qualified evidence and are not inferred from survey edges or visual
 proximity.
 

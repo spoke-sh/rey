@@ -301,8 +301,8 @@ exact workload-INDEX approval. An explicit non-loopback bind exposes all four wr
 to every client that can reach the listener and therefore emits a warning; no
 bind grants Channel INDEX/HEAD, relay, workload execution, or proof authority. See
 [Context Topology Explorer](EXPLORER.md), [Collaboration Journal](JOURNAL.md),
-[Git Context and Activation](GIT.md), and
-[Plan 0002](../plans/0002-collaboration-loop.md).
+[Conversation Transcripts](CONVERSATIONS.md), and
+[Git Context and Activation](GIT.md).
 
 ### Explorer projection-engine boundary
 
