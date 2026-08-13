@@ -40,7 +40,7 @@ describe("environment operator projection", () => {
 
   it("renders application modifications as deleted and inserted observations", () => {
     const before = applicationObservation("/usr/bin/rg", ["retrieval"]);
-    const after = applicationObservation("/opt/bin/rg", ["code", "retrieval"]);
+    const after = applicationObservation("/opt/bin/rg", ["retrieval"]);
     const application: EnvironmentObjectStatus<EnvironmentApplicationObservation> =
       {
         object_id: "rg",
@@ -62,7 +62,7 @@ describe("environment operator projection", () => {
         admission: "working",
       },
       {
-        key: "rg:inserted:rg:/opt/bin/rg:code,retrieval",
+        key: "rg:inserted:rg:/opt/bin/rg:retrieval",
         kind: "inserted",
         observation: after,
         admission: "working",

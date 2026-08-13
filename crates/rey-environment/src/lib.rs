@@ -575,10 +575,19 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         identity_args: Some(&["--version"]),
     },
     ToolAdapter {
+        name: "grep",
+        executable: "grep",
+        capability_id: "tool.grep.identity",
+        groups: &["retrieval"],
+        purpose: "Extend bounded source mining with portable text search",
+        required: false,
+        identity_args: None,
+    },
+    ToolAdapter {
         name: "rg",
         executable: "rg",
         capability_id: "tool.ripgrep.identity",
-        groups: &["code", "retrieval"],
+        groups: &["retrieval"],
         purpose: "Extend bounded source mining with fast text search",
         required: false,
         identity_args: Some(&["--version"]),
@@ -593,8 +602,8 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         identity_args: None,
     },
     ToolAdapter {
-        name: "slack",
-        executable: "slack",
+        name: "slack-cli",
+        executable: "slack-cli",
         capability_id: "comms.application.slack.identity",
         groups: &["communications"],
         purpose: "Potential Slack communications client; discovery grants no relay authority",
@@ -602,7 +611,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         identity_args: None,
     },
     ToolAdapter {
-        name: "github",
+        name: "gh",
         executable: "gh",
         capability_id: "comms.application.github.identity",
         groups: &["code", "communications"],
@@ -611,7 +620,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         identity_args: None,
     },
     ToolAdapter {
-        name: "telegram",
+        name: "telegram-cli",
         executable: "telegram-cli",
         capability_id: "comms.application.telegram.identity",
         groups: &["communications"],
@@ -620,7 +629,7 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         identity_args: None,
     },
     ToolAdapter {
-        name: "imessage",
+        name: "imsg",
         executable: "imsg",
         capability_id: "comms.application.imessage.identity",
         groups: &["communications"],
@@ -629,29 +638,20 @@ const TOOL_ADAPTERS: &[ToolAdapter] = &[
         identity_args: None,
     },
     ToolAdapter {
-        name: "microsoft-teams",
-        executable: "m365",
+        name: "teams",
+        executable: "teams",
         capability_id: "comms.application.microsoft-teams.identity",
         groups: &["communications"],
-        purpose: "Potential Microsoft 365 and Teams communications client; discovery grants no relay authority",
+        purpose: "Potential Teams communications client; discovery grants no relay authority",
         required: false,
         identity_args: None,
     },
     ToolAdapter {
-        name: "signal",
+        name: "signal-cli",
         executable: "signal-cli",
         capability_id: "comms.application.signal.identity",
         groups: &["communications"],
         purpose: "Potential Signal communications client; discovery grants no relay authority",
-        required: false,
-        identity_args: None,
-    },
-    ToolAdapter {
-        name: "discord",
-        executable: "discord",
-        capability_id: "comms.application.discord.identity",
-        groups: &["communications"],
-        purpose: "Potential Discord client identity; discovery grants no CLI or relay authority",
         required: false,
         identity_args: None,
     },
@@ -1132,7 +1132,7 @@ mod tests {
     use super::{
         Availability, CapabilityRecord, CapabilitySnapshot, CommandRequest,
         DiscoveryApplicationProvenance, DiscoveryError, DiscoveryLimits, LOCAL_PROVIDER_REVISION,
-        LocalDiscovery, TrustClass, resolve_executable, run_bounded,
+        LocalDiscovery, TOOL_ADAPTERS, TrustClass, resolve_executable, run_bounded,
     };
 
     #[test]
@@ -1286,12 +1286,11 @@ mod tests {
         assert_eq!(
             applications,
             [
-                "comms.application.discord.identity",
                 "comms.application.github.identity",
                 "comms.application.imessage.identity",
-                "comms.application.microsoft-teams.identity",
                 "comms.application.signal.identity",
                 "comms.application.slack.identity",
+                "comms.application.microsoft-teams.identity",
                 "comms.application.telegram.identity",
             ]
         );
@@ -1310,6 +1309,16 @@ mod tests {
             let provenance: DiscoveryApplicationProvenance =
                 serde_json::from_str(application.provenance.as_deref().unwrap()).unwrap();
             assert!(provenance.groups.contains(&"communications".to_owned()));
+            let expected_name = match application.capability_id.as_str() {
+                "comms.application.github.identity" => "gh",
+                "comms.application.imessage.identity" => "imsg",
+                "comms.application.microsoft-teams.identity" => "teams",
+                "comms.application.signal.identity" => "signal-cli",
+                "comms.application.slack.identity" => "slack-cli",
+                "comms.application.telegram.identity" => "telegram-cli",
+                capability_id => panic!("unexpected communications application {capability_id}"),
+            };
+            assert_eq!(provenance.name, expected_name);
         }
     }
 
@@ -1331,6 +1340,11 @@ mod tests {
             .filter(|row| row.capability_kind == "identity_probe")
             .collect::<Vec<_>>();
         assert_eq!(applications.len(), 15);
+        assert!(
+            TOOL_ADAPTERS
+                .iter()
+                .all(|adapter| adapter.name == adapter.executable)
+        );
 
         let groups = |capability_id: &str| {
             let application = applications
@@ -1343,7 +1357,8 @@ mod tests {
             .unwrap()
             .groups
         };
-        assert_eq!(groups("tool.ripgrep.identity"), ["code", "retrieval"]);
+        assert_eq!(groups("tool.grep.identity"), ["retrieval"]);
+        assert_eq!(groups("tool.ripgrep.identity"), ["retrieval"]);
         assert_eq!(
             groups("comms.application.github.identity"),
             ["code", "communications"]

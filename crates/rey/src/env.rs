@@ -1736,7 +1736,7 @@ mod tests {
     fn application_inventory_identity_excludes_search_outcomes() {
         let application = |availability, path: Option<&str>| EnvironmentApplicationObservation {
             name: "rg".to_owned(),
-            groups: vec!["code".to_owned(), "retrieval".to_owned()],
+            groups: vec!["retrieval".to_owned()],
             purpose: Some("Search bounded source".to_owned()),
             required: false,
             availability,
@@ -1755,7 +1755,7 @@ mod tests {
             application(Availability::Unavailable, None),
         )]);
         let mut regrouped = found.clone();
-        regrouped.get_mut("rg").unwrap().groups = vec!["retrieval".to_owned()];
+        regrouped.get_mut("rg").unwrap().groups = vec!["code".to_owned(), "retrieval".to_owned()];
 
         assert_eq!(
             application_inventory_coordinate("rey process".to_owned(), &found).inventory_id,
@@ -1799,7 +1799,7 @@ mod tests {
             serde_json::json!({
                 "schema": "rey.discovery-application.unsupported",
                 "name": "rg",
-                "groups": ["code", "retrieval"],
+                "groups": ["retrieval"],
                 "purpose": "fixture",
                 "required": false,
                 "potential_capabilities": ["tool.ripgrep.identity"],

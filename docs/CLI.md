@@ -224,15 +224,18 @@ discovery and successful human/table output is intentionally silent. Use
 `log -n 1` for readback or `--format json` for a commit receipt.
 
 The compiled identity-only application inventory includes the major agent
-runtimes plus Slack (`slack`), GitHub CLI (`gh`), Telegram CLI
-(`telegram-cli`), iMessage (`imsg`), Microsoft 365/Teams (`m365`), Signal
-(`signal-cli`), and Discord (`discord`) candidates. These names are bounded
+runtimes plus Slack (`slack-cli`), GitHub CLI (`gh`), Telegram CLI
+(`telegram-cli`), iMessage (`imsg`), Teams (`teams`), and Signal
+(`signal-cli`) candidates. Application names exactly match the executable
+searched on `PATH`. These names are bounded
 discovery candidates, not claims that each project offers an official or
 compatible messaging CLI. Their discovery records explicitly leave transport,
 message admission, polling-beacon, and relay authority unsupported.
 Declarations carry a normalized many-to-many group set. The initial groups are
 `communications`, `agents`, `retrieval`, and `code`; `env diff` groups the
-typed desired inventory in that order. Human `env diff` and compact `env
+typed desired inventory in that order. `grep` and `rg` are retrieval
+applications; `rg` is not classified as a semantic code-analysis tool. Human
+`env diff` and compact `env
 status` render only flattened found matches, one per application, while keeping
 a previously found application visible if it disappears. Unsuccessful searches
 and the complete desired inventory remain available in structured evidence.

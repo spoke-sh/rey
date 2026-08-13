@@ -118,8 +118,9 @@ shell profiles, or recursively scan any seed path.
 
 The current compiled desired-application inventory classifies each declaration
 under one or more canonical groups: `communications`, `agents`, `retrieval`,
-and `code`. The groups are many-to-many declaration metadata—GitHub participates
-in communications and code, while `rg` participates in retrieval and code.
+and `code`. The groups are many-to-many declaration metadata—`gh` participates
+in communications and code, while `grep` and `rg` participate in retrieval.
+Every compiled application name exactly matches its searched executable.
 Discovery flattens those declarations by application identity before PATH
 resolution, so one application is searched and observed exactly once even when
 it appears in multiple groups. Each search record carries complete
