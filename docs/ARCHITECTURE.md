@@ -365,8 +365,9 @@ The supervised operator listener defaults to loopback and carries no authenticat
 or remote-service guarantee. Its explicit writes are bounded Journal and
 conversation admission, conditional Channel WORKING replacement, and qualified
 exact workload-INDEX approval. An explicit non-loopback bind exposes all four writes
-to every client that can reach the listener and therefore emits a warning; no
-bind grants Channel INDEX/HEAD, relay, workload execution, or proof authority. See
+to every client that can reach the listener; the typed health and topology projections
+retain that exposure boundary. No bind grants Channel INDEX/HEAD, relay, workload
+execution, or proof authority. See
 [Context Topology Explorer](EXPLORER.md), [Collaboration Journal](JOURNAL.md),
 [Conversation Transcripts](CONVERSATIONS.md), and
 [Git Context and Activation](GIT.md).

@@ -257,6 +257,17 @@ retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
+The production UI build uses Vite 8's Rolldown output contract. Route surfaces
+are loaded through dynamic imports, WebGPU uses Three.js's modular source graph,
+and explicit React, router, and Three.js chunk groups keep each emitted
+JavaScript object at or below 450 KiB. The build fails if that bound is crossed
+and preserves `apps/rey-ui/dist/bundle-report.json` as deterministic evidence,
+including each chunk's exact byte size, imports, and entry or dynamic-entry
+role. The named production route-bundle workload reduced `app.js` from the
+650.17 kB baseline to 233,819 bytes and removed the prior 1,032.25 kB
+`three.webgpu.js` monolith; the generated manifest embeds and serves every
+emitted JavaScript and CSS object rather than assuming a fixed asset list.
+
 Explorer is a high-fidelity spatial game engine for evidence-bound projection.
 Its current boundary separates projection packets, revisioned scene
 projections, immutable scenes, data-oriented fields, camera/LOD, render-pass

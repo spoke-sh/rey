@@ -116,9 +116,9 @@ reports exact exposure and provenance, `/explore` human entry, and passive
 revalidation interval. It serves read-only workload, environment, cadence, and
 Explorer projections and admits bounded human Journal documents and
 conversation messages, conditionally replaces Channel WORKING, and approves
-exact workload files without authentication. An explicit
-non-loopback bind exposes those narrow writes to reachable clients and emits a
-warning.
+exact workload files without authentication. An explicit non-loopback bind
+exposes those narrow writes to reachable clients; the typed health and topology
+projections retain that exposure boundary.
 
 The implemented slice behaves as follows:
 
@@ -1280,10 +1280,12 @@ exact address, URL, loopback status, unauthenticated Journal/conversation-write 
 workspace, catalog, Channel, and conversation roots, application,
 Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
 5000 ms passive revalidation interval, canonical Rey source repository, and
-implementation Git revision. Static assets
-are embedded into the binary, authored presentation is extracted from StyleX
-modules into a layered atomic stylesheet, and browser responses carry
-restrictive security headers.
+implementation Git revision. Static assets are embedded into the binary from a
+generated manifest, including every route-level dynamic import emitted by the
+Vite/Rolldown production build. Unknown asset paths fail closed instead of
+falling through to the application shell. Authored presentation is extracted
+from StyleX modules into a layered atomic stylesheet, and browser responses
+carry restrictive security headers.
 
 The fixed footer is the live operator communications channel. Its mailbox
 count and bottom sheet derive from typed portfolio-attention rows, unresolved

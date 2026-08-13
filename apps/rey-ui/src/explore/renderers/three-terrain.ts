@@ -11,7 +11,7 @@ import {
   Uint32BufferAttribute,
   type Camera,
   type Object3D,
-} from "three/webgpu";
+} from "three/src/Three.WebGPU.js";
 import {
   add,
   attribute,
@@ -23,7 +23,7 @@ import {
   normalWorld,
   sub,
   vec3,
-} from "three/tsl";
+} from "three/src/nodes/TSL.js";
 import { fieldPoint } from "../engine/fields";
 import type { TerrainFieldSet } from "../terrain/compile";
 import type { TerrainCameraView } from "../terrain/compile";

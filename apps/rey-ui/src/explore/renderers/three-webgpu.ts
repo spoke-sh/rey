@@ -1,4 +1,4 @@
-import type { Camera, Object3D } from "three/webgpu";
+import type { Camera, Object3D } from "three/src/Three.WebGPU.js";
 import {
   boundedViewport,
   renderFrameInvalidation,
@@ -37,8 +37,9 @@ export type ThreeRendererFactory = (options: {
 }) => Promise<ThreeRendererFacade>;
 
 const defaultFactory: ThreeRendererFactory = async ({ canvas, forceWebGL }) => {
-  const THREE = await import("three/webgpu");
-  return new THREE.WebGPURenderer({
+  const { default: WebGPURenderer } =
+    await import("three/src/renderers/webgpu/WebGPURenderer.js");
+  return new WebGPURenderer({
     alpha: true,
     antialias: true,
     canvas,

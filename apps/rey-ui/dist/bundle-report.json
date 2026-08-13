@@ -1,0 +1,459 @@
+{
+  "schema": "rey.ui-bundle-report.v1",
+  "bundler": "vite@8.2.1+rolldown@1.2.3",
+  "limits": {
+    "max_javascript_chunk_bytes": 460800
+  },
+  "chunks": [
+    {
+      "bytes": 17519,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/agents.js",
+      "imports": [
+        "assets/app.js",
+        "assets/domain.js",
+        "assets/react.js",
+        "assets/tanstack-router.js"
+      ]
+    },
+    {
+      "bytes": 233819,
+      "dynamic_entry": false,
+      "dynamic_imports": [
+        "assets/agents.js",
+        "assets/cadence.js",
+        "assets/channels.js",
+        "assets/explore.js",
+        "assets/workload-evidence.js",
+        "assets/workloads.js"
+      ],
+      "entry": true,
+      "file": "assets/app.js",
+      "imports": [
+        "assets/camera.js",
+        "assets/domain.js",
+        "assets/react.js",
+        "assets/react2.js",
+        "assets/rolldown-runtime.js",
+        "assets/tanstack-router.js"
+      ]
+    },
+    {
+      "bytes": 14014,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/cadence.js",
+      "imports": [
+        "assets/app.js",
+        "assets/domain.js",
+        "assets/react.js",
+        "assets/tanstack-router.js"
+      ]
+    },
+    {
+      "bytes": 1495,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/camera.js",
+      "imports": []
+    },
+    {
+      "bytes": 9670,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/channels.js",
+      "imports": [
+        "assets/KineticDenseTable.js",
+        "assets/app.js",
+        "assets/react.js",
+        "assets/rolldown-runtime.js"
+      ]
+    },
+    {
+      "bytes": 2130,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/domain.js",
+      "imports": []
+    },
+    {
+      "bytes": 70949,
+      "dynamic_entry": true,
+      "dynamic_imports": [
+        "assets/three-globe.js",
+        "assets/three-terrain.js",
+        "assets/three-webgpu.js"
+      ],
+      "entry": false,
+      "file": "assets/explore.js",
+      "imports": [
+        "assets/app.js",
+        "assets/camera.js",
+        "assets/react.js",
+        "assets/rolldown-runtime.js",
+        "assets/tanstack-router.js"
+      ]
+    },
+    {
+      "bytes": 2242,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/KineticDenseTable.js",
+      "imports": [
+        "assets/app.js",
+        "assets/react.js"
+      ]
+    },
+    {
+      "bytes": 11390,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/react.js",
+      "imports": [
+        "assets/rolldown-runtime.js"
+      ]
+    },
+    {
+      "bytes": 178200,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/react2.js",
+      "imports": [
+        "assets/react.js",
+        "assets/rolldown-runtime.js"
+      ]
+    },
+    {
+      "bytes": 716,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/rolldown-runtime.js",
+      "imports": []
+    },
+    {
+      "bytes": 76220,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/tanstack-router.js",
+      "imports": [
+        "assets/react.js",
+        "assets/react2.js",
+        "assets/rolldown-runtime.js"
+      ]
+    },
+    {
+      "bytes": 3802,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three-globe.js",
+      "imports": [
+        "assets/explore.js",
+        "assets/three11.js",
+        "assets/three13.js",
+        "assets/three2.js",
+        "assets/three4.js",
+        "assets/three6.js"
+      ]
+    },
+    {
+      "bytes": 4957,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three-terrain.js",
+      "imports": [
+        "assets/app.js",
+        "assets/three10.js",
+        "assets/three11.js",
+        "assets/three13.js",
+        "assets/three2.js",
+        "assets/three5.js",
+        "assets/three6.js",
+        "assets/three7.js",
+        "assets/three8.js"
+      ]
+    },
+    {
+      "bytes": 4374,
+      "dynamic_entry": true,
+      "dynamic_imports": [
+        "assets/three13.js"
+      ],
+      "entry": false,
+      "file": "assets/three-webgpu.js",
+      "imports": [
+        "assets/app.js"
+      ]
+    },
+    {
+      "bytes": 102844,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three.js",
+      "imports": [
+        "assets/three10.js",
+        "assets/three11.js",
+        "assets/three12.js",
+        "assets/three13.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three6.js",
+        "assets/three7.js",
+        "assets/three8.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 46637,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three10.js",
+      "imports": [
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three7.js",
+        "assets/three8.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 6969,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three11.js",
+      "imports": [
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three6.js"
+      ]
+    },
+    {
+      "bytes": 21638,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three12.js",
+      "imports": [
+        "assets/three.js",
+        "assets/three10.js",
+        "assets/three11.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three6.js",
+        "assets/three7.js",
+        "assets/three8.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 121810,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three13.js",
+      "imports": [
+        "assets/rolldown-runtime.js",
+        "assets/three.js",
+        "assets/three10.js",
+        "assets/three11.js",
+        "assets/three12.js",
+        "assets/three14.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three6.js",
+        "assets/three8.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 84968,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three14.js",
+      "imports": [
+        "assets/three.js",
+        "assets/three10.js",
+        "assets/three12.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three6.js",
+        "assets/three8.js"
+      ]
+    },
+    {
+      "bytes": 46240,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three2.js",
+      "imports": [
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three6.js"
+      ]
+    },
+    {
+      "bytes": 8544,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three3.js",
+      "imports": [
+        "assets/three2.js",
+        "assets/three4.js",
+        "assets/three6.js"
+      ]
+    },
+    {
+      "bytes": 70786,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three4.js",
+      "imports": [
+        "assets/three2.js",
+        "assets/three3.js"
+      ]
+    },
+    {
+      "bytes": 56259,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three5.js",
+      "imports": [
+        "assets/three.js",
+        "assets/three12.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three6.js",
+        "assets/three7.js",
+        "assets/three8.js"
+      ]
+    },
+    {
+      "bytes": 74827,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three6.js",
+      "imports": [
+        "assets/three10.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three7.js",
+        "assets/three8.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 22379,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three7.js",
+      "imports": [
+        "assets/three.js",
+        "assets/three10.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three8.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 79668,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three8.js",
+      "imports": [
+        "assets/three.js",
+        "assets/three10.js",
+        "assets/three12.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three6.js",
+        "assets/three7.js",
+        "assets/three9.js"
+      ]
+    },
+    {
+      "bytes": 18304,
+      "dynamic_entry": false,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/three9.js",
+      "imports": [
+        "assets/three10.js",
+        "assets/three2.js",
+        "assets/three3.js",
+        "assets/three4.js",
+        "assets/three5.js",
+        "assets/three7.js",
+        "assets/three8.js"
+      ]
+    },
+    {
+      "bytes": 18624,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/workload-evidence.js",
+      "imports": [
+        "assets/KineticDenseTable.js",
+        "assets/app.js",
+        "assets/camera.js",
+        "assets/react.js"
+      ]
+    },
+    {
+      "bytes": 17239,
+      "dynamic_entry": true,
+      "dynamic_imports": [],
+      "entry": false,
+      "file": "assets/workloads.js",
+      "imports": [
+        "assets/KineticDenseTable.js",
+        "assets/app.js",
+        "assets/domain.js",
+        "assets/react.js",
+        "assets/workload-evidence.js"
+      ]
+    }
+  ]
+}

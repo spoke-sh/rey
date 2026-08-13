@@ -62,16 +62,7 @@ const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 const REQUEST_RECEIVE_POLL_INTERVAL_MS: u64 = 50;
 
 const INDEX_HTML: &[u8] = include_bytes!("../../../apps/rey-ui/dist/index.html");
-const APP_JAVASCRIPT: &[u8] = include_bytes!("../../../apps/rey-ui/dist/assets/app.js");
-const APP_CSS: &[u8] = include_bytes!("../../../apps/rey-ui/dist/assets/app.css");
-const THREE_GLOBE_JAVASCRIPT: &[u8] =
-    include_bytes!("../../../apps/rey-ui/dist/assets/three-globe.js");
-const THREE_TERRAIN_JAVASCRIPT: &[u8] =
-    include_bytes!("../../../apps/rey-ui/dist/assets/three-terrain.js");
-const THREE_WEBGPU_ADAPTER_JAVASCRIPT: &[u8] =
-    include_bytes!("../../../apps/rey-ui/dist/assets/three-webgpu.js");
-const THREE_WEBGPU_JAVASCRIPT: &[u8] =
-    include_bytes!("../../../apps/rey-ui/dist/assets/three.webgpu.js");
+include!(concat!(env!("OUT_DIR"), "/rey_ui_assets.rs"));
 
 #[derive(Clone, Debug)]
 pub struct UiServerConfig {
@@ -394,21 +385,13 @@ impl UiServer {
                 "api_route_not_found",
                 "no read-only Rey UI API route matches this target",
             ),
-            "/assets/app.js" => static_response(APP_JAVASCRIPT, "text/javascript; charset=utf-8"),
-            "/assets/app.css" => static_response(APP_CSS, "text/css; charset=utf-8"),
-            "/assets/three-globe.js" => {
-                static_response(THREE_GLOBE_JAVASCRIPT, "text/javascript; charset=utf-8")
-            }
-            "/assets/three-terrain.js" => {
-                static_response(THREE_TERRAIN_JAVASCRIPT, "text/javascript; charset=utf-8")
-            }
-            "/assets/three-webgpu.js" => static_response(
-                THREE_WEBGPU_ADAPTER_JAVASCRIPT,
-                "text/javascript; charset=utf-8",
-            ),
-            "/assets/three.webgpu.js" => {
-                static_response(THREE_WEBGPU_JAVASCRIPT, "text/javascript; charset=utf-8")
-            }
+            path if path.starts_with("/assets/") => static_ui_asset(path).unwrap_or_else(|| {
+                json_error(
+                    StatusCode(404),
+                    "static_asset_not_found",
+                    "no embedded Rey UI asset matches this target",
+                )
+            }),
             _ => index_response(),
         };
         if head {
@@ -1384,6 +1367,13 @@ fn static_response(bytes: &[u8], content_type: &str) -> Response<Cursor<Vec<u8>>
     with_common_headers(response, "no-cache")
 }
 
+fn static_ui_asset(path: &str) -> Option<Response<Cursor<Vec<u8>>>> {
+    STATIC_UI_ASSETS
+        .iter()
+        .find(|(asset_path, _, _)| *asset_path == path)
+        .map(|(_, bytes, content_type)| static_response(bytes, content_type))
+}
+
 fn json_response(value_status: StatusCode, value: &impl Serialize) -> Response<Cursor<Vec<u8>>> {
     match serde_json::to_vec(value) {
         Ok(bytes) => {
@@ -1523,7 +1513,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{UiServer, UiServerConfig};
+    use super::{STATIC_UI_ASSETS, UiServer, UiServerConfig};
     use rey::{
         channels::LocalChannelStore,
         conversations::{
@@ -1640,7 +1630,11 @@ mod tests {
         );
         let address = descriptor.address.clone();
         let origin = descriptor.url.clone();
-        let handle = thread::spawn(move || server.serve_bounded(Some(45)).unwrap());
+        let handle = thread::spawn(move || {
+            server
+                .serve_bounded(Some(40 + STATIC_UI_ASSETS.len()))
+                .unwrap()
+        });
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
@@ -1959,9 +1953,31 @@ mod tests {
         assert!(admitted.contains("\"admitted\":false"));
         assert!(admitted.contains("\"kind\":\"human\""));
 
-        let application = request(&address, "GET /assets/app.js HTTP/1.1");
-        assert!(application.starts_with("HTTP/1.1 200"));
-        assert!(application.contains("text/javascript"));
+        for required_asset in [
+            "/assets/app.js",
+            "/assets/agents.js",
+            "/assets/explore.js",
+            "/assets/react.js",
+            "/assets/rolldown-runtime.js",
+            "/assets/tanstack-router.js",
+            "/assets/three.js",
+        ] {
+            assert!(
+                STATIC_UI_ASSETS
+                    .iter()
+                    .any(|(path, _, _)| *path == required_asset),
+                "{required_asset} was not embedded"
+            );
+        }
+        let mut application = String::new();
+        for (asset, _, content_type) in STATIC_UI_ASSETS {
+            let response = request(&address, &format!("GET {asset} HTTP/1.1"));
+            assert!(response.starts_with("HTTP/1.1 200"), "{asset}");
+            assert!(response.contains(content_type), "{asset}");
+            if content_type.starts_with("text/javascript") {
+                application.push_str(response_body(&response));
+            }
+        }
         assert!(application.contains("01 / DIRECTED TEXT"));
         assert!(application.contains("02 / BOUNDED SEARCH"));
         assert!(application.contains("REFERENCE PLANE"));
@@ -1990,16 +2006,6 @@ mod tests {
         assert!(application.contains("HISTORY / RUNTIME + COLLABORATION"));
         assert!(application.contains("Mailbox history"));
         assert!(application.contains("REY / AGENT / OPERATOR"));
-        for asset in [
-            "/assets/three-globe.js",
-            "/assets/three-terrain.js",
-            "/assets/three-webgpu.js",
-            "/assets/three.webgpu.js",
-        ] {
-            let response = request(&address, &format!("GET {asset} HTTP/1.1"));
-            assert!(response.starts_with("HTTP/1.1 200"), "{asset}");
-            assert!(response.contains("text/javascript"), "{asset}");
-        }
         assert!(application.contains("data-communication-backdrop"));
         assert!(application.contains("No conversation session is admitted"));
         assert!(application.contains("NO AVAILABLE BROWSER WRITER · SEND DISABLED"));

@@ -5,6 +5,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
   useRouterState,
 } from "@tanstack/react-router";
@@ -16,7 +17,6 @@ import {
   type CSSProperties,
   type FormEvent,
 } from "react";
-import { AgentsPage } from "./agents";
 import {
   admitJournalEntry,
   loadAgentJournal,
@@ -33,8 +33,6 @@ import {
   writeConversationMessage,
   type OperatorContext,
 } from "./api";
-import { CadencePage } from "./cadence";
-import { ChannelsPage } from "./channels";
 import {
   conversationBrowserWriter,
   conversationParticipant,
@@ -51,7 +49,6 @@ import {
   type EnvironmentApplicationObservation,
   type EnvironmentObjectStatus,
 } from "./environment";
-import { ExplorePage } from "./explore";
 import {
   channelWorkingWriteForFeedLayout,
   FeedPage,
@@ -75,13 +72,43 @@ import {
 import { activeSectionAt, SECTION_RAIL_ATTRIBUTE } from "./section-rail";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
-import {
-  AdmittedWorkloadDetail,
-  CandidateWorkloadDetail,
-  DraftWorkloadDetail,
-  WorkloadsPage,
-} from "./workloads";
-import { DeltaEvidencePage, ScenarioEvidencePage } from "./workload-evidence";
+
+const AgentsPage = lazyRouteComponent(() => import("./agents"), "AgentsPage");
+const CadencePage = lazyRouteComponent(
+  () => import("./cadence"),
+  "CadencePage",
+);
+const ChannelsPage = lazyRouteComponent(
+  () => import("./channels"),
+  "ChannelsPage",
+);
+const ExplorePage = lazyRouteComponent(
+  () => import("./explore"),
+  "ExplorePage",
+);
+const importWorkloads = () => import("./workloads");
+const AdmittedWorkloadDetail = lazyRouteComponent(
+  importWorkloads,
+  "AdmittedWorkloadDetail",
+);
+const CandidateWorkloadDetail = lazyRouteComponent(
+  importWorkloads,
+  "CandidateWorkloadDetail",
+);
+const DraftWorkloadDetail = lazyRouteComponent(
+  importWorkloads,
+  "DraftWorkloadDetail",
+);
+const WorkloadsPage = lazyRouteComponent(importWorkloads, "WorkloadsPage");
+const importWorkloadEvidence = () => import("./workload-evidence");
+const DeltaEvidencePage = lazyRouteComponent(
+  importWorkloadEvidence,
+  "DeltaEvidencePage",
+);
+const ScenarioEvidencePage = lazyRouteComponent(
+  importWorkloadEvidence,
+  "ScenarioEvidencePage",
+);
 
 const precision = kineticThemeMaterials.precision;
 const PortfolioContext = createContext<OperatorContext | null>(null);

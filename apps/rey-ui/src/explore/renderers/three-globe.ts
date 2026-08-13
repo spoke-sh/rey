@@ -16,7 +16,7 @@ import {
   Vector3,
   type BufferGeometry,
   type Material,
-} from "three/webgpu";
+} from "three/src/Three.WebGPU.js";
 import type { GlobeCameraView } from "../engine/camera";
 import type { TopologyGlobe } from "../../topology";
 import type { ThreeTerrainBundle } from "./three-terrain";
