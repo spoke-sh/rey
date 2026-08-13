@@ -405,6 +405,15 @@ async function dispatchClick(
   if (!clicked) throw new Error(`could not activate ${description}`);
 }
 
+async function measureInteraction(interactions, name, operation) {
+  const startedAt = performance.now();
+  await operation();
+  interactions.push({
+    elapsed_ms: Number((performance.now() - startedAt).toFixed(3)),
+    name,
+  });
+}
+
 async function rotateGlobeToRegion(connection, longitudeMicrodegrees) {
   const viewport = await connection.evaluate(`(() => {
     const bounds = document.querySelector('[role="application"]')?.getBoundingClientRect();
@@ -472,13 +481,53 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
         .filter((attribute) => attribute.name.startsWith("data-renderer-"))
         .map((attribute) => [attribute.name.slice("data-renderer-".length).replaceAll("-", "_"), attribute.value])) : null,
       renderer_diagnostics_text: diagnostics?.textContent?.replace(/\s+/g, " ").trim() ?? null,
+      scene_compilation_ms: Number(shell?.getAttribute("data-scene-compilation-ms") ?? "NaN"),
       scene_snapshot_id: shell?.getAttribute("data-scene-snapshot") ?? null,
       source_revisions: shell?.getAttribute("data-scene-sources")?.split(",").filter(Boolean) ?? [],
+      labels: [...document.querySelectorAll("[data-label-disposition]")].reduce((counts, element) => {
+        const disposition = element.getAttribute("data-label-disposition") ?? "unknown";
+        counts[disposition] = (counts[disposition] ?? 0) + 1;
+        counts.total += 1;
+        return counts;
+      }, { total: 0 }),
       exact_evidence_links: exactEvidence,
       url: window.location.href,
       viewport: { width: innerWidth, height: innerHeight, device_pixel_ratio: devicePixelRatio },
     };
   })()`);
+  const frameCadence = await connection.evaluate(`new Promise((resolve) => {
+    const timestamps = [];
+    const sample = (timestamp) => {
+      timestamps.push(timestamp);
+      if (timestamps.length < 25) requestAnimationFrame(sample);
+      else {
+        const intervals = timestamps.slice(1).map((value, index) => value - timestamps[index]);
+        const sorted = [...intervals].sort((left, right) => left - right);
+        const percentile = (fraction) => sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)] ?? 0;
+        resolve({
+          authority: "browser requestAnimationFrame presentation cadence; not GPU execution duration",
+          frames: intervals.length,
+          maximum_ms: Math.max(...intervals),
+          median_ms: percentile(0.5),
+          p95_ms: percentile(0.95),
+        });
+      }
+    };
+    requestAnimationFrame(sample);
+  })`);
+  const cdpMetrics = await connection.send("Performance.getMetrics");
+  const metrics = Object.fromEntries(
+    cdpMetrics.metrics.map(({ name, value }) => [name, value]),
+  );
+  const performanceMetrics = {
+    authority:
+      "Chrome process metrics sampled after stage convergence; durations are cumulative seconds since navigation",
+    js_heap_total_bytes: metrics.JSHeapTotalSize ?? null,
+    js_heap_used_bytes: metrics.JSHeapUsedSize ?? null,
+    layout_duration_seconds: metrics.LayoutDuration ?? null,
+    script_duration_seconds: metrics.ScriptDuration ?? null,
+    task_duration_seconds: metrics.TaskDuration ?? null,
+  };
   const response = await connection.send("Page.captureScreenshot", {
     captureBeyondViewport: false,
     format: "png",
@@ -490,6 +539,8 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
   return {
     ...evidence,
     elapsed_ms: Number((performance.now() - startedAt).toFixed(3)),
+    frame_cadence: frameCadence,
+    performance_metrics: performanceMetrics,
     screenshot: { bytes: image.byteLength, file, sha256: sha256(image) },
     stage,
   };
@@ -587,12 +638,14 @@ async function runVoyage(options) {
   let failure = null;
   let failureContext = null;
   const captures = [];
+  const interactions = [];
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
     process.stdout.write(`START ${voyageName}\n`);
     await Promise.all([
       connection.send("Page.enable"),
+      connection.send("Performance.enable"),
       connection.send("Runtime.enable"),
     ]);
     await connection.send("Emulation.setDeviceMetricsOverride", {
@@ -642,16 +695,22 @@ async function runVoyage(options) {
     const worldRegion = `[...document.querySelectorAll('[data-semantic-region]')].find((element) => element.getAttribute('aria-label')?.startsWith(${region} + ':'))`;
     if (!(await connection.evaluate(`Boolean(${worldRegion})`))) {
       process.stdout.write(`ROTATE world / ${options.region}\n`);
-      await rotateGlobeToRegion(
-        connection,
-        admittedRegion.semantic_longitude_microdegrees,
-      );
-      await sleep(50);
-      await waitFor(
-        connection,
-        worldRegion,
-        `${options.region} visible World marker`,
-        options.timeoutMs,
+      await measureInteraction(
+        interactions,
+        "rotate_world_to_region",
+        async () => {
+          await rotateGlobeToRegion(
+            connection,
+            admittedRegion.semantic_longitude_microdegrees,
+          );
+          await sleep(50);
+          await waitFor(
+            connection,
+            worldRegion,
+            `${options.region} visible World marker`,
+            options.timeoutMs,
+          );
+        },
       );
     }
     captures.push(
@@ -688,88 +747,106 @@ async function runVoyage(options) {
         ),
       );
     }
-    await dispatchClick(
-      connection,
-      worldRegion,
-      `${options.region} World marker`,
-      options.timeoutMs,
-    );
-    await waitFor(
-      connection,
-      regimeExpression("atlas"),
-      "Atlas projection",
-      options.timeoutMs,
-    );
+    await measureInteraction(interactions, "world_to_atlas", async () => {
+      await dispatchClick(
+        connection,
+        worldRegion,
+        `${options.region} World marker`,
+        options.timeoutMs,
+      );
+      await waitFor(
+        connection,
+        regimeExpression("atlas"),
+        "Atlas projection",
+        options.timeoutMs,
+      );
+    });
     process.stdout.write("READY atlas\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "atlas", startedAt),
     );
 
-    await dispatchClick(
-      connection,
-      `document.querySelector('button[data-chart-wrap-index="0"][data-semantic-identity]')`,
-      "canonical Atlas region",
-      options.timeoutMs,
-    );
-    await waitFor(
-      connection,
-      regimeExpression("landscape"),
-      "County landscape",
-      options.timeoutMs,
-    );
+    await measureInteraction(interactions, "atlas_to_county", async () => {
+      await dispatchClick(
+        connection,
+        `document.querySelector('button[data-chart-wrap-index="0"][data-semantic-identity]')`,
+        "canonical Atlas region",
+        options.timeoutMs,
+      );
+      await waitFor(
+        connection,
+        regimeExpression("landscape"),
+        "County landscape",
+        options.timeoutMs,
+      );
+    });
     process.stdout.write("READY landscape\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "landscape", startedAt),
     );
 
     const firstProjectionButton = `document.querySelector('[data-lens-regime] button[aria-label]:not([disabled])')`;
-    await dispatchClick(
-      connection,
-      firstProjectionButton,
-      "County landscape object",
-      options.timeoutMs,
+    await measureInteraction(
+      interactions,
+      "county_to_neighborhoods",
+      async () => {
+        await dispatchClick(
+          connection,
+          firstProjectionButton,
+          "County landscape object",
+          options.timeoutMs,
+        );
+        await waitFor(
+          connection,
+          regimeExpression("neighborhoods"),
+          "County neighborhoods",
+          options.timeoutMs,
+        );
+      },
     );
-    await waitFor(
-      connection,
-      regimeExpression("neighborhoods"),
-      "County neighborhoods",
-      options.timeoutMs,
-    );
-    await dispatchClick(
-      connection,
-      firstProjectionButton,
-      "County neighborhood object",
-      options.timeoutMs,
-    );
-    await waitFor(
-      connection,
-      regimeExpression("objects"),
-      "County objects",
-      options.timeoutMs,
+    await measureInteraction(
+      interactions,
+      "neighborhoods_to_objects",
+      async () => {
+        await dispatchClick(
+          connection,
+          firstProjectionButton,
+          "County neighborhood object",
+          options.timeoutMs,
+        );
+        await waitFor(
+          connection,
+          regimeExpression("objects"),
+          "County objects",
+          options.timeoutMs,
+        );
+      },
     );
     process.stdout.write("READY objects\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "objects", startedAt),
     );
 
-    await dispatchClick(
-      connection,
-      `document.querySelector('[aria-label="Zoom in one semantic level"]')`,
-      "Evidence zoom control",
-      options.timeoutMs,
-    );
-    await waitFor(
-      connection,
-      regimeExpression("evidence"),
-      "exact Evidence projection",
-      options.timeoutMs,
-    );
-    await waitFor(
-      connection,
-      `document.querySelectorAll('[data-object-evidence]').length > 0`,
-      "exact regional evidence links",
-      options.timeoutMs,
-    );
+    await measureInteraction(interactions, "objects_to_evidence", async () => {
+      await dispatchClick(
+        connection,
+        `document.querySelector('[aria-label="Zoom in one semantic level"]')`,
+        "Evidence zoom control",
+        options.timeoutMs,
+      );
+      await waitFor(
+        connection,
+        regimeExpression("evidence"),
+        "exact Evidence projection",
+        options.timeoutMs,
+      );
+      await waitFor(
+        connection,
+        `document.querySelectorAll('[data-object-evidence]').length > 0`,
+        "exact regional evidence links",
+        options.timeoutMs,
+      );
+    });
     process.stdout.write("READY evidence\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "evidence", startedAt),
@@ -928,6 +1005,7 @@ async function runVoyage(options) {
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },
     captures,
+    interactions,
     browser_exceptions: exceptions,
     console_entries: consoleEntries,
     failure_context: failureContext,

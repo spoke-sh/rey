@@ -1,0 +1,21 @@
+{
+  "schema": "rey.explorer-performance-budget.v1",
+  "budget_id": "rey.explorer.local-software-renderer-ceiling@1",
+  "authority": "qualification ceilings for one named local Chrome machine; not semantic evidence, a hardware-GPU target, or a frame-rate claim",
+  "required_backends": ["reference", "webgl2", "webgpu"],
+  "required_viewports": ["1920x1080", "3840x2160"],
+  "ceilings": {
+    "voyage_elapsed_ms": 30000,
+    "scene_compilation_ms": 20,
+    "field_evaluation_ms": 50,
+    "geometry_compilation_ms": 250,
+    "render_submission_ms": 500,
+    "draw_calls": 16,
+    "gpu_upload_bytes": 67108864,
+    "label_candidates": 96,
+    "js_heap_used_bytes": 268435456,
+    "frame_cadence_median_ms": 25,
+    "frame_cadence_p95_ms": 500,
+    "interaction_convergence_ms": 5000
+  }
+}
