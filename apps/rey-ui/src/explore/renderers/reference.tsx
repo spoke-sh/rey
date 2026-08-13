@@ -196,7 +196,10 @@ export function ReferenceRenderer({
               chartWrapIndex={wrapIndex}
               counterScale={scene.terrain}
               key={`${wrapIndex}:${node.id}`}
-              linkToWorkload={scene.regime === "objects" && !scene.terrain}
+              linkToWorkload={
+                (scene.regime === "objects" || scene.regime === "evidence") &&
+                !scene.terrain
+              }
               node={node}
               onFocus={onFocus}
               pickCandidates={pickCandidates}
@@ -1097,9 +1100,11 @@ function TopologyObject({
       <span className={sx(styles.objectAction)}>
         {node.coordinate_uri
           ? "OPEN COORDINATE ↗"
-          : linkToWorkload && node.workload_id
-            ? "OPEN RECORD ↗"
-            : "FOCUS / ZOOM →"}
+          : linkToWorkload && node.evidence_uri
+            ? "OPEN EXACT EVIDENCE ↗"
+            : linkToWorkload && node.workload_id
+              ? "OPEN RECORD ↗"
+              : "FOCUS / ZOOM →"}
       </span>
     </>
   );
@@ -1122,6 +1127,22 @@ function TopologyObject({
         data-label-layout={
           labelPlacement ? SEMANTIC_LABEL_LAYOUT_REVISION : undefined
         }
+      >
+        {renderedContent}
+      </a>
+    );
+  }
+
+  if (linkToWorkload && node.evidence_uri) {
+    return (
+      <a
+        aria-hidden={chartWrapIndex === 0 ? undefined : true}
+        aria-label={`${node.family}: ${node.label}`}
+        className={className}
+        data-object-evidence={node.evidence_uri}
+        href={node.evidence_uri}
+        style={style}
+        tabIndex={chartWrapIndex === 0 ? undefined : -1}
       >
         {renderedContent}
       </a>

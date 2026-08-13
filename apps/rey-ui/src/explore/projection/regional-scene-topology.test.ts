@@ -6,6 +6,11 @@ import { compileSceneSnapshot } from "../engine/scene";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "../engine/labels";
 import { ReferenceRenderer } from "../renderers/reference";
 import {
+  RegionalObjectEvidencePage,
+  resolveRegionalObjectEvidence,
+} from "../../regional-object-evidence";
+import { regionalObjectEvidenceRoute } from "../../regional-object-route";
+import {
   COUNTY_FOOTPRINT_PROJECTION_REVISION,
   COUNTY_FRAME_PROJECTION_REVISION,
 } from "./county-frame";
@@ -89,8 +94,25 @@ const regionalPortfolio = {
   semantic_atlas_history: [regionalAtlas],
   semantic_atlas_deltas: [
     {
+      schema: "rey.semantic-atlas-delta.v1",
       delta_id: "delta:1",
+      source_revision: "atlas:0",
       target_revision: "atlas:1",
+      inserted: 1,
+      removed: 0,
+      moved: 0,
+      interest_changed: 0,
+      merged: 0,
+      split: 0,
+      region_changes: [
+        {
+          region_id: "atlas-region:1",
+          kind: "inserted",
+          before: null,
+          after: null,
+        },
+      ],
+      cluster_changes: [],
     },
   ],
   drafts: [],
@@ -107,7 +129,20 @@ const regionalPortfolio = {
       latest_scene_admission: {
         schema: "rey.scene-admission-result.v1",
         result_id: "result:1",
+        candidate_id: "candidate:1",
+        campaign_id: "campaign:1",
         status: "accepted",
+        code: "accepted",
+        detail: "exact regional scene admitted",
+        limits: {
+          max_sources: 8,
+          max_features: 64,
+          max_coordinates: 512,
+          max_source_bytes: 100_000,
+          max_total_bytes: 400_000,
+          max_omissions: 16,
+        },
+        authority: "qualified workload result only",
         scenario: null,
         workload: contract("scene-admission", "workload:1"),
         graph: contract("scene-admission.graph", "graph:1"),
@@ -127,22 +162,39 @@ const regionalPortfolio = {
           admission: {
             admission_id: "admission:1",
             editor_sequence: 1,
+            operation: contract("rey.scene-admission", "operation:1"),
             implementation: contract("rey.scene-admission.builtin", "impl:1"),
             workload: contract("scene-admission", "workload:1"),
             graph: contract("scene-admission.graph", "graph:1"),
+            scenario_suite: contract("scene-admission.scenarios", "suite:1"),
+            evaluator: contract("rey.scenario.utf8-exact", "evaluator:1"),
             capability_snapshot_id: "capability:1",
+            editor_commit_id: "editor-commit:1",
             package_id: "package:1",
+            parent_package_id: null,
             package_snapshot_revision: "snapshot:1",
+            admission_request_id: "request:1",
           },
           artifacts: {
             admitted_atlas_revision: "atlas:1",
+            source_topography_patch_id: null,
             projection_packet_id: "packet:1",
             terrain_program_id: null,
+            terrain_authority: "no qualified regional terrain",
           },
           omissions: [
             {
               kind: "terrain_program_absent",
+              subject: "regional-demo",
+              omitted_count: 1,
               reason: "no qualified terrain height",
+            },
+          ],
+          lineage: [
+            {
+              kind: "editor_commit",
+              identity: "SCENE@1",
+              revision: "editor-commit:1",
             },
           ],
           projection: {
@@ -221,11 +273,17 @@ const regionalPortfolio = {
                 layer_id: "regional-demo.boundary",
                 kind: "boundary",
                 object_ids: ["county-boundary"],
+                authority: "exact admitted native geometry",
+                semantics: "typed native boundary geometry",
+                source_revision: "snapshot:1",
               },
               {
                 layer_id: "regional-demo.terrain-control",
                 kind: "terrain_control",
                 object_ids: ["ridge"],
+                authority: "candidate control geometry only",
+                semantics: "no observed height or material",
+                source_revision: "snapshot:1",
               },
             ],
             objects: [
@@ -237,6 +295,7 @@ const regionalPortfolio = {
                 object_revision: "object:boundary",
                 geometry_kind: "Polygon",
                 layer: "boundary",
+                authority: "exact admitted native geometry",
                 native_bounds: {
                   west_microdegrees: -123_000_000,
                   south_microdegrees: 37_000_000,
@@ -253,6 +312,7 @@ const regionalPortfolio = {
                 object_revision: "object:1",
                 geometry_kind: "Polygon",
                 layer: "terrain_control",
+                authority: "exact admitted native geometry",
                 native_bounds: {
                   west_microdegrees: -122_800_000,
                   south_microdegrees: 37_200_000,
@@ -262,17 +322,45 @@ const regionalPortfolio = {
                 },
               },
             ],
-            limits: { max_native_coordinates: 100 },
+            limits: {
+              max_sources: 8,
+              max_native_objects: 64,
+              max_native_coordinates: 100,
+              max_layers: 16,
+              max_validity_records: 80,
+              max_transforms: 4,
+              max_omissions: 16,
+              max_native_bytes: 400_000,
+            },
             validity: [
               {
+                validity_id: "validity:ridge",
                 class: "valid",
                 scope: "native_geometry:ridge",
+                source_revision: "object:1",
                 rule: "exact native geometry",
               },
               {
+                validity_id: "validity:terrain",
                 class: "unsupported",
                 scope: "terrain_height",
+                source_revision: "snapshot:1",
                 rule: "no qualified terrain-height adapter",
+              },
+            ],
+            omissions: [
+              {
+                kind: "terrain_program_absent",
+                subject: "regional-demo",
+                omitted_count: 1,
+                reason: "no qualified terrain height",
+              },
+            ],
+            lineage: [
+              {
+                kind: "scene_admission",
+                identity: "admission:1",
+                revision: "operation:1",
               },
             ],
           },
@@ -451,12 +539,15 @@ describe("regional scene topology projection", () => {
       coordinate_count: 5,
     });
     expect(county.bearing.label).toBe("EXACT COUNTY FOOTPRINT");
-    expect(
-      county.nodes.find(({ focus_id }) => focus_id === "regional-object:ridge"),
-    ).toMatchObject({
+    const ridgeNode = county.nodes.find(
+      ({ focus_id }) => focus_id === "regional-object:ridge",
+    );
+    expect(ridgeNode).toMatchObject({
       focus_id: "regional-object:ridge",
       workload_id: "scene-admission",
       tone: "unsupported",
+      evidence_uri:
+        "/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1",
     });
     expect(county.omissions).toContain("no qualified terrain height");
     expect(county.omissions).toContain(
@@ -475,6 +566,72 @@ describe("regional scene topology projection", () => {
     expect(markup).toContain("ridge");
     expect(markup).toContain("terrain.geojson");
     expect(markup).not.toContain("topology-terrain-field");
+    const objectCounty = buildTopologyScene(
+      regionalPortfolio,
+      2.05,
+      "regional-object:ridge",
+    );
+    const objectMarkup = renderToStaticMarkup(
+      ReferenceRenderer({
+        layers: { relief: true, water: true, weather: true, probes: true },
+        onFocus: () => undefined,
+        scene: objectCounty,
+      }),
+    );
+    expect(objectMarkup).toContain(
+      'data-object-evidence="/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1"',
+    );
+    expect(objectMarkup).toContain("OPEN EXACT EVIDENCE");
+
+    const evidence = resolveRegionalObjectEvidence(
+      regionalPortfolio,
+      "scene-admission",
+      "scene:1",
+      "object:1",
+    );
+    expect(evidence).toMatchObject({
+      schema: "rey.ui-regional-object-evidence.v1",
+      route: "/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1",
+      object: {
+        object_id: "ridge",
+        source_path: "terrain.geojson",
+        object_revision: "object:1",
+      },
+      object_validity: {
+        validity_id: "validity:ridge",
+        class: "valid",
+      },
+      atlas_delta: { delta_id: "delta:1" },
+      atlas_change: { kind: "inserted" },
+      object_delta: null,
+    });
+    expect(
+      regionalObjectEvidenceRoute("scene-admission", "scene:1", "object:1"),
+    ).toBe(evidence?.route);
+    const evidenceMarkup = renderToStaticMarkup(
+      RegionalObjectEvidencePage({ evidence: evidence! }),
+    );
+    for (const exactValue of [
+      "NATIVE SOURCE / terrain.geojson",
+      "artifact:1",
+      "admission:1",
+      "snapshot:1",
+      "DIRECTED ATLAS DELTA",
+      "validity:ridge",
+      "max_native_coordinates=100",
+      "SCENE LINEAGE",
+      "PROJECTION LINEAGE",
+      "no object change is inferred",
+    ])
+      expect(evidenceMarkup).toContain(exactValue);
+    expect(
+      resolveRegionalObjectEvidence(
+        regionalPortfolio,
+        "scene-admission",
+        "scene:1",
+        "object:missing",
+      ),
+    ).toBeNull();
     const compiledCounty = compileSceneSnapshot(
       regionalPortfolio,
       0.58,

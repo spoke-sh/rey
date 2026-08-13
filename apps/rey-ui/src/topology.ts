@@ -49,6 +49,7 @@ import {
   type TerrainFieldSet,
   type TerrainProgram,
 } from "./explore/terrain/compile";
+import { regionalObjectEvidenceRoute } from "./regional-object-route";
 
 export {
   DEFAULT_LENS_ZOOM,
@@ -222,6 +223,7 @@ export interface TopologyNode {
   tone: TopologyTone;
   workload_id?: string;
   coordinate_uri?: string;
+  evidence_uri?: string;
   semantic_identity?: string;
   semantic_coordinate?: {
     longitude_microdegrees: number;
@@ -943,20 +945,27 @@ function buildRegionalCounty(
     const screen = projectCountyLocal(countyFrame, local, frameView);
     const width = countyObjectWidth(bounds, object.native_bounds, world);
     const exactDetail = `${object.layer.replaceAll("_", " ")} · ${object.geometry_kind} · ${object.source_path} · ${shortCoordinate(object.object_revision)}`;
-    return node(
-      `regional-object:${object.object_id}`,
-      `regional-object:${object.object_id}`,
-      object.layer.replaceAll("_", " ").toUpperCase(),
-      object.object_id,
-      regime === "evidence"
-        ? `${exactDetail} · source artifact ${shortCoordinate(object.source_artifact_id)}`
-        : exactDetail,
-      screen.x,
-      screen.y,
-      width,
-      regionalLayerTone(object.layer),
-      workload.workload.id,
-    );
+    return {
+      ...node(
+        `regional-object:${object.object_id}`,
+        `regional-object:${object.object_id}`,
+        object.layer.replaceAll("_", " ").toUpperCase(),
+        object.object_id,
+        regime === "evidence"
+          ? `${exactDetail} · source artifact ${shortCoordinate(object.source_artifact_id)}`
+          : exactDetail,
+        screen.x,
+        screen.y,
+        width,
+        regionalLayerTone(object.layer),
+        workload.workload.id,
+      ),
+      evidence_uri: regionalObjectEvidenceRoute(
+        workload.workload.id,
+        scene.scene_id,
+        object.object_revision,
+      ),
+    };
   });
   const selectedObject = objects.find(
     (object) => `regional-object:${object.object_id}` === focusId,

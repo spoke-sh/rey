@@ -161,7 +161,7 @@ render-graph completion, clipmap reuse, and retained visual/performance proof re
   connector layers only from explicit admitted source roles.
 - [ ] Admit independently qualified regional terrain height/material evidence;
   terrain controls remain candidate-only geometry.
-- [ ] Deep-link every selected object to its native source, admission result,
+- [x] Deep-link every selected object to its native source, admission result,
   revision, delta, validity, limits, omissions, and lineage.
 - [ ] Extend deterministic editor authoring only after the admission path can
   preserve the resulting native identity and reviewable change set.

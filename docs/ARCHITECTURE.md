@@ -214,6 +214,12 @@ controls, hydrology, boundaries, highways, roads, districts, lots, structures,
 utilities, POIs, labels, beacons, construction, and connectors. The role is
 source-declared and admission-bound; shape, path, or styling never reclassifies
 an object. Terrain controls remain candidate geometry, not qualified terrain.
+At Object and Evidence lenses each regional object links by workload, exact
+scene identity, and object revision to one read-only evidence route. That route
+projects its source path/artifact, admission, typed layer, validity, native
+bounds, current directed atlas delta, limits, omissions, and lineage from the
+same verified retained workload document. It explicitly discloses that no
+object-local source delta or browser source-reader provider is retained.
 Local charted survey envelopes,
 unresolved probe horizons, and boundary weather remain available in closer
 survey lenses.

@@ -209,7 +209,15 @@ plane only when the scene also binds one unique, source-revision-exact boundary
 Polygon. `rey.county-footprint-projection@1` projects those closed native rings
 as the County fabric and even-odd validity boundary; no envelope substitute is
 drawn. All explicit native source roles retain independent County layer kinds;
-qualified regional terrain and the complete posture transitions frozen by the
+at Object and Evidence lenses each selected object opens
+`/workloads/{workload}/scenes/{scene_id}/objects/{object_revision}`. The route
+retains the exact native source binding, admission result and revisions, typed
+layer, native validity/bounds, directed atlas delta, limits, omissions, and
+lineage. It fails closed when any current admitted binding or direct object
+validity is absent or ambiguous. A workspace-relative source path remains inert
+unless a source-reader provider is admitted, and the page identifies the
+absence of an object-local delta instead of substituting the atlas delta.
+Qualified regional terrain and the complete posture transitions frozen by the
 grammar remain open.
 
 The engine is high-dimensional because its input basis may project many source
@@ -694,9 +702,9 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: add an
-exact selected-object evidence route, finish the engine/render-graph boundary,
-and qualify detailed regional terrain. Exact scenario/delta
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: extend
+deterministic editor authoring over the proven admission boundary, finish the
+engine/render-graph boundary, and qualify detailed regional terrain. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser
 without adding an independent assessment. Travel, trade, and economic layers
 require their own

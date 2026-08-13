@@ -68,6 +68,10 @@ import {
 } from "./journal";
 import { parseExplorerView, resolveExplorerView } from "./explorer-coordinate";
 import { startPassiveRevalidation } from "./passive";
+import {
+  RegionalObjectEvidencePage,
+  resolveRegionalObjectEvidence,
+} from "./regional-object-evidence";
 import { activeSectionAt, SECTION_RAIL_ATTRIBUTE } from "./section-rail";
 import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -1195,6 +1199,23 @@ function WorkloadDeltaRoutePage() {
   return <DeltaEvidencePage evidence={workloadDeltaRoute.useLoaderData()} />;
 }
 
+function RegionalObjectEvidenceRoutePage() {
+  const portfolio = usePortfolio();
+  const { workloadId, sceneId, objectRevision } =
+    regionalObjectEvidenceRoute.useParams();
+  const evidence = resolveRegionalObjectEvidence(
+    portfolio,
+    workloadId,
+    sceneId,
+    objectRevision,
+  );
+  return evidence ? (
+    <RegionalObjectEvidencePage evidence={evidence} />
+  ) : (
+    <NotFoundPage />
+  );
+}
+
 function ImplementationLink({
   repository,
   revision,
@@ -1527,6 +1548,12 @@ const workloadDeltaRoute = createRoute({
   component: WorkloadDeltaRoutePage,
 });
 
+const regionalObjectEvidenceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "workloads/$workloadId/scenes/$sceneId/objects/$objectRevision",
+  component: RegionalObjectEvidenceRoutePage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   feedRoute,
@@ -1541,6 +1568,7 @@ const routeTree = rootRoute.addChildren([
   workloadDetailRoute,
   workloadScenarioRoute,
   workloadDeltaRoute,
+  regionalObjectEvidenceRoute,
 ]);
 
 export const router = createRouter({

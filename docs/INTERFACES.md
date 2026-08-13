@@ -530,6 +530,21 @@ distance. `rey.county-footprint-projection@1` separately verifies the exact
 source object/artifact/revision, closed native rings, bounds, and coordinate
 limit before those rings become the County fabric and even-odd validity
 boundary. A missing or invalid footprint keeps the selected scene at Atlas.
+At regional Object and Evidence lenses, an exact native object links to
+`GET /workloads/{workload_id}/scenes/{scene_id}/objects/{object_revision}`.
+This is a browser route over the already loaded, passively revalidated
+`rey.workload-list.v1`, not a new provider read. Resolution requires exactly
+one accepted non-scenario projection, object revision, matching typed layer,
+and `native_geometry:{object_id}` validity row bound to that revision. The
+read-only page exposes the native source path/artifact, object and package
+revisions, admission result, native bounds, current directed atlas delta,
+validity, admission/projection limits, separate scene/projection omissions,
+and separate scene/projection lineage. It explicitly marks the object-local
+delta absent because that change set is not retained in the workload document;
+the atlas delta remains labeled as an atlas revision delta. Unknown, stale,
+ambiguous, or structurally inconsistent identities return the normal not-found
+boundary. Workspace-relative source paths are not hyperlinks without an
+admitted source-reader provider.
 See
 [Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
