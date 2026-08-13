@@ -376,7 +376,9 @@ HEAD/index/working observations plus staged, unstaged, and overall change
 classification. Its default human projection is a compact working-tree view:
 current `ENV@n`, then separate environment-native “changes to be committed” and
 “changes not staged” groups when either exists. A clean view contains only the
-environment coordinate and clean result. Workspace, working-state,
+environment coordinate and clean result. Human status and diff application
+entries are limited to found executables and previously found executables that
+disappeared; unsuccessful searches remain in structured evidence. Workspace, working-state,
 observation-health, application-search, and reasoning-map summaries remain in
 the structured status evidence rather than padding the default terminal view.
 The human view directs exact review to `env diff` and `env diff --staged`
@@ -400,9 +402,9 @@ operator projection for `INDEX → WORKING`; `--staged` selects `HEAD → INDEX`
 Human output is one compact delta coordinate followed by exactly three
 environment-native evidence planes: directed variable text, bounded
 application search, and input/reference topology. The bounded-search plane
-shows the exact target application-declaration identity grouped by logical
-group as `DESIRED INVENTORY`, then the flattened target capability snapshot
-as `SEARCH RECORD`. Unchanged mapped objects remain bounded context,
+shows a flattened `SEARCH RECORD` containing only found matches and explicit
+losses of previously found executables; the complete target application
+inventory and unsuccessful outcomes remain in JSON. Unchanged mapped objects remain bounded context,
 while insertions, deletions, and modifications use the selected source and
 target observations. The header preserves the authoritative
 capability-delta assessment and retained change count, including changes that

@@ -10643,11 +10643,10 @@ fn write_environment_status_changes(
             )?;
         }
     }
-    for application in projection
-        .applications
-        .iter()
-        .filter(|object| direction.change(object) != EnvironmentObjectChange::Unchanged)
-    {
+    for application in projection.applications.iter().filter(|object| {
+        direction.change(object) != EnvironmentObjectChange::Unchanged
+            && environment_application_is_human_visible(object, direction)
+    }) {
         let observation = direction
             .target(application)
             .or_else(|| direction.source(application));
@@ -10713,6 +10712,18 @@ fn write_environment_status_changes(
         )?;
     }
     Ok(())
+}
+
+fn environment_application_is_human_visible(
+    application: &EnvironmentObjectStatus<EnvironmentApplicationObservation>,
+    direction: EnvironmentProjectionDirection,
+) -> bool {
+    direction
+        .source(application)
+        .is_some_and(|observation| observation.availability == Availability::Available)
+        || direction
+            .target(application)
+            .is_some_and(|observation| observation.availability == Availability::Available)
 }
 
 fn environment_change_is_projected(
@@ -10983,101 +10994,24 @@ fn write_environment_application_planes(
     search_snapshot: &SemanticDigest,
     style: TerminalStyle,
 ) -> io::Result<()> {
-    let desired = projection
-        .applications
-        .iter()
-        .filter(|application| direction.target(application).is_some())
-        .collect::<Vec<_>>();
-    let desired_groups = environment_application_groups(&desired, direction);
     let applications_found =
         environment_application_count(&projection.applications, direction, Availability::Available);
-    let applications_not_found = environment_application_count(
-        &projection.applications,
-        direction,
-        Availability::Unavailable,
-    );
-    let application_errors =
-        environment_application_count(&projection.applications, direction, Availability::Error);
-    let changed_applications = environment_plane_changed_count(&projection.applications, direction);
-    let removed_applications = projection
+    let changed_applications = projection
         .applications
         .iter()
         .filter(|application| {
-            direction.target(application).is_none() && direction.source(application).is_some()
+            direction.change(application) != EnvironmentObjectChange::Unchanged
+                && environment_application_is_human_visible(application, direction)
         })
+        .count() as u64;
+    let lost_applications = projection
+        .applications
+        .iter()
+        .filter(|application| environment_application_was_lost(application, direction))
         .count() as u64;
 
     writeln!(output)?;
     writeln!(output, "{}", style.bold("02 / BOUNDED SEARCH"))?;
-    writeln!(
-        output,
-        "{}",
-        style.bold(&format!(
-            "DESIRED INVENTORY · {} declared · {} groups",
-            desired.len(),
-            desired_groups.len()
-        ))
-    )?;
-    let inventory = match direction {
-        EnvironmentProjectionDirection::HeadToIndex => {
-            projection.application_inventory.index.as_ref()
-        }
-        EnvironmentProjectionDirection::IndexToWorking
-        | EnvironmentProjectionDirection::HeadToWorking => {
-            projection.application_inventory.working.as_ref()
-        }
-    };
-    match inventory {
-        Some(inventory) => writeln!(
-            output,
-            "  Record                 {} @ {}",
-            inventory.source_path,
-            compact_digest(&inventory.inventory_id)
-        )?,
-        None => writeln!(
-            output,
-            "  Record                 none · no desired applications"
-        )?,
-    }
-    if desired.is_empty() {
-        writeln!(output, "  NONE")?;
-    } else {
-        for (group, applications) in desired_groups {
-            writeln!(
-                output,
-                "  {} · {}",
-                group.to_ascii_uppercase(),
-                applications.len()
-            )?;
-            for application in applications {
-                let observation = direction
-                    .target(application)
-                    .expect("desired application has a target declaration");
-                let requirement = if observation.required {
-                    "required"
-                } else {
-                    "optional"
-                };
-                let capabilities = if observation.potential_capabilities.is_empty() {
-                    "no desired capabilities".to_owned()
-                } else {
-                    observation.potential_capabilities.join(" · ")
-                };
-                writeln!(
-                    output,
-                    "    {:<20} {} · {requirement} · {capabilities}",
-                    application.object_id, observation.name
-                )?;
-                writeln!(
-                    output,
-                    "      Purpose            {}",
-                    observation.purpose.as_deref().unwrap_or("not declared")
-                )?;
-            }
-        }
-    }
-
-    writeln!(output)?;
     writeln!(
         output,
         "{}",
@@ -11092,45 +11026,22 @@ fn write_environment_application_planes(
     )?;
     writeln!(
         output,
-        "APPLICATIONS · {} searched · {applications_found} found · {applications_not_found} not found · {application_errors} errors · {changed_applications} changed",
-        desired.len()
+        "APPLICATIONS · {applications_found} found · {lost_applications} no longer found · {changed_applications} changed"
     )?;
     write_application_group(
         output,
         "FOUND",
         applications_found,
         &projection.applications,
-        Some(Availability::Available),
+        Availability::Available,
         direction,
         style,
     )?;
-    write_application_group(
-        output,
-        "SEARCHED, NOT FOUND",
-        applications_not_found,
-        &projection.applications,
-        Some(Availability::Unavailable),
-        direction,
-        style,
-    )?;
-    if application_errors > 0 {
-        write_application_group(
+    if lost_applications > 0 {
+        write_lost_application_group(
             output,
-            "OBSERVATION ERRORS",
-            application_errors,
+            lost_applications,
             &projection.applications,
-            Some(Availability::Error),
-            direction,
-            style,
-        )?;
-    }
-    if removed_applications > 0 {
-        write_application_group(
-            output,
-            "NO LONGER SEARCHED",
-            removed_applications,
-            &projection.applications,
-            None,
             direction,
             style,
         )?;
@@ -11138,45 +11049,16 @@ fn write_environment_application_planes(
     Ok(())
 }
 
-fn environment_application_groups<'a>(
-    applications: &[&'a EnvironmentObjectStatus<EnvironmentApplicationObservation>],
+fn environment_application_was_lost(
+    application: &EnvironmentObjectStatus<EnvironmentApplicationObservation>,
     direction: EnvironmentProjectionDirection,
-) -> Vec<(
-    String,
-    Vec<&'a EnvironmentObjectStatus<EnvironmentApplicationObservation>>,
-)> {
-    let mut groups = BTreeMap::<String, Vec<_>>::new();
-    for application in applications {
-        let observation = direction
+) -> bool {
+    direction
+        .source(application)
+        .is_some_and(|observation| observation.availability == Availability::Available)
+        && !direction
             .target(application)
-            .expect("desired application has a target declaration");
-        if observation.groups.is_empty() {
-            groups
-                .entry("ungrouped".to_owned())
-                .or_default()
-                .push(*application);
-        } else {
-            for group in &observation.groups {
-                groups.entry(group.clone()).or_default().push(*application);
-            }
-        }
-    }
-    let mut groups = groups.into_iter().collect::<Vec<_>>();
-    groups.sort_by(|(left, _), (right, _)| {
-        (environment_application_group_rank(left), left)
-            .cmp(&(environment_application_group_rank(right), right))
-    });
-    groups
-}
-
-fn environment_application_group_rank(group: &str) -> u8 {
-    match group {
-        "communications" => 0,
-        "agents" => 1,
-        "retrieval" => 2,
-        "code" => 3,
-        _ => 4,
-    }
+            .is_some_and(|observation| observation.availability == Availability::Available)
 }
 
 fn write_application_group(
@@ -11184,19 +11066,15 @@ fn write_application_group(
     label: &str,
     count: u64,
     applications: &[EnvironmentObjectStatus<EnvironmentApplicationObservation>],
-    availability: Option<Availability>,
+    availability: Availability,
     direction: EnvironmentProjectionDirection,
     style: TerminalStyle,
 ) -> io::Result<()> {
     writeln!(output, "  {label} {count}")?;
     for application in applications.iter().filter(|application| {
-        if let Some(availability) = availability {
-            direction
-                .target(application)
-                .is_some_and(|working| working.availability == availability)
-        } else {
-            direction.target(application).is_none() && direction.source(application).is_some()
-        }
+        direction
+            .target(application)
+            .is_some_and(|working| working.availability == availability)
     }) {
         let selected_change = direction.change(application);
         let source = direction.source(application);
@@ -11234,7 +11112,9 @@ fn write_application_group(
                 }
             }
             EnvironmentObjectChange::Modified => {
-                if let Some(observation) = source {
+                if let Some(observation) =
+                    source.filter(|observation| observation.availability == availability)
+                {
                     write_environment_application(
                         output,
                         observation,
@@ -11242,7 +11122,9 @@ fn write_application_group(
                         Some("before"),
                     )?;
                 }
-                if let Some(observation) = target {
+                if let Some(observation) =
+                    target.filter(|observation| observation.availability == availability)
+                {
                     write_environment_application(
                         output,
                         observation,
@@ -11252,6 +11134,31 @@ fn write_application_group(
                 }
             }
         }
+    }
+    Ok(())
+}
+
+fn write_lost_application_group(
+    output: &mut impl Write,
+    count: u64,
+    applications: &[EnvironmentObjectStatus<EnvironmentApplicationObservation>],
+    direction: EnvironmentProjectionDirection,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    writeln!(output, "  NO LONGER FOUND {count}")?;
+    for application in applications
+        .iter()
+        .filter(|application| environment_application_was_lost(application, direction))
+    {
+        let observation = direction
+            .source(application)
+            .expect("lost application has a previously found observation");
+        write_environment_application(
+            output,
+            observation,
+            &style.red("-"),
+            Some("no longer found"),
+        )?;
     }
     Ok(())
 }
@@ -11266,11 +11173,16 @@ fn write_environment_application(
         .resolved_path
         .as_deref()
         .unwrap_or("not resolved");
+    let groups = if observation.groups.is_empty() {
+        "ungrouped".to_owned()
+    } else {
+        observation.groups.join(" / ")
+    };
     let change = change.map_or_else(String::new, |change| format!(" · {change}"));
     writeln!(
         output,
-        "    {marker} {:<16} {} · {} PATH entries{change}",
-        observation.name, location, observation.searched_path_count
+        "    {marker} {:<16} {} · {} PATH entries · {groups}{change}",
+        observation.name, location, observation.searched_path_count,
     )
 }
 
@@ -12574,5 +12486,60 @@ mod terminal_style_tests {
                 format!("        \u{1b}[{color}mnew:       environment variable: ALPHA\u{1b}[0m\n")
             );
         }
+    }
+
+    #[test]
+    fn compact_environment_application_views_keep_only_found_matches_and_losses() {
+        let observation = |availability| EnvironmentApplicationObservation {
+            name: "tool".to_owned(),
+            groups: vec!["code".to_owned()],
+            purpose: Some("fixture".to_owned()),
+            required: false,
+            availability,
+            resolved_path: (availability == Availability::Available)
+                .then(|| "/bin/tool".to_owned()),
+            content_digest: None,
+            potential_capabilities: vec!["tool.identity".to_owned()],
+            searched_path_count: 1,
+            error_code: None,
+        };
+        let application = |index, working, change| EnvironmentObjectStatus {
+            object_id: "process-tool".to_owned(),
+            head: None,
+            index,
+            working,
+            changes: rey::env::EnvironmentPlaneChanges {
+                head_to_index: EnvironmentObjectChange::Unchanged,
+                index_to_working: change,
+                head_to_working: change,
+            },
+        };
+        let direction = EnvironmentProjectionDirection::IndexToWorking;
+
+        let missing = application(
+            None,
+            Some(observation(Availability::Unavailable)),
+            EnvironmentObjectChange::Inserted,
+        );
+        assert!(!environment_application_is_human_visible(
+            &missing, direction
+        ));
+        assert!(!environment_application_was_lost(&missing, direction));
+
+        let found = application(
+            None,
+            Some(observation(Availability::Available)),
+            EnvironmentObjectChange::Inserted,
+        );
+        assert!(environment_application_is_human_visible(&found, direction));
+        assert!(!environment_application_was_lost(&found, direction));
+
+        let lost = application(
+            Some(observation(Availability::Available)),
+            Some(observation(Availability::Unavailable)),
+            EnvironmentObjectChange::Modified,
+        );
+        assert!(environment_application_is_human_visible(&lost, direction));
+        assert!(environment_application_was_lost(&lost, direction));
     }
 }

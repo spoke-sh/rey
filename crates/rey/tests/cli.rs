@@ -33,6 +33,7 @@ use rey::workloads::{
     WorkloadRunView, WorkloadStatusBatch, WorkloadTestBatch,
 };
 use rey_core::ContractIdentity;
+use rey_environment::Availability;
 use rey_git::{
     GIT_ACTIVATION_TRIGGER_SCHEMA, GitActivationBudget, GitActivationEventClass,
     GitActivationTrigger, GitPathChangeKind, PathIdentity,
@@ -3491,23 +3492,33 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
             "missing status evidence: {evidence}"
         );
     }
-    assert!(unborn.contains(concat!(
-        "        new:       application: agy\n",
-        "        new:       application: claude\n",
-        "        new:       application: codex\n",
-        "        new:       application: copilot\n",
-        "        new:       application: discord\n",
-        "        new:       application: droid\n",
-        "        new:       application: git\n",
-        "        new:       application: github\n",
-        "        new:       application: imessage\n",
-        "        new:       application: microsoft-teams\n",
-        "        new:       application: opencode\n",
-        "        new:       application: rg\n",
-        "        new:       application: signal\n",
-        "        new:       application: slack\n",
-        "        new:       application: telegram",
-    )));
+    let structured = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "status",
+        "--format",
+        "json",
+    ]);
+    assert!(structured.status.success());
+    let structured: EnvironmentStatus = serde_json::from_slice(&structured.stdout).unwrap();
+    for application in &structured.operator.applications {
+        let Some(observation) = &application.working else {
+            continue;
+        };
+        let entry = format!("application: {}", observation.name);
+        if observation.availability == Availability::Available {
+            assert!(
+                unborn.contains(&entry),
+                "missing found application: {entry}"
+            );
+        } else {
+            assert!(
+                !unborn.contains(&entry),
+                "status exposed an application that was not found: {entry}"
+            );
+        }
+    }
     for inventory_detail in [
         "Workspace              ",
         "Working tree           ",
@@ -3687,13 +3698,9 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "01 / DIRECTED TEXT",
         "Environment variables · 3 tracked · 1 changed",
         "02 / BOUNDED SEARCH",
-        "DESIRED INVENTORY · 15 declared · 4 groups",
-        "COMMUNICATIONS · 7",
-        "AGENTS · 6",
-        "RETRIEVAL · 1",
-        "CODE · 3",
-        "APPLICATIONS · 15 searched",
-        "15 changed",
+        "APPLICATIONS ·",
+        "found · 0 no longer found",
+        "FOUND",
         "REFERENCE PLANE",
         "Inputs and topology",
     ] {
@@ -4160,7 +4167,6 @@ edges:
         "new:       environment variable: REY_MODE",
         "new:       environment variable: REY_SECRET",
         "new:       application: rey-map-probe",
-        "new:       application: rey-definitely-missing",
         "new:       input: input.txt",
         "new:       reference: mode --locates--> input",
     ] {
@@ -4169,6 +4175,7 @@ edges:
             "missing env status evidence: {evidence}"
         );
     }
+    assert!(!status.contains("application: rey-definitely-missing"));
     assert!(!status.contains("never-retain-this-secret"));
 
     let added = run_rey_with_env(
@@ -4229,10 +4236,9 @@ edges:
         "+ REY_MODE=production-mode-value",
         "  REY_SECRET=<present:redacted>",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 17 searched",
-        "0 errors · 0 changed",
+        "APPLICATIONS ·",
+        "found · 0 no longer found · 0 changed",
         "rey-map-probe",
-        "rey-definitely-missing",
         "REFERENCE PLANE",
         "Inputs and topology",
         "INPUTS · 1 tracked · 1 changed",
@@ -4247,6 +4253,7 @@ edges:
             "missing mapped diff evidence: {evidence}\n{diff}"
         );
     }
+    assert!(!diff.contains("rey-definitely-missing"));
     assert!(!diff.contains("never-retain-this-secret"));
     assert!(!diff.contains("a-different-secret"));
     assert!(!diff.contains("CAPABILITY PATCH"));
@@ -4397,8 +4404,8 @@ edges:
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "02 / BOUNDED SEARCH",
-        "APPLICATIONS · 17 searched",
-        "0 errors · 0 changed",
+        "APPLICATIONS ·",
+        "found · 0 no longer found · 0 changed",
         "REFERENCE PLANE",
         "INPUTS · 1 tracked · 1 changed",
         "- input.txt · required",

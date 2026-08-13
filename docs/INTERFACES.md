@@ -302,10 +302,10 @@ structured diff. `diff` selects `INDEX → WORKING` by
 default and `HEAD → INDEX` with `--staged`. Its table projection uses the same
 three environment-native planes as `/environment`: `01 / DIRECTED TEXT`,
 `02 / BOUNDED SEARCH`, and `03` `REFERENCE PLANE`. Bounded search first renders
-the exact many-to-many application groups as `DESIRED INVENTORY`, then the
-flattened target capability snapshot as `SEARCH RECORD`, with one search row
-per application regardless of group count. The declaration coordinate is
-`rey.environment-application-inventory.v2`. The authoritative
+the flattened found matches and explicit losses as `SEARCH RECORD`, with one
+row per application regardless of group count. The complete search outcomes and
+declaration coordinate (`rey.environment-application-inventory.v2`) remain in
+JSON. The authoritative
 capability assessment remains in the coordinate header; JSON is
 `rey.environment-diff.v1` and does not replace the typed capability delta with
 the human projection. `commit` performs no discovery and appends only the

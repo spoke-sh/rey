@@ -232,9 +232,10 @@ compatible messaging CLI. Their discovery records explicitly leave transport,
 message admission, polling-beacon, and relay authority unsupported.
 Declarations carry a normalized many-to-many group set. The initial groups are
 `communications`, `agents`, `retrieval`, and `code`; `env diff` groups the
-desired inventory in that order but keeps the search record flattened to one
-row per application. The compact `env status` change list likewise remains one
-application per line.
+typed desired inventory in that order. Human `env diff` and compact `env
+status` render only flattened found matches, one per application, while keeping
+a previously found application visible if it disappears. Unsuccessful searches
+and the complete desired inventory remain available in structured evidence.
 
 ### `rey editor`
 

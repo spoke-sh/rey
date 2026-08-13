@@ -216,13 +216,13 @@ convergence.
 
 ### Bounded search
 
-The environment's `02 / BOUNDED SEARCH` evidence plane. It places the exact
-desired application inventory beside the bounded found, missing, and errored
-search record. The inventory may place one declaration in multiple logical
-groups, while the search record contains one observation per application and
-never implies that a discovered application may be invoked. The CLI renders
-both records; `/environment` renders only the flattened search rows with group
-memberships while retaining the inventory identity in its typed document.
+The environment's `02 / BOUNDED SEARCH` evidence plane. Its typed evidence
+retains the exact desired application inventory and bounded found, missing, and
+errored outcomes. A declaration may belong to multiple logical groups, while
+search remains one observation per application and never implies invocation
+authority. Human CLI and browser projections show only flattened found matches
+and explicit losses; structured evidence retains the complete inventory and
+unsuccessful searches.
 
 ### Bootstrap
 
