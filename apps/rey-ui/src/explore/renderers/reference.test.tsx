@@ -97,9 +97,10 @@ describe("reference renderer", () => {
     expect(markup).toContain("not a source relationship");
   });
 
-  it("renders the admitted semantic atlas as a spherical World lens", () => {
+  it("renders the admitted semantic atlas with selected-first label collisions", () => {
     const globeScene: TopologyScene = {
       ...terrainScene,
+      focus_id: "anchor:survey:workspace",
       globe: {
         schema: "rey.semantic-globe-scene.v1",
         posture: "semantic_atlas",
@@ -131,22 +132,43 @@ describe("reference renderer", () => {
             angular_radius_degrees: 5.5,
             tone: "healthy",
           },
+          {
+            id: "region:2",
+            cluster_id: "cluster:1",
+            focus_id: "anchor:survey:other",
+            workload_id: "survey",
+            label: "overlapping survey",
+            detail: "same presentation point",
+            longitude_degrees: 0,
+            latitude_degrees: 0,
+            angular_radius_degrees: 2,
+            tone: "neutral",
+          },
         ],
       },
     };
-    const markup = renderToStaticMarkup(
-      <ReferenceRenderer
-        layers={{ relief: true, water: true, weather: true, probes: true }}
-        onFocus={() => undefined}
-        scene={globeScene}
-      />,
-    );
+    for (const globeView of [
+      { yaw_degrees: 0, pitch_degrees: 0 },
+      { yaw_degrees: 32, pitch_degrees: -12 },
+    ]) {
+      const markup = renderToStaticMarkup(
+        <ReferenceRenderer
+          globeView={globeView}
+          layers={{ relief: true, water: true, weather: true, probes: true }}
+          onFocus={() => undefined}
+          scene={globeScene}
+        />,
+      );
 
-    expect(markup).toContain('data-atlas-revision="atlas:1"');
-    expect(markup).toContain('data-semantic-region="region:1"');
-    expect(markup).toContain("Synthetic semantic longitude and latitude");
-    expect(markup).not.toContain('data-world-geometry="charted"');
-    expect(markup).not.toContain('data-natural-feature="stream"');
+      expect(markup).toContain('data-atlas-revision="atlas:1"');
+      expect(markup).toContain('data-semantic-region="region:1"');
+      expect(markup).toContain('data-semantic-region="region:2"');
+      expect(markup).toContain('data-label-disposition="selected"');
+      expect(markup).toContain('data-label-disposition="collision"');
+      expect(markup).toContain("Synthetic semantic longitude and latitude");
+      expect(markup).not.toContain('data-world-geometry="charted"');
+      expect(markup).not.toContain('data-natural-feature="stream"');
+    }
   });
 
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {

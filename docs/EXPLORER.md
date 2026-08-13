@@ -332,8 +332,14 @@ reference renderer draws exactly three bounded horizontal copies. The two
 duplicates remain pointer-usable but are removed from keyboard/accessibility
 order; every copy inverse-picks to the same canonical synthetic coordinate and
 retained region/focus identity. Drag pan recenters modulo rendered chart width,
-so horizontal camera state stays bounded. Deterministic label collision/culling across
-camera changes remains Plan 0003 work.
+so horizontal camera state stays bounded. The implemented
+`rey.semantic-label-layout@1` engine then applies the grammar's 70-label World
+and 96-label Atlas budgets after each globe, morph, or chart projection.
+Canonical selected focus wins, followed by stable depth/copy priority and
+semantic identity. A collision or limit hides only the label/card: its marker,
+pick target, focus, exact coordinate, and semantic identity remain. Duplicate
+chart copies stay outside keyboard/accessibility order. The layout revision is
+retained in immutable scene compiler lineage.
 
 Atlas partitions the abstract sphere into revision-bound **sectors** and shows
 the footprints of admitted **county** scenes within them. Hover or keyboard
@@ -674,9 +680,9 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: preserve
-selected identity through deterministic label culling/collision and camera
-changes, expand the bounded County into a local
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: require one
+selected admitted County footprint, expand its revision-bound tangent frame into
+a local
 isometric surface with exact links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser

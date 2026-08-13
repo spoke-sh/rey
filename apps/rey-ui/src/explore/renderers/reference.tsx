@@ -2,6 +2,11 @@ import { Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { OBJECT_LENS_ZOOM, type LensRegime } from "../engine/camera";
 import type { GlobeCameraView } from "../engine/camera";
+import {
+  layoutSemanticLabels,
+  SEMANTIC_LABEL_LAYOUT_REVISION,
+  type SemanticLabelPlacement,
+} from "../engine/labels";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import type {
@@ -73,6 +78,27 @@ export function ReferenceRenderer({
         latitude_microdegrees: point.latitude_microdegrees,
       },
     })) ?? [];
+  const atlasLabelPlacements = new Map(
+    (wrappedAtlas
+      ? layoutSemanticLabels(
+          chartWrapIndexes.flatMap((wrapIndex) =>
+            scene.nodes.map((node) => ({
+              fragment_id: `${wrapIndex}:${node.id}`,
+              semantic_identity: node.semantic_identity ?? node.id,
+              focus_id: node.focus_id,
+              x: node.x + wrapIndex * scene.world.width - node.width / 2,
+              y: node.y - 63,
+              width: node.width,
+              height: 126,
+              priority: wrapIndex === 0 ? 100 : 10 - Math.abs(wrapIndex),
+              selected: wrapIndex === 0 && node.focus_id === scene.focus_id,
+            })),
+          ),
+          96,
+        )
+      : []
+    ).map((placement) => [placement.fragment_id, placement]),
+  );
   return (
     <div
       className={sx(
@@ -173,6 +199,9 @@ export function ReferenceRenderer({
               node={node}
               onFocus={onFocus}
               pickCandidates={pickCandidates}
+              labelPlacement={atlasLabelPlacements.get(
+                `${wrapIndex}:${node.id}`,
+              )}
               worldWidth={scene.world.width}
             />
           )),
@@ -311,6 +340,22 @@ function SemanticGlobeLayer({
     }))
     .filter(({ visible }) => visible)
     .sort((left, right) => left.depth - right.depth);
+  const regionLabels = new Map(
+    layoutSemanticLabels(
+      projectedRegions.map(({ region, x, y, depth }) => ({
+        fragment_id: `world:${region.id}`,
+        semantic_identity: region.id,
+        focus_id: region.focus_id,
+        x: x + 12,
+        y: y - 28,
+        width: Math.max(64, region.label.length * 7.2),
+        height: 22,
+        priority: Math.round(depth * 1_000),
+        selected: region.focus_id === scene.focus_id,
+      })),
+      70,
+    ).map((placement) => [placement.fragment_id, placement]),
+  );
   const projectedClusters = (suppressSemanticObjects ? [] : globe.clusters)
     .map((cluster) => ({
       cluster,
@@ -411,48 +456,57 @@ function SemanticGlobeLayer({
         ))}
       </g>
       <g aria-label={`${projectedRegions.length} visible semantic regions`}>
-        {projectedRegions.map(({ region, x, y, depth }) => (
-          <g
-            aria-label={`${region.label}: ${region.detail}`}
-            className={sx(
-              styles.semanticGlobeRegion,
-              toneStyle(region.tone, "node"),
-            )}
-            data-semantic-region={region.id}
-            key={region.id}
-            onClick={() => focus(region.focus_id, x, y)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                focus(region.focus_id, x, y);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <circle
-              className={sx(styles.semanticGlobeRegionPoint)}
-              cx={x}
-              cy={y}
-              r={7 + depth * 7}
-            />
-            <line
-              className={sx(styles.semanticGlobeBeaconLeader)}
-              x1={x + 6}
-              x2={x + 16}
-              y1={y - 6}
-              y2={y - 15}
-            />
-            <text
-              className={sx(styles.semanticGlobeRegionLabel)}
-              x={x + 14}
-              y={y - 10}
+        {projectedRegions.map(({ region, x, y, depth }) => {
+          const label = regionLabels.get(`world:${region.id}`)!;
+          return (
+            <g
+              aria-label={`${region.label}: ${region.detail}`}
+              className={sx(
+                styles.semanticGlobeRegion,
+                toneStyle(region.tone, "node"),
+              )}
+              data-semantic-region={region.id}
+              data-label-disposition={label.disposition}
+              data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
+              key={region.id}
+              onClick={() => focus(region.focus_id, x, y)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  focus(region.focus_id, x, y);
+                }
+              }}
+              role="button"
+              tabIndex={0}
             >
-              {region.label}
-            </text>
-            <title>{region.detail}</title>
-          </g>
-        ))}
+              <circle
+                className={sx(styles.semanticGlobeRegionPoint)}
+                cx={x}
+                cy={y}
+                r={7 + depth * 7}
+              />
+              {label.visible ? (
+                <>
+                  <line
+                    className={sx(styles.semanticGlobeBeaconLeader)}
+                    x1={x + 6}
+                    x2={x + 16}
+                    y1={y - 6}
+                    y2={y - 15}
+                  />
+                  <text
+                    className={sx(styles.semanticGlobeRegionLabel)}
+                    x={x + 14}
+                    y={y - 10}
+                  >
+                    {region.label}
+                  </text>
+                </>
+              ) : null}
+              <title>{region.detail}</title>
+            </g>
+          );
+        })}
       </g>
       <g aria-label={`${projectedBeacons.length} visible workload beacons`}>
         {projectedBeacons.map(({ beacon, x, y, depth }) => (
@@ -568,6 +622,22 @@ function WorldAtlasTransitionLayer({
       progress,
     ),
   }));
+  const pointLabels = new Map(
+    layoutSemanticLabels(
+      points.map(({ point, projected }) => ({
+        fragment_id: `morph:${point.identity}`,
+        semantic_identity: point.identity,
+        focus_id: point.focus_id,
+        x: projected.x + 11,
+        y: projected.y - 28,
+        width: Math.max(64, point.label.length * 7.2),
+        height: 22,
+        priority: Math.round(projected.world.depth * 1_000),
+        selected: point.focus_id === scene.focus_id,
+      })),
+      96,
+    ).map((placement) => [placement.fragment_id, placement]),
+  );
   return (
     <svg
       aria-label={`${points.length} regional identities morphing from World to Atlas`}
@@ -593,51 +663,58 @@ function WorldAtlasTransitionLayer({
         ))}
       </g>
       <g aria-label={`${points.length} retained regional identities`}>
-        {points.map(({ point, projected }) => (
-          <g
-            aria-label={`${point.label}: retained regional identity`}
-            className={sx(
-              styles.worldAtlasMorphPoint,
-              toneStyle(point.tone, "node"),
-            )}
-            data-focus-id={point.focus_id}
-            data-semantic-identity={point.identity}
-            key={point.identity}
-            onClick={() =>
-              onFocus({
-                focus_id: point.focus_id,
-                x: projected.x,
-                y: projected.y,
-              })
-            }
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
+        {points.map(({ point, projected }) => {
+          const label = pointLabels.get(`morph:${point.identity}`)!;
+          return (
+            <g
+              aria-label={`${point.label}: retained regional identity`}
+              className={sx(
+                styles.worldAtlasMorphPoint,
+                toneStyle(point.tone, "node"),
+              )}
+              data-focus-id={point.focus_id}
+              data-label-disposition={label.disposition}
+              data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
+              data-semantic-identity={point.identity}
+              key={point.identity}
+              onClick={() =>
                 onFocus({
                   focus_id: point.focus_id,
                   x: projected.x,
                   y: projected.y,
-                });
+                })
               }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <circle
-              className={sx(styles.worldAtlasMorphMarker)}
-              cx={projected.x}
-              cy={projected.y}
-              r={8}
-            />
-            <text
-              className={sx(styles.worldAtlasMorphLabel)}
-              x={projected.x + 13}
-              y={projected.y - 10}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onFocus({
+                    focus_id: point.focus_id,
+                    x: projected.x,
+                    y: projected.y,
+                  });
+                }
+              }}
+              role="button"
+              tabIndex={0}
             >
-              {point.label}
-            </text>
-          </g>
-        ))}
+              <circle
+                className={sx(styles.worldAtlasMorphMarker)}
+                cx={projected.x}
+                cy={projected.y}
+                r={8}
+              />
+              {label.visible ? (
+                <text
+                  className={sx(styles.worldAtlasMorphLabel)}
+                  x={projected.x + 13}
+                  y={projected.y - 10}
+                >
+                  {point.label}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
       </g>
     </svg>
   );
@@ -933,6 +1010,7 @@ function TopologyObject({
   chartWrapIndex,
   counterScale,
   linkToWorkload,
+  labelPlacement,
   node,
   onFocus,
   pickCandidates,
@@ -942,13 +1020,19 @@ function TopologyObject({
   chartWrapIndex: number;
   counterScale: boolean;
   linkToWorkload: boolean;
+  labelPlacement?: SemanticLabelPlacement;
   node: TopologyNode;
   onFocus: (node: FocusableTopologyObject) => void;
   pickCandidates: readonly SemanticMercatorPickCandidate[];
   worldWidth: number;
 }) {
   const projectedX = node.x + chartWrapIndex * worldWidth;
-  const className = sx(styles.topologyObject, toneStyle(node.tone, "node"));
+  const labelVisible = labelPlacement?.visible ?? true;
+  const className = sx(
+    styles.topologyObject,
+    !labelVisible && styles.topologyObjectCulledLabel,
+    toneStyle(node.tone, "node"),
+  );
   const style = {
     left: projectedX,
     top: node.y,
@@ -958,7 +1042,7 @@ function TopologyObject({
             "translate(-50%, -50%) scale(var(--rey-terrain-counter-scale))",
         }
       : {}),
-    width: node.width,
+    width: labelVisible ? node.width : 20,
   } as CSSProperties;
   const select = () => {
     if (node.semantic_identity && node.semantic_coordinate && atlasFrame) {
@@ -995,17 +1079,27 @@ function TopologyObject({
       </span>
     </>
   );
+  const renderedContent = labelVisible ? (
+    content
+  ) : (
+    <span aria-hidden="true" className={sx(styles.culledLabelMarker)} />
+  );
 
   if (node.coordinate_uri) {
     return (
       <a
         aria-hidden={chartWrapIndex === 0 ? undefined : true}
+        aria-label={`${node.family}: ${node.label}`}
         className={className}
         href={`/explore?coordinate=${encodeURIComponent(node.coordinate_uri)}&scale=${OBJECT_LENS_ZOOM}`}
         style={style}
         tabIndex={chartWrapIndex === 0 ? undefined : -1}
+        data-label-disposition={labelPlacement?.disposition}
+        data-label-layout={
+          labelPlacement ? SEMANTIC_LABEL_LAYOUT_REVISION : undefined
+        }
       >
-        {content}
+        {renderedContent}
       </a>
     );
   }
@@ -1014,13 +1108,18 @@ function TopologyObject({
     return (
       <Link
         aria-hidden={chartWrapIndex === 0 ? undefined : true}
+        aria-label={`${node.family}: ${node.label}`}
         className={className}
         params={{ workloadId: node.workload_id }}
         style={style}
         tabIndex={chartWrapIndex === 0 ? undefined : -1}
+        data-label-disposition={labelPlacement?.disposition}
+        data-label-layout={
+          labelPlacement ? SEMANTIC_LABEL_LAYOUT_REVISION : undefined
+        }
         to="/workloads/$workloadId"
       >
-        {content}
+        {renderedContent}
       </Link>
     );
   }
@@ -1028,17 +1127,22 @@ function TopologyObject({
   return (
     <button
       aria-hidden={chartWrapIndex === 0 ? undefined : true}
+      aria-label={`${node.family}: ${node.label}`}
       className={className}
       data-chart-wrap-index={
         node.semantic_identity ? chartWrapIndex : undefined
       }
       data-semantic-identity={node.semantic_identity}
+      data-label-disposition={labelPlacement?.disposition}
+      data-label-layout={
+        labelPlacement ? SEMANTIC_LABEL_LAYOUT_REVISION : undefined
+      }
       onClick={select}
       style={style}
       tabIndex={chartWrapIndex === 0 ? undefined : -1}
       type="button"
     >
-      {content}
+      {renderedContent}
     </button>
   );
 }

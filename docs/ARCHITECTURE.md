@@ -224,8 +224,11 @@ the declared `0.14 → 0.24` World-to-Atlas scale band while retaining globe
 rotation at the World endpoint. Settled Atlas draws three bounded horizontal
 copies; duplicate copies are pointer-only and accessibility-hidden, inverse
 selection returns one canonical coordinate and retained identity, and pan is
-recentered modulo rendered chart width. Deterministic label collision/culling
-across camera changes remains incomplete.
+recentered modulo rendered chart width. The revisioned semantic-label engine
+applies the grammar's bounded World/Atlas budgets after globe, morph, and chart
+projection. Selected canonical focus wins deterministic collision ordering;
+culled/limited labels collapse without removing semantic markers or pick
+targets. Its revision participates in immutable scene compiler lineage.
 
 Atlas derives terrain-style contour isolines from bounded anchor-sample
 influence and will use admitted scene packages as the primary detailed map

@@ -66,13 +66,18 @@ during the transition. At settled Atlas the reference renderer materializes
 exactly three bounded horizontal chart copies. Duplicate copies are pointer-only
 and accessibility-hidden; inverse picking resolves their projected centers to
 one canonical synthetic coordinate and retained region/focus identity. Drag pan
-recenters modulo the rendered chart width, keeping horizontal camera state bounded without
-changing selection or semantic identity. Explorer implements the fresh
+recenters modulo the rendered chart width, keeping horizontal camera state
+bounded without changing selection or semantic identity. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
-material, WebGPU/WebGL2 paths, and an accessible reference path.
-Focus-preserving label/collision behavior, admitted County fabric, render-graph
-completion, clipmap reuse, and retained visual/performance proof remain open.
+material, WebGPU/WebGL2 paths, and an accessible reference path. The revisioned
+deterministic label engine applies the grammar's 70-label World and 96-label
+Atlas budgets across globe rotation, morph, and chart copies. Selected canonical
+focus wins, then depth/copy priority and identity provide stable ordering;
+collided or over-limit labels collapse without removing markers or pick targets.
+Its compiler revision enters immutable scene lineage. Admitted County fabric,
+render-graph completion, clipmap reuse, and retained visual/performance proof
+remain open.
 
 ## Completion Checklist
 
@@ -125,7 +130,7 @@ completion, clipmap reuse, and retained visual/performance proof remain open.
 - [x] Drive three bounded chart copies through renderer drawing, canonical
   inverse picking, pointer-only duplicate accessibility, and modulo recentering
   without replacing focus or semantic identity.
-- [ ] Preserve focus, selection, and one semantic identity through globe
+- [x] Preserve focus, selection, and one semantic identity through globe
   rotation, deterministic label culling, collisions, and camera changes.
 
 ### 4. Enter a bounded County

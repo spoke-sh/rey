@@ -741,6 +741,22 @@ export const exploreStyles = stylex.create({
       outlineWidth: 3,
     },
   },
+  topologyObjectCulledLabel: {
+    borderRadius: "50%",
+    boxShadow:
+      "0 3px 0 color-mix(in srgb, var(--rey-foreground) 14%, transparent)",
+    height: 20,
+    minHeight: 20,
+    padding: 0,
+  },
+  culledLabelMarker: {
+    backgroundColor: "currentColor",
+    borderRadius: "50%",
+    display: "block",
+    height: 6,
+    margin: "auto",
+    width: 6,
+  },
   objectNeutral: { borderColor: "var(--line)" },
   objectAccent: {
     borderColor: "var(--rey-accent)",

@@ -23,6 +23,10 @@
     margin: 22px;
   }
 
+  .x1bpp3o7 {
+    margin: auto;
+  }
+
   .xv67hb1 {
     padding: 0 24px 18px;
   }
@@ -1093,6 +1097,10 @@
     background-color: color-mix(in srgb,var(--surface) 72%,transparent);
   }
 
+  .xtwfq29 {
+    background-color: currentColor;
+  }
+
   .xjbqb8w {
     background-color: #0000;
   }
@@ -1171,6 +1179,10 @@
 
   .xckuu0 {
     box-shadow: 0 18px 48px color-mix(in srgb,var(--rey-foreground) 12%,transparent);
+  }
+
+  .x16g7y8a {
+    box-shadow: 0 3px 0 color-mix(in srgb,var(--rey-foreground) 14%,transparent);
   }
 
   .xjr3tgw {
@@ -3134,6 +3146,10 @@
     height: 1px;
   }
 
+  .x1qx5ct2 {
+    height: 20px;
+  }
+
   .xxk0z11 {
     height: 24px;
   }
@@ -3434,6 +3450,10 @@
     min-height: 180px;
   }
 
+  .xisnujt {
+    min-height: 20px;
+  }
+
   .x1jc8gtk {
     min-height: 210px;
   }
@@ -3712,6 +3732,10 @@
 
   .x1fxk84t {
     width: 54px;
+  }
+
+  .x1v4s8kt {
+    width: 6px;
   }
 
   .xci0xqf {

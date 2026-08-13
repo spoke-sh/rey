@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Add deterministic label culling/collision behavior that preserves the selected identity through globe rotation, chart copies, and camera changes. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, reversible Mercator geometry, immutable/continuous World/Atlas transition, three bounded chart copies, canonical inverse picking, and recentering. |
+| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Require one selected admitted County footprint and expand its revision-bound local tangent frame through the isometric camera without inventing geometry. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, reversible Mercator geometry, immutable/continuous World/Atlas transition, bounded wrapping/inverse picking/recentering, and focus-preserving deterministic label layout. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:

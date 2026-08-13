@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneAdmissionResult, WorkloadList } from "../../domain";
 import { buildTopologyScene } from "../../topology";
 import { compileSceneSnapshot } from "../engine/scene";
+import { SEMANTIC_LABEL_LAYOUT_REVISION } from "../engine/labels";
 import { ReferenceRenderer } from "../renderers/reference";
 import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "./semantic-mercator";
 
@@ -268,6 +269,9 @@ describe("regional scene topology projection", () => {
     expect(compiledAtlas.compiler_revisions).toContain(
       SEMANTIC_MERCATOR_PROJECTION_REVISION,
     );
+    expect(compiledAtlas.compiler_revisions).toContain(
+      SEMANTIC_LABEL_LAYOUT_REVISION,
+    );
     expect(Object.isFrozen(compiledAtlas.scene.world_atlas_transition)).toBe(
       true,
     );
@@ -310,6 +314,10 @@ describe("regional scene topology projection", () => {
     ).toHaveLength(3);
     expect(wrappedMarkup).toContain('aria-hidden="true"');
     expect(wrappedMarkup).toContain('tabindex="-1"');
+    expect(wrappedMarkup).toContain(
+      'data-label-layout="rey.semantic-label-layout@1"',
+    );
+    expect(wrappedMarkup).toContain('data-label-disposition="selected"');
 
     const county = buildTopologyScene(
       regionalPortfolio,
