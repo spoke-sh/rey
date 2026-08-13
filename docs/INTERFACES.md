@@ -297,8 +297,9 @@ input, and reference projection over `HEAD → INDEX → WORKING`. Human output 
 a compact working-tree view: current `ENV@n`, then environment-native staged
 and unstaged groups when present. Clean status contains only the coordinate and
 clean result. Workspace, health, inventory, and mapping summaries remain in
-the structured status evidence. Exact values, complete search records, and
-topology are delegated to `diff`;
+the structured status evidence. Exact variable and application review is
+delegated to `diff`; complete search records and topology remain in structured
+evidence;
 unprojected authoritative capability changes receive a human semantic label and
 retain their exact capability id.
 
@@ -311,18 +312,20 @@ narrow the canonical capability changes presented as confirmable `diff --rey`
 environment hunks;
 its interactive mode requires table output. Generic hunks omit raw structured provenance and point to the
 structured diff. `diff` selects `INDEX → WORKING` by
-default and `HEAD → INDEX` with `--staged`. Its table projection uses three
-environment-native planes: `01 / DIRECTED TEXT`, `02 / BOUNDED SEARCH`, and
-`03` `REFERENCE PLANE`. The browser `/environment` route intentionally projects
-only the first two; inputs and references remain in this exact CLI surface and
-the shared typed document. Bounded search first renders
-the flattened found matches and explicit losses as `SEARCH RECORD`, with one
-row per application regardless of group count. The complete search outcomes and
-declaration coordinate (`rey.environment-application-inventory.v2`) remain in
-JSON. The authoritative
-capability assessment remains in the coordinate header; JSON is
-`rey.environment-diff.v1` and does not replace the typed capability delta with
-the human projection. `reset` clears the admission index and moves the linear
+default and `HEAD → INDEX` with `--staged`. Its table projection uses two
+un-numbered environment-native sections: environment variables and applications.
+Inputs and references remain in the structured snapshots and typed capability
+delta rather than appearing as a third human plane. Bounded search renders one
+flattened row per found application regardless of group count. It uses the same
+neutral context and red `-` / green `+` before-and-after form as environment
+variables, while preserving the executable name, resolved path, and comma-separated
+groups. Unsuccessful searches remain structured evidence. The complete search
+outcomes and declaration coordinate (`rey.environment-application-inventory.v2`)
+remain in JSON. The table begins directly with the environment-variable section;
+the source-to-target coordinate, authoritative capability assessment, and total
+change count remain in JSON. JSON is `rey.environment-diff.v1`
+and does not replace the typed capability delta with the human projection.
+`reset` clears the admission index and moves the linear
 retained history to `HEAD` by default, `EMPTY`, an exact `ENV@n`, or an exact
 full environment commit id. Moving backward removes later commits;
 abbreviations, ancestry operators, ranges, and pathspecs are rejected. It
@@ -417,9 +420,9 @@ Environment status, add, reset, diff, commit, and log are mixed structured
 envelopes. They default to human output, like Git commands, even when
 redirected; automation must request `--format json` explicitly. `status` carries the full structured
 inventory while keeping its human view navigable. Default `diff` opens the
-unstaged three-plane environment projection, `diff --staged` opens the staged
-projection, and `log -p` controls three-plane expansion of retained
-parent-to-commit transitions.
+unstaged two-section human environment projection, `diff --staged` opens the
+staged projection, and `log -p` controls the same two-section expansion of
+retained parent-to-commit transitions.
 The JSON log retains authoritative typed deltas regardless of whether the
 human patch was requested.
 
@@ -1470,8 +1473,9 @@ coordinate. Candidate terrain controls never enter that program.
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 two full-width stacked evidence sections: directed variable text and bounded
-application search. Inputs and topology remain in the shared typed document and
-the exact `rey env diff` CLI projection rather than becoming a browser section.
+application search. Inputs and topology remain in structured environment
+evidence rather than becoming a browser section or a third `rey env diff`
+table plane.
 The application plane renders
 the complete flattened application search from the shared environment operator
 projection, including unresolved and error outcomes, and names each row's

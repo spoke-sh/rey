@@ -10270,13 +10270,9 @@ fn env_diff(
     let mut stdout = io::stdout().lock();
     match args.format {
         EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &diff)?,
-        EnvHistoryOutputFormat::Table => write_env_diff(
-            &mut stdout,
-            workspace,
-            &diff,
-            &operator,
-            TerminalStyle::stdout(),
-        )?,
+        EnvHistoryOutputFormat::Table => {
+            write_env_diff(&mut stdout, &diff, &operator, TerminalStyle::stdout())?
+        }
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -10712,38 +10708,90 @@ fn write_environment_application_diff(
     direction: EnvironmentProjectionDirection,
     style: TerminalStyle,
 ) -> io::Result<()> {
+    write_environment_application_diff_rows(output, application, direction, false, style)
+}
+
+fn write_found_environment_application_diff(
+    output: &mut impl Write,
+    application: &EnvironmentObjectStatus<EnvironmentApplicationObservation>,
+    direction: EnvironmentProjectionDirection,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    write_environment_application_diff_rows(output, application, direction, true, style)
+}
+
+fn write_environment_application_diff_rows(
+    output: &mut impl Write,
+    application: &EnvironmentObjectStatus<EnvironmentApplicationObservation>,
+    direction: EnvironmentProjectionDirection,
+    found_only: bool,
+    style: TerminalStyle,
+) -> io::Result<()> {
+    let source = direction.source(application);
+    let target = direction.target(application);
     match direction.change(application) {
-        EnvironmentObjectChange::Unchanged => {}
+        EnvironmentObjectChange::Unchanged => {
+            if let Some(observation) = target.or(source).filter(|observation| {
+                environment_application_row_is_visible(observation, found_only)
+            }) {
+                writeln!(
+                    output,
+                    "{}",
+                    style.dim(&format!("  {}", environment_application_line(observation)))
+                )?;
+            }
+        }
         EnvironmentObjectChange::Inserted => {
-            if let Some(observation) = direction.target(application) {
-                write_environment_application(output, observation, &style.green("+"), None)?;
+            if let Some(observation) = target.filter(|observation| {
+                environment_application_row_is_visible(observation, found_only)
+            }) {
+                writeln!(
+                    output,
+                    "{}",
+                    style.green(&format!("+ {}", environment_application_line(observation)))
+                )?;
             }
         }
         EnvironmentObjectChange::Deleted => {
-            if let Some(observation) = direction.source(application) {
-                write_environment_application(output, observation, &style.red("-"), None)?;
+            if let Some(observation) = source.filter(|observation| {
+                environment_application_row_is_visible(observation, found_only)
+            }) {
+                writeln!(
+                    output,
+                    "{}",
+                    style.red(&format!("- {}", environment_application_line(observation)))
+                )?;
             }
         }
         EnvironmentObjectChange::Modified => {
-            if let Some(observation) = direction.source(application) {
-                write_environment_application(
+            if let Some(observation) = source.filter(|observation| {
+                environment_application_row_is_visible(observation, found_only)
+            }) {
+                writeln!(
                     output,
-                    observation,
-                    &style.red("-"),
-                    Some("before"),
+                    "{}",
+                    style.red(&format!("- {}", environment_application_line(observation)))
                 )?;
             }
-            if let Some(observation) = direction.target(application) {
-                write_environment_application(
+            if let Some(observation) = target.filter(|observation| {
+                environment_application_row_is_visible(observation, found_only)
+            }) {
+                writeln!(
                     output,
-                    observation,
-                    &style.green("+"),
-                    Some("after"),
+                    "{}",
+                    style.green(&format!("+ {}", environment_application_line(observation)))
                 )?;
             }
         }
     }
     Ok(())
+}
+
+fn environment_application_row_is_visible(
+    observation: &EnvironmentApplicationObservation,
+    found_only: bool,
+) -> bool {
+    !found_only || observation.availability == Availability::Available
 }
 
 fn write_env_status(
@@ -11207,8 +11255,6 @@ fn write_environment_application_planes(
     output: &mut impl Write,
     projection: &EnvironmentOperatorProjection,
     direction: EnvironmentProjectionDirection,
-    search_label: &str,
-    search_snapshot: &SemanticDigest,
     style: TerminalStyle,
 ) -> io::Result<()> {
     let applications_found =
@@ -11221,171 +11267,30 @@ fn write_environment_application_planes(
                 && environment_application_is_human_visible(application, direction)
         })
         .count() as u64;
-    let lost_applications = projection
+    writeln!(output)?;
+    writeln!(
+        output,
+        "Applications · {applications_found} found · {changed_applications} changed"
+    )?;
+    if !projection
         .applications
         .iter()
-        .filter(|application| environment_application_was_lost(application, direction))
-        .count() as u64;
-
-    writeln!(output)?;
-    writeln!(output, "{}", style.bold("02 / BOUNDED SEARCH"))?;
-    writeln!(
-        output,
-        "{}",
-        style.bold(&format!(
-            "SEARCH RECORD · {search_label} @ {}",
-            compact_digest(&search_snapshot.to_string())
-        ))
-    )?;
-    writeln!(
-        output,
-        "  Method                 flattened declarations · bounded PATH resolution · fixed identity probes only"
-    )?;
-    writeln!(
-        output,
-        "APPLICATIONS · {applications_found} found · {lost_applications} no longer found · {changed_applications} changed"
-    )?;
-    write_application_group(
-        output,
-        "FOUND",
-        applications_found,
-        &projection.applications,
-        Availability::Available,
-        direction,
-        style,
-    )?;
-    if lost_applications > 0 {
-        write_lost_application_group(
-            output,
-            lost_applications,
-            &projection.applications,
-            direction,
-            style,
-        )?;
-    }
-    Ok(())
-}
-
-fn environment_application_was_lost(
-    application: &EnvironmentObjectStatus<EnvironmentApplicationObservation>,
-    direction: EnvironmentProjectionDirection,
-) -> bool {
-    direction
-        .source(application)
-        .is_some_and(|observation| observation.availability == Availability::Available)
-        && !direction
-            .target(application)
-            .is_some_and(|observation| observation.availability == Availability::Available)
-}
-
-fn write_application_group(
-    output: &mut impl Write,
-    label: &str,
-    count: u64,
-    applications: &[EnvironmentObjectStatus<EnvironmentApplicationObservation>],
-    availability: Availability,
-    direction: EnvironmentProjectionDirection,
-    style: TerminalStyle,
-) -> io::Result<()> {
-    writeln!(output, "  {label} {count}")?;
-    for application in applications.iter().filter(|application| {
-        direction
-            .target(application)
-            .is_some_and(|working| working.availability == availability)
-    }) {
-        let selected_change = direction.change(application);
-        let source = direction.source(application);
-        let target = direction.target(application);
-        match selected_change {
-            EnvironmentObjectChange::Unchanged => {
-                let observation = target.or(source).expect(
-                    "included environment application has at least one selected observation",
-                );
-                let marker = match observation.availability {
-                    Availability::Available => style.green("+"),
-                    Availability::Unavailable => style.yellow("?"),
-                    Availability::Error => style.red("!"),
-                };
-                write_environment_application(output, observation, &marker, None)?;
-            }
-            EnvironmentObjectChange::Inserted => {
-                if let Some(observation) = target {
-                    write_environment_application(
-                        output,
-                        observation,
-                        &style.green("+"),
-                        Some("inserted"),
-                    )?;
-                }
-            }
-            EnvironmentObjectChange::Deleted => {
-                if let Some(observation) = source {
-                    write_environment_application(
-                        output,
-                        observation,
-                        &style.red("-"),
-                        Some("deleted"),
-                    )?;
-                }
-            }
-            EnvironmentObjectChange::Modified => {
-                if let Some(observation) =
-                    source.filter(|observation| observation.availability == availability)
-                {
-                    write_environment_application(
-                        output,
-                        observation,
-                        &style.red("-"),
-                        Some("before"),
-                    )?;
-                }
-                if let Some(observation) =
-                    target.filter(|observation| observation.availability == availability)
-                {
-                    write_environment_application(
-                        output,
-                        observation,
-                        &style.green("+"),
-                        Some("modified"),
-                    )?;
-                }
-            }
+        .any(|application| environment_application_is_human_visible(application, direction))
+    {
+        writeln!(output, "  (no applications found)")?;
+    } else {
+        for application in projection
+            .applications
+            .iter()
+            .filter(|application| environment_application_is_human_visible(application, direction))
+        {
+            write_found_environment_application_diff(output, application, direction, style)?;
         }
     }
     Ok(())
 }
 
-fn write_lost_application_group(
-    output: &mut impl Write,
-    count: u64,
-    applications: &[EnvironmentObjectStatus<EnvironmentApplicationObservation>],
-    direction: EnvironmentProjectionDirection,
-    style: TerminalStyle,
-) -> io::Result<()> {
-    writeln!(output, "  NO LONGER FOUND {count}")?;
-    for application in applications
-        .iter()
-        .filter(|application| environment_application_was_lost(application, direction))
-    {
-        let observation = direction
-            .source(application)
-            .expect("lost application has a previously found observation");
-        write_environment_application(
-            output,
-            observation,
-            &style.red("-"),
-            Some("no longer found"),
-        )?;
-    }
-    Ok(())
-}
-
-fn write_environment_application(
-    output: &mut impl Write,
-    observation: &EnvironmentApplicationObservation,
-    marker: &str,
-    change: Option<&str>,
-) -> io::Result<()> {
+fn environment_application_line(observation: &EnvironmentApplicationObservation) -> String {
     let location = observation
         .resolved_path
         .as_deref()
@@ -11393,14 +11298,9 @@ fn write_environment_application(
     let groups = if observation.groups.is_empty() {
         "ungrouped".to_owned()
     } else {
-        observation.groups.join(" / ")
+        observation.groups.join(", ")
     };
-    let change = change.map_or_else(String::new, |change| format!(" · {change}"));
-    writeln!(
-        output,
-        "    {marker} {:<16} {} · {} PATH entries · {groups}{change}",
-        observation.name, location, observation.searched_path_count,
-    )
+    format!("{:<16} {location} · {groups}", observation.name)
 }
 
 fn write_env_add(
@@ -11588,13 +11488,8 @@ fn write_env_log(
             )?,
         }
         if log.patch {
-            write_environment_transition_planes(
-                output,
-                &entry.delta,
-                projection,
-                direction,
-                style,
-            )?;
+            writeln!(output)?;
+            write_environment_transition_planes(output, projection, direction, style)?;
         }
     }
     Ok(())
@@ -11626,61 +11521,28 @@ fn environment_snapshot_mapping(snapshot: &CapabilitySnapshot) -> Option<(&str, 
 
 fn write_env_diff(
     output: &mut impl Write,
-    workspace: &Path,
     diff: &EnvironmentDiff,
     projection: &EnvironmentOperatorProjection,
     style: TerminalStyle,
 ) -> Result<(), CliError> {
-    let (view, direction) = match diff.mode {
-        EnvironmentDiffMode::Unstaged => {
-            ("UNSTAGED", EnvironmentProjectionDirection::IndexToWorking)
-        }
-        EnvironmentDiffMode::Staged => ("STAGED", EnvironmentProjectionDirection::HeadToIndex),
+    let direction = match diff.mode {
+        EnvironmentDiffMode::Unstaged => EnvironmentProjectionDirection::IndexToWorking,
+        EnvironmentDiffMode::Staged => EnvironmentProjectionDirection::HeadToIndex,
     };
-    let changed_capabilities = diff.delta.changes.len() as u64;
-    writeln!(output)?;
-    writeln!(
-        output,
-        "{}",
-        style.cyan_bold(&format!(
-            "REY ENV DIFF · {} → {}",
-            diff.delta.source_label, diff.delta.target_label
-        ))
-    )?;
-    writeln!(output, "  View                   {view}")?;
-    writeln!(output, "  Workspace              {}", workspace.display())?;
-    writeln!(
-        output,
-        "  Evidence               {} · {} authoritative capability {}",
-        delta_assessment_label(diff.delta.summary.assessment, style),
-        changed_capabilities,
-        plural(changed_capabilities, "change", "changes")
-    )?;
-    write_environment_transition_planes(output, &diff.delta, projection, direction, style)
+    write_environment_transition_planes(output, projection, direction, style)
 }
 
 fn write_environment_transition_planes(
     output: &mut impl Write,
-    delta: &CapabilityDelta,
     projection: &EnvironmentOperatorProjection,
     direction: EnvironmentProjectionDirection,
     style: TerminalStyle,
 ) -> Result<(), CliError> {
     let variable_count = environment_plane_count(&projection.variables, direction);
     let changed_variables = environment_plane_changed_count(&projection.variables, direction);
-    writeln!(output)?;
-    writeln!(output, "{}", style.bold("01 / DIRECTED TEXT"))?;
     writeln!(
         output,
         "Environment variables · {variable_count} tracked · {changed_variables} changed"
-    )?;
-    writeln!(
-        output,
-        "{}",
-        style.dim(&format!(
-            "@@ {} → {}",
-            delta.source_label, delta.target_label
-        ))
     )?;
     if variable_count == 0 {
         writeln!(
@@ -11697,53 +11559,7 @@ fn write_environment_transition_planes(
         }
     }
 
-    write_environment_application_planes(
-        output,
-        projection,
-        direction,
-        &delta.target_label,
-        &delta.target_snapshot,
-        style,
-    )?;
-
-    let input_count = environment_plane_count(&projection.inputs, direction);
-    let changed_inputs = environment_plane_changed_count(&projection.inputs, direction);
-    let reference_count = environment_plane_count(&projection.references, direction);
-    let changed_references = environment_plane_changed_count(&projection.references, direction);
-    writeln!(output)?;
-    writeln!(output, "{}", style.bold("03"))?;
-    writeln!(output, "{}", style.bold("REFERENCE PLANE"))?;
-    writeln!(output, "Inputs and topology")?;
-    writeln!(
-        output,
-        "  INPUTS · {input_count} tracked · {changed_inputs} changed"
-    )?;
-    if input_count == 0 {
-        writeln!(output, "    NONE")?;
-    } else {
-        for input in projection
-            .inputs
-            .iter()
-            .filter(|input| direction.includes(input))
-        {
-            write_environment_input_diff(output, input, direction, style)?;
-        }
-    }
-    writeln!(
-        output,
-        "  TOPOLOGY · {reference_count} declared edges · {changed_references} changed"
-    )?;
-    if reference_count == 0 {
-        writeln!(output, "    NONE")?;
-    } else {
-        for reference in projection
-            .references
-            .iter()
-            .filter(|reference| direction.includes(reference))
-        {
-            write_environment_reference_diff(output, reference, direction, style)?;
-        }
-    }
+    write_environment_application_planes(output, projection, direction, style)?;
     Ok(())
 }
 
@@ -12736,10 +12552,10 @@ mod terminal_style_tests {
     }
 
     #[test]
-    fn compact_environment_application_views_keep_only_found_matches_and_losses() {
+    fn environment_application_diffs_match_variable_style_and_hide_unresolved_rows() {
         let observation = |availability| EnvironmentApplicationObservation {
             name: "tool".to_owned(),
-            groups: vec!["code".to_owned()],
+            groups: vec!["code".to_owned(), "retrieval".to_owned()],
             purpose: Some("fixture".to_owned()),
             required: false,
             availability,
@@ -12771,7 +12587,15 @@ mod terminal_style_tests {
         assert!(!environment_application_is_human_visible(
             &missing, direction
         ));
-        assert!(!environment_application_was_lost(&missing, direction));
+        let mut output = Vec::new();
+        write_found_environment_application_diff(
+            &mut output,
+            &missing,
+            direction,
+            TerminalStyle { enabled: false },
+        )
+        .unwrap();
+        assert!(output.is_empty());
 
         let found = application(
             None,
@@ -12779,7 +12603,30 @@ mod terminal_style_tests {
             EnvironmentObjectChange::Inserted,
         );
         assert!(environment_application_is_human_visible(&found, direction));
-        assert!(!environment_application_was_lost(&found, direction));
+        let mut output = Vec::new();
+        write_found_environment_application_diff(
+            &mut output,
+            &found,
+            direction,
+            TerminalStyle { enabled: false },
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            "+ tool             /bin/tool · code, retrieval\n"
+        );
+        let mut colored_output = Vec::new();
+        write_found_environment_application_diff(
+            &mut colored_output,
+            &found,
+            direction,
+            TerminalStyle { enabled: true },
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(colored_output).unwrap(),
+            "\u{1b}[32m+ tool             /bin/tool · code, retrieval\u{1b}[0m\n"
+        );
 
         let lost = application(
             Some(observation(Availability::Available)),
@@ -12787,6 +12634,29 @@ mod terminal_style_tests {
             EnvironmentObjectChange::Modified,
         );
         assert!(environment_application_is_human_visible(&lost, direction));
-        assert!(environment_application_was_lost(&lost, direction));
+        let mut output = Vec::new();
+        write_found_environment_application_diff(
+            &mut output,
+            &lost,
+            direction,
+            TerminalStyle { enabled: false },
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            "- tool             /bin/tool · code, retrieval\n"
+        );
+        let mut colored_output = Vec::new();
+        write_found_environment_application_diff(
+            &mut colored_output,
+            &lost,
+            direction,
+            TerminalStyle { enabled: true },
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(colored_output).unwrap(),
+            "\u{1b}[31m- tool             /bin/tool · code, retrieval\u{1b}[0m\n"
+        );
     }
 }

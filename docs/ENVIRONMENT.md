@@ -383,7 +383,7 @@ disappeared; unsuccessful searches remain in structured evidence. Workspace, wor
 observation-health, application-search, and reasoning-map summaries remain in
 the structured status evidence rather than padding the default terminal view.
 The human view directs exact review to `env diff` and `env diff --staged`
-instead of repeating the full three-plane evidence. Authoritative capability
+instead of repeating the full directed evidence. Authoritative capability
 changes with no mapped operator object remain visible as individually named
 semantic entries with exact capability ids.
 
@@ -405,18 +405,20 @@ or provider authority.
 
 `rey env diff` repeats the fresh bounded observation and selects the shared
 operator projection for `INDEX → WORKING`; `--staged` selects `HEAD → INDEX`.
-Human output is one compact delta coordinate followed by exactly three
-environment-native evidence planes: directed variable text, bounded
-application search, and input/reference topology. The bounded-search plane
-shows a flattened `SEARCH RECORD` containing only found matches and explicit
-losses of previously found executables; the complete target application
-inventory and unsuccessful outcomes remain in JSON. Unchanged mapped objects remain bounded context,
+Human output consists of exactly two un-numbered environment-native sections:
+environment variables and applications. The application section uses the same neutral context and
+red `-` / green `+` before-and-after rows as variables while preserving each
+found executable's name, resolved path, and comma-separated groups. Explicit
+losses render only the red prior observation; unsuccessful searches remain in
+JSON. Input and reference topology likewise remain in the structured snapshots
+and typed capability delta instead of appearing as a third human plane.
+Unchanged mapped objects remain bounded context,
 while insertions, deletions, and modifications use the selected source and
-target observations. The header preserves the authoritative
-capability-delta assessment and retained change count, including changes that
-do not project into a mapped human object. The command accepts no loose
-snapshot-file operands. Explicit JSON is `rey.environment-diff.v1` with
-the complete typed capability delta.
+target observations. The authoritative capability-delta assessment and retained
+change count, source and target coordinates, and changes that do not project into
+a mapped human object remain in structured output. The command accepts no loose snapshot-file operands.
+Explicit JSON is `rey.environment-diff.v1` with the complete typed capability
+delta.
 
 `rey env commit -m <message>` performs no discovery. It appends the exact
 verified admission-index snapshot, then clears the index after history
@@ -456,8 +458,8 @@ authoritative change count, environment scope, changed dimensions, and mapping
 visible without reopening provider records. Undated v1 commits say their date
 is unknown rather than fabricating one.
 `-p` expands each selected transition, including `EMPTY → ENV@1`, through
-directed variable text, bounded application search, and input/reference
-topology derived only from the retained parent and commit snapshots. It
+the same environment-variable and application sections derived
+only from the retained parent and commit snapshots. It
 performs no fresh observation. Explicit JSON is `rey.environment-log.v1` with
 the complete commits, snapshots, typed capability deltas, and commit-time
 metadata. Commit commands emit `rey.environment-commit-result.v1`; reset

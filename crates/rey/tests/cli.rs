@@ -3699,20 +3699,35 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     );
     assert!(diff.status.success());
     let diff = String::from_utf8(diff.stdout).unwrap();
+    assert!(diff.starts_with("Environment variables · "));
     for evidence in [
-        "REY ENV DIFF · INDEX → WORKING",
-        "View                   UNSTAGED",
-        "Evidence               DIFFERENT · 16 authoritative capability changes",
-        "01 / DIRECTED TEXT",
         "Environment variables · 3 tracked · 1 changed",
-        "02 / BOUNDED SEARCH",
-        "APPLICATIONS ·",
-        "found · 0 no longer found",
-        "FOUND",
-        "REFERENCE PLANE",
-        "Inputs and topology",
+        "Applications ·",
+        " found · ",
+        " changed",
+        "- git",
+        "+ git",
+        "· code",
     ] {
         assert!(diff.contains(evidence), "missing diff evidence: {evidence}");
+    }
+    for omitted in [
+        "SEARCH RECORD",
+        "PATH entries",
+        "REFERENCE PLANE",
+        "Inputs and topology",
+        "REY ENV DIFF",
+        "View                   UNSTAGED",
+        "Workspace              ",
+        "authoritative capability changes",
+        "01 / DIRECTED TEXT",
+        "02 / BOUNDED SEARCH",
+        "@@ INDEX → WORKING",
+    ] {
+        assert!(
+            !diff.contains(omitted),
+            "unexpected diff evidence: {omitted}"
+        );
     }
     assert!(!diff.contains("CAPABILITY PATCH"));
     assert!(!diff.contains("git.repository.inspect"));
@@ -3790,7 +3805,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     ] {
         assert!(log.contains(evidence), "missing log evidence: {evidence}");
     }
-    assert!(!log.contains("01 / DIRECTED TEXT"));
+    assert!(!log.contains("Environment variables ·"));
     assert!(!log.contains("CAPABILITY PATCH"));
     assert!(!log.contains("Delta id"));
     assert!(!log.contains("Retention"));
@@ -3832,18 +3847,21 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "Parent: ENV@1 ",
         "Date:   ",
         "    stage fixture",
-        "01 / DIRECTED TEXT",
-        "@@ ENV@1 → ENV@2",
-        "02 / BOUNDED SEARCH",
-        "REFERENCE PLANE",
-        "@@ EMPTY → ENV@1",
+        "Environment variables ·",
+        "Applications ·",
     ] {
         assert!(
             patch_log.contains(evidence),
             "missing log evidence: {evidence}"
         );
     }
-    assert_eq!(patch_log.matches("01 / DIRECTED TEXT").count(), 2);
+    assert_eq!(patch_log.matches("Environment variables ·").count(), 2);
+    assert_eq!(patch_log.matches("Applications ·").count(), 2);
+    assert!(!patch_log.contains("01 / DIRECTED TEXT"));
+    assert!(!patch_log.contains("02 / BOUNDED SEARCH"));
+    assert!(!patch_log.contains("@@ ENV@1 → ENV@2"));
+    assert!(!patch_log.contains("@@ EMPTY → ENV@1"));
+    assert!(!patch_log.contains("REFERENCE PLANE"));
     assert!(!patch_log.contains("CAPABILITY PATCH"));
 
     let env_help = run_rey(&["env", "--help"]);
@@ -4404,27 +4422,15 @@ edges:
     assert!(diff.status.success());
     assert!(diff.stderr.is_empty());
     let diff = String::from_utf8(diff.stdout).unwrap();
+    assert!(diff.starts_with("Environment variables · "));
     for evidence in [
-        "REY ENV DIFF · INDEX → WORKING",
-        "View                   UNSTAGED",
-        "01 / DIRECTED TEXT",
         "Environment variables · 5 tracked · 1 changed",
-        "@@ INDEX → WORKING",
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
         "  REY_SECRET=<present:redacted>",
-        "02 / BOUNDED SEARCH",
-        "APPLICATIONS ·",
-        "found · 0 no longer found · 0 changed",
-        "rey-map-probe",
-        "REFERENCE PLANE",
-        "Inputs and topology",
-        "INPUTS · 1 tracked · 1 changed",
-        "- input.txt · required",
-        "+ input.txt · required",
-        "TOPOLOGY · 2 declared edges · 0 changed",
-        "mode --locates--> input",
-        "input --consumed_by--> probe",
+        "Applications ·",
+        "found · 0 changed",
+        "  rey-map-probe",
     ] {
         assert!(
             diff.contains(evidence),
@@ -4435,6 +4441,26 @@ edges:
     assert!(!diff.contains("never-retain-this-secret"));
     assert!(!diff.contains("a-different-secret"));
     assert!(!diff.contains("CAPABILITY PATCH"));
+    for omitted in [
+        "REFERENCE PLANE",
+        "Inputs and topology",
+        "INPUTS ·",
+        "TOPOLOGY ·",
+        "input.txt · required",
+        "mode --locates--> input",
+        "REY ENV DIFF",
+        "View                   UNSTAGED",
+        "Workspace              ",
+        "authoritative capability changes",
+        "01 / DIRECTED TEXT",
+        "02 / BOUNDED SEARCH",
+        "@@ INDEX → WORKING",
+    ] {
+        assert!(
+            !diff.contains(omitted),
+            "unexpected mapped diff evidence: {omitted}"
+        );
+    }
 
     let diff = run_rey_with_env(
         &[
@@ -4501,19 +4527,23 @@ edges:
     assert!(staged_diff.status.success());
     assert!(staged_diff.stderr.is_empty());
     let staged_diff = String::from_utf8(staged_diff.stdout).unwrap();
+    assert!(staged_diff.starts_with("Environment variables · "));
     for evidence in [
-        "REY ENV DIFF · ENV@1 → INDEX",
-        "View                   STAGED",
-        "@@ ENV@1 → INDEX",
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
-        "INPUTS · 1 tracked · 1 changed",
     ] {
         assert!(
             staged_diff.contains(evidence),
             "missing staged diff evidence: {evidence}\n{staged_diff}"
         );
     }
+    assert!(!staged_diff.contains("REFERENCE PLANE"));
+    assert!(!staged_diff.contains("INPUTS ·"));
+    assert!(!staged_diff.contains("REY ENV DIFF"));
+    assert!(!staged_diff.contains("View                   STAGED"));
+    assert!(!staged_diff.contains("01 / DIRECTED TEXT"));
+    assert!(!staged_diff.contains("02 / BOUNDED SEARCH"));
+    assert!(!staged_diff.contains("@@ ENV@1 → INDEX"));
 
     let committed = run_rey(&[
         "env",
@@ -4557,7 +4587,7 @@ edges:
             "missing mapped log evidence: {evidence}\n{log}"
         );
     }
-    assert!(!log.contains("01 / DIRECTED TEXT"));
+    assert!(!log.contains("Environment variables ·"));
     assert!(!log.contains("Snapshot"));
     assert!(!log.contains("Capabilities"));
     assert!(!log.contains("Delta id"));
@@ -4578,18 +4608,11 @@ edges:
     assert!(patch_log.stderr.is_empty());
     let patch_log = String::from_utf8(patch_log.stdout).unwrap();
     for evidence in [
-        "01 / DIRECTED TEXT",
-        "@@ ENV@1 → ENV@2",
+        "Environment variables ·",
         "- REY_MODE=development-mode-value",
         "+ REY_MODE=production-mode-value",
-        "02 / BOUNDED SEARCH",
-        "APPLICATIONS ·",
-        "found · 0 no longer found · 0 changed",
-        "REFERENCE PLANE",
-        "INPUTS · 1 tracked · 1 changed",
-        "- input.txt · required",
-        "+ input.txt · required",
-        "TOPOLOGY · 2 declared edges · 0 changed",
+        "Applications ·",
+        "found · 0 changed",
     ] {
         assert!(
             patch_log.contains(evidence),
@@ -4599,6 +4622,11 @@ edges:
     assert!(!patch_log.contains("never-retain-this-secret"));
     assert!(!patch_log.contains("a-different-secret"));
     assert!(!patch_log.contains("CAPABILITY PATCH"));
+    assert!(!patch_log.contains("REFERENCE PLANE"));
+    assert!(!patch_log.contains("INPUTS ·"));
+    assert!(!patch_log.contains("01 / DIRECTED TEXT"));
+    assert!(!patch_log.contains("02 / BOUNDED SEARCH"));
+    assert!(!patch_log.contains("@@ ENV@1 → ENV@2"));
 
     let json_log = run_rey(&[
         "env",
@@ -4620,6 +4648,14 @@ edges:
     assert_eq!(json_log.entries.len(), 1);
     assert_eq!(json_log.entries[0].delta.source_label, "ENV@1");
     assert_eq!(json_log.entries[0].delta.target_label, "ENV@2");
+    assert!(
+        json_log.entries[0]
+            .commit
+            .snapshot
+            .capabilities
+            .iter()
+            .any(|capability| capability.capability_id == "env.mapping.edge.mode.locates.input")
+    );
 
     fs::write(
         workspace.path().join("rey.env.yaml"),
@@ -4659,7 +4695,8 @@ edges:
     let retained_log = String::from_utf8(retained_log.stdout).unwrap();
     assert!(retained_log.contains("+ REY_MODE=production-mode-value"));
     assert!(retained_log.contains("rey-map-probe"));
-    assert!(retained_log.contains("mode --locates--> input"));
+    assert!(!retained_log.contains("mode --locates--> input"));
+    assert!(!retained_log.contains("REFERENCE PLANE"));
 }
 
 #[test]

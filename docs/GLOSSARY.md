@@ -220,7 +220,7 @@ convergence.
 
 ### Bounded search
 
-The environment's `02 / BOUNDED SEARCH` evidence plane. Its typed evidence
+The environment's application-search evidence. Its typed evidence
 retains the exact desired application inventory and bounded found, missing, and
 errored outcomes. A declaration may belong to multiple logical groups, while
 search remains one observation per application and never implies invocation
@@ -604,7 +604,7 @@ application.
 
 ### Directed text
 
-The environment's `01 / DIRECTED TEXT` evidence plane: an ordered source-to-
+The environment's directed variable-text evidence: an ordered source-to-
 target text comparison of located environment-variable values or states under
 the selected `HEAD`, `INDEX`, and `WORKING` direction.
 
@@ -1419,9 +1419,10 @@ only streams.
 
 ### Reference plane
 
-The environment's `03 / REFERENCE PLANE`, which renders admitted input-file
-identities and directed topology relationships. It retains exact paths,
-revisions, and changes without storing mapped file bytes.
+The structured environment evidence for admitted input-file identities and
+directed topology relationships. It retains exact paths, revisions, and
+changes without storing mapped file bytes; it is not a human `rey env diff`
+table section.
 
 ### Reasoning map
 
