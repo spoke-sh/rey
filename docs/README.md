@@ -40,6 +40,12 @@ is which.
 | [Observations](OBSERVATIONS.md) | Immutable collaboration statements, exact evidence/source bindings, Channel-admission edges, retained partial broadcast outcomes, resolution/supersession, and the bounded catch-up frontier. |
 | [Conversations](CONVERSATIONS.md) | Bounded workspace-local sessions and append-only transcripts, declared participants/writers, ordering, retention, availability, and effect boundaries. |
 
+## Research Context
+
+| Document | Purpose |
+| --- | --- |
+| [Research References](REFERENCES.md) | Versioned external research summaries, mappings to Rey, incorporation candidates, non-fit boundaries, and evidence posture; references are design inputs rather than accepted decisions. |
+
 ## Interfaces And Delivery
 
 | Document | Purpose |
