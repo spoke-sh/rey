@@ -31,6 +31,7 @@ import {
   lensRegimeForZoom,
   panForFocusedPoint,
   panForZoomAtPoint,
+  recenterWrappedChartPan,
   renderedSceneScale,
   stepLensZoom,
   worldAtlasMorphProgress,
@@ -140,6 +141,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     scene.world_atlas_transition !== null &&
     projectionMorphProgress > 0 &&
     projectionMorphProgress < 1;
+  const wrappedAtlasActive =
+    scene.regime === "atlas" &&
+    scene.world_atlas_transition !== null &&
+    projectionMorphProgress >= 1;
   const renderedScale = renderedSceneScale(
     scene.terrain,
     fitScale,
@@ -251,7 +256,14 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     };
     drag.distance = Math.hypot(delta.x, delta.y);
     if (scene.globe) setGlobeView(draggedGlobeView(drag.globeView, delta));
-    else setPan({ x: drag.pan.x + delta.x, y: drag.pan.y + delta.y });
+    else {
+      const nextPan = { x: drag.pan.x + delta.x, y: drag.pan.y + delta.y };
+      setPan(
+        wrappedAtlasActive
+          ? recenterWrappedChartPan(nextPan, scene.world.width * renderedScale)
+          : nextPan,
+      );
+    }
   };
 
   const endPan = (event: PointerEvent<HTMLDivElement>) => {

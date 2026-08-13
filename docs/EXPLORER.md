@@ -327,8 +327,13 @@ renderer-neutral transition manifest. The reference renderer now drives that
 manifest through the grammar's `0.14 → 0.24` scale band: region/focus identity
 and bounded sector vertices stay continuous across the World/Atlas regime
 switch, active globe rotation supplies the World endpoint, and the accelerated
-globe duplicate is hidden during the transition. Repeated chart drawing,
-event inverse-picking, and bounded recentering remain Plan 0003 work.
+globe duplicate is hidden during the transition. At settled Atlas, the
+reference renderer draws exactly three bounded horizontal copies. The two
+duplicates remain pointer-usable but are removed from keyboard/accessibility
+order; every copy inverse-picks to the same canonical synthetic coordinate and
+retained region/focus identity. Drag pan recenters modulo rendered chart width,
+so horizontal camera state stays bounded. Deterministic label collision/culling across
+camera changes remains Plan 0003 work.
 
 Atlas partitions the abstract sphere into revision-bound **sectors** and shows
 the footprints of admitted **county** scenes within them. Hover or keyboard
@@ -669,9 +674,9 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: repeat the
-settled semantic-Mercator chart through renderer drawing, inverse picking, and
-bounded focus-preserving recentering, expand the bounded County into a local
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: preserve
+selected identity through deterministic label culling/collision and camera
+changes, expand the bounded County into a local
 isometric surface with exact links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser

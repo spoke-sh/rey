@@ -47,6 +47,21 @@ export interface SemanticMercatorInverse {
   outside_vertical_extent: boolean;
 }
 
+export interface SemanticMercatorPickCandidate {
+  identity: string;
+  focus_id: string;
+  coordinate: SemanticCoordinate;
+}
+
+export interface SemanticMercatorPick {
+  identity: string;
+  focus_id: string;
+  coordinate: SemanticCoordinate;
+  inverse_coordinate: SemanticCoordinate;
+  wrap_index: number;
+  distance: number;
+}
+
 export interface SemanticMercatorFragment {
   identity: string;
   fragment_id: string;
@@ -163,6 +178,56 @@ export function invertSemanticMercator(
     }),
     wrap_index: wrapIndex,
     outside_vertical_extent: rawUnitY < 0 || rawUnitY > 1,
+  });
+}
+
+/**
+ * Resolves one point in any repeated chart copy to one retained identity. The
+ * inverse coordinate is reported separately from the candidate's exact source
+ * coordinate and grants no authority beyond selection.
+ */
+export function pickSemanticMercator(
+  point: { x: number; y: number },
+  candidates: readonly SemanticMercatorPickCandidate[],
+  frame: ProjectionFrame,
+  hitRadius = 24,
+): SemanticMercatorPick | null {
+  if (!Number.isFinite(hitRadius) || hitRadius < 0)
+    throw new Error(
+      "semantic Mercator pick radius must be finite and non-negative",
+    );
+  const inverse = invertSemanticMercator(point, frame);
+  const matches = candidates
+    .map((candidate) => {
+      if (!candidate.identity || !candidate.focus_id)
+        throw new Error(
+          "semantic Mercator pick candidate identity is required",
+        );
+      const projected = projectSemanticMercator(
+        candidate.coordinate,
+        frame,
+        inverse.wrap_index,
+      );
+      return {
+        candidate,
+        distance: Math.hypot(projected.x - point.x, projected.y - point.y),
+      };
+    })
+    .filter(({ distance }) => distance <= hitRadius)
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.candidate.identity.localeCompare(right.candidate.identity),
+    );
+  const selected = matches[0];
+  if (!selected) return null;
+  return Object.freeze({
+    identity: selected.candidate.identity,
+    focus_id: selected.candidate.focus_id,
+    coordinate: Object.freeze({ ...selected.candidate.coordinate }),
+    inverse_coordinate: inverse.coordinate,
+    wrap_index: inverse.wrap_index,
+    distance: selected.distance,
   });
 }
 

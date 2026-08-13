@@ -241,6 +241,13 @@ describe("regional scene topology projection", () => {
     );
     expect(atlas.label).toBe("SEMANTIC MERCATOR ATLAS");
     expect(atlas.nodes[0]?.focus_id).toBe("regional:scene:1");
+    expect(atlas.nodes[0]).toMatchObject({
+      semantic_identity: "atlas-region:1",
+      semantic_coordinate: {
+        longitude_microdegrees: -42_000_000,
+        latitude_microdegrees: 18_000_000,
+      },
+    });
     expect(atlas.world_atlas_transition).toEqual(world.world_atlas_transition);
     expect(atlas.regions[0]).toMatchObject({
       id: "atlas-sector:sector:1",
@@ -288,6 +295,21 @@ describe("regional scene topology projection", () => {
       );
       expect(transitionMarkup).toContain('data-focus-id="regional:scene:1"');
     }
+    const wrappedMarkup = renderToStaticMarkup(
+      ReferenceRenderer({
+        layers: { relief: true, water: true, weather: true, probes: true },
+        onFocus: () => undefined,
+        projectionMorphProgress: 1,
+        scene: atlas,
+      }),
+    );
+    for (const wrapIndex of [-1, 0, 1])
+      expect(wrappedMarkup).toContain(`data-chart-wrap-index="${wrapIndex}"`);
+    expect(
+      wrappedMarkup.match(/data-semantic-identity="atlas-region:1"/g),
+    ).toHaveLength(3);
+    expect(wrappedMarkup).toContain('aria-hidden="true"');
+    expect(wrappedMarkup).toContain('tabindex="-1"');
 
     const county = buildTopologyScene(
       regionalPortfolio,

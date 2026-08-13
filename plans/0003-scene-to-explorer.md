@@ -62,13 +62,17 @@ identities at both endpoints. The reference renderer uses the grammar's
 `0.14 → 0.24` scale band to interpolate those points and bounded sector
 vertices continuously across the World/Atlas regime switch; active globe
 rotation remains the World endpoint and the accelerated duplicate is withheld
-during the transition. Explorer implements the fresh
+during the transition. At settled Atlas the reference renderer materializes
+exactly three bounded horizontal chart copies. Duplicate copies are pointer-only
+and accessibility-hidden; inverse picking resolves their projected centers to
+one canonical synthetic coordinate and retained region/focus identity. Drag pan
+recenters modulo the rendered chart width, keeping horizontal camera state bounded without
+changing selection or semantic identity. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
-material, WebGPU/WebGL2 paths, and an accessible reference path. Repeated-chart
-drawing/picking/recentering, focus-preserving label/collision behavior,
-admitted County fabric, render-graph completion, clipmap reuse, and retained
-visual/performance proof remain open.
+material, WebGPU/WebGL2 paths, and an accessible reference path.
+Focus-preserving label/collision behavior, admitted County fabric, render-graph
+completion, clipmap reuse, and retained visual/performance proof remain open.
 
 ## Completion Checklist
 
@@ -118,10 +122,11 @@ visual/performance proof remain open.
 - [x] Retain one immutable renderer-neutral transition manifest and present its
   exact region/focus and sector identities continuously across the declared
   World-to-Atlas morph band.
-- [ ] Drive repeated chart fragments through renderer drawing, inverse picking,
-  and bounded recentering without replacing focus or semantic identity.
+- [x] Drive three bounded chart copies through renderer drawing, canonical
+  inverse picking, pointer-only duplicate accessibility, and modulo recentering
+  without replacing focus or semantic identity.
 - [ ] Preserve focus, selection, and one semantic identity through globe
-  rotation, chart wrap, label culling, collisions, and recentering.
+  rotation, deterministic label culling, collisions, and camera changes.
 
 ### 4. Enter a bounded County
 

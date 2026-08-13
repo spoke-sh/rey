@@ -214,6 +214,11 @@ export interface TopologyNode {
   tone: TopologyTone;
   workload_id?: string;
   coordinate_uri?: string;
+  semantic_identity?: string;
+  semantic_coordinate?: {
+    longitude_microdegrees: number;
+    latitude_microdegrees: number;
+  };
 }
 
 export interface TopologyEdge {
@@ -808,18 +813,25 @@ function buildRegionalAtlas(
         },
         semanticMercatorFrame(),
       );
-      return node(
-        `regional-atlas:${atlasRegion.region_id}`,
-        `regional:${scene.scene_id}`,
-        "COUNTY",
-        scene.region_id,
-        `SCENE@${scene.admission.editor_sequence} · sector ${shortCoordinate(atlasRegion.sector_id)} · point placement only${mercator.polar_disclosure ? ` · ${mercator.polar_disclosure.replace("_", " ")} clipped at ${SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES}µ°` : ""} · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
-        mercator.x,
-        mercator.y,
-        230,
-        scene.complete ? "healthy" : "omitted",
-        workload.workload.id,
-      );
+      return {
+        ...node(
+          `regional-atlas:${atlasRegion.region_id}`,
+          `regional:${scene.scene_id}`,
+          "COUNTY",
+          scene.region_id,
+          `SCENE@${scene.admission.editor_sequence} · sector ${shortCoordinate(atlasRegion.sector_id)} · point placement only${mercator.polar_disclosure ? ` · ${mercator.polar_disclosure.replace("_", " ")} clipped at ${SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES}µ°` : ""} · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
+          mercator.x,
+          mercator.y,
+          230,
+          scene.complete ? "healthy" : "omitted",
+          workload.workload.id,
+        ),
+        semantic_identity: atlasRegion.region_id,
+        semantic_coordinate: {
+          longitude_microdegrees: longitude,
+          latitude_microdegrees: latitude,
+        },
+      };
     },
   );
   const sectors = new Map(
@@ -849,7 +861,7 @@ function buildRegionalAtlas(
   return {
     regime: "atlas",
     label: "SEMANTIC MERCATOR ATLAS",
-    detail: `${regionalScenes.length} admitted regional point ${regionalScenes.length === 1 ? "placement" : "placements"} · ${regions.length} stable occupied ${regions.length === 1 ? "sector" : "sectors"}`,
+    detail: `${regionalScenes.length} admitted regional point ${regionalScenes.length === 1 ? "placement" : "placements"} · ${regions.length} stable occupied ${regions.length === 1 ? "sector" : "sectors"} · three bounded chart copies share one semantic identity`,
     focus_id: focusId,
     regions,
     nodes,
@@ -866,7 +878,7 @@ function buildRegionalAtlas(
       status: "charted",
       label: "REGIONAL PLACEMENTS CHARTED",
       detail:
-        "select one admitted County point; its native footprint remains separate from this synthetic chart",
+        "select one admitted County point through any chart copy; inverse picking returns its canonical synthetic coordinate and unchanged identity",
       sampled_conditions: regionalScenes.length,
       unresolved_boundaries: regionalScenes.reduce(
         (count, { scene }) => count + scene.omissions.length,

@@ -497,8 +497,11 @@ endpoints; its compiler revision and renderer-neutral transition manifest enter
 the immutable scene snapshot. The reference renderer presents the exact
 region/focus and sector identities continuously through the declared morph
 band. The browser does not reconstruct source geometry or invent footprint
-scale or regional terrain. Repeated-chart drawing, inverse event picking, and
-bounded recentering remain incomplete. See
+scale or regional terrain. Settled Atlas renders three bounded chart copies;
+duplicates are pointer-only and accessibility-hidden, inverse selection returns
+the canonical coordinate plus unchanged identity, and pan recenters modulo the
+rendered chart width. Deterministic label collision/culling remains incomplete.
+See
 [Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to

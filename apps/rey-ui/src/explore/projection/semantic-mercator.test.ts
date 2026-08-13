@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   invertSemanticMercator,
+  pickSemanticMercator,
   projectSemanticMercator,
   projectSemanticMercatorBounds,
   projectWorldAtlasBoundsMorph,
@@ -152,5 +153,37 @@ describe("semantic Mercator projection", () => {
     );
     expect(fragments[0]?.points[1]?.x).toBeCloseTo(frame.x + frame.width);
     expect(fragments[1]?.points[0]?.x).toBeCloseTo(frame.x);
+  });
+
+  it("inverse-picks every chart copy back to one retained identity", () => {
+    const coordinate = {
+      longitude_microdegrees: -42_000_000,
+      latitude_microdegrees: 18_000_000,
+    };
+    const candidates = [
+      {
+        identity: "atlas-region:1",
+        focus_id: "regional:scene:1",
+        coordinate,
+      },
+    ];
+    for (const wrapIndex of [-1, 0, 1]) {
+      const projected = projectSemanticMercator(coordinate, frame, wrapIndex);
+      expect(pickSemanticMercator(projected, candidates, frame)).toMatchObject({
+        identity: "atlas-region:1",
+        focus_id: "regional:scene:1",
+        coordinate,
+        inverse_coordinate: coordinate,
+        wrap_index: wrapIndex,
+        distance: 0,
+      });
+    }
+    expect(
+      pickSemanticMercator(
+        { x: frame.x + 10, y: frame.y + 10 },
+        candidates,
+        frame,
+      ),
+    ).toBeNull();
   });
 });

@@ -111,7 +111,16 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
     contours: freezeRows(scene.contours),
     natural_features: freezeRows(scene.natural_features),
     points: freezeRows(scene.points),
-    nodes: freezeRows(scene.nodes),
+    nodes: Object.freeze(
+      scene.nodes.map((node) =>
+        Object.freeze({
+          ...node,
+          semantic_coordinate: node.semantic_coordinate
+            ? Object.freeze({ ...node.semantic_coordinate })
+            : undefined,
+        }),
+      ),
+    ) as TopologyScene["nodes"],
     edges: freezeRows(scene.edges),
     omissions: Object.freeze([...scene.omissions]) as string[],
     terrain_fields: Object.freeze([

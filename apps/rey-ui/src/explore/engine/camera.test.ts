@@ -15,6 +15,7 @@ import {
   panForFocusedPoint,
   panForZoomAtPoint,
   renderedSceneScale,
+  recenterWrappedChartPan,
   stepLensZoom,
   worldAtlasMorphProgress,
 } from "./camera";
@@ -78,5 +79,17 @@ describe("Explorer camera engine", () => {
     expect(worldAtlasMorphProgress(0.19)).toBeCloseTo(0.5);
     expect(worldAtlasMorphProgress(0.24)).toBe(1);
     expect(worldAtlasMorphProgress(0.4)).toBe(1);
+  });
+
+  it("recenters horizontal chart copies without changing vertical pan", () => {
+    expect(recenterWrappedChartPan({ x: 1_250, y: -48 }, 1_200)).toEqual({
+      x: 50,
+      y: -48,
+    });
+    expect(recenterWrappedChartPan({ x: -1_250, y: 16 }, 1_200)).toEqual({
+      x: -50,
+      y: 16,
+    });
+    expect(recenterWrappedChartPan({ x: 600, y: 0 }, 1_200).x).toBe(-600);
   });
 });

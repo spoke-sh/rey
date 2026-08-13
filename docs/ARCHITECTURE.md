@@ -221,8 +221,11 @@ Atlas points and occupied sector rectangles use it now. The snapshot retains a
 renderer-neutral transition manifest over those exact identities, and the
 reference renderer interpolates its point/sector geometry continuously across
 the declared `0.14 → 0.24` World-to-Atlas scale band while retaining globe
-rotation at the World endpoint. Repeated-chart drawing, inverse event picking,
-and recentering remain incomplete.
+rotation at the World endpoint. Settled Atlas draws three bounded horizontal
+copies; duplicate copies are pointer-only and accessibility-hidden, inverse
+selection returns one canonical coordinate and retained identity, and pan is
+recentered modulo rendered chart width. Deterministic label collision/culling
+across camera changes remains incomplete.
 
 Atlas derives terrain-style contour isolines from bounded anchor-sample
 influence and will use admitted scene packages as the primary detailed map

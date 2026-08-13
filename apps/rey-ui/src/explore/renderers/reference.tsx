@@ -13,15 +13,24 @@ import type {
 } from "../../topology";
 import { contextGlobeSamples } from "./globe-samples";
 import {
+  pickSemanticMercator,
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
   projectWorldAtlasMorph,
+  type ProjectionFrame,
+  type SemanticCoordinate,
+  type SemanticMercatorPickCandidate,
 } from "../projection/semantic-mercator";
 
-export type FocusableTopologyObject = Pick<
-  TopologyNode | TopologyPointOfInterest,
-  "focus_id" | "x" | "y"
->;
+export interface FocusableTopologyObject {
+  focus_id: string;
+  x: number;
+  y: number;
+  semantic_identity?: string;
+  semantic_coordinate?: SemanticCoordinate;
+  inverse_coordinate?: SemanticCoordinate;
+  chart_wrap_index?: number;
+}
 
 export interface ReferenceLayerVisibility {
   relief: boolean;
@@ -50,6 +59,20 @@ export function ReferenceRenderer({
     scene.world_atlas_transition !== null &&
     projectionMorphProgress > 0 &&
     projectionMorphProgress < 1;
+  const wrappedAtlas =
+    scene.regime === "atlas" &&
+    scene.world_atlas_transition !== null &&
+    projectionMorphProgress >= 1;
+  const chartWrapIndexes = wrappedAtlas ? [-1, 0, 1] : [0];
+  const pickCandidates: SemanticMercatorPickCandidate[] =
+    scene.world_atlas_transition?.points.map((point) => ({
+      identity: point.identity,
+      focus_id: point.focus_id,
+      coordinate: {
+        longitude_microdegrees: point.longitude_microdegrees,
+        latitude_microdegrees: point.latitude_microdegrees,
+      },
+    })) ?? [];
   return (
     <div
       className={sx(
@@ -65,30 +88,35 @@ export function ReferenceRenderer({
     >
       {!globeWorld &&
         !morphActive &&
-        scene.regions.map((region) => (
-          <div
-            className={sx(
-              styles.region,
-              region.variant === "map-boundary" && styles.mapBoundary,
-              region.variant === "map-zone" && styles.mapZone,
-              toneStyle(region.tone, "region"),
-              scene.regime === "world" &&
-                region.variant === "map-zone" &&
-                region.tone === "unknown" &&
-                styles.worldUnexploredZone,
-            )}
-            key={region.fragment_id ?? region.id}
-            style={{
-              height: region.height,
-              left: region.x,
-              top: region.y,
-              width: region.width,
-            }}
-          >
-            <span>{region.label}</span>
-            <small>{region.detail}</small>
-          </div>
-        ))}
+        chartWrapIndexes.flatMap((wrapIndex) =>
+          scene.regions.map((region) => (
+            <div
+              aria-hidden={wrapIndex === 0 ? undefined : true}
+              className={sx(
+                styles.region,
+                region.variant === "map-boundary" && styles.mapBoundary,
+                region.variant === "map-zone" && styles.mapZone,
+                toneStyle(region.tone, "region"),
+                scene.regime === "world" &&
+                  region.variant === "map-zone" &&
+                  region.tone === "unknown" &&
+                  styles.worldUnexploredZone,
+              )}
+              data-chart-wrap-index={wrappedAtlas ? wrapIndex : undefined}
+              data-semantic-identity={wrappedAtlas ? region.id : undefined}
+              key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
+              style={{
+                height: region.height,
+                left: region.x + wrapIndex * scene.world.width,
+                top: region.y,
+                width: region.width,
+              }}
+            >
+              <span>{region.label}</span>
+              <small>{region.detail}</small>
+            </div>
+          )),
+        )}
       <WorldGeometryLayer
         accelerated={accelerated}
         globeView={globeView}
@@ -134,15 +162,21 @@ export function ReferenceRenderer({
           ))}
       {!globeWorld &&
         !morphActive &&
-        scene.nodes.map((node) => (
-          <TopologyObject
-            counterScale={scene.terrain}
-            key={node.id}
-            linkToWorkload={scene.regime === "objects" && !scene.terrain}
-            node={node}
-            onFocus={onFocus}
-          />
-        ))}
+        chartWrapIndexes.flatMap((wrapIndex) =>
+          scene.nodes.map((node) => (
+            <TopologyObject
+              atlasFrame={scene.world_atlas_transition?.atlas_frame}
+              chartWrapIndex={wrapIndex}
+              counterScale={scene.terrain}
+              key={`${wrapIndex}:${node.id}`}
+              linkToWorkload={scene.regime === "objects" && !scene.terrain}
+              node={node}
+              onFocus={onFocus}
+              pickCandidates={pickCandidates}
+              worldWidth={scene.world.width}
+            />
+          )),
+        )}
     </div>
   );
 }
@@ -895,19 +929,28 @@ function PointOfInterest({
 }
 
 function TopologyObject({
+  atlasFrame,
+  chartWrapIndex,
   counterScale,
   linkToWorkload,
   node,
   onFocus,
+  pickCandidates,
+  worldWidth,
 }: {
+  atlasFrame?: ProjectionFrame;
+  chartWrapIndex: number;
   counterScale: boolean;
   linkToWorkload: boolean;
   node: TopologyNode;
   onFocus: (node: FocusableTopologyObject) => void;
+  pickCandidates: readonly SemanticMercatorPickCandidate[];
+  worldWidth: number;
 }) {
+  const projectedX = node.x + chartWrapIndex * worldWidth;
   const className = sx(styles.topologyObject, toneStyle(node.tone, "node"));
   const style = {
-    left: node.x,
+    left: projectedX,
     top: node.y,
     ...(counterScale
       ? {
@@ -917,6 +960,27 @@ function TopologyObject({
       : {}),
     width: node.width,
   } as CSSProperties;
+  const select = () => {
+    if (node.semantic_identity && node.semantic_coordinate && atlasFrame) {
+      const pick = pickSemanticMercator(
+        { x: projectedX, y: node.y },
+        pickCandidates,
+        atlasFrame,
+      );
+      if (!pick || pick.identity !== node.semantic_identity) return;
+      onFocus({
+        focus_id: pick.focus_id,
+        x: projectedX,
+        y: node.y,
+        semantic_identity: pick.identity,
+        semantic_coordinate: pick.coordinate,
+        inverse_coordinate: pick.inverse_coordinate,
+        chart_wrap_index: pick.wrap_index,
+      });
+      return;
+    }
+    onFocus({ focus_id: node.focus_id, x: projectedX, y: node.y });
+  };
   const content = (
     <>
       <span className={sx(styles.objectFamily)}>{node.family}</span>
@@ -935,9 +999,11 @@ function TopologyObject({
   if (node.coordinate_uri) {
     return (
       <a
+        aria-hidden={chartWrapIndex === 0 ? undefined : true}
         className={className}
         href={`/explore?coordinate=${encodeURIComponent(node.coordinate_uri)}&scale=${OBJECT_LENS_ZOOM}`}
         style={style}
+        tabIndex={chartWrapIndex === 0 ? undefined : -1}
       >
         {content}
       </a>
@@ -947,9 +1013,11 @@ function TopologyObject({
   if (linkToWorkload && node.workload_id) {
     return (
       <Link
+        aria-hidden={chartWrapIndex === 0 ? undefined : true}
         className={className}
         params={{ workloadId: node.workload_id }}
         style={style}
+        tabIndex={chartWrapIndex === 0 ? undefined : -1}
         to="/workloads/$workloadId"
       >
         {content}
@@ -959,9 +1027,15 @@ function TopologyObject({
 
   return (
     <button
+      aria-hidden={chartWrapIndex === 0 ? undefined : true}
       className={className}
-      onClick={() => onFocus(node)}
+      data-chart-wrap-index={
+        node.semantic_identity ? chartWrapIndex : undefined
+      }
+      data-semantic-identity={node.semantic_identity}
+      onClick={select}
       style={style}
+      tabIndex={chartWrapIndex === 0 ? undefined : -1}
       type="button"
     >
       {content}

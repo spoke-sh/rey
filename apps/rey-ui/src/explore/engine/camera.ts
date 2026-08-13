@@ -93,6 +93,22 @@ export function worldAtlasMorphProgress(zoom: number): number {
   );
 }
 
+export function recenterWrappedChartPan(
+  pan: CameraPoint,
+  renderedChartWidth: number,
+): CameraPoint {
+  if (!Number.isFinite(renderedChartWidth) || renderedChartWidth <= 0)
+    throw new Error("wrapped chart recentering requires a positive width");
+  return {
+    x:
+      ((((pan.x + renderedChartWidth / 2) % renderedChartWidth) +
+        renderedChartWidth) %
+        renderedChartWidth) -
+      renderedChartWidth / 2,
+    y: pan.y,
+  };
+}
+
 export function stepLensZoom(zoom: number, direction: 1 | -1): number {
   const regime = lensRegimeForZoom(zoom);
   const stops = [
