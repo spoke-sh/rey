@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorkloadList } from "../../domain";
 import { DEFAULT_LENS_ZOOM } from "./camera";
-import { compileSceneSnapshot } from "./scene";
+import { compileSceneSnapshot, LastGoodSceneCompiler } from "./scene";
 
 const emptyPortfolio = {
   schema: "rey.workload-list.v1",
@@ -69,5 +69,49 @@ describe("reference scene compiler", () => {
       "cluster:other",
     );
     expect(first.snapshot_id).not.toBe(focused.snapshot_id);
+  });
+
+  it("retains the last-good immutable scene when a later projection fails", () => {
+    const compiler = new LastGoodSceneCompiler();
+    const admitted = compiler.compile(
+      emptyPortfolio,
+      DEFAULT_LENS_ZOOM,
+      "cluster:portfolio",
+    );
+    const rejected = compiler.compile(
+      {} as WorkloadList,
+      DEFAULT_LENS_ZOOM,
+      "cluster:portfolio",
+    );
+
+    expect(admitted.retained_last_good).toBe(false);
+    expect(rejected.retained_last_good).toBe(true);
+    expect(rejected.snapshot).toBe(admitted.snapshot);
+    expect(rejected.error?.message).toBeTruthy();
+  });
+
+  it("replaces retained fallback after a valid scene compiles", () => {
+    const compiler = new LastGoodSceneCompiler();
+    const original = compiler.compile(
+      emptyPortfolio,
+      DEFAULT_LENS_ZOOM,
+      "cluster:portfolio",
+    );
+    compiler.compile(
+      {} as WorkloadList,
+      DEFAULT_LENS_ZOOM,
+      "cluster:portfolio",
+    );
+    const recovered = compiler.compile(
+      emptyPortfolio,
+      DEFAULT_LENS_ZOOM,
+      "cluster:recovered",
+    );
+
+    expect(recovered.retained_last_good).toBe(false);
+    expect(recovered.error).toBeNull();
+    expect(recovered.snapshot.snapshot_id).not.toBe(
+      original.snapshot.snapshot_id,
+    );
   });
 });

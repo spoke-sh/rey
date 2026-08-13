@@ -619,6 +619,10 @@ ms from their typed GET endpoints. Revalidation changes only the browser
 projection; it does not invalidate the route, reset viewport or scroll state,
 test, run, create, add, commit, or schedule work. Failed background reads retain
 the last good projection and remain visible as delayed revalidation.
+Explorer also retains its last successfully compiled immutable scene when a
+new portfolio projection cannot compile. A visible delayed-scene boundary names
+the retained snapshot and compiler error; a later valid projection replaces the
+fallback. An invalid initial scene still fails into the route error boundary.
 
 Journal entries point at Explorer; they do not enter its source topology by
 being admitted. See [Collaboration Journal](JOURNAL.md) for the typed notebook,

@@ -216,6 +216,9 @@ remain open.
 - [ ] Prove focus retention, no hidden survey/admission, unknown masks,
   pole/antimeridian behavior, footprint collision, terrain transitions,
   stable picking, context loss, last-good scene, and exact links.
+- [x] Retain and visibly identify the last-good immutable Explorer scene when
+  a later portfolio projection fails compilation, then recover on the next
+  valid projection; keep an invalid initial scene fail-closed.
 - [ ] Record compilation, residency, evaluation/upload, draw, geometry, label,
   memory, frame-time, and interaction budgets on a named reference machine
   before making fidelity or frame-rate claims.

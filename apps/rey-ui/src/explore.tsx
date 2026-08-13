@@ -38,7 +38,7 @@ import {
   type LensRegime,
   type GlobeCameraView,
 } from "./explore/engine/camera";
-import { compileSceneSnapshot } from "./explore/engine/scene";
+import { LastGoodSceneCompiler } from "./explore/engine/scene";
 import { admittedTopographies } from "./explore/projection/topography-projector";
 import { admittedRegionalScenes } from "./explore/projection/regional-scene-projector";
 import {
@@ -126,15 +126,17 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     weather: true,
     probes: true,
   });
+  const [sceneCompiler] = useState(() => new LastGoodSceneCompiler());
   const retainedRegime = useRef<LensRegime | undefined>(undefined);
   const regime = lensRegimeForZoom(zoom, retainedRegime.current);
   useEffect(() => {
     retainedRegime.current = regime;
   }, [regime]);
-  const snapshot = useMemo(
-    () => compileSceneSnapshot(portfolio, DEFAULT_LENS_ZOOM, focusId, regime),
-    [focusId, portfolio, regime],
+  const sceneProjection = useMemo(
+    () => sceneCompiler.compile(portfolio, DEFAULT_LENS_ZOOM, focusId, regime),
+    [focusId, portfolio, regime, sceneCompiler],
   );
+  const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
   const projectionMorphProgress = worldAtlasMorphProgress(zoom);
   const projectionMorphActive =
@@ -330,6 +332,20 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       )}
       ref={shellRef}
     >
+      {sceneProjection.retained_last_good ? (
+        <div
+          className={sx(styles.coordinateBoundary)}
+          data-scene-projection="last-good"
+          role="status"
+        >
+          <strong>SCENE REVALIDATION DELAYED</strong>
+          <code>{snapshot.snapshot_id}</code>
+          <span>
+            LAST-GOOD IMMUTABLE SCENE RETAINED /{" "}
+            {sceneProjection.error?.message}
+          </span>
+        </div>
+      ) : null}
       <CanvasToolbar
         isFullscreen={isFullscreen}
         layers={layers}

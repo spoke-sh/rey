@@ -41,6 +41,45 @@ export interface SceneSnapshot {
   readonly scene: TopologyScene;
 }
 
+export interface SceneProjectionResult {
+  readonly snapshot: SceneSnapshot;
+  readonly retained_last_good: boolean;
+  readonly error: Error | null;
+}
+
+export class LastGoodSceneCompiler {
+  #snapshot: SceneSnapshot | undefined;
+
+  compile(
+    portfolio: WorkloadList,
+    zoom: number,
+    focusId: string,
+    retainedRegime?: LensRegime,
+  ): SceneProjectionResult {
+    try {
+      const snapshot = compileSceneSnapshot(
+        portfolio,
+        zoom,
+        focusId,
+        retainedRegime,
+      );
+      this.#snapshot = snapshot;
+      return Object.freeze({
+        snapshot,
+        retained_last_good: false,
+        error: null,
+      });
+    } catch (error) {
+      if (!this.#snapshot) throw error;
+      return Object.freeze({
+        snapshot: this.#snapshot,
+        retained_last_good: true,
+        error: normalizeSceneCompilationError(error),
+      });
+    }
+  }
+}
+
 export function compileSceneSnapshot(
   portfolio: WorkloadList,
   zoom: number,
@@ -237,4 +276,8 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
     world: Object.freeze({ ...scene.world }),
     fit_world: Object.freeze({ ...scene.fit_world }),
   });
+}
+
+function normalizeSceneCompilationError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
