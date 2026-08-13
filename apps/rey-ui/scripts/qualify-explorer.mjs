@@ -18,6 +18,7 @@ const CAPTURE_ORDER = [
   "landscape",
   "objects",
   "evidence",
+  "passive-revalidation",
 ];
 const REPOSITORY_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -42,6 +43,7 @@ Options:
   --dpr NUMBER          Device pixel ratio (default: 1)
   --region ID           Admitted scene region to enter (default: rey-county)
   --loss MODE           none (default), webgl-context, or webgpu-device
+  --revalidation MODE   none (default) or attention
   --output-dir PATH     Retained output root (default: .rey/qualification/explorer)
   --transport MODE      direct (default) or fulfilled for socket-restricted Chrome
   --timeout-ms NUMBER   Per-stage timeout (default: 30000)
@@ -86,6 +88,15 @@ function parseArguments(argv) {
   ) {
     throw new Error("--loss must match the requested accelerated backend");
   }
+  const revalidation = values.get("revalidation") ?? "none";
+  if (!new Set(["none", "attention"]).has(revalidation)) {
+    throw new Error("--revalidation must be none or attention");
+  }
+  if (revalidation !== "none" && transport !== "fulfilled") {
+    throw new Error(
+      "--revalidation attention is a fulfilled-transport qualification stimulus",
+    );
+  }
   let origin;
   try {
     origin = new URL(baseUrl).origin;
@@ -124,6 +135,7 @@ function parseArguments(argv) {
         join(REPOSITORY_ROOT, ".rey/qualification/explorer"),
     ),
     region: values.get("region") ?? "rey-county",
+    revalidation,
     timeoutMs: positiveNumber("timeout-ms", 30_000),
     transport,
     width: positiveNumber("width", 1920),
@@ -265,12 +277,18 @@ async function launchChrome(browser, backend, route, fulfilledDocuments) {
     <link rel="stylesheet" href="${pathToFileURL(join(DIST_ROOT, "assets/app.css")).href}" />
     <script>
       const documents = ${serializedDocuments};
+      globalThis.__reyQualificationFetchCounts = {};
       globalThis.fetch = async (input) => {
         const value = typeof input === "string" ? input : input.url;
         const pathname = value.startsWith("/")
           ? new URL(value, "http://rey.qualification").pathname
           : new URL(value).pathname;
-        const document = documents[pathname];
+        const count = (globalThis.__reyQualificationFetchCounts[pathname] ?? 0) + 1;
+        globalThis.__reyQualificationFetchCounts[pathname] = count;
+        const retained = documents[pathname];
+        const document = retained?.rey_qualification_sequence
+          ? retained.responses[Math.min(count - 1, retained.responses.length - 1)]
+          : retained;
         if (document === undefined) {
           return new Response("qualification bootstrap has no retained response", { status: 404 });
         }
@@ -490,6 +508,9 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
         counts.total += 1;
         return counts;
       }, { total: 0 }),
+      mailbox_count: Number(
+        document.querySelector('[aria-label="Open mailbox history"] span:last-child')?.textContent ?? "NaN",
+      ),
       exact_evidence_links: exactEvidence,
       url: window.location.href,
       viewport: { width: innerWidth, height: innerHeight, device_pixel_ratio: devicePixelRatio },
@@ -546,6 +567,28 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
   };
 }
 
+function attentionRevalidationDocument(portfolio) {
+  const document = structuredClone(portfolio);
+  document.attention.attention_id = `${portfolio.attention.attention_id}:qualification-revalidation`;
+  document.attention.source_snapshot_id = `${portfolio.attention.source_snapshot_id}:qualification-revalidation`;
+  document.attention.rows.push({
+    action: "create",
+    dependency_ids: [],
+    estimated_cost_units: 1,
+    evidence_ids: ["qualification:passive-revalidation"],
+    priority: 1,
+    readiness: "ready",
+    reason: "bounded passive-revalidation qualification stimulus",
+    row_id: "qualification:passive-revalidation",
+    subject_id: "qualification:passive-revalidation",
+    subject_kind: "surface",
+  });
+  document.attention.summary.create += 1;
+  document.attention.summary.surfaces += 1;
+  document.attention.summary.unowned_surfaces += 1;
+  return document;
+}
+
 async function runVoyage(options) {
   const browser = findBrowser(options.browser);
   const browserVersion = spawnSync(browser, ["--version"], {
@@ -572,7 +615,7 @@ async function runVoyage(options) {
     );
   }
 
-  const voyageName = `world-atlas-county-evidence-${options.backend}-${options.width}x${options.height}${options.loss === "none" ? "" : `-${options.loss}`}`;
+  const voyageName = `world-atlas-county-evidence-${options.backend}-${options.width}x${options.height}${options.loss === "none" ? "" : `-${options.loss}`}${options.revalidation === "none" ? "" : `-${options.revalidation}-revalidation`}`;
   const voyageDirectory = join(
     options.outputRoot,
     `${timestamp()}-${voyageName}`,
@@ -603,7 +646,13 @@ async function runVoyage(options) {
         }),
       ),
     );
-    fulfilledDocuments["/api/v1/workloads"] = portfolio;
+    fulfilledDocuments["/api/v1/workloads"] =
+      options.revalidation === "attention"
+        ? {
+            rey_qualification_sequence: true,
+            responses: [portfolio, attentionRevalidationDocument(portfolio)],
+          }
+        : portfolio;
   }
   const launched = await launchChrome(
     browser,
@@ -639,6 +688,8 @@ async function runVoyage(options) {
   let failureContext = null;
   const captures = [];
   const interactions = [];
+  let passiveRevalidationBaseline = null;
+  let passiveRevalidationObserved = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
@@ -690,6 +741,15 @@ async function runVoyage(options) {
       options.timeoutMs,
     );
     process.stdout.write(`READY world / ${options.backend}\n`);
+    if (options.revalidation === "attention") {
+      passiveRevalidationBaseline = await connection.evaluate(`Number(
+        document.querySelector('[aria-label="Open mailbox history"] span:last-child')?.textContent ?? "NaN"
+      )`);
+      if (!Number.isFinite(passiveRevalidationBaseline))
+        throw new Error(
+          "the passive-revalidation mailbox baseline is unavailable",
+        );
+    }
 
     const region = JSON.stringify(options.region);
     const worldRegion = `[...document.querySelectorAll('[data-semantic-region]')].find((element) => element.getAttribute('aria-label')?.startsWith(${region} + ':'))`;
@@ -851,6 +911,24 @@ async function runVoyage(options) {
     captures.push(
       await captureStage(connection, voyageDirectory, "evidence", startedAt),
     );
+    if (options.revalidation === "attention") {
+      await waitFor(
+        connection,
+        `(globalThis.__reyQualificationFetchCounts?.["/api/v1/workloads"] ?? 0) >= 2 && Number(document.querySelector('[aria-label="Open mailbox history"] span:last-child')?.textContent ?? "NaN") === ${passiveRevalidationBaseline + 1}`,
+        "passive workload attention revalidation",
+        options.timeoutMs,
+      );
+      passiveRevalidationObserved = true;
+      process.stdout.write("READY passive revalidation / attention\n");
+      captures.push(
+        await captureStage(
+          connection,
+          voyageDirectory,
+          "passive-revalidation",
+          startedAt,
+        ),
+      );
+    }
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
     try {
@@ -933,6 +1011,7 @@ async function runVoyage(options) {
     backendMatched &&
     exactEvidencePresent &&
     lossFallbackObserved !== false &&
+    passiveRevalidationObserved !== false &&
     exceptions.length === 0 &&
     unexpectedConsoleErrors.length === 0;
   const omissions = [
@@ -951,6 +1030,11 @@ async function runVoyage(options) {
           "device-loss and WebGL context-loss injection require separately named voyages",
         ]
       : []),
+    ...(options.revalidation === "none"
+      ? ["passive revalidation requires a separately named voyage"]
+      : [
+          "passive revalidation used one bounded qualification-generated attention row, not observed runtime activity",
+        ]),
   ];
   const manifest = {
     schema: SCHEMA,
@@ -974,6 +1058,7 @@ async function runVoyage(options) {
       height: options.height,
       loss: options.loss,
       region: options.region,
+      revalidation: options.revalidation,
       timeout_ms: options.timeoutMs,
       transport: options.transport,
       width: options.width,
@@ -1002,10 +1087,23 @@ async function runVoyage(options) {
       loss_fallback_observed: lossFallbackObserved,
       no_browser_exceptions: exceptions.length === 0,
       no_unexpected_console_errors: unexpectedConsoleErrors.length === 0,
+      passive_revalidation_observed: passiveRevalidationObserved,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },
     captures,
     interactions,
+    revalidation:
+      options.revalidation === "attention"
+        ? {
+            authority:
+              "bounded generated attention stimulus for passive UI refresh qualification only; not observed runtime activity or admitted evidence",
+            baseline_mailbox_count: passiveRevalidationBaseline,
+            mode: options.revalidation,
+            observed_mailbox_count: captures.find(
+              ({ stage }) => stage === "passive-revalidation",
+            )?.mailbox_count,
+          }
+        : null,
     browser_exceptions: exceptions,
     console_entries: consoleEntries,
     failure_context: failureContext,
