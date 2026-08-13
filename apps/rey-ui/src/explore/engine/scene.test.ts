@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { WorkloadList } from "../../domain";
 import { DEFAULT_LENS_ZOOM } from "./camera";
 import { compileSceneSnapshot, LastGoodSceneCompiler } from "./scene";
+import { PORTFOLIO_SCENE_PROJECTION_REVISION } from "../projection/portfolio-scene";
 
 const emptyPortfolio = {
   schema: "rey.workload-list.v1",
@@ -55,6 +56,9 @@ describe("reference scene compiler", () => {
     expect(Object.isFrozen(first.scene)).toBe(true);
     expect(Object.isFrozen(first.scene.nodes)).toBe(true);
     expect(first.source_revisions).toContain("attention:empty");
+    expect(first.compiler_revisions).toContain(
+      PORTFOLIO_SCENE_PROJECTION_REVISION,
+    );
   });
 
   it("changes the view snapshot identity when focus changes", () => {

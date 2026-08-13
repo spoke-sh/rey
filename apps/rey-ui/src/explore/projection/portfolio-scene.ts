@@ -1,5 +1,6 @@
 import type {
   AgentSummary,
+  AttentionRow,
   WorkloadDraft,
   WorkloadList,
   WorkloadSummary,
@@ -13,6 +14,9 @@ import type {
 } from "../../topology";
 import { admittedTopographies } from "./topography-projector";
 import { buildSurveyScene } from "./survey-scene";
+
+export const PORTFOLIO_SCENE_PROJECTION_REVISION =
+  "rey.explorer.portfolio-scene-projection@1";
 
 const NEIGHBORHOOD_LIMIT = 8;
 
@@ -557,6 +561,450 @@ export function buildWorkloadObjectScene(
         ? [`${attention.length - 1} additional attention rows omitted`]
         : [],
   };
+}
+
+export function buildDraftObjectScene(
+  draft: WorkloadDraft,
+  focusId: string,
+): TopologyProjection {
+  return {
+    regime: "objects",
+    label: "REQUEST OBJECTS",
+    detail: draft.request.workload_id,
+    focus_id: focusId,
+    regions: [
+      {
+        id: "request-boundary",
+        label: "AGENTIC HANDOFF",
+        detail: shortCoordinate(draft.request.request_id),
+        x: 85,
+        y: 125,
+        width: 1030,
+        height: 470,
+        tone: "blocked",
+      },
+    ],
+    nodes: [
+      node(
+        "request-object",
+        focusId,
+        "REQUEST",
+        draft.request.workload_id,
+        draft.request.intent ?? draft.request.title,
+        235,
+        355,
+        245,
+        "accent",
+        draft.request.workload_id,
+      ),
+      node(
+        "harness-object",
+        focusId,
+        "CODING HARNESS",
+        draft.request.proposer,
+        "external agentic generation boundary",
+        600,
+        355,
+        245,
+        "attention",
+      ),
+      node(
+        "package-object",
+        focusId,
+        "TARGET PACKAGE",
+        draft.request.target_package,
+        "graph + frozen scenario oracle missing",
+        965,
+        355,
+        245,
+        "blocked",
+      ),
+    ],
+    edges: [
+      edge(
+        "request-harness-object",
+        "request-object",
+        "harness-object",
+        "directs",
+        "requests",
+      ),
+      edge(
+        "harness-package-object",
+        "harness-object",
+        "package-object",
+        "produces",
+        "materializes",
+      ),
+    ],
+    omissions: [],
+  };
+}
+
+export function buildAttentionObjectScene(
+  portfolio: WorkloadList,
+  row: AttentionRow,
+  focusId: string,
+): TopologyProjection {
+  const subjectExists =
+    portfolio.workloads.some(
+      (workload) => workload.workload.id === row.subject_id,
+    ) ||
+    portfolio.drafts.some(
+      (draft) => draft.request.workload_id === row.subject_id,
+    );
+  return {
+    regime: "objects",
+    label: "ATTENTION OBJECTS",
+    detail: `${row.action} / ${row.readiness}`,
+    focus_id: focusId,
+    regions: [
+      {
+        id: "attention-boundary",
+        label: "DIRECTED REASONING SURFACE",
+        detail: shortCoordinate(row.row_id),
+        x: 55,
+        y: 75,
+        width: 1090,
+        height: 570,
+        tone: row.readiness === "blocked" ? "blocked" : "attention",
+      },
+    ],
+    nodes: [
+      node(
+        "snapshot-object",
+        "cluster:portfolio",
+        "SOURCE SNAPSHOT",
+        shortCoordinate(portfolio.attention.source_snapshot_id),
+        "retained portfolio observation",
+        155,
+        355,
+        210,
+        "neutral",
+      ),
+      node(
+        "delta-object",
+        focusId,
+        "ATTENTION DELTA",
+        row.reason.replaceAll("_", " "),
+        `${row.action} · priority ${row.priority} · cost ${row.estimated_cost_units}`,
+        425,
+        355,
+        245,
+        row.readiness === "blocked" ? "blocked" : "attention",
+      ),
+      node(
+        "subject-object",
+        subjectExists ? `workload:${row.subject_id}` : focusId,
+        row.subject_kind.toUpperCase(),
+        row.subject_id,
+        `${row.readiness} · ${row.evidence_ids.length} evidence bindings`,
+        725,
+        225,
+        245,
+        "accent",
+        subjectExists ? row.subject_id : undefined,
+      ),
+      node(
+        "evidence-binding-object",
+        "cluster:evidence",
+        "EVIDENCE BINDINGS",
+        `${row.evidence_ids.length} exact references`,
+        row.evidence_ids[0]
+          ? shortCoordinate(row.evidence_ids[0])
+          : "no retained evidence reference",
+        1000,
+        225,
+        220,
+        row.evidence_ids.length > 0 ? "healthy" : "blocked",
+      ),
+      node(
+        "dependency-object",
+        focusId,
+        "DEPENDENCIES",
+        `${row.dependency_ids.length} required coordinates`,
+        row.dependency_ids[0]
+          ? shortCoordinate(row.dependency_ids[0])
+          : "ready without dependency",
+        725,
+        505,
+        245,
+        row.dependency_ids.length > 0 ? "attention" : "healthy",
+      ),
+    ],
+    edges: [
+      edge(
+        "snapshot-delta-object",
+        "snapshot-object",
+        "delta-object",
+        "produces",
+        "derives",
+      ),
+      edge(
+        "delta-subject-object",
+        "delta-object",
+        "subject-object",
+        "directs",
+        row.action,
+      ),
+      edge(
+        "evidence-delta-object",
+        "evidence-binding-object",
+        "delta-object",
+        "observes",
+        "supports",
+      ),
+      edge(
+        "dependency-delta-object",
+        "dependency-object",
+        "delta-object",
+        "depends",
+        "bounds",
+      ),
+    ],
+    omissions: [
+      ...(row.evidence_ids.length > 1
+        ? [`${row.evidence_ids.length - 1} evidence references folded`]
+        : []),
+      ...(row.dependency_ids.length > 1
+        ? [`${row.dependency_ids.length - 1} dependency references folded`]
+        : []),
+    ],
+  };
+}
+
+export function buildPortfolioObjectScene(
+  portfolio: WorkloadList,
+  focusId: string,
+): TopologyProjection {
+  const admitted = portfolio.catalog.admitted_count;
+  const qualified = portfolio.workloads.filter(
+    (workload) => workload.qualification === "qualified",
+  ).length;
+  return {
+    regime: "objects",
+    label: "PORTFOLIO OBJECTS",
+    detail: shortCoordinate(portfolio.attention.source_snapshot_id),
+    focus_id: focusId,
+    regions: [
+      {
+        id: "portfolio-boundary",
+        label: "CURRENT CONTEXT COORDINATE",
+        detail: `${portfolio.catalog.workload_count} workload objects`,
+        x: 55,
+        y: 75,
+        width: 1090,
+        height: 570,
+        tone: "neutral",
+      },
+    ],
+    nodes: [
+      node(
+        "surface-object",
+        "cluster:context",
+        "SURFACES",
+        `${portfolio.attention.summary.surfaces} declared`,
+        `${portfolio.attention.summary.owned_surfaces} owned · ${portfolio.attention.summary.unowned_surfaces} unowned`,
+        155,
+        355,
+        215,
+        portfolio.attention.summary.unowned_surfaces > 0
+          ? "attention"
+          : "healthy",
+      ),
+      node(
+        "catalog-object",
+        "cluster:workloads",
+        "CATALOG",
+        `${admitted} admitted`,
+        `${portfolio.catalog.draft_count} creation requests`,
+        425,
+        225,
+        225,
+        "accent",
+      ),
+      node(
+        "qualification-object",
+        "cluster:workloads",
+        "QUALIFICATION",
+        `${qualified}/${admitted} qualified`,
+        "fresh deterministic scenario results",
+        425,
+        505,
+        225,
+        qualified === admitted && admitted > 0 ? "healthy" : "attention",
+      ),
+      node(
+        "snapshot-evidence-object",
+        "cluster:evidence",
+        "SNAPSHOT",
+        shortCoordinate(portfolio.attention.source_snapshot_id),
+        "catalog + results + context + coverage",
+        725,
+        225,
+        235,
+        "neutral",
+      ),
+      node(
+        "frontier-object",
+        "cluster:attention",
+        "FRONTIER",
+        `${portfolio.attention.rows.length} directed rows`,
+        shortCoordinate(portfolio.attention.attention_id),
+        725,
+        505,
+        235,
+        portfolio.attention.rows.length > 0 ? "attention" : "healthy",
+      ),
+      node(
+        "bearing-object",
+        "cluster:portfolio",
+        "NEXT BEARING",
+        nextBearing(portfolio),
+        "derived from retained attention; no scheduler selection",
+        1010,
+        355,
+        230,
+        portfolio.attention.rows.length > 0 ? "accent" : "healthy",
+      ),
+    ],
+    edges: [
+      edge(
+        "surface-catalog-object",
+        "surface-object",
+        "catalog-object",
+        "contains",
+        "bounds",
+      ),
+      edge(
+        "catalog-qualification-object",
+        "catalog-object",
+        "qualification-object",
+        "produces",
+        "tests",
+      ),
+      edge(
+        "catalog-snapshot-object",
+        "catalog-object",
+        "snapshot-evidence-object",
+        "observes",
+        "records",
+      ),
+      edge(
+        "qualification-snapshot-object",
+        "qualification-object",
+        "snapshot-evidence-object",
+        "produces",
+        "retains",
+      ),
+      edge(
+        "snapshot-frontier-object",
+        "snapshot-evidence-object",
+        "frontier-object",
+        "produces",
+        "diffs",
+      ),
+      edge(
+        "frontier-bearing-object",
+        "frontier-object",
+        "bearing-object",
+        "directs",
+        "orients",
+      ),
+    ],
+    omissions: [],
+  };
+}
+
+export function buildPortfolioObjects(
+  portfolio: WorkloadList,
+  requestedFocusId: string,
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (
+    topographies.length > 0 &&
+    (requestedFocusId.startsWith("topography:") ||
+      requestedFocusId.startsWith("seed:") ||
+      requestedFocusId.startsWith("anchor:") ||
+      requestedFocusId.startsWith("frontier:"))
+  )
+    return buildSurveyScene(topographies, requestedFocusId, "objects");
+  const focusId = resolveObjectFocus(portfolio, requestedFocusId);
+  if (focusId.startsWith("workload:")) {
+    const workloadId = focusId.slice("workload:".length);
+    const workload = portfolio.workloads.find(
+      (candidate) => candidate.workload.id === workloadId,
+    );
+    const draft = portfolio.drafts.find(
+      (candidate) => candidate.request.workload_id === workloadId,
+    );
+    if (workload) return buildWorkloadObjectScene(portfolio, workload, focusId);
+    if (draft) return buildDraftObjectScene(draft, focusId);
+  }
+  if (focusId.startsWith("attention:")) {
+    const rowId = focusId.slice("attention:".length);
+    const row = portfolio.attention.rows.find(
+      (candidate) => candidate.row_id === rowId,
+    );
+    if (row) return buildAttentionObjectScene(portfolio, row, focusId);
+  }
+  if (focusId.startsWith("agent:")) {
+    const agentId = focusId.slice("agent:".length);
+    const agent = deriveAgentIndex(portfolio).find(
+      (candidate) => candidate.id === agentId,
+    );
+    if (agent) return buildAgentObjectScene(portfolio, agent, focusId);
+  }
+  return buildPortfolioObjectScene(portfolio, focusId);
+}
+
+export function buildPortfolioEvidence(
+  portfolio: WorkloadList,
+  focusId: string,
+): TopologyProjection {
+  const topographies = admittedTopographies(portfolio);
+  if (topographies.length === 0) {
+    const fallback = buildPortfolioObjects(portfolio, focusId);
+    return {
+      ...fallback,
+      regime: "evidence",
+      label: "EVIDENCE BOUNDARY",
+      detail: "no admitted survey evidence",
+      omissions: [
+        "exact locator evidence is unavailable until a survey workload patch is admitted",
+        ...fallback.omissions,
+      ],
+    };
+  }
+  return buildSurveyScene(topographies, focusId, "evidence");
+}
+
+function resolveObjectFocus(portfolio: WorkloadList, focusId: string): string {
+  if (
+    focusId.startsWith("workload:") ||
+    focusId.startsWith("attention:") ||
+    focusId.startsWith("agent:")
+  )
+    return focusId;
+  if (focusId === "cluster:workloads") {
+    const workloadId =
+      portfolio.workloads[0]?.workload.id ??
+      portfolio.drafts[0]?.request.workload_id;
+    if (workloadId) return `workload:${workloadId}`;
+  }
+  if (focusId === "cluster:attention" && portfolio.attention.rows[0])
+    return `attention:${portfolio.attention.rows[0].row_id}`;
+  if (focusId === "cluster:agents") {
+    const agent = deriveAgentIndex(portfolio)[0];
+    if (agent) return `agent:${agent.id}`;
+  }
+  return focusId;
+}
+
+function nextBearing(portfolio: WorkloadList): string {
+  const row = portfolio.attention.rows[0];
+  return row
+    ? `${row.action.toUpperCase()} ${row.subject_id}`
+    : "NO UNRESOLVED ATTENTION";
 }
 
 function qualificationTone(qualification: string): TopologyTone {

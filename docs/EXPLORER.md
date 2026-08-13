@@ -272,8 +272,11 @@ semantic-globe adaptation, bearing, exact evidence details, and regime copy;
 `topology.ts` only dispatches admitted survey evidence into that projection.
 Legacy portfolio landscape and neighborhood adaptation now lives in
 `src/explore/projection/portfolio-scene.ts`, together with workload and agent
-object projections. Draft, attention, portfolio-object, and evidence
-adaptation remains in `topology.ts`. The reference surface remains mounted during accelerated initialization and is
+object projections, draft and attention detail, portfolio objects, and the
+no-survey evidence boundary. Its revision enters immutable scene lineage when
+that projection is active. `topology.ts` now retains scene types, high-level
+dispatch, orientation, and admitted regional World/Atlas/County projection; it
+does not own survey or legacy portfolio lens adaptation. The reference surface remains mounted during accelerated initialization and is
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.

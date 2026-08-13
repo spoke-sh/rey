@@ -20,6 +20,7 @@ import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 import { SURVEY_TERRAIN_SCENE_COMPILER_REVISION } from "../projection/survey-terrain";
 import { SURVEY_SCENE_LAYOUT_REVISION } from "../projection/survey-scene-layout";
 import { SURVEY_SCENE_PROJECTION_REVISION } from "../projection/survey-scene";
+import { PORTFOLIO_SCENE_PROJECTION_REVISION } from "../projection/portfolio-scene";
 import {
   EXPLORER_PICKING_REVISION,
   compileScenePickingIndex,
@@ -163,6 +164,12 @@ export function compileSceneSnapshot(
     compilerRevisions.push(COUNTY_FOOTPRINT_PROJECTION_REVISION);
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
+  if (
+    topographies.length === 0 &&
+    regionalScenes.length === 0 &&
+    scene.regime !== "world"
+  )
+    compilerRevisions.push(PORTFOLIO_SCENE_PROJECTION_REVISION);
   compilerRevisions.sort((left, right) => left.localeCompare(right));
   compilerRevisions.push(EXPLORER_RENDER_GRAPH_REVISION);
   compilerRevisions.push(EXPLORER_PICKING_REVISION);

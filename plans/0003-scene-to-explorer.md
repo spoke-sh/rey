@@ -181,7 +181,7 @@ remain open.
 - [x] Move survey field compilation, contours, projected hydrology/weather,
   and natural-feature derivation out of `topology.ts` behind a revisioned
   scene compiler that enters immutable scene lineage.
-- [ ] Move remaining portfolio adaptation and survey scene layout out of
+- [x] Move remaining portfolio adaptation and survey scene layout out of
   `topology.ts`; finish the
   evidence-adapter, compiler, engine, renderer, picking, and React ownership
   boundary without introducing a parallel scene truth.
@@ -195,6 +195,8 @@ remain open.
   portfolio-scene projection module without changing scene identity.
 - [x] Move workload and agent object projections into the portfolio-scene
   module without changing focus, omission, or evidence semantics.
+- [x] Move draft, attention, portfolio-object, focus resolution, and the
+  no-survey evidence boundary into the revisioned portfolio-scene projection.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient
   patches, including stable absolute sampling, hydrology halos, exact shared
   channel seams, cache keys, and CPU cell/byte budgets.
