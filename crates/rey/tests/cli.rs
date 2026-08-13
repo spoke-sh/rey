@@ -6211,6 +6211,8 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "MERCATOR spherical chart",
         "COUNTY local east/north/up",
         "bounded inverse inside admitted native envelope · envelope is not footprint geometry",
+        "FOOTPRINT admitted · source fixture-county/county-boundary",
+        "FOOTPRINT {\"footprint_id\":\"blake3:",
         "CAMERA view only",
         "COORDINATE {\"space\":\"native_crs84\"",
         "VALIDITY {",
@@ -6258,6 +6260,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "package=blake3:",
         "packet=blake3:",
         "atlas=blake3:",
+        "FOOTPRINT none · no unique admitted boundary Polygon",
         "COORDINATE {\"space\":\"camera\"",
         "terrain height explicitly unsupported",
     ] {
@@ -6284,6 +6287,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert_eq!(scene.admission.editor_sequence, 1);
     assert_eq!(scene.projection.coordinate_bindings.len(), 5);
     assert_eq!(scene.projection.objects.len(), 2);
+    assert!(scene.projection.footprint.is_none());
     assert!(scene.artifacts.terrain_program_id.is_none());
 
     let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);

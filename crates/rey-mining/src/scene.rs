@@ -89,6 +89,49 @@ pub struct RegionalNativeObject {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RegionalFootprint {
+    pub footprint_id: SemanticDigest,
+    pub source_object_id: String,
+    pub source_artifact_id: SemanticDigest,
+    pub source_object_revision: SemanticDigest,
+    pub geometry_kind: String,
+    pub native_bounds: RegionalBounds,
+    pub rings: Vec<Vec<[i64; 2]>>,
+    pub coordinate_count: u64,
+    pub authority: String,
+}
+
+impl RegionalFootprint {
+    pub fn finalize(mut self) -> Result<Self, RegionalSceneError> {
+        self.footprint_id = regional_footprint_digest(&self)?;
+        self.verify()?;
+        Ok(self)
+    }
+
+    pub fn verify(&self) -> Result<(), RegionalSceneError> {
+        validate_identifier_path(&self.source_object_id)?;
+        validate_bounds(&self.native_bounds)?;
+        let positions = self.rings.iter().flatten().copied().collect::<Vec<_>>();
+        if self.geometry_kind != "Polygon"
+            || self.rings.is_empty()
+            || self
+                .rings
+                .iter()
+                .any(|ring| ring.len() < 4 || ring.first() != ring.last())
+            || positions.len() as u64 != self.coordinate_count
+            || regional_positions_bounds(&positions).as_ref() != Some(&self.native_bounds)
+            || self.authority
+                != "exact admitted native boundary polygon; footprint validity ends at its rings"
+            || self.footprint_id != regional_footprint_digest(self)?
+        {
+            return Err(RegionalSceneError::Footprint);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegionalLayer {
     pub layer_id: String,
     pub kind: RegionalLayerKind,
@@ -122,6 +165,7 @@ pub struct RegionalValidity {
 pub struct RegionalSceneLimits {
     pub max_sources: u64,
     pub max_native_objects: u64,
+    pub max_native_coordinates: u64,
     pub max_layers: u64,
     pub max_validity_records: u64,
     pub max_transforms: u64,
@@ -134,6 +178,7 @@ impl Default for RegionalSceneLimits {
         Self {
             max_sources: 64,
             max_native_objects: 10_000,
+            max_native_coordinates: 1_000_000,
             max_layers: 16,
             max_validity_records: 256,
             max_transforms: 4,
@@ -200,6 +245,7 @@ pub struct RegionalProjectionPacket {
     pub coordinate_bindings: Vec<RegionalCoordinateBinding>,
     pub transforms: Vec<RegionalTransform>,
     pub objects: Vec<RegionalNativeObject>,
+    pub footprint: Option<RegionalFootprint>,
     pub layers: Vec<RegionalLayer>,
     pub validity: Vec<RegionalValidity>,
     pub terrain_program_id: Option<SemanticDigest>,
@@ -378,6 +424,9 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
             ]
         || packet.transforms.len() as u64 > packet.limits.max_transforms
         || packet.objects.len() as u64 > packet.limits.max_native_objects
+        || packet.footprint.as_ref().is_some_and(|footprint| {
+            footprint.coordinate_count > packet.limits.max_native_coordinates
+        })
         || packet.layers.len() as u64 > packet.limits.max_layers
         || packet.validity.len() as u64 > packet.limits.max_validity_records
         || packet.omissions.len() as u64 > packet.limits.max_omissions
@@ -423,6 +472,22 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
             != "exact admitted native geometry; appearance grants no relationship, activity, or action authority"
         {
             return Err(RegionalSceneError::ObjectAuthority);
+        }
+    }
+    if let Some(footprint) = &packet.footprint {
+        footprint.verify()?;
+        let source = packet
+            .objects
+            .iter()
+            .find(|object| object.object_id == footprint.source_object_id);
+        if source.is_none_or(|object| {
+            object.layer != RegionalLayerKind::Boundary
+                || object.geometry_kind != "Polygon"
+                || object.source_artifact_id != footprint.source_artifact_id
+                || object.object_revision != footprint.source_object_revision
+                || object.native_bounds != footprint.native_bounds
+        }) {
+            return Err(RegionalSceneError::Footprint);
         }
     }
     for layer in &packet.layers {
@@ -508,6 +573,54 @@ fn placeholder_digest() -> SemanticDigest {
     hasher.finish()
 }
 
+fn regional_footprint_digest(
+    footprint: &RegionalFootprint,
+) -> Result<SemanticDigest, RegionalSceneError> {
+    let mut normalized = footprint.clone();
+    normalized.footprint_id = placeholder_digest();
+    let mut hasher = SemanticHasher::new("rey.regional-footprint.v1");
+    hasher.add_bytes(&serde_json::to_vec(&normalized)?);
+    Ok(hasher.finish())
+}
+
+fn regional_positions_bounds(positions: &[[i64; 2]]) -> Option<RegionalBounds> {
+    if positions.is_empty() {
+        return None;
+    }
+    let south = positions.iter().map(|position| position[1]).min()?;
+    let north = positions.iter().map(|position| position[1]).max()?;
+    let mut longitudes = positions
+        .iter()
+        .map(|position| position[0])
+        .collect::<Vec<_>>();
+    longitudes.sort_unstable();
+    longitudes.dedup();
+    let (west, east, crosses_antimeridian) = if longitudes.len() == 1 {
+        (longitudes[0], longitudes[0], false)
+    } else {
+        let (gap_index, _) = (0..longitudes.len())
+            .map(|index| {
+                let next = if index + 1 < longitudes.len() {
+                    longitudes[index + 1]
+                } else {
+                    longitudes[0] + 360_000_000
+                };
+                (index, next - longitudes[index])
+            })
+            .max_by_key(|(_, gap)| *gap)?;
+        let west = longitudes[(gap_index + 1) % longitudes.len()];
+        let east = longitudes[gap_index];
+        (west, east, west > east)
+    };
+    Some(RegionalBounds {
+        west_microdegrees: west,
+        south_microdegrees: south,
+        east_microdegrees: east,
+        north_microdegrees: north,
+        crosses_antimeridian,
+    })
+}
+
 fn projection_packet_digest(
     packet: &RegionalProjectionPacket,
 ) -> Result<SemanticDigest, RegionalSceneError> {
@@ -547,6 +660,8 @@ pub enum RegionalSceneError {
     TerrainAuthority,
     #[error("regional native-object authority is invalid")]
     ObjectAuthority,
+    #[error("regional County footprint is invalid")]
+    Footprint,
     #[error("regional layer references an unknown or non-canonical object")]
     LayerReference,
     #[error("duplicate regional {0} identity")]
@@ -610,6 +725,27 @@ mod tests {
             layer: RegionalLayerKind::Boundary,
             authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
         };
+        let footprint = RegionalFootprint {
+            footprint_id: placeholder_digest(),
+            source_object_id: object.object_id.clone(),
+            source_artifact_id: object.source_artifact_id.clone(),
+            source_object_revision: object.object_revision.clone(),
+            geometry_kind: "Polygon".to_owned(),
+            native_bounds: native_bounds.clone(),
+            rings: vec![vec![
+                [west, south],
+                [east, south],
+                [east, north],
+                [west, north],
+                [west, south],
+            ]],
+            coordinate_count: 5,
+            authority:
+                "exact admitted native boundary polygon; footprint validity ends at its rings"
+                    .to_owned(),
+        }
+        .finalize()
+        .unwrap();
         let unsupported = RegionalValidity {
             validity_id: digest("fixture.validity", region),
             class: RegionalValidityClass::Unsupported,
@@ -695,6 +831,7 @@ mod tests {
                     .to_owned(),
             }],
             objects: vec![object],
+            footprint: Some(footprint),
             layers: vec![RegionalLayer {
                 layer_id: format!("{region}.boundary"),
                 kind: RegionalLayerKind::Boundary,
@@ -835,6 +972,32 @@ mod tests {
         assert!(matches!(
             scene.finalize(),
             Err(RegionalSceneError::CountyFrame)
+        ));
+    }
+
+    #[test]
+    fn county_footprint_must_bind_exact_closed_boundary_geometry() {
+        let scene = fixture_scene(
+            "footprint-county",
+            -123_000_000,
+            -122_000_000,
+            37_000_000,
+            38_000_000,
+        );
+        let mut footprint = scene.projection.footprint.clone().expect("footprint");
+        footprint.rings[0][1][0] += 1;
+        assert!(matches!(
+            footprint.verify(),
+            Err(RegionalSceneError::Footprint)
+        ));
+
+        let mut packet = scene.projection.clone();
+        packet.footprint.as_mut().unwrap().source_object_revision =
+            digest("fixture.object", "other");
+        packet.packet_id = projection_packet_digest(&packet).unwrap();
+        assert!(matches!(
+            packet.verify(),
+            Err(RegionalSceneError::Footprint)
         ));
     }
 

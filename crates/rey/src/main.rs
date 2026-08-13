@@ -9955,6 +9955,9 @@ fn write_scene_admission_evidence(
         for object in &scene.projection.objects {
             writeln!(output, "{pad}OBJECT {}", json_io(object)?)?;
         }
+        if let Some(footprint) = &scene.projection.footprint {
+            writeln!(output, "{pad}FOOTPRINT {}", json_io(footprint)?)?;
+        }
         for layer in &scene.projection.layers {
             writeln!(output, "{pad}LAYER {}", json_io(layer)?)?;
         }

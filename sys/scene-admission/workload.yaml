@@ -72,6 +72,7 @@ scenarios:
           SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
           MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857
           COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry
+          FOOTPRINT admitted · source fixture-county/county-boundary · Polygon · 1 rings / 4 coordinates · exact identity and validity boundary retained
           CAMERA view only · center/scale/viewport/selection are not evidence identity
           ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
           COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
@@ -94,6 +95,7 @@ scenarios:
           SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
           MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857
           COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry
+          FOOTPRINT admitted · source fixture-county/county-boundary · Polygon · 1 rings / 4 coordinates · exact identity and validity boundary retained
           CAMERA view only · center/scale/viewport/selection are not evidence identity
           ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
           COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported
@@ -207,6 +209,7 @@ scenarios:
           SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim
           MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857
           COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry
+          FOOTPRINT admitted · source fixture-county/county-boundary · Polygon · 1 rings / 4 coordinates · exact identity and validity boundary retained
           CAMERA view only · center/scale/viewport/selection are not evidence identity
           ARTIFACTS topography=none · atlas=none · projection=retained · terrain=none
           COVERAGE complete · 1 omissions · native objects complete; terrain height explicitly unsupported

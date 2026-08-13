@@ -267,8 +267,10 @@ one exact committed editor revision. Human output distinguishes native CRS84,
 synthetic semantic, semantic-Mercator, County-local, and camera coordinates and
 prints the Mercator `360000000µ°` wrap, `±85051129µ°` polar cutoff/disclosure,
 and analytic inverse boundary plus the envelope-bound County-local inverse and
-its explicit non-footprint disclosure beside exact package, packet, validity,
-limits, omissions, and lineage. JSON
+its explicit non-footprint disclosure beside the admitted/absent County
+footprint state, exact package, packet, validity, limits, omissions, and
+lineage. `-vv` prints the footprint identity, source bindings, native rings,
+coordinate count, and authority. JSON
 retains the complete `rey.scene-admission-result.v1`. Rejected validation
 scenarios are conclusive typed results; no run mutates editor state or admits a
 browser scene.

@@ -4,10 +4,10 @@ use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_mining::{
     ADMITTED_REGIONAL_SCENE_SCHEMA, AdmittedRegionalScene, ExplorerGrammar,
     REGIONAL_PROJECTION_PACKET_SCHEMA, RegionalArtifactBindings, RegionalBounds,
-    RegionalCoordinateBinding, RegionalCoordinateSpace, RegionalCoordinateStatus, RegionalLayer,
-    RegionalLayerKind, RegionalNativeObject, RegionalProjectionPacket, RegionalSceneLimits,
-    RegionalSceneLineage, RegionalSceneOmission, RegionalTransform, RegionalValidity,
-    RegionalValidityClass, SceneAdmissionBinding,
+    RegionalCoordinateBinding, RegionalCoordinateSpace, RegionalCoordinateStatus,
+    RegionalFootprint, RegionalLayer, RegionalLayerKind, RegionalNativeObject,
+    RegionalProjectionPacket, RegionalSceneLimits, RegionalSceneLineage, RegionalSceneOmission,
+    RegionalTransform, RegionalValidity, RegionalValidityClass, SceneAdmissionBinding,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -418,6 +418,16 @@ pub fn render_scene_admission_result(result: &SceneAdmissionResult) -> String {
             "SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim".to_owned(),
             "MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857".to_owned(),
             "COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted native envelope · envelope is not footprint geometry".to_owned(),
+            scene.projection.footprint.as_ref().map_or_else(
+                || "FOOTPRINT none · no unique admitted boundary Polygon matches the exact scene envelope".to_owned(),
+                |footprint| format!(
+                    "FOOTPRINT admitted · source {} · {} · {} rings / {} coordinates · exact identity and validity boundary retained",
+                    footprint.source_object_id,
+                    footprint.geometry_kind,
+                    footprint.rings.len(),
+                    footprint.coordinate_count,
+                ),
+            ),
             "CAMERA view only · center/scale/viewport/selection are not evidence identity".to_owned(),
             format!(
                 "ARTIFACTS topography={} · atlas={} · projection={} · terrain={}",
@@ -804,6 +814,7 @@ fn build_scene(
     let limits = RegionalSceneLimits {
         max_sources: context.input.limits.max_sources,
         max_native_objects: context.input.limits.max_features,
+        max_native_coordinates: context.input.limits.max_coordinates,
         max_layers: 16,
         max_validity_records: context.input.limits.max_features.saturating_add(2),
         max_transforms: 4,
@@ -834,6 +845,7 @@ fn build_scene(
         })
         .collect::<Result<Vec<_>, SceneAdmissionError>>()?;
     objects.sort_by(|left, right| left.object_id.cmp(&right.object_id));
+    let footprint = build_regional_footprint(candidate, &objects)?;
     let mut grouped = BTreeMap::<RegionalLayerKind, Vec<String>>::new();
     for object in &objects {
         grouped
@@ -955,12 +967,21 @@ fn build_scene(
         },
     ];
     let coordinate_bindings = coordinate_bindings(candidate, &grammar);
-    let omission = RegionalSceneOmission {
+    let terrain_omission = RegionalSceneOmission {
         kind: "terrain_program_absent".to_owned(),
         subject: candidate.project_id.clone(),
         omitted_count: 1,
         reason: "candidate terrain controls and generated effects cannot become observed height without a separately qualified terrain adapter".to_owned(),
     };
+    let mut omissions = vec![terrain_omission];
+    if footprint.is_none() {
+        omissions.push(RegionalSceneOmission {
+            kind: "county_footprint_absent".to_owned(),
+            subject: candidate.project_id.clone(),
+            omitted_count: 1,
+            reason: "no unique admitted boundary Polygon matches the exact scene envelope; County footprint fabric remains unavailable".to_owned(),
+        });
+    }
     let lineage = vec![
         RegionalSceneLineage {
             kind: "editor_commit".to_owned(),
@@ -989,12 +1010,13 @@ fn build_scene(
         coordinate_bindings,
         transforms,
         objects,
+        footprint,
         layers,
         validity,
         terrain_program_id: None,
         limits,
         complete: true,
-        omissions: vec![omission.clone()],
+        omissions: omissions.clone(),
         lineage: lineage.clone(),
     }
     .finalize()?;
@@ -1031,7 +1053,7 @@ fn build_scene(
             terrain_authority: "none; candidate-only terrain controls were not copied into observed terrain truth".to_owned(),
         },
         complete: true,
-        omissions: vec![omission],
+        omissions,
         lineage,
         projection,
     }
@@ -1107,6 +1129,119 @@ fn coordinate_bindings(
         },
     )
     .collect()
+}
+
+fn build_regional_footprint(
+    candidate: &SceneAdmissionCandidate,
+    objects: &[RegionalNativeObject],
+) -> Result<Option<RegionalFootprint>, SceneAdmissionError> {
+    let eligible = objects
+        .iter()
+        .filter(|object| {
+            object.layer == RegionalLayerKind::Boundary
+                && object.geometry_kind == "Polygon"
+                && object.native_bounds == candidate.native_bounds
+        })
+        .collect::<Vec<_>>();
+    let [object] = eligible.as_slice() else {
+        return Ok(None);
+    };
+    let declared = candidate
+        .features
+        .iter()
+        .find(|feature| feature.feature_id == object.object_id)
+        .ok_or(SceneAdmissionError::FeatureIndex)?;
+    let source = candidate
+        .sources
+        .iter()
+        .find(|source| source.source_id == object.source_id)
+        .ok_or(SceneAdmissionError::FeatureIndex)?;
+    let bytes = source
+        .native_bytes
+        .as_ref()
+        .ok_or(SceneAdmissionError::FeatureIndex)?;
+    let document: Value = serde_json::from_slice(bytes)?;
+    let root = document.as_object().ok_or(SceneAdmissionError::GeoJson)?;
+    let features = match root.get("type").and_then(Value::as_str) {
+        Some("FeatureCollection") => root
+            .get("features")
+            .and_then(Value::as_array)
+            .ok_or(SceneAdmissionError::GeoJson)?
+            .iter()
+            .collect::<Vec<_>>(),
+        Some("Feature") => vec![&document],
+        _ => return Err(SceneAdmissionError::GeoJson),
+    };
+    let feature = features
+        .into_iter()
+        .find(|feature| {
+            feature
+                .as_object()
+                .and_then(|feature| feature_id(feature.get("id")).ok())
+                .as_deref()
+                == Some(declared.source_feature_id.as_str())
+        })
+        .ok_or(SceneAdmissionError::FeatureIndex)?;
+    let geometry = feature
+        .as_object()
+        .and_then(|feature| feature.get("geometry"))
+        .and_then(Value::as_object)
+        .ok_or(SceneAdmissionError::GeoJson)?;
+    let rings = regional_polygon_rings(geometry)?;
+    let coordinate_count = rings.iter().map(Vec::len).sum::<usize>() as u64;
+    RegionalFootprint {
+        footprint_id: placeholder_digest(),
+        source_object_id: object.object_id.clone(),
+        source_artifact_id: object.source_artifact_id.clone(),
+        source_object_revision: object.object_revision.clone(),
+        geometry_kind: object.geometry_kind.clone(),
+        native_bounds: object.native_bounds.clone(),
+        rings,
+        coordinate_count,
+        authority: "exact admitted native boundary polygon; footprint validity ends at its rings"
+            .to_owned(),
+    }
+    .finalize()
+    .map(Some)
+    .map_err(SceneAdmissionError::from)
+}
+
+fn regional_polygon_rings(
+    geometry: &serde_json::Map<String, Value>,
+) -> Result<Vec<Vec<[i64; 2]>>, SceneAdmissionError> {
+    if geometry.get("type").and_then(Value::as_str) != Some("Polygon") {
+        return Err(SceneAdmissionError::GeoJson);
+    }
+    geometry
+        .get("coordinates")
+        .and_then(Value::as_array)
+        .ok_or(SceneAdmissionError::GeoJson)?
+        .iter()
+        .map(|ring| {
+            ring.as_array()
+                .ok_or(SceneAdmissionError::GeoJson)?
+                .iter()
+                .map(|position| {
+                    let coordinates = position.as_array().ok_or(SceneAdmissionError::GeoJson)?;
+                    let longitude = coordinates
+                        .first()
+                        .and_then(Value::as_f64)
+                        .filter(|value| value.is_finite())
+                        .ok_or(SceneAdmissionError::GeoJson)?;
+                    let latitude = coordinates
+                        .get(1)
+                        .and_then(Value::as_f64)
+                        .filter(|value| value.is_finite())
+                        .ok_or(SceneAdmissionError::GeoJson)?;
+                    if !(-180.0..=180.0).contains(&longitude) || !(-90.0..=90.0).contains(&latitude)
+                    {
+                        return Err(SceneAdmissionError::CoordinateBounds);
+                    }
+                    Ok([to_microdegrees(longitude), to_microdegrees(latitude)])
+                })
+                .collect()
+        })
+        .collect()
 }
 
 fn layer_kind(role: &str) -> Result<RegionalLayerKind, SceneAdmissionError> {
@@ -1557,6 +1692,10 @@ mod tests {
         assert_eq!(result.status, SceneAdmissionStatus::Accepted);
         let scene = result.scene.unwrap();
         assert_eq!(scene.projection.coordinate_bindings.len(), 5);
+        let footprint = scene.projection.footprint.as_ref().expect("footprint");
+        assert_eq!(footprint.source_object_id, "fixture-county/county-boundary");
+        assert_eq!(footprint.rings.len(), 1);
+        assert_eq!(footprint.coordinate_count, 4);
         assert!(scene.artifacts.terrain_program_id.is_none());
         assert!(scene.projection.validity.iter().any(|record| {
             record.class == RegionalValidityClass::Unsupported && record.scope == "terrain_height"
@@ -1615,6 +1754,13 @@ mod tests {
             let replay = execute_scene_admission(context(&input, &contracts, &campaign)).unwrap();
             assert_eq!(first, replay);
             assert_eq!(first.status, SceneAdmissionStatus::Accepted);
+            assert!(
+                first
+                    .scene
+                    .as_ref()
+                    .and_then(|scene| scene.projection.footprint.as_ref())
+                    .is_some()
+            );
         }
     }
 }

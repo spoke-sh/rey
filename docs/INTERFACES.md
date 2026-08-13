@@ -474,7 +474,10 @@ does not contain admission authority or camera instances. The implemented
 `rey.admitted-regional-scene.v1` result contract separately binds its exact
 editor commit/package/snapshot/request, qualifying workload/graph/suite and
 capability input, native OGC CRS84 bounds and object revisions,
-native-to-semantic and County-local transforms, typed layers,
+native-to-semantic and County-local transforms, typed layers, and at most one
+content-identified County footprint whose closed native rings bind one exact
+boundary object/artifact/revision. An envelope is never substituted when that
+unique boundary Polygon is absent or ambiguous. The contract also retains
 validity/no-data, limits, omissions, and lineage. Its embedded
 `rey.regional-projection-packet.v1` carries explicit native CRS84, synthetic
 semantic, semantic-Mercator, County-local, and view-only camera coordinate
