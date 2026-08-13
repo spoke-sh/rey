@@ -48,6 +48,7 @@ describe("Three.js semantic globe", () => {
     ).toBeDefined();
     expect(bundle.statistics.triangles).toBeGreaterThan(80_000);
     expect(bundle.statistics.vertices).toBeGreaterThan(14_000);
+    expect(bundle.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(0);
     bundle.updateGlobeView?.({ yaw_degrees: 24, pitch_degrees: -8 });
     expect(
       bundle.scene.getObjectByName("context-globe:atlas:1")?.rotation.y,

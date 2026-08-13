@@ -37,6 +37,7 @@ export function createContextGlobeBundle(
   world: { width: number; height: number },
   initialView: GlobeCameraView = { yaw_degrees: 0, pitch_degrees: 0 },
 ): ThreeTerrainBundle {
+  const compilationStarted = measurementNow();
   const scene = new Scene();
   const globeGroup = new Group();
   globeGroup.name = `context-globe:${globe.source_revision}`;
@@ -148,7 +149,7 @@ export function createContextGlobeBundle(
       gpu_budget_bytes: samples.length * 16,
       parity_revision: "unbound",
       parity_samples: 0,
-      geometry_compilation_ms: 0,
+      geometry_compilation_ms: measurementNow() - compilationStarted,
     }),
     updateGlobeView(view) {
       applyGlobeView(globeGroup, view);
@@ -159,6 +160,10 @@ export function createContextGlobeBundle(
       scene.clear();
     },
   };
+}
+
+function measurementNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 function applyGlobeView(group: Group, view: GlobeCameraView) {

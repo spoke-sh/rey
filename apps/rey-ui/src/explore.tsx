@@ -330,6 +330,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         scene.globe?.posture === "orientation" && styles.orientationCanvasShell,
         isFullscreen && styles.canvasShellFullscreen,
       )}
+      data-scene-compilers={snapshot.compiler_revisions.join(",")}
+      data-scene-focus={snapshot.focus_id}
+      data-scene-snapshot={snapshot.snapshot_id}
+      data-scene-sources={snapshot.source_revisions.join(",")}
       ref={shellRef}
     >
       {sceneProjection.retained_last_good ? (
@@ -441,13 +445,13 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               ? `LON ${Math.round(globeView.yaw_degrees)}° / LAT ${Math.round(globeView.pitch_degrees)}°`
               : `X ${Math.round(pan.x)} / Y ${Math.round(pan.y)}`}
           </span>
-          {scene.terrain ? (
+          {scene.terrain || scene.globe ? (
             <span data-renderer-backend={terrainRenderer.status.backend}>
               RENDER / {terrainRenderer.status.backend?.toUpperCase() ?? "INIT"}
               {terrainRenderer.status.degraded ? " / DEGRADED" : ""}
             </span>
           ) : null}
-          {terrainRenderer.field_cells > 0 ? (
+          {terrainRenderer.field_sets > 0 ? (
             <>
               <span
                 data-terrain-lod={terrainRenderer.active_band_ids.join(",")}
@@ -455,16 +459,26 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 LOD /{" "}
                 {terrainRenderer.active_band_ids.join(" + ").toUpperCase()}
               </span>
-              <span>
-                FIELD / {terrainRenderer.field_cells} CELLS /{" "}
-                {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB /{" "}
-                {terrainRenderer.triangles} TRI
-              </span>
-              <span>
-                PROGRAM / {terrainRenderer.program_count} / WORKING LIMIT /{" "}
-                {terrainRenderer.working_set_limit_cells} CELLS /{" "}
-                {Math.ceil(terrainRenderer.working_set_limit_bytes / 1024)} KIB
-              </span>
+              {terrainRenderer.active_band_ids.includes("semantic_globe") ? (
+                <span>
+                  GLOBE / {terrainRenderer.triangles} TRI /{" "}
+                  {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB SOURCE
+                </span>
+              ) : (
+                <span>
+                  FIELD / {terrainRenderer.field_cells} CELLS /{" "}
+                  {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB /{" "}
+                  {terrainRenderer.triangles} TRI
+                </span>
+              )}
+              {terrainRenderer.program_count > 0 ? (
+                <span>
+                  PROGRAM / {terrainRenderer.program_count} / WORKING LIMIT /{" "}
+                  {terrainRenderer.working_set_limit_cells} CELLS /{" "}
+                  {Math.ceil(terrainRenderer.working_set_limit_bytes / 1024)}{" "}
+                  KIB
+                </span>
+              ) : null}
               <span data-render-graph={terrainRenderer.render_graph_id}>
                 GRAPH / {terrainRenderer.active_render_passes.length} PASSES
               </span>

@@ -237,6 +237,9 @@ remain open.
 - [x] Expose transient CPU field-evaluation, geometry-compilation, and render-
   submission timing with explicit unretained authority; never label submission
   latency as GPU execution or retained performance proof.
+- [x] Expose accelerated semantic-globe backend, bounded GPU/source bytes,
+  triangles, geometry/submission timing, and exact scene lineage through the
+  human Explorer diagnostics used by qualification voyages.
 - [ ] Pass CLI output/exit fixtures, browser accessibility and parity tests,
   `just check`, `just test`, embedded assets, packaged Nix, and cargo-dist
   release checks.

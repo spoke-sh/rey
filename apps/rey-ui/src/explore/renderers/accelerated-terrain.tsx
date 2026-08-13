@@ -218,6 +218,7 @@ export function AcceleratedTerrainSurface({
       status: RendererStatus,
       statistics?: {
         field_sets: number;
+        field_bytes: number;
         triangles: number;
         gpu_bytes: number;
         gpu_budget_bytes: number;
@@ -233,7 +234,7 @@ export function AcceleratedTerrainSurface({
         active_band_ids: activeBandIds,
         field_sets: statistics?.field_sets ?? runtimeFields.length,
         field_cells: totals.field_cells,
-        field_bytes: totals.field_bytes,
+        field_bytes: statistics?.field_bytes ?? totals.field_bytes,
         program_count: snapshot.scene.terrain_programs.length,
         working_set_limit_cells: programTotals.cells,
         working_set_limit_bytes: programTotals.bytes,

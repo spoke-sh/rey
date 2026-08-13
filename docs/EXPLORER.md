@@ -288,6 +288,12 @@ Explorer exposes field evaluation, geometry construction, and renderer
 submission duration as transient unretained CPU measurements. Submission time
 is not GPU execution time, a frame-rate claim, or retained qualification; named
 machine voyages remain required for those claims.
+The same human diagnostics remain visible for accelerated semantic globes even
+though a globe is not a terrain field: they name the selected backend, bounded
+source/GPU bytes, triangle count, geometry construction, and submission time.
+The canvas also exposes its exact scene snapshot, focus, source revisions, and
+compiler revisions for browser qualification without making those attributes a
+second scene store.
 The immutable render graph records pass availability. A separate transient
 projection applies contour/water/weather/probe view controls and feeds the same
 active pass identities to reference markup and accelerated diagnostics; view
