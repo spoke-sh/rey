@@ -144,4 +144,34 @@ describe("Three.js WebGPU renderer adapter", () => {
     expect(statuses.at(-1)).toContain("qualification fixture");
     expect(renderer.dispose).toHaveBeenCalledOnce();
   });
+
+  it("destroys only a ready WebGPU device through the qualification hook", async () => {
+    let loseDevice!: (info: { reason?: string; message?: string }) => void;
+    const renderer = rendererFacade("webgpu");
+    const destroy = vi.fn(() =>
+      loseDevice({ reason: "destroyed", message: "qualification hook" }),
+    );
+    Object.assign(renderer.backend, {
+      device: {
+        destroy,
+        lost: new Promise<{ reason?: string; message?: string }>((resolve) => {
+          loseDevice = resolve;
+        }),
+      },
+    });
+    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+
+    expect(adapter.destroyWebGpuDeviceForQualification()).toBe(false);
+    await adapter.initialize({} as HTMLCanvasElement, "webgpu");
+    expect(adapter.destroyWebGpuDeviceForQualification()).toBe(true);
+    await Promise.resolve();
+
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(adapter.status).toMatchObject({
+      lifecycle: "failed",
+      backend: "reference",
+      degraded: true,
+    });
+    expect(adapter.destroyWebGpuDeviceForQualification()).toBe(false);
+  });
 });

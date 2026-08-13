@@ -16,6 +16,7 @@ export interface ThreeRendererFacade {
     readonly isWebGLBackend?: boolean;
     readonly device?: {
       readonly lost: Promise<{ reason?: string; message?: string }>;
+      destroy?(): void;
     };
   };
   init(): Promise<unknown>;
@@ -75,6 +76,18 @@ export class ThreeWebGpuRendererAdapter {
 
   get lastSubmissionMs(): number {
     return this.#lastSubmissionMs;
+  }
+
+  destroyWebGpuDeviceForQualification(): boolean {
+    const device = this.#renderer?.backend.device;
+    if (
+      this.#status.lifecycle !== "ready" ||
+      this.#status.backend !== "webgpu" ||
+      !device?.destroy
+    )
+      return false;
+    device.destroy();
+    return true;
   }
 
   onStatusChange(listener: (status: Readonly<RendererStatus>) => void) {

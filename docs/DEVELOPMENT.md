@@ -325,6 +325,15 @@ WebGPU output at `0.02`. Reference and accelerated materials intentionally
 differ, so their pixel measurements are retained without inventing a semantic
 pass threshold.
 
+Retain separately named loss voyages by adding `--loss webgl-context` to a
+forced WebGL2 run and `--loss webgpu-device` to a WebGPU run. The former uses
+the live context's `WEBGL_lose_context` extension; the latter destroys the
+live qualification device and observes its real `device.lost` promise. Both
+must retain a visibly degraded reference surface before continuing to exact
+Evidence. The WebGPU destroy hook exists only on the renderer adapter and is
+reachable from the canvas only through the explicit qualification event; it
+does not change scene evidence or expose a production action path.
+
 The mapping parser hard-cuts to `rey.env-map.v1`; the process-owned discovery
 seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit
 `--map`; desired executables require a bounded purpose; and bounded

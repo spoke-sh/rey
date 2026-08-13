@@ -11,6 +11,14 @@ const SCHEMA = "rey.explorer-qualification-voyage.v1";
 const AUTHORITY =
   "retained local browser qualification only; not semantic evidence, GPU execution timing, frame-rate proof, action authority, or proof authority";
 const STAGES = ["world", "atlas", "landscape", "objects", "evidence"];
+const CAPTURE_ORDER = [
+  "world",
+  "backend-loss",
+  "atlas",
+  "landscape",
+  "objects",
+  "evidence",
+];
 const REPOSITORY_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../..",
@@ -33,6 +41,7 @@ Options:
   --height PIXELS       Viewport height (default: 1080)
   --dpr NUMBER          Device pixel ratio (default: 1)
   --region ID           Admitted scene region to enter (default: rey-county)
+  --loss MODE           none (default), webgl-context, or webgpu-device
   --output-dir PATH     Retained output root (default: .rey/qualification/explorer)
   --transport MODE      direct (default) or fulfilled for socket-restricted Chrome
   --timeout-ms NUMBER   Per-stage timeout (default: 30000)
@@ -67,6 +76,16 @@ function parseArguments(argv) {
   if (!new Set(["direct", "fulfilled"]).has(transport)) {
     throw new Error("--transport must be direct or fulfilled");
   }
+  const loss = values.get("loss") ?? "none";
+  if (!new Set(["none", "webgl-context", "webgpu-device"]).has(loss)) {
+    throw new Error("--loss must be none, webgl-context, or webgpu-device");
+  }
+  if (
+    (loss === "webgl-context" && backend !== "webgl2") ||
+    (loss === "webgpu-device" && backend !== "webgpu")
+  ) {
+    throw new Error("--loss must match the requested accelerated backend");
+  }
   let origin;
   try {
     origin = new URL(baseUrl).origin;
@@ -99,6 +118,7 @@ function parseArguments(argv) {
     browser: values.get("browser"),
     devicePixelRatio: positiveNumber("dpr", 1, false),
     height: positiveNumber("height", 1080),
+    loss,
     outputRoot: resolve(
       values.get("output-dir") ??
         join(REPOSITORY_ROOT, ".rey/qualification/explorer"),
@@ -132,6 +152,15 @@ function timestamp() {
 
 function sha256(buffer) {
   return `sha256:${createHash("sha256").update(buffer).digest("hex")}`;
+}
+
+function expectedLossConsoleEntry(entry, loss) {
+  return (
+    loss === "webgl-context" &&
+    entry.level === "error" &&
+    entry.source === "console-api" &&
+    entry.text?.startsWith("THREE.THREE.WebGPURenderer: WebGL Device Lost:")
+  );
 }
 
 function sleep(milliseconds) {
@@ -456,7 +485,7 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     fromSurface: true,
   });
   const image = Buffer.from(response.data, "base64");
-  const file = `${String(STAGES.indexOf(stage) + 1).padStart(2, "0")}-${stage}.png`;
+  const file = `${String(CAPTURE_ORDER.indexOf(stage) + 1).padStart(2, "0")}-${stage}.png`;
   await writeFile(join(voyageDirectory, file), image);
   return {
     ...evidence,
@@ -492,7 +521,7 @@ async function runVoyage(options) {
     );
   }
 
-  const voyageName = `world-atlas-county-evidence-${options.backend}-${options.width}x${options.height}`;
+  const voyageName = `world-atlas-county-evidence-${options.backend}-${options.width}x${options.height}${options.loss === "none" ? "" : `-${options.loss}`}`;
   const voyageDirectory = join(
     options.outputRoot,
     `${timestamp()}-${voyageName}`,
@@ -628,6 +657,37 @@ async function runVoyage(options) {
     captures.push(
       await captureStage(connection, voyageDirectory, "world", startedAt),
     );
+    if (options.loss !== "none") {
+      const induced = await connection.evaluate(
+        options.loss === "webgl-context"
+          ? `(() => {
+              const canvas = document.querySelector('canvas[data-renderer="three-webgpu"]');
+              const context = canvas?.getContext("webgl2");
+              const extension = context?.getExtension("WEBGL_lose_context");
+              if (!extension) return false;
+              extension.loseContext();
+              return true;
+            })()`
+          : `document.querySelector('canvas[data-renderer="three-webgpu"]')
+              ?.dispatchEvent(new CustomEvent("rey:qualify-webgpu-device-loss")) === true`,
+      );
+      if (!induced) throw new Error(`${options.loss} could not be induced`);
+      await waitFor(
+        connection,
+        `document.querySelector('[data-renderer-diagnostics]')?.dataset.rendererBackend === "reference" && document.querySelector('[data-renderer-diagnostics]')?.dataset.rendererDegraded === "true" && document.querySelector('[data-renderer-diagnostics]')?.dataset.rendererLifecycle === "failed"`,
+        `${options.loss} visible reference fallback`,
+        options.timeoutMs,
+      );
+      process.stdout.write(`READY backend loss / ${options.loss}\n`);
+      captures.push(
+        await captureStage(
+          connection,
+          voyageDirectory,
+          "backend-loss",
+          startedAt,
+        ),
+      );
+    }
     await dispatchClick(
       connection,
       worldRegion,
@@ -770,16 +830,34 @@ async function runVoyage(options) {
   const exactEvidencePresent =
     (captures.find((capture) => capture.stage === "evidence")
       ?.exact_evidence_links.length ?? 0) > 0;
+  const lossFallbackObserved =
+    options.loss === "none"
+      ? null
+      : captures.some(
+          (capture) =>
+            capture.stage === "backend-loss" &&
+            capture.renderer?.backend === "reference" &&
+            capture.renderer?.degraded === "true" &&
+            capture.renderer?.lifecycle === "failed",
+        );
   const sceneIdentityRetained =
     captures.length > 0 &&
     new Set(captures.map((capture) => capture.scene_snapshot_id)).size === 5;
+  const expectedLossConsoleEntries = consoleEntries.filter((entry) =>
+    expectedLossConsoleEntry(entry, options.loss),
+  );
+  const unexpectedConsoleErrors = consoleEntries.filter(
+    (entry) =>
+      entry.level === "error" && !expectedLossConsoleEntry(entry, options.loss),
+  );
   const complete =
     !failure &&
     expectedStagesPresent &&
     backendMatched &&
     exactEvidencePresent &&
+    lossFallbackObserved !== false &&
     exceptions.length === 0 &&
-    !consoleEntries.some((entry) => entry.level === "error");
+    unexpectedConsoleErrors.length === 0;
   const omissions = [
     ...(complete
       ? []
@@ -791,7 +869,11 @@ async function runVoyage(options) {
         ]
       : []),
     "captures do not measure GPU execution duration or frame rate",
-    "device-loss and WebGL context-loss injection require separately named voyages",
+    ...(options.loss === "none"
+      ? [
+          "device-loss and WebGL context-loss injection require separately named voyages",
+        ]
+      : []),
   ];
   const manifest = {
     schema: SCHEMA,
@@ -813,6 +895,7 @@ async function runVoyage(options) {
       base_url: options.baseUrl,
       device_pixel_ratio: options.devicePixelRatio,
       height: options.height,
+      loss: options.loss,
       region: options.region,
       timeout_ms: options.timeoutMs,
       transport: options.transport,
@@ -838,10 +921,10 @@ async function runVoyage(options) {
       backend_matched: backendMatched,
       exact_evidence_present: exactEvidencePresent,
       expected_stages_present: expectedStagesPresent,
+      expected_loss_console_entries: expectedLossConsoleEntries.length,
+      loss_fallback_observed: lossFallbackObserved,
       no_browser_exceptions: exceptions.length === 0,
-      no_console_errors: !consoleEntries.some(
-        (entry) => entry.level === "error",
-      ),
+      no_unexpected_console_errors: unexpectedConsoleErrors.length === 0,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },
     captures,

@@ -15,6 +15,8 @@ import {
 } from "../engine/render-graph";
 
 export type RendererPreference = "auto" | "webgpu" | "webgl2" | "reference";
+export const WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT =
+  "rey:qualify-webgpu-device-loss";
 
 export interface AcceleratedTerrainReport {
   status: RendererStatus;
@@ -270,7 +272,15 @@ export function AcceleratedTerrainSurface({
         detail: "graphics context lost; the reference terrain remains active",
       });
     };
+    const handleWebGpuDeviceLossQualification = () => {
+      if (preference === "webgpu")
+        adapter?.destroyWebGpuDeviceForQualification();
+    };
     canvas.addEventListener("webglcontextlost", handleContextLoss);
+    canvas.addEventListener(
+      WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT,
+      handleWebGpuDeviceLossQualification,
+    );
 
     void (async () => {
       try {
@@ -345,6 +355,10 @@ export function AcceleratedTerrainSurface({
     return () => {
       cancelled = true;
       canvas.removeEventListener("webglcontextlost", handleContextLoss);
+      canvas.removeEventListener(
+        WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT,
+        handleWebGpuDeviceLossQualification,
+      );
       bundle?.dispose();
       unsubscribeStatus?.();
       adapter?.dispose();

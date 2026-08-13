@@ -359,6 +359,11 @@ optional local-file route/base-path posture exists solely for
 socket-restricted qualification over the exact built assets and bounded API
 snapshots; the production HTTP route remains `/explore`, and the manifest must
 disclose when direct browser transport was not exercised.
+Explicit loss voyages may destroy only the disposable selected WebGPU device
+or invoke the selected WebGL2 context's standard loss extension. They must
+retain the same immutable scene on the visible reference surface, mark the
+backend degraded, and continue browser traversal without changing evidence or
+creating a general renderer-control interface.
 The production build emits stable lazy chunk names for the globe, terrain,
 WebGPU adapter, and pinned Three.js module, and the `rey ui` server embeds and
 serves each chunk. Starting the documented CLI surface therefore reaches the
