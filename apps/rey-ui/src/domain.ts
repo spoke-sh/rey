@@ -393,6 +393,48 @@ export interface SemanticAtlasSource {
   frontier_rows: number;
 }
 
+export interface SemanticAtlasRegionalSource {
+  region_id: string;
+  workload_id: string;
+  scene_region_id: string;
+  source_scene_id: string;
+  source_admission_id: string;
+  source_package_id: string;
+  source_package_revision: string;
+  projection_packet_id: string;
+  semantic_longitude_microdegrees: number;
+  semantic_latitude_microdegrees: number;
+  complete: boolean;
+  native_objects: number;
+  native_feature_objects: number;
+  terrain_control_objects: number;
+  hydrology_objects: number;
+  boundary_objects: number;
+  poi_objects: number;
+  validity_boundaries: number;
+  omissions: number;
+}
+
+export interface SemanticAtlasRegionalRegion {
+  region_id: string;
+  cluster_id: string;
+  workload_id: string;
+  scene_region_id: string;
+  source_scene_id: string;
+  source_admission_id: string;
+  source_package_id: string;
+  source_package_revision: string;
+  projection_packet_id: string;
+  semantic_longitude_microdegrees: number;
+  semantic_latitude_microdegrees: number;
+  angular_radius_microdegrees: number;
+  native_objects: number;
+  validity_boundaries: number;
+  omissions: number;
+  complete: boolean;
+  dominant_feature: string;
+}
+
 export interface SemanticAtlas {
   schema: "rey.semantic-atlas.v1";
   atlas_id: string;
@@ -417,6 +459,7 @@ export interface SemanticAtlas {
   };
   submitted_sources: number;
   sources: SemanticAtlasSource[];
+  regional_sources: SemanticAtlasRegionalSource[];
   clusters: Array<{
     cluster_id: string;
     semantic_longitude_microdegrees: number;
@@ -439,6 +482,7 @@ export interface SemanticAtlas {
     complete: boolean;
     dominant_feature: string;
   }>;
+  regional_regions: SemanticAtlasRegionalRegion[];
   limits: {
     max_regions: number;
     max_world_clusters: number;
@@ -452,6 +496,16 @@ export interface SemanticAtlas {
 
 export type SemanticAtlasRegionChangeKind =
   "inserted" | "removed" | "moved" | "interest_changed";
+
+export type SemanticAtlasRegionEvidence =
+  | {
+      source_kind: "survey_topography";
+      region: SemanticAtlas["regions"][number];
+    }
+  | {
+      source_kind: "admitted_regional_scene";
+      region: SemanticAtlasRegionalRegion;
+    };
 
 export interface SemanticAtlasDelta {
   schema: "rey.semantic-atlas-delta.v1";
@@ -467,8 +521,8 @@ export interface SemanticAtlasDelta {
   region_changes: Array<{
     region_id: string;
     kind: SemanticAtlasRegionChangeKind;
-    before: SemanticAtlas["regions"][number] | null;
-    after: SemanticAtlas["regions"][number] | null;
+    before: SemanticAtlasRegionEvidence | null;
+    after: SemanticAtlasRegionEvidence | null;
   }>;
   cluster_changes: Array<{
     kind: "merged" | "split";

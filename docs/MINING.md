@@ -462,17 +462,19 @@ the CLI and `rey.workload-list.v1`. The browser compiles a bounded
 camera-relative working set and selects only frequency bands supported by its
 sample spacing without moving shared coordinates or creating evidence.
 The workload list also derives `rey.semantic-atlas.v1` over the latest admitted
-regional patches. Its bounded survey-structure clustering and synthetic
-spherical placement are pure visualization mining with an exact compiler and
-revision; visual proximity is not a mined relationship or similarity claim.
-Zoom never enters that derivation. Production survey runs retain a bounded
-linear atlas history and content-identified `rey.semantic-atlas-delta.v1`
-documents. Region changes remain typed as inserted, removed, moved, or
-interest-changed; cluster topology changes remain merged or split. Each delta
-binds exact source and target atlas revisions, and replay/tamper verification
+survey patches and accepted production regional scenes. Those evidence families
+remain separately typed. Bounded clustering uses their separately typed
+structure features; survey placement is compiler-derived, while each regional
+member preserves its exact admitted synthetic transform. Visual proximity is
+not a mined relationship or similarity claim, and zoom never enters the
+derivation. Production evidence runs retain a bounded linear atlas history and
+content-identified `rey.semantic-atlas-delta.v1` documents. Region changes
+remain typed as inserted, removed, moved, or interest-changed across both
+families; cluster topology changes remain merged or split. Each delta binds
+exact source and target atlas revisions, and replay/tamper verification
 recomputes it from both documents. Qualification fixtures and read-only
-projection do not advance this history. Accepted regional-scene membership in
-that atlas remains Plan 0003 work.
+projection do not advance this history. Scene-to-atlas revision back-binding
+and stable sectors remain Plan 0003 work.
 
 The remaining render-graph extraction, transient-patch transitions, retained
 visual proof, and named performance qualification remain

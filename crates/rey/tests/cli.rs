@@ -6299,6 +6299,61 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert_eq!(retained.status, SceneAdmissionStatus::Accepted);
     assert!(retained.scenario.is_none());
     assert_eq!(retained.scene.as_ref(), Some(scene));
+    let atlas = listed.semantic_atlas.as_ref().unwrap();
+    atlas.verify().unwrap();
+    assert!(atlas.sources.is_empty());
+    assert_eq!(atlas.regional_sources.len(), 1);
+    assert_eq!(atlas.regional_regions.len(), 1);
+    let atlas_source = &atlas.regional_sources[0];
+    let atlas_region = &atlas.regional_regions[0];
+    assert_eq!(atlas_source.workload_id, "scene-admission");
+    assert_eq!(atlas_source.scene_region_id, scene.region_id);
+    assert_eq!(atlas_source.source_scene_id, scene.scene_id);
+    assert_eq!(
+        atlas_source.source_admission_id,
+        scene.admission.admission_id
+    );
+    assert_eq!(atlas_source.source_package_id, scene.admission.package_id);
+    assert_eq!(
+        atlas_source.source_package_revision,
+        scene.admission.package_snapshot_revision
+    );
+    assert_eq!(
+        atlas_source.projection_packet_id,
+        scene.projection.packet_id
+    );
+    assert_eq!(atlas_region.region_id, atlas_source.region_id);
+    assert_eq!(
+        atlas_region.semantic_longitude_microdegrees,
+        atlas_source.semantic_longitude_microdegrees
+    );
+    assert_eq!(
+        atlas_region.semantic_latitude_microdegrees,
+        atlas_source.semantic_latitude_microdegrees
+    );
+    assert_eq!(atlas_region.angular_radius_microdegrees, 0);
+    assert_eq!(listed.semantic_atlas_history.len(), 1);
+    assert_eq!(listed.semantic_atlas_deltas.len(), 1);
+    assert_eq!(listed.semantic_atlas_deltas[0].inserted, 1);
+    listed.semantic_atlas_deltas[0]
+        .verify_between(None, atlas)
+        .unwrap();
+
+    let listed_table = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(listed_table.status.success());
+    let listed_table = String::from_utf8(listed_table.stdout).unwrap();
+    assert!(listed_table.contains("0 survey + 1 admitted regional regions"));
+    assert!(listed_table.contains("1 exact scene/package/packet memberships"));
+    assert!(listed_table.contains("admitted synthetic placements retained"));
+    assert!(listed_table.contains("sectors absent"));
+    assert!(listed_table.contains("1 retained revisions · 1 directed deltas"));
 
     let mut ui = Command::new(env!("CARGO_BIN_EXE_rey"))
         .args([
@@ -6328,6 +6383,10 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(response.contains("\"scenario\":null"));
     assert!(response.contains(admission.result_id.as_str()));
     assert!(response.contains(scene.projection.packet_id.as_str()));
+    assert!(response.contains("\"regional_sources\""));
+    assert!(response.contains("\"regional_regions\""));
+    assert!(response.contains(atlas.atlas_revision.as_str()));
+    assert!(response.contains(atlas_region.region_id.as_str()));
     assert!(response.contains("\"space\":\"native_crs84\""));
     assert!(response.contains("\"space\":\"synthetic_semantic\""));
     assert!(response.contains("\"space\":\"semantic_mercator\""));
@@ -6628,7 +6687,7 @@ fn context_topography_is_verifiable_across_cli_structured_state_and_ui_read_mode
     assert!(listed_table.stderr.is_empty());
     let listed_table = String::from_utf8(listed_table.stdout).unwrap();
     assert!(listed_table.contains("Semantic atlas"));
-    assert!(listed_table.contains("1 regions in 1 world clusters"));
+    assert!(listed_table.contains("1 survey + 0 admitted regional regions in 1 world clusters"));
     assert!(listed_table.contains("synthetic semantic longitude/latitude"));
     assert!(listed_table.contains("not Earth CRS84"));
     assert!(listed_table.contains("zoom selects retained LOD and never reclusters"));

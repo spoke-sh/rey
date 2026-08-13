@@ -583,19 +583,23 @@ attention, retained `rey.topography-patch.v1` artifacts, and their exact
 `rey.projection-packet.v1` envelopes. It also consumes the deterministic
 `rey.semantic-atlas.v1` projection of admitted survey patches and the latest
 accepted production `rey.scene-admission-result.v1` for each regional workload.
-Production survey runs also expose a retained bounded atlas history and directed
-typed delta. The immutable browser scene and bearing bind the latest delta only
-when its target and the last retained revision equal the current atlas;
-qualification fixtures and list/UI reads cannot advance it.
+Production survey runs and accepted production regional-scene runs expose one
+retained bounded atlas history and directed typed delta. Survey and regional
+members remain separate evidence families. Each regional member binds the exact
+scene, admission, package revision, packet, and unchanged synthetic placement.
+The immutable browser scene and bearing bind the latest delta only when its
+target and the last retained revision equal the current atlas; qualification
+fixtures and list/UI reads cannot advance it.
 With a fresh
 `.rey`, it projects incoming workload file state as an unmapped orientation
 globe and directs the operator toward consensual survey admission. At World the
 reference backend renders an accessible orthographic sphere and the Three.js
 backend renders a lit WebGPU-first globe; both bind the same admitted evidence.
-Regional results use the packet's exact synthetic point with no inferred
-radius. Atlas applies semantic Mercator to that same point, and closer lenses
-show exact native object bounds inside the scene envelope. Atlas sectors,
-footprint geometry, and regional terrain remain explicitly absent. Survey
+Regional results must match their retained atlas member, which preserves the
+packet's exact synthetic point with no inferred radius. Atlas applies semantic
+Mercator to that same point, and closer lenses show exact native object bounds
+inside the scene envelope. Atlas sectors, footprint geometry, and regional
+terrain remain explicitly absent. Survey
 terrain fails closed unless the
 packet source patch and topography revision match. Packet objects, validity,
 extent, limits, and omissions now direct the existing SVG reference scene; the
@@ -647,8 +651,8 @@ editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
 0003](../plans/0003-scene-to-explorer.md) now owns the critical path: make
-accepted regional scenes retained atlas members, add sector identity, complete World and
-semantic-Mercator wrapping/morphing, expand the bounded County into a local
+record an exact non-circular atlas back-binding for each accepted scene, add
+sector identity, complete World and semantic-Mercator wrapping/morphing, expand the bounded County into a local
 isometric surface with exact links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser

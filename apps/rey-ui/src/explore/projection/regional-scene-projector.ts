@@ -1,6 +1,7 @@
 import type {
   AdmittedRegionalScene,
   ContractIdentity,
+  SemanticAtlasRegionalRegion,
   SceneAdmissionResult,
   WorkloadList,
   WorkloadSummary,
@@ -10,6 +11,7 @@ export interface AdmittedRegionalProjection {
   workload: WorkloadSummary;
   result: SceneAdmissionResult;
   scene: AdmittedRegionalScene;
+  atlas_region: SemanticAtlasRegionalRegion;
 }
 
 const coordinateSpaces = [
@@ -26,10 +28,36 @@ export function admittedRegionalScenes(
   return portfolio.workloads.flatMap((workload) => {
     const result = workload.latest_scene_admission;
     const scene = result?.scene;
+    const atlas = portfolio.semantic_atlas;
+    const retainedAtlas = portfolio.semantic_atlas_history.at(-1);
+    const retainedDelta = portfolio.semantic_atlas_deltas.at(-1);
     const semanticPlacement = scene?.projection.transforms.find(
       (transform) =>
         transform.source_space === "native_crs84" &&
         transform.target_space === "synthetic_semantic",
+    );
+    const atlasSource = atlas?.regional_sources.find(
+      (source) =>
+        source.workload_id === workload.workload.id &&
+        source.scene_region_id === scene?.region_id &&
+        source.source_scene_id === scene?.scene_id &&
+        source.source_admission_id === scene?.admission.admission_id &&
+        source.source_package_id === scene?.admission.package_id &&
+        source.source_package_revision ===
+          scene?.admission.package_snapshot_revision &&
+        source.projection_packet_id === scene?.projection.packet_id,
+    );
+    const atlasRegion = atlas?.regional_regions.find(
+      (region) =>
+        region.region_id === atlasSource?.region_id &&
+        region.workload_id === atlasSource.workload_id &&
+        region.scene_region_id === atlasSource.scene_region_id &&
+        region.source_scene_id === atlasSource.source_scene_id &&
+        region.source_admission_id === atlasSource.source_admission_id &&
+        region.source_package_id === atlasSource.source_package_id &&
+        region.source_package_revision ===
+          atlasSource.source_package_revision &&
+        region.projection_packet_id === atlasSource.projection_packet_id,
     );
     if (
       !result ||
@@ -57,10 +85,21 @@ export function admittedRegionalScenes(
       ) ||
       !semanticPlacement ||
       semanticPlacement.target_origin.length !== 2 ||
-      !semanticPlacement.target_origin.every(Number.isFinite)
+      !semanticPlacement.target_origin.every(Number.isFinite) ||
+      !atlas ||
+      retainedAtlas?.atlas_revision !== atlas.atlas_revision ||
+      retainedDelta?.target_revision !== atlas.atlas_revision ||
+      portfolio.semantic_atlas_history.length !==
+        portfolio.semantic_atlas_deltas.length ||
+      !atlasSource ||
+      !atlasRegion ||
+      atlasRegion.semantic_longitude_microdegrees !==
+        semanticPlacement.target_origin[0] ||
+      atlasRegion.semantic_latitude_microdegrees !==
+        semanticPlacement.target_origin[1]
     )
       return [];
-    return [{ workload, result, scene }];
+    return [{ workload, result, scene, atlas_region: atlasRegion }];
   });
 }
 

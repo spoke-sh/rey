@@ -5,7 +5,10 @@ use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{TopographyAnchorKind, TopographyPatch};
+use crate::{
+    AdmittedRegionalScene, RegionalCoordinateSpace, RegionalLayerKind, RegionalValidityClass,
+    TopographyAnchorKind, TopographyPatch,
+};
 
 pub const SEMANTIC_ATLAS_SCHEMA: &str = "rey.semantic-atlas.v1";
 pub const SEMANTIC_ATLAS_DELTA_SCHEMA: &str = "rey.semantic-atlas-delta.v1";
@@ -132,6 +135,106 @@ impl SemanticAtlasSource {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct SemanticAtlasRegionalSource {
+    pub region_id: SemanticDigest,
+    pub workload_id: String,
+    pub scene_region_id: String,
+    pub source_scene_id: SemanticDigest,
+    pub source_admission_id: SemanticDigest,
+    pub source_package_id: SemanticDigest,
+    pub source_package_revision: SemanticDigest,
+    pub projection_packet_id: SemanticDigest,
+    pub semantic_longitude_microdegrees: i64,
+    pub semantic_latitude_microdegrees: i64,
+    pub complete: bool,
+    pub native_objects: u64,
+    pub native_feature_objects: u64,
+    pub terrain_control_objects: u64,
+    pub hydrology_objects: u64,
+    pub boundary_objects: u64,
+    pub poi_objects: u64,
+    pub validity_boundaries: u64,
+    pub omissions: u64,
+}
+
+impl SemanticAtlasRegionalSource {
+    pub fn from_scene(
+        workload_id: &str,
+        scene: &AdmittedRegionalScene,
+    ) -> Result<Self, SemanticAtlasError> {
+        scene.verify()?;
+        if scene.admission.workload.id != workload_id {
+            return Err(SemanticAtlasError::WorkloadBinding);
+        }
+        let placement = scene
+            .projection
+            .transforms
+            .iter()
+            .find(|transform| {
+                transform.source_space == RegionalCoordinateSpace::NativeCrs84
+                    && transform.target_space == RegionalCoordinateSpace::SyntheticSemantic
+                    && transform.target_origin.len() == 2
+            })
+            .ok_or(SemanticAtlasError::RegionalPlacement)?;
+        let mut hasher = SemanticHasher::new("rey.semantic-atlas-regional-region.v1");
+        hasher.add_str(workload_id);
+        hasher.add_str(&scene.region_id);
+        let count = |kind| {
+            scene
+                .projection
+                .objects
+                .iter()
+                .filter(|object| object.layer == kind)
+                .count() as u64
+        };
+        Ok(Self {
+            region_id: hasher.finish(),
+            workload_id: workload_id.to_owned(),
+            scene_region_id: scene.region_id.clone(),
+            source_scene_id: scene.scene_id.clone(),
+            source_admission_id: scene.admission.admission_id.clone(),
+            source_package_id: scene.admission.package_id.clone(),
+            source_package_revision: scene.admission.package_snapshot_revision.clone(),
+            projection_packet_id: scene.projection.packet_id.clone(),
+            semantic_longitude_microdegrees: placement.target_origin[0],
+            semantic_latitude_microdegrees: placement.target_origin[1],
+            complete: scene.complete,
+            native_objects: scene.projection.objects.len() as u64,
+            native_feature_objects: count(RegionalLayerKind::NativeFeature),
+            terrain_control_objects: count(RegionalLayerKind::TerrainControl),
+            hydrology_objects: count(RegionalLayerKind::Hydrology),
+            boundary_objects: count(RegionalLayerKind::Boundary),
+            poi_objects: count(RegionalLayerKind::Poi),
+            validity_boundaries: scene
+                .projection
+                .validity
+                .iter()
+                .filter(|validity| validity.class != RegionalValidityClass::Valid)
+                .count() as u64,
+            omissions: scene.omissions.len() as u64,
+        })
+    }
+
+    fn feature_vector(&self) -> [u64; 8] {
+        let objects = self.native_objects.max(1);
+        let ratio = |value: u64| value.saturating_mul(10_000).saturating_div(objects);
+        [
+            10_000,
+            ratio(self.native_feature_objects),
+            ratio(self.terrain_control_objects),
+            ratio(self.hydrology_objects),
+            ratio(self.boundary_objects),
+            ratio(self.poi_objects),
+            self.validity_boundaries
+                .saturating_mul(10_000)
+                .saturating_div(objects),
+            if self.complete { 10_000 } else { 0 },
+        ]
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct SemanticAtlasRegion {
     pub region_id: SemanticDigest,
     pub cluster_id: SemanticDigest,
@@ -145,6 +248,44 @@ pub struct SemanticAtlasRegion {
     pub frontier_rows: u64,
     pub complete: bool,
     pub dominant_feature: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticAtlasRegionalRegion {
+    pub region_id: SemanticDigest,
+    pub cluster_id: SemanticDigest,
+    pub workload_id: String,
+    pub scene_region_id: String,
+    pub source_scene_id: SemanticDigest,
+    pub source_admission_id: SemanticDigest,
+    pub source_package_id: SemanticDigest,
+    pub source_package_revision: SemanticDigest,
+    pub projection_packet_id: SemanticDigest,
+    pub semantic_longitude_microdegrees: i64,
+    pub semantic_latitude_microdegrees: i64,
+    pub angular_radius_microdegrees: u64,
+    pub native_objects: u64,
+    pub validity_boundaries: u64,
+    pub omissions: u64,
+    pub complete: bool,
+    pub dominant_feature: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case", tag = "source_kind", content = "region")]
+pub enum SemanticAtlasRegionEvidence {
+    SurveyTopography(SemanticAtlasRegion),
+    AdmittedRegionalScene(SemanticAtlasRegionalRegion),
+}
+
+impl SemanticAtlasRegionEvidence {
+    fn region_id(&self) -> &SemanticDigest {
+        match self {
+            Self::SurveyTopography(region) => &region.region_id,
+            Self::AdmittedRegionalScene(region) => &region.region_id,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -185,8 +326,12 @@ pub struct SemanticAtlas {
     pub layout_policy: SemanticAtlasLayoutPolicy,
     pub submitted_sources: u64,
     pub sources: Vec<SemanticAtlasSource>,
+    #[serde(default)]
+    pub regional_sources: Vec<SemanticAtlasRegionalSource>,
     pub clusters: Vec<SemanticAtlasCluster>,
     pub regions: Vec<SemanticAtlasRegion>,
+    #[serde(default)]
+    pub regional_regions: Vec<SemanticAtlasRegionalRegion>,
     pub limits: SemanticAtlasLimits,
     pub complete: bool,
     pub omissions: Vec<SemanticAtlasOmission>,
@@ -212,7 +357,36 @@ impl SemanticAtlas {
     }
 
     pub fn from_sources(sources: Vec<SemanticAtlasSource>) -> Result<Self, SemanticAtlasError> {
-        let atlas = build_atlas(sources)?;
+        Self::from_evidence_sources(sources, Vec::new())
+    }
+
+    pub fn from_admitted_evidence<'a>(
+        topographies: impl IntoIterator<Item = (&'a str, &'a TopographyPatch)>,
+        regional_scenes: impl IntoIterator<Item = (&'a str, &'a AdmittedRegionalScene)>,
+    ) -> Result<Option<Self>, SemanticAtlasError> {
+        let mut survey_sources = Vec::new();
+        for (workload_id, patch) in topographies {
+            patch.verify()?;
+            if patch.workload.id != workload_id {
+                return Err(SemanticAtlasError::WorkloadBinding);
+            }
+            survey_sources.push(SemanticAtlasSource::from_topography(workload_id, patch));
+        }
+        let regional_sources = regional_scenes
+            .into_iter()
+            .map(|(workload_id, scene)| SemanticAtlasRegionalSource::from_scene(workload_id, scene))
+            .collect::<Result<Vec<_>, _>>()?;
+        if survey_sources.is_empty() && regional_sources.is_empty() {
+            return Ok(None);
+        }
+        Self::from_evidence_sources(survey_sources, regional_sources).map(Some)
+    }
+
+    pub fn from_evidence_sources(
+        sources: Vec<SemanticAtlasSource>,
+        regional_sources: Vec<SemanticAtlasRegionalSource>,
+    ) -> Result<Self, SemanticAtlasError> {
+        let atlas = build_atlas(sources, regional_sources)?;
         atlas.verify()?;
         Ok(atlas)
     }
@@ -246,8 +420,47 @@ impl SemanticAtlas {
             }
         }
         unique(
+            self.regional_sources
+                .iter()
+                .map(|source| source.region_id.as_str()),
+            "regional source region",
+        )?;
+        for source in &self.regional_sources {
+            let mut hasher = SemanticHasher::new("rey.semantic-atlas-regional-region.v1");
+            hasher.add_str(&source.workload_id);
+            hasher.add_str(&source.scene_region_id);
+            if source.workload_id.is_empty()
+                || source.scene_region_id.is_empty()
+                || source.region_id != hasher.finish()
+                || !valid_coordinate(
+                    source.semantic_longitude_microdegrees,
+                    source.semantic_latitude_microdegrees,
+                )
+                || source.source_scene_id.as_str().is_empty()
+                || source.source_admission_id.as_str().is_empty()
+                || source.source_package_id.as_str().is_empty()
+                || source.source_package_revision.as_str().is_empty()
+                || source.projection_packet_id.as_str().is_empty()
+                || source
+                    .native_feature_objects
+                    .saturating_add(source.terrain_control_objects)
+                    .saturating_add(source.hydrology_objects)
+                    .saturating_add(source.boundary_objects)
+                    .saturating_add(source.poi_objects)
+                    != source.native_objects
+            {
+                return Err(SemanticAtlasError::Shape("regional source"));
+            }
+        }
+        unique(
             self.regions.iter().map(|region| region.region_id.as_str()),
             "region",
+        )?;
+        unique(
+            self.regional_regions
+                .iter()
+                .map(|region| region.region_id.as_str()),
+            "regional region",
         )?;
         unique(
             self.clusters
@@ -255,8 +468,18 @@ impl SemanticAtlas {
                 .map(|cluster| cluster.cluster_id.as_str()),
             "cluster",
         )?;
+        let source_count = self
+            .sources
+            .len()
+            .saturating_add(self.regional_sources.len());
         if self.sources.len() != self.regions.len()
-            || self.sources.len() as u64 > self.limits.max_regions
+            || self.regional_sources.len() != self.regional_regions.len()
+            || self.submitted_sources
+                < self
+                    .sources
+                    .len()
+                    .saturating_add(self.regional_sources.len()) as u64
+            || source_count as u64 > self.limits.max_regions
             || self.clusters.len() as u64 > self.limits.max_world_clusters
             || self.omissions.len() as u64 > self.limits.max_omissions
         {
@@ -266,7 +489,15 @@ impl SemanticAtlas {
             .sources
             .iter()
             .map(|source| source.region_id.as_str())
+            .chain(
+                self.regional_sources
+                    .iter()
+                    .map(|source| source.region_id.as_str()),
+            )
             .collect::<BTreeSet<_>>();
+        if source_ids.len() != source_count {
+            return Err(SemanticAtlasError::Duplicate("evidence region"));
+        }
         let mut clustered = BTreeSet::new();
         for cluster in &self.clusters {
             if cluster.member_region_ids.is_empty()
@@ -292,11 +523,10 @@ impl SemanticAtlas {
             if !valid_coordinate(
                 region.semantic_longitude_microdegrees,
                 region.semantic_latitude_microdegrees,
-            ) || !self
-                .clusters
-                .iter()
-                .any(|cluster| cluster.cluster_id == region.cluster_id)
-            {
+            ) || !self.clusters.iter().any(|cluster| {
+                cluster.cluster_id == region.cluster_id
+                    && cluster.member_region_ids.contains(&region.region_id)
+            }) {
                 return Err(SemanticAtlasError::Shape("region"));
             }
             let source = self
@@ -308,6 +538,38 @@ impl SemanticAtlas {
                 || region.source_patch_id != source.source_patch_id
                 || region.source_topography_revision != source.source_topography_revision
                 || region.frontier_rows != source.frontier_rows
+                || region.complete != source.complete
+            {
+                return Err(SemanticAtlasError::Membership);
+            }
+        }
+        for region in &self.regional_regions {
+            if !valid_coordinate(
+                region.semantic_longitude_microdegrees,
+                region.semantic_latitude_microdegrees,
+            ) || !self.clusters.iter().any(|cluster| {
+                cluster.cluster_id == region.cluster_id
+                    && cluster.member_region_ids.contains(&region.region_id)
+            }) {
+                return Err(SemanticAtlasError::Shape("regional region"));
+            }
+            let source = self
+                .regional_sources
+                .iter()
+                .find(|source| source.region_id == region.region_id)
+                .ok_or(SemanticAtlasError::Membership)?;
+            if region.workload_id != source.workload_id
+                || region.scene_region_id != source.scene_region_id
+                || region.source_scene_id != source.source_scene_id
+                || region.source_admission_id != source.source_admission_id
+                || region.source_package_id != source.source_package_id
+                || region.source_package_revision != source.source_package_revision
+                || region.projection_packet_id != source.projection_packet_id
+                || region.semantic_longitude_microdegrees != source.semantic_longitude_microdegrees
+                || region.semantic_latitude_microdegrees != source.semantic_latitude_microdegrees
+                || region.native_objects != source.native_objects
+                || region.validity_boundaries != source.validity_boundaries
+                || region.omissions != source.omissions
                 || region.complete != source.complete
             {
                 return Err(SemanticAtlasError::Membership);
@@ -342,8 +604,8 @@ pub enum SemanticAtlasRegionChangeKind {
 pub struct SemanticAtlasRegionChange {
     pub region_id: SemanticDigest,
     pub kind: SemanticAtlasRegionChangeKind,
-    pub before: Option<SemanticAtlasRegion>,
-    pub after: Option<SemanticAtlasRegion>,
+    pub before: Option<SemanticAtlasRegionEvidence>,
+    pub after: Option<SemanticAtlasRegionEvidence>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
@@ -388,16 +650,8 @@ impl SemanticAtlasDelta {
             source.verify()?;
         }
         target.verify()?;
-        let source_regions = source
-            .into_iter()
-            .flat_map(|atlas| &atlas.regions)
-            .map(|region| (region.region_id.clone(), region))
-            .collect::<BTreeMap<_, _>>();
-        let target_regions = target
-            .regions
-            .iter()
-            .map(|region| (region.region_id.clone(), region))
-            .collect::<BTreeMap<_, _>>();
+        let source_regions = source.map_or_else(BTreeMap::new, atlas_region_evidence);
+        let target_regions = atlas_region_evidence(target);
         let mut region_changes = Vec::new();
         for region_id in source_regions
             .keys()
@@ -409,12 +663,12 @@ impl SemanticAtlasDelta {
                     region_id: (*region_id).clone(),
                     kind: SemanticAtlasRegionChangeKind::Inserted,
                     before: None,
-                    after: Some((*after).clone()),
+                    after: Some(after.clone()),
                 }),
                 (Some(before), None) => region_changes.push(SemanticAtlasRegionChange {
                     region_id: (*region_id).clone(),
                     kind: SemanticAtlasRegionChangeKind::Removed,
-                    before: Some((*before).clone()),
+                    before: Some(before.clone()),
                     after: None,
                 }),
                 (Some(before), Some(after)) => {
@@ -422,16 +676,16 @@ impl SemanticAtlasDelta {
                         region_changes.push(SemanticAtlasRegionChange {
                             region_id: (*region_id).clone(),
                             kind: SemanticAtlasRegionChangeKind::Moved,
-                            before: Some((*before).clone()),
-                            after: Some((*after).clone()),
+                            before: Some(before.clone()),
+                            after: Some(after.clone()),
                         });
                     }
                     if atlas_region_interest_changed(before, after) {
                         region_changes.push(SemanticAtlasRegionChange {
                             region_id: (*region_id).clone(),
                             kind: SemanticAtlasRegionChangeKind::InterestChanged,
-                            before: Some((*before).clone()),
-                            after: Some((*after).clone()),
+                            before: Some(before.clone()),
+                            after: Some(after.clone()),
                         });
                     }
                 }
@@ -574,21 +828,91 @@ impl SemanticAtlasDelta {
     }
 }
 
-fn atlas_region_moved(left: &SemanticAtlasRegion, right: &SemanticAtlasRegion) -> bool {
-    left.cluster_id != right.cluster_id
-        || left.semantic_longitude_microdegrees != right.semantic_longitude_microdegrees
-        || left.semantic_latitude_microdegrees != right.semantic_latitude_microdegrees
-        || left.angular_radius_microdegrees != right.angular_radius_microdegrees
+fn atlas_region_evidence(
+    atlas: &SemanticAtlas,
+) -> BTreeMap<SemanticDigest, SemanticAtlasRegionEvidence> {
+    atlas
+        .regions
+        .iter()
+        .cloned()
+        .map(|region| {
+            (
+                region.region_id.clone(),
+                SemanticAtlasRegionEvidence::SurveyTopography(region),
+            )
+        })
+        .chain(atlas.regional_regions.iter().cloned().map(|region| {
+            (
+                region.region_id.clone(),
+                SemanticAtlasRegionEvidence::AdmittedRegionalScene(region),
+            )
+        }))
+        .collect()
 }
 
-fn atlas_region_interest_changed(left: &SemanticAtlasRegion, right: &SemanticAtlasRegion) -> bool {
-    left.workload_id != right.workload_id
-        || left.source_patch_id != right.source_patch_id
-        || left.source_topography_revision != right.source_topography_revision
-        || left.anchor_count != right.anchor_count
-        || left.frontier_rows != right.frontier_rows
-        || left.complete != right.complete
-        || left.dominant_feature != right.dominant_feature
+fn atlas_region_moved(
+    left: &SemanticAtlasRegionEvidence,
+    right: &SemanticAtlasRegionEvidence,
+) -> bool {
+    match (left, right) {
+        (
+            SemanticAtlasRegionEvidence::SurveyTopography(left),
+            SemanticAtlasRegionEvidence::SurveyTopography(right),
+        ) => {
+            left.cluster_id != right.cluster_id
+                || left.semantic_longitude_microdegrees != right.semantic_longitude_microdegrees
+                || left.semantic_latitude_microdegrees != right.semantic_latitude_microdegrees
+                || left.angular_radius_microdegrees != right.angular_radius_microdegrees
+        }
+        (
+            SemanticAtlasRegionEvidence::AdmittedRegionalScene(left),
+            SemanticAtlasRegionEvidence::AdmittedRegionalScene(right),
+        ) => {
+            left.cluster_id != right.cluster_id
+                || left.semantic_longitude_microdegrees != right.semantic_longitude_microdegrees
+                || left.semantic_latitude_microdegrees != right.semantic_latitude_microdegrees
+                || left.angular_radius_microdegrees != right.angular_radius_microdegrees
+        }
+        _ => true,
+    }
+}
+
+fn atlas_region_interest_changed(
+    left: &SemanticAtlasRegionEvidence,
+    right: &SemanticAtlasRegionEvidence,
+) -> bool {
+    match (left, right) {
+        (
+            SemanticAtlasRegionEvidence::SurveyTopography(left),
+            SemanticAtlasRegionEvidence::SurveyTopography(right),
+        ) => {
+            left.workload_id != right.workload_id
+                || left.source_patch_id != right.source_patch_id
+                || left.source_topography_revision != right.source_topography_revision
+                || left.anchor_count != right.anchor_count
+                || left.frontier_rows != right.frontier_rows
+                || left.complete != right.complete
+                || left.dominant_feature != right.dominant_feature
+        }
+        (
+            SemanticAtlasRegionEvidence::AdmittedRegionalScene(left),
+            SemanticAtlasRegionEvidence::AdmittedRegionalScene(right),
+        ) => {
+            left.workload_id != right.workload_id
+                || left.scene_region_id != right.scene_region_id
+                || left.source_scene_id != right.source_scene_id
+                || left.source_admission_id != right.source_admission_id
+                || left.source_package_id != right.source_package_id
+                || left.source_package_revision != right.source_package_revision
+                || left.projection_packet_id != right.projection_packet_id
+                || left.native_objects != right.native_objects
+                || left.validity_boundaries != right.validity_boundaries
+                || left.omissions != right.omissions
+                || left.complete != right.complete
+                || left.dominant_feature != right.dominant_feature
+        }
+        _ => true,
+    }
 }
 
 fn semantic_atlas_cluster_changes(
@@ -599,11 +923,23 @@ fn semantic_atlas_cluster_changes(
         .regions
         .iter()
         .map(|region| (region.region_id.clone(), region.cluster_id.clone()))
+        .chain(
+            source
+                .regional_regions
+                .iter()
+                .map(|region| (region.region_id.clone(), region.cluster_id.clone())),
+        )
         .collect::<BTreeMap<_, _>>();
     let target_cluster_by_region = target
         .regions
         .iter()
         .map(|region| (region.region_id.clone(), region.cluster_id.clone()))
+        .chain(
+            target
+                .regional_regions
+                .iter()
+                .map(|region| (region.region_id.clone(), region.cluster_id.clone())),
+        )
         .collect::<BTreeMap<_, _>>();
     let persistent_regions = source_cluster_by_region
         .keys()
@@ -661,7 +997,7 @@ fn semantic_atlas_cluster_changes(
 }
 
 fn valid_region_change(change: &SemanticAtlasRegionChange) -> bool {
-    let bound = |region: &SemanticAtlasRegion| region.region_id == change.region_id;
+    let bound = |region: &SemanticAtlasRegionEvidence| region.region_id() == &change.region_id;
     match (&change.kind, &change.before, &change.after) {
         (SemanticAtlasRegionChangeKind::Inserted, None, Some(after)) => bound(after),
         (SemanticAtlasRegionChangeKind::Removed, Some(before), None) => bound(before),
@@ -698,31 +1034,80 @@ fn canonical_nonempty_digests(values: &[SemanticDigest]) -> bool {
         && values.windows(2).all(|pair| pair[0] < pair[1])
 }
 
-fn build_atlas(mut sources: Vec<SemanticAtlasSource>) -> Result<SemanticAtlas, SemanticAtlasError> {
+#[derive(Clone, Copy)]
+enum AtlasLayoutSourceKind {
+    Survey(usize),
+    Regional(usize),
+}
+
+struct AtlasLayoutSource {
+    kind: AtlasLayoutSourceKind,
+    region_id: SemanticDigest,
+    feature_vector: [u64; 8],
+    bound_coordinate: Option<(i64, i64)>,
+    dominant_feature: String,
+}
+
+fn build_atlas(
+    mut sources: Vec<SemanticAtlasSource>,
+    mut regional_sources: Vec<SemanticAtlasRegionalSource>,
+) -> Result<SemanticAtlas, SemanticAtlasError> {
     let limits = SemanticAtlasLimits::default();
     sources.sort_by(|left, right| left.region_id.cmp(&right.region_id));
+    regional_sources.sort_by(|left, right| left.region_id.cmp(&right.region_id));
     unique(
         sources.iter().map(|source| source.region_id.as_str()),
         "source region",
     )?;
-    let submitted_sources = sources.len() as u64;
-    let omitted = sources.len().saturating_sub(limits.max_regions as usize);
-    sources.truncate(limits.max_regions as usize);
-    let assignments = cluster_sources(&sources, limits.max_world_clusters as usize);
+    unique(
+        regional_sources
+            .iter()
+            .map(|source| source.region_id.as_str()),
+        "regional source region",
+    )?;
+    let submitted_sources = sources.len().saturating_add(regional_sources.len()) as u64;
+    let mut submitted_ids = sources
+        .iter()
+        .map(|source| source.region_id.clone())
+        .chain(
+            regional_sources
+                .iter()
+                .map(|source| source.region_id.clone()),
+        )
+        .collect::<Vec<_>>();
+    submitted_ids.sort();
+    unique(
+        submitted_ids.iter().map(SemanticDigest::as_str),
+        "evidence region",
+    )?;
+    let omitted = submitted_ids
+        .len()
+        .saturating_sub(limits.max_regions as usize);
+    submitted_ids.truncate(limits.max_regions as usize);
+    let admitted_ids = submitted_ids.into_iter().collect::<BTreeSet<_>>();
+    sources.retain(|source| admitted_ids.contains(&source.region_id));
+    regional_sources.retain(|source| admitted_ids.contains(&source.region_id));
+    let layout_sources = atlas_layout_sources(&sources, &regional_sources);
+    let assignments = cluster_sources(&layout_sources, limits.max_world_clusters as usize);
     let mut clusters = Vec::new();
     let mut regions = Vec::new();
+    let mut regional_regions = Vec::new();
     for (cluster_index, member_indices) in assignments.iter().enumerate() {
-        let (cluster_longitude, cluster_latitude) =
-            cluster_center(cluster_index, assignments.len());
-        let member_region_ids = member_indices
-            .iter()
-            .map(|index| sources[*index].region_id.clone())
-            .collect::<Vec<_>>();
-        let cluster_id = cluster_identity(&member_region_ids);
-        let cluster_dominant_feature = dominant_feature(
+        let (cluster_longitude, cluster_latitude) = bound_cluster_center(
             member_indices
                 .iter()
-                .map(|index| &sources[*index])
+                .filter_map(|index| layout_sources[*index].bound_coordinate),
+        )
+        .unwrap_or_else(|| cluster_center(cluster_index, assignments.len()));
+        let member_region_ids = member_indices
+            .iter()
+            .map(|index| layout_sources[*index].region_id.clone())
+            .collect::<Vec<_>>();
+        let cluster_id = cluster_identity(&member_region_ids);
+        let cluster_dominant_feature = dominant_layout_feature(
+            member_indices
+                .iter()
+                .map(|index| layout_sources[*index].dominant_feature.as_str())
                 .collect::<Vec<_>>(),
         );
         let angular_radius = if member_indices.len() <= 1 {
@@ -738,40 +1123,68 @@ fn build_atlas(mut sources: Vec<SemanticAtlasSource>) -> Result<SemanticAtlas, S
             member_region_ids,
             dominant_feature: cluster_dominant_feature,
         });
-        for (member_position, source_index) in member_indices.iter().enumerate() {
-            let source = &sources[*source_index];
-            let (longitude, latitude) = if member_indices.len() == 1 {
-                (cluster_longitude, cluster_latitude)
-            } else {
-                polar_member_coordinate(
-                    cluster_longitude,
-                    cluster_latitude,
-                    member_position,
-                    member_indices.len(),
-                )
-            };
-            regions.push(SemanticAtlasRegion {
-                region_id: source.region_id.clone(),
-                cluster_id: cluster_id.clone(),
-                workload_id: source.workload_id.clone(),
-                source_patch_id: source.source_patch_id.clone(),
-                source_topography_revision: source.source_topography_revision.clone(),
-                semantic_longitude_microdegrees: longitude,
-                semantic_latitude_microdegrees: latitude,
-                angular_radius_microdegrees: 5_500_000,
-                anchor_count: source
-                    .workspace_anchors
-                    .saturating_add(source.file_anchors)
-                    .saturating_add(source.document_anchors)
-                    .saturating_add(source.external_resource_anchors),
-                frontier_rows: source.frontier_rows,
-                complete: source.complete,
-                dominant_feature: dominant_feature(vec![source]),
-            });
+        for (member_position, layout_index) in member_indices.iter().enumerate() {
+            let layout = &layout_sources[*layout_index];
+            match layout.kind {
+                AtlasLayoutSourceKind::Survey(source_index) => {
+                    let source = &sources[source_index];
+                    let (longitude, latitude) = if member_indices.len() == 1 {
+                        (cluster_longitude, cluster_latitude)
+                    } else {
+                        polar_member_coordinate(
+                            cluster_longitude,
+                            cluster_latitude,
+                            member_position,
+                            member_indices.len(),
+                        )
+                    };
+                    regions.push(SemanticAtlasRegion {
+                        region_id: source.region_id.clone(),
+                        cluster_id: cluster_id.clone(),
+                        workload_id: source.workload_id.clone(),
+                        source_patch_id: source.source_patch_id.clone(),
+                        source_topography_revision: source.source_topography_revision.clone(),
+                        semantic_longitude_microdegrees: longitude,
+                        semantic_latitude_microdegrees: latitude,
+                        angular_radius_microdegrees: 5_500_000,
+                        anchor_count: source
+                            .workspace_anchors
+                            .saturating_add(source.file_anchors)
+                            .saturating_add(source.document_anchors)
+                            .saturating_add(source.external_resource_anchors),
+                        frontier_rows: source.frontier_rows,
+                        complete: source.complete,
+                        dominant_feature: dominant_feature(vec![source]),
+                    });
+                }
+                AtlasLayoutSourceKind::Regional(source_index) => {
+                    let source = &regional_sources[source_index];
+                    regional_regions.push(SemanticAtlasRegionalRegion {
+                        region_id: source.region_id.clone(),
+                        cluster_id: cluster_id.clone(),
+                        workload_id: source.workload_id.clone(),
+                        scene_region_id: source.scene_region_id.clone(),
+                        source_scene_id: source.source_scene_id.clone(),
+                        source_admission_id: source.source_admission_id.clone(),
+                        source_package_id: source.source_package_id.clone(),
+                        source_package_revision: source.source_package_revision.clone(),
+                        projection_packet_id: source.projection_packet_id.clone(),
+                        semantic_longitude_microdegrees: source.semantic_longitude_microdegrees,
+                        semantic_latitude_microdegrees: source.semantic_latitude_microdegrees,
+                        angular_radius_microdegrees: 0,
+                        native_objects: source.native_objects,
+                        validity_boundaries: source.validity_boundaries,
+                        omissions: source.omissions,
+                        complete: source.complete,
+                        dominant_feature: regional_dominant_feature(source),
+                    });
+                }
+            }
         }
     }
     clusters.sort_by(|left, right| left.cluster_id.cmp(&right.cluster_id));
     regions.sort_by(|left, right| left.region_id.cmp(&right.region_id));
+    regional_regions.sort_by(|left, right| left.region_id.cmp(&right.region_id));
     let mut omissions = Vec::new();
     if omitted > 0 {
         omissions.push(SemanticAtlasOmission {
@@ -788,6 +1201,11 @@ fn build_atlas(mut sources: Vec<SemanticAtlasSource>) -> Result<SemanticAtlas, S
             revision: source.source_topography_revision.to_string(),
         })
         .collect::<Vec<_>>();
+    lineage.extend(regional_sources.iter().map(|source| SemanticAtlasLineage {
+        kind: "admitted_regional_scene".to_owned(),
+        identity: source.source_scene_id.to_string(),
+        revision: source.projection_packet_id.to_string(),
+    }));
     lineage.push(SemanticAtlasLineage {
         kind: "layout_compiler".to_owned(),
         identity: atlas_compiler().id,
@@ -808,20 +1226,22 @@ fn build_atlas(mut sources: Vec<SemanticAtlasSource>) -> Result<SemanticAtlas, S
             longitude_range_microdegrees: [-180_000_000, 180_000_000],
             latitude_range_microdegrees: [-90_000_000, 90_000_000],
             wraps_longitude: true,
-            authority: "layout coordinates derived only from retained admitted survey structure; visual proximity is not source truth".to_owned(),
+            authority: "survey placements derive from retained admitted structure; admitted regional scenes retain their exact synthetic transform; visual proximity is not source truth".to_owned(),
             earth_crs: None,
         },
         layout_policy: SemanticAtlasLayoutPolicy {
-            clustering: "deterministic bounded k-medoids over admitted survey-structure features".to_owned(),
-            placement: "equal-area world cluster centers with deterministic polar member placement".to_owned(),
-            recluster_trigger: "an admitted source set or source topography revision changes".to_owned(),
+            clustering: "deterministic bounded k-medoids over separately typed survey and regional structure features".to_owned(),
+            placement: "bound regional synthetic coordinates remain exact; survey members use deterministic polar placement around the resulting cluster center".to_owned(),
+            recluster_trigger: "an admitted survey or regional source set or exact source revision changes".to_owned(),
             zoom_rule: "zoom selects retained level of detail and never reclusters".to_owned(),
-            distance_claim: "cluster membership reflects only declared survey-structure features; angular distance is presentation, not semantic similarity evidence".to_owned(),
+            distance_claim: "cluster membership reflects only separately typed admitted structure features; angular distance is presentation, not semantic similarity evidence".to_owned(),
         },
         submitted_sources,
         sources,
+        regional_sources,
         clusters,
         regions,
+        regional_regions,
         limits,
         complete: omitted == 0,
         omissions,
@@ -832,7 +1252,41 @@ fn build_atlas(mut sources: Vec<SemanticAtlasSource>) -> Result<SemanticAtlas, S
     Ok(atlas)
 }
 
-fn cluster_sources(sources: &[SemanticAtlasSource], max_clusters: usize) -> Vec<Vec<usize>> {
+fn atlas_layout_sources(
+    sources: &[SemanticAtlasSource],
+    regional_sources: &[SemanticAtlasRegionalSource],
+) -> Vec<AtlasLayoutSource> {
+    let mut layout = sources
+        .iter()
+        .enumerate()
+        .map(|(index, source)| AtlasLayoutSource {
+            kind: AtlasLayoutSourceKind::Survey(index),
+            region_id: source.region_id.clone(),
+            feature_vector: source.feature_vector(),
+            bound_coordinate: None,
+            dominant_feature: dominant_feature(vec![source]),
+        })
+        .chain(
+            regional_sources
+                .iter()
+                .enumerate()
+                .map(|(index, source)| AtlasLayoutSource {
+                    kind: AtlasLayoutSourceKind::Regional(index),
+                    region_id: source.region_id.clone(),
+                    feature_vector: source.feature_vector(),
+                    bound_coordinate: Some((
+                        source.semantic_longitude_microdegrees,
+                        source.semantic_latitude_microdegrees,
+                    )),
+                    dominant_feature: regional_dominant_feature(source),
+                }),
+        )
+        .collect::<Vec<_>>();
+    layout.sort_by(|left, right| left.region_id.cmp(&right.region_id));
+    layout
+}
+
+fn cluster_sources(sources: &[AtlasLayoutSource], max_clusters: usize) -> Vec<Vec<usize>> {
     if sources.is_empty() {
         return Vec::new();
     }
@@ -840,8 +1294,8 @@ fn cluster_sources(sources: &[SemanticAtlasSource], max_clusters: usize) -> Vec<
     let mut ordered = (0..sources.len()).collect::<Vec<_>>();
     ordered.sort_by(|left, right| {
         sources[*left]
-            .feature_vector()
-            .cmp(&sources[*right].feature_vector())
+            .feature_vector
+            .cmp(&sources[*right].feature_vector)
             .then_with(|| sources[*left].region_id.cmp(&sources[*right].region_id))
     });
     let mut medoids = (0..cluster_count)
@@ -891,10 +1345,10 @@ fn cluster_sources(sources: &[SemanticAtlasSource], max_clusters: usize) -> Vec<
     clusters
 }
 
-fn feature_distance(left: &SemanticAtlasSource, right: &SemanticAtlasSource) -> u128 {
-    left.feature_vector()
+fn feature_distance(left: &AtlasLayoutSource, right: &AtlasLayoutSource) -> u128 {
+    left.feature_vector
         .into_iter()
-        .zip(right.feature_vector())
+        .zip(right.feature_vector)
         .fold(0_u128, |sum, (left, right)| {
             let delta = left.abs_diff(right) as u128;
             sum.saturating_add(delta.saturating_mul(delta))
@@ -914,6 +1368,33 @@ fn cluster_center(index: usize, count: usize) -> (i64, i64) {
     let latitude = (1.0 - 2.0 * fraction).asin().to_degrees();
     let longitude = normalize_longitude(index as f64 * 137.507_764_050_037_85);
     (microdegrees(longitude), microdegrees(latitude))
+}
+
+fn bound_cluster_center(coordinates: impl IntoIterator<Item = (i64, i64)>) -> Option<(i64, i64)> {
+    let coordinates = coordinates.into_iter().collect::<Vec<_>>();
+    if coordinates.is_empty() {
+        return None;
+    }
+    let (x, y, z) = coordinates.iter().fold(
+        (0.0_f64, 0.0_f64, 0.0_f64),
+        |(x, y, z), (longitude, latitude)| {
+            let longitude = (*longitude as f64 / MICRODEGREES_PER_DEGREE).to_radians();
+            let latitude = (*latitude as f64 / MICRODEGREES_PER_DEGREE).to_radians();
+            (
+                x + latitude.cos() * longitude.cos(),
+                y + latitude.cos() * longitude.sin(),
+                z + latitude.sin(),
+            )
+        },
+    );
+    let magnitude = x.hypot(y).hypot(z);
+    if magnitude <= f64::EPSILON {
+        return coordinates.into_iter().min();
+    }
+    Some((
+        microdegrees(normalize_longitude(y.atan2(x).to_degrees())),
+        microdegrees(z.atan2(x.hypot(y)).to_degrees()),
+    ))
 }
 
 fn polar_member_coordinate(
@@ -956,6 +1437,36 @@ fn dominant_feature(sources: Vec<&SemanticAtlasSource>) -> String {
         .to_owned()
 }
 
+fn dominant_layout_feature(features: Vec<&str>) -> String {
+    let mut counts = BTreeMap::new();
+    for feature in features {
+        *counts.entry(feature).or_insert(0_u64) += 1;
+    }
+    counts
+        .into_iter()
+        .max_by(|(left_feature, left_count), (right_feature, right_count)| {
+            left_count
+                .cmp(right_count)
+                .then_with(|| right_feature.cmp(left_feature))
+        })
+        .map_or_else(|| "unknown".to_owned(), |(feature, _)| feature.to_owned())
+}
+
+fn regional_dominant_feature(source: &SemanticAtlasRegionalSource) -> String {
+    [
+        ("native_feature", source.native_feature_objects),
+        ("terrain_control", source.terrain_control_objects),
+        ("hydrology", source.hydrology_objects),
+        ("boundary", source.boundary_objects),
+        ("poi", source.poi_objects),
+    ]
+    .into_iter()
+    .enumerate()
+    .max_by_key(|(index, (_, count))| (*count, std::cmp::Reverse(*index)))
+    .map_or("native_feature", |(_, (feature, _))| feature)
+    .to_owned()
+}
+
 fn cluster_identity(region_ids: &[SemanticDigest]) -> SemanticDigest {
     let mut hasher = SemanticHasher::new("rey.semantic-atlas-cluster.v1");
     for region_id in region_ids {
@@ -966,7 +1477,7 @@ fn cluster_identity(region_ids: &[SemanticDigest]) -> SemanticDigest {
 
 fn atlas_compiler() -> ContractIdentity {
     let id = "rey.semantic-atlas.polar-cluster";
-    let revision = 1;
+    let revision = 2;
     let mut hasher = SemanticHasher::new("rey.contract.v1");
     hasher.add_str(id);
     hasher.add_u64(revision);
@@ -1058,6 +1569,8 @@ pub enum SemanticAtlasError {
     Membership,
     #[error("semantic atlas workload does not match its source topography")]
     WorkloadBinding,
+    #[error("admitted regional scene has no exact native-to-semantic atlas placement")]
+    RegionalPlacement,
     #[error("semantic atlas limit is invalid")]
     Limit,
     #[error("semantic atlas digest does not match its content")]
@@ -1070,6 +1583,8 @@ pub enum SemanticAtlasError {
     DeltaBinding,
     #[error(transparent)]
     Topography(#[from] crate::TopographyError),
+    #[error(transparent)]
+    RegionalScene(#[from] crate::RegionalSceneError),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }
@@ -1102,6 +1617,33 @@ mod tests {
         }
     }
 
+    fn regional_source(id: &str, longitude: i64, latitude: i64) -> SemanticAtlasRegionalSource {
+        let mut region = SemanticHasher::new("rey.semantic-atlas-regional-region.v1");
+        region.add_str(id);
+        region.add_str("county-demo");
+        SemanticAtlasRegionalSource {
+            region_id: region.finish(),
+            workload_id: id.to_owned(),
+            scene_region_id: "county-demo".to_owned(),
+            source_scene_id: placeholder("regional-scene"),
+            source_admission_id: placeholder("regional-admission"),
+            source_package_id: placeholder("regional-package"),
+            source_package_revision: placeholder("regional-package-revision"),
+            projection_packet_id: placeholder("regional-packet"),
+            semantic_longitude_microdegrees: longitude,
+            semantic_latitude_microdegrees: latitude,
+            complete: false,
+            native_objects: 3,
+            native_feature_objects: 1,
+            terrain_control_objects: 1,
+            hydrology_objects: 0,
+            boundary_objects: 0,
+            poi_objects: 1,
+            validity_boundaries: 1,
+            omissions: 2,
+        }
+    }
+
     #[test]
     fn atlas_is_deterministic_and_bound_to_source_revisions() {
         let first = SemanticAtlas::from_sources(vec![
@@ -1125,6 +1667,51 @@ mod tests {
         changed_sources[0].source_topography_revision = placeholder("changed");
         let changed = SemanticAtlas::from_sources(changed_sources).expect("changed atlas");
         assert_ne!(first.atlas_revision, changed.atlas_revision);
+    }
+
+    #[test]
+    fn regional_scene_is_a_separately_typed_exact_atlas_member() {
+        let regional = regional_source("scene-admission", -42_000_000, 18_000_000);
+        let atlas = SemanticAtlas::from_evidence_sources(
+            vec![source("survey", 3, 1)],
+            vec![regional.clone()],
+        )
+        .expect("combined atlas");
+        let placed = &atlas.regional_regions[0];
+        assert_eq!(atlas.regional_sources, vec![regional]);
+        assert_eq!(placed.semantic_longitude_microdegrees, -42_000_000);
+        assert_eq!(placed.semantic_latitude_microdegrees, 18_000_000);
+        assert_eq!(placed.angular_radius_microdegrees, 0);
+        assert!(
+            atlas
+                .clusters
+                .iter()
+                .any(|cluster| cluster.member_region_ids.contains(&placed.region_id))
+        );
+        assert_eq!(atlas.delta_from(None).expect("initial delta").inserted, 2);
+
+        let mut changed_source = atlas.regional_sources[0].clone();
+        changed_source.source_scene_id = placeholder("changed-regional-scene");
+        changed_source.projection_packet_id = placeholder("changed-regional-packet");
+        changed_source.semantic_longitude_microdegrees += 1_000_000;
+        let changed =
+            SemanticAtlas::from_evidence_sources(atlas.sources.clone(), vec![changed_source])
+                .expect("changed combined atlas");
+        let delta = changed.delta_from(Some(&atlas)).expect("regional delta");
+        assert_eq!(delta.inserted, 0);
+        assert_eq!(delta.removed, 0);
+        assert_eq!(delta.moved, 1);
+        assert_eq!(delta.interest_changed, 1);
+        delta
+            .verify_between(Some(&atlas), &changed)
+            .expect("bound regional delta");
+
+        let mut tampered = atlas.clone();
+        tampered.regional_regions[0].semantic_longitude_microdegrees += 1;
+        assert!(matches!(
+            tampered.verify(),
+            Err(SemanticAtlasError::Membership)
+        ));
     }
 
     #[test]

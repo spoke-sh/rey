@@ -10,6 +10,50 @@ const contract = (id: string, digest = `${id}:digest`) => ({
   semantic_digest: digest,
 });
 
+const regionalAtlas = {
+  atlas_revision: "atlas:1",
+  compiler: contract("rey.semantic-atlas.polar-cluster", "atlas-compiler:1"),
+  sources: [],
+  regions: [],
+  regional_sources: [
+    {
+      region_id: "atlas-region:1",
+      workload_id: "scene-admission",
+      scene_region_id: "regional-demo",
+      source_scene_id: "scene:1",
+      source_admission_id: "admission:1",
+      source_package_id: "package:1",
+      source_package_revision: "snapshot:1",
+      projection_packet_id: "packet:1",
+    },
+  ],
+  regional_regions: [
+    {
+      region_id: "atlas-region:1",
+      cluster_id: "cluster:1",
+      workload_id: "scene-admission",
+      scene_region_id: "regional-demo",
+      source_scene_id: "scene:1",
+      source_admission_id: "admission:1",
+      source_package_id: "package:1",
+      source_package_revision: "snapshot:1",
+      projection_packet_id: "packet:1",
+      semantic_longitude_microdegrees: -42_000_000,
+      semantic_latitude_microdegrees: 18_000_000,
+    },
+  ],
+  clusters: [
+    {
+      cluster_id: "cluster:1",
+      semantic_longitude_microdegrees: -42_000_000,
+      semantic_latitude_microdegrees: 18_000_000,
+      angular_radius_microdegrees: 7_000_000,
+      member_region_ids: ["atlas-region:1"],
+      dominant_feature: "terrain_control",
+    },
+  ],
+};
+
 const regionalPortfolio = {
   schema: "rey.workload-list.v1",
   catalog: {
@@ -20,7 +64,14 @@ const regionalPortfolio = {
     admitted_count: 1,
     draft_count: 0,
   },
-  semantic_atlas: null,
+  semantic_atlas: regionalAtlas,
+  semantic_atlas_history: [regionalAtlas],
+  semantic_atlas_deltas: [
+    {
+      delta_id: "delta:1",
+      target_revision: "atlas:1",
+    },
+  ],
   drafts: [],
   attention: {
     attention_id: "attention:1",
@@ -161,7 +212,7 @@ describe("regional scene topology projection", () => {
     expect(atlas.label).toBe("SEMANTIC MERCATOR ATLAS");
     expect(atlas.nodes[0]?.focus_id).toBe("regional:scene:1");
     expect(atlas.omissions).toContain(
-      "no retained atlas revision or sector polygons bind these regional scenes yet",
+      "retained atlas membership is point-only; sector polygons remain absent",
     );
 
     const county = buildTopologyScene(

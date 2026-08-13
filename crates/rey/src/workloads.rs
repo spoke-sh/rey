@@ -3723,14 +3723,8 @@ impl WorkloadList {
         attention: WorkloadAttention,
         runtime: Option<PortfolioReasoningEvidence>,
     ) -> Self {
-        let semantic_atlas =
-            SemanticAtlas::from_topographies(workloads.iter().filter_map(|workload| {
-                workload
-                    .topography_patch
-                    .as_ref()
-                    .map(|patch| (workload.workload.id.as_str(), patch))
-            }))
-            .expect("retained verified topographies must produce a semantic atlas");
+        let semantic_atlas = semantic_atlas_from_summaries(&workloads)
+            .expect("retained verified evidence must produce a semantic atlas");
         Self {
             schema: WORKLOAD_LIST_SCHEMA.to_owned(),
             catalog,
@@ -3779,19 +3773,30 @@ pub fn derive_semantic_atlas(
     definitions: &[WorkloadDefinition],
     state: &LocalWorkloadState,
 ) -> Result<Option<SemanticAtlas>, rey_mining::SemanticAtlasError> {
-    let patches = definitions
+    let summaries = definitions
         .iter()
-        .filter_map(|workload| {
-            let summary = WorkloadSummary::derive(workload, state.record(&workload.workload.id));
-            summary
-                .topography_patch
-                .map(|patch| (workload.workload.id.clone(), patch))
-        })
+        .map(|workload| WorkloadSummary::derive(workload, state.record(&workload.workload.id)))
         .collect::<Vec<_>>();
-    SemanticAtlas::from_topographies(
-        patches
-            .iter()
-            .map(|(workload_id, patch)| (workload_id.as_str(), patch)),
+    semantic_atlas_from_summaries(&summaries)
+}
+
+fn semantic_atlas_from_summaries(
+    workloads: &[WorkloadSummary],
+) -> Result<Option<SemanticAtlas>, rey_mining::SemanticAtlasError> {
+    SemanticAtlas::from_admitted_evidence(
+        workloads.iter().filter_map(|workload| {
+            workload
+                .topography_patch
+                .as_ref()
+                .map(|patch| (workload.workload.id.as_str(), patch))
+        }),
+        workloads.iter().filter_map(|workload| {
+            workload
+                .latest_scene_admission
+                .as_ref()
+                .and_then(|result| result.scene.as_ref())
+                .map(|scene| (workload.workload.id.as_str(), scene))
+        }),
     )
 }
 

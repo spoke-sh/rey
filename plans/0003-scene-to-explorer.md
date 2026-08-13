@@ -37,19 +37,24 @@ fail closed. It projects the exact synthetic point at World, the same point on
 a semantic-Mercator chart at Atlas, and exact native object bounds in a bounded
 County reference view. This first County view explicitly retains absent terrain,
 atlas sectors, footprints, geometry reconstruction, and deep source links as
-boundaries rather than inventing them. Production survey runs now retain up to
+boundaries rather than inventing them. Production evidence runs now retain up to
 64 verified synthetic atlas revisions and one directed
-`rey.semantic-atlas-delta.v1` per revision. The delta keeps inserted, removed,
-moved, interest-changed, merged, and split states distinct; qualification
-fixtures and read-only list/UI access cannot advance history. Explorer binds a
-latest delta only when its target is the current retained atlas. Accepted
-regional scenes are not members of that retained atlas yet, and no sector
-identity exists. Explorer implements the fresh
+`rey.semantic-atlas-delta.v1` per revision. Accepted production regional scenes
+now enter the same bounded history as separately typed atlas members whose
+scene, admission, package revision, projection packet, and exact synthetic
+placement are bound explicitly. The delta keeps inserted, removed, moved,
+interest-changed, merged, and split states distinct across both evidence
+families; qualification fixtures and read-only list/UI access cannot advance
+history. Explorer binds a latest delta only when its target is the current
+retained atlas and rejects mismatched regional membership. The admitted scene
+does not yet carry the resulting atlas revision back into its nullable artifact
+binding, and no sector identity exists. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
-material, WebGPU/WebGL2 paths, and an accessible reference path. Semantic
-Mercator, sectors, admitted County fabric, render-graph completion, clipmap
-reuse, and retained visual/performance proof remain open.
+material, WebGPU/WebGL2 paths, and an accessible reference path. Complete
+semantic-Mercator wrap/morph behavior, sectors, admitted County fabric,
+render-graph completion, clipmap reuse, and retained visual/performance proof
+remain open.
 
 ## Completion Checklist
 
@@ -86,9 +91,10 @@ reuse, and retained visual/performance proof remain open.
 
 - [x] Retain prior survey-atlas revisions at production admission and emit inserted, removed,
   moved, merged, split, and interest-change deltas.
-- [ ] Bind accepted regional scenes into the retained atlas and record the
-  exact admitted atlas revision on each regional scene without changing its
-  native or package identity.
+- [x] Bind accepted regional scenes into the retained atlas without changing
+  native/package identity or synthetic placement.
+- [ ] Record the exact admitted atlas revision back on each regional scene
+  without creating circular scene/atlas content identity.
 - [ ] Add stable synthetic sector polygons and explicit region membership;
   keep sectors separate from admitted County footprints.
 - [ ] Implement spherical Mercator wrap, latitude cutoff, polar disclosure,

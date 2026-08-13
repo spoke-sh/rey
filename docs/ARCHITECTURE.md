@@ -155,7 +155,7 @@ poll cursors, and delta-triggered workloads.
 | Scene generation recipe | Generator revision, source identity, seed, bounds, and complete effective geometry/effect hyperparameters embedded in its native output                                                            | Workspace source lineage; deterministic authoring, never evidence authority                                     |
 | Scene package       | Immutable candidate containing an exact scene snapshot, native-object references, POI/feature index, limits, omissions, and directed prior-package delta                                                | Local content-addressed editor candidate store; explicitly not admitted evidence                                |
 | Scene admission request | Content-identified handoff naming one exact scene package and the workload operation required to validate it                                                                                       | Editor candidate store until an explicit workload accepts or rejects it                                         |
-| Semantic atlas      | Content-identified bounded layout over admitted regional evidence with stable region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, lineage, and a directed typed revision delta | Retained production survey-atlas history today; accepted regional-scene membership and stable sector polygons remain target work |
+| Semantic atlas      | Content-identified bounded layout over separately typed admitted survey and regional-scene evidence with stable region identity, synthetic spherical coordinates, clusters, compiler, limits, omissions, lineage, and a directed typed revision delta | Retained production history includes survey patches and accepted regional scenes; stable sector polygons and scene-to-atlas back-bindings remain target work |
 | Admitted regional scene | Qualified result binding one exact editor package to native-to-semantic and county-local transforms, normalized terrain/feature layers, validity/no-data, limits, omissions, and lineage                  | Workload result and Explorer input; candidate packages remain outside this boundary                              |
 | Projection packet   | Bounded target envelope binding admitted evidence, coordinate/projection basis, scalar/vector channels, surveyed-validity masks, scene layers, revisions, limits, completeness, omissions, and lineage | Pure Rey projection input; reproducible from exact evidence or retained only under an explicit evidence profile |
 | Terrain program     | Deterministic evaluator, seed, absolute-coordinate and validity rules, multiscale bands, and bounded camera-working-set policy compiled from one exact projection packet                         | Pure projection input; authored controls and admitted sources remain authoritative, while evaluated buffers are disposable |
@@ -190,12 +190,14 @@ attention beacons on a presentation-only orientation globe. That globe is an
 unmapped consent surface, not `rey.semantic-atlas.v1`; it claims no semantic
 distance, terrain, project boundary, or agent activity. Inspection and consent
 descend into the exact workload record and Feed approval control. Only an
-explicitly admitted survey followed by a bounded run may replace it with
-mapped evidence. The Explorer projects admitted topography patches and the
+explicitly admitted survey run or qualified regional-scene run may replace it
+with mapped evidence. The Explorer projects admitted topography patches and the
 latest accepted non-scenario regional result through one persistent semantic
-scene. Survey World placement comes from the current
-`rey.semantic-atlas.v1`. Regional World placement comes from each exact
-native-to-synthetic transform and has zero inferred footprint radius. Both
+scene. Survey and regional World membership come from the current
+`rey.semantic-atlas.v1`. Each regional member binds its exact accepted scene,
+admission, package revision, projection packet, and unchanged
+native-to-synthetic placement; Explorer rejects a mismatch and assigns zero
+inferred footprint radius. Both
 synthetic longitude/latitude axes have no Earth CRS or physical-distance claim.
 Retained regional sectors and footprints do not exist yet; local charted
 survey envelopes, unresolved probe horizons, and boundary weather remain
@@ -872,8 +874,10 @@ React/TypeScript topology and overlay modules. `rey-mining` now defines and
 validates `rey.projection-packet.v1`; `rey.workload-list.v1` carries it beside
 the exact patch and also carries the deterministic `rey.semantic-atlas.v1`
 portfolio projection. Production survey transitions retain a bounded linear
-atlas history plus `rey.semantic-atlas-delta.v1`; qualification fixtures and
-reads cannot advance it. The CLI exposes exact source/target revision,
+atlas history plus `rey.semantic-atlas-delta.v1`; accepted production regional
+scene runs enter the same history as a separately typed evidence family, while
+qualification fixtures and reads cannot advance it. The CLI exposes exact
+source/target revision,
 inserted, removed, moved, interest-changed, merged, and split counts alongside
 the atlas revision, region/cluster counts, synthetic coordinate authority,
 reclustering rule, and the packet's
@@ -900,9 +904,11 @@ topography/atlas/terrain relationships. Multi-region fixtures prove their
 bounded structural invariants. `rey-runtime` now produces these contracts
 through the qualified file-backed workload, and the CLI exposes exact human and
 JSON evidence for a real `SCENE@n`. The browser consumes only a matching
-accepted production result and projects exact regional points and native object
-bounds. Regional scenes are not yet members of the retained survey atlas, so
-their artifact binding still has no admitted atlas revision or sector.
+accepted production result whose retained regional-atlas member binds the exact
+scene, admission, package revision, packet, and synthetic point, then projects
+that point and exact native object bounds. The scene artifact does not yet
+carry the resulting atlas revision back into its nullable atlas binding, and
+no stable sector identity exists.
 
 The `rey-mining` crate now implements the provider-neutral operation, request,
 result, artifact, completeness, lineage, dependency, and bound contracts.

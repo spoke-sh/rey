@@ -229,16 +229,19 @@ contain a `rey.workload-qualification.v1` binding the exact workload, graph,
 scenario suite, evaluator, and test result.
 
 `rey.workload-list.v1` additionally carries an optional
-`rey.semantic-atlas.v1` whenever a verified production regional-topography run
-is retained. Qualification fixtures count as test evidence but cannot become
-atlas or Explorer fabric. The atlas binds stable region identities to exact
-patch/revision sources and integer synthetic semantic longitude/latitude; it
+`rey.semantic-atlas.v1` whenever verified production survey or accepted
+regional-scene evidence is retained. Qualification fixtures count as test
+evidence but cannot become atlas or Explorer fabric. The atlas keeps survey
+patches and admitted regional scenes as separate source and region types. A
+regional member binds the exact scene, admission, package revision, projection
+packet, and unchanged integer synthetic semantic longitude/latitude; the atlas
 declares no Earth CRS. Workload state retains at most 64 atlas revisions and an
 equal linear sequence of `rey.semantic-atlas-delta.v1` documents. Each delta is
 content identified, binds exact source and target revisions, and keeps inserted,
 removed, moved, interest-changed, merged, and split changes distinct. The first
 delta starts at the typed empty atlas revision. `workloads list` exposes the
-current atlas, history, exact deltas, compiler, region/cluster counts,
+current atlas, history, exact deltas, compiler, survey/regional region and
+cluster counts,
 boundedness, admission-revision recluster rule, and the fact that zoom cannot
 recluster it. List and UI reads do not advance history.
 
@@ -474,9 +477,10 @@ counterfeiting a topography patch, retained atlas revision, or terrain program.
 The file-backed workload and CLI produce the contract from an exact current
 editor transfer envelope. `rey.workload-list.v1` exposes only the last
 production admission result for the exact current workload and graph. Explorer
-then requires accepted status, no scenario identity, and matching workload,
-graph, capability, package, snapshot, packet, terrain, coordinate-plane, and
-synthetic-placement bindings. It projects the accepted synthetic point through
+then requires accepted status, no scenario identity, a current retained atlas
+delta, and matching workload, graph, capability, package, snapshot, packet,
+terrain, coordinate-plane, regional-member, and synthetic-placement bindings.
+It projects the atlas member's exact accepted synthetic point through
 World and semantic Mercator, then exact native object bounds inside a bounded
 County reference frame; it does not reconstruct source geometry or invent
 sectors, footprint scale, or regional terrain. See

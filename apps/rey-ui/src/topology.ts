@@ -602,21 +602,24 @@ function buildRegionalWorld(
   atlas: SemanticAtlas | null,
   focusId: string,
 ): TopologyProjection {
-  const regionalRegions = regionalScenes.map(({ workload, result, scene }) => {
-    const [longitude, latitude] = regionalSemanticOrigin(scene);
-    return {
-      id: `regional-world:${scene.scene_id}`,
-      cluster_id: `regional-unclustered:${scene.scene_id}`,
-      focus_id: `regional:${scene.scene_id}`,
-      workload_id: workload.workload.id,
-      label: scene.region_id,
-      detail: `SCENE@${scene.admission.editor_sequence} · exact admitted point placement · footprint scale withheld · ${shortCoordinate(result.result_id)}`,
-      longitude_degrees: longitude / 1_000_000,
-      latitude_degrees: latitude / 1_000_000,
-      angular_radius_degrees: 0,
-      tone: scene.complete ? ("healthy" as const) : ("omitted" as const),
-    };
-  });
+  const regionalRegions = regionalScenes.map(
+    ({ workload, result, scene, atlas_region: atlasRegion }) => {
+      const longitude = atlasRegion.semantic_longitude_microdegrees;
+      const latitude = atlasRegion.semantic_latitude_microdegrees;
+      return {
+        id: atlasRegion.region_id,
+        cluster_id: atlasRegion.cluster_id,
+        focus_id: `regional:${scene.scene_id}`,
+        workload_id: workload.workload.id,
+        label: scene.region_id,
+        detail: `SCENE@${scene.admission.editor_sequence} · exact admitted point placement · footprint scale withheld · ${shortCoordinate(result.result_id)}`,
+        longitude_degrees: longitude / 1_000_000,
+        latitude_degrees: latitude / 1_000_000,
+        angular_radius_degrees: 0,
+        tone: scene.complete ? ("healthy" as const) : ("omitted" as const),
+      };
+    },
+  );
   const surveyRegions: TopologyGlobeRegion[] = (atlas?.regions ?? []).map(
     (region) => ({
       id: region.region_id,
@@ -651,7 +654,7 @@ function buildRegionalWorld(
     nodes: [],
     edges: [],
     omissions: [
-      "regional markers use exact synthetic placement points; no atlas sector or footprint radius is inferred",
+      "regional atlas members retain exact admitted synthetic placement points; no sector or footprint radius is inferred",
       ...regionalScenes.flatMap(({ scene }) =>
         scene.omissions.map((omission) => omission.reason),
       ),
@@ -705,22 +708,25 @@ function buildRegionalAtlas(
   regionalScenes: AdmittedRegionalProjection[],
   focusId: string,
 ): TopologyProjection {
-  const nodes = regionalScenes.map(({ workload, result, scene }) => {
-    const [longitude, latitude] = regionalSemanticOrigin(scene);
-    const mercator = semanticMercatorPoint(longitude, latitude);
-    return node(
-      `regional-atlas:${scene.scene_id}`,
-      `regional:${scene.scene_id}`,
-      "COUNTY",
-      scene.region_id,
-      `SCENE@${scene.admission.editor_sequence} · point placement only · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
-      mercator.x,
-      mercator.y,
-      230,
-      scene.complete ? "healthy" : "omitted",
-      workload.workload.id,
-    );
-  });
+  const nodes = regionalScenes.map(
+    ({ workload, result, scene, atlas_region: atlasRegion }) => {
+      const longitude = atlasRegion.semantic_longitude_microdegrees;
+      const latitude = atlasRegion.semantic_latitude_microdegrees;
+      const mercator = semanticMercatorPoint(longitude, latitude);
+      return node(
+        `regional-atlas:${atlasRegion.region_id}`,
+        `regional:${scene.scene_id}`,
+        "COUNTY",
+        scene.region_id,
+        `SCENE@${scene.admission.editor_sequence} · point placement only · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
+        mercator.x,
+        mercator.y,
+        230,
+        scene.complete ? "healthy" : "omitted",
+        workload.workload.id,
+      );
+    },
+  );
   return {
     regime: "atlas",
     label: "SEMANTIC MERCATOR ATLAS",
@@ -730,7 +736,7 @@ function buildRegionalAtlas(
     nodes,
     edges: [],
     omissions: [
-      "no retained atlas revision or sector polygons bind these regional scenes yet",
+      "retained atlas membership is point-only; sector polygons remain absent",
       "semantic Mercator positions are not Earth CRS84, EPSG:3857, physical distance, or geographic area",
       ...regionalScenes.flatMap(({ scene }) =>
         scene.omissions.map((omission) => omission.reason),
@@ -868,17 +874,6 @@ function selectRegionalScene(
       left.scene.region_id.localeCompare(right.scene.region_id),
     )[0]!
   );
-}
-
-function regionalSemanticOrigin(
-  scene: AdmittedRegionalProjection["scene"],
-): [number, number] {
-  const transform = scene.projection.transforms.find(
-    (candidate) =>
-      candidate.source_space === "native_crs84" &&
-      candidate.target_space === "synthetic_semantic",
-  )!;
-  return [transform.target_origin[0]!, transform.target_origin[1]!];
 }
 
 function semanticMercatorPoint(longitude: number, latitude: number) {

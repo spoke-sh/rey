@@ -7154,9 +7154,10 @@ fn write_workload_list(
             output,
             "Semantic atlas",
             &format!(
-                "{} · {} regions in {} world clusters · {}",
+                "{} · {} survey + {} admitted regional regions in {} world clusters · {}",
                 atlas.atlas_revision,
                 atlas.regions.len(),
+                atlas.regional_regions.len(),
                 atlas.clusters.len(),
                 if atlas.complete {
                     "COMPLETE"
@@ -7165,6 +7166,16 @@ fn write_workload_list(
                 },
             ),
         )?;
+        if !atlas.regional_regions.is_empty() {
+            write_portfolio_field(
+                output,
+                "Regional atlas",
+                &format!(
+                    "{} exact scene/package/packet memberships · admitted synthetic placements retained · sectors absent",
+                    atlas.regional_regions.len(),
+                ),
+            )?;
+        }
         write_portfolio_field(
             output,
             "World coordinates",

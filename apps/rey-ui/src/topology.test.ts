@@ -774,6 +774,7 @@ function atlasFor(patch: TopographyPatch): SemanticAtlas {
         frontier_rows: patch.frontier.length,
       },
     ],
+    regional_sources: [],
     clusters: [
       {
         cluster_id: "cluster:1",
@@ -800,6 +801,7 @@ function atlasFor(patch: TopographyPatch): SemanticAtlas {
         dominant_feature: "file",
       },
     ],
+    regional_regions: [],
     limits: {
       max_regions: 128,
       max_world_clusters: 16,
