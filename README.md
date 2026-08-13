@@ -129,8 +129,8 @@ Rey organizes collaboration around two clients with one evidence plane:
   browser projects that same transcript and enables append only for an exact
   session-declared human browser writer.
 - **Agents inspect and propose.** The `rey` CLI exposes high-fidelity status,
-  diff, add, commit, log, generation, qualification, and execution surfaces
-  without requiring implementation-code inspection.
+  diff, add, reset, commit, log, generation, qualification, and execution
+  surfaces without requiring implementation-code inspection.
 - **The runtime evaluates.** Deterministic contracts bind exact inputs,
   operations, capabilities, scenarios, deltas, budgets, omissions, and proof
   lineage. An agent cannot qualify its own proposal.

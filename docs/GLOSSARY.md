@@ -78,9 +78,13 @@ The admitted object gains only the authority stated by that boundary.
 
 ### Admission index
 
-The HEAD-bound environment snapshot staged by `rey env add`. It is the
+The HEAD-bound environment snapshot staged by an explicitly scoped
+`rey env add .`, `rey env add -A`, or `rey env add <path>`. It is the
 `INDEX` in `HEAD → INDEX → WORKING`; `rey env commit` retains exactly this
-verified snapshot without re-observing ambient state. See
+verified snapshot without re-observing ambient state, while `rey env reset`
+clears it and reports freshly observed unstaged WORKING changes without
+mutating WORKING. `rey env add -p` is the Git-shaped exception to an explicit
+path operand: it walks every unstaged hunk unless paths narrow the set. See
 [Environment](ENVIRONMENT.md).
 
 ### Admissible action
@@ -678,7 +682,10 @@ provider implementation, proof, or execution authority.
 
 `HEAD`, `INDEX`, and `WORKING` are the committed environment snapshot, staged
 admission snapshot, and fresh observation. `rey env diff` shows
-`INDEX → WORKING`; `rey env diff --staged` shows `HEAD → INDEX`.
+`INDEX → WORKING`; `rey env diff --staged` shows `HEAD → INDEX`. A mixed
+`rey env reset` realigns INDEX with an exact retained HEAD and may truncate
+later entries from Rey's linear environment log; it freshly observes but does
+not mutate WORKING.
 
 ### Environment operator projection
 

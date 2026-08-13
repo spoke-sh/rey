@@ -66,7 +66,8 @@ rey conversations [--workspace PATH] [--state-dir PATH] session add <session.yam
 rey conversations [--workspace PATH] [--state-dir PATH] session list
 rey conversations [--workspace PATH] [--state-dir PATH] message add <message.yaml>
 rey env [--workspace PATH] [--state-dir PATH] status [--map PATH]
-rey env [--workspace PATH] [--state-dir PATH] add [-p] [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] add (-A|PATH...|-p [PATH...]) [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] reset [HEAD|EMPTY|ENV@n|COMMIT_ID] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
 rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
@@ -264,7 +265,14 @@ rey env [--workspace <path>] [--state-dir <path>] status [--map <path>]
   [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
   [--max-capture-bytes <n>]
 
-rey env [--workspace <path>] [--state-dir <path>] add [-p] [--map <path>]
+rey env [--workspace <path>] [--state-dir <path>]
+  add (-A|<environment-path>...|-p [<environment-path>...]) [--map <path>]
+  [--format table|json] [--max-changes <n>]
+  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
+  [--max-capture-bytes <n>]
+
+rey env [--workspace <path>] [--state-dir <path>]
+  reset [HEAD|EMPTY|ENV@n|COMMIT_ID] [--map <path>]
   [--format table|json] [--max-changes <n>]
   [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
   [--max-capture-bytes <n>]
@@ -294,10 +302,14 @@ topology are delegated to `diff`;
 unprojected authoritative capability changes receive a human semantic label and
 retain their exact capability id.
 
-`add` replaces the admission index with the fresh working snapshot. `add -p`
-prompts over canonical capability changes as confirmable `diff --rey`
-environment hunks and stages only selected rows; its interactive mode requires
-table output. Generic hunks omit raw structured provenance and point to the
+Bare `add` is rejected before discovery or mutation. `add .` and `add -A`
+select the complete fresh working delta. Other operands select canonical
+environment object paths or exact mapped-input paths; directory prefixes match
+bounded descendants, every pathspec must match an unstaged change, and no
+match failure changes INDEX. `add -p` walks all unstaged hunks; optional paths
+narrow the canonical capability changes presented as confirmable `diff --rey`
+environment hunks;
+its interactive mode requires table output. Generic hunks omit raw structured provenance and point to the
 structured diff. `diff` selects `INDEX → WORKING` by
 default and `HEAD → INDEX` with `--staged`. Its table projection uses three
 environment-native planes: `01 / DIRECTED TEXT`, `02 / BOUNDED SEARCH`, and
@@ -310,8 +322,17 @@ declaration coordinate (`rey.environment-application-inventory.v2`) remain in
 JSON. The authoritative
 capability assessment remains in the coordinate header; JSON is
 `rey.environment-diff.v1` and does not replace the typed capability delta with
-the human projection. `commit` performs no discovery and appends only the
-verified retained index to the linear history at
+the human projection. `reset` clears the admission index and moves the linear
+retained history to `HEAD` by default, `EMPTY`, an exact `ENV@n`, or an exact
+full environment commit id. Moving backward removes later commits;
+abbreviations, ancestry operators, ranges, and pathspecs are rejected. It
+performs the shared bounded environment observation before publishing the
+transition and derives the post-reset status with no retained index. Clean
+table output is silent; changed output is Git-shaped `A`, `M`, and `D` rows
+under `Unstaged changes after reset:`. Its
+`rey.environment-reset-result.v1` JSON receipt exposes the source and target
+coordinates, cleared index identity, removed commit ids, and complete observed
+status. `commit` performs no discovery and appends only the verified retained index to the linear history at
 `${workspace}/.rey/env/state.json` by default. Successful table-mode commits
 are silent on stdout and stderr; explicit JSON returns the structured receipt,
 `log -n 1` supplies human readback, and failures remain nonzero stderr
@@ -326,7 +347,8 @@ The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
 revision/evidence/environment/change/mapping/message chronology; patch mode
 adds directed variables, application search, inputs, and topology. Explicit
 JSON uses `rey.environment-status.v2`,
-`rey.environment-commit-result.v1`, and `rey.environment-log.v1`.
+`rey.environment-reset-result.v1`, `rey.environment-commit-result.v1`, and
+`rey.environment-log.v1`.
 
 Discovery always records the process-owned `HOME`, `PWD`, and `PATH` seeds and
 the compiled desired-adapter inventory. It loads no project configuration by
@@ -355,10 +377,11 @@ bound directly in requests and source lineage. None requires environment
 admission.
 
 Admission accepts evidence into history; it does not admit executable action or
-turn potential capabilities into provider contracts. There is no pathspec,
-reset/restore, branch, merge, rewrite, or revision expression in this slice. An
-environment commit records an observation; it is not a Git commit and does not
-mutate the environment. The bounded local state
+turn potential capabilities into provider contracts. Other than the exact
+mixed reset over the index and linear history, there is no pathspec, restore,
+branch, merge, general rewrite, or revision expression in this slice. An
+environment commit records an observation; neither commit nor reset mutates
+the environment. The bounded local state
 claims no `fsync`, locking, authenticated writer, multi-process transaction,
 remote retention, or remote durability.
 
@@ -390,9 +413,9 @@ terminal and JSON when redirected. Explicit Arrow is appropriate for catalog,
 scenario, frame, or delta relations, not for forcing a graph, campaign, native
 output, or mixed artifact set into a synthetic table.
 
-Environment status, add, diff, commit, and log are mixed structured envelopes. They
-default to human output, like Git commands, even when redirected; automation
-must request `--format json` explicitly. `status` carries the full structured
+Environment status, add, reset, diff, commit, and log are mixed structured
+envelopes. They default to human output, like Git commands, even when
+redirected; automation must request `--format json` explicitly. `status` carries the full structured
 inventory while keeping its human view navigable. Default `diff` opens the
 unstaged three-plane environment projection, `diff --staged` opens the staged
 projection, and `log -p` controls three-plane expansion of retained

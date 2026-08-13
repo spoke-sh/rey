@@ -17,7 +17,8 @@ and proof belong in `plans/`.
 The bounded capability snapshot, exact delta, local proof bundle,
 process-owned seed discovery, explicit agent-generatable environment mapping
 resources, and Git-shaped
-`env status → diff → add → commit → log -p` revision workflow are delivered.
+`env status → diff → add → commit → log -p` revision workflow, including mixed
+reset of the environment index and linear log, are delivered.
 The
 remaining bullets concern complete Git observation/activation, generic frame
 comparison, and broader proof coverage.

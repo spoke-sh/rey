@@ -505,7 +505,7 @@ nix run path:$PWD -- channels beacon BEACON_ID --format table
 nix run path:$PWD -- env status
 nix run path:$PWD -- env diff
 nix run path:$PWD -- env add -p
-nix run path:$PWD -- env add
+nix run path:$PWD -- env add .
 nix run path:$PWD -- env commit -m 'accept local toolchain'
 nix run path:$PWD -- env log -n 3
 nix run path:$PWD -- env log -p

@@ -185,8 +185,8 @@ and `WORKING`. Its human view summarizes staged and unstaged environment-native
 objects plus application-search health; `env diff` presents the exact directed
 text, desired inventory, bounded search record, inputs, and topology.
 Structured output retains the complete capability evidence and both
-authoritative deltas. `env diff`, `env add`,
-`env commit`, and `env log -p` navigate and revision the same relation. The
+authoritative deltas. `env diff`, `env add`, `env reset`, `env commit`, and
+`env log -p` navigate and revision the same relation. The
 YAML graph is a generated or authored proposal about relevance, not bootstrap
 configuration, execution authority, or proof of a dependency.
 
@@ -248,7 +248,7 @@ Most names remain architectural vocabulary. The implemented runtime baseline
 advertises exact capability `source.search.literal-utf8`, operation
 `rey.source-search.literal-utf8`, corpus schema `rey.source-corpus.v1`, and
 match relation `rey.source-matches` version `1`. This record is absent from
-`rey env status`, `add`, `diff`, and `commit`.
+`rey env status`, `add`, `reset`, `diff`, and `commit`.
 
 An adapter records its accepted source kinds, output artifact/schema kinds,
 canonical parameters, encoding/language support, completeness behavior,
@@ -387,9 +387,14 @@ instead of repeating the full three-plane evidence. Authoritative capability
 changes with no mapped operator object remain visible as individually named
 semantic entries with exact capability ids.
 
-`rey env add` retains the exact working snapshot as a HEAD-bound
-`rey.environment-admission-index.v1`. `add -p` prompts over the canonical
-`INDEX → WORKING` capability changes and applies only selected rows. Every
+`rey env add` requires an explicit admission scope. `add .` and `add -A`
+retain the complete working snapshot as a HEAD-bound
+`rey.environment-admission-index.v1`; one or more canonical environment paths
+or exact mapped-input paths retain only matching `INDEX → WORKING` capability
+changes. Directory pathspecs select bounded descendants, and every operand
+must match or the command leaves INDEX unchanged. `add -p` walks every
+unstaged hunk interactively; optional paths narrow the canonical capability
+changes it prompts over. Every
 prompt renders an environment-native `diff --rey` hunk for a variable,
 application, input, or reference when possible, with an exact capability
 fallback. The fallback names changed semantic fields but omits raw structured
@@ -427,6 +432,22 @@ commits remain verifiable without a date. Incomplete snapshots can be committed
 as explicit degradation evidence; they do not become complete through
 retention.
 
+`rey env reset [<target>]` performs a mixed reset over Rey-owned admission
+state. `HEAD`, the default, leaves the retained history at its current head and
+clears the admission index. `ENV@n` or an
+exact full environment commit id moves HEAD to that retained commit, removes
+all later entries from the linear log, and clears the index. `EMPTY` removes
+the entire retained log. The command accepts no abbreviated ids, ancestry
+operators, ranges, or pathspecs. Before publishing that state transition it
+performs the same bounded process-owned and optional explicit-map observation
+as status, then derives the post-reset HEAD-to-WORKING delta with no retained
+index. Human output follows Git: clean reset is silent; otherwise it prints
+`Unstaged changes after reset:` and compact `A`, `M`, or `D` object rows. The
+`rey.environment-reset-result.v1` JSON receipt retains the source and target
+coordinates, cleared index, removed commit ids, and complete observed status.
+Reset changes only Rey's local admission records; observation never mutates
+process variables, files, or executables.
+
 `rey env log` verifies the entire retained chain, selects commits newest first
 under the `-n <count>` bound, and recomputes every selected parent-to-commit
 capability delta. Its human chronology begins with Git-shaped `commit ENV@n`,
@@ -439,7 +460,8 @@ directed variable text, bounded application search, and input/reference
 topology derived only from the retained parent and commit snapshots. It
 performs no fresh observation. Explicit JSON is `rey.environment-log.v1` with
 the complete commits, snapshots, typed capability deltas, and commit-time
-metadata; commit commands emit `rey.environment-commit-result.v1`.
+metadata. Commit commands emit `rey.environment-commit-result.v1`; reset
+commands emit `rey.environment-reset-result.v1`.
 
 The default `rey.local-environment-history.v1` state lives at
 `${workspace}/.rey/env/state.json`; the separate admission index lives at
@@ -447,9 +469,10 @@ The default `rey.local-environment-history.v1` state lives at
 using same-directory temporary publication and rename. Reads verify snapshot,
 commit, parent, sequence, chain/index identity, exact index base, and safe file
 boundaries. History publication and index removal are not one crash-atomic
-transaction; an index left after a successful commit is stale and rejected. It
-is not a Git object database and claims no pathspec, reset/restore, branches,
-merges, rewrite, `fsync`, locking, authenticated writer, remote durability, or
+transaction; an index left after a published commit or history-moving reset is
+stale and rejected. It is not a Git object database. Beyond the exact mixed reset above, it claims no
+pathspec, restore, branches, merges, general rewrite or revision-expression
+semantics, `fsync`, locking, authenticated writer, remote durability, or
 external revision semantics.
 
 The fresh v1 history does not admit repository snapshot rows. Git repository

@@ -87,9 +87,12 @@ rey <surface> log -p
 ```
 
 `status`, `diff`, and `log` are read surfaces. `add` changes only INDEX.
-`commit` verifies and records only INDEX. Environment supports interactive
-partial staging with `env add -p`; workload and editor staging are complete
-snapshot operations.
+`commit` verifies and records only INDEX. Environment add requires an explicit
+scope: `env add .` or `env add -A` stages every unstaged change, while one or
+more environment or mapped-input paths stage only matching changes.
+Interactive partial staging uses `env add -p [<path>...]`; without a path it
+walks every unstaged hunk. Workload and editor staging are complete snapshot
+operations.
 
 Workloads add one mandatory gate between staging and commit:
 
@@ -125,7 +128,7 @@ INDEX. Journal sequence is not HEAD/INDEX state.
 The implemented top-level surface is:
 
 ```text
-rey env        status | add | diff | commit | log
+rey env        status | add | reset | diff | commit | log
 rey workloads  create | list | status | add | diff | test | commit | log | admit-activation | execute-activation | verify-activation | run
 rey journal    add | list | seed | opportunities | query
 rey agent
@@ -209,7 +212,8 @@ read-only unavailable transcript and creates nothing. See
 
 ```text
 rey env [--workspace PATH] [--state-dir PATH] status [--map PATH]
-rey env [--workspace PATH] [--state-dir PATH] add [-p] [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] add (-A|PATH...|-p [PATH...]) [--map PATH]
+rey env [--workspace PATH] [--state-dir PATH] reset [HEAD|EMPTY|ENV@n|COMMIT_ID] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
 rey env [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
 rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
@@ -219,9 +223,27 @@ rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
 Discovery begins only from process-owned `HOME`, `PWD`, and `PATH`, compiled
 adapters, and an explicitly supplied reasoning map. It may execute only fixed,
 bounded read-only identity probes for known adapters. `diff` shows
-INDEX-to-WORKING; `diff --staged` shows HEAD-to-INDEX. `commit` performs no
-discovery and successful human/table output is intentionally silent. Use
-`log -n 1` for readback or `--format json` for a commit receipt.
+INDEX-to-WORKING; `diff --staged` shows HEAD-to-INDEX. `reset` is a narrow
+mixed reset: it moves environment HEAD to an exact retained target, removes
+later entries from the linear commit log, and clears the separate admission
+index so its effective snapshot again equals HEAD. Its default target is
+`HEAD`, which clears only the index; `EMPTY` returns to the typed empty
+history. Targets do not accept abbreviations or revision expressions. After
+the reset, the command performs the same bounded WORKING observation and typed
+projection as `status`; table output is silent when clean or prints Git-shaped
+`A`, `M`, and `D` rows under `Unstaged changes after reset:`. Reset never
+mutates the ambient environment. `status`, default `diff`, `add`, and `reset`
+perform discovery; `commit` and `log` do not. Successful human/table commit
+output is intentionally silent. Use `log -n 1` for readback, or request JSON
+for a commit or reset receipt with the complete post-reset status.
+
+Bare `rey env add` is rejected before discovery or mutation. `.` and `-A`
+select the complete `INDEX → WORKING` delta. Other operands match canonical
+environment paths such as `environment/application/git` or exact mapped input
+paths such as `docs/toolchain.toml`; directory prefixes select bounded
+descendants. Every pathspec must match an unstaged change. `-p` without a path
+walks all unstaged hunks; supplied paths narrow that interactive set. An
+unmatched path leaves INDEX unchanged.
 
 The compiled identity-only application inventory includes the major agent
 runtimes plus Slack (`slack-cli`), GitHub CLI (`gh`), Telegram CLI

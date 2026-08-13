@@ -213,9 +213,12 @@ update the stale artifact in the same change.
   values, follow escaping/symlinked inputs, invoke a mapped executable, or
   admit its potential capabilities without an adapter.
 - Preserve the environment admission plane: `status` observes
-  `HEAD → INDEX → WORKING`, `add` alone changes the index, and `commit` records
-  only the verified index without re-observing ambient state. Admission to
-  history is not action admission.
+  `HEAD → INDEX → WORKING`, `add` requires an explicit `.`, `-A`, or bounded
+  environment pathspec before staging WORKING, except that `add -p` walks all
+  hunks interactively like Git, `reset` clears the index while optionally
+  moving the linear HEAD and then reports freshly observed unstaged changes,
+  and `commit` records only the verified index without re-observing ambient
+  state. Admission to history is not action admission.
 - Freeze provider, path, version, digest/provenance, trust, and supported
   operations before a discovered tool participates in an action.
 - Bind every mined artifact to its request, exact inputs, operation and

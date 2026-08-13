@@ -24,6 +24,7 @@ use crate::ignore::{ReyIgnoreProjection, retained_environment_ignore};
 
 pub const ENVIRONMENT_COMMIT_SCHEMA: &str = "rey.environment-commit.v1";
 pub const ENVIRONMENT_COMMIT_RESULT_SCHEMA: &str = "rey.environment-commit-result.v1";
+pub const ENVIRONMENT_RESET_RESULT_SCHEMA: &str = "rey.environment-reset-result.v1";
 pub const LOCAL_ENVIRONMENT_HISTORY_SCHEMA: &str = "rey.local-environment-history.v1";
 pub const ENVIRONMENT_STATUS_SCHEMA: &str = "rey.environment-status.v2";
 pub const ENVIRONMENT_DIFF_SCHEMA: &str = "rey.environment-diff.v1";
@@ -202,6 +203,50 @@ impl LocalEnvironmentHistory {
     #[must_use]
     pub fn head(&self) -> Option<&EnvironmentCommit> {
         self.commits.last()
+    }
+
+    fn reset_target_len(&self, target: &str) -> Result<usize, LocalEnvironmentHistoryError> {
+        self.verify()?;
+        if target.is_empty() || target.trim() != target {
+            return Err(LocalEnvironmentHistoryError::InvalidResetTarget(
+                target.to_owned(),
+            ));
+        }
+        match target {
+            "HEAD" => return Ok(self.commits.len()),
+            "EMPTY" => return Ok(0),
+            _ => {}
+        }
+        if let Some(sequence) = target.strip_prefix("ENV@") {
+            let sequence = sequence
+                .parse::<usize>()
+                .map_err(|_| LocalEnvironmentHistoryError::InvalidResetTarget(target.to_owned()))?;
+            if sequence == 0 || format!("ENV@{sequence}") != target {
+                return Err(LocalEnvironmentHistoryError::InvalidResetTarget(
+                    target.to_owned(),
+                ));
+            }
+            return (sequence <= self.commits.len())
+                .then_some(sequence)
+                .ok_or_else(|| {
+                    LocalEnvironmentHistoryError::ResetTargetNotFound(target.to_owned())
+                });
+        }
+        self.commits
+            .iter()
+            .position(|commit| commit.commit_id.as_str() == target)
+            .map(|index| index + 1)
+            .ok_or_else(|| LocalEnvironmentHistoryError::ResetTargetNotFound(target.to_owned()))
+    }
+
+    pub fn reset(
+        &mut self,
+        target: &str,
+    ) -> Result<Vec<EnvironmentCommit>, LocalEnvironmentHistoryError> {
+        let target_len = self.reset_target_len(target)?;
+        let removed = self.commits.split_off(target_len);
+        self.verify()?;
+        Ok(removed)
     }
 
     pub fn commit(
@@ -1098,6 +1143,47 @@ impl EnvironmentCommitResult {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvironmentResetResult {
+    pub schema: String,
+    pub source_head_commit_id: Option<SemanticDigest>,
+    pub source_sequence: Option<u64>,
+    pub target_head_commit_id: Option<SemanticDigest>,
+    pub target_snapshot_id: Option<SemanticDigest>,
+    pub target_sequence: Option<u64>,
+    pub index_before_id: Option<SemanticDigest>,
+    pub removed_commit_ids: Vec<SemanticDigest>,
+    pub status: EnvironmentStatus,
+    pub working_observed: bool,
+}
+
+impl EnvironmentResetResult {
+    #[must_use]
+    pub fn new(
+        source_head: Option<&EnvironmentCommit>,
+        target_head: Option<&EnvironmentCommit>,
+        index_before: Option<&EnvironmentAdmissionIndex>,
+        removed: &[EnvironmentCommit],
+        status: EnvironmentStatus,
+    ) -> Self {
+        Self {
+            schema: ENVIRONMENT_RESET_RESULT_SCHEMA.to_owned(),
+            source_head_commit_id: source_head.map(|commit| commit.commit_id.clone()),
+            source_sequence: source_head.map(|commit| commit.sequence),
+            target_head_commit_id: target_head.map(|commit| commit.commit_id.clone()),
+            target_snapshot_id: target_head.map(|commit| commit.snapshot.semantic_digest.clone()),
+            target_sequence: target_head.map(|commit| commit.sequence),
+            index_before_id: index_before.map(|index| index.index_id.clone()),
+            removed_commit_ids: removed
+                .iter()
+                .map(|commit| commit.commit_id.clone())
+                .collect(),
+            status,
+            working_observed: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct EnvironmentLog {
     pub schema: String,
     pub head_commit_id: Option<SemanticDigest>,
@@ -1645,10 +1731,18 @@ pub enum LocalEnvironmentHistoryError {
     NothingToCommit(SemanticDigest),
     #[error("nothing staged in the environment admission index")]
     NothingStaged,
+    #[error(
+        "invalid environment reset target {0:?}; expected HEAD, EMPTY, ENV@n, or an exact commit id"
+    )]
+    InvalidResetTarget(String),
+    #[error("environment reset target {0:?} was not found in the retained commit log")]
+    ResetTargetNotFound(String),
     #[error("working environment has no changes to add")]
     NothingToAdd,
     #[error("no environment capability changes were selected")]
     EmptyPatchSelection,
+    #[error("environment pathspec {0:?} did not match any unstaged changes")]
+    UnmatchedPathspec(String),
     #[error("selected capability {provider_id}/{capability_id} is not an unstaged change")]
     UnknownPatchSelection {
         provider_id: String,
@@ -1861,6 +1955,53 @@ mod tests {
         assert_eq!(log.selected_commits, 1);
         assert_eq!(log.entries[0].commit.commit_id, second.commit_id);
         assert_eq!(log.entries[0].delta.summary.modified, 1);
+    }
+
+    #[test]
+    fn mixed_reset_resolves_exact_targets_and_truncates_only_later_commits() {
+        let mut history = LocalEnvironmentHistory::default();
+        let first = history.commit("baseline", snapshot("1")).unwrap();
+        let second = history.commit("upgrade", snapshot("2")).unwrap();
+        let third = history.commit("finish", snapshot("3")).unwrap();
+
+        assert_eq!(history.reset_target_len("HEAD").unwrap(), 3);
+        assert_eq!(history.reset_target_len("EMPTY").unwrap(), 0);
+        assert_eq!(history.reset_target_len("ENV@2").unwrap(), 2);
+        assert_eq!(
+            history.reset_target_len(first.commit_id.as_str()).unwrap(),
+            1
+        );
+        assert!(matches!(
+            history.reset_target_len("ENV@0"),
+            Err(LocalEnvironmentHistoryError::InvalidResetTarget(_))
+        ));
+        assert!(matches!(
+            history.reset_target_len("ENV@01"),
+            Err(LocalEnvironmentHistoryError::InvalidResetTarget(_))
+        ));
+        assert!(matches!(
+            history.reset_target_len("ENV@4"),
+            Err(LocalEnvironmentHistoryError::ResetTargetNotFound(_))
+        ));
+
+        let removed = history.reset("ENV@1").unwrap();
+        assert_eq!(
+            removed
+                .iter()
+                .map(|commit| &commit.commit_id)
+                .collect::<Vec<_>>(),
+            [&second.commit_id, &third.commit_id]
+        );
+        assert_eq!(
+            history.head().map(|commit| &commit.commit_id),
+            Some(&first.commit_id)
+        );
+        history.verify().unwrap();
+
+        assert!(history.reset("HEAD").unwrap().is_empty());
+        assert_eq!(history.reset("EMPTY").unwrap(), [first]);
+        assert!(history.commits.is_empty());
+        history.verify().unwrap();
     }
 
     #[test]

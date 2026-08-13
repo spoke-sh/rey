@@ -1981,7 +1981,7 @@ mod tests {
         assert!(application.contains("01 / DIRECTED TEXT"));
         assert!(application.contains("02 / BOUNDED SEARCH"));
         assert!(application.contains("REFERENCE PLANE"));
-        assert!(application.contains("Inputs and topology"));
+        assert!(!application.contains("Inputs and topology"));
         assert!(application.contains("RETAINED SEQUENCE"));
         assert!(application.contains("01 / JOURNAL"));
         assert!(application.contains("Supervised agent topology"));
@@ -1997,9 +1997,11 @@ mod tests {
         assert!(!application.contains("RECOMMENDATION BASIS"));
         assert!(application.contains("WORK LEDGER"));
         assert!(!application.contains("RETAINED RESULTS / NOT LIVE AGENT TELEMETRY"));
-        assert!(application.contains("DESIRED INVENTORY"));
-        assert!(application.contains("SEARCH RECORD"));
-        assert!(application.contains("PROCESS SEEDS"));
+        assert!(!application.contains("DESIRED INVENTORY"));
+        assert!(!application.contains("SEARCH RECORD"));
+        assert!(!application.contains("PROCESS SEEDS"));
+        assert!(application.contains("SUPPORTED"));
+        assert!(application.contains("NOT FOUND"));
         assert!(application.contains("./three-globe.js"));
         assert!(application.contains("./three-terrain.js"));
         assert!(application.contains("./three-webgpu.js"));

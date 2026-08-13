@@ -19,7 +19,7 @@ use rey::editor::{
 };
 use rey::env::{
     EnvironmentAddResult, EnvironmentCommitResult, EnvironmentDiff, EnvironmentDiffMode,
-    EnvironmentLog, EnvironmentStatus, EnvironmentWorkingState,
+    EnvironmentLog, EnvironmentResetResult, EnvironmentStatus, EnvironmentWorkingState,
 };
 use rey::git::{
     GitCadenceFailureKind, GitCadenceTickOutcome, GitOperatorStatus, GitPollOutcome,
@@ -1223,7 +1223,7 @@ fn admitted_channel_message_relays_once_through_admitted_application_and_beacon(
     let workspace_path = workspace.path().to_str().unwrap();
     let bin = workspace.path().join("bin");
     fs::create_dir(&bin).unwrap();
-    let slack = bin.join("slack");
+    let slack = bin.join("slack-cli");
     let delivery = workspace.path().join("delivery.txt");
     fs::write(
         &slack,
@@ -1243,6 +1243,7 @@ fn admitted_channel_message_relays_once_through_admitted_application_and_beacon(
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--format",
             "json",
         ],
@@ -2873,7 +2874,7 @@ fn acknowledged_git_activation_requires_exact_workload_runtime_admission() {
     );
 
     for args in [
-        vec!["env", "--workspace", workspace_path, "add"],
+        vec!["env", "--workspace", workspace_path, "add", "."],
         vec![
             "env",
             "--workspace",
@@ -3485,7 +3486,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "Changes not staged for environment commit:",
         "new:       environment variable: HOME",
         "new:       application: git",
-        "No environment commits yet. Use `rey env add`",
+        "No environment commits yet. Use `rey env add .`",
     ] {
         assert!(
             unborn.contains(evidence),
@@ -3530,6 +3531,12 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     }
     assert!(!workspace.path().join(".rey").exists());
 
+    let missing_scope = run_rey(&["env", "--workspace", workspace_path, "add"]);
+    assert_eq!(missing_scope.status.code(), Some(2));
+    assert!(missing_scope.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&missing_scope.stderr).contains("<PATH>..."));
+    assert!(!workspace.path().join(".rey").exists());
+
     let premature = run_rey(&[
         "env",
         "--workspace",
@@ -3547,6 +3554,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         "--workspace",
         workspace_path,
         "add",
+        "-A",
         "--format",
         "json",
     ]);
@@ -3715,6 +3723,7 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--format",
             "table",
         ],
@@ -3841,12 +3850,13 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
     assert!(env_help.status.success());
     let env_help = String::from_utf8(env_help.stdout).unwrap();
     assert!(env_help.contains("add"));
+    assert!(env_help.contains("reset"));
     assert!(env_help.contains("status"));
     assert!(!env_help.contains("inspect"));
     assert!(!env_help.contains("prove"));
     assert!(!env_help.contains("verify"));
 
-    for observing_command in ["status", "add", "diff"] {
+    for observing_command in ["status", "add", "reset", "diff"] {
         let help = run_rey(&["env", observing_command, "--help"]);
         assert!(help.status.success());
         assert!(String::from_utf8(help.stdout).unwrap().contains("--map"));
@@ -3856,6 +3866,173 @@ fn env_history_is_git_shaped_human_verifiable_and_machine_clean() {
         assert!(help.status.success());
         assert!(!String::from_utf8(help.stdout).unwrap().contains("--map"));
     }
+}
+
+#[test]
+fn env_reset_moves_head_clears_index_and_reports_unstaged_working() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+
+    let added = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "add",
+        ".",
+        "--format",
+        "json",
+    ]);
+    assert!(added.status.success());
+    let first = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "baseline",
+        "--format",
+        "json",
+    ]);
+    assert!(first.status.success());
+    let first: EnvironmentCommitResult = serde_json::from_slice(&first.stdout).unwrap();
+
+    let second_path = format!(
+        "{}:/rey-environment-reset-second",
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let second_environment = [("PATH", second_path.as_str())];
+    let added = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            ".",
+            "--format",
+            "json",
+        ],
+        &second_environment,
+    );
+    assert!(added.status.success());
+    let second = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "second",
+        "--format",
+        "json",
+    ]);
+    assert!(second.status.success());
+    let second: EnvironmentCommitResult = serde_json::from_slice(&second.stdout).unwrap();
+
+    let staged_path = format!("{second_path}:/rey-environment-reset-staged");
+    let staged_environment = [("PATH", staged_path.as_str())];
+    let staged = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            ".",
+            "--format",
+            "json",
+        ],
+        &staged_environment,
+    );
+    assert!(staged.status.success());
+
+    let reset_index = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "reset",
+            "--format",
+            "json",
+        ],
+        &staged_environment,
+    );
+    assert!(reset_index.status.success());
+    assert!(reset_index.stderr.is_empty());
+    let reset_index: EnvironmentResetResult = serde_json::from_slice(&reset_index.stdout).unwrap();
+    assert_eq!(reset_index.schema, "rey.environment-reset-result.v1");
+    assert_eq!(reset_index.source_sequence, Some(2));
+    assert_eq!(reset_index.target_sequence, Some(2));
+    assert_eq!(
+        reset_index.target_head_commit_id.as_ref(),
+        Some(&second.commit.commit_id)
+    );
+    assert!(reset_index.index_before_id.is_some());
+    assert!(reset_index.removed_commit_ids.is_empty());
+    assert!(reset_index.working_observed);
+    assert!(reset_index.status.admission_index.is_none());
+    assert!(!reset_index.status.unstaged_delta.changes.is_empty());
+    assert!(!workspace.path().join(".rey/env/index.json").exists());
+
+    let staged = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            ".",
+            "--format",
+            "json",
+        ],
+        &staged_environment,
+    );
+    assert!(staged.status.success());
+    let reset_head = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "reset",
+            "ENV@1",
+            "--format",
+            "table",
+        ],
+        &staged_environment,
+    );
+    assert!(reset_head.status.success());
+    assert!(reset_head.stderr.is_empty());
+    let reset_head = String::from_utf8(reset_head.stdout).unwrap();
+    let mut reset_lines = reset_head.lines();
+    assert_eq!(reset_lines.next(), Some("Unstaged changes after reset:"));
+    let reset_lines = reset_lines.collect::<Vec<_>>();
+    assert!(reset_lines.contains(&"M\tenvironment variable: PATH"));
+    assert!(!reset_lines.is_empty());
+    assert!(reset_lines.iter().all(|line| {
+        matches!(line.as_bytes().first(), Some(b'A' | b'M' | b'D'))
+            && line.as_bytes().get(1) == Some(&b'\t')
+    }));
+    assert!(!reset_head.contains("ENVIRONMENT RESET"));
+    assert!(!workspace.path().join(".rey/env/index.json").exists());
+
+    let log = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "log",
+        "--format",
+        "json",
+    ]);
+    assert!(log.status.success());
+    let log: EnvironmentLog = serde_json::from_slice(&log.stdout).unwrap();
+    assert_eq!(log.total_commits, 1);
+    assert_eq!(log.head_commit_id.as_ref(), Some(&first.commit.commit_id));
+
+    let clean = run_rey(&["env", "--workspace", workspace_path, "reset"]);
+    assert!(clean.status.success());
+    assert!(clean.stdout.is_empty());
+    assert!(clean.stderr.is_empty());
+
+    let missing = run_rey(&["env", "--workspace", workspace_path, "reset", "ENV@9"]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(missing.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("was not found"));
 }
 
 #[test]
@@ -4184,6 +4361,7 @@ edges:
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--map",
             "rey.env.yaml",
             "--format",
@@ -4297,6 +4475,7 @@ edges:
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--map",
             "rey.env.yaml",
             "--format",
@@ -4511,6 +4690,7 @@ nodes:
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--map",
             "rey.env.yaml",
         ])
@@ -4532,11 +4712,57 @@ nodes:
 
     fs::write(workspace.path().join("alpha.txt"), "alpha two\n").unwrap();
     fs::write(workspace.path().join("beta.txt"), "beta two\n").unwrap();
+    let path_added = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "add",
+        "alpha.txt",
+        "--map",
+        "rey.env.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(path_added.status.success());
+    let path_added: EnvironmentAddResult = serde_json::from_slice(&path_added.stdout).unwrap();
+    assert_eq!(path_added.staged_changes, 1);
+    assert_eq!(path_added.remaining_changes, 1);
+
+    let index_path = workspace.path().join(".rey/env/index.json");
+    let index_before_unmatched = fs::read(&index_path).unwrap();
+    let unmatched = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "add",
+        "missing.txt",
+        "--map",
+        "rey.env.yaml",
+    ]);
+    assert_eq!(unmatched.status.code(), Some(1));
+    assert!(unmatched.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&unmatched.stderr).contains("did not match"));
+    assert_eq!(fs::read(&index_path).unwrap(), index_before_unmatched);
+
+    let reset = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "reset",
+        "--map",
+        "rey.env.yaml",
+        "--format",
+        "json",
+    ]);
+    assert!(reset.status.success());
+    assert!(!index_path.exists());
+
     let invalid_format = run_rey(&[
         "env",
         "--workspace",
         workspace_path,
         "add",
+        ".",
         "-p",
         "--map",
         "rey.env.yaml",
@@ -4645,6 +4871,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--map",
             "rey.env.yaml",
         ])
@@ -4675,6 +4902,7 @@ fn env_add_patch_never_dumps_structured_provenance() {
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "-p",
             "--map",
             "rey.env.yaml",
@@ -5077,6 +5305,7 @@ edges: []
             "--workspace",
             workspace_path,
             "add",
+            ".",
             "--map",
             "rey.env.yaml",
         ])
@@ -7324,6 +7553,7 @@ edges: []
         "--workspace",
         workspace_path,
         "add",
+        ".",
         "--map",
         "rey.env.yaml",
         "--format",
