@@ -949,8 +949,11 @@ contours, projected hydrology/weather, and natural-feature derivation. Named
 reference, WebGL2, and WebGPU voyages retain both target viewports; parity
 manifests require exact scene/source/pass/evidence equality before measuring
 pixels, and native backend-loss voyages preserve the visibly degraded reference
-scene. Direct browser networking/passive revalidation and named GPU/frame-time
-proof remain incomplete [Plan 0003](../plans/0003-scene-to-explorer.md) work.
+scene. A separately named voyage proves that the five-second passive refresh
+publishes a bounded generated attention stimulus into the mailbox without
+changing the exact Explorer scene. Direct browser networking and named
+GPU/frame-time proof remain incomplete
+[Plan 0003](../plans/0003-scene-to-explorer.md) work.
 The local software-renderer qualification separately binds versioned ceilings
 for observable CPU compilation, upload residency, backend draw calls, label
 candidates, JavaScript heap, interaction convergence, and browser presentation

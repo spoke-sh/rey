@@ -270,11 +270,13 @@ occlusion, roughness, curvature, and normal attributes. Retained voyages now
 cover both real backends and the reference renderer at both target viewports,
 semantic-first rendered parity, WebGL context loss, and WebGPU device loss.
 The fulfilled transport used in the current socket-restricted environment does
-not qualify direct browser networking or passive live revalidation. A named
-local SwiftShader budget now bounds observable CPU, resource, interaction, and
-browser-presentation measurements across the full matrix; it makes no GPU
-execution or frame-rate claim. Rey's deterministic reference renderer remains
-independent of Three.js.
+not qualify direct browser networking. A separately named voyage qualifies the
+five-second passive publish path with one bounded generated attention stimulus;
+the manifest identifies that row as a test input rather than observed runtime
+activity. A named local SwiftShader budget now bounds observable CPU, resource,
+interaction, and browser-presentation measurements across the full matrix; it
+makes no GPU execution or frame-rate claim. Rey's deterministic reference
+renderer remains independent of Three.js.
 
 Backend-independent tests own semantic correctness: field values, validity
 masks, scene manifests, stable ordering, LOD selection, render-pass order,
@@ -312,7 +314,15 @@ JS/CSS assets in Chrome and supplies only the bounded root-loader GET documents
 read from the named `rey ui` origin through a local-file bootstrap. The
 manifest discloses that it did not exercise direct browser networking. Such a
 voyage remains useful for rendering and interaction qualification but cannot
-close a direct-transport or passive-live-revalidation claim.
+close a direct-transport claim.
+
+Add `--revalidation attention` to one fulfilled reference voyage to supply a
+two-document workload sequence: the exact initial document followed by one
+bounded generated attention row. After completing the semantic traversal, the
+harness waits for the mounted UI's five-second passive refresh, verifies the
+mailbox increment, preserves the exact Explorer scene, and retains a final
+capture. The sequence tests publish behavior only; it is not observed runtime
+activity or admitted evidence.
 
 After retaining one bound trio, record structural and rendered parity with:
 

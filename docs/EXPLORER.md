@@ -299,10 +299,10 @@ projection applies contour/water/weather/probe view controls and feeds the same
 active pass identities to reference markup and accelerated diagnostics; view
 controls do not revise semantic scene or graph identity.
 [Plan 0003](../plans/0003-scene-to-explorer.md) owns the remaining
-direct-browser transport/passive-revalidation voyage. Projection extraction,
-pass implementation, both native backend-loss paths, retained visual voyages,
-rendered parity, and the named observable local performance budget are
-complete; GPU-execution/frame-rate claims remain absent.
+direct-browser transport voyage. Projection extraction, pass implementation,
+both native backend-loss paths, retained visual voyages, rendered parity,
+passive attention revalidation, and the named observable local performance
+budget are complete; GPU-execution/frame-rate claims remain absent.
 
 ### Terrain fidelity
 
@@ -361,6 +361,11 @@ optional local-file route/base-path posture exists solely for
 socket-restricted qualification over the exact built assets and bounded API
 snapshots; the production HTTP route remains `/explore`, and the manifest must
 disclose when direct browser transport was not exercised.
+One separately named fulfilled voyage supplies an exact initial workload
+document followed by one bounded generated attention row. It proves that the
+five-second passive refresh publishes the changed typed projection into the
+mailbox while preserving the exact Explorer scene. The manifest identifies the
+row as qualification stimulus, never observed runtime activity.
 The voyage also retains scene/field/geometry CPU duration, upload residency,
 backend draw calls, label candidates, JavaScript heap, semantic interaction
 convergence, and a short browser presentation-cadence sample. A separate

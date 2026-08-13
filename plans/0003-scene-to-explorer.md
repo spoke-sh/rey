@@ -103,8 +103,10 @@ WebGL2, and WebGPU, while bound parity manifests compare exact semantic lineage
 before pixel error. Separate real-backend loss voyages return WebGL2 and WebGPU
 to the same visibly identified reference scene. These voyages used the
 disclosed fulfilled transport because direct Chrome loopback networking was
-unavailable; direct browser transport, passive revalidation, and named
-GPU-execution/frame-rate proof remain open. A named local SwiftShader budget
+unavailable; direct browser transport and GPU-execution/frame-rate proof remain
+open. One separately named voyage carries a bounded generated attention
+stimulus through the five-second passive refresh into the mailbox while the
+exact Explorer scene remains stable. A named local SwiftShader budget
 now bounds the complete six-voyage matrix for observable scene/field/geometry
 CPU work, upload residency, backend draw calls, label candidates, JavaScript
 heap, interaction convergence, and browser presentation cadence. It does not
@@ -245,9 +247,13 @@ execution timing.
   deterministic browser tests.
 - [x] Prove unknown masks, pole/antimeridian behavior, overlapping footprints,
   and terrain transitions through bounded structural fixtures and tests.
-- [ ] Repeat the required voyages through direct browser HTTP and exercise
-  passive live revalidation; fulfilled-transport voyages qualify the exact
-  built assets, rendering, and interaction but not browser networking.
+- [x] Retain a separately named passive-revalidation voyage that publishes one
+  explicitly generated attention stimulus after the five-second refresh while
+  preserving the exact Explorer scene; never present the stimulus as observed
+  runtime activity.
+- [ ] Repeat the required voyages through direct browser HTTP;
+  fulfilled-transport voyages qualify the exact built assets, rendering,
+  interaction, and passive publish behavior but not browser networking.
 - [x] Retain and visibly identify the last-good immutable Explorer scene when
   a later portfolio projection fails compilation, then recover on the next
   valid projection; keep an invalid initial scene fail-closed.
