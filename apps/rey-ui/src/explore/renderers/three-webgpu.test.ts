@@ -44,9 +44,19 @@ describe("Three.js WebGPU renderer adapter", () => {
       snapshot_id: "scene:one",
       camera_revision: "camera:one",
       material_revision: "material:one",
+      render_graph_id: "graph:one",
     });
     expect(renderer.render).toHaveBeenCalledOnce();
     expect(adapter.lastFrame?.snapshot_id).toBe("scene:one");
+    expect(
+      adapter.render({} as Object3D, {} as Camera, {
+        snapshot_id: "scene:one",
+        camera_revision: "camera:one",
+        material_revision: "material:one",
+        render_graph_id: "graph:one",
+      }),
+    ).toBe(false);
+    expect(renderer.render).toHaveBeenCalledOnce();
   });
 
   it("forces Three.js's WebGL2 compatibility backend for qualification", async () => {

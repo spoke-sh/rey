@@ -171,8 +171,14 @@ remain open.
 
 ### 5. Complete the projection engine and terrain
 
-- [ ] Finish evidence-adapter, immutable-scene, camera, invalidation,
-  render-graph, renderer, picking, and React ownership separation.
+- [x] Retain one revisioned ordered render-pass graph in the immutable scene
+  snapshot and drive both renderers from its identity; make exact scene,
+  camera, material, and graph invalidation explicit and suppress identical
+  accelerated frames.
+- [ ] Move remaining portfolio adaptation, survey scene assembly, contours,
+  and natural-feature derivation out of `topology.ts`; finish the
+  evidence-adapter, compiler, engine, renderer, picking, and React ownership
+  boundary without introducing a parallel scene truth.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient
   patches, including stable absolute sampling, hydrology halos, exact shared
   channel seams, cache keys, and CPU cell/byte budgets.

@@ -17,6 +17,11 @@ import type {
 } from "../projection/county-frame";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "./labels";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
+import {
+  EXPLORER_RENDER_GRAPH_REVISION,
+  compileExplorerRenderGraph,
+  type ExplorerRenderGraph,
+} from "./render-graph";
 
 export interface SceneSnapshot {
   readonly schema: "rey.reference-scene-snapshot.v1";
@@ -25,6 +30,7 @@ export interface SceneSnapshot {
   readonly compiler_revisions: readonly string[];
   readonly regime: LensRegime;
   readonly focus_id: string;
+  readonly render_graph: ExplorerRenderGraph;
   readonly scene: TopologyScene;
 }
 
@@ -37,6 +43,7 @@ export function compileSceneSnapshot(
   const scene = freezeTopologyScene(
     buildTopologyScene(portfolio, zoom, focusId, retainedRegime),
   );
+  const renderGraph = compileExplorerRenderGraph(scene);
   const topographies = admittedTopographies(portfolio);
   const regionalScenes = admittedRegionalScenes(portfolio);
   const sourceRevisions =
@@ -103,12 +110,15 @@ export function compileSceneSnapshot(
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   compilerRevisions.sort((left, right) => left.localeCompare(right));
+  compilerRevisions.push(EXPLORER_RENDER_GRAPH_REVISION);
+  compilerRevisions.sort((left, right) => left.localeCompare(right));
   const snapshotId = [
     "rey.reference-scene-snapshot.v1",
     ...sourceRevisions,
     ...compilerRevisions,
     scene.regime,
     scene.focus_id,
+    renderGraph.graph_id,
   ].join("|");
   return Object.freeze({
     schema: "rey.reference-scene-snapshot.v1",
@@ -117,6 +127,7 @@ export function compileSceneSnapshot(
     compiler_revisions: Object.freeze(compilerRevisions),
     regime: scene.regime,
     focus_id: scene.focus_id,
+    render_graph: renderGraph,
     scene,
   });
 }

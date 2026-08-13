@@ -1,6 +1,7 @@
 import type { Camera, Object3D } from "three/webgpu";
 import {
   boundedViewport,
+  renderFrameInvalidation,
   type AcceleratedBackend,
   type RenderFrameIdentity,
   type RendererStatus,
@@ -118,11 +119,14 @@ export class ThreeWebGpuRendererAdapter {
     if (this.#renderer) this.applyViewport();
   }
 
-  render(scene: Object3D, camera: Camera, frame: RenderFrameIdentity): void {
+  render(scene: Object3D, camera: Camera, frame: RenderFrameIdentity): boolean {
     if (!this.#renderer || this.#status.lifecycle !== "ready")
       throw new Error("the Three.js renderer adapter is not ready");
+    if (renderFrameInvalidation(this.#lastFrame, frame).length === 0)
+      return false;
     this.#renderer.render(scene, camera);
     this.#lastFrame = Object.freeze({ ...frame });
+    return true;
   }
 
   dispose(): void {

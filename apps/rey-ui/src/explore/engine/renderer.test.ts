@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boundedViewport } from "./renderer";
+import { boundedViewport, renderFrameInvalidation } from "./renderer";
 
 describe("renderer contracts", () => {
   it("bounds physical viewport work independently of CSS size", () => {
@@ -23,5 +23,31 @@ describe("renderer contracts", () => {
     expect(
       large.width * large.height * large.device_pixel_ratio ** 2,
     ).toBeLessThanOrEqual(8_388_608);
+  });
+});
+
+describe("render invalidation", () => {
+  const frame = {
+    snapshot_id: "scene:one",
+    camera_revision: "camera:one",
+    material_revision: "material:one",
+    render_graph_id: "graph:one",
+  };
+
+  it("identifies exact dirty domains and leaves identical frames quiet", () => {
+    expect(renderFrameInvalidation(undefined, frame)).toEqual([
+      "scene",
+      "camera",
+      "material",
+      "render_graph",
+    ]);
+    expect(renderFrameInvalidation(frame, { ...frame })).toEqual([]);
+    expect(
+      renderFrameInvalidation(frame, {
+        ...frame,
+        camera_revision: "camera:two",
+        render_graph_id: "graph:two",
+      }),
+    ).toEqual(["camera", "render_graph"]);
   });
 });

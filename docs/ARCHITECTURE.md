@@ -933,7 +933,10 @@ identities to match. The browser compiles bounded haloed absolute-coordinate
 validity/elevation/hydrology/normal/curvature/material patches, retains exact
 patch identities in a byte/cell-bounded LRU, and renders continuous relief
 through the Three.js WebGPU/TSL adapter with WebGL2 and deterministic reference
-paths. Render-graph extraction, retained voyages, and a qualified terrain-fidelity result remain incomplete
+paths. The immutable scene binds a revisioned ordered pass graph consumed by
+both surfaces, and the accelerated adapter suppresses frames whose exact scene,
+camera, material, and graph identity is unchanged. Remaining pass
+implementation and topology extraction, retained voyages, and a qualified terrain-fidelity result remain incomplete
 [Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
 activation, persistent cross-poll activation processing, and policy proposals
 remain target architecture. Compatible admissions within one

@@ -26,6 +26,10 @@ import {
   type SemanticCoordinate,
   type SemanticMercatorPickCandidate,
 } from "../projection/semantic-mercator";
+import {
+  compileExplorerRenderGraph,
+  type ExplorerRenderGraph,
+} from "../engine/render-graph";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -51,6 +55,7 @@ export function ReferenceRenderer({
   scene,
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
   projectionMorphProgress = scene.regime === "world" ? 0 : 1,
+  renderGraph,
 }: {
   accelerated?: boolean;
   layers: ReferenceLayerVisibility;
@@ -58,7 +63,9 @@ export function ReferenceRenderer({
   scene: TopologyScene;
   globeView?: GlobeCameraView;
   projectionMorphProgress?: number;
+  renderGraph?: ExplorerRenderGraph;
 }) {
+  const activeRenderGraph = renderGraph ?? compileExplorerRenderGraph(scene);
   const globeWorld = scene.regime === "world" && scene.globe !== null;
   const morphActive =
     scene.world_atlas_transition !== null &&
@@ -110,6 +117,11 @@ export function ReferenceRenderer({
           styles.worldTerrainProjection,
       )}
       data-lens-regime={scene.regime}
+      data-render-graph={activeRenderGraph.graph_id}
+      data-render-passes={activeRenderGraph.passes
+        .filter(({ enabled }) => enabled)
+        .map(({ id }) => id)
+        .join(",")}
       data-renderer={accelerated ? "reference-overlays" : "reference"}
     >
       {!globeWorld &&

@@ -400,6 +400,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             layers={layers}
             onFocus={focusNode}
             projectionMorphProgress={projectionMorphProgress}
+            renderGraph={snapshot.render_graph}
             scene={scene}
           />
         </div>
@@ -440,6 +441,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 PROGRAM / {terrainRenderer.program_count} / WORKING LIMIT /{" "}
                 {terrainRenderer.working_set_limit_cells} CELLS /{" "}
                 {Math.ceil(terrainRenderer.working_set_limit_bytes / 1024)} KIB
+              </span>
+              <span data-render-graph={terrainRenderer.render_graph_id}>
+                GRAPH / {terrainRenderer.active_render_passes.length} PASSES
               </span>
             </>
           ) : null}

@@ -227,6 +227,11 @@ fallback beneath the React canvas shell. Remaining scene assembly, contours,
 and natural-feature adaptation still live in `src/topology.ts`. Seed edges
 remain deep inspection evidence and do not become relief, natural features, or
 paths.
+`src/explore/engine/render-graph.ts` owns the renderer-neutral ordered pass
+manifest and its evidence/derived/presentation/interface authority labels.
+`src/explore/engine/renderer.ts` owns exact frame invalidation; both surfaces
+consume the immutable snapshot graph, and the accelerated adapter leaves an
+identical frame quiet.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and

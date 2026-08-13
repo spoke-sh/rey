@@ -23,6 +23,8 @@ export interface AcceleratedTerrainReport {
   working_set_limit_cells: number;
   working_set_limit_bytes: number;
   triangles: number;
+  render_graph_id: string;
+  active_render_passes: readonly string[];
 }
 
 export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
@@ -43,6 +45,8 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     working_set_limit_cells: 0,
     working_set_limit_bytes: 0,
     triangles: 0,
+    render_graph_id: "unbound",
+    active_render_passes: Object.freeze([]),
   } satisfies AcceleratedTerrainReport,
 );
 
@@ -161,6 +165,12 @@ export function AcceleratedTerrainSurface({
         program_count: snapshot.scene.terrain_programs.length,
         working_set_limit_cells: programTotals.cells,
         working_set_limit_bytes: programTotals.bytes,
+        render_graph_id: snapshot.render_graph.graph_id,
+        active_render_passes: Object.freeze(
+          snapshot.render_graph.passes
+            .filter(({ enabled }) => enabled)
+            .map(({ id }) => id),
+        ),
       });
       return;
     }
@@ -185,6 +195,12 @@ export function AcceleratedTerrainSurface({
         working_set_limit_cells: programTotals.cells,
         working_set_limit_bytes: programTotals.bytes,
         triangles: statistics?.triangles ?? 0,
+        render_graph_id: snapshot.render_graph.graph_id,
+        active_render_passes: Object.freeze(
+          snapshot.render_graph.passes
+            .filter(({ enabled }) => enabled)
+            .map(({ id }) => id),
+        ),
       });
     };
     report({
@@ -251,6 +267,7 @@ export function AcceleratedTerrainSurface({
             ? `perspective-globe:${snapshot.scene.world.width}x${snapshot.scene.world.height}`
             : `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
           material_revision: bundle.material_revision,
+          render_graph_id: snapshot.render_graph.graph_id,
         });
         setReady(true);
         report(status, bundle.statistics);
@@ -285,6 +302,7 @@ export function AcceleratedTerrainSurface({
       snapshot_id: snapshot.snapshot_id,
       camera_revision: `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}`,
       material_revision: bundle.material_revision,
+      render_graph_id: snapshot.render_graph.graph_id,
     });
   }, [
     globeView.pitch_degrees,
@@ -307,6 +325,7 @@ export function AcceleratedTerrainSurface({
       snapshot_id: snapshot.snapshot_id,
       camera_revision: `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
       material_revision: bundle.material_revision,
+      render_graph_id: snapshot.render_graph.graph_id,
     });
   }, [
     semanticGlobe,
