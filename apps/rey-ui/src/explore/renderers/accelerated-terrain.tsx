@@ -28,6 +28,7 @@ export interface AcceleratedTerrainReport {
   program_count: number;
   working_set_limit_cells: number;
   working_set_limit_bytes: number;
+  draw_calls: number;
   triangles: number;
   render_graph_id: string;
   active_render_passes: readonly string[];
@@ -58,6 +59,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     program_count: 0,
     working_set_limit_cells: 0,
     working_set_limit_bytes: 0,
+    draw_calls: 0,
     triangles: 0,
     render_graph_id: "unbound",
     active_render_passes: Object.freeze([]),
@@ -197,6 +199,7 @@ export function AcceleratedTerrainSurface({
         program_count: snapshot.scene.terrain_programs.length,
         working_set_limit_cells: programTotals.cells,
         working_set_limit_bytes: programTotals.bytes,
+        draw_calls: 0,
         render_graph_id: snapshot.render_graph.graph_id,
         active_render_passes: activeRenderPassIds,
         gpu_bytes: 0,
@@ -240,6 +243,7 @@ export function AcceleratedTerrainSurface({
         program_count: snapshot.scene.terrain_programs.length,
         working_set_limit_cells: programTotals.cells,
         working_set_limit_bytes: programTotals.bytes,
+        draw_calls: adapter?.lastDrawCalls ?? 0,
         triangles: statistics?.triangles ?? 0,
         render_graph_id: snapshot.render_graph.graph_id,
         active_render_passes: activeRenderPassIds,

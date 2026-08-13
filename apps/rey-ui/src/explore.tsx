@@ -132,10 +132,20 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   useEffect(() => {
     retainedRegime.current = regime;
   }, [regime]);
-  const sceneProjection = useMemo(
-    () => sceneCompiler.compile(portfolio, DEFAULT_LENS_ZOOM, focusId, regime),
-    [focusId, portfolio, regime, sceneCompiler],
-  );
+  const measuredSceneProjection = useMemo(() => {
+    const started = globalThis.performance?.now() ?? Date.now();
+    const projection = sceneCompiler.compile(
+      portfolio,
+      DEFAULT_LENS_ZOOM,
+      focusId,
+      regime,
+    );
+    return {
+      compilation_ms: (globalThis.performance?.now() ?? Date.now()) - started,
+      projection,
+    };
+  }, [focusId, portfolio, regime, sceneCompiler]);
+  const sceneProjection = measuredSceneProjection.projection;
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
   const projectionMorphProgress = worldAtlasMorphProgress(zoom);
@@ -331,6 +341,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         isFullscreen && styles.canvasShellFullscreen,
       )}
       data-scene-compilers={snapshot.compiler_revisions.join(",")}
+      data-scene-compilation-ms={measuredSceneProjection.compilation_ms}
       data-scene-focus={snapshot.focus_id}
       data-scene-snapshot={snapshot.snapshot_id}
       data-scene-sources={snapshot.source_revisions.join(",")}
@@ -442,6 +453,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-diagnostics="rey.explorer-renderer-diagnostics.v1"
           data-renderer-field-bytes={terrainRenderer.field_bytes}
           data-renderer-field-cells={terrainRenderer.field_cells}
+          data-renderer-field-evaluation-ms={
+            terrainRenderer.field_evaluation_ms
+          }
+          data-renderer-draw-calls={terrainRenderer.draw_calls}
           data-renderer-geometry-compilation-ms={
             terrainRenderer.geometry_compilation_ms
           }

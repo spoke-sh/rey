@@ -11,6 +11,7 @@ function rendererFacade(backend: "webgpu" | "webgl2") {
       isWebGPUBackend: backend === "webgpu",
       isWebGLBackend: backend === "webgl2",
     },
+    info: { render: { calls: 7 } },
     init: vi.fn(async () => undefined),
     setPixelRatio: vi.fn(),
     setSize: vi.fn(),
@@ -48,6 +49,7 @@ describe("Three.js WebGPU renderer adapter", () => {
     });
     expect(renderer.render).toHaveBeenCalledOnce();
     expect(adapter.lastFrame?.snapshot_id).toBe("scene:one");
+    expect(adapter.lastDrawCalls).toBe(7);
     expect(adapter.lastSubmissionMs).toBeGreaterThanOrEqual(0);
     expect(
       adapter.render({} as Object3D, {} as Camera, {
@@ -113,6 +115,7 @@ describe("Three.js WebGPU renderer adapter", () => {
 
     expect(renderer.dispose).toHaveBeenCalledOnce();
     expect(adapter.status.lifecycle).toBe("disposed");
+    expect(adapter.lastDrawCalls).toBe(0);
     await expect(adapter.initialize({} as HTMLCanvasElement)).rejects.toThrow(
       "disposed",
     );

@@ -19,6 +19,11 @@ export interface ThreeRendererFacade {
       destroy?(): void;
     };
   };
+  readonly info?: {
+    readonly render?: {
+      readonly calls?: number;
+    };
+  };
   init(): Promise<unknown>;
   setPixelRatio(value: number): void;
   setSize(width: number, height: number, updateStyle?: boolean): void;
@@ -57,6 +62,7 @@ export class ThreeWebGpuRendererAdapter {
     device_pixel_ratio: 1,
   };
   #lastFrame: RenderFrameIdentity | undefined;
+  #lastDrawCalls = 0;
   #lastSubmissionMs = 0;
   readonly #statusListeners = new Set<
     (status: Readonly<RendererStatus>) => void
@@ -76,6 +82,10 @@ export class ThreeWebGpuRendererAdapter {
 
   get lastSubmissionMs(): number {
     return this.#lastSubmissionMs;
+  }
+
+  get lastDrawCalls(): number {
+    return this.#lastDrawCalls;
   }
 
   destroyWebGpuDeviceForQualification(): boolean {
@@ -134,6 +144,7 @@ export class ThreeWebGpuRendererAdapter {
           renderer.dispose();
           this.#renderer = undefined;
           this.#lastFrame = undefined;
+          this.#lastDrawCalls = 0;
           this.#status = {
             lifecycle: "failed",
             backend: "reference",
@@ -147,6 +158,7 @@ export class ThreeWebGpuRendererAdapter {
     } catch (error) {
       this.#renderer?.dispose();
       this.#renderer = undefined;
+      this.#lastDrawCalls = 0;
       this.#status = {
         lifecycle: "failed",
         backend: "reference",
@@ -171,6 +183,13 @@ export class ThreeWebGpuRendererAdapter {
     const started = measurementNow();
     this.#renderer.render(scene, camera);
     this.#lastSubmissionMs = measurementNow() - started;
+    const drawCalls = this.#renderer.info?.render?.calls;
+    this.#lastDrawCalls =
+      typeof drawCalls === "number" &&
+      Number.isFinite(drawCalls) &&
+      drawCalls >= 0
+        ? Math.trunc(drawCalls)
+        : 0;
     this.#lastFrame = Object.freeze({ ...frame });
     return true;
   }
@@ -179,6 +198,7 @@ export class ThreeWebGpuRendererAdapter {
     this.#renderer?.dispose();
     this.#renderer = undefined;
     this.#lastFrame = undefined;
+    this.#lastDrawCalls = 0;
     this.#lastSubmissionMs = 0;
     this.#status = {
       lifecycle: "disposed",
