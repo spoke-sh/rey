@@ -99,6 +99,23 @@ describe("reference renderer", () => {
     expect(markup).toContain("not a source relationship");
   });
 
+  it("keeps the base landform independent from optional contour overlays", () => {
+    const markup = renderToStaticMarkup(
+      <ReferenceRenderer
+        accelerated
+        layers={{ relief: false, water: false, weather: false, probes: false }}
+        onFocus={() => undefined}
+        scene={terrainScene}
+      />,
+    );
+
+    expect(markup).toContain('data-renderer="reference-overlays"');
+    expect(markup).toContain('data-world-geometry="charted"');
+    expect(markup).toContain('data-accelerated-surface="true"');
+    expect(markup).not.toContain("data-relief-level");
+    expect(markup).not.toContain("data-natural-feature");
+  });
+
   it("renders the admitted semantic atlas with selected-first label collisions", () => {
     const globeScene: TopologyScene = {
       ...terrainScene,

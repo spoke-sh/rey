@@ -269,6 +269,10 @@ layout, and lens data. The reference surface remains mounted during accelerated 
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.
+The base terrain remains active independently from optional contour, water,
+weather, and probe overlays. The UI names the old relief toggle `CONTOURS` to
+match its actual scope; disabling it cannot hide the landform or validity
+boundary.
 [Plan 0003](../plans/0003-scene-to-explorer.md) owns remaining pass
 implementation and topology extraction, device-loss qualification, and retained
 visual and performance proof.

@@ -201,6 +201,9 @@ remain open.
 - [x] Preserve the visible reference renderer through initialization failure,
   WebGL context loss, and asynchronous WebGPU device loss; retain real-backend
   loss captures with the named qualification voyages.
+- [x] Keep base terrain independently active while contour, water, weather,
+  and probe overlays are toggled; label the former relief control by its actual
+  contour scope.
 - [ ] Compose LOD-aware terrain, contours, hydrology, validity boundaries,
   features, labels, collision/culling, selection, and accessibility while
   keeping the base landform independently legible.

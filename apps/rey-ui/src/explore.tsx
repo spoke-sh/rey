@@ -368,7 +368,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               pan_x: pan.x,
               pan_y: pan.y,
             }}
-            visible={layers.relief && !projectionMorphActive}
+            visible={!projectionMorphActive}
           />
         ) : null}
         <div
@@ -389,13 +389,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 pan_x: pan.x,
                 pan_y: pan.y,
               }}
-              visible={layers.relief && !projectionMorphActive}
+              visible={!projectionMorphActive}
             />
           ) : null}
           <ReferenceRenderer
-            accelerated={
-              acceleratedReady && layers.relief && !projectionMorphActive
-            }
+            accelerated={acceleratedReady && !projectionMorphActive}
             globeView={globeView}
             layers={layers}
             onFocus={focusNode}
@@ -558,7 +556,7 @@ function CanvasToolbar({
             onClick={() => onToggleLayer(layer)}
             theme="precision"
           >
-            {layer.toUpperCase()}
+            {layer === "relief" ? "CONTOURS" : layer.toUpperCase()}
           </KineticButton>
         ))}
         <span className={sx(styles.micro, styles.zoomReadout)}>
