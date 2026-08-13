@@ -489,9 +489,14 @@ then requires accepted status, no scenario identity, a current retained atlas
 delta, and matching workload, graph, capability, package, snapshot, packet,
 terrain, coordinate-plane, regional-member, and synthetic-placement bindings.
 It projects the atlas member's exact accepted synthetic point through
-World and semantic Mercator, then exact native object bounds inside a bounded
-County reference frame; it does not reconstruct source geometry or invent
-sectors, footprint scale, or regional terrain. See
+World and the revisioned `rey.semantic-mercator-projection@1`, then exact native
+object bounds inside a bounded County reference frame. The primitive provides
+the declared horizontal wrap, polar cutoff/disclosure, shared-identity
+antimeridian fragments, analytic chart inverse, and stable World/Atlas
+endpoints; its compiler revision enters the immutable scene snapshot. The
+browser does not reconstruct source geometry or invent footprint scale or
+regional terrain. Repeated-chart renderer picking and continuous morph
+presentation remain incomplete. See
 [Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
 The browser rejects a working set whose shape, channels, cells, or byte
 allocation diverges from that packet. It snaps the visible envelope to

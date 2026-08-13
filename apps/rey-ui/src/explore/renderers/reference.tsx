@@ -12,6 +12,7 @@ import type {
   TopologyTone,
 } from "../../topology";
 import { contextGlobeSamples } from "./globe-samples";
+import { projectSemanticGlobe } from "../projection/semantic-mercator";
 
 export type FocusableTopologyObject = Pick<
   TopologyNode | TopologyPointOfInterest,
@@ -65,7 +66,7 @@ export function ReferenceRenderer({
                 region.tone === "unknown" &&
                 styles.worldUnexploredZone,
             )}
-            key={region.id}
+            key={region.fragment_id ?? region.id}
             style={{
               height: region.height,
               left: region.x,
@@ -482,24 +483,20 @@ function projectGlobe(
   radius: number,
   view: GlobeCameraView,
 ) {
-  const longitude = (coordinate.longitude_degrees * Math.PI) / 180;
-  const latitude = (coordinate.latitude_degrees * Math.PI) / 180;
-  const localX = Math.cos(latitude) * Math.sin(longitude);
-  const localY = Math.sin(latitude);
-  const localZ = Math.cos(latitude) * Math.cos(longitude);
-  const pitch = (view.pitch_degrees * Math.PI) / 180;
-  const yaw = (view.yaw_degrees * Math.PI) / 180;
-  const pitchY = localY * Math.cos(pitch) - localZ * Math.sin(pitch);
-  const pitchZ = localY * Math.sin(pitch) + localZ * Math.cos(pitch);
-  const rotatedX = localX * Math.cos(yaw) + pitchZ * Math.sin(yaw);
-  const depth = -localX * Math.sin(yaw) + pitchZ * Math.cos(yaw);
-  return {
-    x: center.x + radius * rotatedX,
-    y: center.y - radius * pitchY,
-    depth,
-    visible: depth >= -0.02,
-  };
+  return projectSemanticGlobe(
+    {
+      longitude_microdegrees:
+        coordinate.longitude_degrees * MICRODEGREES_PER_DEGREE,
+      latitude_microdegrees:
+        coordinate.latitude_degrees * MICRODEGREES_PER_DEGREE,
+    },
+    center,
+    radius,
+    view,
+  );
 }
+
+const MICRODEGREES_PER_DEGREE = 1_000_000;
 
 function NaturalFeatureLayer({
   scene,

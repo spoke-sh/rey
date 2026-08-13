@@ -51,13 +51,18 @@ also carries that atlas revision as a verified non-owning back-reference:
 `scene_id` excludes the recursive link while the scene-admission result, run,
 and retained state bind it exactly. Stable occupied fixed-grid sectors now bind
 explicit region membership without claiming surveyed coverage or native County
-footprints. Explorer implements the fresh
+footprints. A revisioned browser projection primitive now owns the exact
+`360000000µ°` horizontal wrap, `±85051129µ°` cutoff, polar-cap disclosure,
+analytic chart inverse, antimeridian fragment identity, shared orthographic
+World endpoint, and identity-stable World-to-Atlas interpolation. Regional
+Atlas points and sector fragments consume that primitive, and its compiler
+revision enters the immutable scene snapshot. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
 terrain programs, camera-relative transient working sets, continuous TSL
 material, WebGPU/WebGL2 paths, and an accessible reference path. Complete
-semantic-Mercator wrap/morph behavior, sectors, admitted County fabric,
-render-graph completion, clipmap reuse, and retained visual/performance proof
-remain open.
+render-time repeated-chart picking and continuous World-to-Atlas presentation,
+focus-preserving label/collision behavior, admitted County fabric, render-graph
+completion, clipmap reuse, and retained visual/performance proof remain open.
 
 ## Completion Checklist
 
@@ -100,8 +105,12 @@ remain open.
   without creating circular scene/atlas content identity.
 - [x] Add stable synthetic sector polygons and explicit region membership;
   keep sectors separate from admitted County footprints.
-- [ ] Implement spherical Mercator wrap, latitude cutoff, polar disclosure,
-  antimeridian-safe drawing, inverse picking, and stable World-to-Atlas morphs.
+- [x] Implement one revisioned spherical-Mercator primitive with horizontal
+  wrap, latitude cutoff, polar disclosure, antimeridian-safe draw fragments,
+  analytic inverse coordinates, and identity-stable World-to-Atlas endpoints;
+  consume it for regional Atlas points and sectors.
+- [ ] Drive repeated chart fragments through renderer picking and present the
+  continuous World-to-Atlas morph without replacing focus or semantic identity.
 - [ ] Preserve focus, selection, and one semantic identity through globe
   rotation, chart wrap, label culling, collisions, and recentering.
 

@@ -212,6 +212,14 @@ EPSG:3857 and does not relabel native CRS84 scene sources. Sector polygons and
 admitted county footprints are separate identities; focus may raise a sector
 as transient presentation without changing its evidence or height.
 
+The browser implements this transform as
+`rey.semantic-mercator-projection@1`, a deterministic primitive with an exact
+`360000000µ°` wrap, `±85051129µ°` cutoff and polar disclosure, analytic inverse,
+shared-identity antimeridian fragments, and stable World/Atlas endpoints. Its
+compiler revision is part of each regional immutable scene snapshot. Regional
+Atlas points and occupied sector rectangles use it now; repeated-chart event
+picking and the continuous renderer transition remain incomplete.
+
 Atlas derives terrain-style contour isolines from bounded anchor-sample
 influence and will use admitted scene packages as the primary detailed map
 fabric once the scene-admission workload exists. Entering one admitted county

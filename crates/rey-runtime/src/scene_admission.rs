@@ -416,7 +416,7 @@ pub fn render_scene_admission_result(result: &SceneAdmissionResult) -> String {
                 )
             ),
             "SYNTHETIC semantic longitude/latitude · revision-bound projection placement · no Earth CRS or distance claim".to_owned(),
-            "MERCATOR spherical chart of synthetic semantic coordinates · horizontally wrapping · not EPSG:3857".to_owned(),
+            "MERCATOR spherical chart of synthetic semantic coordinates · 360000000µ° wrap · ±85051129µ° cutoff with polar disclosure · analytic inverse · not EPSG:3857".to_owned(),
             "COUNTY local east/north/up · revision-bound tangent frame · bounded inverse inside admitted footprint".to_owned(),
             "CAMERA view only · center/scale/viewport/selection are not evidence identity".to_owned(),
             format!(

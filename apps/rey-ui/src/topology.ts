@@ -25,6 +25,11 @@ import {
   type AdmittedRegionalProjection,
 } from "./explore/projection/regional-scene-projector";
 import {
+  projectSemanticMercator,
+  projectSemanticMercatorBounds,
+  SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
+} from "./explore/projection/semantic-mercator";
+import {
   fieldPoint,
   type MaskField2D,
   type ScalarField2D,
@@ -132,6 +137,7 @@ interface TopologyPosition {
 
 export interface TopologyRegion {
   id: string;
+  fragment_id?: string;
   label: string;
   detail: string;
   x: number;
@@ -712,13 +718,19 @@ function buildRegionalAtlas(
     ({ workload, result, scene, atlas_region: atlasRegion }) => {
       const longitude = atlasRegion.semantic_longitude_microdegrees;
       const latitude = atlasRegion.semantic_latitude_microdegrees;
-      const mercator = semanticMercatorPoint(longitude, latitude);
+      const mercator = projectSemanticMercator(
+        {
+          longitude_microdegrees: longitude,
+          latitude_microdegrees: latitude,
+        },
+        semanticMercatorFrame(),
+      );
       return node(
         `regional-atlas:${atlasRegion.region_id}`,
         `regional:${scene.scene_id}`,
         "COUNTY",
         scene.region_id,
-        `SCENE@${scene.admission.editor_sequence} · sector ${shortCoordinate(atlasRegion.sector_id)} · point placement only · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
+        `SCENE@${scene.admission.editor_sequence} · sector ${shortCoordinate(atlasRegion.sector_id)} · point placement only${mercator.polar_disclosure ? ` · ${mercator.polar_disclosure.replace("_", " ")} clipped at ${SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES}µ°` : ""} · ${scene.projection.objects.length} exact native objects · ${shortCoordinate(result.result_id)}`,
         mercator.x,
         mercator.y,
         230,
@@ -733,27 +745,24 @@ function buildRegionalAtlas(
       sector,
     ]),
   );
-  const regions = [...sectors.values()].map((sector) => {
-    const northWest = semanticMercatorPoint(
-      sector.west_microdegrees,
-      sector.north_microdegrees,
-    );
-    const southEast = semanticMercatorPoint(
-      sector.east_microdegrees,
-      sector.south_microdegrees,
-    );
-    return {
-      id: `atlas-sector:${sector.sector_id}`,
+  const regions = [...sectors.values()].flatMap((sector) =>
+    projectSemanticMercatorBounds(
+      `atlas-sector:${sector.sector_id}`,
+      { ...sector, crosses_antimeridian: false },
+      semanticMercatorFrame(),
+    ).map((fragment) => ({
+      id: fragment.identity,
+      fragment_id: fragment.fragment_id,
       label: `SECTOR ${sector.longitude_band + 1}.${sector.latitude_band + 1}`,
-      detail: `${sector.member_region_ids.length} admitted ${sector.member_region_ids.length === 1 ? "member" : "members"} · synthetic partition only · not a County footprint`,
-      x: northWest.x,
-      y: northWest.y,
-      width: Math.max(1, southEast.x - northWest.x),
-      height: Math.max(1, southEast.y - northWest.y),
+      detail: `${sector.member_region_ids.length} admitted ${sector.member_region_ids.length === 1 ? "member" : "members"} · synthetic partition only · not a County footprint${fragment.polar_disclosures.length > 0 ? ` · ${fragment.polar_disclosures.map((cap) => cap.replace("_", " ")).join(" + ")} clipped at ±${SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES}µ°` : ""}`,
+      x: fragment.x,
+      y: fragment.y,
+      width: Math.max(1, fragment.width),
+      height: Math.max(1, fragment.height),
       tone: "neutral" as const,
       variant: "map-zone" as const,
-    };
-  });
+    })),
+  );
   return {
     regime: "atlas",
     label: "SEMANTIC MERCATOR ATLAS",
@@ -765,6 +774,7 @@ function buildRegionalAtlas(
     omissions: [
       "synthetic sector polygons express membership only; they are not surveyed coverage or native County footprints",
       "semantic Mercator positions are not Earth CRS84, EPSG:3857, physical distance, or geographic area",
+      "semantic Mercator clips at ±85051129µ°; retained polar-cap membership is disclosed rather than silently dropped",
       ...regionalScenes.flatMap(({ scene }) =>
         scene.omissions.map((omission) => omission.reason),
       ),
@@ -903,19 +913,12 @@ function selectRegionalScene(
   );
 }
 
-function semanticMercatorPoint(longitude: number, latitude: number) {
-  const longitudeDegrees = longitude / 1_000_000;
-  const latitudeDegrees = Math.max(
-    -85.05112878,
-    Math.min(85.05112878, latitude / 1_000_000),
-  );
-  const radians = (latitudeDegrees * Math.PI) / 180;
+function semanticMercatorFrame() {
   return {
-    x: 70 + ((longitudeDegrees + 180) / 360) * (TOPOLOGY_WORLD.width - 140),
-    y:
-      55 +
-      (0.5 - Math.log(Math.tan(Math.PI / 4 + radians / 2)) / (2 * Math.PI)) *
-        (TOPOLOGY_WORLD.height - 110),
+    x: 70,
+    y: 55,
+    width: TOPOLOGY_WORLD.width - 140,
+    height: TOPOLOGY_WORLD.height - 110,
   };
 }
 

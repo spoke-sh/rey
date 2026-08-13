@@ -315,6 +315,17 @@ while retaining one identity. Native GeoJSON/CRS84 coordinates remain native
 geographic evidence and require a qualified native-to-semantic region
 transform before admission.
 
+The implemented `rey.semantic-mercator-projection@1` browser primitive makes
+that mechanism reversible and bounded: it canonicalizes the `360000000µ°`
+wrap, reports each chart-copy index, clamps at `±85051129µ°`, returns an
+analytic inverse synthetic coordinate, and gives every antimeridian draw
+fragment a distinct fragment ID beside one unchanged semantic identity. Its
+orthographic World endpoint and interpolation retain the same focus and object
+identity. Regional Atlas points and occupied sectors consume this primitive,
+and immutable scene snapshots retain its compiler revision. Renderer event
+picking across repeated chart copies and continuous presentation of the
+World-to-Atlas interpolation remain Plan 0003 work.
+
 Atlas partitions the abstract sphere into revision-bound **sectors** and shows
 the footprints of admitted **county** scenes within them. Hover or keyboard
 focus may raise one sector as transient presentation and expose the exact
@@ -654,9 +665,10 @@ The seed-to-map voyage, World globe rotation, and one exact
 editor-to-admission-to-regional-Explorer voyage are implemented and verified
 through the human CLI, structured workload endpoint, deterministic Explorer
 read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: add
-sector identity, complete World and semantic-Mercator wrapping/morphing, expand
-the bounded County into a local
+0003](../plans/0003-scene-to-explorer.md) now owns the critical path: carry the
+reversible semantic-Mercator geometry through repeated-chart renderer picking
+and continuous focus-preserving World-to-Atlas presentation, expand the bounded
+County into a local
 isometric surface with exact links, finish the engine/render-graph boundary,
 and qualify detailed terrain and typed constructed layers. Exact scenario/delta
 routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser

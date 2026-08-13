@@ -6,6 +6,7 @@ import {
 } from "../../topology";
 import { admittedTopographies } from "../projection/topography-projector";
 import { admittedRegionalScenes } from "../projection/regional-scene-projector";
+import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "../projection/semantic-mercator";
 import type { TerrainFieldSet, TerrainProgram } from "../terrain/compile";
 
 export interface SceneSnapshot {
@@ -77,6 +78,8 @@ export function compileSceneSnapshot(
       ]),
     )
     .sort((left, right) => left.localeCompare(right));
+  if (regionalScenes.length > 0)
+    compilerRevisions.push(SEMANTIC_MERCATOR_PROJECTION_REVISION);
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   compilerRevisions.sort((left, right) => left.localeCompare(right));

@@ -2,7 +2,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { SceneAdmissionResult, WorkloadList } from "../../domain";
 import { buildTopologyScene } from "../../topology";
+import { compileSceneSnapshot } from "../engine/scene";
 import { ReferenceRenderer } from "../renderers/reference";
+import { SEMANTIC_MERCATOR_PROJECTION_REVISION } from "./semantic-mercator";
 
 const contract = (id: string, digest = `${id}:digest`) => ({
   id,
@@ -233,6 +235,13 @@ describe("regional scene topology projection", () => {
     expect(atlas.omissions).toContain(
       "synthetic sector polygons express membership only; they are not surveyed coverage or native County footprints",
     );
+    expect(atlas.omissions).toContain(
+      "semantic Mercator clips at ±85051129µ°; retained polar-cap membership is disclosed rather than silently dropped",
+    );
+    expect(
+      compileSceneSnapshot(regionalPortfolio, 0.26, "regional:scene:1")
+        .compiler_revisions,
+    ).toContain(SEMANTIC_MERCATOR_PROJECTION_REVISION);
 
     const county = buildTopologyScene(
       regionalPortfolio,

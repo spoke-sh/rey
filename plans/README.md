@@ -10,7 +10,7 @@ structure these plans must preserve.
 
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
-| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Complete semantic-Mercator wrap, polar disclosure, antimeridian drawing, inverse picking, and stable World-to-Atlas morphs over the retained sectors. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, and renderer boundary. |
+| [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Drive the retained reversible semantic-Mercator primitive through repeated-chart picking and the continuous World-to-Atlas renderer transition while preserving focus. | Implemented editor-to-admission-to-Explorer voyage, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, reversible Mercator geometry, and renderer boundary. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:
