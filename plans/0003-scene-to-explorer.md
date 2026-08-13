@@ -193,6 +193,8 @@ remain open.
   survey-scene adapter retained in scene lineage.
 - [x] Move legacy portfolio landscape and neighborhood adaptation into the
   portfolio-scene projection module without changing scene identity.
+- [x] Move workload and agent object projections into the portfolio-scene
+  module without changing focus, omission, or evidence semantics.
 - [x] Replace full CPU window rebuilds with bounded crack-free transient
   patches, including stable absolute sampling, hydrology halos, exact shared
   channel seams, cache keys, and CPU cell/byte budgets.

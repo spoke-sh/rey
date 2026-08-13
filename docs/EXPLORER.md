@@ -271,8 +271,9 @@ lineage. A third revisioned survey-scene projection owns focus selection,
 semantic-globe adaptation, bearing, exact evidence details, and regime copy;
 `topology.ts` only dispatches admitted survey evidence into that projection.
 Legacy portfolio landscape and neighborhood adaptation now lives in
-`src/explore/projection/portfolio-scene.ts`; object/evidence adaptation remains
-in `topology.ts`. The reference surface remains mounted during accelerated initialization and is
+`src/explore/projection/portfolio-scene.ts`, together with workload and agent
+object projections. Draft, attention, portfolio-object, and evidence
+adaptation remains in `topology.ts`. The reference surface remains mounted during accelerated initialization and is
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.
