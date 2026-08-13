@@ -56,6 +56,7 @@ export class ThreeWebGpuRendererAdapter {
     device_pixel_ratio: 1,
   };
   #lastFrame: RenderFrameIdentity | undefined;
+  #lastSubmissionMs = 0;
   readonly #statusListeners = new Set<
     (status: Readonly<RendererStatus>) => void
   >();
@@ -70,6 +71,10 @@ export class ThreeWebGpuRendererAdapter {
 
   get lastFrame(): Readonly<RenderFrameIdentity> | undefined {
     return this.#lastFrame ? Object.freeze({ ...this.#lastFrame }) : undefined;
+  }
+
+  get lastSubmissionMs(): number {
+    return this.#lastSubmissionMs;
   }
 
   onStatusChange(listener: (status: Readonly<RendererStatus>) => void) {
@@ -150,7 +155,9 @@ export class ThreeWebGpuRendererAdapter {
       throw new Error("the Three.js renderer adapter is not ready");
     if (renderFrameInvalidation(this.#lastFrame, frame).length === 0)
       return false;
+    const started = measurementNow();
     this.#renderer.render(scene, camera);
+    this.#lastSubmissionMs = measurementNow() - started;
     this.#lastFrame = Object.freeze({ ...frame });
     return true;
   }
@@ -159,6 +166,7 @@ export class ThreeWebGpuRendererAdapter {
     this.#renderer?.dispose();
     this.#renderer = undefined;
     this.#lastFrame = undefined;
+    this.#lastSubmissionMs = 0;
     this.#status = {
       lifecycle: "disposed",
       backend: null,
@@ -178,6 +186,10 @@ export class ThreeWebGpuRendererAdapter {
     const status = this.status;
     for (const listener of this.#statusListeners) listener(status);
   }
+}
+
+function measurementNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 function rendererBackend(renderer: ThreeRendererFacade): AcceleratedBackend {

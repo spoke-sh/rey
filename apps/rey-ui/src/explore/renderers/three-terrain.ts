@@ -48,6 +48,7 @@ export interface ThreeTerrainBundle {
     gpu_budget_bytes: number;
     parity_revision: string;
     parity_samples: number;
+    geometry_compilation_ms: number;
   };
   updateView?(view: TerrainCameraView): void;
   updateGlobeView?(view: GlobeCameraView): void;
@@ -194,6 +195,7 @@ export function createContinuousReliefBundle(
   view?: TerrainCameraView,
   gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
 ): ThreeTerrainBundle {
+  const compilationStarted = measurementNow();
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
     throw new Error("accelerated terrain GPU budget is invalid");
   const meshData = fields.map(buildTerrainMeshData);
@@ -289,6 +291,7 @@ export function createContinuousReliefBundle(
       gpu_budget_bytes: gpuBudgetBytes,
       parity_revision: TERRAIN_MESH_PARITY_REVISION,
       parity_samples: paritySamples,
+      geometry_compilation_ms: measurementNow() - compilationStarted,
     }),
     updateView(nextView) {
       updateTerrainCamera(camera, world, nextView);
@@ -299,6 +302,10 @@ export function createContinuousReliefBundle(
       scene.clear();
     },
   };
+}
+
+function measurementNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }
 
 export function updateTerrainCamera(

@@ -463,6 +463,22 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                   PARITY / {terrainRenderer.parity_samples} CPU-BOUND SAMPLES
                 </span>
               ) : null}
+              {terrainRenderer.status.lifecycle === "ready" ? (
+                <span
+                  data-measurement-authority={
+                    terrainRenderer.measurement_authority
+                  }
+                >
+                  CPU TIMING / EVAL{" "}
+                  {terrainRenderer.field_evaluation_ms.toFixed(1)}
+                  MS / GEOMETRY{" "}
+                  {terrainRenderer.geometry_compilation_ms.toFixed(1)}
+                  MS / SUBMIT {terrainRenderer.render_submission_ms.toFixed(
+                    1,
+                  )}{" "}
+                  MS
+                </span>
+              ) : null}
             </>
           ) : null}
         </div>

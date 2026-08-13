@@ -236,6 +236,9 @@ uploaded position, normal, material attribute, curvature, and index byte before
 allocation and fails visibly above its explicit 64 MiB GPU budget. It copies
 upload arrays away from immutable CPU fields and verifies every sample under a
 revisioned parity contract before constructing Three.js geometry.
+The live diagnostics time CPU field evaluation, geometry construction, and
+renderer submission with `performance.now()`. These values are explicitly
+transient and unretained; renderer submission is not GPU completion.
 `src/explore/engine/picking.ts` compiles the immutable semantic candidate index
 and owns inverse scene selection across repeated Atlas chart copies.
 `src/explore/projection/survey-terrain.ts` owns revisioned survey reference

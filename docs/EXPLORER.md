@@ -273,6 +273,10 @@ The base terrain remains active independently from optional contour, water,
 weather, and probe overlays. The UI names the old relief toggle `CONTOURS` to
 match its actual scope; disabling it cannot hide the landform or validity
 boundary.
+Explorer exposes field evaluation, geometry construction, and renderer
+submission duration as transient unretained CPU measurements. Submission time
+is not GPU execution time, a frame-rate claim, or retained qualification; named
+machine voyages remain required for those claims.
 The immutable render graph records pass availability. A separate transient
 projection applies contour/water/weather/probe view controls and feeds the same
 active pass identities to reference markup and accelerated diagnostics; view

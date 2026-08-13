@@ -148,6 +148,7 @@ export function createContextGlobeBundle(
       gpu_budget_bytes: samples.length * 16,
       parity_revision: "unbound",
       parity_samples: 0,
+      geometry_compilation_ms: 0,
     }),
     updateGlobeView(view) {
       applyGlobeView(globeGroup, view);

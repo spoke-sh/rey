@@ -65,6 +65,7 @@ describe("Three.js continuous terrain", () => {
     });
     expect(bundle.statistics.triangles).toBeGreaterThan(0);
     expect(bundle.statistics.gpu_bytes).toBeGreaterThan(0);
+    expect(bundle.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(0);
     bundle.dispose();
   });
 

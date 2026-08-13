@@ -219,6 +219,9 @@ remain open.
 - [ ] Record compilation, residency, evaluation/upload, draw, geometry, label,
   memory, frame-time, and interaction budgets on a named reference machine
   before making fidelity or frame-rate claims.
+- [x] Expose transient CPU field-evaluation, geometry-compilation, and render-
+  submission timing with explicit unretained authority; never label submission
+  latency as GPU execution or retained performance proof.
 - [ ] Pass CLI output/exit fixtures, browser accessibility and parity tests,
   `just check`, `just test`, embedded assets, packaged Nix, and cargo-dist
   release checks.

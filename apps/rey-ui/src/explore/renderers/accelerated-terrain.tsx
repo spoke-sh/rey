@@ -33,6 +33,10 @@ export interface AcceleratedTerrainReport {
   gpu_budget_bytes: number;
   parity_revision: string;
   parity_samples: number;
+  field_evaluation_ms: number;
+  geometry_compilation_ms: number;
+  render_submission_ms: number;
+  measurement_authority: "transient_cpu_unretained";
 }
 
 export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
@@ -59,6 +63,10 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     gpu_budget_bytes: 0,
     parity_revision: "unbound",
     parity_samples: 0,
+    field_evaluation_ms: 0,
+    geometry_compilation_ms: 0,
+    render_submission_ms: 0,
+    measurement_authority: "transient_cpu_unretained",
   } satisfies AcceleratedTerrainReport,
 );
 
@@ -146,6 +154,7 @@ export function AcceleratedTerrainSurface({
         limits: limitsRevision,
         cache: new TerrainPatchCache(programTotals.cells, programTotals.bytes),
       };
+    const evaluationStarted = measurementNow();
     const runtimeFields = snapshot.scene.terrain_programs.flatMap(
       (program, index) => {
         if (semanticGlobe) return [];
@@ -154,6 +163,7 @@ export function AcceleratedTerrainSurface({
         );
       },
     );
+    const fieldEvaluationMs = measurementNow() - evaluationStarted;
     const activeBandIds = Object.freeze(
       [
         ...(semanticGlobe ? ["semantic_globe"] : []),
@@ -191,6 +201,10 @@ export function AcceleratedTerrainSurface({
         gpu_budget_bytes: 0,
         parity_revision: "unbound",
         parity_samples: 0,
+        field_evaluation_ms: fieldEvaluationMs,
+        geometry_compilation_ms: 0,
+        render_submission_ms: 0,
+        measurement_authority: "transient_cpu_unretained",
       });
       return;
     }
@@ -209,6 +223,7 @@ export function AcceleratedTerrainSurface({
         gpu_budget_bytes: number;
         parity_revision: string;
         parity_samples: number;
+        geometry_compilation_ms: number;
       },
     ) => {
       if (cancelled) return;
@@ -229,6 +244,10 @@ export function AcceleratedTerrainSurface({
         gpu_budget_bytes: statistics?.gpu_budget_bytes ?? 0,
         parity_revision: statistics?.parity_revision ?? "unbound",
         parity_samples: statistics?.parity_samples ?? 0,
+        field_evaluation_ms: fieldEvaluationMs,
+        geometry_compilation_ms: statistics?.geometry_compilation_ms ?? 0,
+        render_submission_ms: adapter?.lastSubmissionMs ?? 0,
+        measurement_authority: "transient_cpu_unretained",
       });
     };
     report({
@@ -386,4 +405,8 @@ export function AcceleratedTerrainSurface({
       ref={canvasRef}
     />
   );
+}
+
+function measurementNow(): number {
+  return globalThis.performance?.now() ?? Date.now();
 }

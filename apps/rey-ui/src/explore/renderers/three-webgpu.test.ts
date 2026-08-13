@@ -48,6 +48,7 @@ describe("Three.js WebGPU renderer adapter", () => {
     });
     expect(renderer.render).toHaveBeenCalledOnce();
     expect(adapter.lastFrame?.snapshot_id).toBe("scene:one");
+    expect(adapter.lastSubmissionMs).toBeGreaterThanOrEqual(0);
     expect(
       adapter.render({} as Object3D, {} as Camera, {
         snapshot_id: "scene:one",
