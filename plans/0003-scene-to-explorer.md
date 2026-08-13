@@ -93,8 +93,18 @@ projects its native rings with holes preserved, and binds the footprint and
 compiler revisions into the immutable scene. Typed County layers and exact
 regional terrain evidence are admitted. Survey terrain now uses bounded haloed
 absolute-coordinate patches with exact shared render borders and a budgeted
-retained cache. Render-graph completion and retained visual/performance proof
-remain open.
+retained cache. The browser projection is split across revisioned survey,
+survey-layout, survey-terrain, and portfolio modules; `topology.ts` retains only
+shared scene types, orientation, high-level dispatch, and admitted regional
+projection. One immutable ordered render graph drives the reference and
+accelerated surfaces. Named 1920×1080 and 3840×2160 voyages now retain the same
+World → Atlas → County → Objects → Evidence traversal for reference, forced
+WebGL2, and WebGPU, while bound parity manifests compare exact semantic lineage
+before pixel error. Separate real-backend loss voyages return WebGL2 and WebGPU
+to the same visibly identified reference scene. These voyages used the
+disclosed fulfilled transport because direct Chrome loopback networking was
+unavailable; direct browser transport, passive revalidation, and named
+GPU/frame-performance proof remain open.
 
 ## Completion Checklist
 
@@ -203,12 +213,12 @@ remain open.
 - [x] Measure exact accelerated terrain vertex/index upload bytes, reject an
   allocation beyond the explicit 64 MiB engine budget, and expose current and
   maximum GPU bytes in Explorer diagnostics.
-- [ ] Retain GPU residency and upload measurements with named backend
+- [x] Retain GPU residency and upload measurements with named backend
   qualification voyages.
 - [x] Qualify every accelerated height/normal/material upload sample against
   deterministic CPU fields before allocation and isolate upload arrays from
   the immutable reference buffers.
-- [ ] Retain real-backend rendered-output parity captures; the current GPU
+- [x] Retain real-backend rendered-output parity captures; the current GPU
   consumes qualified CPU fields and does not independently assess evidence.
 - [x] Preserve the visible reference renderer through initialization failure,
   WebGL context loss, and asynchronous WebGPU device loss; retain real-backend
@@ -223,11 +233,16 @@ remain open.
 
 ### 6. Qualify the complete voyage
 
-- [ ] Retain named World → Atlas → County → Evidence voyages at 1920×1080 and
+- [x] Retain named World → Atlas → County → Evidence voyages at 1920×1080 and
   3840×2160 through WebGPU, forced WebGL2, and the reference renderer.
-- [ ] Prove focus retention, no hidden survey/admission, unknown masks,
-  pole/antimeridian behavior, footprint collision, terrain transitions,
-  stable picking, context loss, last-good scene, and exact links.
+- [x] Prove focus retention, no hidden survey/admission, stable picking,
+  context loss, last-good scene, and exact links through named voyages and
+  deterministic browser tests.
+- [x] Prove unknown masks, pole/antimeridian behavior, overlapping footprints,
+  and terrain transitions through bounded structural fixtures and tests.
+- [ ] Repeat the required voyages through direct browser HTTP and exercise
+  passive live revalidation; fulfilled-transport voyages qualify the exact
+  built assets, rendering, and interaction but not browser networking.
 - [x] Retain and visibly identify the last-good immutable Explorer scene when
   a later portfolio projection fails compilation, then recover on the next
   valid projection; keep an invalid initial scene fail-closed.

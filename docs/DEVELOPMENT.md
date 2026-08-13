@@ -208,11 +208,13 @@ default and execute no notebook block. Exact entry routes and block fragments
 make the retained document interface deeply hyperlinkable. The Journal format
 is specified in `docs/JOURNAL.md`.
 
-`src/topology.ts` deterministically derives bounded World, Atlas, Landscape,
-Neighborhood, Object, and Evidence scenes from admitted patches and projection
-packets in `rey.workload-list.v1`; World additionally compiles the optional
-`rey.semantic-atlas.v1` into a synthetic globe whose Three.js and reference
-paths share one scene revision.
+`src/topology.ts` retains shared scene types, orientation, high-level dispatch,
+and admitted regional World/Atlas/County projection. Revisioned survey,
+survey-layout, survey-terrain, and portfolio projection modules derive the
+bounded Landscape, Neighborhood, Object, and Evidence scenes from admitted
+patches and projection packets in `rey.workload-list.v1`; World additionally
+compiles the optional `rey.semantic-atlas.v1` into a synthetic globe whose
+Three.js and reference paths share one scene revision.
 `src/explore/engine/camera.ts` owns camera math,
 `src/explore/engine/scene.ts` freezes the current scene, and
 `src/explore/engine/fields.ts` owns bounded typed scalar, vector, mask, and
@@ -223,8 +225,7 @@ absolute-coordinate patches with explicit hydrology/relief halos, proves
 shared render-channel seams, and retains patch identities within packet-owned
 cell and byte limits.
 `src/explore/renderers/reference.tsx` owns the accessible SVG/DOM overlays and
-fallback beneath the React canvas shell. Remaining portfolio adaptation and
-survey scene layout still live in `src/topology.ts`. Seed edges
+fallback beneath the React canvas shell. Seed edges
 remain deep inspection evidence and do not become relief, natural features, or
 paths.
 `src/explore/engine/render-graph.ts` owns the renderer-neutral ordered pass
@@ -253,10 +254,11 @@ The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
 the root redirect.
 
 Explorer is a high-fidelity spatial game engine for evidence-bound projection.
-Its current boundary separates projection packets, immutable scenes,
-data-oriented fields, camera/LOD, backend lifecycle, and the React shell while
-remaining scene adaptation and pass implementation
-is [Plan 0003](../plans/0003-scene-to-explorer.md) work. A pinned Three.js
+Its current boundary separates projection packets, revisioned scene
+projections, immutable scenes, data-oriented fields, camera/LOD, render-pass
+selection, backend lifecycle, and the React shell. Remaining direct-transport
+and named performance qualification is
+[Plan 0003](../plans/0003-scene-to-explorer.md) work. A pinned Three.js
 `WebGPURenderer` and TSL adapter prefers WebGPU and uses Three.js's WebGL2
 backend as compatibility fallback. The current package pins Three.js
 `0.185.1`; its adapter has deterministic lifecycle tests
@@ -264,12 +266,13 @@ for asynchronous initialization, WebGPU selection, forced WebGL2 selection,
 viewport bounds, failure, and disposal. It is mounted lazily as `/explore`'s
 continuous base-terrain surface, while the reference renderer remains active
 through initialization and on failure. The TSL graph consumes typed tint,
-occlusion, roughness, curvature, and normal attributes. The remaining bounded
-qualification must cover retained captures on both real backends, WebGPU device
-loss, resize, browser/device support, Nix closure size, determinism,
-accessibility, security policy, licensing, maintenance, and named performance
-evidence. Rey's deterministic reference renderer remains independent of
-Three.js.
+occlusion, roughness, curvature, and normal attributes. Retained voyages now
+cover both real backends and the reference renderer at both target viewports,
+semantic-first rendered parity, WebGL context loss, and WebGPU device loss.
+The fulfilled transport used in the current socket-restricted environment does
+not qualify direct browser networking or passive live revalidation. Named GPU
+execution/frame-rate budgets also remain open; Rey's deterministic reference
+renderer remains independent of Three.js.
 
 Backend-independent tests own semantic correctness: field values, validity
 masks, scene manifests, stable ordering, LOD selection, render-pass order,

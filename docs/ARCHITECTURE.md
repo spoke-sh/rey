@@ -418,13 +418,13 @@ never become sampled height merely because a material feathers their visual
 boundary. Semantic scene identity is backend-independent; generated buffers,
 GPU pixels, and measured frame time are not authoritative evidence.
 
-The target uses an immutable scene graph plus data-oriented field buffers and
+The browser uses an immutable scene graph plus data-oriented field buffers and
 an explicit render graph. The narrow Three.js `WebGPURenderer` and TSL adapter
 uses WebGPU as the preferred backend and Three.js's WebGL2 backend as the
 compatibility path; Rey's reference renderer owns deterministic semantic
 proof. A generic ECS, physics runtime, or free-orbit 3D requires a later
 qualified need. [Plan 0003](../plans/0003-scene-to-explorer.md) owns the
-remaining code extraction and terrain-fidelity proof.
+remaining direct-transport and named performance qualification.
 
 ## Workloads, Graphs, And Scenarios
 
@@ -914,10 +914,11 @@ the retained result. The browser additionally derives bounded World geometry,
 anchor-only relief, unresolved atmospheric fronts, projected hydrology and
 erosion, and probe prerequisites; the CLI exposes their admitted inputs,
 excluded edge provenance, projection limits, and boundary actions. Discovered
-or constructed paths require a separate future evidence contract. The current
-browser implementation still assembles some of those concerns through large
-React/TypeScript topology and overlay modules. `rey-mining` now defines and
-validates `rey.projection-packet.v1`; `rey.workload-list.v1` carries it beside
+or constructed paths require a separate future evidence contract. Revisioned
+survey, survey-layout, survey-terrain, and portfolio projections now own their
+respective adaptation; the topology boundary retains shared types, orientation,
+high-level dispatch, and admitted regional projection. `rey-mining` now defines
+and validates `rey.projection-packet.v1`; `rey.workload-list.v1` carries it beside
 the exact patch and also carries the deterministic `rey.semantic-atlas.v1`
 portfolio projection. Production survey transitions retain a bounded linear
 atlas history plus `rey.semantic-atlas-delta.v1`; accepted production regional
@@ -944,10 +945,13 @@ Transient layer controls project the active subset of that graph for both
 surfaces without changing the immutable graph or scene identity; base terrain
 and validity remain independently present when optional contours are hidden.
 The revisioned survey-terrain scene compiler owns reference field evaluation,
-contours, projected hydrology/weather, and natural-feature derivation. Remaining
-pass implementation and portfolio/scene-layout extraction, retained voyages,
-and a qualified terrain-fidelity result remain incomplete
-[Plan 0003](../plans/0003-scene-to-explorer.md) work. Generic graph-entry
+contours, projected hydrology/weather, and natural-feature derivation. Named
+reference, WebGL2, and WebGPU voyages retain both target viewports; parity
+manifests require exact scene/source/pass/evidence equality before measuring
+pixels, and native backend-loss voyages preserve the visibly degraded reference
+scene. Direct browser networking/passive revalidation and named GPU/frame-time
+budgets remain incomplete [Plan 0003](../plans/0003-scene-to-explorer.md) work.
+Generic graph-entry
 activation, persistent cross-poll activation processing, and policy proposals
 remain target architecture. Compatible admissions within one
 retained Git transition already reuse a directly evaluated scenario result

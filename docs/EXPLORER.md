@@ -298,9 +298,10 @@ The immutable render graph records pass availability. A separate transient
 projection applies contour/water/weather/probe view controls and feeds the same
 active pass identities to reference markup and accelerated diagnostics; view
 controls do not revise semantic scene or graph identity.
-[Plan 0003](../plans/0003-scene-to-explorer.md) owns remaining pass
-implementation and topology extraction, device-loss qualification, and retained
-visual and performance proof.
+[Plan 0003](../plans/0003-scene-to-explorer.md) owns the remaining
+direct-browser transport/passive-revalidation voyage and named GPU/frame-time
+performance proof. Projection extraction, pass implementation, both native
+backend-loss paths, retained visual voyages, and rendered parity are complete.
 
 ### Terrain fidelity
 
