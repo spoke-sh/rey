@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
-import { OBJECT_LENS_ZOOM, type LensRegime } from "../engine/camera";
+import {
+  OBJECT_LENS_ZOOM,
+  WORLD_GLOBE_RADIUS_RATIO,
+  type LensRegime,
+} from "../engine/camera";
 import type { GlobeCameraView } from "../engine/camera";
 import {
   layoutSemanticLabels,
@@ -356,7 +360,8 @@ function SemanticGlobeLayer({
 }) {
   const globe = scene.globe!;
   const center = { x: scene.world.width / 2, y: scene.world.height / 2 };
-  const radius = Math.min(scene.world.width, scene.world.height) * 0.41;
+  const radius =
+    Math.min(scene.world.width, scene.world.height) * WORLD_GLOBE_RADIUS_RATIO;
   const projectedSamples = accelerated
     ? []
     : contextGlobeSamples(globe.source_revision, 5_200, globe.regions)
@@ -456,6 +461,7 @@ function SemanticGlobeLayer({
         className={sx(styles.semanticGlobeAtmosphere)}
         cx={center.x}
         cy={center.y}
+        data-globe-atmosphere=""
         fill="url(#rey-semantic-globe-atmosphere)"
         r={radius * 1.09}
       />

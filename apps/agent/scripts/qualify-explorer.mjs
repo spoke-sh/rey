@@ -483,6 +483,85 @@ async function rotateGlobeToRegion(connection, longitudeMicrodegrees) {
   });
 }
 
+async function panOutsideGlobe(connection) {
+  const before = await connection.evaluate(`(() => {
+    const viewport = document.querySelector('[role="application"]');
+    const atmosphere = document.querySelector('[data-globe-atmosphere]');
+    const bounds = viewport?.getBoundingClientRect();
+    const atmosphereBounds = atmosphere?.getBoundingClientRect();
+    return viewport && bounds && atmosphereBounds ? {
+      atmosphere_bounds: {
+        x: atmosphereBounds.x,
+        y: atmosphereBounds.y,
+        width: atmosphereBounds.width,
+        height: atmosphereBounds.height,
+      },
+      bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      pan_x: Number(viewport.getAttribute("data-camera-pan-x")),
+      pan_y: Number(viewport.getAttribute("data-camera-pan-y")),
+      pitch: Number(viewport.getAttribute("data-globe-pitch")),
+      yaw: Number(viewport.getAttribute("data-globe-yaw")),
+    } : null;
+  })()`);
+  if (!before)
+    throw new Error("the Explorer globe camera state is unavailable");
+  const outsideGap = before.atmosphere_bounds.x - before.bounds.x;
+  const start = {
+    x: before.bounds.x + Math.max(8, outsideGap / 2),
+    y: before.atmosphere_bounds.y + before.atmosphere_bounds.height / 2,
+  };
+  const delta = { x: 84, y: 28 };
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+    type: "mousePressed",
+    x: start.x,
+    y: start.y,
+  });
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 1,
+    type: "mouseMoved",
+    x: start.x + delta.x,
+    y: start.y + delta.y,
+  });
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+    type: "mouseReleased",
+    x: start.x + delta.x,
+    y: start.y + delta.y,
+  });
+  await sleep(50);
+  const after = await connection.evaluate(`(() => {
+    const viewport = document.querySelector('[role="application"]');
+    return viewport ? {
+      pan_x: Number(viewport.getAttribute("data-camera-pan-x")),
+      pan_y: Number(viewport.getAttribute("data-camera-pan-y")),
+      pitch: Number(viewport.getAttribute("data-globe-pitch")),
+      yaw: Number(viewport.getAttribute("data-globe-yaw")),
+    } : null;
+  })()`);
+  return {
+    after,
+    before: {
+      pan_x: before.pan_x,
+      pan_y: before.pan_y,
+      pitch: before.pitch,
+      yaw: before.yaw,
+    },
+    delta,
+    observed:
+      after !== null &&
+      after.pan_x === before.pan_x + delta.x &&
+      after.pan_y === before.pan_y + delta.y &&
+      after.pitch === before.pitch &&
+      after.yaw === before.yaw,
+  };
+}
+
 function regimeExpression(regime) {
   return `document.querySelector('[data-lens-regime="${regime}"]')?.dataset.lensRegime === "${regime}"`;
 }
@@ -720,6 +799,7 @@ async function runVoyage(options) {
   let onboardingNoticeObserved = false;
   let firstInteractionDismissalObserved = false;
   let mapNoticeObserved = false;
+  let outsideGlobePan = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
@@ -790,6 +870,17 @@ async function runVoyage(options) {
       options.timeoutMs,
     );
     process.stdout.write(`READY world / ${options.backend}\n`);
+    await measureInteraction(
+      interactions,
+      "pan_outside_world_globe",
+      async () => {
+        outsideGlobePan = await panOutsideGlobe(connection);
+      },
+    );
+    if (!outsideGlobePan?.observed)
+      throw new Error(
+        "dragging outside the World atmosphere did not pan without orbiting",
+      );
     if (options.revalidation === "attention") {
       passiveRevalidationBaseline = await connection.evaluate(`Number(
         document.querySelector('[aria-label="Open mailbox history"] span:last-child')?.textContent ?? "NaN"
@@ -1108,6 +1199,7 @@ async function runVoyage(options) {
     onboardingNoticeObserved &&
     firstInteractionDismissalObserved &&
     mapNoticeObserved &&
+    outsideGlobePan?.observed === true &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
     exceptions.length === 0 &&
@@ -1191,11 +1283,13 @@ async function runVoyage(options) {
       no_browser_exceptions: exceptions.length === 0,
       no_unexpected_console_errors: unexpectedConsoleErrors.length === 0,
       onboarding_notice_observed: onboardingNoticeObserved,
+      outside_globe_pan_observed: outsideGlobePan?.observed ?? false,
       passive_revalidation_observed: passiveRevalidationObserved,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },
     captures,
     interactions,
+    world_drag_partition: outsideGlobePan,
     revalidation:
       options.revalidation === "attention"
         ? {

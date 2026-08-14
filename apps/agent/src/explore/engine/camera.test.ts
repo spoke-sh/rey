@@ -14,6 +14,7 @@ import {
   lensRegimeForZoom,
   panForFocusedPoint,
   panForZoomAtPoint,
+  pointerWithinRenderedGlobeAtmosphere,
   renderedSceneScale,
   recenterWrappedChartPan,
   stepLensZoom,
@@ -71,6 +72,40 @@ describe("Explorer camera engine", () => {
       draggedGlobeView({ yaw_degrees: 0, pitch_degrees: 58 }, { x: 0, y: -100 })
         .pitch_degrees,
     ).toBe(62);
+  });
+
+  it("partitions World drag between the rendered atmosphere and surrounding canvas", () => {
+    const viewport = { width: 1_600, height: 900 };
+    const world = { width: 1_200, height: 720 };
+    const pan = { x: 100, y: -40 };
+
+    expect(
+      pointerWithinRenderedGlobeAtmosphere(
+        { x: 900, y: 410 },
+        viewport,
+        world,
+        1,
+        pan,
+      ),
+    ).toBe(true);
+    expect(
+      pointerWithinRenderedGlobeAtmosphere(
+        { x: 1_222, y: 410 },
+        viewport,
+        world,
+        1,
+        pan,
+      ),
+    ).toBe(false);
+    expect(
+      pointerWithinRenderedGlobeAtmosphere(
+        { x: 900, y: 410 },
+        viewport,
+        world,
+        0,
+        pan,
+      ),
+    ).toBe(false);
   });
 
   it("exposes the grammar's bounded World-to-Atlas morph band", () => {

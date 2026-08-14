@@ -32,6 +32,7 @@ import {
   lensRegimeForZoom,
   panForFocusedPoint,
   panForZoomAtPoint,
+  pointerWithinRenderedGlobeAtmosphere,
   recenterWrappedChartPan,
   renderedSceneScale,
   stepLensZoom,
@@ -175,6 +176,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         pan: Point;
         globeView: GlobeCameraView;
         distance: number;
+        mode: "orbit" | "pan";
       }
     | undefined
   >(undefined);
@@ -441,12 +443,25 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       return;
     acknowledgeMapInteraction();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const mode =
+      scene.globe &&
+      pointerWithinRenderedGlobeAtmosphere(
+        { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
+        { width: bounds.width, height: bounds.height },
+        scene.world,
+        renderedScale,
+        pan,
+      )
+        ? "orbit"
+        : "pan";
     dragRef.current = {
       pointerId: event.pointerId,
       origin: { x: event.clientX, y: event.clientY },
       pan,
       globeView,
       distance: 0,
+      mode,
     };
     setIsDragging(true);
   };
@@ -459,7 +474,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       y: event.clientY - drag.origin.y,
     };
     drag.distance = Math.hypot(delta.x, delta.y);
-    if (scene.globe) setGlobeView(draggedGlobeView(drag.globeView, delta));
+    if (drag.mode === "orbit")
+      setGlobeView(draggedGlobeView(drag.globeView, delta));
     else {
       const nextPan = { x: drag.pan.x + delta.x, y: drag.pan.y + delta.y };
       setPan(
@@ -561,7 +577,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         zoom={zoom}
       />
       <div
-        aria-label="Interactive context topology map. Drag to pan, use the mouse wheel or plus and minus keys to move through semantic lens levels."
+        aria-label="Interactive context topology map. Drag the globe to orbit or the surrounding canvas to pan; use the mouse wheel or plus and minus keys to move through semantic lens levels."
         className={sx(
           styles.canvasViewport,
           scene.terrain && styles.terrainViewport,
@@ -577,6 +593,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         ref={viewportRef}
         role="application"
         tabIndex={0}
+        data-camera-pan-x={pan.x}
+        data-camera-pan-y={pan.y}
+        data-globe-pitch={scene.globe ? globeView.pitch_degrees : undefined}
+        data-globe-yaw={scene.globe ? globeView.yaw_degrees : undefined}
       >
         {scene.terrain && scene.globe === null ? (
           <AcceleratedTerrainSurface

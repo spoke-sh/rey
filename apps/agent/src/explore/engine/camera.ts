@@ -44,6 +44,8 @@ export const OBJECT_LENS_ZOOM = 2.05;
 export const EVIDENCE_LENS_ZOOM = 3.55;
 export const WORLD_ATLAS_MORPH_START_ZOOM = 0.14;
 export const WORLD_ATLAS_MORPH_END_ZOOM = 0.24;
+export const WORLD_GLOBE_RADIUS_RATIO = 0.41;
+export const WORLD_GLOBE_ATMOSPHERE_SCALE = 1.09;
 
 const LENS_HYSTERESIS = 0.05;
 const LENS_ORDER: readonly LensRegime[] = [
@@ -164,6 +166,34 @@ export function panForFocusedPoint(
     x: -(point.x - world.width / 2) * renderedScale,
     y: -(point.y - world.height / 2) * renderedScale,
   };
+}
+
+export function pointerWithinRenderedGlobeAtmosphere(
+  pointer: CameraPoint,
+  viewport: WorldExtent,
+  world: WorldExtent,
+  renderedScale: number,
+  pan: CameraPoint,
+): boolean {
+  if (
+    !Number.isFinite(pointer.x) ||
+    !Number.isFinite(pointer.y) ||
+    !Number.isFinite(viewport.width) ||
+    !Number.isFinite(viewport.height) ||
+    !Number.isFinite(renderedScale) ||
+    renderedScale <= 0
+  )
+    return false;
+  const radius =
+    Math.min(world.width, world.height) *
+    WORLD_GLOBE_RADIUS_RATIO *
+    WORLD_GLOBE_ATMOSPHERE_SCALE *
+    renderedScale;
+  const center = {
+    x: viewport.width / 2 + pan.x,
+    y: viewport.height / 2 + pan.y,
+  };
+  return Math.hypot(pointer.x - center.x, pointer.y - center.y) <= radius;
 }
 
 export function renderedSceneScale(

@@ -166,7 +166,9 @@ execution timing.
   inverse picking, pointer-only duplicate accessibility, and modulo recentering
   without replacing focus or semantic identity.
 - [x] Preserve focus, selection, and one semantic identity through globe
-  rotation, deterministic label culling, collisions, and camera changes.
+  rotation, deterministic label culling, collisions, and camera changes; orbit
+  only for drags beginning inside the rendered World atmosphere and pan the
+  projection for drags beginning on the surrounding canvas.
 
 ### 4. Enter a bounded County
 

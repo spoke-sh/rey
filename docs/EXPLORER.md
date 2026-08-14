@@ -535,7 +535,9 @@ The canvas supports pointer-centered wheel zoom, discrete semantic zoom
 controls, drag-to-pan, keyboard `+`, `-`, and `0`, selection-driven traversal,
 and a native full-screen mode. Available typed render passes remain active
 without per-layer controls. A control step cannot skip a semantic regime.
-Selecting a World POI advances to
+At World, a drag beginning on the rendered atmosphere or globe orbits it; a
+drag beginning on the surrounding canvas pans the entire projection without
+changing globe yaw or pitch. Selecting a World POI advances to
 Atlas, then through Landscape, Neighborhood, Object, and Evidence while
 centering that same POI. Level boundaries retain
 hysteresis so small wheel reversals do not flicker between grammars. The
