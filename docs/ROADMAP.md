@@ -163,7 +163,7 @@ delivery history remains in Git.
   through the same typed working state while retaining URL layouts as detached
   previews.
 - Preserve the delivered immutable observation/admission/resolution/frontier
-  CLI and Feed/mailbox projection, including retained partial broadcast
+  CLI and Feed projection, including retained partial broadcast
   outcomes, without granting execution authority.
 - Preserve the delivered exact-observation Journal seeds as unretained catch-up
   proposals; require normal Journal admission before one becomes an entry.

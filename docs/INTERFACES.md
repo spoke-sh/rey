@@ -1294,7 +1294,7 @@ and a bounded oldest-open-first frontier. Its local broadcast associates one
 observation identity with a canonical explicit target set and retains exact
 graph/HEAD bindings plus typed partial outcomes without copying content or
 granting relay authority. The read-only observation endpoint returns that same
-default bounded frontier for Feed and mailbox projection. `rey journal seed`
+default bounded frontier for Feed projection. `rey journal seed`
 and `/journal/new?observations=...` use the same deterministic bounded
 projection from exact unresolved identities to an unretained valid broadsheet
 proposal. The CLI supplies a self-asserted agent author, while the browser seed
@@ -1359,12 +1359,14 @@ from StyleX modules into a layered atomic stylesheet, and browser responses
 carry restrictive security headers.
 
 The fixed footer is the live operator communications channel. Its mailbox
-count and bottom sheet derive from typed portfolio-attention rows, unresolved
-observation-frontier rows, and passive revalidation failures; an empty sheet
-states that no operator attention is requested. Attention and observation
-sections retain their own source order and never imply a cross-source clock,
-unread state, priority, assignment, action, or proof. It never invents
-heartbeat messages. The mailbox button selects the
+count and bottom sheet derive from typed portfolio-attention rows and passive
+revalidation failures; an empty sheet states that no operator attention is
+requested. Authored Observation-frontier rows remain on Feed and never enter
+the mailbox merely because local Channel admission was retained. Discovered
+environment applications likewise remain inventory evidence and cannot create
+mail or Channel messages. Retained application-to-Channel ingress and its
+mailbox projection are not implemented yet. The mailbox never invents
+heartbeat messages, unread state, or transport activity. The mailbox button selects the
 history axis; the center chevrons select a separate traditional conversation
 axis for operator ↔ Rey ↔ agent communication. Selecting the active axis
 closes the plane, selecting the other switches axes, and either Escape or a

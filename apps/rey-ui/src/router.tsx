@@ -41,10 +41,6 @@ import {
 } from "./conversations";
 import { operatorMailboxRows, shortDigest } from "./domain";
 import {
-  operatorObservationMailboxRows,
-  type ObservationMailboxRow,
-} from "./observations";
-import {
   environmentApplicationDiff,
   environmentVariableDiff,
   type EnvironmentApplicationDiffLine,
@@ -221,9 +217,7 @@ function RootLayout() {
   );
   const [communicationAxis, setCommunicationAxis] =
     useState<CommunicationAxis | null>(null);
-  const mailboxCount =
-    operatorMailboxRows(portfolio).length +
-    operatorObservationMailboxRows(portfolio.observations).length;
+  const mailboxCount = operatorMailboxRows(portfolio).length;
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -454,26 +448,22 @@ function MailboxHistory({
   portfolio: OperatorContext;
 }) {
   const attentionMessages = operatorMailboxRows(portfolio);
-  const observationMessages = operatorObservationMailboxRows(
-    portfolio.observations,
-  );
-  const messageCount = attentionMessages.length + observationMessages.length;
+  const messageCount = attentionMessages.length;
   return (
     <>
       <header className={sx(styles.communicationsHeader)}>
         <div>
           <p className={sx(styles.micro, styles.sectionKicker)}>
-            HISTORY / RUNTIME + COLLABORATION
+            HISTORY / RUNTIME ATTENTION
           </p>
           <h2 className={sx(styles.sectionTitle)}>Mailbox history</h2>
         </div>
         <div className={sx(styles.communicationsCoordinate)}>
           <span className={sx(styles.micro, styles.muted)}>
-            ATTENTION / {shortDigest(portfolio.attention.attention_id)} ·
-            OBSERVATIONS / {shortDigest(portfolio.observations.frontier_id)}
+            ATTENTION / {shortDigest(portfolio.attention.attention_id)}
           </span>
           <span className={sx(styles.micro)}>
-            {messageCount + (error ? 1 : 0)} ACTIVE · SOURCE-ORDERED
+            {messageCount + (error ? 1 : 0)} ACTIVE · ATTENTION ORDER
           </span>
         </div>
       </header>
@@ -487,18 +477,9 @@ function MailboxHistory({
             <p>{error.message}</p>
           </article>
         ) : null}
-        {observationMessages.length > 0 ? (
-          <MailboxBoundary
-            detail="Unresolved observations retain O@sequence order. They do not carry unread, priority, assignment, action, or proof state."
-            label={`OBSERVATION FRONTIER / ${portfolio.observations.ordering.replaceAll("_", " ").toUpperCase()}`}
-          />
-        ) : null}
-        {observationMessages.map((message) => (
-          <ObservationMailboxMessage key={message.row_id} message={message} />
-        ))}
         {attentionMessages.length > 0 ? (
           <MailboxBoundary
-            detail="Runtime attention rows retain scheduler readiness and priority in their own typed projection. No order across mailbox sources is claimed."
+            detail="Runtime attention rows retain scheduler readiness, priority, evidence, and dependency identity in portfolio order."
             label="RUNTIME ATTENTION / CURRENT PROJECTION"
           />
         ) : null}
@@ -525,8 +506,8 @@ function MailboxHistory({
             <span className={sx(styles.micro)}>NO NEWS</span>
             <strong>No mailbox entries in the current projection.</strong>
             <p>
-              No unresolved observations or runtime attention rows request
-              operator attention.
+              No runtime attention rows or revalidation failures request
+              operator attention. Observations are Feed items, not mail.
             </p>
           </div>
         ) : null}
@@ -541,34 +522,6 @@ function MailboxBoundary({ detail, label }: { detail: string; label: string }) {
       <span className={sx(styles.micro, styles.muted)}>SOURCE BOUNDARY</span>
       <strong>{label}</strong>
       <p>{detail}</p>
-    </article>
-  );
-}
-
-function ObservationMailboxMessage({
-  message,
-}: {
-  message: ObservationMailboxRow;
-}) {
-  return (
-    <article
-      className={sx(styles.communicationMessage)}
-      data-mailbox-source="observation"
-    >
-      <span className={sx(styles.micro, styles.communicationAction)}>
-        {message.position} / {message.kind.toUpperCase()} / UNRESOLVED
-      </span>
-      <strong>{message.subject_locator}</strong>
-      <p>{message.body}</p>
-      <small className={sx(styles.micro, styles.muted)}>
-        {message.author.kind.toUpperCase()} / {message.author.id} /
-        SELF-ASSERTED · {message.completeness.toUpperCase()} ·{" "}
-        {message.evidence_count} EVIDENCE · {message.omission_count} OMISSIONS ·{" "}
-        {message.channel_ids.length} CHANNELS
-      </small>
-      <code title={message.observation_id}>
-        OBSERVATION / {shortDigest(message.observation_id)}
-      </code>
     </article>
   );
 }

@@ -116,11 +116,11 @@ enters `/journal/new` or retains a Journal document.
 Feed renders each unresolved observation as an
 order-only `O@sequence` signal with its exact identity, source, subject,
 evidence, omissions, limits, completeness, self-asserted author, and Channel
-admission count. The footer mailbox renders observations in a separate source
-section beside runtime attention. It does not synthesize cross-source order,
-unread state, priority, assignment, action, or proof authority. Mounted
-portfolio and Feed state passively revalidate this endpoint while retaining
-the last good document on failure.
+admission count. The footer mailbox does not mirror this authored frontier:
+observations remain Feed collaboration records, not incoming mail. The mailbox
+currently projects runtime attention and passive-revalidation failures. Mounted
+portfolio and Feed state passively revalidate the observation endpoint while
+retaining the last good document on failure.
 
 Selected exact unresolved identities can enter the deterministic unretained
 Journal-seed projection through `rey journal seed` or

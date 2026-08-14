@@ -106,35 +106,3 @@ export interface ObservationBroadcast {
 export function observationPosition(row: ObservationFrontierRow): string {
   return `O@${row.observation.sequence}`;
 }
-
-export interface ObservationMailboxRow {
-  row_id: string;
-  position: string;
-  observation_id: string;
-  author: ObservationAuthor;
-  kind: ObservationKind;
-  subject_locator: string;
-  body: string;
-  completeness: ObservationCompleteness;
-  evidence_count: number;
-  omission_count: number;
-  channel_ids: string[];
-}
-
-export function operatorObservationMailboxRows(
-  frontier: ObservationFrontier,
-): ObservationMailboxRow[] {
-  return frontier.rows.map((row) => ({
-    row_id: `observation:${row.observation.observation_id}`,
-    position: observationPosition(row),
-    observation_id: row.observation.observation_id,
-    author: row.observation.proposal.author,
-    kind: row.observation.proposal.kind,
-    subject_locator: row.observation.proposal.subject_locator,
-    body: row.observation.proposal.body,
-    completeness: row.observation.proposal.completeness,
-    evidence_count: row.observation.proposal.evidence.length,
-    omission_count: row.observation.proposal.omissions.length,
-    channel_ids: [...row.channel_ids],
-  }));
-}
