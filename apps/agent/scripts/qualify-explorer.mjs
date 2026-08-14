@@ -571,7 +571,7 @@ async function panOutsideGlobe(connection) {
   };
 }
 
-async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
+async function verifySmoothWorldWheelZoom(connection, timeoutMs) {
   const stateExpression = `(() => {
     const viewport = document.querySelector('[role="application"]');
     const bounds = viewport?.getBoundingClientRect();
@@ -579,6 +579,7 @@ async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
       bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
       pan_x: Number(viewport.getAttribute("data-camera-pan-x")),
       pan_y: Number(viewport.getAttribute("data-camera-pan-y")),
+      rendered_scale: Number(viewport.getAttribute("data-camera-rendered-scale")),
       zoom: Number(viewport.getAttribute("data-camera-zoom")),
     } : null;
   })()`;
@@ -597,19 +598,32 @@ async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
       x: pointer.x,
       y: pointer.y,
     });
-  await wheel(-20);
+  await wheel(-100);
+  const animationFrames = await connection.evaluate(`new Promise((resolve) => {
+    const samples = [];
+    const sample = () => {
+      const viewport = document.querySelector('[role="application"]');
+      samples.push({
+        rendered_scale: Number(viewport?.getAttribute("data-camera-rendered-scale")),
+        zoom: Number(viewport?.getAttribute("data-camera-zoom")),
+      });
+      if (samples.length >= 10) resolve(samples);
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  })`);
   await waitFor(
     connection,
-    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${before.zoom + 0.02}`,
-    "first clamped World wheel step",
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${before.zoom + 0.04}`,
+    "smoothed World wheel step",
     timeoutMs,
   );
   const afterFirst = await connection.evaluate(stateExpression);
   await wheel(-3);
   await waitFor(
     connection,
-    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${afterFirst.zoom + 0.004}`,
-    "second clamped World wheel step",
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${afterFirst.zoom + 0.001}`,
+    "small smoothed World wheel step",
     timeoutMs,
   );
   const afterSecond = await connection.evaluate(stateExpression);
@@ -637,16 +651,41 @@ async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
     "World zoom reset",
     timeoutMs,
   );
+  const pointerFromCenter = {
+    x: pointer.x - before.bounds.x - before.bounds.width / 2,
+    y: pointer.y - before.bounds.y - before.bounds.height / 2,
+  };
+  const anchoredCoordinate = (state) => ({
+    x: (pointerFromCenter.x - state.pan_x) / state.rendered_scale,
+    y: (pointerFromCenter.y - state.pan_y) / state.rendered_scale,
+  });
+  const beforeAnchor = anchoredCoordinate(before);
+  const firstAnchor = anchoredCoordinate(afterFirst);
+  const secondAnchor = anchoredCoordinate(afterSecond);
+  const distinctZoomFrames = new Set(
+    animationFrames.map(({ zoom }) => zoom.toFixed(6)),
+  ).size;
+  const monotonicFrames = animationFrames.every(
+    ({ zoom }, index) => index === 0 || zoom >= animationFrames[index - 1].zoom,
+  );
   return {
+    animation_frames: animationFrames,
     after_first: afterFirst,
     after_second: afterSecond,
     before,
+    distinct_zoom_frames: distinctZoomFrames,
     observed:
       afterFirst !== null &&
       afterSecond !== null &&
+      distinctZoomFrames >= 4 &&
+      monotonicFrames &&
       afterSecond.zoom > afterFirst.zoom &&
-      Math.abs(afterSecond.pan_x - afterFirst.pan_x) < 0.001 &&
-      Math.abs(afterSecond.pan_y - afterFirst.pan_y) < 0.001,
+      afterFirst.rendered_scale !== before.rendered_scale &&
+      afterSecond.rendered_scale !== afterFirst.rendered_scale &&
+      Math.abs(firstAnchor.x - beforeAnchor.x) < 0.25 &&
+      Math.abs(firstAnchor.y - beforeAnchor.y) < 0.25 &&
+      Math.abs(secondAnchor.x - beforeAnchor.x) < 0.25 &&
+      Math.abs(secondAnchor.y - beforeAnchor.y) < 0.25,
   };
 }
 
@@ -927,7 +966,7 @@ async function runVoyage(options) {
   let firstInteractionDismissalObserved = false;
   let mapNoticeObserved = false;
   let outsideGlobePan = null;
-  let clampedWorldWheel = null;
+  let smoothWorldWheel = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
@@ -1000,17 +1039,17 @@ async function runVoyage(options) {
     process.stdout.write(`READY world / ${options.backend}\n`);
     await measureInteraction(
       interactions,
-      "clamped_world_wheel_zoom",
+      "smooth_world_wheel_zoom",
       async () => {
-        clampedWorldWheel = await verifyClampedWorldWheelDoesNotPan(
+        smoothWorldWheel = await verifySmoothWorldWheelZoom(
           connection,
           options.timeoutMs,
         );
       },
     );
-    if (!clampedWorldWheel?.observed)
+    if (!smoothWorldWheel?.observed)
       throw new Error(
-        "wheel zoom panned inside a clamped World scale interval",
+        "wheel zoom did not animate through distinct pointer-anchored frames",
       );
     await measureInteraction(
       interactions,
@@ -1366,7 +1405,7 @@ async function runVoyage(options) {
     onboardingNoticeObserved &&
     firstInteractionDismissalObserved &&
     mapNoticeObserved &&
-    clampedWorldWheel?.observed === true &&
+    smoothWorldWheel?.observed === true &&
     outsideGlobePan?.observed === true &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
@@ -1446,7 +1485,7 @@ async function runVoyage(options) {
       diagnostics_follow_footer: diagnosticsFollowFooter,
       compact_navigation_diagnostics_present:
         compactNavigationDiagnosticsPresent,
-      clamped_world_wheel_zoom_observed: clampedWorldWheel?.observed ?? false,
+      smooth_world_wheel_zoom_observed: smoothWorldWheel?.observed ?? false,
       first_interaction_dismissal_observed: firstInteractionDismissalObserved,
       expected_loss_console_entries: expectedLossConsoleEntries.length,
       loss_fallback_observed: lossFallbackObserved,
@@ -1462,7 +1501,7 @@ async function runVoyage(options) {
     },
     captures,
     interactions,
-    world_wheel_zoom: clampedWorldWheel,
+    world_wheel_zoom: smoothWorldWheel,
     world_drag_partition: outsideGlobePan,
     revalidation:
       options.revalidation === "attention"

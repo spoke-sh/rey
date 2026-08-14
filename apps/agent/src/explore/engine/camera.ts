@@ -47,6 +47,15 @@ export const WORLD_ATLAS_MORPH_END_ZOOM = 0.24;
 export const WORLD_GLOBE_RADIUS_RATIO = 0.4;
 export const WORLD_GLOBE_ATMOSPHERE_SCALE = 1.09;
 
+const WHEEL_LINE_PIXELS = 16;
+const WHEEL_PAGE_PIXELS = 240;
+const WHEEL_MIN_ZOOM_SENSITIVITY = 0.00045;
+const WHEEL_RELATIVE_ZOOM_SENSITIVITY = 0.0009;
+const WHEEL_MIN_MAX_STEP = 0.045;
+const WHEEL_MAX_RELATIVE_STEP = 0.09;
+const WHEEL_ZOOM_TIME_CONSTANT_MS = 50;
+const WHEEL_ZOOM_SETTLE_EPSILON = 0.00005;
+
 const LENS_HYSTERESIS = 0.05;
 const LENS_ORDER: readonly LensRegime[] = [
   "world",
@@ -93,6 +102,59 @@ export function worldAtlasMorphProgress(zoom: number): number {
         (WORLD_ATLAS_MORPH_END_ZOOM - WORLD_ATLAS_MORPH_START_ZOOM),
     ),
   );
+}
+
+export function wheelZoomDelta(
+  zoom: number,
+  deltaY: number,
+  deltaMode = 0,
+): number {
+  if (
+    !Number.isFinite(zoom) ||
+    !Number.isFinite(deltaY) ||
+    !Number.isFinite(deltaMode) ||
+    deltaY === 0
+  )
+    return 0;
+  const modeScale =
+    deltaMode === 1
+      ? WHEEL_LINE_PIXELS
+      : deltaMode === 2
+        ? WHEEL_PAGE_PIXELS
+        : 1;
+  const boundedZoom = clampLensZoom(zoom);
+  const sensitivity = Math.max(
+    WHEEL_MIN_ZOOM_SENSITIVITY,
+    boundedZoom * WHEEL_RELATIVE_ZOOM_SENSITIVITY,
+  );
+  const maximumStep = Math.max(
+    WHEEL_MIN_MAX_STEP,
+    boundedZoom * WHEEL_MAX_RELATIVE_STEP,
+  );
+  return Math.max(
+    -maximumStep,
+    Math.min(maximumStep, -deltaY * modeScale * sensitivity),
+  );
+}
+
+export function smoothZoomStep(
+  currentZoom: number,
+  targetZoom: number,
+  elapsedMs: number,
+): number {
+  if (
+    !Number.isFinite(currentZoom) ||
+    !Number.isFinite(targetZoom) ||
+    !Number.isFinite(elapsedMs)
+  )
+    throw new Error("smooth zoom requires finite camera values");
+  const current = clampLensZoom(currentZoom);
+  const target = clampLensZoom(targetZoom);
+  if (elapsedMs <= 0 || current === target) return current;
+  const interpolation =
+    1 - Math.exp(-Math.min(64, elapsedMs) / WHEEL_ZOOM_TIME_CONSTANT_MS);
+  const next = current + (target - current) * interpolation;
+  return Math.abs(target - next) <= WHEEL_ZOOM_SETTLE_EPSILON ? target : next;
 }
 
 export function recenterWrappedChartPan(
@@ -209,22 +271,25 @@ export function renderedSceneScale(
   zoom: number,
   regime: LensRegime,
 ): number {
-  if (terrain)
-    return (
-      fitScale *
-      (zoom / (regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM))
-    );
-  if (regime === "world") {
-    const magnified = Math.min(1.16, Math.max(0.84, zoom / WORLD_LENS_ZOOM));
+  if (
+    !terrain &&
+    (regime === "world" || regime === "atlas") &&
+    zoom <= WORLD_ATLAS_MORPH_END_ZOOM
+  ) {
+    const boundedWorldZoom = Math.min(zoom, WORLD_ATLAS_MORPH_START_ZOOM);
+    const magnified =
+      boundedWorldZoom <= WORLD_LENS_ZOOM
+        ? 1 -
+          ((WORLD_LENS_ZOOM - boundedWorldZoom) /
+            (WORLD_LENS_ZOOM - MIN_LENS_ZOOM)) *
+            0.16
+        : 1 +
+          ((boundedWorldZoom - WORLD_LENS_ZOOM) /
+            (WORLD_ATLAS_MORPH_START_ZOOM - WORLD_LENS_ZOOM)) *
+            0.16;
     const progress = worldAtlasMorphProgress(zoom);
     return fitScale * (magnified + (1 - magnified) * progress);
   }
-  const regimeBase = {
-    atlas: WORLD_ATLAS_MORPH_END_ZOOM,
-    landscape: LANDSCAPE_LENS_ZOOM,
-    neighborhoods: NEIGHBORHOOD_LENS_ZOOM,
-    objects: OBJECT_LENS_ZOOM,
-    evidence: EVIDENCE_LENS_ZOOM,
-  }[regime];
-  return fitScale * Math.min(1.16, Math.max(0.84, zoom / regimeBase));
+  if (regime === "world") return fitScale * (zoom / WORLD_LENS_ZOOM);
+  return fitScale * (zoom / WORLD_ATLAS_MORPH_END_ZOOM);
 }

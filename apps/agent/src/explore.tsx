@@ -23,6 +23,7 @@ import {
   MIN_LENS_ZOOM,
   NEIGHBORHOOD_LENS_ZOOM,
   OBJECT_LENS_ZOOM,
+  WORLD_ATLAS_MORPH_END_ZOOM,
   WORLD_LENS_ZOOM,
   clampLensZoom,
   DEFAULT_GLOBE_VIEW,
@@ -34,7 +35,9 @@ import {
   pointerWithinRenderedGlobeAtmosphere,
   recenterWrappedChartPan,
   renderedSceneScale,
+  smoothZoomStep,
   stepLensZoom,
+  wheelZoomDelta,
   worldAtlasMorphProgress,
   type LensRegime,
   type GlobeCameraView,
@@ -171,6 +174,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const wheelHandlerRef = useRef<(event: globalThis.WheelEvent) => void>(
     () => undefined,
   );
+  const animatedZoomRef = useRef<(zoom: number, client?: Point) => void>(
+    () => undefined,
+  );
+  const wheelAnimationFrameRef = useRef<number | null>(null);
+  const wheelAnimationTimestampRef = useRef<number | null>(null);
+  const wheelPointerRef = useRef<Point | undefined>(undefined);
   const dragRef = useRef<
     | {
         pointerId: number;
@@ -190,6 +199,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [zoom, setZoom] = useState(
     coordinate ? coordinate.view.scale : initialZoom,
   );
+  const zoomRef = useRef(zoom);
+  const wheelTargetZoomRef = useRef(zoom);
   const [pan, setPan] = useState<Point>(zeroPoint);
   const [globeView, setGlobeView] =
     useState<GlobeCameraView>(DEFAULT_GLOBE_VIEW);
@@ -286,10 +297,26 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     return firstInteraction;
   };
 
+  const cancelWheelZoom = () => {
+    if (wheelAnimationFrameRef.current !== null)
+      window.cancelAnimationFrame(wheelAnimationFrameRef.current);
+    wheelAnimationFrameRef.current = null;
+    wheelAnimationTimestampRef.current = null;
+    wheelTargetZoomRef.current = zoomRef.current;
+  };
+
+  const commitImmediateZoom = (nextZoom: number) => {
+    cancelWheelZoom();
+    const boundedZoom = clampLensZoom(nextZoom);
+    zoomRef.current = boundedZoom;
+    wheelTargetZoomRef.current = boundedZoom;
+    setZoom(boundedZoom);
+  };
+
   useEffect(() => {
     if (!coordinate) return;
     setFocusId(coordinate.focus_id);
-    setZoom(coordinate.view.scale);
+    commitImmediateZoom(coordinate.view.scale);
     setPan(zeroPoint);
   }, [coordinate?.focus_id, coordinate?.status, coordinate?.view.scale]);
 
@@ -384,13 +411,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
 
-  const setZoomAt = (nextZoom: number, client?: Point) => {
-    const firstInteraction = acknowledgeMapInteraction();
+  const applyZoomAt = (nextZoom: number, client?: Point) => {
+    const currentZoom = zoomRef.current;
     const boundedZoom = clampLensZoom(nextZoom);
-    if (boundedZoom === zoom) return;
+    if (boundedZoom === currentZoom) return;
     const nextRegime = lensRegimeForZoom(boundedZoom, regime);
-    if (firstInteraction && nextRegime !== regime)
-      suppressNextRegimeNoticeRef.current = true;
     const viewport = viewportRef.current;
     if (client && viewport) {
       const rect = viewport.getBoundingClientRect();
@@ -398,22 +423,48 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         x: client.x - rect.left - rect.width / 2,
         y: client.y - rect.top - rect.height / 2,
       };
+      const scaleUsesTerrain = scene.terrain || scene.county_frame !== null;
+      const currentRenderedScale = renderedSceneScale(
+        scaleUsesTerrain,
+        fitScale,
+        currentZoom,
+        regime,
+      );
       const nextRenderedScale = renderedSceneScale(
-        scene.terrain,
+        scaleUsesTerrain,
         fitScale,
         boundedZoom,
         nextRegime,
       );
-      setPan(
-        panForScaleAtPoint(pan, pointer, renderedScale, nextRenderedScale),
+      setPan((currentPan) =>
+        panForScaleAtPoint(
+          currentPan,
+          pointer,
+          currentRenderedScale,
+          nextRenderedScale,
+        ),
       );
     }
+    zoomRef.current = boundedZoom;
     setZoom(boundedZoom);
+  };
+  animatedZoomRef.current = applyZoomAt;
+
+  const setZoomAt = (nextZoom: number, client?: Point) => {
+    const firstInteraction = acknowledgeMapInteraction();
+    cancelWheelZoom();
+    const boundedZoom = clampLensZoom(nextZoom);
+    const nextRegime = lensRegimeForZoom(boundedZoom, regime);
+    if (firstInteraction && nextRegime !== regime)
+      suppressNextRegimeNoticeRef.current = true;
+    applyZoomAt(boundedZoom, client);
+    wheelTargetZoomRef.current = boundedZoom;
   };
 
   const focusNode = (node: FocusableTopologyObject) => {
     if (dragRef.current?.distance && dragRef.current.distance > 4) return;
     const firstInteraction = acknowledgeMapInteraction();
+    cancelWheelZoom();
     if (!firstInteraction)
       publishFooterNotice(`FOCUS / ${focusNoticeLabel(scene, node.focus_id)}`);
     if (node.focus_id.startsWith("beacon:")) {
@@ -430,18 +481,59 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       suppressNextRegimeNoticeRef.current = true;
     setFocusId(node.focus_id);
     if (scene.terrain) {
-      const nextScale = fitScale * (nextZoom / DEFAULT_LENS_ZOOM);
+      const nextScale = renderedSceneScale(
+        true,
+        fitScale,
+        nextZoom,
+        lensRegimeForZoom(nextZoom, regime),
+      );
       setPan(panForFocusedPoint(node, scene.world, nextScale));
     } else setPan(zeroPoint);
-    setZoom(nextZoom);
+    commitImmediateZoom(nextZoom);
+  };
+
+  const startWheelZoom = () => {
+    if (wheelAnimationFrameRef.current !== null) return;
+    const animate = (timestamp: number) => {
+      const previousTimestamp = wheelAnimationTimestampRef.current;
+      const elapsedMs =
+        previousTimestamp === null
+          ? 16
+          : Math.max(0, timestamp - previousTimestamp);
+      wheelAnimationTimestampRef.current = timestamp;
+      const targetZoom = wheelTargetZoomRef.current;
+      const nextZoom = smoothZoomStep(zoomRef.current, targetZoom, elapsedMs);
+      animatedZoomRef.current(nextZoom, wheelPointerRef.current);
+      if (nextZoom === targetZoom) {
+        wheelAnimationFrameRef.current = null;
+        wheelAnimationTimestampRef.current = null;
+        return;
+      }
+      wheelAnimationFrameRef.current = window.requestAnimationFrame(animate);
+    };
+    wheelAnimationFrameRef.current = window.requestAnimationFrame(animate);
   };
 
   const handleWheel = (event: globalThis.WheelEvent) => {
     event.preventDefault();
-    const signedDelta = Math.sign(-event.deltaY);
-    const boundedDelta =
-      signedDelta * Math.min(0.12, Math.abs(event.deltaY) * 0.0015);
-    setZoomAt(zoom + boundedDelta, { x: event.clientX, y: event.clientY });
+    const firstInteraction = acknowledgeMapInteraction();
+    const targetZoom = clampLensZoom(
+      wheelTargetZoomRef.current +
+        wheelZoomDelta(
+          wheelTargetZoomRef.current,
+          event.deltaY,
+          event.deltaMode,
+        ),
+    );
+    if (firstInteraction && lensRegimeForZoom(targetZoom, regime) !== regime)
+      suppressNextRegimeNoticeRef.current = true;
+    wheelTargetZoomRef.current = targetZoom;
+    wheelPointerRef.current = { x: event.clientX, y: event.clientY };
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+      animatedZoomRef.current(targetZoom, wheelPointerRef.current);
+      return;
+    }
+    startWheelZoom();
   };
   wheelHandlerRef.current = handleWheel;
 
@@ -451,7 +543,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     const onWheel = (event: globalThis.WheelEvent) =>
       wheelHandlerRef.current(event);
     viewport.addEventListener("wheel", onWheel, { passive: false });
-    return () => viewport.removeEventListener("wheel", onWheel);
+    return () => {
+      viewport.removeEventListener("wheel", onWheel);
+      if (wheelAnimationFrameRef.current !== null)
+        window.cancelAnimationFrame(wheelAnimationFrameRef.current);
+    };
   }, []);
 
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
@@ -523,7 +619,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         : DEFAULT_LENS_ZOOM;
     if (lensRegimeForZoom(nextZoom, regime) !== regime)
       suppressNextRegimeNoticeRef.current = true;
-    setZoom(nextZoom);
+    commitImmediateZoom(nextZoom);
     setPan(zeroPoint);
     setGlobeView(DEFAULT_GLOBE_VIEW);
     setFocusId("cluster:portfolio");
@@ -553,8 +649,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const sceneStyle = {
     "--rey-terrain-counter-scale":
       scene.terrain || scene.county_frame
-        ? (scene.regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM) /
-          zoom
+        ? (scene.regime === "world"
+            ? WORLD_LENS_ZOOM
+            : WORLD_ATLAS_MORPH_END_ZOOM) / zoom
         : 1,
     height: scene.world.height,
     transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${renderedScale})`,
@@ -616,6 +713,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         tabIndex={0}
         data-camera-pan-x={pan.x}
         data-camera-pan-y={pan.y}
+        data-camera-rendered-scale={renderedScale}
         data-camera-zoom={zoom}
         data-globe-pitch={scene.globe ? globeView.pitch_degrees : undefined}
         data-globe-yaw={scene.globe ? globeView.yaw_degrees : undefined}

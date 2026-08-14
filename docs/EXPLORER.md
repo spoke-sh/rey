@@ -96,8 +96,10 @@ six stable levels on one continuous scale:
 
 Projection posture and semantic detail are separate. A sphere may be
 unwrapping while labels and feature classes cross their own LOD thresholds.
-Hysteresis prevents small wheel reversals from flickering between grammars.
-Selection, coordinates, and source identity survive every transition.
+Wheel input from mice and trackpads accumulates into an eased camera target;
+every bounded interval changes rendered scale instead of waiting on an inert
+plateau. Hysteresis prevents small wheel reversals from flickering between
+grammars. Selection, coordinates, and source identity survive every transition.
 
 ## Coordinate Spaces
 
@@ -192,8 +194,10 @@ upgrade coverage, confidence, progress, or proof status.
 
 ## Interaction Principles
 
-- Wheel zoom stays anchored to the semantic point beneath the pointer and
-  cannot turn a clamped zoom interval into pan-only motion.
+- Wheel zoom is normalized across mouse, line, page, and trackpad deltas, moves
+  through distinct animation frames, and stays anchored to the semantic point
+  beneath the pointer. Reduced-motion presentation reaches the same target
+  immediately.
 - A World drag beginning on the atmosphere or globe orbits the sphere. A drag
   beginning outside it pans the full projection.
 - Map pan wraps and recenters horizontally without changing the canonical

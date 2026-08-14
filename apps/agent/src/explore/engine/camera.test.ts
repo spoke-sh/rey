@@ -7,6 +7,7 @@ import {
   MIN_LENS_ZOOM,
   NEIGHBORHOOD_LENS_ZOOM,
   OBJECT_LENS_ZOOM,
+  WORLD_ATLAS_MORPH_END_ZOOM,
   WORLD_LENS_ZOOM,
   clampLensZoom,
   draggedGlobeView,
@@ -17,7 +18,9 @@ import {
   pointerWithinRenderedGlobeAtmosphere,
   renderedSceneScale,
   recenterWrappedChartPan,
+  smoothZoomStep,
   stepLensZoom,
+  wheelZoomDelta,
   worldAtlasMorphProgress,
 } from "./camera";
 
@@ -58,28 +61,68 @@ describe("Explorer camera engine", () => {
         0.5,
       ),
     ).toEqual({ x: -75, y: -75 });
-    expect(renderedSceneScale(true, 0.5, DEFAULT_LENS_ZOOM, "atlas")).toBe(0.5);
+    expect(
+      renderedSceneScale(true, 0.5, DEFAULT_LENS_ZOOM, "atlas"),
+    ).toBeCloseTo(0.5 * (DEFAULT_LENS_ZOOM / WORLD_ATLAS_MORPH_END_ZOOM));
   });
 
-  it("does not pan when wheel zoom is inside a clamped render interval", () => {
+  it("changes rendered scale through formerly clamped World intervals while preserving the pointer anchor", () => {
     const currentScale = renderedSceneScale(false, 1, 0.12, "world");
     const nextScale = renderedSceneScale(false, 1, 0.13, "world");
+    const pan = { x: 24, y: -12 };
+    const pointer = { x: 320, y: -180 };
+    const nextPan = panForScaleAtPoint(pan, pointer, currentScale, nextScale);
 
-    expect(currentScale).toBe(nextScale);
-    expect(
-      panForScaleAtPoint(
-        { x: 24, y: -12 },
-        { x: 320, y: -180 },
-        currentScale,
-        nextScale,
-      ),
-    ).toEqual({ x: 24, y: -12 });
+    expect(nextScale).toBeGreaterThan(currentScale);
+    expect(nextPan).not.toEqual(pan);
+    expect((pointer.x - nextPan.x) / nextScale).toBeCloseTo(
+      (pointer.x - pan.x) / currentScale,
+    );
+    expect((pointer.y - nextPan.y) / nextScale).toBeCloseTo(
+      (pointer.y - pan.y) / currentScale,
+    );
   });
 
   it("keeps the shared surface scale continuous across the Atlas endpoint", () => {
     expect(renderedSceneScale(false, 1, 0.14, "world")).toBeCloseTo(1.16);
+    expect(renderedSceneScale(false, 1, 0.14, "atlas")).toBeCloseTo(1.16);
+    expect(renderedSceneScale(false, 1, 0.19, "world")).toBeCloseTo(
+      renderedSceneScale(false, 1, 0.19, "atlas"),
+    );
     expect(renderedSceneScale(false, 1, 0.24, "world")).toBeCloseTo(1);
     expect(renderedSceneScale(false, 1, 0.24, "atlas")).toBeCloseTo(1);
+    expect(renderedSceneScale(false, 1, 0.3, "atlas")).toBeGreaterThan(
+      renderedSceneScale(false, 1, 0.29, "atlas"),
+    );
+  });
+
+  it("normalizes wheel hardware and scales continuous input with the lens", () => {
+    expect(wheelZoomDelta(0.1, -100)).toBeCloseTo(0.045);
+    expect(wheelZoomDelta(0.1, -1, 1)).toBeCloseTo(0.0072);
+    expect(wheelZoomDelta(0.1, -1, 2)).toBeCloseTo(0.045);
+    expect(wheelZoomDelta(2, -100)).toBeCloseTo(0.18);
+    expect(wheelZoomDelta(2, 100)).toBeCloseTo(-0.18);
+    expect(wheelZoomDelta(0.1, Number.NaN)).toBe(0);
+
+    const firstTarget = 0.1 + wheelZoomDelta(0.1, -100);
+    const accumulatedTarget = firstTarget + wheelZoomDelta(firstTarget, -100);
+    expect(firstTarget).toBeCloseTo(0.145);
+    expect(accumulatedTarget).toBeCloseTo(0.19);
+  });
+
+  it("eases toward accumulated wheel targets without overshooting", () => {
+    const target = 0.145;
+    const first = smoothZoomStep(0.1, target, 16);
+    expect(first).toBeGreaterThan(0.1);
+    expect(first).toBeLessThan(target);
+
+    let current = first;
+    for (let frame = 0; frame < 30; frame += 1)
+      current = smoothZoomStep(current, target, 16);
+    expect(current).toBe(target);
+    expect(() => smoothZoomStep(0.1, target, Number.NaN)).toThrow(
+      "smooth zoom requires finite camera values",
+    );
   });
 
   it("turns planar drag into bounded presentation-only globe rotation", () => {
