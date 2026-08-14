@@ -1,7 +1,6 @@
-import type { Camera, Object3D } from "three/webgpu";
 import { describe, expect, it, vi } from "vitest";
 import {
-  ThreeWebGpuRendererAdapter,
+  ReactThreeFiberRendererAdapter,
   type ThreeRendererFacade,
 } from "./three-webgpu";
 
@@ -20,12 +19,14 @@ function rendererFacade(backend: "webgpu" | "webgl2") {
   } satisfies ThreeRendererFacade;
 }
 
-describe("Three.js WebGPU renderer adapter", () => {
-  it("prefers WebGPU and renders only after asynchronous initialization", async () => {
+describe("React Three Fiber WebGPU renderer adapter", () => {
+  it("prefers WebGPU and instruments Fiber-owned frame submission", async () => {
     const renderer = rendererFacade("webgpu");
+    const render = renderer.render;
     const factory = vi.fn(async () => renderer);
-    const adapter = new ThreeWebGpuRendererAdapter(factory);
-    adapter.resize({ width: 800.8, height: 600.4, device_pixel_ratio: 3 });
+    const adapter = new ReactThreeFiberRendererAdapter(factory);
+    const submitted = vi.fn();
+    adapter.onFrameSubmitted(submitted);
 
     const status = await adapter.initialize({} as HTMLCanvasElement, "auto");
     expect(factory).toHaveBeenCalledWith({
@@ -38,34 +39,17 @@ describe("Three.js WebGPU renderer adapter", () => {
       degraded: false,
     });
     expect(renderer.init).toHaveBeenCalledOnce();
-    expect(renderer.setPixelRatio).toHaveBeenCalledWith(2);
-    expect(renderer.setSize).toHaveBeenCalledWith(800, 600, false);
-
-    adapter.render({} as Object3D, {} as Camera, {
-      snapshot_id: "scene:one",
-      camera_revision: "camera:one",
-      material_revision: "material:one",
-      render_graph_id: "graph:one",
-    });
-    expect(renderer.render).toHaveBeenCalledOnce();
-    expect(adapter.lastFrame?.snapshot_id).toBe("scene:one");
+    adapter.renderer?.render({}, {});
+    expect(render).toHaveBeenCalledOnce();
+    expect(submitted).toHaveBeenCalledOnce();
     expect(adapter.lastDrawCalls).toBe(7);
     expect(adapter.lastSubmissionMs).toBeGreaterThanOrEqual(0);
-    expect(
-      adapter.render({} as Object3D, {} as Camera, {
-        snapshot_id: "scene:one",
-        camera_revision: "camera:one",
-        material_revision: "material:one",
-        render_graph_id: "graph:one",
-      }),
-    ).toBe(false);
-    expect(renderer.render).toHaveBeenCalledOnce();
   });
 
   it("forces Three.js's WebGL2 compatibility backend for qualification", async () => {
     const renderer = rendererFacade("webgl2");
     const factory = vi.fn(async () => renderer);
-    const adapter = new ThreeWebGpuRendererAdapter(factory);
+    const adapter = new ReactThreeFiberRendererAdapter(factory);
 
     const status = await adapter.initialize({} as HTMLCanvasElement, "webgl2");
     expect(factory).toHaveBeenCalledWith({
@@ -81,7 +65,7 @@ describe("Three.js WebGPU renderer adapter", () => {
 
   it("fails closed to reference status when required WebGPU is unavailable", async () => {
     const renderer = rendererFacade("webgl2");
-    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+    const adapter = new ReactThreeFiberRendererAdapter(async () => renderer);
 
     const status = await adapter.initialize({} as HTMLCanvasElement, "webgpu");
     expect(status).toMatchObject({
@@ -95,7 +79,7 @@ describe("Three.js WebGPU renderer adapter", () => {
   it("disposes a partially initialized renderer when initialization fails", async () => {
     const renderer = rendererFacade("webgpu");
     renderer.init.mockRejectedValueOnce(new Error("adapter unavailable"));
-    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+    const adapter = new ReactThreeFiberRendererAdapter(async () => renderer);
 
     const status = await adapter.initialize({} as HTMLCanvasElement);
     expect(status).toMatchObject({
@@ -109,7 +93,7 @@ describe("Three.js WebGPU renderer adapter", () => {
 
   it("disposes resources and rejects reuse", async () => {
     const renderer = rendererFacade("webgpu");
-    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+    const adapter = new ReactThreeFiberRendererAdapter(async () => renderer);
     await adapter.initialize({} as HTMLCanvasElement);
     adapter.dispose();
 
@@ -131,7 +115,7 @@ describe("Three.js WebGPU renderer adapter", () => {
         }),
       },
     });
-    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+    const adapter = new ReactThreeFiberRendererAdapter(async () => renderer);
     const statuses: string[] = [];
     adapter.onStatusChange(({ detail }) => statuses.push(detail));
     await adapter.initialize({} as HTMLCanvasElement);
@@ -162,7 +146,7 @@ describe("Three.js WebGPU renderer adapter", () => {
         }),
       },
     });
-    const adapter = new ThreeWebGpuRendererAdapter(async () => renderer);
+    const adapter = new ReactThreeFiberRendererAdapter(async () => renderer);
 
     expect(adapter.destroyWebGpuDeviceForQualification()).toBe(false);
     await adapter.initialize({} as HTMLCanvasElement, "webgpu");

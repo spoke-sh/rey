@@ -1,17 +1,4 @@
-import {
-  AmbientLight,
-  BufferGeometry,
-  DirectionalLight,
-  Float32BufferAttribute,
-  Group,
-  Mesh,
-  MeshStandardNodeMaterial,
-  OrthographicCamera,
-  Scene,
-  Uint32BufferAttribute,
-  type Camera,
-  type Object3D,
-} from "three/src/Three.WebGPU.js";
+import { MeshStandardNodeMaterial } from "three/src/Three.WebGPU.js";
 import {
   add,
   attribute,
@@ -27,7 +14,6 @@ import {
 import { fieldPoint } from "../engine/fields";
 import type { TerrainFieldSet } from "../terrain/compile";
 import type { TerrainCameraView } from "../terrain/compile";
-import type { GlobeCameraView } from "../engine/camera";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
@@ -35,10 +21,12 @@ export const MAX_ACCELERATED_TERRAIN_GPU_BYTES = 64 * 1024 * 1024;
 export const TERRAIN_MESH_PARITY_REVISION =
   "rey.terrain.cpu-mesh-upload-parity@1";
 
-export interface ThreeTerrainBundle {
-  scene: Object3D;
-  camera: Camera;
+export interface CompiledContinuousRelief {
   material_revision: string;
+  meshes: readonly {
+    field_set_id: string;
+    data: TerrainMeshData;
+  }[];
   statistics: {
     field_sets: number;
     vertices: number;
@@ -50,9 +38,18 @@ export interface ThreeTerrainBundle {
     parity_samples: number;
     geometry_compilation_ms: number;
   };
-  updateView?(view: TerrainCameraView): void;
-  updateGlobeView?(view: GlobeCameraView): void;
-  dispose(): void;
+}
+
+export interface TerrainCameraProjection {
+  bottom: number;
+  center_x: number;
+  center_y: number;
+  far: number;
+  left: number;
+  right: number;
+  top: number;
+  position: readonly [number, number, number];
+  rotation: readonly [number, number, number];
 }
 
 export interface TerrainMeshData {
@@ -189,12 +186,10 @@ export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
   };
 }
 
-export function createContinuousReliefBundle(
+export function compileContinuousRelief(
   fields: readonly TerrainFieldSet[],
-  world: { width: number; height: number },
-  view?: TerrainCameraView,
   gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
-): ThreeTerrainBundle {
+): CompiledContinuousRelief {
   const compilationStarted = measurementNow();
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
     throw new Error("accelerated terrain GPU budget is invalid");
@@ -212,76 +207,26 @@ export function createContinuousReliefBundle(
     throw new Error(
       `accelerated terrain upload ${gpuBytes} exceeds GPU budget ${gpuBudgetBytes}`,
     );
-  const scene = new Scene();
-  const terrain = new Group();
-  terrain.name = "rey-continuous-relief";
-  scene.add(terrain);
-  const material = createContinuousReliefMaterial();
-  const geometries: BufferGeometry[] = [];
   let vertices = 0;
   let triangles = 0;
   let fieldBytes = 0;
   for (const [index, fieldSet] of fields.entries()) {
     const data = meshData[index]!;
-    const geometry = new BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new Float32BufferAttribute(data.positions, 3),
-    );
-    geometry.setAttribute(
-      "normal",
-      new Float32BufferAttribute(data.normals, 3),
-    );
-    geometry.setAttribute("reyTint", new Float32BufferAttribute(data.tint, 3));
-    geometry.setAttribute(
-      "reyOcclusion",
-      new Float32BufferAttribute(data.occlusion, 1),
-    );
-    geometry.setAttribute(
-      "reyRoughness",
-      new Float32BufferAttribute(data.roughness, 1),
-    );
-    geometry.setAttribute(
-      "reyCurvature",
-      new Float32BufferAttribute(data.curvature, 1),
-    );
-    geometry.setIndex(new Uint32BufferAttribute(data.indices, 1));
-    geometry.computeBoundingSphere();
-    geometries.push(geometry);
-    const mesh = new Mesh(geometry, material);
-    mesh.name = fieldSet.field_set_id;
-    terrain.add(mesh);
     vertices += fieldSet.field_cells;
     triangles += data.indices.length / 3;
     fieldBytes += fieldSet.field_bytes;
   }
 
-  scene.add(new AmbientLight(0xdde4da, 1.32));
-  const keyLight = new DirectionalLight(0xfff4d4, 2.25);
-  keyLight.position.set(-world.width * 0.42, world.width, -world.height * 0.36);
-  scene.add(keyLight);
-  const fillLight = new DirectionalLight(0xbad3df, 0.72);
-  fillLight.position.set(
-    world.width * 0.5,
-    world.width * 0.7,
-    world.height * 0.48,
-  );
-  scene.add(fillLight);
-
-  const maximumDimension = Math.max(world.width, world.height);
-  const camera = new OrthographicCamera();
-  camera.position.set(
-    world.width / 2,
-    maximumDimension * 1.75,
-    world.height / 2,
-  );
-  camera.up.set(0, 0, -1);
-  updateTerrainCamera(camera, world, view);
-
   return {
-    scene,
-    camera,
     material_revision: CONTINUOUS_RELIEF_MATERIAL_REVISION,
+    meshes: Object.freeze(
+      fields.map((fieldSet, index) =>
+        Object.freeze({
+          field_set_id: fieldSet.field_set_id,
+          data: meshData[index]!,
+        }),
+      ),
+    ),
     statistics: Object.freeze({
       field_sets: fields.length,
       vertices,
@@ -293,14 +238,6 @@ export function createContinuousReliefBundle(
       parity_samples: paritySamples,
       geometry_compilation_ms: measurementNow() - compilationStarted,
     }),
-    updateView(nextView) {
-      updateTerrainCamera(camera, world, nextView);
-    },
-    dispose() {
-      for (const geometry of geometries) geometry.dispose();
-      material.dispose();
-      scene.clear();
-    },
   };
 }
 
@@ -308,30 +245,30 @@ function measurementNow(): number {
   return globalThis.performance?.now() ?? Date.now();
 }
 
-export function updateTerrainCamera(
-  camera: OrthographicCamera,
+export function terrainCameraProjection(
   world: { width: number; height: number },
   view?: TerrainCameraView,
-): void {
+): TerrainCameraProjection {
   const scale = Math.max(0.000_001, view?.rendered_scale ?? 1);
   const viewportWidth = view?.viewport_width ?? world.width;
   const viewportHeight = view?.viewport_height ?? world.height;
   const centerX = world.width / 2 - (view?.pan_x ?? 0) / scale;
   const centerY = world.height / 2 - (view?.pan_y ?? 0) / scale;
-  camera.left = -viewportWidth / scale / 2;
-  camera.right = viewportWidth / scale / 2;
-  camera.top = viewportHeight / scale / 2;
-  camera.bottom = -viewportHeight / scale / 2;
-  camera.near = 0.1;
-  camera.far = Math.max(world.width, world.height) * 4;
-  camera.position.set(
-    centerX,
-    Math.max(world.width, world.height) * 1.75,
-    centerY,
-  );
-  camera.up.set(0, 0, -1);
-  camera.lookAt(centerX, 0, centerY);
-  camera.updateProjectionMatrix();
+  return Object.freeze({
+    bottom: -viewportHeight / scale / 2,
+    center_x: centerX,
+    center_y: centerY,
+    far: Math.max(world.width, world.height) * 4,
+    left: -viewportWidth / scale / 2,
+    right: viewportWidth / scale / 2,
+    top: viewportHeight / scale / 2,
+    position: Object.freeze([
+      centerX,
+      Math.max(world.width, world.height) * 1.75,
+      centerY,
+    ] as const),
+    rotation: Object.freeze([-Math.PI / 2, 0, 0] as const),
+  });
 }
 
 export function createContinuousReliefMaterial(): MeshStandardNodeMaterial {

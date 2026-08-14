@@ -73,8 +73,9 @@ one canonical synthetic coordinate and retained region/focus identity. Drag pan
 recenters modulo the rendered chart width, keeping horizontal camera state
 bounded without changing selection or semantic identity. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
-terrain programs, camera-relative transient working sets, continuous TSL
-material, WebGPU/WebGL2 paths, and an accessible reference path. The revisioned
+terrain programs, camera-relative transient working sets, declarative React
+Three Fiber cameras/lighting/geometry/instancing, continuous TSL material,
+WebGPU/WebGL2 paths, and an accessible reference path. The revisioned
 deterministic label engine applies the grammar's 70-label World and 96-label
 Atlas budgets across globe rotation, morph, and chart copies. Selected canonical
 focus wins, then depth/copy priority and identity provide stable ordering;
@@ -192,6 +193,10 @@ execution timing.
   snapshot and drive both renderers from its identity; make exact scene,
   camera, material, and graph invalidation explicit and suppress identical
   accelerated frames.
+- [x] Express the accelerated terrain and globe scene declaratively through
+  React Three Fiber while keeping scene/field semantics, upload parity,
+  backend lifecycle, renderer loss, bounds, and reference fallback outside
+  component authority; cover the scene graph and lifecycle with Vitest.
 - [x] Compile semantic Atlas candidates and inverse projection into one
   immutable scene-picking index consumed by the renderer; React forwards
   selected scene identity but does not own inverse-picking semantics.

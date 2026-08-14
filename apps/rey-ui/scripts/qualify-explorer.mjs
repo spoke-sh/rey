@@ -268,6 +268,7 @@ async function launchChrome(browser, backend, route, fulfilledDocuments) {
       "<",
       "\\u003c",
     );
+    const distributionRoot = `${pathToFileURL(DIST_ROOT).href}/`;
     const bootstrap = `<!doctype html>
 <html lang="en">
   <head>
@@ -277,6 +278,18 @@ async function launchChrome(browser, backend, route, fulfilledDocuments) {
     <link rel="stylesheet" href="${pathToFileURL(join(DIST_ROOT, "assets/app.css")).href}" />
     <script>
       const documents = ${serializedDocuments};
+      const distributionRoot = ${JSON.stringify(distributionRoot)};
+      const appendChild = Node.prototype.appendChild;
+      Node.prototype.appendChild = function (node) {
+        if (
+          node instanceof HTMLLinkElement &&
+          node.rel === "modulepreload" &&
+          node.href.startsWith("file:///assets/")
+        ) {
+          node.href = new URL(node.href.slice("file:///".length), distributionRoot).href;
+        }
+        return appendChild.call(this, node);
+      };
       globalThis.__reyQualificationFetchCounts = {};
       globalThis.fetch = async (input) => {
         const value = typeof input === "string" ? input : input.url;
@@ -627,6 +640,7 @@ async function runVoyage(options) {
   if (options.transport === "fulfilled") {
     const paths = [
       "/api/v1/health",
+      "/api/v1/channels",
       "/api/v1/observations",
       "/api/v1/workloads/evidence",
       "/api/v1/conversations",
@@ -780,14 +794,14 @@ async function runVoyage(options) {
       const induced = await connection.evaluate(
         options.loss === "webgl-context"
           ? `(() => {
-              const canvas = document.querySelector('canvas[data-renderer="three-webgpu"]');
+              const canvas = document.querySelector('canvas[data-renderer="react-three-fiber"]');
               const context = canvas?.getContext("webgl2");
               const extension = context?.getExtension("WEBGL_lose_context");
               if (!extension) return false;
               extension.loseContext();
               return true;
             })()`
-          : `document.querySelector('canvas[data-renderer="three-webgpu"]')
+          : `document.querySelector('canvas[data-renderer="react-three-fiber"]')
               ?.dispatchEvent(new CustomEvent("rey:qualify-webgpu-device-loss")) === true`,
       );
       if (!induced) throw new Error(`${options.loss} could not be induced`);

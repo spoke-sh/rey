@@ -1,0 +1,122 @@
+import type { ProjectionPacket } from "../../domain";
+
+const channelIds = [
+  "validity",
+  "elevation",
+  "rainfall",
+  "flow_direction",
+  "flow_accumulation",
+  "erosion",
+  "normal",
+  "curvature",
+  "material",
+] as const;
+
+export const proceduralProjection = {
+  schema: "rey.projection-packet.v1",
+  packet_id: "packet:one",
+  source_patch_id: "patch:one",
+  source_topography_revision: "topography:one",
+  projection_basis: {
+    contract: { id: "basis", revision: 1, semantic_digest: "basis:one" },
+    input_dimensions: ["anchor"],
+    output_dimensions: ["x", "y"],
+    parameters: { elevation_scale_ratio: "0.085" },
+    normalization: "fixture",
+    random_seed: null,
+    distance_semantics: "fixture distance",
+    neighborhood_semantics: "fixture neighborhood",
+    distortion: "fixture distortion",
+    stable_coordinate_rule: "fixture stability",
+  },
+  scene_compiler: { id: "scene", revision: 1, semantic_digest: "scene:one" },
+  extent: { width: 1500, height: 1000, unit: "synthetic_scene_unit" },
+  terrain_program: {
+    schema: "rey.terrain-program.v1",
+    evaluator: {
+      id: "rey.projection.procedural-terrain",
+      revision: 1,
+      semantic_digest: "terrain:one",
+    },
+    seed: 42,
+    bands: [
+      {
+        band_id: "macro",
+        wavelength_scene_units: 420,
+        amplitude_microunits: 210000,
+        octaves: 2,
+        minimum_samples_per_wavelength: 8,
+        detail_authority: "derived fixture macro relief",
+      },
+      {
+        band_id: "meso",
+        wavelength_scene_units: 105,
+        amplitude_microunits: 72000,
+        octaves: 3,
+        minimum_samples_per_wavelength: 7,
+        detail_authority: "derived fixture meso relief",
+      },
+      {
+        band_id: "micro",
+        wavelength_scene_units: 24,
+        amplitude_microunits: 18000,
+        octaves: 2,
+        minimum_samples_per_wavelength: 6,
+        detail_authority: "presentation-only fixture detail",
+      },
+    ],
+    working_set: {
+      max_columns: 255,
+      max_rows: 255,
+      max_cells: 65025,
+      bytes_per_cell: 55,
+      max_bytes: 3576375,
+      target_sample_spacing_pixels: 4,
+      overscan_samples: 3,
+      recenter_rule: "fixture camera-relative working set",
+    },
+    coordinate_rule: "absolute fixture coordinates",
+    validity_rule: "fixture support only",
+    detail_rule: "camera selects bands without changing evidence",
+  },
+  objects: [],
+  validity: [],
+  field_channels: channelIds.map((id) => ({
+    id,
+    kind:
+      id === "validity"
+        ? ("mask" as const)
+        : id === "normal" || id === "flow_direction" || id === "material"
+          ? ("vector" as const)
+          : ("scalar" as const),
+    semantics: id,
+    units: "relative",
+    normalization: "fixture",
+    source_revision: "topography:one",
+    implementation: {
+      id: `rey.projection.${id}`,
+      revision: 1,
+      semantic_digest: `implementation:${id}`,
+    },
+  })),
+  layers: [],
+  excluded_source_relationships: 0,
+  limits: {
+    max_anchor_objects: 64,
+    max_frontier_objects: 6,
+    max_validity_regions: 256,
+    max_field_channels: 12,
+    max_terrain_bands: 8,
+    max_layers: 8,
+    max_omissions: 1032,
+    max_working_set_cells: 65025,
+    max_working_set_bytes: 3576375,
+    max_contours: 7,
+    max_natural_features: 96,
+    max_labels: 70,
+  },
+  complete: true,
+  degradation: [],
+  omissions: [],
+  lineage: [],
+} satisfies ProjectionPacket;

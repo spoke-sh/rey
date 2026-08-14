@@ -78,8 +78,9 @@ for exact diagnosis. `/explore` is a high-fidelity spatial game engine
 specialized for evidence-bound projections of high-dimensional context. The
 implemented `rey.projection-packet.v1` carries a deterministic terrain program
 and bounded camera-relative working-set policy. Explorer renders a live
-Three.js WebGPU-first/WebGL2-compatible surface beside the deterministic
-accessible reference path; [Plan 0003](plans/0003-scene-to-explorer.md) owns
+declarative React Three Fiber surface over the pinned Three.js
+WebGPU-first/WebGL2-compatible backend beside the deterministic accessible
+reference path; [Plan 0003](plans/0003-scene-to-explorer.md) owns
 scene admission, remaining engine separation, World/Atlas/County completion,
 and CLI/browser/performance proof.
 The former Instrument dashboard is

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TopologyGlobe } from "../../topology";
 import {
   SEMANTIC_GLOBE_MATERIAL_REVISION,
-  createContextGlobeBundle,
+  compileContextGlobe,
 } from "./three-globe";
 
 describe("Three.js semantic globe", () => {
@@ -31,29 +31,18 @@ describe("Three.js semantic globe", () => {
         },
       ],
     };
-    const bundle = createContextGlobeBundle(globe, {
-      width: 1500,
-      height: 1000,
-    });
+    const compiled = compileContextGlobe(globe);
 
-    expect(bundle.material_revision).toBe(SEMANTIC_GLOBE_MATERIAL_REVISION);
-    expect(
-      bundle.scene.getObjectByName("context-globe-samples:0"),
-    ).toBeDefined();
-    expect(
-      bundle.scene.getObjectByName("context-globe-atmosphere:2"),
-    ).toBeDefined();
-    expect(
-      bundle.scene.getObjectByName("semantic-region:region:1"),
-    ).toBeDefined();
-    expect(bundle.statistics.triangles).toBeGreaterThan(80_000);
-    expect(bundle.statistics.vertices).toBeGreaterThan(14_000);
-    expect(bundle.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(0);
-    bundle.updateGlobeView?.({ yaw_degrees: 24, pitch_degrees: -8 });
-    expect(
-      bundle.scene.getObjectByName("context-globe:atlas:1")?.rotation.y,
-    ).not.toBe(0);
-    bundle.dispose();
+    expect(compiled.material_revision).toBe(SEMANTIC_GLOBE_MATERIAL_REVISION);
+    expect(compiled.globe.regions[0]?.id).toBe("region:1");
+    expect(compiled.sample_buckets.map(({ id }) => id)).toContain(
+      "context-globe-samples:0",
+    );
+    expect(compiled.statistics.triangles).toBeGreaterThan(80_000);
+    expect(compiled.statistics.vertices).toBeGreaterThan(14_000);
+    expect(compiled.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(
+      0,
+    );
   });
 
   it("materializes orientation beacons without claiming an admitted atlas", () => {
@@ -85,15 +74,11 @@ describe("Three.js semantic globe", () => {
         },
       ],
     };
-    const bundle = createContextGlobeBundle(globe, {
-      width: 1_200,
-      height: 720,
-    });
-    expect(
-      bundle.scene.getObjectByName("workload-beacon:context-anchor-survey"),
-    ).toBeDefined();
-    expect(bundle.statistics.field_sets).toBe(1);
-    expect(bundle.statistics.field_bytes).toBeGreaterThan(200_000);
-    bundle.dispose();
+    const compiled = compileContextGlobe(globe);
+    expect(compiled.globe.beacons[0]?.workload_id).toBe(
+      "context-anchor-survey",
+    );
+    expect(compiled.statistics.field_sets).toBe(1);
+    expect(compiled.statistics.field_bytes).toBeGreaterThan(200_000);
   });
 });

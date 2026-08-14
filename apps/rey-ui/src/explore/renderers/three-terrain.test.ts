@@ -3,11 +3,12 @@ import {
   compileTerrainProgram,
   materializeTerrainWorkingSet,
 } from "../terrain/compile";
-import { proceduralProjection } from "../terrain/compile.test";
+import { proceduralProjection } from "../terrain/compile.test-fixture";
 import {
   buildTerrainMeshData,
-  createContinuousReliefBundle,
+  compileContinuousRelief,
   createContinuousReliefMaterial,
+  terrainCameraProjection,
   terrainMeshByteLength,
   verifyTerrainMeshParity,
 } from "./three-terrain";
@@ -31,7 +32,7 @@ function fields() {
   });
 }
 
-describe("Three.js continuous terrain", () => {
+describe("accelerated continuous terrain compiler", () => {
   it("builds triangles only from valid procedural working-set support", () => {
     const fieldSet = fields();
     const mesh = buildTerrainMeshData(fieldSet);
@@ -43,7 +44,7 @@ describe("Three.js continuous terrain", () => {
       expect(fieldSet.validity.values[index]).not.toBe(0);
   });
 
-  it("constructs one TSL material graph and disposable scene bundle", () => {
+  it("constructs one TSL material graph and a bounded compiled scene", () => {
     const fieldSet = fields();
     const material = createContinuousReliefMaterial();
     expect(material.isMeshStandardNodeMaterial).toBe(true);
@@ -51,11 +52,8 @@ describe("Three.js continuous terrain", () => {
     expect(material.roughnessNode).not.toBeNull();
     material.dispose();
 
-    const bundle = createContinuousReliefBundle([fieldSet], {
-      width: 1500,
-      height: 1000,
-    });
-    expect(bundle.statistics).toMatchObject({
+    const compiled = compileContinuousRelief([fieldSet]);
+    expect(compiled.statistics).toMatchObject({
       field_sets: 1,
       vertices: fieldSet.field_cells,
       field_bytes: fieldSet.field_bytes,
@@ -63,10 +61,34 @@ describe("Three.js continuous terrain", () => {
       parity_revision: "rey.terrain.cpu-mesh-upload-parity@1",
       parity_samples: fieldSet.field_cells,
     });
-    expect(bundle.statistics.triangles).toBeGreaterThan(0);
-    expect(bundle.statistics.gpu_bytes).toBeGreaterThan(0);
-    expect(bundle.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(0);
-    bundle.dispose();
+    expect(compiled.statistics.triangles).toBeGreaterThan(0);
+    expect(compiled.statistics.gpu_bytes).toBeGreaterThan(0);
+    expect(compiled.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(compiled.meshes[0]?.field_set_id).toBe(fieldSet.field_set_id);
+
+    expect(
+      terrainCameraProjection(
+        { width: 1500, height: 1000 },
+        {
+          world_width: 1500,
+          world_height: 1000,
+          viewport_width: 900,
+          viewport_height: 600,
+          rendered_scale: 2,
+          pan_x: 100,
+          pan_y: -40,
+        },
+      ),
+    ).toMatchObject({
+      center_x: 700,
+      center_y: 520,
+      left: -225,
+      right: 225,
+      top: 150,
+      bottom: -150,
+    });
   });
 
   it("fails closed when an accelerated input diverges from its CPU field", () => {
@@ -79,13 +101,8 @@ describe("Three.js continuous terrain", () => {
   });
 
   it("rejects mesh allocation beyond the explicit GPU budget", () => {
-    expect(() =>
-      createContinuousReliefBundle(
-        [fields()],
-        { width: 1500, height: 1000 },
-        undefined,
-        1,
-      ),
-    ).toThrow("exceeds GPU budget");
+    expect(() => compileContinuousRelief([fields()], 1)).toThrow(
+      "exceeds GPU budget",
+    );
   });
 });

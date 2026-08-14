@@ -109,7 +109,8 @@ admitted evidence
   → immutable scene + field compiler
   → camera + semantic/geometric LOD + culling
   → explicit render graph
-  → deterministic reference or Three.js WebGPURenderer/TSL adapter
+  → deterministic reference or declarative React Three Fiber scene
+  → pinned Three.js WebGPURenderer/TSL lifecycle adapter
   → WebGPU preferred or WebGL2 compatibility backend
   → accessible React overlays and exact evidence links
 ```
@@ -240,7 +241,8 @@ synthetic orientation layout rather than a language-space embedding.
 The current implementation remains incomplete but now crosses the live renderer
 and semantic-LOD boundaries. The admitted-survey adapter, camera transforms,
 immutable scene wrapper, typed terrain-field modules, SVG/DOM reference
-renderer, and pinned Three.js `0.185.1` WebGPU adapter are separated. The
+renderer, React Three Fiber `9.7.0` scene components, and pinned Three.js
+`0.185.1` WebGPU lifecycle adapter are separated. The
 projection packet now retains a deterministic terrain evaluator, seed,
 macro/meso/micro bands, absolute-coordinate and validity rules, and a bounded
 transient working set. The browser divides an exact camera window into bounded
@@ -261,8 +263,11 @@ renderer mutation cannot rewrite the reference fields. Frequency-band selection 
 visual detail as sample spacing tightens but never adds semantic evidence or
 fills invalid support. The snapshot also binds a revisioned immutable picking
 index. Repeated Atlas chart copies resolve through its analytic inverse to one
-retained semantic identity; React only forwards the selected result. A TSL node material consumes the active buffers as one
-continuous relief mesh in `/explore`; React retains the controls, accessible
+retained semantic identity; the application React shell only forwards the
+selected result. React Three Fiber declaratively reconciles the exact terrain
+buffers, cameras, lighting, globe layers, and named scene objects. A TSL node
+material consumes the active buffers as one continuous relief mesh in
+`/explore`; the application React shell retains the controls, accessible
 overlays, exact evidence links, active band/backend status, and current/maximum
 working-set allocation. The revisioned survey-terrain scene compiler owns
 reference field evaluation, contours, projected hydrology/weather, and natural
@@ -342,12 +347,14 @@ former single top-down 2.5D target while retaining bounded cameras rather than
 unrestricted free orbit. Volumetric space, physics, and a general ECS remain
 deferred. World and County camera posture is presentation state; neither can
 change semantic coordinates, height authority, or admission.
-The production path uses a narrow Three.js `WebGPURenderer` and TSL boundary.
-WebGPU is preferred and Three.js's WebGL2 backend is the
-compatibility path. The implemented adapter awaits asynchronous initialization,
-can force WebGL2 for qualification, bounds viewport pixel work, records the
-active backend, disposes resources, and fails closed to reference status. It is
-the live base-terrain surface when initialization and the first render succeed.
+The production path uses React Three Fiber's declarative renderer over a narrow
+Three.js `WebGPURenderer` and TSL boundary. WebGPU is preferred and Three.js's
+WebGL2 backend is the compatibility path. The implemented lifecycle adapter
+awaits asynchronous initialization, can force WebGL2 for qualification, bounds
+viewport pixel work, records the active backend, disposes resources, and fails
+closed to reference status. R3F uses a demand-driven frame loop keyed by the
+exact scene, camera, material, and render-graph identities. It becomes the live
+base-terrain surface only when initialization and the first render succeed.
 The renderer-independent reference path remains visible until that point and
 preserves scene semantics and visible degradation when acceleration is
 unavailable. `?renderer=webgpu`, `?renderer=webgl2`, and
@@ -381,9 +388,9 @@ or invoke the selected WebGL2 context's standard loss extension. They must
 retain the same immutable scene on the visible reference surface, mark the
 backend degraded, and continue browser traversal without changing evidence or
 creating a general renderer-control interface.
-The production build emits stable lazy chunk names for the globe, terrain,
-WebGPU adapter, and pinned Three.js module, and the operator server supervised
-by `rey agent` embeds and
+The production build emits bounded chunks for React Three Fiber, the globe,
+terrain, WebGPU adapter, and pinned Three.js module, and the operator server
+supervised by `rey agent` embeds and
 serves each chunk. Starting the documented CLI surface therefore reaches the
 same accelerated path as a direct Vite build.
 
@@ -750,8 +757,9 @@ fixtures and list/UI reads cannot advance it.
 With a fresh
 `.rey`, it projects incoming workload file state as an unmapped orientation
 globe and directs the operator toward consensual survey admission. At World the
-reference backend renders an accessible orthographic sphere and the Three.js
-backend renders a lit WebGPU-first globe; both bind the same admitted evidence.
+reference backend renders an accessible orthographic sphere and the React Three
+Fiber/Three.js backend renders a lit WebGPU-first globe; both bind the same
+admitted evidence.
 Regional results must match their retained atlas member, which preserves the
 packet's exact synthetic point with no inferred radius. Atlas applies semantic
 Mercator to that same point and its stable occupied synthetic sector. Closer
@@ -783,12 +791,16 @@ federated coordinates are not part of the current contract.
 keyboard, and full-screen state while using framework-independent camera math.
 `ReferenceRenderer` renders accessible overlays and the deterministic fallback;
 it refuses graph edges on terrain even if one is supplied accidentally.
-`AcceleratedTerrainSurface` lazily mounts the Three.js adapter and TSL relief
-mesh, reports its selected backend, active terrain bands, bounded
-field/triangle counts, and transient working-set allocation, and retains the
-reference terrain through initialization or failure. At World it materializes
-the semantic globe rather than the local terrain mesh, while the reference
-overlay preserves region labels and accessibility.
+`AcceleratedTerrainSurface` owns the bounded R3F root and Three.js lifecycle
+adapter. `fiber-scenes.tsx` declaratively expresses terrain buffers, bounded
+cameras, lighting, globe layers, instancing, and evidence-named scene objects;
+the pure `compileContinuousRelief` and `compileContextGlobe` paths retain upload
+parity, resource bounds, and renderer-neutral statistics. The surface reports its
+selected backend, active terrain bands, bounded field/triangle counts, and
+transient working-set allocation, and retains the reference terrain through
+initialization or failure. At World it materializes the semantic globe rather
+than the local terrain mesh, while the reference overlay preserves region
+labels and accessibility.
 `buildTopologyScene` is a deterministic read-model projection over
 `rey.workload-list.v1` and is tested separately from browser mechanics. It
 requires an exact patch/packet pair before compiling admitted survey terrain,
@@ -798,11 +810,11 @@ bindings before compiling regional World/Atlas/County objects. Typed
 field derivations live under `src/explore/terrain`; `topology.ts` still owns
 their scene adaptation plus contours and natural-feature overlays.
 
-This is current repository truth, not the target ownership shape. [Plan
-0003](../plans/0003-scene-to-explorer.md) completes typed evidence adapters,
-immutable scenes, camera/LOD/invalidation, the render graph, renderer backends,
-picking, and React overlays. Future windows and lenses add typed engine inputs
-rather than fetch or invent a second graph inside a visualization component.
+This is current repository truth, not permission for components to become a
+second engine truth. [Plan 0003](../plans/0003-scene-to-explorer.md) retains the
+remaining direct-browser transport proof. Future windows and lenses add typed
+engine inputs rather than fetch or invent a second graph inside a visualization
+component.
 
 ## Next Boundaries
 

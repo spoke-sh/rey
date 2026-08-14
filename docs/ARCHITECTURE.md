@@ -418,7 +418,8 @@ it to a React visualization component. The target boundary has five layers:
    culling, picking, label budgets, scene retention, and dirty-set scheduling.
 4. **Render graph and backends** own ordered materials, hillshade, occlusion,
    contours, water, weather, boundaries, POIs, labels, selection, antialiasing,
-   accelerated resources, and visible fallback.
+   declarative React Three Fiber scene reconciliation, accelerated resources,
+   and visible fallback.
 5. **React shell** owns routes, browser controls, accessibility, evidence
    panels, exact links, and lifecycle integration around the engine surface.
 
@@ -470,12 +471,14 @@ boundary. Semantic scene identity is backend-independent; generated buffers,
 GPU pixels, and measured frame time are not authoritative evidence.
 
 The browser uses an immutable scene graph plus data-oriented field buffers and
-an explicit render graph. The narrow Three.js `WebGPURenderer` and TSL adapter
-uses WebGPU as the preferred backend and Three.js's WebGL2 backend as the
+an explicit render graph. React Three Fiber `9.7.0` declaratively reconciles
+the backend scene and runs only invalidated frames. A narrow lifecycle adapter
+initializes the pinned Three.js `WebGPURenderer` and TSL material graph, using
+WebGPU as the preferred backend and Three.js's WebGL2 backend as the
 compatibility path; Rey's reference renderer owns deterministic semantic
 proof. A generic ECS, physics runtime, or free-orbit 3D requires a later
 qualified need. [Plan 0003](../plans/0003-scene-to-explorer.md) owns the
-remaining direct-transport and named performance qualification.
+remaining direct-transport qualification.
 
 ## Workloads, Graphs, And Scenarios
 
@@ -896,11 +899,13 @@ execution remains in the adapters that own its source and tool semantics.
 The browser application has a parallel internal ownership boundary. Evidence
 adapters own projection-packet semantics; the Explorer engine owns immutable
 scenes, fields, camera, LOD, invalidation, render graph, and picking; terrain
-modules own versioned field derivations; renderer backends own graphics
-resources and pixels; and React owns routing, controls, accessibility, and
-evidence panels. The Three.js adapter cannot absorb Rey's scene or evidence
-ownership. No new Rust crate is implied until a shared CLI/browser contract or
-server-side compiler requires one.
+modules own versioned field derivations; React Three Fiber components own the
+declarative backend scene; renderer backends own graphics resources and pixels;
+and the application React shell owns routing, controls, accessibility, and
+evidence panels. Neither React Three Fiber nor the Three.js lifecycle adapter
+can absorb Rey's immutable scene, field, or evidence ownership. No new Rust
+crate is implied until a shared CLI/browser contract or server-side compiler
+requires one.
 
 ## Failure And Limits
 
@@ -992,10 +997,11 @@ and maximum transient working-set allocation. Explorer requires those
 identities to match. The browser compiles bounded haloed absolute-coordinate
 validity/elevation/hydrology/normal/curvature/material patches, retains exact
 patch identities in a byte/cell-bounded LRU, and renders continuous relief
-through the Three.js WebGPU/TSL adapter with WebGL2 and deterministic reference
-paths. The immutable scene binds a revisioned ordered pass graph consumed by
-both surfaces, and the accelerated adapter suppresses frames whose exact scene,
-camera, material, and graph identity is unchanged. Accelerated terrain totals
+through declarative React Three Fiber components over the Three.js WebGPU/TSL
+backend with WebGL2 and deterministic reference paths. The immutable scene
+binds a revisioned ordered pass graph consumed by both surfaces, and the R3F
+demand loop suppresses frames whose exact scene, camera, material, and graph
+identity is unchanged. Accelerated terrain totals
 exact vertex/index upload bytes before geometry allocation, enforces a 64 MiB
 engine budget, verifies every upload sample against isolated deterministic CPU
 fields, and exposes the allocation and parity revision through the live

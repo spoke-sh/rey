@@ -1,14 +1,10 @@
-import type { Camera, Object3D } from "three/src/Three.WebGPU.js";
 import {
-  boundedViewport,
-  renderFrameInvalidation,
   type AcceleratedBackend,
-  type RenderFrameIdentity,
   type RendererStatus,
-  type RendererViewport,
 } from "../engine/renderer";
 
-export const THREE_RENDERER_REVISION = "three@0.185.1:webgpu+tsl";
+export const THREE_RENDERER_REVISION =
+  "react-three-fiber@9.7.0+three@0.185.1:webgpu+tsl+unified-runtime@1";
 
 export interface ThreeRendererFacade {
   readonly backend: {
@@ -27,7 +23,7 @@ export interface ThreeRendererFacade {
   init(): Promise<unknown>;
   setPixelRatio(value: number): void;
   setSize(width: number, height: number, updateStyle?: boolean): void;
-  render(scene: Object3D, camera: Camera): void;
+  render(scene: unknown, camera: unknown): void;
   dispose(): void;
 }
 
@@ -47,7 +43,7 @@ const defaultFactory: ThreeRendererFactory = async ({ canvas, forceWebGL }) => {
   }) as unknown as ThreeRendererFacade;
 };
 
-export class ThreeWebGpuRendererAdapter {
+export class ReactThreeFiberRendererAdapter {
   readonly #factory: ThreeRendererFactory;
   #renderer: ThreeRendererFacade | undefined;
   #status: RendererStatus = {
@@ -57,17 +53,12 @@ export class ThreeWebGpuRendererAdapter {
     degraded: false,
     detail: "accelerated renderer has not been initialized",
   };
-  #viewport: RendererViewport = {
-    width: 1,
-    height: 1,
-    device_pixel_ratio: 1,
-  };
-  #lastFrame: RenderFrameIdentity | undefined;
   #lastDrawCalls = 0;
   #lastSubmissionMs = 0;
   readonly #statusListeners = new Set<
     (status: Readonly<RendererStatus>) => void
   >();
+  readonly #frameListeners = new Set<() => void>();
 
   constructor(factory: ThreeRendererFactory = defaultFactory) {
     this.#factory = factory;
@@ -77,8 +68,8 @@ export class ThreeWebGpuRendererAdapter {
     return Object.freeze({ ...this.#status });
   }
 
-  get lastFrame(): Readonly<RenderFrameIdentity> | undefined {
-    return this.#lastFrame ? Object.freeze({ ...this.#lastFrame }) : undefined;
+  get renderer(): ThreeRendererFacade | undefined {
+    return this.#renderer;
   }
 
   get lastSubmissionMs(): number {
@@ -106,6 +97,11 @@ export class ThreeWebGpuRendererAdapter {
     return () => this.#statusListeners.delete(listener);
   }
 
+  onFrameSubmitted(listener: () => void) {
+    this.#frameListeners.add(listener);
+    return () => this.#frameListeners.delete(listener);
+  }
+
   async initialize(
     canvas: HTMLCanvasElement,
     preferredBackend: "auto" | AcceleratedBackend = "auto",
@@ -116,14 +112,15 @@ export class ThreeWebGpuRendererAdapter {
     this.#status = {
       ...this.#status,
       lifecycle: "initializing",
-      detail: "initializing Three.js WebGPURenderer",
+      detail: "initializing React Three Fiber WebGPURenderer",
     };
+    this.notifyStatus();
     try {
       const forceWebGL = preferredBackend === "webgl2";
       const renderer = await this.#factory({ canvas, forceWebGL });
       this.#renderer = renderer;
       await renderer.init();
-      this.applyViewport();
+      this.instrumentRenderer(renderer);
       const backend = rendererBackend(renderer);
       if (preferredBackend === "webgpu" && backend !== "webgpu")
         throw new Error("WebGPU was required but Three.js selected WebGL2");
@@ -134,17 +131,16 @@ export class ThreeWebGpuRendererAdapter {
         degraded: backend === "webgl2" && preferredBackend !== "webgl2",
         detail:
           backend === "webgpu"
-            ? "Three.js WebGPURenderer is using WebGPU"
+            ? "React Three Fiber is rendering through Three.js WebGPU"
             : forceWebGL
-              ? "Three.js WebGL2 compatibility backend was forced for qualification"
-              : "Three.js selected its WebGL2 compatibility backend",
+              ? "React Three Fiber forced Three.js's WebGL2 compatibility backend for qualification"
+              : "React Three Fiber is using Three.js's WebGL2 compatibility backend",
       };
       if (backend === "webgpu" && renderer.backend.device)
         void renderer.backend.device.lost.then((info) => {
           if (this.#renderer !== renderer) return;
           renderer.dispose();
           this.#renderer = undefined;
-          this.#lastFrame = undefined;
           this.#lastDrawCalls = 0;
           this.#status = {
             lifecycle: "failed",
@@ -155,6 +151,7 @@ export class ThreeWebGpuRendererAdapter {
           };
           this.notifyStatus();
         });
+      this.notifyStatus();
       return this.status;
     } catch (error) {
       this.#renderer?.dispose();
@@ -167,38 +164,14 @@ export class ThreeWebGpuRendererAdapter {
         degraded: true,
         detail: error instanceof Error ? error.message : String(error),
       };
+      this.notifyStatus();
       return this.status;
     }
-  }
-
-  resize(viewport: RendererViewport): void {
-    this.#viewport = boundedViewport(viewport);
-    if (this.#renderer) this.applyViewport();
-  }
-
-  render(scene: Object3D, camera: Camera, frame: RenderFrameIdentity): boolean {
-    if (!this.#renderer || this.#status.lifecycle !== "ready")
-      throw new Error("the Three.js renderer adapter is not ready");
-    if (renderFrameInvalidation(this.#lastFrame, frame).length === 0)
-      return false;
-    const started = measurementNow();
-    this.#renderer.render(scene, camera);
-    this.#lastSubmissionMs = measurementNow() - started;
-    const drawCalls = this.#renderer.info?.render?.calls;
-    this.#lastDrawCalls =
-      typeof drawCalls === "number" &&
-      Number.isFinite(drawCalls) &&
-      drawCalls >= 0
-        ? Math.trunc(drawCalls)
-        : 0;
-    this.#lastFrame = Object.freeze({ ...frame });
-    return true;
   }
 
   dispose(): void {
     this.#renderer?.dispose();
     this.#renderer = undefined;
-    this.#lastFrame = undefined;
     this.#lastDrawCalls = 0;
     this.#lastSubmissionMs = 0;
     this.#status = {
@@ -210,10 +183,21 @@ export class ThreeWebGpuRendererAdapter {
     };
   }
 
-  private applyViewport(): void {
-    if (!this.#renderer) return;
-    this.#renderer.setPixelRatio(this.#viewport.device_pixel_ratio);
-    this.#renderer.setSize(this.#viewport.width, this.#viewport.height, false);
+  private instrumentRenderer(renderer: ThreeRendererFacade): void {
+    const render = renderer.render.bind(renderer);
+    renderer.render = (scene, camera) => {
+      const started = measurementNow();
+      render(scene, camera);
+      this.#lastSubmissionMs = measurementNow() - started;
+      const drawCalls = renderer.info?.render?.calls;
+      this.#lastDrawCalls =
+        typeof drawCalls === "number" &&
+        Number.isFinite(drawCalls) &&
+        drawCalls >= 0
+          ? Math.trunc(drawCalls)
+          : 0;
+      for (const listener of this.#frameListeners) listener();
+    };
   }
 
   private notifyStatus(): void {

@@ -3,6 +3,10 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
 
 const MAX_JAVASCRIPT_CHUNK_BYTES = 450 * 1024;
+const THREE_WEBGPU_RUNTIME = new URL(
+  "./src/explore/renderers/three-fiber-runtime.ts",
+  import.meta.url,
+).pathname;
 
 function stylexCssTarget(): Plugin {
   const resolvedId = "\0virtual:rey-stylex.css";
@@ -70,10 +74,20 @@ function javascriptChunkBudget(): Plugin {
 
 export default defineConfig({
   base: "/",
+  resolve: {
+    // R3F imports `three` internally. Bind that exact import to the same
+    // modular WebGPU runtime used by Rey's declarative objects so constructor
+    // and color-management identities cannot diverge.
+    alias: [{ find: /^three$/, replacement: THREE_WEBGPU_RUNTIME }],
+  },
   build: {
     cssCodeSplit: false,
     rolldownOptions: {
       output: {
+        // Three's WebGPU/TSL graph contains module cycles. Preserve source
+        // execution order when the bounded vendor groups are split so a
+        // subclass is never evaluated before its base class is initialized.
+        strictExecutionOrder: true,
         assetFileNames: (asset) =>
           asset.names.some((name) => name.endsWith(".css"))
             ? "assets/app.css"
@@ -93,6 +107,12 @@ export default defineConfig({
               name: "tanstack-router",
               test: /node_modules[\\/]@tanstack[\\/](?:react-router|router-core)[\\/]/,
               priority: 20,
+            },
+            {
+              name: "react-three-fiber",
+              test: /node_modules[\\/]@react-three[\\/]fiber[\\/]/,
+              priority: 15,
+              maxSize: 400 * 1024,
             },
             {
               name: "three",

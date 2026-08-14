@@ -219,8 +219,9 @@ POST, and exact workload-admission POST are intentionally unauthenticated and
 have no origin check on every explicitly configured listener. This adds no
 async runtime, TLS, authenticated identity, background scheduler, or general
 persistence/service topology.
-The TypeScript application uses locked React, TanStack Router, TypeScript,
-Vite, Vitest, StyleX 0.19, and the official StyleX unplugin. Authored UI rules
+The TypeScript application uses locked React, React Three Fiber 9.7, TanStack
+Router, TypeScript, Vite, Vitest, StyleX 0.19, and the official StyleX
+unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
 CSS asset while typed Kinetic material values remain runtime custom
 properties. Exact MIT-licensed Hifi core/Kinetic Git packages are pinned to one
@@ -248,7 +249,7 @@ survey-layout, survey-terrain, and portfolio projection modules derive the
 bounded Landscape, Neighborhood, Object, and Evidence scenes from admitted
 patches and projection packets in `rey.workload-list.v1`; World additionally
 compiles the optional `rey.semantic-atlas.v1` into a synthetic globe whose
-Three.js and reference paths share one scene revision.
+React Three Fiber/Three.js and reference paths share one scene revision.
 `src/explore/engine/camera.ts` owns camera math,
 `src/explore/engine/scene.ts` freezes the current scene, and
 `src/explore/engine/fields.ts` owns bounded typed scalar, vector, mask, and
@@ -270,7 +271,8 @@ identical frame quiet. `src/explore/renderers/three-terrain.ts` measures every
 uploaded position, normal, material attribute, curvature, and index byte before
 allocation and fails visibly above its explicit 64 MiB GPU budget. It copies
 upload arrays away from immutable CPU fields and verifies every sample under a
-revisioned parity contract before constructing Three.js geometry.
+revisioned parity contract before React Three Fiber constructs the declared
+Three.js geometry in `src/explore/renderers/fiber-scenes.tsx`.
 The live diagnostics time CPU field evaluation, geometry construction, and
 renderer submission with `performance.now()`. These values are explicitly
 transient and unretained; renderer submission is not GPU completion.
@@ -279,9 +281,9 @@ and owns inverse scene selection across repeated Atlas chart copies.
 `src/explore/projection/survey-terrain.ts` owns revisioned survey reference
 field evaluation, contour extraction, and projected natural-feature
 derivation; its compiler revision participates in immutable scene lineage.
-The Three.js adapter observes both WebGL context loss and WebGPU `device.lost`;
-either returns the live surface to a degraded reference-renderer status without
-changing scene assessment.
+The R3F/Three.js lifecycle adapter observes both WebGL context loss and WebGPU
+`device.lost`; either returns the live surface to a degraded reference-renderer
+status without changing scene assessment.
 Topology-model tests prove semantic lens ordering, zoom bounds, identity
 retention, and omission disclosure without requiring a browser graph library.
 The embedded asset remains the HTTP proof for `/explore`, `/environment`, and
@@ -289,29 +291,42 @@ the root redirect.
 
 The production UI build uses Vite 8's Rolldown output contract. Route surfaces
 are loaded through dynamic imports, WebGPU uses Three.js's modular source graph,
-and explicit React, router, and Three.js chunk groups keep each emitted
-JavaScript object at or below 450 KiB. The build fails if that bound is crossed
+and explicit React, React Three Fiber, router, and Three.js chunk groups keep
+each emitted JavaScript object at or below 450 KiB. The build fails if that
+bound is crossed
 and emits `apps/rey-ui/dist/bundle-report.json` beside the disposable bundle,
 including each chunk's exact byte size, imports, and entry or dynamic-entry
 role. Nix retains that report in the immutable UI derivation used to build the
 binary. The named production route-bundle workload reduced `app.js` from the
 650.17 kB baseline to 233,819 bytes and removed the prior 1,032.25 kB
-`three.webgpu.js` monolith; the generated manifest embeds and serves every
+`three.webgpu.js` monolith. Rolldown preserves source execution order across
+the bounded Three.js WebGPU/TSL chunks so cyclic node modules cannot evaluate a
+subclass before its base class. The generated manifest embeds and serves every
 emitted JavaScript and CSS object rather than assuming a fixed asset list.
 
 Explorer is a high-fidelity spatial game engine for evidence-bound projection.
 Its current boundary separates projection packets, revisioned scene
 projections, immutable scenes, data-oriented fields, camera/LOD, render-pass
-selection, backend lifecycle, and the React shell. Remaining direct-transport
-and named performance qualification is
-[Plan 0003](../plans/0003-scene-to-explorer.md) work. A pinned Three.js
-`WebGPURenderer` and TSL adapter prefers WebGPU and uses Three.js's WebGL2
-backend as compatibility fallback. The current package pins Three.js
-`0.185.1`; its adapter has deterministic lifecycle tests
+selection, backend lifecycle, and the application React shell. Remaining
+direct-transport qualification is [Plan
+0003](../plans/0003-scene-to-explorer.md) work. React Three Fiber `9.7.0`
+declaratively reconciles the scene over a pinned Three.js `WebGPURenderer` and
+TSL adapter that prefers WebGPU and uses Three.js's WebGL2 backend as
+compatibility fallback. The current package pins Three.js `0.185.1`; its narrow
+lifecycle adapter has deterministic Vitest coverage
 for asynchronous initialization, WebGPU selection, forced WebGL2 selection,
-viewport bounds, failure, and disposal. It is mounted lazily as `/explore`'s
+failure, device loss, frame submission, and disposal; engine tests separately
+own viewport bounds. It is mounted lazily as `/explore`'s
 continuous base-terrain surface, while the reference renderer remains active
-through initialization and on failure. The TSL graph consumes typed tint,
+through initialization and on failure. R3F test-renderer fixtures verify the
+declared terrain and globe scene graph without treating it as semantic proof.
+Vite binds R3F's exact `three` import to Rey's modular WebGPU runtime bridge so
+R3F props, declared objects, and the renderer share constructor and color
+identities; the bridge exposes the source-graph `WebGLRenderer` only for R3F's
+headless Vitest harness and compatibility contract. Regression assertions retain
+the globe's warm light and stipple-material colors rather than accepting
+Three.js defaults.
+The TSL graph consumes typed tint,
 occlusion, roughness, curvature, and normal attributes. Retained voyages now
 cover both real backends and the reference renderer at both target viewports,
 semantic-first rendered parity, WebGL context loss, and WebGPU device loss.
@@ -322,7 +337,7 @@ the manifest identifies that row as a test input rather than observed runtime
 activity. A named local SwiftShader budget now bounds observable CPU, resource,
 interaction, and browser-presentation measurements across the full matrix; it
 makes no GPU execution or frame-rate claim. Rey's deterministic reference
-renderer remains independent of Three.js.
+renderer remains independent of React Three Fiber and Three.js.
 
 Backend-independent tests own semantic correctness: field values, validity
 masks, scene manifests, stable ordering, LOD selection, render-pass order,

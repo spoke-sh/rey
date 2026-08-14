@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import type { RendererStatus } from "../engine/renderer";
+import { createRoot, type Renderer as FiberRenderer } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { RendererStatus, RenderFrameIdentity } from "../engine/renderer";
+import { boundedViewport, renderFrameInvalidation } from "../engine/renderer";
 import type { SceneSnapshot } from "../engine/scene";
 import type { GlobeCameraView } from "../engine/camera";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
@@ -13,6 +15,13 @@ import {
   activeExplorerRenderPasses,
   type ExplorerRenderVisibility,
 } from "../engine/render-graph";
+import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
+import { compileContextGlobe } from "./three-globe";
+import { compileContinuousRelief } from "./three-terrain";
+import {
+  ReactThreeFiberRendererAdapter,
+  THREE_RENDERER_REVISION,
+} from "./three-webgpu";
 
 export type RendererPreference = "auto" | "webgpu" | "webgl2" | "reference";
 export const WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT =
@@ -101,184 +110,243 @@ export function AcceleratedTerrainSurface({
   globeView?: GlobeCameraView;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const globeViewRef = useRef(globeView);
-  globeViewRef.current = globeView;
-  const adapterRef = useRef<
-    import("./three-webgpu").ThreeWebGpuRendererAdapter | undefined
+  const rootRef = useRef<ReturnType<typeof createRoot> | undefined>(undefined);
+  const adapterRef = useRef<ReactThreeFiberRendererAdapter | undefined>(
+    undefined,
+  );
+  const lastFrameRef = useRef<RenderFrameIdentity | undefined>(undefined);
+  const patchCacheRef = useRef<
+    | {
+        limits: string;
+        cache: TerrainPatchCache;
+      }
+    | undefined
   >(undefined);
-  const bundleRef = useRef<
-    import("./three-terrain").ThreeTerrainBundle | undefined
-  >(undefined);
+  const [rootGeneration, setRootGeneration] = useState(0);
   const [ready, setReady] = useState(false);
-  const patchCacheRef = useRef<{
-    limits: string;
-    cache: TerrainPatchCache;
-  } | null>(null);
   const semanticGlobe =
     snapshot.scene.regime === "world" ? snapshot.scene.globe : null;
-  const workingSetRequests = semanticGlobe
-    ? []
-    : snapshot.scene.terrain_programs.map((program) =>
-        terrainPatchRequestsForView(program, view),
-      );
+  const preference = rendererPreference(globalThis.location?.search ?? "");
+  const programTotals = useMemo(
+    () =>
+      snapshot.scene.terrain_programs.reduce(
+        (result, program) => ({
+          cells:
+            result.cells +
+            program.projection.terrain_program.working_set.max_cells,
+          bytes:
+            result.bytes +
+            program.projection.terrain_program.working_set.max_bytes,
+        }),
+        { cells: 0, bytes: 0 },
+      ),
+    [snapshot.snapshot_id],
+  );
+  const limitsRevision = `${programTotals.cells}:${programTotals.bytes}`;
+  const workingSetRequests = useMemo(
+    () =>
+      semanticGlobe
+        ? []
+        : snapshot.scene.terrain_programs.map((program) =>
+            terrainPatchRequestsForView(program, view),
+          ),
+    [
+      semanticGlobe,
+      snapshot.snapshot_id,
+      view.pan_x,
+      view.pan_y,
+      view.rendered_scale,
+      view.viewport_height,
+      view.viewport_width,
+    ],
+  );
   const workingSetRevision = workingSetRequests
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
-  const activeRenderPassIds = Object.freeze(
-    activeExplorerRenderPasses(snapshot.render_graph, renderVisibility).map(
-      ({ id }) => id,
-    ),
-  );
-  const activeRenderPassRevision = activeRenderPassIds.join("|");
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (
-      !canvas ||
-      (snapshot.scene.terrain_programs.length === 0 && semanticGlobe === null)
-    ) {
-      setReady(false);
-      onReport(REFERENCE_TERRAIN_REPORT);
-      return;
-    }
-    const programTotals = snapshot.scene.terrain_programs.reduce(
-      (result, program) => ({
-        cells:
-          result.cells +
-          program.projection.terrain_program.working_set.max_cells,
-        bytes:
-          result.bytes +
-          program.projection.terrain_program.working_set.max_bytes,
-      }),
-      { cells: 0, bytes: 0 },
-    );
-    const limitsRevision = `${programTotals.cells}:${programTotals.bytes}`;
+  const fieldProjection = useMemo(() => {
+    const evaluationStarted = measurementNow();
     if (!semanticGlobe && patchCacheRef.current?.limits !== limitsRevision)
       patchCacheRef.current = {
         limits: limitsRevision,
         cache: new TerrainPatchCache(programTotals.cells, programTotals.bytes),
       };
-    const evaluationStarted = measurementNow();
-    const runtimeFields = snapshot.scene.terrain_programs.flatMap(
-      (program, index) => {
-        if (semanticGlobe) return [];
-        return workingSetRequests[index]!.map((request) =>
-          patchCacheRef.current!.cache.materialize(program, request),
-        );
-      },
+    const fields = snapshot.scene.terrain_programs.flatMap((program, index) =>
+      semanticGlobe
+        ? []
+        : workingSetRequests[index]!.map((request) =>
+            patchCacheRef.current!.cache.materialize(program, request),
+          ),
     );
-    const fieldEvaluationMs = measurementNow() - evaluationStarted;
-    const activeBandIds = Object.freeze(
-      [
-        ...(semanticGlobe ? ["semantic_globe"] : []),
-        ...new Set(runtimeFields.flatMap((fields) => fields.active_band_ids)),
-      ].sort((left, right) => left.localeCompare(right)),
-    );
-    const totals = runtimeFields.reduce(
-      (result, fields) => ({
-        field_cells: result.field_cells + fields.field_cells,
-        field_bytes: result.field_bytes + fields.field_bytes,
-      }),
-      { field_cells: 0, field_bytes: 0 },
-    );
-    const preference = rendererPreference(window.location.search);
-    if (preference === "reference") {
-      setReady(false);
-      onReport({
-        ...REFERENCE_TERRAIN_REPORT,
-        preference,
-        status: {
-          ...REFERENCE_TERRAIN_REPORT.status,
-          lifecycle: "ready",
-          detail: "the reference renderer was selected by the view envelope",
-        },
-        active_band_ids: activeBandIds,
-        field_sets: runtimeFields.length,
-        field_cells: totals.field_cells,
-        field_bytes: totals.field_bytes,
-        program_count: snapshot.scene.terrain_programs.length,
-        working_set_limit_cells: programTotals.cells,
-        working_set_limit_bytes: programTotals.bytes,
-        draw_calls: 0,
-        render_graph_id: snapshot.render_graph.graph_id,
-        active_render_passes: activeRenderPassIds,
-        gpu_bytes: 0,
-        gpu_budget_bytes: 0,
-        parity_revision: "unbound",
-        parity_samples: 0,
-        field_evaluation_ms: fieldEvaluationMs,
-        geometry_compilation_ms: 0,
-        render_submission_ms: 0,
-        measurement_authority: "transient_cpu_unretained",
-      });
-      return;
-    }
-
-    let cancelled = false;
-    let adapter:
-      import("./three-webgpu").ThreeWebGpuRendererAdapter | undefined;
-    let bundle: import("./three-terrain").ThreeTerrainBundle | undefined;
-    let unsubscribeStatus: (() => void) | undefined;
-    const report = (
-      status: RendererStatus,
-      statistics?: {
-        field_sets: number;
-        field_bytes: number;
-        triangles: number;
-        gpu_bytes: number;
-        gpu_budget_bytes: number;
-        parity_revision: string;
-        parity_samples: number;
-        geometry_compilation_ms: number;
-      },
-    ) => {
-      if (cancelled) return;
-      onReport({
-        status,
-        preference,
-        active_band_ids: activeBandIds,
-        field_sets: statistics?.field_sets ?? runtimeFields.length,
-        field_cells: totals.field_cells,
-        field_bytes: statistics?.field_bytes ?? totals.field_bytes,
-        program_count: snapshot.scene.terrain_programs.length,
-        working_set_limit_cells: programTotals.cells,
-        working_set_limit_bytes: programTotals.bytes,
-        draw_calls: adapter?.lastDrawCalls ?? 0,
-        triangles: statistics?.triangles ?? 0,
-        render_graph_id: snapshot.render_graph.graph_id,
-        active_render_passes: activeRenderPassIds,
-        gpu_bytes: statistics?.gpu_bytes ?? 0,
-        gpu_budget_bytes: statistics?.gpu_budget_bytes ?? 0,
-        parity_revision: statistics?.parity_revision ?? "unbound",
-        parity_samples: statistics?.parity_samples ?? 0,
-        field_evaluation_ms: fieldEvaluationMs,
-        geometry_compilation_ms: statistics?.geometry_compilation_ms ?? 0,
-        render_submission_ms: adapter?.lastSubmissionMs ?? 0,
-        measurement_authority: "transient_cpu_unretained",
-      });
+    return Object.freeze({
+      fields: Object.freeze(fields),
+      evaluation_ms: measurementNow() - evaluationStarted,
+      cells: fields.reduce((total, field) => total + field.field_cells, 0),
+      bytes: fields.reduce((total, field) => total + field.field_bytes, 0),
+      active_band_ids: Object.freeze(
+        [
+          ...(semanticGlobe ? ["semantic_globe"] : []),
+          ...new Set(fields.flatMap((field) => field.active_band_ids)),
+        ].sort((left, right) => left.localeCompare(right)),
+      ),
+    });
+  }, [limitsRevision, semanticGlobe, snapshot.snapshot_id, workingSetRevision]);
+  const globeCompilation = useMemo(
+    () => (semanticGlobe ? compileContextGlobe(semanticGlobe) : null),
+    [semanticGlobe],
+  );
+  const terrainCompilation = useMemo(
+    () =>
+      semanticGlobe || fieldProjection.fields.length === 0
+        ? null
+        : compileContinuousRelief(fieldProjection.fields),
+    [fieldProjection.fields, semanticGlobe],
+  );
+  const statistics = globeCompilation?.statistics ??
+    terrainCompilation?.statistics ?? {
+      field_sets: 0,
+      triangles: 0,
+      field_bytes: fieldProjection.bytes,
+      gpu_bytes: 0,
+      gpu_budget_bytes: 0,
+      parity_revision: "unbound",
+      parity_samples: 0,
+      geometry_compilation_ms: 0,
     };
-    report({
+  const materialRevision =
+    globeCompilation?.material_revision ??
+    terrainCompilation?.material_revision ??
+    "unbound";
+  const activeRenderPassIds = useMemo(
+    () =>
+      Object.freeze(
+        activeExplorerRenderPasses(snapshot.render_graph, renderVisibility).map(
+          ({ id }) => id,
+        ),
+      ),
+    [
+      renderVisibility.contours,
+      renderVisibility.probes,
+      renderVisibility.water,
+      renderVisibility.weather,
+      snapshot.render_graph.graph_id,
+    ],
+  );
+  const hasAcceleratedScene =
+    globeCompilation !== null || terrainCompilation !== null;
+  const frame: RenderFrameIdentity = {
+    snapshot_id: snapshot.snapshot_id,
+    camera_revision: semanticGlobe
+      ? `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}`
+      : `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
+    material_revision: materialRevision,
+    render_graph_id: snapshot.render_graph.graph_id,
+  };
+  const report = (status: RendererStatus) => {
+    const adapter = adapterRef.current;
+    onReport({
+      status,
+      preference,
+      active_band_ids: fieldProjection.active_band_ids,
+      field_sets: statistics.field_sets,
+      field_cells: fieldProjection.cells,
+      field_bytes: statistics.field_bytes,
+      program_count: snapshot.scene.terrain_programs.length,
+      working_set_limit_cells: programTotals.cells,
+      working_set_limit_bytes: programTotals.bytes,
+      draw_calls: adapter?.lastDrawCalls ?? 0,
+      triangles: statistics.triangles,
+      render_graph_id: snapshot.render_graph.graph_id,
+      active_render_passes: activeRenderPassIds,
+      gpu_bytes: statistics.gpu_bytes,
+      gpu_budget_bytes: statistics.gpu_budget_bytes,
+      parity_revision: statistics.parity_revision,
+      parity_samples: statistics.parity_samples,
+      field_evaluation_ms: fieldProjection.evaluation_ms,
+      geometry_compilation_ms: statistics.geometry_compilation_ms,
+      render_submission_ms: adapter?.lastSubmissionMs ?? 0,
+      measurement_authority: "transient_cpu_unretained",
+    });
+  };
+  const reportRef = useRef(report);
+  reportRef.current = report;
+  const sceneElement = globeCompilation ? (
+    <ContextGlobeScene
+      compiled={globeCompilation}
+      view={globeView}
+      world={snapshot.scene.world}
+    />
+  ) : terrainCompilation ? (
+    <ContinuousReliefScene
+      compiled={terrainCompilation}
+      view={view}
+      world={snapshot.scene.world}
+    />
+  ) : null;
+  const sceneElementRef = useRef(sceneElement);
+  sceneElementRef.current = sceneElement;
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
+
+  useEffect(() => {
+    if (preference !== "reference" && hasAcceleratedScene) return;
+    setReady(false);
+    const status: RendererStatus = {
+      ...REFERENCE_TERRAIN_REPORT.status,
+      lifecycle: "ready",
+      detail:
+        preference === "reference"
+          ? "the reference renderer was selected by the view envelope"
+          : "the deterministic reference terrain is active",
+    };
+    reportRef.current(status);
+  }, [hasAcceleratedScene, preference, snapshot.snapshot_id]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || preference === "reference" || !hasAcceleratedScene) return;
+    let cancelled = false;
+    let root: ReturnType<typeof createRoot> | undefined;
+    const adapter = new ReactThreeFiberRendererAdapter();
+    adapterRef.current = adapter;
+    setReady(false);
+    reportRef.current({
       lifecycle: "initializing",
       backend: null,
-      renderer_revision: "three@0.185.1:webgpu+tsl",
+      renderer_revision: THREE_RENDERER_REVISION,
       degraded: false,
-      detail: "initializing the continuous-relief renderer",
+      detail: "initializing the declarative React Three Fiber renderer",
     });
-
+    const unsubscribeStatus = adapter.onStatusChange((status) => {
+      if (status.lifecycle === "failed") {
+        rootRef.current?.unmount();
+        rootRef.current = undefined;
+        lastFrameRef.current = undefined;
+        setReady(false);
+        reportRef.current(status as RendererStatus);
+      }
+    });
+    const unsubscribeFrame = adapter.onFrameSubmitted(() => {
+      if (cancelled) return;
+      setReady(true);
+      reportRef.current(adapter.status as RendererStatus);
+    });
     const handleContextLoss = (event: Event) => {
       event.preventDefault();
+      rootRef.current?.unmount();
+      rootRef.current = undefined;
+      lastFrameRef.current = undefined;
       setReady(false);
-      report({
+      reportRef.current({
         lifecycle: "failed",
         backend: "reference",
-        renderer_revision: "three@0.185.1:webgpu+tsl",
+        renderer_revision: THREE_RENDERER_REVISION,
         degraded: true,
         detail: "graphics context lost; the reference terrain remains active",
       });
     };
     const handleWebGpuDeviceLossQualification = () => {
       if (preference === "webgpu")
-        adapter?.destroyWebGpuDeviceForQualification();
+        adapter.destroyWebGpuDeviceForQualification();
     };
     canvas.addEventListener("webglcontextlost", handleContextLoss);
     canvas.addEventListener(
@@ -287,69 +355,43 @@ export function AcceleratedTerrainSurface({
     );
 
     void (async () => {
+      const status = await adapter.initialize(
+        canvas,
+        preference === "auto" ? "auto" : preference,
+      );
+      if (cancelled || status.lifecycle !== "ready" || !adapter.renderer) {
+        if (!cancelled) reportRef.current(status as RendererStatus);
+        return;
+      }
       try {
-        const rendererModule = await import("./three-webgpu");
-        if (cancelled) return;
-        adapter = new rendererModule.ThreeWebGpuRendererAdapter();
-        unsubscribeStatus = adapter.onStatusChange((status) => {
-          setReady(false);
-          report(status);
+        root = createRoot(canvas);
+        const viewport = acceleratedViewport(snapshot, view, semanticGlobe);
+        await root.configure({
+          dpr: viewport.device_pixel_ratio,
+          flat: true,
+          frameloop: "demand",
+          gl: adapter.renderer as unknown as FiberRenderer,
+          size: {
+            width: viewport.width,
+            height: viewport.height,
+            left: 0,
+            top: 0,
+          },
         });
-        adapterRef.current = adapter;
-        adapter.resize({
-          width: semanticGlobe
-            ? snapshot.scene.world.width
-            : view.viewport_width,
-          height: semanticGlobe
-            ? snapshot.scene.world.height
-            : view.viewport_height,
-          device_pixel_ratio: window.devicePixelRatio,
-        });
-        const status = await adapter.initialize(
-          canvas,
-          preference === "auto" ? "auto" : preference,
-        );
-        if (cancelled) return;
-        if (status.lifecycle !== "ready") {
-          setReady(false);
-          report(status);
+        if (cancelled) {
+          root.unmount();
           return;
         }
-        bundle = semanticGlobe
-          ? (await import("./three-globe")).createContextGlobeBundle(
-              semanticGlobe,
-              snapshot.scene.world,
-              globeViewRef.current,
-            )
-          : (await import("./three-terrain")).createContinuousReliefBundle(
-              runtimeFields,
-              snapshot.scene.world,
-              view,
-            );
-        if (adapter.status.lifecycle !== "ready") {
-          bundle.dispose();
-          bundle = undefined;
-          setReady(false);
-          report(adapter.status);
-          return;
-        }
-        bundleRef.current = bundle;
-        adapter.render(bundle.scene, bundle.camera, {
-          snapshot_id: snapshot.snapshot_id,
-          camera_revision: semanticGlobe
-            ? `perspective-globe:${snapshot.scene.world.width}x${snapshot.scene.world.height}`
-            : `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
-          material_revision: bundle.material_revision,
-          render_graph_id: snapshot.render_graph.graph_id,
-        });
-        setReady(true);
-        report(status, bundle.statistics);
+        rootRef.current = root;
+        lastFrameRef.current = frameRef.current;
+        root.render(sceneElementRef.current);
+        setRootGeneration((generation) => generation + 1);
       } catch (error) {
         setReady(false);
-        report({
+        reportRef.current({
           lifecycle: "failed",
           backend: "reference",
-          renderer_revision: "three@0.185.1:webgpu+tsl",
+          renderer_revision: THREE_RENDERER_REVISION,
           degraded: true,
           detail: error instanceof Error ? error.message : String(error),
         });
@@ -363,61 +405,61 @@ export function AcceleratedTerrainSurface({
         WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT,
         handleWebGpuDeviceLossQualification,
       );
-      bundle?.dispose();
-      unsubscribeStatus?.();
-      adapter?.dispose();
-      if (bundleRef.current === bundle) bundleRef.current = undefined;
+      unsubscribeFrame();
+      unsubscribeStatus();
+      root?.unmount();
+      adapter.dispose();
+      if (rootRef.current === root) rootRef.current = undefined;
       if (adapterRef.current === adapter) adapterRef.current = undefined;
+      lastFrameRef.current = undefined;
     };
-  }, [
-    activeRenderPassRevision,
-    onReport,
-    snapshot.snapshot_id,
-    workingSetRevision,
-  ]);
+  }, [hasAcceleratedScene, preference]);
 
   useEffect(() => {
+    const root = rootRef.current;
     const adapter = adapterRef.current;
-    const bundle = bundleRef.current;
-    if (!adapter || !bundle || !semanticGlobe) return;
-    bundle.updateGlobeView?.(globeView);
-    adapter.render(bundle.scene, bundle.camera, {
-      snapshot_id: snapshot.snapshot_id,
-      camera_revision: `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}`,
-      material_revision: bundle.material_revision,
-      render_graph_id: snapshot.render_graph.graph_id,
+    if (!root || !adapter?.renderer || rootGeneration === 0) return;
+    const viewport = acceleratedViewport(snapshot, view, semanticGlobe);
+    void root.configure({
+      dpr: viewport.device_pixel_ratio,
+      flat: true,
+      frameloop: "demand",
+      gl: adapter.renderer as unknown as FiberRenderer,
+      size: {
+        width: viewport.width,
+        height: viewport.height,
+        left: 0,
+        top: 0,
+      },
     });
   }, [
-    globeView.pitch_degrees,
-    globeView.yaw_degrees,
+    rootGeneration,
     semanticGlobe,
-    snapshot.snapshot_id,
-  ]);
-
-  useEffect(() => {
-    const adapter = adapterRef.current;
-    const bundle = bundleRef.current;
-    if (!adapter || !bundle || semanticGlobe) return;
-    adapter.resize({
-      width: view.viewport_width,
-      height: view.viewport_height,
-      device_pixel_ratio: window.devicePixelRatio,
-    });
-    bundle.updateView?.(view);
-    adapter.render(bundle.scene, bundle.camera, {
-      snapshot_id: snapshot.snapshot_id,
-      camera_revision: `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
-      material_revision: bundle.material_revision,
-      render_graph_id: snapshot.render_graph.graph_id,
-    });
-  }, [
-    semanticGlobe,
-    snapshot.snapshot_id,
-    view.pan_x,
-    view.pan_y,
-    view.rendered_scale,
+    snapshot.scene.world.height,
+    snapshot.scene.world.width,
     view.viewport_height,
     view.viewport_width,
+  ]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || rootGeneration === 0 || !sceneElement) return;
+    if (renderFrameInvalidation(lastFrameRef.current, frame).length === 0) {
+      const status = adapterRef.current?.status;
+      if (ready && status) reportRef.current(status as RendererStatus);
+      return;
+    }
+    lastFrameRef.current = Object.freeze({ ...frame });
+    root.render(sceneElement);
+  }, [
+    activeRenderPassIds,
+    frame.camera_revision,
+    frame.material_revision,
+    frame.render_graph_id,
+    frame.snapshot_id,
+    ready,
+    rootGeneration,
+    sceneElement,
   ]);
 
   return (
@@ -427,10 +469,22 @@ export function AcceleratedTerrainSurface({
         styles.acceleratedTerrainCanvas,
         ready && visible && styles.acceleratedTerrainCanvasReady,
       )}
-      data-renderer="three-webgpu"
+      data-renderer="react-three-fiber"
       ref={canvasRef}
     />
   );
+}
+
+function acceleratedViewport(
+  snapshot: SceneSnapshot,
+  view: TerrainCameraView,
+  semanticGlobe: SceneSnapshot["scene"]["globe"],
+) {
+  return boundedViewport({
+    width: semanticGlobe ? snapshot.scene.world.width : view.viewport_width,
+    height: semanticGlobe ? snapshot.scene.world.height : view.viewport_height,
+    device_pixel_ratio: globalThis.devicePixelRatio ?? 1,
+  });
 }
 
 function measurementNow(): number {

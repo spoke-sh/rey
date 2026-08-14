@@ -2419,6 +2419,7 @@ mod tests {
             "/assets/agents.js",
             "/assets/explore.js",
             "/assets/react.js",
+            "/assets/react-three-fiber.js",
             "/assets/rolldown-runtime.js",
             "/assets/tanstack-router.js",
             "/assets/three.js",
@@ -2463,9 +2464,9 @@ mod tests {
         assert!(!application.contains("PROCESS SEEDS"));
         assert!(application.contains("SUPPORTED"));
         assert!(application.contains("NOT FOUND"));
-        assert!(application.contains("./three-globe.js"));
-        assert!(application.contains("./three-terrain.js"));
-        assert!(application.contains("./three-webgpu.js"));
+        assert!(application.contains("react-three-fiber@9.7.0+three@0.185.1:webgpu+tsl"));
+        assert!(application.contains("context-globe-samples:"));
+        assert!(application.contains("rey-continuous-relief"));
         assert!(application.contains("HISTORY / CHANNELS + RUNTIME"));
         assert!(application.contains("Mailbox history"));
         assert!(application.contains("REY / AGENT / OPERATOR"));
