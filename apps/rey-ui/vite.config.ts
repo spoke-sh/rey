@@ -69,7 +69,7 @@ function javascriptChunkBudget(): Plugin {
 }
 
 export default defineConfig({
-  base: "./",
+  base: "/",
   build: {
     cssCodeSplit: false,
     rolldownOptions: {

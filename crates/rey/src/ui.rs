@@ -2549,6 +2549,9 @@ mod tests {
         let journal_new = request(&address, "GET /journal/new HTTP/1.1");
         assert!(journal_new.starts_with("HTTP/1.1 200"));
         assert!(journal_new.contains("<title>Rey / Explore</title>"));
+        assert!(journal_new.contains("src=\"/assets/app.js\""));
+        assert!(journal_new.contains("href=\"/assets/app.css\""));
+        assert!(!journal_new.contains("./assets/"));
 
         let journal_entry = request(&address, "GET /journal/j1-example HTTP/1.1");
         assert!(journal_entry.starts_with("HTTP/1.1 200"));

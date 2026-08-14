@@ -1111,7 +1111,9 @@ routes receive the embedded application shell; `GET|HEAD /` redirects to
 query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 `/environment`, `/workloads`, `/workloads/$workloadId`,
 `/workloads/$workloadId/scenarios/$executionId`, and
-`/workloads/$workloadId/deltas/$deltaId`. The workload endpoint is
+`/workloads/$workloadId/deltas/$deltaId`. The embedded shell binds its static
+assets to root-relative `/assets/...` paths so exact nested routes resolve the
+same-origin JavaScript and CSS rather than route-relative HTML fallbacks. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
 index, just like `workloads list`. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
