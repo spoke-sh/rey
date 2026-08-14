@@ -278,8 +278,9 @@ descendants. Every pathspec must match an unstaged change. `-p` without a path
 walks all stageable unstaged hunks; supplied paths narrow that interactive set.
 An unmatched path leaves INDEX unchanged. Patch selection offers only
 applications whose current WORKING observation is `available`; unavailable and
-errored application hunks are counted as excluded and cannot be selected by
-`y` or `a`. A scope containing only unresolved application hunks fails without
+errored application hunks are excluded and cannot be selected by `y` or `a`.
+The interactive output begins directly with the first stageable hunk. A scope
+containing only unresolved application hunks fails without
 creating or changing INDEX. Full `add .` and `add -A` retain the complete
 snapshot, including explicit missing/error degradation evidence.
 

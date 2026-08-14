@@ -5185,7 +5185,10 @@ nodes:
         String::from_utf8_lossy(&partial.stderr)
     );
     let partial = String::from_utf8(partial.stdout).unwrap();
-    assert!(partial.contains("ENVIRONMENT ADMISSION PATCH"));
+    assert!(partial.starts_with("Hunk 1/2"));
+    assert!(!partial.contains("ENVIRONMENT ADMISSION PATCH"));
+    assert!(!partial.contains("Working tree           INDEX → WORKING"));
+    assert!(!partial.contains("Selection              y stage"));
     assert!(partial.contains("Hunk 1/2"));
     assert!(partial.contains("Hunk 2/2"));
     assert!(partial.contains("diff --rey a/environment/"));
@@ -5288,8 +5291,11 @@ fn env_add_patch_excludes_unresolved_applications() {
     );
     assert!(broad.stderr.is_empty());
     let broad = String::from_utf8(broad.stdout).unwrap();
-    assert!(broad.contains("INDEX → WORKING · 3 hunks"));
-    assert!(broad.contains("15 unresolved application hunks · remain unstaged"));
+    assert!(broad.starts_with("Hunk 1/3"));
+    assert!(!broad.contains("ENVIRONMENT ADMISSION PATCH"));
+    assert!(!broad.contains("Working tree           INDEX → WORKING"));
+    assert!(!broad.contains("unresolved application hunks · remain unstaged"));
+    assert!(!broad.contains("Selection              y stage"));
     assert!(!broad.contains("diff --rey a/environment/application/"));
     assert!(broad.contains("3 capability changes admitted"));
     assert!(broad.contains("15 changes remain unstaged"));

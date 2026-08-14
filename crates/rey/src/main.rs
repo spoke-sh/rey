@@ -11208,30 +11208,14 @@ fn select_capability_changes(
     let mut input = io::stdin().lock();
     let mut selected = std::collections::BTreeSet::new();
     let mut stage_all = false;
-    writeln!(output)?;
-    writeln!(output, "{}", style.cyan_bold("ENVIRONMENT ADMISSION PATCH"))?;
-    writeln!(
-        output,
-        "  Working tree           INDEX → WORKING · {} hunks",
-        changes.len()
-    )?;
-    if !unresolved_applications.is_empty() {
-        writeln!(
-            output,
-            "  Excluded               {} unresolved application hunks · remain unstaged · inspect with `rey env status --format json`",
-            unresolved_applications.len()
-        )?;
-    }
-    writeln!(
-        output,
-        "  Selection              y stage · n skip · q quit · a all · d done · ? help"
-    )?;
     for (position, change) in changes.iter().enumerate() {
         if stage_all {
             selected.insert(change.key.clone());
             continue;
         }
-        writeln!(output)?;
+        if position > 0 {
+            writeln!(output)?;
+        }
         writeln!(
             output,
             "Hunk {}/{}",
