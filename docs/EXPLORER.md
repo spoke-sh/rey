@@ -302,9 +302,26 @@ The canvas also exposes its exact scene snapshot, focus, source revisions, and
 compiler revisions for browser qualification without making those attributes a
 second scene store.
 The immutable render graph records pass availability. A separate transient
-projection applies contour/water/weather/probe view controls and feeds the same
-active pass identities to reference markup and accelerated diagnostics; view
-controls do not revise semantic scene or graph identity.
+projection feeds the same available contour/water/weather/probe pass identities
+to reference markup and accelerated diagnostics; the application exposes no
+per-layer controls and does not revise semantic scene or graph identity.
+
+The canvas footer is a transient map-status surface with the same background as
+the canvas header, separate from the global mailbox and conversation footer. It
+centers interaction guidance on first load, slides closed on the first wheel,
+keyboard, pointer, selection, fit, or fullscreen interaction, and remains quiet
+afterward unless exact map state changes. The zoom and geographic-coordinate
+diagnostics sit above that surface while it is visible and settle to the lower
+canvas edge when it closes. The coordinate row names latitude and longitude
+only when a coordinate binding exists: World reports the presentation globe
+view, Atlas reports the synthetic semantic-Mercator inverse, and
+footprint-bound County lenses report the native CRS84 inverse. An unbound local
+scene reports unavailable latitude/longitude; it does not relabel County-local
+X/Y as geographic position. Semantic lens transitions, focus selection, bound
+source-revision changes, delayed last-good scene revalidation, and renderer
+degradation may publish bounded auto-expiring notices. Ordinary renderer
+readiness and camera motion do not publish activity. Reduced-motion clients
+receive the same state changes without a perceptible transition.
 [Plan 0003](../plans/0003-scene-to-explorer.md) owns the remaining
 direct-browser transport voyage. Projection extraction, pass implementation,
 both native backend-loss paths, retained visual voyages, rendered parity,
@@ -516,8 +533,9 @@ before Rey may render semantic distance as observed terrain.
 
 The canvas supports pointer-centered wheel zoom, discrete semantic zoom
 controls, drag-to-pan, keyboard `+`, `-`, and `0`, selection-driven traversal,
-Relief/Water/Weather/Probes visibility controls, and a native full-screen mode. A
-control step cannot skip a semantic regime. Selecting a World POI advances to
+and a native full-screen mode. Available typed render passes remain active
+without per-layer controls. A control step cannot skip a semantic regime.
+Selecting a World POI advances to
 Atlas, then through Landscape, Neighborhood, Object, and Evidence while
 centering that same POI. Level boundaries retain
 hysteresis so small wheel reversals do not flicker between grammars. The
@@ -571,9 +589,11 @@ scrollable documents.
   survey workload, admit a patch, or silently broaden authority.
 - Every projection is bounded. Patch-backed terrain renders at most 64 anchor
   POIs, six frontier POIs, and 96 natural features per admitted
-  patch, plus four detail cards around an inspected POI, and reports folded
-  rows and admitted patch omissions in the canvas footer. Legacy portfolio neighborhoods remain bounded to eight
-  workload/request and eight attention objects.
+  patch, plus four detail cards around an inspected POI. Folded rows and
+  admitted patch omissions remain available through exact map reading and
+  evidence surfaces; they are not copied into the transient canvas footer.
+  Legacy portfolio neighborhoods remain bounded to eight workload/request and
+  eight attention objects.
 - Object views disclose folded evidence and dependency references rather than
   pretending one displayed reference is complete.
 - The selected focus remains a typed coordinate. It cannot grant access,

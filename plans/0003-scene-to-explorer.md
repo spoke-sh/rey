@@ -239,13 +239,20 @@ execution timing.
 - [x] Preserve the visible reference renderer through initialization failure,
   WebGL context loss, and asynchronous WebGPU device loss; retain real-backend
   loss captures with the named qualification voyages.
-- [x] Keep base terrain independently active while contour, water, weather,
-  and probe overlays are toggled; label the former relief control by its actual
-  contour scope.
+- [x] Keep base terrain independently active while available contour, water,
+  weather, and probe overlays remain visible without per-layer controls.
 - [x] Compose LOD-aware terrain, contours, hydrology, validity boundaries,
   features, labels, collision/culling, selection, and accessibility while
   keeping the base landform independently legible; derive transient active
-  passes from view controls without changing the immutable graph identity.
+  passes from admitted availability without changing the immutable graph
+  identity.
+- [x] Center an onboarding canvas-footer notice on the same background as the
+  canvas header, slide it closed after first interaction, and resurface bounded
+  auto-expiring notices only for exact lens, focus, source-revision, last-good
+  revalidation, or renderer-degradation changes. Keep zoom and
+  authority-qualified latitude/longitude diagnostics above the visible notice
+  and at the lower canvas edge while it is quiet; never relabel unbound local
+  X/Y as geographic position.
 
 ### 6. Qualify the complete voyage
 

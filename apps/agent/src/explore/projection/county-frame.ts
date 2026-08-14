@@ -193,6 +193,22 @@ export function nativePositionToCountyLocal(
   };
 }
 
+export function countyLocalToNativePosition(
+  frame: CountyFrame,
+  point: CountyLocalPoint,
+): readonly [number, number] {
+  if (
+    !Number.isFinite(point.east) ||
+    !Number.isFinite(point.north) ||
+    !Number.isFinite(point.up)
+  )
+    throw new Error("County-local inverse requires finite coordinates");
+  return Object.freeze([
+    wrapLongitude(frame.source_origin[0] + point.east),
+    frame.source_origin[1] + point.north,
+  ]);
+}
+
 export function projectCountyFootprint(
   frame: CountyFrame,
   footprint: CountyFootprint,
@@ -314,6 +330,13 @@ function longitudeOffset(origin: number, longitude: number) {
   if (offset > 180_000_000) offset -= 360_000_000;
   if (offset < -180_000_000) offset += 360_000_000;
   return offset;
+}
+
+function wrapLongitude(longitude: number) {
+  let wrapped = longitude;
+  while (wrapped > 180_000_000) wrapped -= 360_000_000;
+  while (wrapped < -180_000_000) wrapped += 360_000_000;
+  return wrapped;
 }
 
 function samePosition(

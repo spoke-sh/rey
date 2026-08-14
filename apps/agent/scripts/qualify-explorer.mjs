@@ -492,6 +492,10 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     const shell = document.querySelector("[data-scene-snapshot]");
     const projection = document.querySelector("[data-lens-regime]");
     const diagnostics = document.querySelector("[data-renderer-diagnostics]");
+    const geographicCoordinate = diagnostics?.querySelector("[data-coordinate-authority]");
+    const footer = document.querySelector("[data-explorer-footer]");
+    const diagnosticsBounds = diagnostics?.getBoundingClientRect();
+    const footerBounds = footer?.getBoundingClientRect();
     const exactEvidence = [...document.querySelectorAll("[data-object-evidence]")].map((element) => ({
       href: element.getAttribute("href"),
       identity: element.getAttribute("data-semantic-identity"),
@@ -512,6 +516,15 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
         .filter((attribute) => attribute.name.startsWith("data-renderer-"))
         .map((attribute) => [attribute.name.slice("data-renderer-".length).replaceAll("-", "_"), attribute.value])) : null,
       renderer_diagnostics_text: diagnostics?.textContent?.replace(/\s+/g, " ").trim() ?? null,
+      geographic_coordinate: geographicCoordinate ? {
+        authority: geographicCoordinate.getAttribute("data-coordinate-authority"),
+        text: geographicCoordinate.textContent?.replace(/\s+/g, " ").trim() ?? null,
+      } : null,
+      communication_layout: {
+        diagnostics_bottom_gap_px: diagnosticsBounds ? innerHeight - diagnosticsBounds.bottom : null,
+        footer_height_px: footerBounds?.height ?? null,
+        footer_visible: footer?.getAttribute("data-visible") === "true",
+      },
       scene_compilation_ms: Number(shell?.getAttribute("data-scene-compilation-ms") ?? "NaN"),
       scene_snapshot_id: shell?.getAttribute("data-scene-snapshot") ?? null,
       source_revisions: shell?.getAttribute("data-scene-sources")?.split(",").filter(Boolean) ?? [],
@@ -704,6 +717,9 @@ async function runVoyage(options) {
   const interactions = [];
   let passiveRevalidationBaseline = null;
   let passiveRevalidationObserved = null;
+  let onboardingNoticeObserved = false;
+  let firstInteractionDismissalObserved = false;
+  let mapNoticeObserved = false;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
@@ -733,6 +749,25 @@ async function runVoyage(options) {
       "initial Explorer projection",
       options.timeoutMs,
     );
+    onboardingNoticeObserved = await connection.evaluate(`(() => {
+      const footer = document.querySelector('[data-explorer-footer]');
+      const header = document.querySelector('[data-explorer-canvas-header]');
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      const style = footer ? getComputedStyle(footer) : null;
+      const headerStyle = header ? getComputedStyle(header) : null;
+      const footerBounds = footer?.getBoundingClientRect();
+      const diagnosticsBounds = diagnostics?.getBoundingClientRect();
+      return footer?.dataset.visible === "true" &&
+        footer?.dataset.noticeTone === "guide" &&
+        footer?.textContent?.includes("WHEEL / + − TO CHANGE LENS · DRAG TO ORBIT · SELECT TO TRAVERSE") === true &&
+        style?.justifyContent === "center" &&
+        style?.backgroundColor !== "rgba(0, 0, 0, 0)" &&
+        style?.backgroundColor === headerStyle?.backgroundColor &&
+        diagnosticsBounds && footerBounds && diagnosticsBounds.bottom <= footerBounds.top + 1 &&
+        style?.transitionProperty.includes("transform") === true;
+    })()`);
+    if (!onboardingNoticeObserved)
+      throw new Error("the centered Explorer onboarding notice is unavailable");
     if (!(await connection.evaluate(regimeExpression("world")))) {
       await dispatchClick(
         connection,
@@ -836,6 +871,14 @@ async function runVoyage(options) {
       );
     });
     process.stdout.write("READY atlas\n");
+    firstInteractionDismissalObserved = await connection.evaluate(`(() => {
+      const footer = document.querySelector('[data-explorer-footer]');
+      return footer?.textContent?.includes("WHEEL / + − TO CHANGE LENS") === false;
+    })()`);
+    if (!firstInteractionDismissalObserved)
+      throw new Error(
+        "the Explorer onboarding notice survived map interaction",
+      );
     captures.push(
       await captureStage(connection, voyageDirectory, "atlas", startedAt),
     );
@@ -855,6 +898,14 @@ async function runVoyage(options) {
       );
     });
     process.stdout.write("READY landscape\n");
+    mapNoticeObserved = await connection.evaluate(`(() => {
+      const footer = document.querySelector('[data-explorer-footer]');
+      return footer?.dataset.visible === "true" &&
+        footer?.dataset.noticeTone === "update" &&
+        footer?.textContent?.includes("FOCUS /") === true;
+    })()`);
+    if (!mapNoticeObserved)
+      throw new Error("the Explorer focus notice did not resurface");
     captures.push(
       await captureStage(connection, voyageDirectory, "landscape", startedAt),
     );
@@ -1012,6 +1063,33 @@ async function runVoyage(options) {
   const sceneIdentityRetained =
     captures.length > 0 &&
     new Set(captures.map((capture) => capture.scene_snapshot_id)).size === 5;
+  const geographicCoordinatesPresent = captures.every(
+    (capture) =>
+      capture.geographic_coordinate?.authority &&
+      /^LAT -?\d+\.\d{4}° \/ LON -?\d+\.\d{4}°$/.test(
+        capture.geographic_coordinate.text ?? "",
+      ),
+  );
+  const nativeCountyCoordinatesPresent = captures
+    .filter((capture) =>
+      ["landscape", "objects", "evidence"].includes(capture.stage),
+    )
+    .every(
+      (capture) => capture.geographic_coordinate?.authority === "native_crs84",
+    );
+  const hiddenWorldLayout = captures.find(
+    (capture) => capture.stage === "world",
+  )?.communication_layout;
+  const visibleLandscapeLayout = captures.find(
+    (capture) => capture.stage === "landscape",
+  )?.communication_layout;
+  const diagnosticsFollowFooter =
+    hiddenWorldLayout?.footer_visible === false &&
+    visibleLandscapeLayout?.footer_visible === true &&
+    Number.isFinite(hiddenWorldLayout.diagnostics_bottom_gap_px) &&
+    Number.isFinite(visibleLandscapeLayout.diagnostics_bottom_gap_px) &&
+    visibleLandscapeLayout.diagnostics_bottom_gap_px >
+      hiddenWorldLayout.diagnostics_bottom_gap_px + 24;
   const expectedLossConsoleEntries = consoleEntries.filter((entry) =>
     expectedLossConsoleEntry(entry, options.loss),
   );
@@ -1024,6 +1102,12 @@ async function runVoyage(options) {
     expectedStagesPresent &&
     backendMatched &&
     exactEvidencePresent &&
+    geographicCoordinatesPresent &&
+    nativeCountyCoordinatesPresent &&
+    diagnosticsFollowFooter &&
+    onboardingNoticeObserved &&
+    firstInteractionDismissalObserved &&
+    mapNoticeObserved &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
     exceptions.length === 0 &&
@@ -1097,10 +1181,16 @@ async function runVoyage(options) {
       backend_matched: backendMatched,
       exact_evidence_present: exactEvidencePresent,
       expected_stages_present: expectedStagesPresent,
+      diagnostics_follow_footer: diagnosticsFollowFooter,
+      first_interaction_dismissal_observed: firstInteractionDismissalObserved,
       expected_loss_console_entries: expectedLossConsoleEntries.length,
       loss_fallback_observed: lossFallbackObserved,
+      map_notice_observed: mapNoticeObserved,
+      geographic_coordinates_present: geographicCoordinatesPresent,
+      native_county_coordinates_present: nativeCountyCoordinatesPresent,
       no_browser_exceptions: exceptions.length === 0,
       no_unexpected_console_errors: unexpectedConsoleErrors.length === 0,
+      onboarding_notice_observed: onboardingNoticeObserved,
       passive_revalidation_observed: passiveRevalidationObserved,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },

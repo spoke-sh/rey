@@ -3,6 +3,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type CSSProperties,
@@ -42,6 +43,12 @@ import { LastGoodSceneCompiler } from "./explore/engine/scene";
 import { admittedTopographies } from "./explore/projection/topography-projector";
 import { admittedRegionalScenes } from "./explore/projection/regional-scene-projector";
 import {
+  countyFrameView,
+  countyLocalToNativePosition,
+  invertCountyScreen,
+} from "./explore/projection/county-frame";
+import { invertSemanticMercator } from "./explore/projection/semantic-mercator";
+import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
   type AcceleratedTerrainReport,
@@ -73,6 +80,71 @@ const visibleReferenceLayers: ReferenceLayerVisibility = {
   weather: true,
   probes: true,
 };
+const EXPLORER_NOTICE_DURATION_MS = 4_800;
+const EXPLORER_ATTENTION_DURATION_MS = 7_200;
+
+export type ExplorerFooterNoticeTone = "guide" | "update" | "attention";
+
+export interface ExplorerFooterNotice {
+  id: string;
+  message: string;
+  tone: ExplorerFooterNoticeTone;
+  auto_hide_ms: number | null;
+}
+
+export interface ExplorerFooterState {
+  has_interacted: boolean;
+  next_notice_sequence: number;
+  notice: ExplorerFooterNotice | null;
+}
+
+export type ExplorerFooterAction =
+  | { type: "interact" }
+  | {
+      type: "publish";
+      message: string;
+      tone: Exclude<ExplorerFooterNoticeTone, "guide">;
+      auto_hide_ms: number;
+    }
+  | { type: "expire"; notice_id: string };
+
+export function initialExplorerFooterState(): ExplorerFooterState {
+  return {
+    has_interacted: false,
+    next_notice_sequence: 1,
+    notice: {
+      id: "explorer-notice:onboarding",
+      message:
+        "WHEEL / + − TO CHANGE LENS · DRAG TO ORBIT · SELECT TO TRAVERSE",
+      tone: "guide",
+      auto_hide_ms: null,
+    },
+  };
+}
+
+export function explorerFooterReducer(
+  state: ExplorerFooterState,
+  action: ExplorerFooterAction,
+): ExplorerFooterState {
+  if (action.type === "interact") {
+    if (state.has_interacted && state.notice === null) return state;
+    return { ...state, has_interacted: true, notice: null };
+  }
+  if (action.type === "publish") {
+    return {
+      has_interacted: state.has_interacted,
+      next_notice_sequence: state.next_notice_sequence + 1,
+      notice: {
+        id: `explorer-notice:${state.next_notice_sequence}`,
+        message: action.message,
+        tone: action.tone,
+        auto_hide_ms: action.auto_hide_ms,
+      },
+    };
+  }
+  if (state.notice?.id !== action.notice_id) return state;
+  return { ...state, notice: null };
+}
 
 export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
   return (
@@ -126,6 +198,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [terrainRenderer, setTerrainRenderer] =
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
+  const [footerState, dispatchFooter] = useReducer(
+    explorerFooterReducer,
+    undefined,
+    initialExplorerFooterState,
+  );
+  const suppressNextRegimeNoticeRef = useRef(false);
   const layers = visibleReferenceLayers;
   const [sceneCompiler] = useState(() => new LastGoodSceneCompiler());
   const retainedRegime = useRef<LensRegime | undefined>(undefined);
@@ -174,6 +252,35 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     weather: layers.weather,
     probes: layers.probes,
   };
+  const geographicCoordinate = explorerGeographicCoordinate(
+    scene,
+    pan,
+    renderedScale,
+    globeView,
+  );
+  const sourceRevisionKey = snapshot.source_revisions.join(",");
+  const previousNoticeRegimeRef = useRef(regime);
+  const previousSourceRevisionKeyRef = useRef(sourceRevisionKey);
+  const previousRevalidationNoticeRef = useRef("");
+  const previousRendererNoticeRef = useRef("");
+
+  const publishFooterNotice = (
+    message: string,
+    tone: Exclude<ExplorerFooterNoticeTone, "guide"> = "update",
+    autoHideMs = EXPLORER_NOTICE_DURATION_MS,
+  ) =>
+    dispatchFooter({
+      type: "publish",
+      message,
+      tone,
+      auto_hide_ms: autoHideMs,
+    });
+
+  const acknowledgeMapInteraction = () => {
+    const firstInteraction = !footerState.has_interacted;
+    dispatchFooter({ type: "interact" });
+    return firstInteraction;
+  };
 
   useEffect(() => {
     if (!coordinate) return;
@@ -181,6 +288,74 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     setZoom(coordinate.view.scale);
     setPan(zeroPoint);
   }, [coordinate?.focus_id, coordinate?.status, coordinate?.view.scale]);
+
+  useEffect(() => {
+    const notice = footerState.notice;
+    if (!notice || notice.auto_hide_ms === null) return;
+    const timeout = window.setTimeout(
+      () => dispatchFooter({ type: "expire", notice_id: notice.id }),
+      notice.auto_hide_ms,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [footerState.notice?.auto_hide_ms, footerState.notice?.id]);
+
+  useEffect(() => {
+    const previousRegime = previousNoticeRegimeRef.current;
+    previousNoticeRegimeRef.current = regime;
+    if (previousRegime === regime) return;
+    if (suppressNextRegimeNoticeRef.current) {
+      suppressNextRegimeNoticeRef.current = false;
+      return;
+    }
+    if (!footerState.has_interacted) return;
+    publishFooterNotice(`LENS / ${lensLabel(regime)} · ${scene.label}`);
+  }, [footerState.has_interacted, regime, scene.label]);
+
+  useEffect(() => {
+    const previousKey = previousSourceRevisionKeyRef.current;
+    previousSourceRevisionKeyRef.current = sourceRevisionKey;
+    if (previousKey === sourceRevisionKey || !footerState.has_interacted)
+      return;
+    const sourceCount = snapshot.source_revisions.length;
+    publishFooterNotice(
+      `MAP UPDATED / ${sourceCount} BOUND SOURCE REVISION${sourceCount === 1 ? "" : "S"}`,
+    );
+  }, [footerState.has_interacted, sourceRevisionKey]);
+
+  useEffect(() => {
+    const revalidationKey = sceneProjection.retained_last_good
+      ? (sceneProjection.error?.message ?? "last-good scene retained")
+      : "";
+    const previousKey = previousRevalidationNoticeRef.current;
+    previousRevalidationNoticeRef.current = revalidationKey;
+    if (!revalidationKey || previousKey === revalidationKey) return;
+    publishFooterNotice(
+      "SCENE REVALIDATION DELAYED · LAST-GOOD MAP RETAINED",
+      "attention",
+      EXPLORER_ATTENTION_DURATION_MS,
+    );
+  }, [sceneProjection.error?.message, sceneProjection.retained_last_good]);
+
+  useEffect(() => {
+    const status = terrainRenderer.status;
+    const needsAttention = status.degraded || status.lifecycle === "failed";
+    const rendererKey = needsAttention
+      ? `${status.lifecycle}:${status.backend}:${status.detail}`
+      : "";
+    const previousKey = previousRendererNoticeRef.current;
+    previousRendererNoticeRef.current = rendererKey;
+    if (!rendererKey || previousKey === rendererKey) return;
+    publishFooterNotice(
+      `RENDERER DEGRADED / ${status.backend?.toUpperCase() ?? "REFERENCE"} · ${status.detail}`,
+      "attention",
+      EXPLORER_ATTENTION_DURATION_MS,
+    );
+  }, [
+    terrainRenderer.status.backend,
+    terrainRenderer.status.degraded,
+    terrainRenderer.status.detail,
+    terrainRenderer.status.lifecycle,
+  ]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -206,8 +381,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   }, []);
 
   const setZoomAt = (nextZoom: number, client?: Point) => {
+    const firstInteraction = acknowledgeMapInteraction();
     const boundedZoom = clampLensZoom(nextZoom);
     if (boundedZoom === zoom) return;
+    const nextRegime = lensRegimeForZoom(boundedZoom, regime);
+    if (firstInteraction && nextRegime !== regime)
+      suppressNextRegimeNoticeRef.current = true;
     const viewport = viewportRef.current;
     if (client && viewport) {
       const rect = viewport.getBoundingClientRect();
@@ -222,6 +401,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
 
   const focusNode = (node: FocusableTopologyObject) => {
     if (dragRef.current?.distance && dragRef.current.distance > 4) return;
+    const firstInteraction = acknowledgeMapInteraction();
+    if (!firstInteraction)
+      publishFooterNotice(`FOCUS / ${focusNoticeLabel(scene, node.focus_id)}`);
     if (node.focus_id.startsWith("beacon:")) {
       setFocusId(node.focus_id);
       return;
@@ -232,6 +414,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     else if (scene.regime === "landscape") nextZoom = NEIGHBORHOOD_LENS_ZOOM;
     else if (scene.regime === "neighborhoods") nextZoom = OBJECT_LENS_ZOOM;
     else if (scene.regime === "objects") nextZoom = EVIDENCE_LENS_ZOOM;
+    if (lensRegimeForZoom(nextZoom, regime) !== regime)
+      suppressNextRegimeNoticeRef.current = true;
     setFocusId(node.focus_id);
     if (scene.terrain) {
       const nextScale = fitScale * (nextZoom / DEFAULT_LENS_ZOOM);
@@ -255,6 +439,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       (target instanceof Element && target.closest("button, a"))
     )
       return;
+    acknowledgeMapInteraction();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       pointerId: event.pointerId,
@@ -295,17 +480,21 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   };
 
   const resetView = () => {
-    setZoom(
+    acknowledgeMapInteraction();
+    const nextZoom =
       scene.globe?.posture === "orientation"
         ? WORLD_LENS_ZOOM
-        : DEFAULT_LENS_ZOOM,
-    );
+        : DEFAULT_LENS_ZOOM;
+    if (lensRegimeForZoom(nextZoom, regime) !== regime)
+      suppressNextRegimeNoticeRef.current = true;
+    setZoom(nextZoom);
     setPan(zeroPoint);
     setGlobeView(DEFAULT_GLOBE_VIEW);
     setFocusId("cluster:portfolio");
   };
 
   const toggleFullscreen = async () => {
+    acknowledgeMapInteraction();
     const shell = shellRef.current;
     if (!shell) return;
     if (document.fullscreenElement === shell) await document.exitFullscreen();
@@ -444,6 +633,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             styles.canvasCoordinates,
             scene.globe?.posture === "orientation" &&
               styles.orientationCoordinates,
+            footerState.notice && styles.canvasCoordinatesFooterVisible,
           )}
           data-renderer-backend={terrainRenderer.status.backend}
           data-renderer-degraded={String(terrainRenderer.status.degraded)}
@@ -468,10 +658,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           aria-hidden="true"
         >
           <span>ZOOM {Math.round(zoom * 100)}%</span>
-          <span>
-            {scene.globe
-              ? `LON ${Math.round(globeView.yaw_degrees)}° / LAT ${Math.round(globeView.pitch_degrees)}°`
-              : `X ${Math.round(pan.x)} / Y ${Math.round(pan.y)}`}
+          <span data-coordinate-authority={geographicCoordinate?.authority}>
+            {formatGeographicCoordinate(geographicCoordinate)}
           </span>
           {scene.terrain || scene.globe ? (
             <span data-renderer-backend={terrainRenderer.status.backend}>
@@ -564,31 +752,129 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         </div>
         <ReferenceMapReading scene={scene} />
       </div>
-      <CanvasFooter coordinate={coordinate} scene={scene} />
+      <CanvasFooter
+        coordinate={coordinate}
+        notice={footerState.notice}
+        scene={scene}
+      />
     </section>
   );
 }
 
+function focusNoticeLabel(scene: TopologyScene, focusId: string): string {
+  const object =
+    scene.points.find(({ focus_id }) => focus_id === focusId) ??
+    scene.nodes.find(({ focus_id }) => focus_id === focusId) ??
+    scene.globe?.regions.find(({ focus_id }) => focus_id === focusId) ??
+    scene.globe?.beacons.find(({ focus_id }) => focus_id === focusId);
+  return object?.label ?? focusId;
+}
+
+export interface ExplorerGeographicCoordinate {
+  latitude_degrees: number;
+  longitude_degrees: number;
+  authority: "globe_view" | "semantic_mercator" | "native_crs84";
+}
+
+export function explorerGeographicCoordinate(
+  scene: TopologyScene,
+  pan: Point,
+  renderedScale: number,
+  globeView: GlobeCameraView,
+): ExplorerGeographicCoordinate | null {
+  if (scene.globe) {
+    return {
+      latitude_degrees: globeView.pitch_degrees,
+      longitude_degrees: normalizeLongitudeDegrees(globeView.yaw_degrees),
+      authority: "globe_view",
+    };
+  }
+  if (!Number.isFinite(renderedScale) || renderedScale <= 0) return null;
+  const cameraCenter = {
+    x: scene.world.width / 2 - pan.x / renderedScale,
+    y: scene.world.height / 2 - pan.y / renderedScale,
+  };
+  if (scene.county_frame) {
+    const local = invertCountyScreen(
+      scene.county_frame,
+      cameraCenter,
+      countyFrameView(scene.county_frame, scene.world),
+    );
+    const native = countyLocalToNativePosition(scene.county_frame, local);
+    return {
+      latitude_degrees: native[1] / 1_000_000,
+      longitude_degrees: native[0] / 1_000_000,
+      authority: "native_crs84",
+    };
+  }
+  if (scene.regime === "atlas") {
+    const semantic = invertSemanticMercator(cameraCenter, {
+      x: 0,
+      y: 0,
+      width: scene.world.width,
+      height: scene.world.height,
+    }).coordinate;
+    return {
+      latitude_degrees: semantic.latitude_microdegrees / 1_000_000,
+      longitude_degrees: semantic.longitude_microdegrees / 1_000_000,
+      authority: "semantic_mercator",
+    };
+  }
+  return null;
+}
+
+function formatGeographicCoordinate(
+  coordinate: ExplorerGeographicCoordinate | null,
+): string {
+  if (!coordinate) return "LAT — / LON —";
+  return `LAT ${coordinate.latitude_degrees.toFixed(4)}° / LON ${coordinate.longitude_degrees.toFixed(4)}°`;
+}
+
+function normalizeLongitudeDegrees(longitude: number): number {
+  let normalized = longitude;
+  while (normalized > 180) normalized -= 360;
+  while (normalized < -180) normalized += 360;
+  return normalized;
+}
+
 export function CanvasFooter({
   coordinate,
+  notice,
   scene,
 }: {
   coordinate?: ExplorerViewResolution;
+  notice: ExplorerFooterNotice | null;
   scene: TopologyScene;
 }) {
   return (
     <footer
+      aria-atomic="true"
+      aria-live="polite"
       className={sx(
         styles.canvasFooter,
         scene.globe?.posture === "orientation" &&
           styles.orientationCanvasFooter,
+        notice && styles.canvasFooterVisible,
+        notice?.tone === "attention" && styles.canvasFooterAttention,
       )}
+      data-explorer-footer=""
+      data-notice-id={notice?.id}
+      data-notice-tone={notice?.tone ?? "quiet"}
+      data-visible={String(notice !== null)}
+      role="status"
     >
-      <span>
-        WHEEL / + − TO CHANGE LENS ·{" "}
-        {scene.globe ? "DRAG TO ORBIT" : "DRAG TO PAN"} · SELECT TO TRAVERSE
-      </span>
-      {coordinate ? (
+      {notice ? (
+        <span
+          className={sx(
+            styles.canvasFooterNotice,
+            coordinate && styles.canvasFooterNoticeWithCoordinate,
+          )}
+          key={notice.id}
+        >
+          {notice.message}
+        </span>
+      ) : null}
+      {notice && coordinate ? (
         <code className={sx(styles.coordinateUri)}>
           {explorerViewPath(coordinate.view)}
         </code>
@@ -621,6 +907,7 @@ export function CanvasToolbar({
         scene.globe?.posture === "orientation" &&
           styles.orientationCanvasToolbar,
       )}
+      data-explorer-canvas-header=""
     >
       <div className={sx(styles.lensReadout)}>
         <span className={sx(styles.micro)}>

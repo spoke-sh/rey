@@ -3,7 +3,9 @@ import type { AdmittedRegionalScene } from "../../domain";
 import {
   compileCountyFootprint,
   compileCountyFrame,
+  countyLocalToNativePosition,
   invertCountyScreen,
+  nativePositionToCountyLocal,
   nativeBoundsToCountyLocal,
   projectCountyFootprint,
   projectCountyLocal,
@@ -106,6 +108,13 @@ describe("County-local frame", () => {
     expect(inverted.north).toBeCloseTo(local.north);
     expect(inverted.up).toBe(0);
     expect(frame.authority).toContain("do not reconstruct source footprint");
+    const native = [-122_200_000, 37_800_000] as const;
+    expect(
+      countyLocalToNativePosition(
+        frame,
+        nativePositionToCountyLocal(frame, native),
+      ),
+    ).toEqual(native);
   });
 
   it("rejects a tangent origin not bound to the scene envelope", () => {
