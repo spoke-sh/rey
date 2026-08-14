@@ -683,8 +683,8 @@ author paths, and separate execution boundary.
 
 `/feed` does not replace Cadence or portfolio attention. Its independently
 scrollable streams are bounded lenses over one Firehose: Signals carries rich
-posts and source bounds, Admission carries verified retained workload commits,
-and Flow carries admitted workload progress. WORKING/INDEX candidates,
+posts, Admission carries verified retained workload commits, and Flow carries
+admitted workload progress. WORKING/INDEX candidates,
 attention, qualification, drafts, repository posture, and approval controls do
 not become Admission posts. The default three lanes can be tuned, reordered,
 removed, or repeated, and the Firehose rail can add up to eight lanes. Signal
@@ -702,8 +702,10 @@ time. Equal-time Observations use descending local sequence. This is not causal
 order, unread state, or a durable global event log. Admission is commit-backed
 and inspect-only; it cannot admit a candidate or move a post into Flow. Exact
 candidate review and approval live on `/workloads/{workload-id}`.
-The first slice renders at most 64 recent Signals and reports older folded
-records. [Interfaces](INTERFACES.md) owns the exact Feed and HTTP boundary.
+The first slice renders at most 64 recent Signals. Source completeness, limits,
+and omissions remain in the typed APIs and dedicated evidence surfaces instead
+of appearing as a synthetic Signal card. [Interfaces](INTERFACES.md) owns the
+exact Feed and HTTP boundary.
 
 `GET /api/v1/cadence` returns `rey.ui-cadence.v1`. Its leading repository-state
 plane separates working-tree attention from the exact local-upstream push

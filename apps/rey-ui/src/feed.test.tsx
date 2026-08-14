@@ -393,7 +393,8 @@ describe("high-cadence operator feed", () => {
     expect(markup).not.toContain("REY / CURRENT PROJECTION");
     expect(markup).not.toContain("WORKING FILES");
     expect(markup).toContain("LOCAL CONFORMANCE");
-    expect(markup).toContain("Display order is not causal order");
+    expect(markup).not.toContain("REY / SOURCE BOUNDARY");
+    expect(markup).not.toContain("Display order is not causal order");
     expect(markup).toContain("ORDER ONLY");
     expect(markup.match(/>TUNE</g)).toHaveLength(3);
     expect(markup).toContain("FIREHOSE");

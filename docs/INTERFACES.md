@@ -1252,7 +1252,8 @@ does not claim live execution telemetry. Signal wall time, including exact
 Observation admission time, is display ordering only. Newest records render at
 the top, equal-time Observations use descending local sequence, and order-only
 records follow the timestamped window. The recent Signals window renders at
-most 64 records and reports older folded source records;
+most 64 records without injecting a synthetic source-boundary post; exact
+source completeness, limits, and omissions remain in the typed endpoints.
 Admission renders at most 64 newest commits and reports older folded commits.
 Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,

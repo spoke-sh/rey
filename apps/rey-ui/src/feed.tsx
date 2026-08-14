@@ -607,16 +607,6 @@ export function FeedPage({
     null,
   );
   const [layoutWriteError, setLayoutWriteError] = useState<Error | null>(null);
-  const sourceEventCount =
-    sources.journal.log.entries.length +
-    sources.observations.rows.length +
-    sources.cadence.lanes.reduce((count, lane) => count + lane.ticks.length, 0);
-  const foldedEvents = Math.max(0, sourceEventCount - events.length);
-  const omissions = boundedOmissions(
-    sources.cadence,
-    sources.observations,
-    foldedEvents,
-  );
 
   useEffect(() => {
     setStreams(resolvedLayout.streams.map((stream) => ({ ...stream })));
@@ -779,7 +769,6 @@ export function FeedPage({
             index={index}
             key={stream.id}
             movementDisabled={writingLayout}
-            omissions={omissions}
             onDragEnd={() => setDraggingStreamId(null)}
             onDragStart={() => setDraggingStreamId(stream.id)}
             onDrop={(sourceId, targetId) => {
@@ -1153,7 +1142,6 @@ function FeedStream({
   events,
   index,
   movementDisabled,
-  omissions,
   onDragEnd,
   onDragStart,
   onDrop,
@@ -1171,7 +1159,6 @@ function FeedStream({
   events: FeedEvent[];
   index: number;
   movementDisabled: boolean;
-  omissions: string[];
   onDragEnd: () => void;
   onDragStart: () => void;
   onDrop: (sourceId: string, targetId: string) => void;
@@ -1249,15 +1236,6 @@ function FeedStream({
               <QuietPost
                 detail="No retained signal matches this stream lens."
                 title="THIS SIGNAL STREAM IS QUIET"
-              />
-            ) : null}
-            {stream.filter === "all" ? (
-              <SourceBoundaryPost
-                cadence={sources.cadence}
-                journal={sources.journal}
-                observations={sources.observations}
-                omissions={omissions}
-                portfolio={portfolio}
               />
             ) : null}
           </>
@@ -1522,67 +1500,6 @@ function FlowPost({
           INSPECT FLOW →
         </a>
       </footer>
-    </article>
-  );
-}
-
-function SourceBoundaryPost({
-  cadence,
-  journal,
-  observations,
-  omissions,
-  portfolio,
-}: {
-  cadence: CadenceProjection;
-  journal: JournalProjection;
-  observations: ObservationFrontier;
-  omissions: string[];
-  portfolio: WorkloadList;
-}) {
-  return (
-    <article className={sx(styles.post, styles.boundaryPost)} role="article">
-      <PostHeader
-        avatar={<Avatar label="∴" tone="boundary" />}
-        identity="REY / SOURCE BOUNDARY"
-        moment="CURRENT WINDOW"
-        state="PARTIAL ORDER"
-      />
-      <div className={sx(styles.postBody)}>
-        <h2 className={sx(styles.postTitle)}>
-          Display order is not causal order.
-        </h2>
-        <p className={sx(styles.postLead)}>
-          Wall-time posts appear newest first. Order-only posts retain their
-          source position and follow the timestamped window.
-        </p>
-        <div className={sx(styles.sourceRecords)}>
-          <SourceRecord
-            identity={shortDigest(portfolio.attention.attention_id)}
-            label="ATTENTION"
-            state={`${portfolio.attention.rows.length} ROWS`}
-          />
-          <SourceRecord
-            identity={shortDigest(journal.log.log_id)}
-            label="JOURNAL"
-            state={`${journal.log.entries.length} ENTRIES`}
-          />
-          <SourceRecord
-            identity={shortDigest(observations.frontier_id)}
-            label="OBSERVATIONS"
-            state={`${observations.rows.length} OPEN / ${observations.omitted} OMITTED`}
-          />
-          <SourceRecord
-            identity={cadence.ordering.toUpperCase()}
-            label="CADENCE"
-            state={`${cadence.lanes.length} CLOCKS`}
-          />
-        </div>
-        <ul className={sx(styles.omissions)}>
-          {omissions.map((omission) => (
-            <li key={omission}>{omission}</li>
-          ))}
-        </ul>
-      </div>
     </article>
   );
 }
@@ -1852,7 +1769,7 @@ function Avatar({
   tone,
 }: {
   label: string;
-  tone: "agent" | "boundary" | "environment" | "flow" | "git" | "human" | "rey";
+  tone: "agent" | "environment" | "flow" | "git" | "human" | "rey";
 }) {
   return (
     <span
@@ -1864,7 +1781,6 @@ function Avatar({
         tone === "git" && styles.avatarGit,
         tone === "environment" && styles.avatarEnvironment,
         tone === "flow" && styles.avatarFlow,
-        tone === "boundary" && styles.avatarBoundary,
       )}
     >
       {label}
@@ -2174,33 +2090,6 @@ function postAction(event: FeedEvent): string {
   if (event.kind === "journal") return "OPEN ENTRY";
   if (event.kind === "git") return "INSPECT CADENCE";
   return "OPEN ENVIRONMENT";
-}
-
-function boundedOmissions(
-  cadence: CadenceProjection,
-  observations: ObservationFrontier,
-  foldedEvents: number,
-): string[] {
-  return [
-    ...new Set([
-      ...cadence.omissions,
-      ...(cadence.repository_state?.omissions ?? []),
-      ...cadence.lanes.flatMap((lane) => lane.omissions),
-      "workload test and run results have no retained Feed clock",
-      "operator read and unread state is not retained",
-      "observation, Journal, Git, and environment source clocks have no proven total ordering",
-      ...(observations.complete
-        ? []
-        : [
-            `${observations.omitted} unresolved observations omitted by the ${observations.limit}-record frontier`,
-          ]),
-      ...(foldedEvents > 0
-        ? [
-            `${foldedEvents} older signals folded by the ${FEED_EVENT_LIMIT}-record Feed window`,
-          ]
-        : []),
-    ]),
-  ];
 }
 
 function formatMoment(value: string): string {

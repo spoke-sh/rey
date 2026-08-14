@@ -429,7 +429,6 @@ export const feedStyles = stylex.create({
     borderBottomWidth: 1,
     minWidth: 0,
   },
-  boundaryPost: { color: "var(--muted)" },
   postHeader: {
     alignItems: "center",
     display: "grid",
@@ -460,13 +459,6 @@ export const feedStyles = stylex.create({
   avatarGit: { backgroundColor: "#293d31" },
   avatarEnvironment: { backgroundColor: "#72592e" },
   avatarFlow: { backgroundColor: "#315c49" },
-  avatarBoundary: {
-    backgroundColor: "transparent",
-    borderColor: "var(--line)",
-    borderStyle: "solid",
-    borderWidth: 1,
-    color: "var(--muted)",
-  },
   postIdentity: { display: "grid", gap: 2, minWidth: 0 },
   stateChip: {
     backgroundColor: "var(--surface-strong)",
