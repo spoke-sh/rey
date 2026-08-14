@@ -645,7 +645,9 @@ resolution; this document owns World geometry and read-only probe navigation.
 
 - `/feed`: a TweetDeck-like workspace whose default rich Git/environment/
   Journal Signals, retained workload-commit Admission history, and admitted
-  workload Flow streams can be composed from the Firehose;
+  workload Flow streams can be composed from the Firehose; its compact
+  tweet-like rich-text modal admits an Observation directly rather than
+  opening Journal;
 - `/explore`: the context-topology canvas and default human entry;
 - `/explore?coordinate=...&scale=...`: an exact coordinate-bound camera view;
 - `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
@@ -694,11 +696,12 @@ rather than retained as new runtime state. Clicking a stream title edits it
 inline and autosaves on blur or Enter. Post evidence is collapsed by default
 and expands in place.
 
-Timestamped Signals use newest-first display order followed by source-ordered
-records with no wall time. This is not causal order, unread state, or a durable
-global event log. Admission is commit-backed and inspect-only; it cannot admit
-a candidate or move a post into Flow. Exact candidate review and approval live
-on `/workloads/{workload-id}`.
+Timestamped Signals, including retained Observation admission times, use
+newest-first display order followed by source-ordered records with no wall
+time. Equal-time Observations use descending local sequence. This is not causal
+order, unread state, or a durable global event log. Admission is commit-backed
+and inspect-only; it cannot admit a candidate or move a post into Flow. Exact
+candidate review and approval live on `/workloads/{workload-id}`.
 The first slice renders at most 64 recent Signals and reports older folded
 records. [Interfaces](INTERFACES.md) owns the exact Feed and HTTP boundary.
 

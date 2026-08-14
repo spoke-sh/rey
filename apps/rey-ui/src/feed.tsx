@@ -1,6 +1,7 @@
 import type { FeedSources } from "./api";
 import {
   useEffect,
+  useRef,
   useState,
   type DragEvent,
   type KeyboardEvent,
@@ -25,8 +26,10 @@ import {
 } from "./journal";
 import {
   observationPosition,
+  type ObservationBroadcast,
   type ObservationFrontier,
   type ObservationFrontierRow,
+  type ObservationWrite,
 } from "./observations";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { feedStyles as styles } from "./stylex/feed.stylex";
@@ -486,8 +489,10 @@ export function deriveFeedEvents(
       tick: null,
     });
   }
-  for (const row of observations.rows) {
+  for (const row of [...observations.rows].reverse()) {
     const observation = row.observation;
+    const admittedAt = new Date(observation.admitted_at_unix * 1_000);
+    const sortTime = admittedAt.getTime();
     events.push({
       id: `observation:${observation.observation_id}`,
       stream: "OBSERVATION",
@@ -497,8 +502,8 @@ export function deriveFeedEvents(
       state:
         `${observation.proposal.kind} · ${observation.proposal.completeness}`.toUpperCase(),
       revision: observation.observation_id,
-      occurredAt: null,
-      sortTime: null,
+      occurredAt: Number.isFinite(sortTime) ? admittedAt.toISOString() : null,
+      sortTime: Number.isFinite(sortTime) ? sortTime : null,
       sourceOrder: sourceOrder++,
       href: `/journal/new?observations=${encodeURIComponent(observation.observation_id)}`,
       kind: "observation",
@@ -558,6 +563,7 @@ export function FeedPage({
   onAdopted,
   onConfigurationChange,
   onLayoutWrite,
+  onObservationCreate,
   portfolio,
   sources,
 }: {
@@ -568,6 +574,9 @@ export function FeedPage({
   onLayoutWrite?: (
     streams: readonly ResolvedFeedStream[],
   ) => Promise<FeedLayoutWriteOutcome>;
+  onObservationCreate?: (
+    write: ObservationWrite,
+  ) => Promise<ObservationBroadcast>;
   portfolio: WorkloadList;
   sources: Pick<
     FeedSources,
@@ -592,6 +601,7 @@ export function FeedPage({
     filter: "all",
   });
   const [draggingStreamId, setDraggingStreamId] = useState<string | null>(null);
+  const [observationComposerOpen, setObservationComposerOpen] = useState(false);
   const [writingLayout, setWritingLayout] = useState(false);
   const [layoutResult, setLayoutResult] = useState<ChannelApplyResult | null>(
     null,
@@ -777,6 +787,11 @@ export function FeedPage({
               setDraggingStreamId(null);
             }}
             onMove={moveStream}
+            onComposeObservation={
+              onObservationCreate
+                ? () => setObservationComposerOpen(true)
+                : null
+            }
             onRename={renameStream}
             onTune={openFirehose}
             portfolio={portfolio}
@@ -819,6 +834,12 @@ export function FeedPage({
           />
         )}
       </div>
+      {observationComposerOpen && onObservationCreate ? (
+        <ObservationComposerModal
+          onClose={() => setObservationComposerOpen(false)}
+          onSubmit={onObservationCreate}
+        />
+      ) : null}
     </main>
   );
 }
@@ -912,6 +933,220 @@ function FeedLayoutFeedback({
   );
 }
 
+type ObservationFormat = "bold" | "italic" | "code" | "link" | "quote" | "list";
+
+export const FEED_OBSERVATION_CHARACTER_LIMIT = 500;
+
+export function applyObservationFormat(
+  body: string,
+  selectionStart: number,
+  selectionEnd: number,
+  format: ObservationFormat,
+): { body: string; selectionStart: number; selectionEnd: number } {
+  const start = Math.max(0, Math.min(selectionStart, body.length));
+  const end = Math.max(start, Math.min(selectionEnd, body.length));
+  const selected = body.slice(start, end);
+  if (format === "quote" || format === "list") {
+    const prefix = format === "quote" ? "> " : "- ";
+    const content =
+      selected || (format === "quote" ? "quoted text" : "list item");
+    const replacement = content
+      .split("\n")
+      .map((line) => `${prefix}${line}`)
+      .join("\n");
+    return {
+      body: body.slice(0, start) + replacement + body.slice(end),
+      selectionStart: start + prefix.length,
+      selectionEnd: start + replacement.length,
+    };
+  }
+  if (format === "link") {
+    const label = selected || "link text";
+    const replacement = `[${label}](https://)`;
+    return {
+      body: body.slice(0, start) + replacement + body.slice(end),
+      selectionStart: start + label.length + 3,
+      selectionEnd: start + replacement.length - 1,
+    };
+  }
+  const [prefix, suffix, placeholder] =
+    format === "bold"
+      ? ["**", "**", "bold text"]
+      : format === "italic"
+        ? ["_", "_", "italic text"]
+        : ["`", "`", "code"];
+  const content = selected || placeholder;
+  const replacement = `${prefix}${content}${suffix}`;
+  return {
+    body: body.slice(0, start) + replacement + body.slice(end),
+    selectionStart: start + prefix.length,
+    selectionEnd: start + prefix.length + content.length,
+  };
+}
+
+export function ObservationComposerModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (write: ObservationWrite) => Promise<ObservationBroadcast>;
+}) {
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const editor = useRef<HTMLTextAreaElement>(null);
+  const normalizedBody = body.trim();
+  const bodyCharacters = Array.from(normalizedBody).length;
+  const enabled =
+    normalizedBody.length > 0 &&
+    bodyCharacters <= FEED_OBSERVATION_CHARACTER_LIMIT &&
+    !submitting;
+
+  useEffect(() => {
+    editor.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !submitting) onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, submitting]);
+
+  const format = (command: ObservationFormat) => {
+    const start = editor.current?.selectionStart ?? body.length;
+    const end = editor.current?.selectionEnd ?? start;
+    const next = applyObservationFormat(body, start, end, command);
+    setBody(next.body);
+    setTimeout(() => {
+      editor.current?.focus();
+      editor.current?.setSelectionRange(next.selectionStart, next.selectionEnd);
+    }, 0);
+  };
+
+  const submit = async () => {
+    if (!enabled) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({
+        schema: "rey.ui-observation-write.v1",
+        kind: "finding",
+        body: normalizedBody,
+      });
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className={sx(styles.observationBackdrop)}
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target && !submitting) onClose();
+      }}
+      role="presentation"
+    >
+      <section
+        aria-labelledby="observation-composer-title"
+        aria-modal="true"
+        className={sx(styles.observationModal)}
+        role="dialog"
+      >
+        <header className={sx(styles.observationModalHeader)}>
+          <div className={sx(styles.observationAuthor)}>
+            <Avatar label="YOU" tone="human" />
+            <h2
+              className={sx(styles.observationModalTitle)}
+              id="observation-composer-title"
+            >
+              Create observation
+            </h2>
+          </div>
+          <button
+            aria-label="Close observation composer"
+            className={sx(styles.observationClose)}
+            disabled={submitting}
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+        <div className={sx(styles.observationEditor)}>
+          <div
+            className={sx(styles.observationToolbar)}
+            aria-label="Rich text formatting"
+          >
+            {(
+              [
+                ["bold", "B", "Bold"],
+                ["italic", "I", "Italic"],
+                ["code", "</>", "Inline code"],
+                ["link", "↗", "Link"],
+                ["quote", "❯", "Quote"],
+                ["list", "≡", "List"],
+              ] as const
+            ).map(([command, label, title]) => (
+              <button
+                aria-label={title}
+                className={sx(styles.observationFormat)}
+                disabled={submitting}
+                key={command}
+                onClick={() => format(command)}
+                title={title}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <textarea
+            aria-label="Observation rich text"
+            className={sx(styles.observationTextarea)}
+            disabled={submitting}
+            onChange={(event) => setBody(event.currentTarget.value)}
+            placeholder="What did you notice?"
+            ref={editor}
+            rows={8}
+            value={body}
+          />
+        </div>
+        <div className={sx(styles.observationBoundary)}>
+          <span
+            className={
+              bodyCharacters > FEED_OBSERVATION_CHARACTER_LIMIT
+                ? sx(styles.observationLimit)
+                : undefined
+            }
+          >
+            {bodyCharacters.toLocaleString()} /{" "}
+            {FEED_OBSERVATION_CHARACTER_LIMIT} CHARACTERS
+          </span>
+        </div>
+        {error ? (
+          <p className={sx(styles.observationError)} role="alert">
+            {error}
+          </p>
+        ) : null}
+        <footer className={sx(styles.observationModalFooter)}>
+          <button
+            className={sx(styles.observationSubmit)}
+            disabled={!enabled}
+            onClick={() => void submit()}
+            type="button"
+          >
+            {submitting ? "POSTING…" : "POST OBSERVATION"}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function FeedStream({
   admissions,
   dragging,
@@ -923,6 +1158,7 @@ function FeedStream({
   onDragStart,
   onDrop,
   onMove,
+  onComposeObservation,
   onRename,
   onTune,
   portfolio,
@@ -940,6 +1176,7 @@ function FeedStream({
   onDragStart: () => void;
   onDrop: (sourceId: string, targetId: string) => void;
   onMove: (streamId: string, offset: -1 | 1) => void;
+  onComposeObservation: (() => void) | null;
   onRename: (index: number, name: string) => void;
   onTune: (index: number) => void;
   portfolio: WorkloadList;
@@ -987,14 +1224,24 @@ function FeedStream({
       <div className={sx(styles.laneScroll)} role="feed">
         {stream.kind === "signals" ? (
           <>
-            <a className={sx(styles.composer)} href="/journal/new">
+            <button
+              aria-haspopup="dialog"
+              className={sx(styles.composer)}
+              disabled={!onComposeObservation}
+              onClick={onComposeObservation ?? undefined}
+              type="button"
+            >
               <Avatar label="YOU" tone="human" />
-              <div>
-                <strong>Share an observation…</strong>
-                <span>Write, query, map, frame, or diff.</span>
+              <div className={sx(styles.composerCopy)}>
+                <strong className={sx(styles.composerTitle)}>
+                  Share an observation
+                </strong>
+                <span className={sx(styles.composerDetail)}>
+                  What did you notice?
+                </span>
               </div>
-              <b>CREATE ↗</b>
-            </a>
+              <span className={sx(styles.composerCreate)}>CREATE</span>
+            </button>
             {filteredEvents.map((event) => (
               <FeedPost event={event} key={event.id} />
             ))}

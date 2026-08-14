@@ -18,7 +18,11 @@ import type {
   JournalProjection,
   JournalSeed,
 } from "./journal";
-import type { ObservationFrontier } from "./observations";
+import type {
+  ObservationBroadcast,
+  ObservationFrontier,
+  ObservationWrite,
+} from "./observations";
 import type {
   WorkloadDeltaEvidence,
   WorkloadEvidenceCatalog,
@@ -29,6 +33,7 @@ export interface UiServerIdentity {
   source_repository: string | null;
   implementation_revision: string;
   journal_write_enabled: boolean;
+  observation_write_enabled: boolean;
   workload_admission_enabled: boolean;
   channel_write_enabled: boolean;
   conversation_write_enabled: boolean;
@@ -323,6 +328,26 @@ export async function loadObservations(): Promise<ObservationFrontier> {
     );
   }
   return (await response.json()) as ObservationFrontier;
+}
+
+export async function writeObservation(
+  write: ObservationWrite,
+): Promise<ObservationBroadcast> {
+  const response = await fetch("/api/v1/observations", {
+    body: JSON.stringify(write),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Observation admission failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as ObservationBroadcast;
 }
 
 export async function loadJournal(): Promise<JournalProjection> {

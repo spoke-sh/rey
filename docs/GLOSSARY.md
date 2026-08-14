@@ -786,9 +786,12 @@ provided it does not observe mutable state or invoke a tool.
 The high-cadence human inspection plane at `/feed`. Its default independently
 scrolling, TweetDeck-like streams project rich Signals, retained workload
 Admission history, and observed workload Flow. The Firehose can compose up to
-eight URL-addressed stream lenses without creating another store. Feed owns no
-event store, read cursor, attention rows, admission authority, live telemetry,
-or causal order. WORKING and INDEX candidates never become Admission posts.
+eight URL-addressed stream lenses without creating another store. Its compact
+rich-text modal admits one partial self-asserted human Observation directly to
+the existing observation log; it never creates a Journal entry. Feed owns no
+event store, read cursor, attention rows, workload admission authority, live
+telemetry, or causal order. WORKING and INDEX candidates never become Admission
+posts.
 
 ### Feed stream
 

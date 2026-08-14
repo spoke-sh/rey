@@ -1086,7 +1086,10 @@ process. It serves the embedded TanStack Router application plus
 `GET|HEAD /api/v1/workloads/evidence`, exact
 `GET|HEAD /api/v1/workloads/{workload-id}/scenarios/{execution-id}`, and exact
 `GET|HEAD /api/v1/workloads/{workload-id}/deltas/{delta-id}`. Its explicit writes
-are `POST /api/v1/journal`, which accepts bounded human JSON proposals, and
+are `POST /api/v1/journal`, which accepts bounded human JSON proposals,
+`POST /api/v1/observations`, which admits one bounded partial self-asserted
+human Observation and broadcasts to the effective graph's default local
+Channels, and
 `POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
 file snapshot before committing it with expected HEAD/WORKING preconditions,
 plus `POST /api/v1/channels/working`, which validates a complete graph and
@@ -1231,19 +1234,30 @@ Signals renders rich observation, Git, environment, and Journal posts,
 including exact observation source/evidence/limit bindings, bounded Journal
 block previews, and exact Git lineage. Observation records remain order-only
 within their own `O@sequence` clock and expose no effect authority. Evidence
-bodies are collapsed by default and expand in place. Admission renders only
-the bounded verified local workload commit log. Each post retains its commit,
+bodies are collapsed by default and expand in place. The clean compact
+`Share an observation` button opens a modal Markdown editor with formatting
+controls and a 500-character limit. Posting admits
+`rey.ui-observation-write.v1` directly to
+the Observation log with a fixed `finding` kind, returns the updated frontier,
+and never creates a Journal entry. The server supplies the workspace-root
+subject, self-asserted human author, partial posture, missing-evidence omission,
+and default local Channel broadcast targets; advanced kind and exact bindings
+remain available through `rey observations add`. Admission renders only the
+bounded verified local workload commit log. Each post retains its commit,
 snapshot, message, package count, and qualification count; it does not rank
 mutable attention, mirror repository/request posture, or expose an effect
 control. Flow renders admitted workload
 qualification, scenario, run, mining, delta, and reasoning-surface posture; it
-does not claim live execution telemetry. Signal wall time is display ordering
-only, and order-only records follow the timestamped window. The recent Signals
-window renders at most 64 records and reports older folded source records;
+does not claim live execution telemetry. Signal wall time, including exact
+Observation admission time, is display ordering only. Newest records render at
+the top, equal-time Observations use descending local sequence, and order-only
+records follow the timestamped window. The recent Signals window renders at
+most 64 records and reports older folded source records;
 Admission renders at most 64 newest commits and reports older folded commits.
 Feed has no read cursor,
 unread count, drag-to-admit behavior, pagination, durable stream retention,
-causal-order claim, or observation mutation endpoint.
+or causal-order claim. Its Observation mutation endpoint grants no assignment,
+action, relay, execution, or proof authority.
 
 The implemented Channel interface provides
 `rey channels list|status|diff|apply|add|commit|log|message|relay|beacon`. It

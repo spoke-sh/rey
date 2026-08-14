@@ -32,10 +32,11 @@ author label carries no identity guarantee.
   content digest; and
 - an optional exact observation identity that this observation supersedes.
 
-Admission retains the proposal identity, local sequence, admission time,
-workspace-file source locator and content digest, and the effective limit
-envelope. Proposal identity is content-derived; replaying the same proposal is
-idempotent even when a later invocation names another source file.
+Admission retains the proposal identity, local sequence, admission time, exact
+source locator and content digest, and the effective limit envelope. CLI input
+uses a workspace-file source; browser input uses the exact `rey-ui://` composer
+source. Proposal identity is content-derived; replaying the same proposal is
+idempotent even when a later invocation names another source.
 
 `rey.observation-resolution.v1` names one exact open observation, a
 `resolved` or `withdrawn` outcome, a bounded reason, self-asserted author, and
@@ -67,7 +68,9 @@ records, exact evidence/source bindings, and admitted Channel ids. Reaching the
 bound is incomplete catch-up evidence, not convergence.
 
 No wall-time order is inferred across providers or other Rey logs. Observation
-sequence orders this one local log only.
+sequence orders this one local log only. Feed may use the retained admission
+time for newest-first display, with descending local sequence as its equal-time
+tie-break, without turning that presentation into a causal-order claim.
 
 ## Local Retention And Failure
 
@@ -97,8 +100,20 @@ evidence, completeness, omissions, authority, per-target outcomes, frontier
 coverage, and closure state. JSON returns the same typed documents. `list` and
 `show` are read-only and do not create state.
 
-The operator server exposes the same default 64-row frontier at read-only
-`GET|HEAD /api/v1/observations`. Feed renders each unresolved observation as an
+The operator server exposes the same default 64-row frontier at
+`GET|HEAD /api/v1/observations`. `POST /api/v1/observations` accepts only the
+bounded `rey.ui-observation-write.v1` kind and Markdown body; the compact Feed
+composer limits the body to 500 characters and fixes the kind to `finding`
+instead of exposing classification controls. The server enforces the same
+character limit, fixes the self-asserted human author to `operator`, and scopes
+the subject to `worktree:///`, marks the observation partial with an explicit
+missing-evidence omission, and applies the effective Channel graph's default
+broadcast set. It returns the retained admission, partial broadcast receipt,
+and refreshed frontier. Feed's compact control opens this rich-text modal
+directly; it never
+enters `/journal/new` or retains a Journal document.
+
+Feed renders each unresolved observation as an
 order-only `O@sequence` signal with its exact identity, source, subject,
 evidence, omissions, limits, completeness, self-asserted author, and Channel
 admission count. The footer mailbox renders observations in a separate source

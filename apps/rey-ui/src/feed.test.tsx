@@ -8,8 +8,11 @@ import {
   channelWorkingWriteForFeedLayout,
   DEFAULT_FEED_STREAMS,
   FEED_EVENT_LIMIT,
+  FEED_OBSERVATION_CHARACTER_LIMIT,
   FEED_STREAM_LIMIT,
   FeedPage,
+  ObservationComposerModal,
+  applyObservationFormat,
   deriveFeedEvents,
   parseFeedStreams,
   persistFeedLayoutMovement,
@@ -60,7 +63,7 @@ describe("high-cadence operator feed", () => {
     expect(markup).not.toContain("scenario delta remains unresolved");
   });
 
-  it("uses wall time only as display order and retains order-only signals", () => {
+  it("renders exact timestamped signals newest first and retains order-only signals", () => {
     const events = deriveFeedEvents(
       cadenceProjection(),
       journalProjection(),
@@ -68,9 +71,9 @@ describe("high-cadence operator feed", () => {
     );
 
     expect(events.map((event) => [event.stream, event.position])).toEqual([
+      ["OBSERVATION", "O@1"],
       ["JOURNAL", "J@1"],
       ["GIT", "HEAD~0"],
-      ["OBSERVATION", "O@1"],
       ["REY ENV", "ENV@4"],
     ]);
     expect(events.at(-1)).toMatchObject({
@@ -78,6 +81,27 @@ describe("high-cadence operator feed", () => {
       sortTime: null,
       stream: "REY ENV",
     });
+  });
+
+  it("renders the newest local Observation first when admission times tie", () => {
+    const observations = observationProjection();
+    const newer = structuredClone(observations.rows[0]!);
+    newer.observation.observation_id = "blake3:observation-two";
+    newer.observation.sequence = 2;
+    newer.observation.proposal.body = "The newly created observation.";
+    observations.rows.push(newer);
+
+    const events = deriveFeedEvents(
+      cadenceProjection(),
+      journalProjection(),
+      observations,
+    );
+
+    expect(
+      events
+        .filter((event) => event.kind === "observation")
+        .map((event) => event.position),
+    ).toEqual(["O@2", "O@1"]);
   });
 
   it("bounds a high-cadence signal window to the newest retained records", () => {
@@ -132,6 +156,49 @@ describe("high-cadence operator feed", () => {
     expect(parseFeedStreams("unknown.all,flow.git")).toEqual(
       DEFAULT_FEED_STREAMS,
     );
+  });
+
+  it("authors bounded Markdown formatting without storing HTML", () => {
+    expect(applyObservationFormat("A useful signal", 2, 8, "bold")).toEqual({
+      body: "A **useful** signal",
+      selectionStart: 4,
+      selectionEnd: 10,
+    });
+    expect(applyObservationFormat("", 0, 0, "link")).toEqual({
+      body: "[link text](https://)",
+      selectionStart: 12,
+      selectionEnd: 20,
+    });
+  });
+
+  it("renders a rich-text Observation modal rather than a Journal composer", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ObservationComposerModal, {
+        onClose: () => undefined,
+        onSubmit: async () => {
+          throw new Error("not invoked during static render");
+        },
+      }),
+    );
+
+    expect(markup).toContain('role="dialog"');
+    expect(markup).toContain("Create observation");
+    expect(markup).toContain('aria-label="Observation rich text"');
+    expect(markup).toContain('aria-label="Rich text formatting"');
+    expect(markup).toContain("POST OBSERVATION");
+    expect(markup).not.toContain(">CANCEL<");
+    expect(markup).toContain(
+      `0 / ${FEED_OBSERVATION_CHARACTER_LIMIT} CHARACTERS`,
+    );
+    expect(markup).not.toContain("PARTIAL · NO EVIDENCE ATTACHED");
+    expect(markup).not.toContain("This retains an Observation");
+    expect(markup).not.toContain("SELF-ASSERTED OPERATOR · WORKSPACE ROOT");
+    expect(markup).not.toContain("FINDING");
+    expect(markup).not.toContain("QUESTION");
+    expect(markup).not.toContain("PROGRESS");
+    expect(markup).not.toContain("BLOCKER");
+    expect(markup).not.toContain("HANDOFF");
+    expect(markup).not.toContain("journal-entry");
   });
 
   it("resolves URL preview, WORKING, HEAD, and built-in layouts in order", () => {
@@ -281,6 +348,9 @@ describe("high-cadence operator feed", () => {
           { kind: "flow", filter: "all" },
         ],
         portfolio,
+        onObservationCreate: async () => {
+          throw new Error("not invoked during static render");
+        },
         sources: {
           cadence: cadenceProjection(),
           journal: journalProjection(),
@@ -307,7 +377,9 @@ describe("high-cadence operator feed", () => {
       markup.indexOf('data-feed-stream="flow"'),
     );
     expect(markup.match(/role="feed"/g)).toHaveLength(3);
-    expect(markup).toContain("Share an observation…");
+    expect(markup).toContain("Share an observation");
+    expect(markup).toContain('aria-haspopup="dialog"');
+    expect(markup).not.toContain('href="/journal/new"');
     expect(markup).toContain("JOURNAL / RICH DOCUMENT");
     expect(markup).toContain("OBSERVATION / O@1 / ORDER ONLY");
     expect(markup).toContain("AUTHOR SELF-ASSERTED");

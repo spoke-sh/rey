@@ -95,6 +95,9 @@ derivation, defaults to loopback, and is not a general mutation plane or public
 Rey service. Channel topology remains non-navigable substrate behind Feed,
 mailbox, and conversation. Feed's Admission stream projects only retained
 workload commits; WORKING/INDEX review and exact approval remain on Workloads.
+Feed's compact composer admits a partial self-asserted human Observation through
+the same bounded local store as `rey observations add`; it does not create a
+Journal entry or grant action authority.
 Feed resolves URL preview, Channel WORKING, Channel HEAD, then built-in layout;
 URL edits remain detached until adoption, and
 stable stream movement uses the expected-snapshot WORKING boundary without

@@ -118,7 +118,7 @@ already admitted in HEAD.
 | `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
 | `conversations` | Immutable sessions plus append-only per-session transcript sequence | Admission retains local dialogue only; it does not deliver, invoke an agent, relay, schedule work, or grant proof authority. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
-| `agent` | Foreground Rey process with a bounded supervised topology | Orchestrator-owned operator projection with narrow Journal/conversation admission, Channel WORKING, and workload-admission writes; no autonomous workload or agent-runtime invocation. |
+| `agent` | Foreground Rey process with a bounded supervised topology | Orchestrator-owned operator projection with narrow Observation/Journal/conversation admission, Channel WORKING, and workload-admission writes; no autonomous workload or agent-runtime invocation. |
 
 Channel message admission is append-only and independent of the topology
 INDEX. Journal sequence is not HEAD/INDEX state.
@@ -548,6 +548,15 @@ bounded unresolved frontier and its completeness, omissions, and state counts.
 `show` exposes exact source, evidence, self-asserted author, Channel admissions,
 and closure. `resolve` appends one idempotent resolution. None changes Channel
 INDEX/HEAD, relays, schedules, assigns, executes, or proves work.
+
+The browser counterpart begins at Feed's `Share an observation` control. Its
+tweet-like rich-text modal submits one Markdown body of at most 500 characters
+to the same local store with the compact surface's fixed `finding` kind, fixes
+the self-asserted human author to `operator`, scopes the subject to the workspace
+root, marks coverage partial with the missing-evidence omission, and uses the
+effective graph's default broadcast set. It creates no Journal entry; the CLI
+remains the high-fidelity path for exact kind, subject, evidence, completeness,
+supersession, and explicit Channel selection.
 
 ### `rey version`
 

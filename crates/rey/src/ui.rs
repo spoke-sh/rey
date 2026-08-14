@@ -12,7 +12,7 @@ use std::{
 
 use rey::{
     channels::{
-        ChannelGraph, ChannelGraphSource, ChannelStatus, LocalChannelStore,
+        ChannelGraph, ChannelGraphSource, ChannelObservationKind, ChannelStatus, LocalChannelStore,
         MAX_CHANNEL_GRAPH_INPUT_BYTES,
     },
     conversations::{
@@ -29,7 +29,10 @@ use rey::{
     journal_opportunities::{DEFAULT_JOURNAL_OPPORTUNITY_LIMIT, JournalOpportunitySurface},
     journal_queries::LocalJournalQueryStore,
     journal_seed::JournalSeed,
-    observations::{DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore},
+    observations::{
+        DEFAULT_OBSERVATION_FRONTIER_LIMIT, LocalObservationStore, ObservationAuthor,
+        ObservationAuthorKind, ObservationCompleteness, ObservationProposal, ObservationSource,
+    },
     workload_evidence::{
         WorkloadEvidenceError, workload_delta_evidence, workload_evidence_catalog,
         workload_scenario_evidence,
@@ -52,8 +55,11 @@ const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
 const UI_CHANNELS_SCHEMA: &str = "rey.ui-channels.v1";
 const UI_CHANNEL_WORKING_WRITE_SCHEMA: &str = "rey.ui-channel-working-write.v1";
 const UI_CONVERSATION_MESSAGE_WRITE_SCHEMA: &str = "rey.ui-conversation-message-write.v1";
+const UI_OBSERVATION_WRITE_SCHEMA: &str = "rey.ui-observation-write.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
+const MAX_UI_OBSERVATION_WRITE_BYTES: u64 = 32 * 1_024;
+const MAX_UI_OBSERVATION_BODY_CHARS: usize = 500;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
@@ -86,6 +92,7 @@ pub struct UiServerDescriptor {
     pub loopback_only: bool,
     pub read_only: bool,
     pub journal_write_enabled: bool,
+    pub observation_write_enabled: bool,
     pub workload_admission_enabled: bool,
     pub channel_write_enabled: bool,
     pub conversation_write_enabled: bool,
@@ -247,6 +254,14 @@ struct UiConversationMessageWrite {
     reply_to: Option<SemanticDigest>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UiObservationWrite {
+    schema: String,
+    kind: ChannelObservationKind,
+    body: String,
+}
+
 pub struct UiServer {
     server: Server,
     config: UiServerConfig,
@@ -270,6 +285,7 @@ impl UiServer {
             loopback_only: bound.ip().is_loopback(),
             read_only: false,
             journal_write_enabled: true,
+            observation_write_enabled: true,
             workload_admission_enabled: true,
             channel_write_enabled: true,
             conversation_write_enabled: true,
@@ -342,6 +358,9 @@ impl UiServer {
         let head = request.method() == &Method::Head;
         if request.method() == &Method::Post && path == "/api/v1/journal" {
             return self.admit_journal(request);
+        }
+        if request.method() == &Method::Post && path == "/api/v1/observations" {
+            return self.admit_observation(request);
         }
         if request.method() == &Method::Post && path == "/api/v1/workloads/admit" {
             return self.admit_workloads(request);
@@ -729,6 +748,130 @@ impl UiServer {
             Err(error) => json_error(
                 StatusCode(500),
                 "observation_frontier_unavailable",
+                &error.to_string(),
+            ),
+        }
+    }
+
+    fn admit_observation(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        if request_header(request, "Content-Type") != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "observation_content_type",
+                "observation writes require Content-Type: application/json",
+            );
+        }
+        if request
+            .body_length()
+            .is_some_and(|length| length as u64 > MAX_UI_OBSERVATION_WRITE_BYTES)
+        {
+            return json_error(
+                StatusCode(413),
+                "observation_body_limit",
+                "observation write exceeds the 32768-byte limit",
+            );
+        }
+        let mut bytes = Vec::new();
+        if let Err(error) = request
+            .as_reader()
+            .take(MAX_UI_OBSERVATION_WRITE_BYTES.saturating_add(1))
+            .read_to_end(&mut bytes)
+        {
+            return json_error(
+                StatusCode(400),
+                "observation_body_unreadable",
+                &error.to_string(),
+            );
+        }
+        if bytes.len() as u64 > MAX_UI_OBSERVATION_WRITE_BYTES {
+            return json_error(
+                StatusCode(413),
+                "observation_body_limit",
+                "observation write exceeds the 32768-byte limit",
+            );
+        }
+        let write: UiObservationWrite = match serde_json::from_slice(&bytes) {
+            Ok(write) => write,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "observation_json_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        if write.schema != UI_OBSERVATION_WRITE_SCHEMA {
+            return json_error(
+                StatusCode(422),
+                "observation_schema_invalid",
+                "expected rey.ui-observation-write.v1",
+            );
+        }
+        if write.body.chars().count() > MAX_UI_OBSERVATION_BODY_CHARS {
+            return json_error(
+                StatusCode(422),
+                "observation_body_character_limit",
+                "observation body exceeds the 500-character limit",
+            );
+        }
+        let proposal = ObservationProposal {
+            schema: rey::observations::OBSERVATION_PROPOSAL_SCHEMA.to_owned(),
+            kind: write.kind,
+            author: ObservationAuthor {
+                kind: ObservationAuthorKind::Human,
+                id: "operator".to_owned(),
+            },
+            subject_locator: "worktree:///".to_owned(),
+            body: write.body,
+            desired_delta: None,
+            completeness: ObservationCompleteness::Partial,
+            omissions: vec!["browser composer provides no exact evidence bindings".to_owned()],
+            evidence: Vec::new(),
+            supersedes: None,
+        };
+        let channel_store = LocalChannelStore::new(self.config.channel_directory.clone());
+        let channel_status = match channel_store.status() {
+            Ok(status) => status,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "observation_channel_status_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let channel_ids = channel_status
+            .working
+            .graph
+            .channels
+            .iter()
+            .filter(|channel| channel.broadcast_default)
+            .map(|channel| channel.id.clone())
+            .collect();
+        let source = ObservationSource::from_bytes(
+            format!("rey-ui://{}/feed/observations", self.descriptor.address),
+            &bytes,
+        );
+        let store = LocalObservationStore::new(self.config.channel_directory.clone());
+        match store.admit_and_broadcast(
+            proposal,
+            source,
+            channel_ids,
+            channel_status.head_commit.map(|commit| commit.commit_id),
+            &channel_status.working,
+            chrono::Utc::now().timestamp(),
+        ) {
+            Ok(result) => json_response(
+                if result.observation_admitted {
+                    StatusCode(201)
+                } else {
+                    StatusCode(200)
+                },
+                &result,
+            ),
+            Err(error) => json_error(
+                StatusCode(422),
+                "observation_admission_rejected",
                 &error.to_string(),
             ),
         }
@@ -1630,6 +1773,7 @@ mod tests {
         assert!(descriptor.loopback_only);
         assert!(!descriptor.read_only);
         assert!(descriptor.journal_write_enabled);
+        assert!(descriptor.observation_write_enabled);
         assert!(descriptor.workload_admission_enabled);
         assert!(descriptor.channel_write_enabled);
         assert!(descriptor.conversation_write_enabled);
@@ -1645,7 +1789,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(40 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(42 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -1846,12 +1990,49 @@ mod tests {
         assert!(cadence.contains("ui.observations.passive-revalidation"));
         assert!(cadence.contains("ui.cadence.passive-revalidation"));
 
+        let oversized_observation_write = serde_json::json!({
+            "schema": "rey.ui-observation-write.v1",
+            "kind": "finding",
+            "body": "x".repeat(501)
+        })
+        .to_string();
+        let oversized_observation = request_with_body(
+            &address,
+            "POST /api/v1/observations HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &oversized_observation_write,
+        );
+        assert!(oversized_observation.starts_with("HTTP/1.1 422"));
+        assert!(oversized_observation.contains("observation_body_character_limit"));
+
+        let observation_write = serde_json::json!({
+            "schema": "rey.ui-observation-write.v1",
+            "kind": "question",
+            "body": "Should the next bounded survey retain this exact bearing?"
+        })
+        .to_string();
+        let browser_observation = request_with_body(
+            &address,
+            "POST /api/v1/observations HTTP/1.1",
+            &[("Content-Type", "application/json")],
+            &observation_write,
+        );
+        assert!(browser_observation.starts_with("HTTP/1.1 201"));
+        assert!(browser_observation.contains("\"schema\":\"rey.observation-admission-result.v1\""));
+        assert!(browser_observation.contains("\"kind\":\"human\",\"id\":\"operator\""));
+        assert!(browser_observation.contains("\"completeness\":\"partial\""));
+        assert!(
+            browser_observation.contains("browser composer provides no exact evidence bindings")
+        );
+        assert!(browser_observation.contains("\"channel_id\":\"workspace\""));
+
         let observations = request(&address, "GET /api/v1/observations HTTP/1.1");
         assert!(observations.starts_with("HTTP/1.1 200"));
         assert!(observations.contains("\"schema\":\"rey.observation-frontier.v1\""));
         assert!(observations.contains("\"ordering\":\"observation_sequence_ascending\""));
         assert!(observations.contains("\"limit\":64"));
         assert!(observations.contains(observation.observation_id.as_str()));
+        assert!(observations.contains("Should the next bounded survey retain this exact bearing?"));
 
         let seed = request(
             &address,
@@ -2053,6 +2234,8 @@ mod tests {
         assert!(!application.contains("WRITE CHANNEL WORKING"));
         assert!(!application.contains("ALL LENS"));
         assert!(application.contains("Share an observation"));
+        assert!(application.contains("POST OBSERVATION"));
+        assert!(application.contains("rey.ui-observation-write.v1"));
         assert!(!application.contains("REY / CURRENT PROJECTION"));
         assert!(!application.contains("ADMISSION CONTROL"));
         assert!(application.contains("EXACT SNAPSHOT APPROVAL"));

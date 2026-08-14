@@ -259,6 +259,7 @@ function agentProcess(): AgentProcessDescriptor {
       source_repository: null,
       implementation_revision: "git:agent",
       journal_write_enabled: true,
+      observation_write_enabled: true,
       workload_admission_enabled: true,
       channel_write_enabled: true,
       conversation_write_enabled: true,

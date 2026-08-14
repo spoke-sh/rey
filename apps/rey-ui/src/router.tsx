@@ -31,6 +31,7 @@ import {
   loadWorkloadScenarioEvidence,
   writeChannelWorking,
   writeConversationMessage,
+  writeObservation,
   type OperatorContext,
 } from "./api";
 import {
@@ -1185,6 +1186,7 @@ function FeedRoutePage() {
   );
   const search = feedRoute.useSearch();
   const navigate = feedRoute.useNavigate();
+  const portfolio = usePortfolio();
   const layout = resolveFeedLayout(search.streams ?? null, sources.channels);
   return (
     <FeedPage
@@ -1217,7 +1219,16 @@ function FeedRoutePage() {
           };
         }
       }}
-      portfolio={usePortfolio()}
+      onObservationCreate={
+        portfolio.ui_server.observation_write_enabled
+          ? async (write) => {
+              const admission = await writeObservation(write);
+              publish({ ...sources, observations: admission.frontier });
+              return admission;
+            }
+          : undefined
+      }
+      portfolio={portfolio}
       sources={sources}
     />
   );

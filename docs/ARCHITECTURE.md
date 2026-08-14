@@ -362,7 +362,8 @@ now owns immutable statements, exact source/evidence bindings, Channel
 admission edges, retained partial broadcast receipts, single supersession or
 resolution closure, and the bounded collaboration frontier. Its CLI exposes
 add/list/show/resolve and exact partial broadcast receipts. Browser Feed and
-mailbox projection plus deterministic unretained Journal seeding are
+mailbox projection, direct bounded human admission from Feed's rich-text modal,
+and deterministic unretained Journal seeding are
 implemented. The separate local conversation log now retains immutable
 sessions, declared participants/writers, per-session message order, exact
 sources, availability, authority, limits, and failure posture; no append

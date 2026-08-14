@@ -180,13 +180,18 @@ pub struct ObservationSource {
 
 impl ObservationSource {
     #[must_use]
-    pub fn workspace_file(locator: String, bytes: &[u8]) -> Self {
+    pub fn from_bytes(locator: String, bytes: &[u8]) -> Self {
         let mut hasher = SemanticHasher::new("rey.observation-source.v1");
         hasher.add_bytes(bytes);
         Self {
             locator,
             content_digest: hasher.finish(),
         }
+    }
+
+    #[must_use]
+    pub fn workspace_file(locator: String, bytes: &[u8]) -> Self {
+        Self::from_bytes(locator, bytes)
     }
 
     fn verify(&self) -> Result<(), ObservationError> {

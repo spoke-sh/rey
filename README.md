@@ -114,9 +114,11 @@ Rey organizes collaboration around two clients with one evidence plane:
   Channel WORKING, HEAD, and built-in layouts; adoption and stream movement
   remain explicit WORKING-only writes. Immutable observations,
   their local Channel-admission edges, partial broadcast receipts, and catch-up
-  frontier remain a separate bounded state plane; Feed and mailbox read that
+  frontier remain a separate bounded state plane. Feed admits compact human
+  observations through a tweet-like rich-text modal and Feed/mailbox read the
   unresolved frontier without adding unread, priority, assignment, action, or
-  proof state. Selected exact unresolved observations can seed a deterministic
+  proof state. The composer creates an Observation, never a Journal entry.
+  Selected exact unresolved observations can seed a deterministic
   unretained Journal proposal; only ordinary Journal admission retains it.
   Current action cells project as authored-only opportunities. One narrow
   retained-observation query can cross separate read-only admission and

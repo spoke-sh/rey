@@ -6024,6 +6024,7 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert_eq!(descriptor["operator"]["loopback_only"], false);
     assert_eq!(descriptor["operator"]["read_only"], false);
     assert_eq!(descriptor["operator"]["journal_write_enabled"], true);
+    assert_eq!(descriptor["operator"]["observation_write_enabled"], true);
     assert_eq!(descriptor["operator"]["workload_admission_enabled"], true);
     assert_eq!(descriptor["operator"]["channel_write_enabled"], true);
     assert_eq!(descriptor["operator"]["conversation_write_enabled"], true);

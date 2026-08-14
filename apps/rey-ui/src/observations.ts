@@ -70,6 +70,39 @@ export interface ObservationFrontier {
   rows: ObservationFrontierRow[];
 }
 
+export interface ObservationWrite {
+  schema: "rey.ui-observation-write.v1";
+  kind: ObservationKind;
+  body: string;
+}
+
+export interface ObservationBroadcastTarget {
+  channel_id: string;
+  outcome:
+    "admitted" | "already_admitted" | "unknown_channel" | "rejected_kind";
+  admission: unknown | null;
+  detail: string;
+}
+
+export interface ObservationBroadcast {
+  schema: "rey.observation-admission-result.v1";
+  observation_admitted: boolean;
+  observation: RetainedObservation;
+  broadcast: {
+    schema: "rey.observation-broadcast.v1";
+    broadcast_id: string;
+    request_id: string;
+    sequence: number;
+    broadcast_at_unix: number;
+    observation_id: string;
+    channel_head_commit_id: string | null;
+    channel_graph_id: string;
+    selected_channel_ids: string[];
+    targets: ObservationBroadcastTarget[];
+  } | null;
+  frontier: ObservationFrontier;
+}
+
 export function observationPosition(row: ObservationFrontierRow): string {
   return `O@${row.observation.sequence}`;
 }
