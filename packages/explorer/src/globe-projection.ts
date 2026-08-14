@@ -3,6 +3,14 @@ import { GLOBE_RADIUS } from "./three-globe";
 
 export const SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES = 85.051129;
 export const GLOBE_CAMERA_HALF_HEIGHT = 2.12;
+export const GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES = Object.freeze([
+  -1, 0, 1,
+] as const);
+export const GLOBE_ATLAS_REPEAT_DISSOLVE_START = 0.58;
+export const GLOBE_ATLAS_REPEAT_MAX_DEPTH = GLOBE_RADIUS * 0.72;
+export const GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT = 0.72;
+export const GLOBE_SURFACE_FADE_START = 0.38;
+export const GLOBE_SURFACE_FADE_END = 0.62;
 
 export interface GlobeProjectionWorld {
   width: number;
@@ -36,10 +44,121 @@ export interface GlobeAtlasViewCenter {
   latitude_degrees: number;
 }
 
+export function globeAtlasWidth(world: GlobeProjectionWorld) {
+  verifyWorld(world);
+  return GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985 * 2;
+}
+
+/** The current east-to-west seam period while the sphere unfurls. */
+export function globeAtlasRepeatPeriod(
+  world: GlobeProjectionWorld,
+  progress: number,
+) {
+  return globeAtlasWidth(world) * (1 - globeProjectionMorphRemaining(progress));
+}
+
+/** Positions a planar side chart so its inner edge follows the live seam. */
+export function globeAtlasRepeatOffset(
+  world: GlobeProjectionWorld,
+  progress: number,
+  wrapIndex: number,
+) {
+  if (!Number.isInteger(wrapIndex) || Math.abs(wrapIndex) > 1)
+    throw new Error("globe Atlas repeat index must be -1, 0, or 1");
+  if (wrapIndex === 0) return 0;
+  return (
+    (wrapIndex *
+      (globeAtlasWidth(world) + globeAtlasRepeatPeriod(world, progress))) /
+    2
+  );
+}
+
+/**
+ * Weights one repeated chart from its connected seam toward its outer edge.
+ * Chart position is normalized west-to-east; negative repeats connect on the
+ * east and positive repeats connect on the west.
+ */
+export function globeAtlasRepeatSeamWeight(
+  normalizedChartX: number,
+  wrapIndex: number,
+) {
+  if (!Number.isFinite(normalizedChartX))
+    throw new Error("globe Atlas repeat position must be finite");
+  if (!Number.isInteger(wrapIndex))
+    throw new Error("globe Atlas repeat index must be an integer");
+  if (wrapIndex === 0) return 1;
+  const boundedPosition = Math.max(0, Math.min(1, normalizedChartX));
+  return smoothstep(wrapIndex < 0 ? boundedPosition : 1 - boundedPosition);
+}
+
+/** Recedes overlapping repeat fabric while preserving a coplanar seam. */
+export function globeAtlasRepeatDepthOffset(
+  progress: number,
+  seamWeight: number,
+) {
+  if (!Number.isFinite(seamWeight))
+    throw new Error("globe Atlas repeat seam weight must be finite");
+  const boundedWeight = Math.max(0, Math.min(1, seamWeight));
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  if (
+    boundedWeight >= GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT ||
+    morphRemaining === 0
+  )
+    return 0;
+  const recessionProgress = smoothstep(
+    1 - boundedWeight / GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT,
+  );
+  return -GLOBE_ATLAS_REPEAT_MAX_DEPTH * recessionProgress * morphRemaining;
+}
+
+export function globeAtlasRepeatOpacity(progress: number) {
+  if (!Number.isFinite(progress))
+    throw new Error("globe Atlas repeat progress must be finite");
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const dissolveProgress = Math.max(
+    0,
+    Math.min(
+      1,
+      (boundedProgress - GLOBE_ATLAS_REPEAT_DISSOLVE_START) /
+        (1 - GLOBE_ATLAS_REPEAT_DISSOLVE_START),
+    ),
+  );
+  return smoothstep(dissolveProgress);
+}
+
+/** Expands repeat visibility outward without fading its connected seam. */
+export function globeAtlasRepeatVisibility(
+  progress: number,
+  seamWeight: number,
+) {
+  if (!Number.isFinite(seamWeight))
+    throw new Error("globe Atlas repeat seam weight must be finite");
+  const repeatOpacity = globeAtlasRepeatOpacity(progress);
+  if (repeatOpacity === 0) return 0;
+  const boundedWeight = Math.max(0, Math.min(1, seamWeight));
+  const visibleStart = 1 - repeatOpacity;
+  if (boundedWeight <= visibleStart) return 0;
+  if (boundedWeight >= 1) return 1;
+  return smoothstep((boundedWeight - visibleStart) / repeatOpacity);
+}
+
 export function globeProjectionMorphRemaining(progress: number) {
   if (!Number.isFinite(progress))
     throw new Error("globe projection progress must be finite");
   return 1 - smoothstep(Math.max(0, Math.min(1, progress)));
+}
+
+export function globeSurfaceOpacity(progress: number) {
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  const fadeProgress = Math.max(
+    0,
+    Math.min(
+      1,
+      (progress - GLOBE_SURFACE_FADE_START) /
+        (GLOBE_SURFACE_FADE_END - GLOBE_SURFACE_FADE_START),
+    ),
+  );
+  return morphRemaining * (1 - smoothstep(fadeProgress));
 }
 
 export function globeAtmosphereOpacity(progress: number) {
@@ -163,6 +282,88 @@ export function projectGlobeCoordinate(
   });
 }
 
+/**
+ * Projects a side copy as planar Mercator in local chart coordinates, bending
+ * only its narrow inner connection band onto the canonical unfurling seam.
+ */
+export function projectGlobeAtlasRepeatCoordinate(
+  longitudeDegrees: number,
+  latitudeDegrees: number,
+  view: GlobeCameraView,
+  world: GlobeProjectionWorld,
+  progress: number,
+  wrapIndex: number,
+  radius = GLOBE_RADIUS,
+  planeDepth = 0,
+): GlobeProjectionPoint {
+  if (wrapIndex === 0)
+    return projectGlobeCoordinate(
+      longitudeDegrees,
+      latitudeDegrees,
+      view,
+      world,
+      progress,
+      radius,
+      planeDepth,
+    );
+  if (!Number.isInteger(wrapIndex) || Math.abs(wrapIndex) !== 1)
+    throw new Error("globe Atlas repeat projection requires index -1 or 1");
+
+  const planar = projectGlobeCoordinate(
+    longitudeDegrees,
+    latitudeDegrees,
+    view,
+    world,
+    1,
+    radius,
+    planeDepth,
+  );
+  const atlasWidth = globeAtlasWidth(world);
+  const normalizedChartX = planar.atlas_position[0] / atlasWidth + 0.5;
+  const seamWeight = globeAtlasRepeatSeamWeight(normalizedChartX, wrapIndex);
+  const connectionProgress =
+    seamWeight <= GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT
+      ? 0
+      : smoothstep(
+          (seamWeight - GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT) /
+            (1 - GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT),
+        );
+  const atlasCenter = globeAtlasViewCenter(view);
+  const connectedSeam = projectGlobeCoordinate(
+    atlasCenter.longitude_degrees + wrapIndex * 180,
+    latitudeDegrees,
+    view,
+    world,
+    progress,
+    radius,
+    planeDepth,
+  );
+  const repeatOffset = globeAtlasRepeatOffset(world, progress, wrapIndex);
+  const planarSeamX = wrapIndex < 0 ? atlasWidth / 2 : -atlasWidth / 2;
+  const seamCorrection = [
+    connectedSeam.position[0] - (repeatOffset + planarSeamX),
+    connectedSeam.position[1] - planar.position[1],
+    connectedSeam.position[2] - planar.position[2],
+  ] as const;
+  const position = [
+    planar.position[0] + seamCorrection[0] * connectionProgress,
+    planar.position[1] + seamCorrection[1] * connectionProgress,
+    planar.position[2] +
+      seamCorrection[2] * connectionProgress +
+      globeAtlasRepeatDepthOffset(progress, seamWeight),
+  ] as [number, number, number];
+  const normal = normalizeVector(
+    interpolateVector(planar.normal, connectedSeam.normal, connectionProgress),
+  );
+  return Object.freeze({
+    position: Object.freeze(position),
+    normal: Object.freeze(normal),
+    sphere_position: planar.sphere_position,
+    atlas_position: planar.atlas_position,
+    progress: Math.max(0, Math.min(1, progress)),
+  });
+}
+
 export function buildProjectedGlobeMesh(
   view: GlobeCameraView,
   world: GlobeProjectionWorld,
@@ -227,6 +428,7 @@ export function buildProjectedBoundsMeshes(
   progress = view.projection_morph_progress ?? 0,
   longitudeSegments = 16,
   latitudeSegments = 10,
+  wrapIndex = 0,
 ): readonly ProjectedGlobeMesh[] {
   if (
     bounds.south_degrees < -90 ||
@@ -247,6 +449,7 @@ export function buildProjectedBoundsMeshes(
         progress,
         longitudeSegments,
         latitudeSegments,
+        wrapIndex,
       ),
     ),
   );
@@ -289,6 +492,7 @@ function buildProjectionPatch(
   progress: number,
   longitudeSegments: number,
   latitudeSegments: number,
+  wrapIndex: number,
 ) {
   const positions = new Float32Array(
     (longitudeSegments + 1) * (latitudeSegments + 1) * 3,
@@ -298,15 +502,27 @@ function buildProjectionPatch(
     const latitude = south + (row / latitudeSegments) * (north - south);
     for (let column = 0; column <= longitudeSegments; column += 1) {
       const longitude = west + (column / longitudeSegments) * (east - west);
-      const point = projectGlobeCoordinate(
-        longitude,
-        latitude,
-        view,
-        world,
-        progress,
-        GLOBE_RADIUS * 1.008,
-        0.016,
-      );
+      const point =
+        wrapIndex === 0
+          ? projectGlobeCoordinate(
+              longitude,
+              latitude,
+              view,
+              world,
+              progress,
+              GLOBE_RADIUS * 1.008,
+              0.016,
+            )
+          : projectGlobeAtlasRepeatCoordinate(
+              longitude,
+              latitude,
+              view,
+              world,
+              progress,
+              wrapIndex,
+              GLOBE_RADIUS * 1.008,
+              0.016,
+            );
       const index = (row * (longitudeSegments + 1) + column) * 3;
       positions.set(point.position, index);
       normals.set(point.normal, index);

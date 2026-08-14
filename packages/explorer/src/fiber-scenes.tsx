@@ -7,6 +7,7 @@ import {
   DoubleSide,
   DirectionalLight,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   Mesh,
@@ -18,14 +19,23 @@ import {
   SphereGeometry,
   Vector3,
 } from "three/src/Three.WebGPU.js";
+import { attribute, float, mul, smoothstep } from "three/src/nodes/TSL.js";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { GlobeCameraView, TerrainCameraView } from "./types";
 import {
   buildProjectedBoundsMeshes,
   buildProjectedGlobeMesh,
+  GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
   GLOBE_CAMERA_HALF_HEIGHT,
+  globeAtlasRepeatOpacity,
+  globeAtlasRepeatOffset,
+  globeAtlasRepeatSeamWeight,
+  globeAtlasRepeatVisibility,
+  globeAtlasWidth,
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
+  globeSurfaceOpacity,
+  projectGlobeAtlasRepeatCoordinate,
   projectGlobeCoordinate,
   type ProjectedGlobeMesh,
 } from "./globe-projection";
@@ -162,32 +172,38 @@ export function ContextGlobeScene({
     Math.min(1, view.projection_morph_progress ?? 0),
   );
   const aspect = world.width / Math.max(1, world.height);
+  const repeatOpacity = globeAtlasRepeatOpacity(projectionMorphProgress);
+  const horizontalLayoutWrapIndexes = GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES;
+  const renderedWrapIndexes =
+    repeatOpacity > 0 ? GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES : ([0] as const);
   const halfHeight = GLOBE_CAMERA_HALF_HEIGHT;
   return (
     <>
       <ReyOrthographicCamera
         bottom={-halfHeight}
         far={100}
-        left={-halfHeight * aspect}
+        left={-halfHeight * aspect * horizontalLayoutWrapIndexes.length}
         position={[0, 0, 6]}
-        right={halfHeight * aspect}
+        right={halfHeight * aspect * horizontalLayoutWrapIndexes.length}
         rotation={[0, 0, 0]}
         top={halfHeight}
       />
       <group name={`context-globe:${compiled.globe.source_revision}`}>
         <GlobeSurface
+          maskRepeats={repeatOpacity > 0}
           progress={projectionMorphProgress}
           view={view}
           world={world}
         />
         <GlobeAtmosphere progress={projectionMorphProgress} />
-        {(compiled.globe.sectors ?? []).map((sector) => (
-          <GlobeSector
-            key={sector.id}
+        {renderedWrapIndexes.map((wrapIndex) => (
+          <GlobeAtlasLayers
+            compiled={compiled}
+            key={wrapIndex}
             progress={projectionMorphProgress}
-            sector={sector}
             view={view}
             world={world}
+            wrapIndex={wrapIndex}
           />
         ))}
         {compiled.sample_buckets.map((bucket) => (
@@ -195,8 +211,10 @@ export function ContextGlobeScene({
             bucket={bucket}
             key={bucket.id}
             progress={projectionMorphProgress}
+            repeatOpacity={repeatOpacity}
             view={view}
             world={world}
+            wrapIndexes={renderedWrapIndexes}
           />
         ))}
         {compiled.pole_patterns.map((pattern) => (
@@ -204,49 +222,6 @@ export function ContextGlobeScene({
             key={pattern.id}
             pattern={pattern}
             progress={projectionMorphProgress}
-            view={view}
-            world={world}
-          />
-        ))}
-        {compiled.globe.regions.map((region) => (
-          <GlobeSurfaceMarker
-            color={
-              region.tone === "frontier"
-                ? 0xd6a94d
-                : region.tone === "omitted"
-                  ? 0xa87862
-                  : 0x446c61
-            }
-            key={region.id}
-            latitude={region.latitude_degrees}
-            longitude={region.longitude_degrees}
-            name={`semantic-region:${region.id}`}
-            progress={projectionMorphProgress}
-            radius={
-              0.026 + Math.min(0.056, region.angular_radius_degrees / 2_200)
-            }
-            view={view}
-            world={world}
-          />
-        ))}
-        {compiled.globe.beacons.map((beacon) => (
-          <GlobeSurfaceMarker
-            color={
-              beacon.state === "admitted"
-                ? 0x3b7458
-                : beacon.state === "index"
-                  ? 0xb28a25
-                  : beacon.state === "request"
-                    ? 0x658593
-                    : 0xd57824
-            }
-            halo
-            key={beacon.id}
-            latitude={beacon.latitude_degrees}
-            longitude={beacon.longitude_degrees}
-            name={`workload-beacon:${beacon.workload_id}`}
-            progress={projectionMorphProgress}
-            radius={beacon.mapping_role === "survey" ? 0.065 : 0.048}
             view={view}
             world={world}
           />
@@ -267,16 +242,99 @@ export function ContextGlobeScene({
   );
 }
 
+function GlobeAtlasLayers({
+  compiled,
+  progress,
+  view,
+  world,
+  wrapIndex,
+}: {
+  compiled: CompiledContextGlobe;
+  progress: number;
+  view: GlobeCameraView;
+  world: { width: number; height: number };
+  wrapIndex: number;
+}) {
+  const wrappedName = (name: string) =>
+    wrapIndex === 0 ? name : `${name}:wrap:${wrapIndex}`;
+  return (
+    <group
+      name={`context-globe-atlas-wrap:${wrapIndex}`}
+      position={[globeAtlasRepeatOffset(world, progress, wrapIndex), 0, 0]}
+    >
+      {(compiled.globe.sectors ?? []).map((sector) => (
+        <GlobeSector
+          key={sector.id}
+          name={wrappedName(`context-globe-sector:${sector.id}`)}
+          progress={progress}
+          sector={sector}
+          view={view}
+          world={world}
+          wrapIndex={wrapIndex}
+        />
+      ))}
+      {compiled.globe.regions.map((region) => (
+        <GlobeSurfaceMarker
+          color={
+            region.tone === "frontier"
+              ? 0xd6a94d
+              : region.tone === "omitted"
+                ? 0xa87862
+                : 0x446c61
+          }
+          key={region.id}
+          latitude={region.latitude_degrees}
+          longitude={region.longitude_degrees}
+          name={wrappedName(`semantic-region:${region.id}`)}
+          progress={progress}
+          radius={
+            0.026 + Math.min(0.056, region.angular_radius_degrees / 2_200)
+          }
+          view={view}
+          world={world}
+          wrapIndex={wrapIndex}
+        />
+      ))}
+      {compiled.globe.beacons.map((beacon) => (
+        <GlobeSurfaceMarker
+          color={
+            beacon.state === "admitted"
+              ? 0x3b7458
+              : beacon.state === "index"
+                ? 0xb28a25
+                : beacon.state === "request"
+                  ? 0x658593
+                  : 0xd57824
+          }
+          halo
+          key={beacon.id}
+          latitude={beacon.latitude_degrees}
+          longitude={beacon.longitude_degrees}
+          name={wrappedName(`workload-beacon:${beacon.workload_id}`)}
+          progress={progress}
+          radius={beacon.mapping_role === "survey" ? 0.065 : 0.048}
+          view={view}
+          world={world}
+          wrapIndex={wrapIndex}
+        />
+      ))}
+    </group>
+  );
+}
+
 function GlobeSurface({
+  maskRepeats,
   progress,
   view,
   world,
 }: {
+  maskRepeats: boolean;
   progress: number;
   view: GlobeCameraView;
   world: { width: number; height: number };
 }) {
-  const opacity = globeProjectionMorphRemaining(progress);
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  const opacity = globeSurfaceOpacity(progress);
   const material = useMemo(() => {
     const next = new MeshStandardNodeMaterial();
     next.name = SEMANTIC_GLOBE_MATERIAL_REVISION;
@@ -288,18 +346,22 @@ function GlobeSurface({
   useEffect(() => () => material.dispose(), [material]);
   useLayoutEffect(() => {
     const wasTransparent = material.transparent;
-    material.depthWrite = opacity >= 1;
+    material.depthWrite = opacity >= 1 || maskRepeats;
     material.opacity = opacity;
     material.transparent = opacity < 1;
     if (material.transparent !== wasTransparent) material.needsUpdate = true;
-  }, [material, opacity]);
+  }, [maskRepeats, material, opacity]);
   const mesh = useMemo(
     () => buildProjectedGlobeMesh(view, world, progress),
     [progress, view.pitch_degrees, view.yaw_degrees, world.height, world.width],
   );
-  if (opacity <= 0) return null;
+  if (morphRemaining <= 0) return null;
   return (
-    <mesh material={material} name="context-globe-surface">
+    <mesh
+      material={material}
+      name="context-globe-surface"
+      renderOrder={maskRepeats ? -1 : 0}
+    >
       <ProjectedMeshGeometry data={mesh} />
     </mesh>
   );
@@ -357,33 +419,98 @@ function NodeMaterialSphere({
 function GlobeSampleField({
   bucket,
   progress,
+  repeatOpacity,
   view,
   world,
+  wrapIndexes,
 }: {
   bucket: CompiledContextGlobe["sample_buckets"][number];
   progress: number;
+  repeatOpacity: number;
   view: GlobeCameraView;
   world: { width: number; height: number };
+  wrapIndexes: readonly number[];
 }) {
-  const meshRef = useRef<InstancedMesh>(null);
-  const opacity =
+  const meshRefs = useRef(new Map<number, InstancedMesh>());
+  const postureOpacity =
     bucket.opacity * (1 - progress * (1 - MERCATOR_STIPPLE_OPACITY_SCALE));
-  const material = useMemo(
+  const canonicalMaterial = useMemo(
     () =>
       new MeshBasicNodeMaterial({
         color: bucket.color,
-        opacity,
-        transparent: opacity < 1,
+        opacity: postureOpacity,
+        transparent: postureOpacity < 1,
       }),
-    [bucket.color, opacity],
+    [bucket.color, postureOpacity],
   );
-  useEffect(() => () => material.dispose(), [material]);
+  const repeatedMaterial = useMemo(() => {
+    const material = new MeshBasicNodeMaterial({
+      color: bucket.color,
+      depthWrite: false,
+      opacity: postureOpacity,
+      transparent: true,
+    });
+    material.opacityNode =
+      repeatOpacity === 0
+        ? float(0)
+        : mul(
+            smoothstep(
+              float(1 - repeatOpacity),
+              float(1),
+              attribute<"float">("reyRepeatSeamWeight", "float"),
+            ),
+            float(postureOpacity),
+          );
+    return material;
+  }, [bucket.color, postureOpacity, repeatOpacity]);
+  useEffect(
+    () => () => {
+      canonicalMaterial.dispose();
+      repeatedMaterial.dispose();
+    },
+    [canonicalMaterial, repeatedMaterial],
+  );
   useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
+    const canonicalMesh = meshRefs.current.get(0);
+    if (!canonicalMesh) return;
     const matrix = new Matrix4();
     const quaternion = new Quaternion();
     const scale = new Vector3(1, 1, 1);
+    const repeatMeshes = new Map<
+      number,
+      { attribute: InstancedBufferAttribute; mesh: InstancedMesh }
+    >();
+    const gradientRevision = [
+      view.yaw_degrees,
+      view.pitch_degrees,
+      world.width,
+      world.height,
+      bucket.samples.length,
+    ].join(":");
+    for (const wrapIndex of wrapIndexes) {
+      if (wrapIndex === 0) continue;
+      const wrappedMesh = meshRefs.current.get(wrapIndex);
+      if (!wrappedMesh) continue;
+      const existing = wrappedMesh.geometry.getAttribute("reyRepeatSeamWeight");
+      const retainsGradient =
+        existing instanceof InstancedBufferAttribute &&
+        existing.count === bucket.samples.length &&
+        wrappedMesh.userData.reyRepeatSeamGradientRevision === gradientRevision;
+      const attribute =
+        existing instanceof InstancedBufferAttribute &&
+        existing.count === bucket.samples.length
+          ? existing
+          : new InstancedBufferAttribute(
+              new Float32Array(bucket.samples.length),
+              1,
+            );
+      if (attribute !== existing)
+        wrappedMesh.geometry.setAttribute("reyRepeatSeamWeight", attribute);
+      repeatMeshes.set(wrapIndex, { attribute, mesh: wrappedMesh });
+      if (retainsGradient) continue;
+      wrappedMesh.userData.reyRepeatSeamGradientRevision = gradientRevision;
+    }
+    const atlasWidth = globeAtlasWidth(world);
     for (const [index, sample] of bucket.samples.entries()) {
       const projected = projectGlobeCoordinate(
         sample.longitude_degrees,
@@ -400,20 +527,57 @@ function GlobeSampleField({
         new Vector3(...projected.normal),
       );
       matrix.compose(position, quaternion, scale);
-      mesh.setMatrixAt(index, matrix);
+      canonicalMesh.setMatrixAt(index, matrix);
+      const normalizedChartX = projected.atlas_position[0] / atlasWidth + 0.5;
+      for (const [wrapIndex, repeat] of repeatMeshes) {
+        const repeatAttribute = repeat.attribute;
+        repeatAttribute.setX(
+          index,
+          globeAtlasRepeatSeamWeight(normalizedChartX, wrapIndex),
+        );
+        const repeated = projectGlobeAtlasRepeatCoordinate(
+          sample.longitude_degrees,
+          sample.latitude_degrees,
+          view,
+          world,
+          progress,
+          wrapIndex,
+          GLOBE_RADIUS * 1.005,
+          0.008,
+        );
+        position.set(...repeated.position);
+        quaternion.setFromUnitVectors(
+          SURFACE_NORMAL,
+          new Vector3(...repeated.normal),
+        );
+        matrix.compose(position, quaternion, scale);
+        repeat.mesh.setMatrixAt(index, matrix);
+      }
     }
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [bucket, progress, view, world]);
-  return (
-    <instancedMesh
-      args={[undefined, undefined, bucket.samples.length]}
-      material={material}
-      name={bucket.id}
-      ref={meshRef}
+    canonicalMesh.instanceMatrix.needsUpdate = true;
+    for (const repeat of repeatMeshes.values()) {
+      repeat.attribute.needsUpdate = true;
+      repeat.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }, [bucket, progress, view, world, wrapIndexes]);
+  return wrapIndexes.map((wrapIndex) => (
+    <group
+      key={wrapIndex}
+      position={[globeAtlasRepeatOffset(world, progress, wrapIndex), 0, 0]}
     >
-      <circleGeometry args={[GLOBE_SAMPLE_RADIUS, 5]} />
-    </instancedMesh>
-  );
+      <instancedMesh
+        args={[undefined, undefined, bucket.samples.length]}
+        material={wrapIndex === 0 ? canonicalMaterial : repeatedMaterial}
+        name={wrapIndex === 0 ? bucket.id : `${bucket.id}:wrap:${wrapIndex}`}
+        ref={(mesh) => {
+          if (mesh) meshRefs.current.set(wrapIndex, mesh);
+          else meshRefs.current.delete(wrapIndex);
+        }}
+      >
+        <circleGeometry args={[GLOBE_SAMPLE_RADIUS, 5]} />
+      </instancedMesh>
+    </group>
+  ));
 }
 
 function GlobePolePatternField({
@@ -486,6 +650,7 @@ function GlobeSurfaceMarker({
   radius,
   view,
   world,
+  wrapIndex,
 }: {
   color: number;
   halo?: boolean;
@@ -496,20 +661,54 @@ function GlobeSurfaceMarker({
   radius: number;
   view: GlobeCameraView;
   world: { width: number; height: number };
+  wrapIndex: number;
 }) {
+  const projected =
+    wrapIndex === 0
+      ? projectGlobeCoordinate(
+          longitude,
+          latitude,
+          view,
+          world,
+          progress,
+          GLOBE_RADIUS * 1.013,
+          0.02,
+        )
+      : projectGlobeAtlasRepeatCoordinate(
+          longitude,
+          latitude,
+          view,
+          world,
+          progress,
+          wrapIndex,
+          GLOBE_RADIUS * 1.013,
+          0.02,
+        );
+  const seamWeight = globeAtlasRepeatSeamWeight(
+    projected.atlas_position[0] / globeAtlasWidth(world) + 0.5,
+    wrapIndex,
+  );
+  const opacity =
+    wrapIndex === 0 ? 1 : globeAtlasRepeatVisibility(progress, seamWeight);
   const pointMaterial = useMemo(
-    () => new MeshBasicNodeMaterial({ color }),
-    [color],
+    () =>
+      new MeshBasicNodeMaterial({
+        color,
+        depthWrite: opacity >= 1,
+        opacity,
+        transparent: opacity < 1,
+      }),
+    [color, opacity],
   );
   const haloMaterial = useMemo(
     () =>
       new MeshBasicNodeMaterial({
         color,
         depthWrite: false,
-        opacity: 0.42,
+        opacity: 0.42 * opacity,
         transparent: true,
       }),
-    [color],
+    [color, opacity],
   );
   useEffect(
     () => () => {
@@ -517,15 +716,6 @@ function GlobeSurfaceMarker({
       haloMaterial.dispose();
     },
     [haloMaterial, pointMaterial],
-  );
-  const projected = projectGlobeCoordinate(
-    longitude,
-    latitude,
-    view,
-    world,
-    progress,
-    GLOBE_RADIUS * 1.013,
-    0.02,
   );
   const position = new Vector3(...projected.position);
   const quaternion = new Quaternion().setFromUnitVectors(
@@ -547,15 +737,19 @@ function GlobeSurfaceMarker({
 }
 
 function GlobeSector({
+  name,
   progress,
   sector,
   view,
   world,
+  wrapIndex,
 }: {
+  name: string;
   progress: number;
   sector: NonNullable<CompiledContextGlobe["globe"]["sectors"]>[number];
   view: GlobeCameraView;
   world: { width: number; height: number };
+  wrapIndex: number;
 }) {
   const meshes = useMemo(
     () =>
@@ -570,6 +764,9 @@ function GlobeSector({
         view,
         world,
         progress,
+        16,
+        10,
+        wrapIndex,
       ),
     [
       progress,
@@ -580,28 +777,52 @@ function GlobeSector({
       sector.west_degrees,
       view.pitch_degrees,
       view.yaw_degrees,
+      wrapIndex,
       world.height,
       world.width,
     ],
   );
+  const unwrappedEast =
+    sector.crosses_antimeridian || sector.east_degrees < sector.west_degrees
+      ? sector.east_degrees + 360
+      : sector.east_degrees;
+  const projectedCenter =
+    wrapIndex === 0
+      ? projectGlobeCoordinate(
+          (sector.west_degrees + unwrappedEast) / 2,
+          (sector.south_degrees + sector.north_degrees) / 2,
+          view,
+          world,
+          progress,
+        )
+      : projectGlobeAtlasRepeatCoordinate(
+          (sector.west_degrees + unwrappedEast) / 2,
+          (sector.south_degrees + sector.north_degrees) / 2,
+          view,
+          world,
+          progress,
+          wrapIndex,
+        );
+  const seamWeight = globeAtlasRepeatSeamWeight(
+    projectedCenter.atlas_position[0] / globeAtlasWidth(world) + 0.5,
+    wrapIndex,
+  );
+  const opacity =
+    wrapIndex === 0 ? 1 : globeAtlasRepeatVisibility(progress, seamWeight);
   const material = useMemo(
     () =>
       new MeshBasicNodeMaterial({
         color: 0xd57824,
         depthWrite: false,
-        opacity: 0.18,
+        opacity: 0.18 * opacity,
         side: DoubleSide,
         transparent: true,
       }),
-    [],
+    [opacity],
   );
   useEffect(() => () => material.dispose(), [material]);
   return meshes.map((mesh, index) => (
-    <mesh
-      material={material}
-      name={`context-globe-sector:${sector.id}:${index}`}
-      key={index}
-    >
+    <mesh material={material} name={`${name}:${index}`} key={index}>
       <ProjectedMeshGeometry data={mesh} />
     </mesh>
   ));

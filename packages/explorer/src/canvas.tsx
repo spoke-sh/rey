@@ -10,6 +10,11 @@ import {
 import type { CompiledContextGlobe } from "./three-globe";
 import type { CompiledContinuousRelief } from "./three-terrain";
 import {
+  GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
+  globeAtlasRepeatDepthOffset,
+  globeAtlasRepeatOpacity,
+} from "./globe-projection";
+import {
   ReactThreeFiberRendererAdapter,
   THREE_RENDERER_REVISION,
   WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT,
@@ -73,6 +78,23 @@ export function ExplorerCanvas({
   const lastFrameRef = useRef<RenderFrameIdentity | undefined>(undefined);
   const [rootGeneration, setRootGeneration] = useState(0);
   const [ready, setReady] = useState(false);
+  const horizontalWrapIndexes = globeHorizontalWrapIndexes(content);
+  const horizontalWrapDepth = globeHorizontalWrapDepth(content);
+  const horizontalWrapOpacity = globeHorizontalWrapOpacity(content);
+  const viewport = canvasViewport(content);
+  const wrappedCanvasStyle =
+    content.kind === "globe" && horizontalWrapIndexes.length > 1
+      ? {
+          bottom: "auto",
+          height: viewport.height,
+          left: "50%",
+          right: "auto",
+          top: "50%",
+          transform: `translate(-50%, -50%) scale(${(content.world.width * horizontalWrapIndexes.length) / viewport.width}, ${content.world.height / viewport.height})`,
+          transformOrigin: "center center",
+          width: viewport.width,
+        }
+      : undefined;
   const onReportRef = useRef(onReport);
   onReportRef.current = onReport;
   const report = (status: Readonly<RendererStatus>) => {
@@ -232,7 +254,6 @@ export function ExplorerCanvas({
     const root = rootRef.current;
     const adapter = adapterRef.current;
     if (!root || !adapter?.renderer || rootGeneration === 0) return;
-    const viewport = canvasViewport(content);
     void root.configure({
       dpr: viewport.device_pixel_ratio,
       flat: true,
@@ -245,7 +266,7 @@ export function ExplorerCanvas({
         top: 0,
       },
     });
-  }, [content.kind, content.world.height, content.world.width, rootGeneration]);
+  }, [rootGeneration, viewport.height, viewport.width]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -274,24 +295,60 @@ export function ExplorerCanvas({
         className,
         ready && visible ? readyClassName : undefined,
       )}
+      data-globe-horizontal-wrap-indexes={
+        content.kind === "globe" ? horizontalWrapIndexes.join(",") : undefined
+      }
+      data-globe-horizontal-wrap-depth={
+        content.kind === "globe" ? horizontalWrapDepth.toFixed(3) : undefined
+      }
+      data-globe-horizontal-wrap-opacity={
+        content.kind === "globe" ? horizontalWrapOpacity.toFixed(3) : undefined
+      }
       data-renderer="react-three-fiber"
       ref={canvasRef}
+      style={wrappedCanvasStyle}
     />
   );
 }
 
 function canvasViewport(content: ExplorerCanvasContent) {
-  return boundedViewport({
-    width:
-      content.kind === "globe"
-        ? content.world.width
-        : content.view.viewport_width,
-    height:
-      content.kind === "globe"
-        ? content.world.height
-        : content.view.viewport_height,
-    device_pixel_ratio: globalThis.devicePixelRatio ?? 1,
-  });
+  const horizontalWraps = globeHorizontalWrapIndexes(content).length;
+  return boundedViewport(
+    {
+      width:
+        content.kind === "globe"
+          ? content.world.width * horizontalWraps
+          : content.view.viewport_width,
+      height:
+        content.kind === "globe"
+          ? content.world.height
+          : content.view.viewport_height,
+      device_pixel_ratio: globalThis.devicePixelRatio ?? 1,
+    },
+    2,
+    horizontalWraps > 1 ? 4_096 : 2_048,
+  );
+}
+
+function globeHorizontalWrapIndexes(content: ExplorerCanvasContent) {
+  return content.kind === "globe"
+    ? GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES
+    : ([0] as const);
+}
+
+function globeHorizontalWrapOpacity(content: ExplorerCanvasContent) {
+  return content.kind === "globe"
+    ? globeAtlasRepeatOpacity(content.view.projection_morph_progress ?? 0)
+    : 0;
+}
+
+function globeHorizontalWrapDepth(content: ExplorerCanvasContent) {
+  return content.kind === "globe"
+    ? globeAtlasRepeatDepthOffset(
+        content.view.projection_morph_progress ?? 0,
+        0,
+      )
+    : 0;
 }
 
 function joinClassNames(...values: (string | undefined)[]) {

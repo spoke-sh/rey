@@ -65,14 +65,57 @@ neither terrain nor coverage nor an Earth coordinate reference system.
 The transition deliberately does not drive every layer with the same visual
 curve:
 
-| Layer                      | Globe behavior                                 | Transition behavior                                          | Mercator behavior                                             |
-| -------------------------- | ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
-| Indexed surface            | Spherical and oriented.                        | Unfurls and expands continuously.                            | Spans the intended planar canvas for projected attachments.   |
-| Attached geometry          | Fixed to semantic coordinates.                 | Uses the exact surface projector.                            | Retains coordinate and identity.                              |
-| Atmosphere                 | Clearly visible around the sphere.             | Contracts while opacity falls on a faster fifth-power curve. | Absent before it can appear inside the map.                   |
-| Neutral spherical scaffold | Establishes the globe body in both renderers.  | Keeps its projected extent while fading with the morph.      | Absent; no residual warm or gray plane.                       |
-| Stipple                    | Subtle curvature texture.                      | Material response changes with posture.                      | Darker subdued texture remains legible on the flat surface.   |
-| Polar fabric               | Sparse unlabeled caps in the stipple language. | Travels with the shared projector.                           | Does not claim geography outside the disclosed chart support. |
+| Layer                      | Globe behavior                                 | Transition behavior                                                                                                                  | Mercator behavior                                             |
+| -------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Indexed surface            | Spherical and oriented.                        | Unfurls and expands continuously.                                                                                                    | Spans the intended planar canvas for projected attachments.   |
+| Attached geometry          | Fixed to semantic coordinates.                 | Uses the exact surface projector.                                                                                                    | Retains coordinate and identity.                              |
+| Atmosphere                 | Clearly visible around the sphere.             | Contracts while opacity falls on a faster fifth-power curve.                                                                         | Absent before it can appear inside the map.                   |
+| Neutral spherical scaffold | Establishes the globe body in both renderers.  | Keeps its extent but finishes its color fade before repeated fabric becomes prominent; depth-only geometry may briefly mask overlap. | Absent; no residual warm or gray plane.                       |
+| Stipple                    | Subtle curvature texture.                      | Material response changes with posture.                                                                                              | Darker subdued texture remains legible on the flat surface.   |
+| Polar fabric               | Sparse unlabeled caps in the stipple language. | Travels with the shared projector.                                                                                                   | Does not claim geography outside the disclosed chart support. |
+
+As the projection approaches the planar endpoint, the accelerated scene
+dissolves projected sectors, stipple, regions, and beacons into horizontal
+chart indexes `-1` and `1` around the canonical `0` chart. The repeat dissolve
+begins at projection progress `0.58` and follows a smoothstep curve to full
+opacity. Because opacity is derived only from projection progress, exiting
+Mercator evaluates the same curve in reverse and dissolves both repeated copies
+before the spherical endpoint. A side copy is always evaluated in planar
+Mercator coordinates; it must not inherit the canonical chart's intermediate
+spherical vertex warp. Its center offset instead places the planar copy's
+inner edge on the current eased seam. The offset begins at half a chart width
+when the repeat is invisible and reaches one chart width at the planar
+endpoint. Only a narrow connection band bends from the planar chart onto the
+canonical seam, so the copies stay joined without buckling their interiors.
+
+Within each side copy, a mirrored smoothstep field keeps stipple and projected
+attachments darkest at the connected seam, then lightens them continuously
+toward the outer edge. The reversible temporal dissolve expands that spatial
+field away from a full-strength seam instead of multiplying the whole side
+chart. The joint therefore retains the canonical chart's visual weight while
+the lighter fabric grows or contracts around it. While charts still overlap,
+the same field also forms a depth wedge. A bounded band beside the connected
+seam stays coplanar so the nearest retained samples form a visibly continuous
+joint; only after that band does the repeat recede smoothly along negative Z
+toward its outer edge. The canonical unfurling surface writes the temporary
+depth boundary, preventing receded dots from accumulating over its stipple.
+Depth returns to zero with overlap at the planar endpoint and reverses from
+the same projection state on exit. This Z offset is presentation geometry,
+not a semantic altitude or evidence axis.
+
+The visible neutral scaffold uses its own bounded fade window from projection
+progress `0.38` through `0.62`. Its color is therefore gone before the repeated
+charts are materially legible, avoiding a bright canonical rectangle whose
+vertical bounds could read as disconnected map edges. The same geometry may
+continue writing depth while fully transparent; color opacity and overlap
+occlusion are intentionally separate mechanisms.
+
+The canvas establishes all three chart extents while the globe is still
+spherical, but does not materialize the side copies until their opacity becomes
+nonzero. Entry and exit therefore require no GPU canvas resize, scale jump, or
+framing jump. Horizontal panning exposes no artificial edge. Wrapped copies
+remain view geometry: they keep canonical semantic identity and grant no
+additional evidence or coverage.
 
 The accelerated package owns the surface, fabric, and atmosphere behavior;
 `@rey/agent` owns the matching reference scaffold. Their independent curves

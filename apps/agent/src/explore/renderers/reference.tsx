@@ -26,8 +26,12 @@ import {
   contextGlobeSamples,
 } from "@rey/explorer/globe-samples";
 import {
+  globeAtlasRepeatOpacity,
+  globeAtlasRepeatSeamWeight,
+  globeAtlasRepeatVisibility,
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
+  globeSurfaceOpacity,
 } from "@rey/explorer";
 import {
   projectSemanticGlobe,
@@ -99,17 +103,28 @@ export function ReferenceRenderer({
     scene.regime === "atlas" &&
     scene.world_atlas_transition !== null &&
     projectionMorphProgress >= 1;
-  const chartWrapIndexes = wrappedAtlas ? [-1, 0, 1] : [0];
+  const atlasRepeatOpacity = globeAtlasRepeatOpacity(projectionMorphProgress);
+  const atlasSeamPeriod =
+    scene.world.width *
+    (1 - globeProjectionMorphRemaining(projectionMorphProgress));
+  const atlasRepeatOffset = (scene.world.width + atlasSeamPeriod) / 2;
+  const dissolvingAtlasRepeats = morphActive && atlasRepeatOpacity > 0;
+  const atlasFeatureLayerActive = wrappedAtlas || dissolvingAtlasRepeats;
+  const chartWrapIndexes = wrappedAtlas
+    ? [-1, 0, 1]
+    : dissolvingAtlasRepeats
+      ? [-1, 1]
+      : [0];
   const activePickingIndex = pickingIndex ?? compileScenePickingIndex(scene);
   const atlasLabelPlacements = new Map(
-    (wrappedAtlas
+    (atlasFeatureLayerActive
       ? layoutSemanticLabels(
           chartWrapIndexes.flatMap((wrapIndex) =>
             scene.nodes.map((node) => ({
               fragment_id: `${wrapIndex}:${node.id}`,
               semantic_identity: node.semantic_identity ?? node.id,
               focus_id: node.focus_id,
-              x: node.x + wrapIndex * scene.world.width - node.width / 2,
+              x: node.x + wrapIndex * atlasRepeatOffset - node.width / 2,
               y: node.y - 63,
               width: node.width,
               height: 126,
@@ -172,12 +187,14 @@ export function ReferenceRenderer({
         )}
       <CountyFootprintLayer scene={scene} />
       <CountyFeatureLayer onFocus={onFocus} scene={scene} />
-      {wrappedAtlas ? (
+      {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer
           globeView={globeView}
           labelPlacements={atlasLabelPlacements}
           onFocus={onFocus}
+          projectionMorphProgress={projectionMorphProgress}
           scene={scene}
+          wrapOffset={atlasRepeatOffset}
           wrapIndexes={chartWrapIndexes}
         />
       ) : null}
@@ -258,13 +275,17 @@ function AtlasFeatureLayer({
   globeView,
   labelPlacements,
   onFocus,
+  projectionMorphProgress,
   scene,
+  wrapOffset,
   wrapIndexes,
 }: {
   globeView: GlobeCameraView;
   labelPlacements: ReadonlyMap<string, SemanticLabelPlacement>;
   onFocus: (node: FocusableTopologyObject) => void;
+  projectionMorphProgress: number;
   scene: TopologyScene;
+  wrapOffset: number;
   wrapIndexes: readonly number[];
 }) {
   const offset = semanticMercatorViewOffset(
@@ -288,26 +309,52 @@ function AtlasFeatureLayer({
         transform={`translate(${offset.x} ${offset.y})`}
       >
         {wrapIndexes.flatMap((wrapIndex) =>
-          scene.regions.map((region) => (
-            <rect
-              aria-hidden="true"
-              className={sx(styles.atlasSector)}
-              data-chart-wrap-index={wrapIndex}
-              data-semantic-identity={region.id}
-              height={region.height}
-              key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
-              width={region.width}
-              x={region.x + wrapIndex * scene.world.width}
-              y={region.y}
-            >
-              <title>{`${region.label} / ${region.detail}`}</title>
-            </rect>
-          )),
+          scene.regions.map((region) => {
+            const seamWeight = globeAtlasRepeatSeamWeight(
+              (region.x + region.width / 2) / scene.world.width,
+              wrapIndex,
+            );
+            const opacity =
+              wrapIndex === 0
+                ? 1
+                : globeAtlasRepeatVisibility(
+                    projectionMorphProgress,
+                    seamWeight,
+                  );
+            return (
+              <rect
+                aria-hidden="true"
+                className={sx(styles.atlasSector)}
+                data-chart-wrap-index={wrapIndex}
+                data-repeat-seam-weight={seamWeight.toFixed(3)}
+                data-semantic-identity={region.id}
+                height={region.height}
+                key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
+                opacity={opacity}
+                width={region.width}
+                x={region.x + wrapIndex * wrapOffset}
+                y={region.y}
+              >
+                <title>{`${region.label} / ${region.detail}`}</title>
+              </rect>
+            );
+          }),
         )}
         {wrapIndexes.flatMap((wrapIndex) =>
           scene.nodes.map((node) => {
             const placement = labelPlacements.get(`${wrapIndex}:${node.id}`)!;
-            const x = node.x + wrapIndex * scene.world.width;
+            const x = node.x + wrapIndex * wrapOffset;
+            const seamWeight = globeAtlasRepeatSeamWeight(
+              node.x / scene.world.width,
+              wrapIndex,
+            );
+            const opacity =
+              wrapIndex === 0
+                ? 1
+                : globeAtlasRepeatVisibility(
+                    projectionMorphProgress,
+                    seamWeight,
+                  );
             return (
               <g
                 aria-hidden={wrapIndex === 0 ? undefined : true}
@@ -317,6 +364,7 @@ function AtlasFeatureLayer({
                 data-focus-id={node.focus_id}
                 data-label-disposition={placement.disposition}
                 data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
+                data-repeat-seam-weight={seamWeight.toFixed(3)}
                 data-semantic-identity={node.semantic_identity ?? node.id}
                 key={`${wrapIndex}:${node.id}`}
                 onClick={() =>
@@ -346,6 +394,7 @@ function AtlasFeatureLayer({
                   }
                 }}
                 role="button"
+                style={{ opacity }}
                 tabIndex={wrapIndex === 0 ? 0 : -1}
               >
                 <circle
@@ -667,6 +716,7 @@ function SemanticGlobeLayer({
     projectionMorphProgress,
   );
   const atmosphereOpacity = globeAtmosphereOpacity(projectionMorphProgress);
+  const surfaceOpacity = globeSurfaceOpacity(projectionMorphProgress);
   const projectedSamples = accelerated
     ? []
     : contextGlobeSamples(globe.source_revision, 5_200, globe.regions)
@@ -798,8 +848,9 @@ function SemanticGlobeLayer({
         data-accelerated-surface={accelerated || undefined}
         data-globe-halo-scale={WORLD_GLOBE_ATMOSPHERE_SCALE}
         data-globe-sphere=""
+        data-globe-surface-opacity={surfaceOpacity}
         fill={accelerated ? "transparent" : "url(#rey-semantic-globe-fill)"}
-        opacity={atmosphereRemaining}
+        opacity={surfaceOpacity}
         r={radius}
       />
       {samplePath ? (

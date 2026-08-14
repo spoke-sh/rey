@@ -212,7 +212,7 @@ describe("reference renderer", () => {
     expect(halfwayMarkup).toContain('data-globe-atmosphere-opacity="0.03125"');
     expect(halfwayMarkup).toContain('opacity="0.03125" r="218.');
     expect(halfwayMarkup).toContain(
-      'data-globe-sphere="" fill="url(#rey-semantic-globe-fill)" opacity="0.5" r="400"',
+      'data-globe-sphere="" data-globe-surface-opacity="0.25" fill="url(#rey-semantic-globe-fill)" opacity="0.25" r="400"',
     );
 
     const acceleratedMarkup = renderToStaticMarkup(
@@ -232,7 +232,7 @@ describe("reference renderer", () => {
     );
     expect(acceleratedMarkup).toContain('opacity="0.03125" r="218.');
     expect(acceleratedMarkup).toContain(
-      'data-globe-sphere="" fill="transparent" opacity="0.5" r="400"',
+      'data-globe-sphere="" data-globe-surface-opacity="0.25" fill="transparent" opacity="0.25" r="400"',
     );
   });
 

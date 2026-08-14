@@ -11,9 +11,24 @@ export {
 } from "./globe-samples";
 export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
+  GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
+  GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT,
+  GLOBE_ATLAS_REPEAT_DISSOLVE_START,
+  GLOBE_ATLAS_REPEAT_MAX_DEPTH,
+  GLOBE_SURFACE_FADE_END,
+  GLOBE_SURFACE_FADE_START,
+  globeAtlasRepeatDepthOffset,
+  globeAtlasRepeatOpacity,
+  globeAtlasRepeatOffset,
+  globeAtlasRepeatPeriod,
+  globeAtlasRepeatSeamWeight,
+  globeAtlasRepeatVisibility,
+  globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
+  globeSurfaceOpacity,
+  projectGlobeAtlasRepeatCoordinate,
 } from "./globe-projection";
 export type { GlobeAtlasViewCenter } from "./globe-projection";
 export {

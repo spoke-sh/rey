@@ -2,7 +2,9 @@ import { create } from "@react-three/test-renderer";
 import {
   Color,
   DirectionalLight,
+  type InstancedBufferAttribute,
   type InstancedMesh,
+  Matrix4,
   type Mesh,
   type MeshBasicNodeMaterial,
   type MeshStandardNodeMaterial,
@@ -10,6 +12,12 @@ import {
 } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
 import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
+import {
+  globeAtlasRepeatOpacity,
+  globeAtlasRepeatOffset,
+  globeAtlasWidth,
+  projectGlobeAtlasRepeatCoordinate,
+} from "./globe-projection";
 import { globeFixture, terrainFieldFixture } from "./test-fixtures";
 import { compileContextGlobe, GLOBE_RADIUS } from "./three-globe";
 import { compileContinuousRelief } from "./three-terrain";
@@ -125,6 +133,7 @@ describe("declarative React Three Fiber scenes", () => {
   });
 
   it("subdues spherical fabric at the Mercator endpoint", async () => {
+    const world = { width: 1200, height: 720 };
     const renderer = await create(
       <ContextGlobeScene
         compiled={compileContextGlobe(globeFixture())}
@@ -133,7 +142,7 @@ describe("declarative React Three Fiber scenes", () => {
           pitch_degrees: -8,
           projection_morph_progress: 1,
         }}
-        world={{ width: 1200, height: 720 }}
+        world={world}
       />,
     );
 
@@ -147,6 +156,27 @@ describe("declarative React Three Fiber scenes", () => {
       0.48 * 0.36,
     );
     expect((poleField.material as MeshBasicNodeMaterial).opacity).toBe(0);
+    const wraps = renderer.scene.findAll(
+      ({ props }) =>
+        typeof props.name === "string" &&
+        props.name.startsWith("context-globe-atlas-wrap:"),
+    );
+    expect(wraps).toHaveLength(3);
+    expect(wraps.map(({ instance }) => instance.position.x)).toEqual([
+      -globeAtlasWidth(world),
+      0,
+      globeAtlasWidth(world),
+    ]);
+    expect(
+      renderer.scene.findByProps({
+        name: "context-globe-samples:0:wrap:-1",
+      }),
+    ).toBeDefined();
+    expect(
+      renderer.scene.findByProps({
+        name: "context-globe-samples:0:wrap:1",
+      }),
+    ).toBeDefined();
     expect(
       renderer.scene.findAll(
         ({ props }) => props.name === "context-globe-surface",
@@ -159,6 +189,133 @@ describe("declarative React Three Fiber scenes", () => {
           props.name.startsWith("context-globe-atmosphere:"),
       ),
     ).toHaveLength(0);
+
+    await renderer.unmount();
+  });
+
+  it("dissolves repeated Atlas fabric through intermediate morph frames", async () => {
+    const progress = 0.79;
+    const world = { width: 1200, height: 720 };
+    const view = {
+      yaw_degrees: 24,
+      pitch_degrees: -8,
+      projection_morph_progress: progress,
+    };
+    const compiled = compileContextGlobe(globeFixture());
+    const renderer = await create(
+      <ContextGlobeScene compiled={compiled} view={view} world={world} />,
+    );
+
+    const canonical = renderer.scene.findByProps({
+      name: "context-globe-samples:0",
+    }).instance as InstancedMesh;
+    const repeated = renderer.scene.findByProps({
+      name: "context-globe-samples:0:wrap:1",
+    }).instance as InstancedMesh;
+    const repeatedLeft = renderer.scene.findByProps({
+      name: "context-globe-samples:0:wrap:-1",
+    }).instance as InstancedMesh;
+    const repeatedAtlas = renderer.scene.findByProps({
+      name: "context-globe-atlas-wrap:1",
+    }).instance;
+    const postureOpacity = 0.48 * (1 - progress * (1 - 0.36));
+    expect((canonical.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
+      postureOpacity,
+    );
+    expect((repeated.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
+      postureOpacity,
+    );
+    expect(
+      (repeated.material as MeshBasicNodeMaterial).opacityNode,
+    ).not.toBeNull();
+    const rightGradient = repeated.geometry.getAttribute(
+      "reyRepeatSeamWeight",
+    ) as InstancedBufferAttribute;
+    const leftGradient = repeatedLeft.geometry.getAttribute(
+      "reyRepeatSeamWeight",
+    ) as InstancedBufferAttribute;
+    expect(rightGradient.count).toBe(repeated.count);
+    expect(leftGradient.count).toBe(repeatedLeft.count);
+    expect(Math.min(...rightGradient.array)).toBeLessThan(0.01);
+    expect(Math.max(...rightGradient.array)).toBeGreaterThan(0.99);
+    for (const index of [0, 17, 101, rightGradient.count - 1]) {
+      expect(rightGradient.getX(index) + leftGradient.getX(index)).toBeCloseTo(
+        1,
+      );
+    }
+    let outerIndex = 0;
+    let seamIndex = 0;
+    for (let index = 1; index < rightGradient.count; index += 1) {
+      if (rightGradient.getX(index) < rightGradient.getX(outerIndex))
+        outerIndex = index;
+      if (rightGradient.getX(index) > rightGradient.getX(seamIndex))
+        seamIndex = index;
+    }
+    const canonicalMatrix = new Matrix4();
+    const repeatedMatrix = new Matrix4();
+    canonical.getMatrixAt(outerIndex, canonicalMatrix);
+    repeated.getMatrixAt(outerIndex, repeatedMatrix);
+    const outerSample = compiled.sample_buckets[0]!.samples[outerIndex]!;
+    const expectedOuter = projectGlobeAtlasRepeatCoordinate(
+      outerSample.longitude_degrees,
+      outerSample.latitude_degrees,
+      view,
+      world,
+      progress,
+      1,
+      GLOBE_RADIUS * 1.005,
+      0.008,
+    );
+    expect(repeatedMatrix.elements[12]).toBeCloseTo(
+      expectedOuter.position[0],
+      5,
+    );
+    expect(repeatedMatrix.elements[13]).toBeCloseTo(
+      expectedOuter.position[1],
+      5,
+    );
+    expect(repeatedMatrix.elements[14]).toBeCloseTo(
+      expectedOuter.position[2],
+      5,
+    );
+    canonical.getMatrixAt(seamIndex, canonicalMatrix);
+    repeated.getMatrixAt(seamIndex, repeatedMatrix);
+    const seamSample = compiled.sample_buckets[0]!.samples[seamIndex]!;
+    const expectedSeam = projectGlobeAtlasRepeatCoordinate(
+      seamSample.longitude_degrees,
+      seamSample.latitude_degrees,
+      view,
+      world,
+      progress,
+      1,
+      GLOBE_RADIUS * 1.005,
+      0.008,
+    );
+    expect(repeatedMatrix.elements[12]).toBeCloseTo(
+      expectedSeam.position[0],
+      5,
+    );
+    expect(repeatedMatrix.elements[13]).toBeCloseTo(
+      expectedSeam.position[1],
+      5,
+    );
+    expect(repeatedMatrix.elements[14]).toBeCloseTo(
+      expectedSeam.position[2],
+      5,
+    );
+    const surface = renderer.scene.findByProps({
+      name: "context-globe-surface",
+    }).instance as Mesh;
+    expect((surface.material as MeshStandardNodeMaterial).depthWrite).toBe(
+      true,
+    );
+    expect(surface.renderOrder).toBe(-1);
+    expect(repeated.parent?.position.x).toBeCloseTo(
+      globeAtlasRepeatOffset(world, progress, 1),
+    );
+    expect(repeatedAtlas.position.x).toBeCloseTo(
+      globeAtlasRepeatOffset(world, progress, 1),
+    );
 
     await renderer.unmount();
   });
@@ -183,7 +340,7 @@ describe("declarative React Three Fiber scenes", () => {
       name: "context-globe-surface",
     }).instance as Mesh;
     const surfaceMaterial = surface.material as MeshStandardNodeMaterial;
-    expect(surfaceMaterial.opacity).toBeCloseTo(0.5);
+    expect(surfaceMaterial.opacity).toBeCloseTo(0.25);
     expect(surfaceMaterial.transparent).toBe(true);
     expect(surfaceMaterial.depthWrite).toBe(false);
     expect(

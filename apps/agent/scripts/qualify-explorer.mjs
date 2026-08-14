@@ -689,7 +689,11 @@ async function verifySmoothWorldWheelZoom(connection, timeoutMs) {
   };
 }
 
-async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
+async function verifyRotatedWorldAtlasUnfurl(
+  connection,
+  timeoutMs,
+  voyageDirectory,
+) {
   const before = await connection.evaluate(`(() => {
     const viewport = document.querySelector('[role="application"]');
     const bounds = viewport?.getBoundingClientRect();
@@ -711,27 +715,32 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
     const sample = () => {
       const projection = document.querySelector('[data-projection-morph-progress]');
       const regime = document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime');
+      const canvas = document.querySelector('canvas[data-globe-horizontal-wrap-opacity]');
       samples.push({
         progress: projection
           ? Number(projection.getAttribute('data-projection-morph-progress'))
           : regime === 'atlas' ? 1 : 0,
         regime,
+        repeat_depth: Number(canvas?.getAttribute('data-globe-horizontal-wrap-depth') ?? '0'),
+        repeat_opacity: Number(canvas?.getAttribute('data-globe-horizontal-wrap-opacity') ?? '0'),
         zoom: Number(viewport?.getAttribute('data-camera-zoom')),
       });
-      if (samples.length >= 40 || regime === 'atlas') resolve(samples);
+      if (samples.length >= 120 || regime === 'atlas') resolve(samples);
       else requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
-    for (let index = 0; index < 4; index += 1) {
-      viewport?.dispatchEvent(new WheelEvent('wheel', {
-        bubbles: true,
-        cancelable: true,
-        clientX: ${pointer.x},
-        clientY: ${pointer.y},
-        deltaX: 0,
-        deltaY: -100,
-        view: window,
-      }));
+    for (let index = 0; index < 8; index += 1) {
+      setTimeout(() => {
+        viewport?.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          clientX: ${pointer.x},
+          clientY: ${pointer.y},
+          deltaX: 0,
+          deltaY: -50,
+          view: window,
+        }));
+      }, index * 120);
     }
   })`);
   await waitFor(
@@ -740,29 +749,186 @@ async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
     "rotated World-to-Atlas wheel unfurl",
     timeoutMs,
   );
+  await sleep(400);
   const after = await connection.evaluate(`(() => {
     const viewport = document.querySelector('[role="application"]');
+    const canvas = document.querySelector('canvas[data-globe-horizontal-wrap-indexes]');
+    const scene = canvas?.parentElement;
+    const canvasBounds = canvas?.getBoundingClientRect();
+    const sceneBounds = scene?.getBoundingClientRect();
     return {
       atlas_view_offset: document.querySelector('[data-atlas-view-offset]')?.getAttribute('data-atlas-view-offset') ?? null,
+      horizontal_wrap_indexes: canvas?.getAttribute('data-globe-horizontal-wrap-indexes') ?? null,
+      horizontal_wrap_depth: Number(canvas?.getAttribute('data-globe-horizontal-wrap-depth') ?? 'NaN'),
+      horizontal_wrap_opacity: Number(canvas?.getAttribute('data-globe-horizontal-wrap-opacity') ?? 'NaN'),
+      horizontal_wrap_layout: canvasBounds && sceneBounds ? {
+        canvas_center_x: canvasBounds.x + canvasBounds.width / 2,
+        canvas_width: canvasBounds.width,
+        scene_center_x: sceneBounds.x + sceneBounds.width / 2,
+        scene_width: sceneBounds.width,
+      } : null,
       zoom: Number(viewport?.getAttribute('data-camera-zoom')),
     };
   })()`);
+  const readRepeatFrame = () =>
+    connection.evaluate(`(() => {
+      const viewport = document.querySelector('[role="application"]');
+      const projection = document.querySelector('[data-projection-morph-progress]');
+      const regime = document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime');
+      const canvas = document.querySelector('canvas[data-globe-horizontal-wrap-opacity]');
+      return {
+        progress: projection
+          ? Number(projection.getAttribute('data-projection-morph-progress'))
+          : regime === 'atlas' ? 1 : 0,
+        regime,
+        repeat_depth: Number(canvas?.getAttribute('data-globe-horizontal-wrap-depth') ?? '0'),
+        repeat_opacity: Number(canvas?.getAttribute('data-globe-horizontal-wrap-opacity') ?? '0'),
+        zoom: Number(viewport?.getAttribute('data-camera-zoom')),
+      };
+    })()`);
+  const exitAnimationFrames = [await readRepeatFrame()];
+  let depthTransitionScreenshot = null;
+  for (let index = 0; index < 16; index += 1) {
+    await connection.evaluate(`(() => {
+      const viewport = document.querySelector('[role="application"]');
+      viewport?.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: ${pointer.x},
+        clientY: ${pointer.y},
+        deltaX: 0,
+        deltaY: 25,
+        view: window,
+      }));
+    })()`);
+    await sleep(320);
+    const frame = await readRepeatFrame();
+    exitAnimationFrames.push(frame);
+    if (
+      depthTransitionScreenshot === null &&
+      frame.repeat_opacity >= 0.1 &&
+      frame.repeat_opacity <= 0.55 &&
+      frame.repeat_depth < 0
+    ) {
+      const response = await connection.send("Page.captureScreenshot", {
+        captureBeyondViewport: false,
+        format: "png",
+        fromSurface: true,
+      });
+      const image = Buffer.from(response.data, "base64");
+      const file = "03a-atlas-repeat-depth-exit.png";
+      await writeFile(join(voyageDirectory, file), image);
+      depthTransitionScreenshot = {
+        bytes: image.byteLength,
+        file,
+        frame,
+        sha256: sha256(image),
+      };
+    }
+    if (frame.regime === "world") break;
+  }
+  await waitFor(
+    connection,
+    `document.querySelector('[data-lens-regime="world"]')?.dataset.lensRegime === "world"`,
+    "Atlas-to-World repeat dissolve",
+    timeoutMs,
+  );
+  await sleep(400);
+  const returnAnimationFrames = [await readRepeatFrame()];
+  for (let index = 0; index < 16; index += 1) {
+    await connection.evaluate(`(() => {
+      const viewport = document.querySelector('[role="application"]');
+      viewport?.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: ${pointer.x},
+        clientY: ${pointer.y},
+        deltaX: 0,
+        deltaY: -25,
+        view: window,
+      }));
+    })()`);
+    await sleep(320);
+    const frame = await readRepeatFrame();
+    returnAnimationFrames.push(frame);
+    if (frame.regime === "atlas") break;
+  }
+  await waitFor(
+    connection,
+    `document.querySelector('[data-lens-regime="atlas"]')?.dataset.lensRegime === "atlas"`,
+    "World-to-Atlas return after reverse dissolve",
+    timeoutMs,
+  );
+  await sleep(400);
   const distinctIntermediateFrames = new Set(
     animationFrames
       .filter(({ progress }) => progress > 0 && progress < 1)
       .map(({ progress }) => progress.toFixed(3)),
   ).size;
+  const enteringDissolveFrames = new Set(
+    returnAnimationFrames
+      .filter(({ repeat_opacity: opacity }) => opacity > 0 && opacity < 1)
+      .map(({ repeat_opacity: opacity }) => opacity.toFixed(3)),
+  ).size;
+  const exitingDissolveFrames = new Set(
+    exitAnimationFrames
+      .filter(({ repeat_opacity: opacity }) => opacity > 0 && opacity < 1)
+      .map(({ repeat_opacity: opacity }) => opacity.toFixed(3)),
+  ).size;
+  const enteringDepthFrames = returnAnimationFrames.filter(
+    ({ repeat_depth: depth, repeat_opacity: opacity }) =>
+      opacity > 0 && opacity < 1 && depth < 0,
+  ).length;
+  const exitingDepthFrames = exitAnimationFrames.filter(
+    ({ repeat_depth: depth, repeat_opacity: opacity }) =>
+      opacity > 0 && opacity < 1 && depth < 0,
+  ).length;
+  const enteringDissolveMonotonic = returnAnimationFrames.every(
+    ({ repeat_opacity: opacity }, index) =>
+      index === 0 || opacity >= returnAnimationFrames[index - 1].repeat_opacity,
+  );
+  const exitingDissolveMonotonic = exitAnimationFrames.every(
+    ({ repeat_opacity: opacity }, index) =>
+      index === 0 || opacity <= exitAnimationFrames[index - 1].repeat_opacity,
+  );
   return {
     after,
     animation_frames: animationFrames,
     before,
     distinct_intermediate_frames: distinctIntermediateFrames,
+    depth_transition_screenshot: depthTransitionScreenshot,
+    entering_repeat_dissolve_frames: enteringDissolveFrames,
+    entering_repeat_depth_frames: enteringDepthFrames,
+    exit_animation_frames: exitAnimationFrames,
+    exiting_repeat_dissolve_frames: exitingDissolveFrames,
+    exiting_repeat_depth_frames: exitingDepthFrames,
+    return_animation_frames: returnAnimationFrames,
     observed:
       Math.abs(before.yaw) > 0.001 &&
       distinctIntermediateFrames >= 3 &&
+      enteringDissolveFrames >= 2 &&
+      enteringDepthFrames >= 1 &&
+      enteringDissolveMonotonic &&
+      exitingDissolveFrames >= 2 &&
+      exitingDepthFrames >= 1 &&
+      depthTransitionScreenshot !== null &&
+      exitingDissolveMonotonic &&
       animationFrames.at(-1)?.regime === "atlas" &&
+      exitAnimationFrames.at(-1)?.regime === "world" &&
       after.atlas_view_offset !== null &&
-      after.atlas_view_offset !== "0,0",
+      after.atlas_view_offset !== "0,0" &&
+      after.horizontal_wrap_indexes === "-1,0,1" &&
+      after.horizontal_wrap_depth === 0 &&
+      after.horizontal_wrap_opacity === 1 &&
+      after.horizontal_wrap_layout !== null &&
+      Math.abs(
+        after.horizontal_wrap_layout.canvas_center_x -
+          after.horizontal_wrap_layout.scene_center_x,
+      ) < 1 &&
+      Math.abs(
+        after.horizontal_wrap_layout.canvas_width -
+          after.horizontal_wrap_layout.scene_width * 3,
+      ) < 1,
   };
 }
 
@@ -1208,6 +1374,7 @@ async function runVoyage(options) {
       rotatedWorldAtlasUnfurl = await verifyRotatedWorldAtlasUnfurl(
         connection,
         options.timeoutMs,
+        voyageDirectory,
       );
     });
     if (!rotatedWorldAtlasUnfurl?.observed)
