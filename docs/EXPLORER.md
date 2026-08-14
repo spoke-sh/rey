@@ -295,9 +295,12 @@ Explorer exposes field evaluation, geometry construction, and renderer
 submission duration as transient unretained CPU measurements. Submission time
 is not GPU execution time or a frame-rate claim. Named machine voyages may
 retain and bound it only with that authority.
-The same human diagnostics remain visible for accelerated semantic globes even
-though a globe is not a terrain field: they name the selected backend, bounded
-source/GPU bytes, triangle count, geometry construction, and submission time.
+The same renderer measurements remain available as machine-readable browser
+qualification attributes for accelerated semantic globes even though a globe
+is not a terrain field: they name the selected backend, bounded source/GPU
+bytes, triangle count, geometry construction, and submission time. The visible
+corner readout remains limited to zoom and authority-qualified geographic
+coordinates.
 The canvas also exposes its exact scene snapshot, focus, source revisions, and
 compiler revisions for browser qualification without making those attributes a
 second scene store.
@@ -380,10 +383,10 @@ change evidence or execute a probe.
 The router retains only those three declared values in the view envelope;
 unknown backend requests are discarded rather than becoming an untyped
 qualification mode.
-The named browser-voyage harness reads these diagnostics from the human
-surface, performs the semantic traversal through browser controls, and retains
-captures and a typed manifest only beneath ignored `.rey` runtime state. Its
-optional local-file route/base-path posture exists solely for
+The named browser-voyage harness reads those machine-readable attributes from
+the same canvas, performs the semantic traversal through browser controls, and
+retains captures and a typed manifest only beneath ignored `.rey` runtime
+state. Its optional local-file route/base-path posture exists solely for
 socket-restricted qualification over the exact built assets and bounded API
 snapshots; the production HTTP route remains `/explore`, and the manifest must
 disclose when direct browser transport was not exercised.

@@ -1161,6 +1161,11 @@ async function runVoyage(options) {
         capture.geographic_coordinate.text ?? "",
       ),
   );
+  const compactNavigationDiagnosticsPresent = captures.every((capture) =>
+    /^ZOOM \d+%LAT -?\d+\.\d{4}° \/ LON -?\d+\.\d{4}°$/.test(
+      capture.renderer_diagnostics_text ?? "",
+    ),
+  );
   const nativeCountyCoordinatesPresent = captures
     .filter((capture) =>
       ["landscape", "objects", "evidence"].includes(capture.stage),
@@ -1194,6 +1199,7 @@ async function runVoyage(options) {
     backendMatched &&
     exactEvidencePresent &&
     geographicCoordinatesPresent &&
+    compactNavigationDiagnosticsPresent &&
     nativeCountyCoordinatesPresent &&
     diagnosticsFollowFooter &&
     onboardingNoticeObserved &&
@@ -1274,6 +1280,8 @@ async function runVoyage(options) {
       exact_evidence_present: exactEvidencePresent,
       expected_stages_present: expectedStagesPresent,
       diagnostics_follow_footer: diagnosticsFollowFooter,
+      compact_navigation_diagnostics_present:
+        compactNavigationDiagnosticsPresent,
       first_interaction_dismissal_observed: firstInteractionDismissalObserved,
       expected_loss_console_entries: expectedLossConsoleEntries.length,
       loss_fallback_observed: lossFallbackObserved,

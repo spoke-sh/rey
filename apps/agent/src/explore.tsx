@@ -655,6 +655,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               styles.orientationCoordinates,
             footerState.notice && styles.canvasCoordinatesFooterVisible,
           )}
+          data-renderer-active-band-ids={terrainRenderer.active_band_ids.join(
+            ",",
+          )}
+          data-renderer-active-render-passes={terrainRenderer.active_render_passes.join(
+            ",",
+          )}
           data-renderer-backend={terrainRenderer.status.backend}
           data-renderer-degraded={String(terrainRenderer.status.degraded)}
           data-renderer-diagnostics="rey.explorer-renderer-diagnostics.v1"
@@ -670,83 +676,29 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-gpu-budget-bytes={terrainRenderer.gpu_budget_bytes}
           data-renderer-gpu-bytes={terrainRenderer.gpu_bytes}
           data-renderer-lifecycle={terrainRenderer.status.lifecycle}
+          data-renderer-measurement-authority={
+            terrainRenderer.measurement_authority
+          }
           data-renderer-parity-samples={terrainRenderer.parity_samples}
+          data-renderer-parity-revision={terrainRenderer.parity_revision}
           data-renderer-preference={terrainRenderer.preference}
+          data-renderer-program-count={terrainRenderer.program_count}
+          data-renderer-render-graph-id={terrainRenderer.render_graph_id}
           data-renderer-revision={terrainRenderer.status.renderer_revision}
           data-renderer-submission-ms={terrainRenderer.render_submission_ms}
           data-renderer-triangles={terrainRenderer.triangles}
+          data-renderer-working-set-limit-bytes={
+            terrainRenderer.working_set_limit_bytes
+          }
+          data-renderer-working-set-limit-cells={
+            terrainRenderer.working_set_limit_cells
+          }
           aria-hidden="true"
         >
           <span>ZOOM {Math.round(zoom * 100)}%</span>
           <span data-coordinate-authority={geographicCoordinate?.authority}>
             {formatGeographicCoordinate(geographicCoordinate)}
           </span>
-          {scene.terrain || scene.globe ? (
-            <span data-renderer-backend={terrainRenderer.status.backend}>
-              RENDER / {terrainRenderer.status.backend?.toUpperCase() ?? "INIT"}
-              {terrainRenderer.status.degraded ? " / DEGRADED" : ""}
-            </span>
-          ) : null}
-          {terrainRenderer.field_sets > 0 ? (
-            <>
-              <span
-                data-terrain-lod={terrainRenderer.active_band_ids.join(",")}
-              >
-                LOD /{" "}
-                {terrainRenderer.active_band_ids.join(" + ").toUpperCase()}
-              </span>
-              {terrainRenderer.active_band_ids.includes("semantic_globe") ? (
-                <span>
-                  GLOBE / {terrainRenderer.triangles} TRI /{" "}
-                  {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB SOURCE
-                </span>
-              ) : (
-                <span>
-                  FIELD / {terrainRenderer.field_cells} CELLS /{" "}
-                  {Math.ceil(terrainRenderer.field_bytes / 1024)} KIB /{" "}
-                  {terrainRenderer.triangles} TRI
-                </span>
-              )}
-              {terrainRenderer.program_count > 0 ? (
-                <span>
-                  PROGRAM / {terrainRenderer.program_count} / WORKING LIMIT /{" "}
-                  {terrainRenderer.working_set_limit_cells} CELLS /{" "}
-                  {Math.ceil(terrainRenderer.working_set_limit_bytes / 1024)}{" "}
-                  KIB
-                </span>
-              ) : null}
-              <span data-render-graph={terrainRenderer.render_graph_id}>
-                GRAPH / {terrainRenderer.active_render_passes.length} PASSES
-              </span>
-              {terrainRenderer.gpu_budget_bytes > 0 ? (
-                <span>
-                  GPU / {Math.ceil(terrainRenderer.gpu_bytes / 1024)} KIB /{" "}
-                  LIMIT {Math.ceil(terrainRenderer.gpu_budget_bytes / 1024)} KIB
-                </span>
-              ) : null}
-              {terrainRenderer.parity_samples > 0 ? (
-                <span data-terrain-parity={terrainRenderer.parity_revision}>
-                  PARITY / {terrainRenderer.parity_samples} CPU-BOUND SAMPLES
-                </span>
-              ) : null}
-              {terrainRenderer.status.lifecycle === "ready" ? (
-                <span
-                  data-measurement-authority={
-                    terrainRenderer.measurement_authority
-                  }
-                >
-                  CPU TIMING / EVAL{" "}
-                  {terrainRenderer.field_evaluation_ms.toFixed(1)}
-                  MS / GEOMETRY{" "}
-                  {terrainRenderer.geometry_compilation_ms.toFixed(1)}
-                  MS / SUBMIT {terrainRenderer.render_submission_ms.toFixed(
-                    1,
-                  )}{" "}
-                  MS
-                </span>
-              ) : null}
-            </>
-          ) : null}
         </div>
         <div
           className={sx(

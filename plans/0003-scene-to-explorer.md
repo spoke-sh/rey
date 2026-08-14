@@ -280,11 +280,13 @@ execution timing.
   while retaining that presentation cadence and submission are not GPU
   execution or a frame-rate claim.
 - [x] Expose transient CPU field-evaluation, geometry-compilation, and render-
-  submission timing with explicit unretained authority; never label submission
-  latency as GPU execution or retained performance proof.
+  submission timing as machine-readable browser qualification attributes with
+  explicit unretained authority; never label submission latency as GPU
+  execution or retained performance proof.
 - [x] Expose accelerated semantic-globe backend, bounded GPU/source bytes,
   triangles, geometry/submission timing, and exact scene lineage through the
-  human Explorer diagnostics used by qualification voyages.
+  machine-readable canvas attributes used by qualification voyages; keep the
+  visible corner readout limited to zoom and geographic coordinates.
 - [x] Pass CLI output/exit fixtures, browser accessibility and parity tests,
   `just check`, `just test`, embedded assets, packaged Nix, and cargo-dist
   release checks.
