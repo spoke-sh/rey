@@ -199,6 +199,41 @@ describe("reference renderer", () => {
       expect(markup).not.toContain('data-world-geometry="charted"');
       expect(markup).not.toContain('data-natural-feature="stream"');
     }
+
+    const halfwayMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.5}
+        scene={globeScene}
+      />,
+    );
+    expect(halfwayMarkup).toContain('data-globe-atmosphere-remaining="0.5"');
+    expect(halfwayMarkup).toContain('data-globe-atmosphere-opacity="0.03125"');
+    expect(halfwayMarkup).toContain('opacity="0.03125" r="218.');
+    expect(halfwayMarkup).toContain(
+      'data-globe-sphere="" fill="url(#rey-semantic-globe-fill)" opacity="0.5" r="400"',
+    );
+
+    const acceleratedMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        accelerated
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.5}
+        scene={globeScene}
+      />,
+    );
+    expect(acceleratedMarkup).toContain(
+      'data-globe-atmosphere-remaining="0.5"',
+    );
+    expect(acceleratedMarkup).toContain(
+      'data-globe-atmosphere-opacity="0.03125"',
+    );
+    expect(acceleratedMarkup).toContain('opacity="0.03125" r="218.');
+    expect(acceleratedMarkup).toContain(
+      'data-globe-sphere="" fill="transparent" opacity="0.5" r="400"',
+    );
   });
 
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {

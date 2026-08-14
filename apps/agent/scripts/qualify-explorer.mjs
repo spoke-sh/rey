@@ -487,8 +487,17 @@ async function panOutsideGlobe(connection) {
   const before = await connection.evaluate(`(() => {
     const viewport = document.querySelector('[role="application"]');
     const atmosphere = document.querySelector('[data-globe-atmosphere]');
+    const sphere = document.querySelector('[data-globe-sphere]');
     const bounds = viewport?.getBoundingClientRect();
-    const atmosphereBounds = atmosphere?.getBoundingClientRect();
+    const renderedAtmosphereBounds = atmosphere?.getBoundingClientRect();
+    const sphereBounds = sphere?.getBoundingClientRect();
+    const haloScale = Number(sphere?.getAttribute('data-globe-halo-scale'));
+    const atmosphereBounds = renderedAtmosphereBounds ?? (sphereBounds && Number.isFinite(haloScale) ? {
+      x: sphereBounds.x - sphereBounds.width * (haloScale - 1) / 2,
+      y: sphereBounds.y - sphereBounds.height * (haloScale - 1) / 2,
+      width: sphereBounds.width * haloScale,
+      height: sphereBounds.height * haloScale,
+    } : null);
     return viewport && bounds && atmosphereBounds ? {
       atmosphere_bounds: {
         x: atmosphereBounds.x,
@@ -654,10 +663,23 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     const footer = document.querySelector("[data-explorer-footer]");
     const globeCaption = document.querySelector("[data-globe-caption]");
     const globeAtmosphere = document.querySelector("[data-globe-atmosphere]");
+    const globeSphere = document.querySelector("[data-globe-sphere]");
     const diagnosticsBounds = diagnostics?.getBoundingClientRect();
     const footerBounds = footer?.getBoundingClientRect();
     const globeCaptionBounds = globeCaption?.getBoundingClientRect();
-    const globeAtmosphereBounds = globeAtmosphere?.getBoundingClientRect();
+    const renderedGlobeAtmosphereBounds = globeAtmosphere?.getBoundingClientRect();
+    const globeSphereBounds = globeSphere?.getBoundingClientRect();
+    const globeHaloScale = Number(globeSphere?.getAttribute("data-globe-halo-scale"));
+    const globeAtmosphereBounds = renderedGlobeAtmosphereBounds ?? (
+      globeSphereBounds && Number.isFinite(globeHaloScale)
+        ? {
+            x: globeSphereBounds.x - globeSphereBounds.width * (globeHaloScale - 1) / 2,
+            y: globeSphereBounds.y - globeSphereBounds.height * (globeHaloScale - 1) / 2,
+            width: globeSphereBounds.width * globeHaloScale,
+            height: globeSphereBounds.height * globeHaloScale,
+          }
+        : null
+    );
     const globePoles = [...document.querySelectorAll("[data-globe-pole-pattern]")].map((pattern) => {
       const pole = pattern.getAttribute("data-globe-pole-pattern");
       return {

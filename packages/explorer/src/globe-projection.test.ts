@@ -3,6 +3,8 @@ import {
   buildProjectedBoundsMeshes,
   buildProjectedGlobeMesh,
   GLOBE_CAMERA_HALF_HEIGHT,
+  globeAtmosphereOpacity,
+  globeProjectionMorphRemaining,
   projectGlobeCoordinate,
   SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES,
 } from "./globe-projection";
@@ -12,6 +14,22 @@ const world = { width: 1200, height: 720 };
 const view = { yaw_degrees: 0, pitch_degrees: 0 };
 
 describe("declarative globe-to-Mercator projection", () => {
+  it("provides one bounded atmosphere contraction curve", () => {
+    expect(globeProjectionMorphRemaining(-1)).toBe(1);
+    expect(globeProjectionMorphRemaining(0.5)).toBe(0.5);
+    expect(globeProjectionMorphRemaining(2)).toBe(0);
+    expect(() => globeProjectionMorphRemaining(Number.NaN)).toThrow(
+      "globe projection progress must be finite",
+    );
+  });
+
+  it("fades atmosphere faster than it contracts", () => {
+    expect(globeAtmosphereOpacity(0)).toBe(1);
+    expect(globeAtmosphereOpacity(0.5)).toBe(0.03125);
+    expect(globeAtmosphereOpacity(0.75)).toBeCloseTo(0.0000931323);
+    expect(globeAtmosphereOpacity(1)).toBe(0);
+  });
+
   it("keeps one coordinate on the sphere until the shared surface unfurls", () => {
     const sphere = projectGlobeCoordinate(0, 0, view, world, 0);
     expect(sphere.position).toEqual([0, 0, GLOBE_RADIUS]);

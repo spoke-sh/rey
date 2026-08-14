@@ -8,7 +8,7 @@ import type { ExplorerGlobe } from "./types";
 export const CONTEXT_GLOBE_PROJECTION_REVISION =
   "rey.context-globe.sphere-mercator-projection@1";
 export const SEMANTIC_GLOBE_MATERIAL_REVISION =
-  "rey.semantic-globe.tsl-stippled-atmosphere@5";
+  "rey.semantic-globe.tsl-stippled-atmosphere@8";
 export const GLOBE_RADIUS = 1.72;
 export const GLOBE_SAMPLE_RADIUS = 0.0082;
 export const GLOBE_SAMPLE_COUNT = 26_000;

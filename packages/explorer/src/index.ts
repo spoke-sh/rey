@@ -11,6 +11,10 @@ export {
 } from "./globe-samples";
 export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
+  globeAtmosphereOpacity,
+  globeProjectionMorphRemaining,
+} from "./globe-projection";
+export {
   compileContextGlobe,
   CONTEXT_GLOBE_PROJECTION_REVISION,
   GLOBE_RADIUS,

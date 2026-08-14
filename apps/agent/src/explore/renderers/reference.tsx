@@ -26,6 +26,10 @@ import {
   contextGlobeSamples,
 } from "@rey/explorer/globe-samples";
 import {
+  globeAtmosphereOpacity,
+  globeProjectionMorphRemaining,
+} from "@rey/explorer";
+import {
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
   projectWorldAtlasMorph,
@@ -179,6 +183,7 @@ export function ReferenceRenderer({
         accelerated={accelerated}
         globeView={globeView}
         onFocus={onFocus}
+        projectionMorphProgress={projectionMorphProgress}
         scene={scene}
         suppressSemanticObjects={morphActive}
       />
@@ -535,12 +540,14 @@ function WorldGeometryLayer({
   onFocus,
   scene,
   globeView,
+  projectionMorphProgress,
   suppressSemanticObjects,
 }: {
   accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
   globeView: GlobeCameraView;
+  projectionMorphProgress: number;
   suppressSemanticObjects: boolean;
 }) {
   if (scene.regime === "world" && scene.globe)
@@ -549,6 +556,7 @@ function WorldGeometryLayer({
         accelerated={accelerated}
         globeView={globeView}
         onFocus={onFocus}
+        projectionMorphProgress={projectionMorphProgress}
         scene={scene}
         suppressSemanticObjects={suppressSemanticObjects}
       />
@@ -628,18 +636,24 @@ function SemanticGlobeLayer({
   onFocus,
   scene,
   globeView,
+  projectionMorphProgress,
   suppressSemanticObjects,
 }: {
   accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
   globeView: GlobeCameraView;
+  projectionMorphProgress: number;
   suppressSemanticObjects: boolean;
 }) {
   const globe = scene.globe!;
   const center = { x: scene.world.width / 2, y: scene.world.height / 2 };
   const radius =
     Math.min(scene.world.width, scene.world.height) * WORLD_GLOBE_RADIUS_RATIO;
+  const atmosphereRemaining = globeProjectionMorphRemaining(
+    projectionMorphProgress,
+  );
+  const atmosphereOpacity = globeAtmosphereOpacity(projectionMorphProgress);
   const projectedSamples = accelerated
     ? []
     : contextGlobeSamples(globe.source_revision, 5_200, globe.regions)
@@ -750,21 +764,29 @@ function SemanticGlobeLayer({
           <circle cx={center.x} cy={center.y} r={radius} />
         </clipPath>
       </defs>
-      <circle
-        aria-hidden="true"
-        className={sx(styles.semanticGlobeAtmosphere)}
-        cx={center.x}
-        cy={center.y}
-        data-globe-atmosphere=""
-        fill="url(#rey-semantic-globe-atmosphere)"
-        r={radius * WORLD_GLOBE_ATMOSPHERE_SCALE}
-      />
+      {atmosphereRemaining > 0 ? (
+        <circle
+          aria-hidden="true"
+          className={sx(styles.semanticGlobeAtmosphere)}
+          cx={center.x}
+          cy={center.y}
+          data-globe-atmosphere=""
+          data-globe-atmosphere-remaining={atmosphereRemaining}
+          data-globe-atmosphere-opacity={atmosphereOpacity}
+          fill="url(#rey-semantic-globe-atmosphere)"
+          opacity={atmosphereOpacity}
+          r={radius * WORLD_GLOBE_ATMOSPHERE_SCALE * atmosphereRemaining}
+        />
+      ) : null}
       <circle
         className={sx(styles.semanticGlobeSphere)}
         cx={center.x}
         cy={center.y}
         data-accelerated-surface={accelerated || undefined}
+        data-globe-halo-scale={WORLD_GLOBE_ATMOSPHERE_SCALE}
+        data-globe-sphere=""
         fill={accelerated ? "transparent" : "url(#rey-semantic-globe-fill)"}
+        opacity={atmosphereRemaining}
         r={radius}
       />
       {samplePath ? (

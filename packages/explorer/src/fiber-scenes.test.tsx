@@ -5,11 +5,12 @@ import {
   type InstancedMesh,
   type Mesh,
   type MeshBasicNodeMaterial,
+  type SphereGeometry,
 } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
 import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
 import { globeFixture, terrainFieldFixture } from "./test-fixtures";
-import { compileContextGlobe } from "./three-globe";
+import { compileContextGlobe, GLOBE_RADIUS } from "./three-globe";
 import { compileContinuousRelief } from "./three-terrain";
 
 (
@@ -142,9 +143,42 @@ describe("declarative React Three Fiber scenes", () => {
       name: "context-globe-pole-pattern:north",
     }).instance as InstancedMesh;
     expect((sampleField.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
-      0.48 * 0.18,
+      0.48 * 0.36,
     );
     expect((poleField.material as MeshBasicNodeMaterial).opacity).toBe(0);
+    expect(
+      renderer.scene.findAll(
+        ({ props }) =>
+          typeof props.name === "string" &&
+          props.name.startsWith("context-globe-atmosphere:"),
+      ),
+    ).toHaveLength(0);
+
+    await renderer.unmount();
+  });
+
+  it("contracts atmosphere shells while fading them ahead of the globe-to-map morph", async () => {
+    const renderer = await create(
+      <ContextGlobeScene
+        compiled={compileContextGlobe(globeFixture())}
+        view={{
+          yaw_degrees: 0,
+          pitch_degrees: 0,
+          projection_morph_progress: 0.5,
+        }}
+        world={{ width: 1200, height: 720 }}
+      />,
+    );
+
+    const atmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0",
+    }).instance as Mesh;
+    expect(
+      (atmosphere.geometry as SphereGeometry).parameters.radius,
+    ).toBeCloseTo(GLOBE_RADIUS * 1.018 * 0.5);
+    expect((atmosphere.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
+      0.12 * 0.03125,
+    );
 
     await renderer.unmount();
   });

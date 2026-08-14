@@ -24,6 +24,8 @@ import {
   buildProjectedBoundsMeshes,
   buildProjectedGlobeMesh,
   GLOBE_CAMERA_HALF_HEIGHT,
+  globeAtmosphereOpacity,
+  globeProjectionMorphRemaining,
   projectGlobeCoordinate,
   type ProjectedGlobeMesh,
 } from "./globe-projection";
@@ -55,6 +57,7 @@ extend({
 });
 
 const SURFACE_NORMAL = new Vector3(0, 0, 1);
+const MERCATOR_STIPPLE_OPACITY_SCALE = 0.36;
 
 export function ContinuousReliefScene({
   compiled,
@@ -294,6 +297,9 @@ function GlobeSurface({
 }
 
 function GlobeAtmosphere({ progress }: { progress: number }) {
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  const opacity = globeAtmosphereOpacity(progress);
+  if (morphRemaining <= 0) return null;
   const layers = [
     { radius: GLOBE_RADIUS * 1.018, color: 0xf6ecd4, opacity: 0.12 },
     { radius: GLOBE_RADIUS * 1.045, color: 0xcbd8c9, opacity: 0.055 },
@@ -304,8 +310,8 @@ function GlobeAtmosphere({ progress }: { progress: number }) {
       color={layer.color}
       key={index}
       name={`context-globe-atmosphere:${index}`}
-      opacity={layer.opacity * (1 - progress)}
-      radius={layer.radius}
+      opacity={layer.opacity * opacity}
+      radius={layer.radius * morphRemaining}
     />
   ));
 }
@@ -351,7 +357,8 @@ function GlobeSampleField({
   world: { width: number; height: number };
 }) {
   const meshRef = useRef<InstancedMesh>(null);
-  const opacity = bucket.opacity * (1 - progress * 0.82);
+  const opacity =
+    bucket.opacity * (1 - progress * (1 - MERCATOR_STIPPLE_OPACITY_SCALE));
   const material = useMemo(
     () =>
       new MeshBasicNodeMaterial({

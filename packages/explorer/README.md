@@ -150,9 +150,12 @@ new support.
 The compiler partitions retained samples into three color/opacity buckets for
 instanced rendering. North and south use sparse deterministic golden-angle cap
 patterns in the same dot language. The caps identify the spherical frame
-visually; they are not labels or geographic evidence. The spherical stipple
-fades as the surface reaches the Mercator endpoint so it remains texture
-rather than competing with regional vector geography.
+visually; they are not labels or geographic evidence. The atmosphere shells
+contract while their opacity falls on a faster fifth-power curve, clearing the
+surface before it finishes unfurling. The non-geographic spherical scaffold
+keeps its diameter while fading with the projection morph. The spherical
+stipple retains a darker, subdued value at the Mercator endpoint so it remains
+legible texture without competing with regional vector geography.
 
 ### Current omissions
 

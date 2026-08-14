@@ -31,6 +31,17 @@ export interface GlobeProjectionBounds {
   crosses_antimeridian: boolean;
 }
 
+export function globeProjectionMorphRemaining(progress: number) {
+  if (!Number.isFinite(progress))
+    throw new Error("globe projection progress must be finite");
+  return 1 - smoothstep(Math.max(0, Math.min(1, progress)));
+}
+
+export function globeAtmosphereOpacity(progress: number) {
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  return morphRemaining ** 5;
+}
+
 export function projectGlobeCoordinate(
   longitudeDegrees: number,
   latitudeDegrees: number,
@@ -91,7 +102,7 @@ export function projectGlobeCoordinate(
       halfHeight,
     planeDepth,
   ] as const;
-  const progressEased = smoothstep(boundedProgress);
+  const progressEased = 1 - globeProjectionMorphRemaining(boundedProgress);
   const position = interpolateVector(
     spherePosition,
     atlasPosition,
