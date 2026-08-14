@@ -33,7 +33,7 @@ is which.
 
 | Document | Purpose |
 | --- | --- |
-| [Explorer](EXPLORER.md) | High-level product concept for the evidence-bound spatial engine: global-to-local lenses, coordinate spaces, rendering components, desired 3D geospatial capabilities, and invariants. |
+| [Explorer](EXPLORER.md) | First principles and the globe → map → terrain fidelity standard for the evidence-bound spatial engine. |
 | [Locators](LOCATORS.md) | Canonical candidate addresses, bounded resolution outcomes, and the distinction between locating and reading. |
 | [Git](GIT.md) | Repository identity, refs, commits, semantic index state, polling cursors, ref movement, and workload activation. |
 | [Journal](JOURNAL.md) | Retained human/agent synthesis, typed notebook blocks, exact browser addresses, authored opportunities, separately admitted read-only query evidence, and deliberately narrow authority. |
@@ -51,7 +51,7 @@ is which.
 | Document | Purpose |
 | --- | --- |
 | [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, persistence, exact evidence HTTP/UI routes, and error/limit semantics. |
-| [`@rey/explorer` technical guide](../packages/explorer/README.md) | React Three Fiber package boundary, globe and terrain pipelines, renderer lifecycle, limits, public API, tests, and engine direction. |
+| [`@rey/explorer` technical guide](../packages/explorer/README.md) | React Three Fiber package boundary, shared projection contract, globe and terrain pipelines, renderer lifecycle, limits, APIs, and tests. |
 | [Development](DEVELOPMENT.md) | Pinned Nix/Rust/TypeScript environment, root `just` tasks, build outputs, dependency updates, and qualification commands. |
 | [Releases](RELEASES.md) | GitHub Actions quality gates, cargo-dist artifact planning, version tags, release permissions, and operator procedure. |
 | [Roadmap](ROADMAP.md) | Delivery sequence from local environment evidence through workloads, topography, admitted mutation, and policy. |

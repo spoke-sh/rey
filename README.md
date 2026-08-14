@@ -147,7 +147,10 @@ Rey organizes collaboration around two clients with one evidence plane:
 Explorer is a high-dimensional projection engine, but its visual grammar is
 familiar: globe, atlas, terrain, weather, waterways, regions, roads, points of
 interest, and construction. These are semantic instruments rather than Earth
-claims. Camera movement changes the lens, never source identity.
+claims. One reversible projection keeps surface and attached features together
+as the world moves from globe to map to local terrain. Camera movement changes
+the lens, never source identity; atmosphere, light, material, and interaction
+are correct only when they preserve that continuous bearing.
 
 The `rey editor` CLI is the level-editor side of the same architecture. It can
 generate native terrain and feature artifacts from tunable hyperparameters,
@@ -296,8 +299,8 @@ active implementation plans. The key bearings are:
 - [Constitution](CONSTITUTION.md) — durable values and invariants.
 - [Architecture](docs/ARCHITECTURE.md) — ownership, planes, data flow, and
   security boundaries.
-- [Explorer](docs/EXPLORER.md) — the consent-first globe and continuous
-  World → Atlas → County projection grammar.
+- [Explorer](docs/EXPLORER.md) — first principles and the globe → map → terrain
+  fidelity standard for the evidence-bound spatial engine.
 - [CLI](docs/CLI.md) — the agent-facing interface and
   `HEAD → INDEX → WORKING` philosophy.
 - [Mining](docs/MINING.md) — bounded relational and source evidence.

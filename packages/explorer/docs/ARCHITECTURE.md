@@ -1,0 +1,115 @@
+# Explorer Package Architecture
+
+This document defines the technical ownership and runtime flow of
+`@rey/explorer`. Product semantics and the visual fidelity bar live in the
+[Explorer concept](../../../docs/EXPLORER.md).
+
+## Ownership Boundary
+
+```text
+@rey/agent
+  evidence adapters · semantic projection · immutable scenes · fields
+  camera controls · render graph · picking · labels · reference renderer
+                              │
+                              │ typed compiled inputs
+                              ▼
+@rey/explorer
+  pure GPU compilers · R3F scenes · Three.js lifecycle · canvas reports
+                              │
+                              ▼
+                 WebGPU or WebGL2 pixels
+```
+
+The package accepts already admitted, application-compiled inputs. It does
+not:
+
+- fetch or resolve evidence;
+- interpret workload, survey, or scene-admission documents;
+- choose semantic coordinates or semantic levels of detail;
+- generate terrain working sets from source evidence;
+- own application camera controls, labels, picking policy, or evidence links;
+- render the accessible reference fallback; or
+- qualify, mutate, or persist what it renders.
+
+Those responsibilities remain in `@rey/agent`. The application keeps its
+deterministic reference renderer mounted until this package submits a valid
+accelerated frame and reveals it again after renderer failure.
+
+## Component Map
+
+| Component          | Source                                                           | Responsibility                                                                                             |
+| ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Canvas boundary    | [`../src/canvas.tsx`](../src/canvas.tsx)                         | Configure the R3F root, select content, invalidate frames, and report readiness and draw submission.       |
+| Renderer contracts | [`../src/renderer.ts`](../src/renderer.ts)                       | Define lifecycle, status, frame identity, invalidation, and bounded viewport sizing.                       |
+| Backend adapter    | [`../src/three-webgpu.ts`](../src/three-webgpu.ts)               | Initialize `WebGPURenderer`, select WebGPU/WebGL2, observe loss, report submission, and dispose resources. |
+| Structural inputs  | [`../src/types.ts`](../src/types.ts)                             | Define renderer-facing globe, marker, camera, and terrain-field shapes.                                    |
+| Globe compiler     | [`../src/three-globe.ts`](../src/three-globe.ts)                 | Compile semantic globe input into deterministic fabric, marker statistics, and material identity.          |
+| Globe fabric       | [`../src/globe-samples.ts`](../src/globe-samples.ts)             | Generate revision-seeded stipple and subtle north/south patterns.                                          |
+| Globe projection   | [`../src/globe-projection.ts`](../src/globe-projection.ts)       | Project one indexed surface and its attached sectors and markers from sphere to Mercator.                  |
+| Terrain compiler   | [`../src/three-terrain.ts`](../src/three-terrain.ts)             | Compile valid field grids into bounded meshes, verify parity, account bytes, and build the TSL material.   |
+| Declarative scenes | [`../src/fiber-scenes.tsx`](../src/fiber-scenes.tsx)             | Express globe and terrain cameras, lights, materials, instancing, geometry, and named scene objects.       |
+| Shared Three graph | [`../src/three-fiber-runtime.ts`](../src/three-fiber-runtime.ts) | Expose modular WebGPU Three.js and the legacy renderer needed by the R3F test harness.                     |
+| Public surface     | [`../src/index.ts`](../src/index.ts)                             | Export canvas, compilers, contracts, revisions, limits, and renderer status.                               |
+
+## Immutable Frame Flow
+
+The application supplies one exact frame identity and one content variant:
+
+```ts
+type ExplorerCanvasContent =
+  | {
+      kind: "globe";
+      compiled: CompiledContextGlobe;
+      view: GlobeCameraView;
+      world: { width: number; height: number };
+    }
+  | {
+      kind: "terrain";
+      compiled: CompiledContinuousRelief;
+      view: TerrainCameraView;
+      world: { width: number; height: number };
+    };
+```
+
+```text
+typed content + frame identity
+  → bounded canvas viewport
+  → backend initialization
+  → demand-driven R3F root
+  → declarative globe or terrain scene
+  → Three.js render submission
+  → lifecycle, backend, draw-call, and CPU-submission report
+```
+
+`ExplorerCanvas` uses a demand-driven frame loop. It reconciles when one of
+four exact identities changes:
+
+| Identity            | Meaning                            |
+| ------------------- | ---------------------------------- |
+| `snapshot_id`       | Immutable semantic scene changed.  |
+| `camera_revision`   | Camera or viewport changed.        |
+| `material_revision` | GPU material contract changed.     |
+| `render_graph_id`   | Ordered pass availability changed. |
+
+An identical frame is quiet. Measured timings are observations, never frame
+identity.
+
+## Render-Graph Boundary
+
+The immutable render graph lives in `@rey/agent`:
+
+```text
+validity_background
+base_terrain
+height_normals_hillshade
+ambient_valley_occlusion
+contours
+water_weather_boundary
+features_labels_selection
+evidence_accessibility
+```
+
+The application passes its exact identity into `ExplorerCanvas`. The package
+currently accelerates the globe and base-terrain portions. New passes enter as
+typed, bounded inputs; an R3F scene never fetches application state or invents
+its own graph.

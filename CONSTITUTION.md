@@ -138,6 +138,14 @@ revision lineage must survive every rendering backend and visual lens. The
 engine should degrade visibly when fidelity or acceleration is unavailable
 without changing the underlying assessment.
 
+Fidelity requires semantic, geometric, perceptual, and interaction continuity
+at the same time. One identity must remain attached to one reversible
+projection; posture-specific effects must enter and leave without obscuring
+the next lens; and every bounded camera gesture must produce visible,
+anchored progress. Preserving the data while detaching geometry, stalling the
+render, drifting focus, or leaving a spherical artifact inside a planar map is
+still a correctness failure.
+
 The world may change geometric posture as scale changes—from a synthetic
 semantic globe, through a wrapping planar chart, into a detailed local scene—
 only when those transforms are explicit and reversible over one admitted
