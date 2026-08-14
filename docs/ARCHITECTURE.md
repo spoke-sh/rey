@@ -363,9 +363,9 @@ substrate behind Feed, mailbox, and conversation; there is no top-level
 WORKING, HEAD, then built-in layout state; deliberate adoption and stable
 pointer/keyboard movement use the conditional WORKING write under exact HEAD
 and WORKING snapshot preconditions and retain typed deltas or rollback failures.
-Its Admission stream reads the bounded verified workload commit log directly;
-it does not synthesize posts from WORKING, INDEX, attention, qualification, or
-repository posture.
+Its Admission stream merges the bounded verified environment and workload
+commit histories directly; it does not synthesize posts from WORKING, INDEX,
+attention, qualification, or repository posture.
 A separate tamper-detecting observation log
 now owns immutable statements, exact source/evidence bindings, Channel
 admission edges, retained partial broadcast receipts, single supersession or

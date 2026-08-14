@@ -21,7 +21,10 @@ use rey::{
         MAX_CONVERSATION_MESSAGE_INPUT_BYTES,
     },
     current_environment_status,
-    env::LocalEnvironmentStore,
+    env::{
+        EnvironmentApplicationObservation, EnvironmentCommit, EnvironmentObjectChange,
+        EnvironmentOperatorProjection, LocalEnvironmentStore,
+    },
     journal::{
         JournalAdmission, JournalAuthor, JournalAuthorKind, JournalEntryProposal, JournalLog,
         LocalJournalStore, MAX_JOURNAL_PROPOSAL_BYTES,
@@ -37,7 +40,7 @@ use rey::{
         WorkloadEvidenceError, workload_delta_evidence, workload_evidence_catalog,
         workload_scenario_evidence,
     },
-    workloads::LocalWorkloadStore,
+    workloads::{LocalWorkloadStore, WorkloadCommit},
 };
 use rey_core::SemanticDigest;
 use rey_environment::{DiscoveryLimits, resolve_executable};
@@ -56,6 +59,7 @@ const UI_CHANNELS_SCHEMA: &str = "rey.ui-channels.v1";
 const UI_CHANNEL_WORKING_WRITE_SCHEMA: &str = "rey.ui-channel-working-write.v1";
 const UI_CONVERSATION_MESSAGE_WRITE_SCHEMA: &str = "rey.ui-conversation-message-write.v1";
 const UI_OBSERVATION_WRITE_SCHEMA: &str = "rey.ui-observation-write.v1";
+const UI_FEED_ADMISSIONS_SCHEMA: &str = "rey.ui-feed-admissions.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const MAX_UI_OBSERVATION_WRITE_BYTES: u64 = 32 * 1_024;
@@ -63,7 +67,8 @@ const MAX_UI_OBSERVATION_BODY_CHARS: usize = 500;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
-const FEED_WORKLOAD_COMMIT_LIMIT: usize = 64;
+const FEED_ADMISSION_LIMIT: usize = 64;
+const FEED_ADMISSION_HISTORY_SCAN_LIMIT: usize = 256;
 const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c5";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 const REQUEST_RECEIVE_POLL_INTERVAL_MS: u64 = 50;
@@ -199,6 +204,79 @@ struct UiCadenceProjection {
     repository_state: Option<UiCadenceRepositoryState>,
     lanes: Vec<UiCadenceLane>,
     schedules: Vec<UiCadenceSchedule>,
+    omissions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiEnvironmentApplicationAdmission {
+    name: String,
+    change: EnvironmentObjectChange,
+    availability: Option<String>,
+    resolved_path: Option<String>,
+    groups: Vec<String>,
+}
+
+impl UiEnvironmentApplicationAdmission {
+    fn from_transition(
+        change: EnvironmentObjectChange,
+        source: Option<&EnvironmentApplicationObservation>,
+        target: Option<&EnvironmentApplicationObservation>,
+    ) -> Option<Self> {
+        let observation = target.or(source)?;
+        Some(Self {
+            name: observation.name.clone(),
+            change,
+            availability: target.map(|application| application.availability.as_str().to_owned()),
+            resolved_path: target.and_then(|application| application.resolved_path.clone()),
+            groups: observation.groups.clone(),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiEnvironmentAdmissionChanges {
+    variables: u64,
+    applications: Vec<UiEnvironmentApplicationAdmission>,
+    inputs: u64,
+    references: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum UiFeedAdmission {
+    Environment {
+        commit: EnvironmentCommit,
+        changes: UiEnvironmentAdmissionChanges,
+    },
+    Workload {
+        commit: WorkloadCommit,
+    },
+}
+
+impl UiFeedAdmission {
+    fn committed_at_unix(&self) -> i64 {
+        match self {
+            Self::Environment { commit, .. } => commit.committed_at_unix,
+            Self::Workload { commit } => commit.committed_at_unix,
+        }
+    }
+
+    fn stable_identity(&self) -> (&str, &str) {
+        match self {
+            Self::Environment { commit, .. } => ("environment", commit.commit_id.as_str()),
+            Self::Workload { commit } => ("workload", commit.commit_id.as_str()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiFeedAdmissions {
+    schema: String,
+    ordering: String,
+    total_admissions: u64,
+    selected_admissions: u64,
+    complete: bool,
+    admissions: Vec<UiFeedAdmission>,
     omissions: Vec<String>,
 }
 
@@ -392,6 +470,7 @@ impl UiServer {
             "/api/v1/channels" => self.channels(),
             "/api/v1/conversations" => self.conversations(),
             "/api/v1/environment" => self.environment(),
+            "/api/v1/feed/admissions" => self.feed_admissions(),
             "/api/v1/journal" => self.journal(),
             "/api/v1/journal/opportunities" => self.journal_opportunities(),
             "/api/v1/journal/queries" => self.journal_queries(),
@@ -493,7 +572,7 @@ impl UiServer {
 
     fn workload_admissions(&self) -> Response<Cursor<Vec<u8>>> {
         let store = LocalWorkloadStore::new(self.config.state_directory.clone());
-        match store.log(FEED_WORKLOAD_COMMIT_LIMIT, false) {
+        match store.log(FEED_ADMISSION_LIMIT, false) {
             Ok(log) => json_response(StatusCode(200), &log),
             Err(error) => json_error(
                 StatusCode(500),
@@ -501,6 +580,113 @@ impl UiServer {
                 &error.to_string(),
             ),
         }
+    }
+
+    fn feed_admissions(&self) -> Response<Cursor<Vec<u8>>> {
+        match self.feed_admissions_projection() {
+            Ok(admissions) => json_response(StatusCode(200), &admissions),
+            Err(detail) => json_error(StatusCode(500), "feed_admissions_unavailable", &detail),
+        }
+    }
+
+    fn feed_admissions_projection(&self) -> Result<UiFeedAdmissions, String> {
+        let environment_store =
+            LocalEnvironmentStore::default_for_workspace(&self.config.workspace);
+        let environment_history = environment_store
+            .load()
+            .map_err(|error| error.to_string())?;
+        let workload_store = LocalWorkloadStore::new(self.config.state_directory.clone());
+        let workload_log = workload_store
+            .log(FEED_ADMISSION_HISTORY_SCAN_LIMIT, false)
+            .map_err(|error| error.to_string())?;
+        let total_admissions =
+            environment_history.commits.len() as u64 + workload_log.total_commits;
+        let mut admissions =
+            Vec::with_capacity(environment_history.commits.len() + workload_log.commits.len());
+
+        for (index, commit) in environment_history.commits.iter().enumerate() {
+            let source = index
+                .checked_sub(1)
+                .and_then(|source_index| environment_history.commits.get(source_index))
+                .map(|source_commit| &source_commit.snapshot);
+            let projection = EnvironmentOperatorProjection::derive_transition(
+                source,
+                &commit.snapshot,
+                index.checked_sub(1).map_or_else(
+                    || "EMPTY".to_owned(),
+                    |source_index| format!("ENV@{}", source_index + 1),
+                ),
+                format!("ENV@{}", commit.sequence),
+            )
+            .map_err(|error| error.to_string())?;
+            let changed =
+                |change: EnvironmentObjectChange| change != EnvironmentObjectChange::Unchanged;
+            let applications = projection
+                .applications
+                .iter()
+                .filter(|application| changed(application.changes.head_to_working))
+                .filter_map(|application| {
+                    UiEnvironmentApplicationAdmission::from_transition(
+                        application.changes.head_to_working,
+                        application.head.as_ref(),
+                        application.working.as_ref(),
+                    )
+                })
+                .collect();
+            admissions.push(UiFeedAdmission::Environment {
+                commit: commit.clone(),
+                changes: UiEnvironmentAdmissionChanges {
+                    variables: projection
+                        .variables
+                        .iter()
+                        .filter(|variable| changed(variable.changes.head_to_working))
+                        .count() as u64,
+                    applications,
+                    inputs: projection
+                        .inputs
+                        .iter()
+                        .filter(|input| changed(input.changes.head_to_working))
+                        .count() as u64,
+                    references: projection
+                        .references
+                        .iter()
+                        .filter(|reference| changed(reference.changes.head_to_working))
+                        .count() as u64,
+                },
+            });
+        }
+        admissions.extend(
+            workload_log
+                .commits
+                .into_iter()
+                .map(|commit| UiFeedAdmission::Workload { commit }),
+        );
+        admissions.sort_by(|left, right| {
+            right
+                .committed_at_unix()
+                .cmp(&left.committed_at_unix())
+                .then_with(|| left.stable_identity().cmp(&right.stable_identity()))
+        });
+        admissions.truncate(FEED_ADMISSION_LIMIT);
+        let selected_admissions = admissions.len() as u64;
+        let complete = selected_admissions == total_admissions;
+        let omissions = if complete {
+            Vec::new()
+        } else {
+            vec![format!(
+                "{} older committed admissions omitted",
+                total_admissions - selected_admissions
+            )]
+        };
+        Ok(UiFeedAdmissions {
+            schema: UI_FEED_ADMISSIONS_SCHEMA.to_owned(),
+            ordering: "committed_at_unix_desc_then_stable_identity".to_owned(),
+            total_admissions,
+            selected_admissions,
+            complete,
+            admissions,
+            omissions,
+        })
     }
 
     fn exact_workload_evidence(&self, path: &str) -> Response<Cursor<Vec<u8>>> {
@@ -1266,7 +1452,7 @@ impl UiServer {
                         .iter()
                         .map(ToString::to_string)
                         .collect(),
-                    occurred_at_unix: None,
+                    occurred_at_unix: Some(commit.committed_at_unix),
                     publication: None,
                 }),
         );
@@ -1408,7 +1594,7 @@ impl UiServer {
             omissions: environment_omissions,
         };
         projection_omissions.push(
-            "Git and Rey admission clocks have no proven total ordering; environment v1 commits retain sequence but no wall time"
+            "Git and Rey commit wall times provide display order but do not prove causal order"
                 .to_owned(),
         );
 
@@ -1681,8 +1867,13 @@ mod tests {
             ConversationSessionProposal, ConversationSource as TranscriptSource,
             LocalConversationStore,
         },
+        env::{EnvironmentCommit, LocalEnvironmentHistory, LocalEnvironmentStore},
         observations::{LocalObservationStore, ObservationProposal, ObservationSource},
         workloads::LocalWorkloadStore,
+    };
+    use rey_environment::{
+        Availability, CapabilityRecord, CapabilitySnapshot, DISCOVERY_APPLICATION_SCHEMA,
+        DiscoveryApplicationProvenance, DiscoveryLimits, TrustClass,
     };
 
     #[test]
@@ -1732,6 +1923,47 @@ mod tests {
             .working
             .snapshot_revision;
         assert!(!workload_store.path().exists());
+        let environment_store = LocalEnvironmentStore::default_for_workspace(workspace.path());
+        let gh_provenance = DiscoveryApplicationProvenance {
+            schema: DISCOVERY_APPLICATION_SCHEMA.to_owned(),
+            name: "gh".to_owned(),
+            groups: vec!["code".to_owned(), "communications".to_owned()],
+            purpose: "Potential GitHub communications client; discovery grants no relay authority"
+                .to_owned(),
+            required: false,
+            potential_capabilities: vec!["comms.application.github.identity".to_owned()],
+            search_path_count: 1,
+        };
+        let environment_snapshot = CapabilitySnapshot::new(
+            "standalone",
+            DiscoveryLimits::default(),
+            vec![CapabilityRecord {
+                provider_id: "rey.tool.gh".to_owned(),
+                provider_revision: 2,
+                provider_kind: "known_tool".to_owned(),
+                capability_id: "comms.application.github.identity".to_owned(),
+                capability_kind: "identity_probe".to_owned(),
+                resolved_location: Some("/usr/bin/gh".to_owned()),
+                version: Some("gh version fixture".to_owned()),
+                content_digest: Some("blake3:gh-fixture".to_owned()),
+                provenance: Some(serde_json::to_string(&gh_provenance).unwrap()),
+                availability: Availability::Available,
+                trust_class: TrustClass::DiscoveredLocal,
+                operations: vec!["inspect_identity".to_owned()],
+                enforced_limits: Vec::new(),
+                unsupported_limits: Vec::new(),
+                observed_at: None,
+                error_code: None,
+                error_detail: None,
+            }],
+        )
+        .unwrap();
+        let mut environment_history = LocalEnvironmentHistory::default();
+        environment_history.commits.push(
+            EnvironmentCommit::new_at(1, None, 100, "Admit gh application", environment_snapshot)
+                .unwrap(),
+        );
+        environment_store.save(&environment_history).unwrap();
         let conversation_directory = workspace.path().join(".rey/conversations");
         let conversation_store = LocalConversationStore::new(conversation_directory.clone());
         let conversation_proposal: ConversationSessionProposal =
@@ -1794,7 +2026,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(42 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(43 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -1893,6 +2125,29 @@ mod tests {
         assert!(admissions.contains("\"schema\":\"rey.workload-log.v1\""));
         assert!(admissions.contains("\"total_commits\":1"));
         assert!(admissions.contains("Approve exact context survey"));
+
+        let feed_admissions = request(&address, "GET /api/v1/feed/admissions HTTP/1.1");
+        assert!(feed_admissions.starts_with("HTTP/1.1 200"));
+        let feed_admissions_json: serde_json::Value =
+            serde_json::from_str(response_body(&feed_admissions)).unwrap();
+        assert_eq!(feed_admissions_json["schema"], "rey.ui-feed-admissions.v1");
+        assert_eq!(feed_admissions_json["total_admissions"], 2);
+        assert_eq!(feed_admissions_json["selected_admissions"], 2);
+        assert_eq!(feed_admissions_json["complete"], true);
+        assert_eq!(feed_admissions_json["admissions"][0]["kind"], "workload");
+        assert_eq!(feed_admissions_json["admissions"][1]["kind"], "environment");
+        assert!(
+            feed_admissions_json["admissions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|admission| {
+                    admission["kind"] == "environment"
+                        && admission["commit"]["message"] == "Admit gh application"
+                        && admission["changes"]["applications"][0]["name"] == "gh"
+                        && admission["changes"]["applications"][0]["availability"] == "available"
+                })
+        );
 
         let evidence = request(&address, "GET /api/v1/workloads/evidence HTTP/1.1");
         assert!(evidence.starts_with("HTTP/1.1 200"));

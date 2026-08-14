@@ -65,9 +65,10 @@ admitted HEAD from the same typed state as the CLI and advances HEAD by
 freezing, qualifying, and committing the exact reviewed WORKING file snapshot
 with explicit HEAD and WORKING preconditions. It defines no second catalog,
 qualification rule, attention relation, or package mutation path. Journal
-writes and workload approval remain separate authorities. `/feed` projects a
-bounded verified workload commit log only after this admission succeeds; it
-does not render candidates, attention, or an approval control as feed items.
+writes and workload approval remain separate authorities. `/feed` projects the
+resulting workload commit into its bounded verified Admission history only
+after this admission succeeds; it does not render candidates, attention, or an
+approval control as feed items.
 
 The default catalog is the workspace package catalog. Checked-in packages are
 WORKING proposals, not admitted workloads. The initial product proposal is

@@ -1,9 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { FeedAdmissions } from "./api";
 import type { CadenceProjection } from "./cadence";
 import type { ChannelGraphSnapshot, ChannelProjection } from "./channels";
-import type { WorkloadList, WorkloadLog } from "./domain";
+import type { WorkloadList } from "./domain";
 import {
   channelWorkingWriteForFeedLayout,
   DEFAULT_FEED_STREAMS,
@@ -52,18 +53,18 @@ describe("high-cadence operator feed", () => {
           cadence,
           journal: journalProjection(),
           observations: emptyObservationProjection(),
-          workloadAdmissions: emptyWorkloadAdmissions(),
+          admissions: emptyFeedAdmissions(),
         },
       }),
     );
 
-    expect(markup).toContain("NO WORKLOAD ADMISSIONS YET");
+    expect(markup).toContain("NO ADMISSIONS YET");
     expect(markup).not.toContain("REY / CURRENT PROJECTION");
     expect(markup).not.toContain("ADMISSION CONTROL");
     expect(markup).not.toContain("scenario delta remains unresolved");
   });
 
-  it("renders exact timestamped signals newest first and retains order-only signals", () => {
+  it("renders exact timestamped signals newest first across retained commit clocks", () => {
     const events = deriveFeedEvents(
       cadenceProjection(),
       journalProjection(),
@@ -73,12 +74,12 @@ describe("high-cadence operator feed", () => {
     expect(events.map((event) => [event.stream, event.position])).toEqual([
       ["OBSERVATION", "O@1"],
       ["JOURNAL", "J@1"],
-      ["GIT", "HEAD~0"],
       ["REY ENV", "ENV@4"],
+      ["GIT", "HEAD~0"],
     ]);
-    expect(events.at(-1)).toMatchObject({
-      occurredAt: null,
-      sortTime: null,
+    expect(events.find((event) => event.position === "ENV@4")).toMatchObject({
+      occurredAt: "1970-01-01T00:02:30.000Z",
+      sortTime: 150_000,
       stream: "REY ENV",
     });
   });
@@ -355,7 +356,7 @@ describe("high-cadence operator feed", () => {
           cadence: cadenceProjection(),
           journal: journalProjection(),
           observations: observationProjection(),
-          workloadAdmissions: workloadAdmissions(),
+          admissions: feedAdmissions(),
         },
       }),
     );
@@ -385,9 +386,16 @@ describe("high-cadence operator feed", () => {
     expect(markup).toContain("AUTHOR SELF-ASSERTED");
     expect(markup).toContain("NO ASSIGNMENT, ACTION, OR PROOF");
     expect(markup).toContain("DIRECTED DIFF / different");
+    expect(markup).toContain("REY / ENVIRONMENT COMMIT");
+    expect(markup).toContain("ENV@2");
+    expect(markup).toContain("Admit gh application");
+    expect(markup).toContain("gh available");
     expect(markup).toContain("REY / WORKLOAD COMMIT");
     expect(markup).toContain("WORKLOAD@1");
     expect(markup).toContain("Approve exact workload snapshot");
+    expect(markup.indexOf("Admit gh application")).toBeLessThan(
+      markup.indexOf("Approve exact workload snapshot"),
+    );
     expect(markup).toContain("COMMITTED / RETAINED");
     expect(markup).not.toContain("ADMISSION CONTROL");
     expect(markup).not.toContain("REY / CURRENT PROJECTION");
@@ -563,41 +571,76 @@ function channelProjection(): ChannelProjection {
   };
 }
 
-function workloadAdmissions(): WorkloadLog {
+function feedAdmissions(): FeedAdmissions {
   return {
-    schema: "rey.workload-log.v1",
-    head_commit_id: "blake3:workload-commit",
-    total_commits: 1,
-    selected_commits: 1,
-    patch: false,
-    commits: [
+    schema: "rey.ui-feed-admissions.v1",
+    ordering: "committed_at_unix_desc_then_stable_identity",
+    total_admissions: 2,
+    selected_admissions: 2,
+    complete: true,
+    omissions: [],
+    admissions: [
       {
-        schema: "rey.workload-commit.v1",
-        commit_id: "blake3:workload-commit",
-        sequence: 1,
-        parent_commit_id: null,
-        committed_at_unix: 400,
-        message: "Approve exact workload snapshot",
-        snapshot: {
-          schema: "rey.workload-admission-snapshot.v1",
-          snapshot_revision: "blake3:admitted-snapshot",
-          packages: [],
-          ignore: null,
+        kind: "environment",
+        commit: {
+          schema: "rey.environment-commit.v1",
+          commit_id: "blake3:environment-commit",
+          sequence: 2,
+          parent_commit_id: "blake3:environment-parent",
+          committed_at_unix: 500,
+          message: "Admit gh application",
+          snapshot: {
+            semantic_digest: "blake3:environment-snapshot",
+            complete: true,
+            capabilities: [],
+          },
         },
-        qualification_ids: [],
+        changes: {
+          variables: 0,
+          applications: [
+            {
+              name: "gh",
+              change: "modified",
+              availability: "available",
+              resolved_path: "/usr/bin/gh",
+              groups: ["code", "communications"],
+            },
+          ],
+          inputs: 0,
+          references: 0,
+        },
+      },
+      {
+        kind: "workload",
+        commit: {
+          schema: "rey.workload-commit.v1",
+          commit_id: "blake3:workload-commit",
+          sequence: 1,
+          parent_commit_id: null,
+          committed_at_unix: 400,
+          message: "Approve exact workload snapshot",
+          snapshot: {
+            schema: "rey.workload-admission-snapshot.v1",
+            snapshot_revision: "blake3:admitted-snapshot",
+            packages: [],
+            ignore: null,
+          },
+          qualification_ids: [],
+        },
       },
     ],
   };
 }
 
-function emptyWorkloadAdmissions(): WorkloadLog {
+function emptyFeedAdmissions(): FeedAdmissions {
   return {
-    schema: "rey.workload-log.v1",
-    head_commit_id: null,
-    total_commits: 0,
-    selected_commits: 0,
-    patch: false,
-    commits: [],
+    schema: "rey.ui-feed-admissions.v1",
+    ordering: "committed_at_unix_desc_then_stable_identity",
+    total_admissions: 0,
+    selected_admissions: 0,
+    complete: true,
+    admissions: [],
+    omissions: [],
   };
 }
 
@@ -738,11 +781,11 @@ function cadenceProjection(): CadenceProjection {
             detail: "bounded capability transition",
             revision: "blake3:environment",
             parent_revisions: [],
-            occurred_at_unix: null,
+            occurred_at_unix: 150,
             publication: null,
           },
         ],
-        omissions: ["environment commit has no retained wall time"],
+        omissions: [],
       },
     ],
     schedules: [],

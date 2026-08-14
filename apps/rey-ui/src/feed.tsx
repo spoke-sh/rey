@@ -1,4 +1,4 @@
-import type { FeedSources } from "./api";
+import type { FeedAdmission, FeedSources } from "./api";
 import {
   useEffect,
   useRef,
@@ -580,10 +580,10 @@ export function FeedPage({
   portfolio: WorkloadList;
   sources: Pick<
     FeedSources,
-    "cadence" | "journal" | "observations" | "workloadAdmissions"
+    "admissions" | "cadence" | "journal" | "observations"
   >;
 }) {
-  const admissions = sources.workloadAdmissions.commits;
+  const admissions = sources.admissions.admissions;
   const events = deriveFeedEvents(
     sources.cadence,
     sources.journal,
@@ -1154,7 +1154,7 @@ function FeedStream({
   stream,
   streamCount,
 }: {
-  admissions: WorkloadCommit[];
+  admissions: FeedAdmission[];
   dragging: boolean;
   events: FeedEvent[];
   index: number;
@@ -1169,7 +1169,7 @@ function FeedStream({
   portfolio: WorkloadList;
   sources: Pick<
     FeedSources,
-    "cadence" | "journal" | "observations" | "workloadAdmissions"
+    "admissions" | "cadence" | "journal" | "observations"
   >;
   stream: ResolvedFeedStream;
   streamCount: number;
@@ -1242,19 +1242,21 @@ function FeedStream({
         ) : null}
         {stream.kind === "admission" ? (
           <>
-            {admissions.map((commit) => (
-              <WorkloadAdmissionPost commit={commit} key={commit.commit_id} />
+            {admissions.map((admission) => (
+              <AdmissionPost
+                admission={admission}
+                key={`${admission.kind}:${admission.commit.commit_id}`}
+              />
             ))}
             {admissions.length === 0 ? (
               <QuietPost
-                detail="This stream receives only retained workload commits. Review WORKING and INDEX revisions on Workloads."
-                title="NO WORKLOAD ADMISSIONS YET"
+                detail="This stream receives retained environment and workload commits only. Review mutable WORKING and INDEX revisions on their source surfaces."
+                title="NO ADMISSIONS YET"
               />
             ) : null}
-            {sources.workloadAdmissions.total_commits >
-            sources.workloadAdmissions.selected_commits ? (
+            {!sources.admissions.complete ? (
               <QuietPost
-                detail={`${sources.workloadAdmissions.total_commits - sources.workloadAdmissions.selected_commits} older workload commits are outside this bounded Feed projection.`}
+                detail={`${sources.admissions.total_admissions - sources.admissions.selected_admissions} older committed admissions are outside this bounded Feed projection.`}
                 title="ADMISSION HISTORY IS BOUNDED"
               />
             ) : null}
@@ -1439,6 +1441,65 @@ function WorkloadAdmissionPost({ commit }: { commit: WorkloadCommit }) {
         <span className={sx(chrome.micro)}>COMMITTED / RETAINED</span>
         <a className={sx(styles.postAction)} href="/workloads">
           INSPECT WORKLOADS →
+        </a>
+      </footer>
+    </article>
+  );
+}
+
+function AdmissionPost({ admission }: { admission: FeedAdmission }) {
+  if (admission.kind === "workload") {
+    return <WorkloadAdmissionPost commit={admission.commit} />;
+  }
+  return <EnvironmentAdmissionPost admission={admission} />;
+}
+
+function EnvironmentAdmissionPost({
+  admission,
+}: {
+  admission: Extract<FeedAdmission, { kind: "environment" }>;
+}) {
+  const { changes, commit } = admission;
+  const changedObjects =
+    changes.variables +
+    changes.applications.length +
+    changes.inputs +
+    changes.references;
+  const visibleApplications = changes.applications.slice(0, 5);
+  const applications = visibleApplications
+    .map(
+      (application) =>
+        `${application.name} ${application.availability ?? "removed"}`,
+    )
+    .join(" · ");
+  const omittedApplications =
+    changes.applications.length - visibleApplications.length;
+  const summary = applications
+    ? `${changes.applications.length} application ${changes.applications.length === 1 ? "change" : "changes"} retained · ${applications}${omittedApplications > 0 ? ` · +${omittedApplications} more` : ""}.`
+    : `${changedObjects} environment ${changedObjects === 1 ? "object" : "objects"} changed.`;
+  return (
+    <article className={sx(styles.post)} role="article">
+      <PostHeader
+        avatar={<Avatar label="R" tone="rey" />}
+        identity="REY / ENVIRONMENT COMMIT"
+        moment={formatUnixMoment(commit.committed_at_unix)}
+        state={`ENV@${commit.sequence}`}
+      />
+      <div className={sx(styles.postBody)}>
+        <h2 className={sx(styles.postTitle)}>{commit.message}</h2>
+        <p className={sx(styles.postLead)}>{summary}</p>
+        <div className={sx(styles.admissionEvidence)}>
+          <span className={sx(chrome.micro)}>COMMITTED SNAPSHOT</span>
+          <code title={commit.snapshot.semantic_digest}>
+            {shortDigest(commit.snapshot.semantic_digest)}
+          </code>
+          <code title={commit.commit_id}>{shortDigest(commit.commit_id)}</code>
+        </div>
+      </div>
+      <footer className={sx(styles.postFooter)}>
+        <span className={sx(chrome.micro)}>COMMITTED / RETAINED</span>
+        <a className={sx(styles.postAction)} href="/environment">
+          INSPECT ENVIRONMENT →
         </a>
       </footer>
     </article>
@@ -2165,7 +2226,7 @@ function streamTitle(stream: FeedStreamSpec): string {
 function streamDescription(kind: FeedStreamKind): string {
   if (kind === "signals")
     return "Open observations, Journal, Git, and environment records";
-  if (kind === "admission") return "Retained workload commits only";
+  if (kind === "admission") return "Retained environment and workload commits";
   return "Admitted workloads and retained results";
 }
 

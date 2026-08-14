@@ -1,4 +1,4 @@
-import type { WorkloadList, WorkloadLog } from "./domain";
+import type { WorkloadCommit, WorkloadList, WorkloadLog } from "./domain";
 import type { CadenceProjection } from "./cadence";
 import type {
   ConversationMessageAdmission,
@@ -10,7 +10,11 @@ import type {
   ChannelProjection,
   ChannelWorkingWriteRequest,
 } from "./channels";
-import type { EnvironmentStatus } from "./environment";
+import type {
+  EnvironmentAvailability,
+  EnvironmentObjectChange,
+  EnvironmentStatus,
+} from "./environment";
 import type {
   JournalAdmission,
   JournalEntryProposal,
@@ -110,7 +114,55 @@ export interface FeedSources {
   channels: ChannelProjection;
   journal: JournalProjection;
   observations: ObservationFrontier;
-  workloadAdmissions: WorkloadLog;
+  admissions: FeedAdmissions;
+}
+
+export interface EnvironmentAdmissionCommit {
+  schema: "rey.environment-commit.v1";
+  commit_id: string;
+  sequence: number;
+  parent_commit_id: string | null;
+  committed_at_unix: number;
+  message: string;
+  snapshot: {
+    semantic_digest: string;
+    complete: boolean;
+    capabilities: unknown[];
+  };
+}
+
+export interface EnvironmentApplicationAdmission {
+  name: string;
+  change: EnvironmentObjectChange;
+  availability: EnvironmentAvailability | null;
+  resolved_path: string | null;
+  groups: string[];
+}
+
+export type FeedAdmission =
+  | {
+      kind: "environment";
+      commit: EnvironmentAdmissionCommit;
+      changes: {
+        variables: number;
+        applications: EnvironmentApplicationAdmission[];
+        inputs: number;
+        references: number;
+      };
+    }
+  | {
+      kind: "workload";
+      commit: WorkloadCommit;
+    };
+
+export interface FeedAdmissions {
+  schema: "rey.ui-feed-admissions.v1";
+  ordering: "committed_at_unix_desc_then_stable_identity";
+  total_admissions: number;
+  selected_admissions: number;
+  complete: boolean;
+  admissions: FeedAdmission[];
+  omissions: string[];
 }
 
 export interface AgentJournalDocument {
@@ -297,15 +349,28 @@ export async function loadCadence(): Promise<CadenceProjection> {
 }
 
 export async function loadFeed(): Promise<FeedSources> {
-  const [cadence, channels, journal, observations, workloadAdmissions] =
+  const [cadence, channels, journal, observations, admissions] =
     await Promise.all([
       loadCadence(),
       loadChannels(),
       loadJournal(),
       loadObservations(),
-      loadWorkloadAdmissions(),
+      loadFeedAdmissions(),
     ]);
-  return { cadence, channels, journal, observations, workloadAdmissions };
+  return { cadence, channels, journal, observations, admissions };
+}
+
+export async function loadFeedAdmissions(): Promise<FeedAdmissions> {
+  const response = await fetch("/api/v1/feed/admissions", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Feed admissions request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as FeedAdmissions;
 }
 
 export async function loadWorkloadAdmissions(): Promise<WorkloadLog> {

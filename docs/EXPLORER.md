@@ -1,8 +1,8 @@
 # Operator Feed And Context Topology Explorer
 
 The Rey UI is the human operator's primary collaboration surface. `/feed`
-projects high-cadence change through rich Signals, committed workload
-Admission history, and Flow streams,
+projects high-cadence change through rich Signals, committed environment and
+workload Admission history, and Flow streams,
 while Explorer is a high-fidelity spatial game engine for evidence-bound
 projections of high-dimensional context. It maps the bounded context Rey can
 currently explain, lets the operator move between semantic scales, and
@@ -685,8 +685,8 @@ author paths, and separate execution boundary.
 
 `/feed` does not replace Cadence or portfolio attention. Its independently
 scrollable streams are bounded lenses over one Firehose: Signals carries rich
-posts, Admission carries verified retained workload commits, and Flow carries
-admitted workload progress. WORKING/INDEX candidates,
+posts, Admission carries verified retained environment and workload commits,
+and Flow carries admitted workload progress. WORKING/INDEX candidates,
 attention, qualification, drafts, repository posture, and approval controls do
 not become Admission posts. The default three lanes can be tuned, reordered,
 removed, or repeated, and the Firehose rail can add up to eight lanes. Signal
@@ -715,8 +715,9 @@ relation. The remaining lanes keep newest-first Git reachability and
 environment sequence separate, report truncation and shallow boundaries, and
 describe existing browser scan contracts without claiming server-side or
 runtime scheduling. Git tick publication is relative to a retained local
-tracking-ref OID and never implies a network fetch. Environment commit v1 has
-no wall time, so those ticks explicitly render as order-only.
+tracking-ref OID and never implies a network fetch. Retained environment
+commit wall time participates in display ordering but does not prove causal
+order across source clocks; mutable environment INDEX remains order-only.
 
 The global footer displays retained current-Channel mailbox messages beside
 typed-attention history, with chevrons that

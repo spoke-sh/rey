@@ -1088,7 +1088,8 @@ CLI-only interface: a bounded HTTP projection started explicitly with the Rey
 process. It serves the embedded TanStack Router application plus
 `GET|HEAD /api/v1/health`, `GET|HEAD /api/v1/agent`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
-`GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/journal`, bounded read-only
+`GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/feed/admissions`,
+`GET|HEAD /api/v1/journal`, bounded read-only
 `GET|HEAD /api/v1/journal/seed?observations=id[,id]`, and
 `GET|HEAD /api/v1/observations`. Workload evidence additionally exposes
 `GET|HEAD /api/v1/workloads/admissions`,
@@ -1135,9 +1136,15 @@ does not expose that control or turn a candidate into an Admission post.
 
 The workload-admissions endpoint returns `rey.workload-log.v1`, the same
 verified local commit history exposed by `rey workloads log -n 64`, bounded to
-the 64 newest commits. It does not synthesize entries from WORKING, INDEX,
+the 64 newest commits. Feed reads `rey.ui-feed-admissions.v1` from
+`/api/v1/feed/admissions` instead. That projection merges the retained
+environment history exposed by `rey env log` with retained workload commits,
+orders at most 64 rows by commit wall time with a stable identity tie-break,
+and carries exact changed application names and availability for each
+environment transition. It does not synthesize entries from WORKING, INDEX,
 attention, repository posture, qualification posture, or browser state. An
-empty local workload log therefore produces an empty Admission stream.
+empty Admission stream therefore means both retained commit histories are
+empty.
 
 The exact evidence index is `rey.ui-workload-evidence-catalog.v1`. An admitted
 workload detail adds its bounded scenario relation only when a retained result
@@ -1172,7 +1179,8 @@ not `rey.semantic-atlas.v1`, supplies no semantic-distance claim, and cannot
 execute or admit a workload. The review action enters the exact workload
 record, where the existing combined qualification and human approval gate
 remains authoritative. Only the resulting retained workload commit can later
-appear in Feed Admission.
+appear in Feed Admission; an environment candidate likewise appears there only
+after `rey env commit` retains it as `ENV@n`.
 
 The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
 reachable history and Rey environment sequence as separate clocks, with exact
@@ -1252,10 +1260,12 @@ and never creates a Journal entry. The server supplies the workspace-root
 subject, self-asserted human author, partial posture, missing-evidence omission,
 and default local Channel broadcast targets; advanced kind and exact bindings
 remain available through `rey observations add`. Admission renders only the
-bounded verified local workload commit log. Each post retains its commit,
-snapshot, message, package count, and qualification count; it does not rank
-mutable attention, mirror repository/request posture, or expose an effect
-control. Flow renders admitted workload
+bounded verified local environment and workload commit histories. Environment
+posts retain `ENV@n`, commit and snapshot identities, message, changed object
+counts, and exact changed application availability; workload posts retain the
+equivalent commit and snapshot lineage, package count, and qualification
+count. Neither ranks mutable attention, mirrors repository/request posture, or
+exposes an effect control. Flow renders admitted workload
 qualification, scenario, run, mining, delta, and reasoning-surface posture; it
 does not claim live execution telemetry. Signal wall time, including exact
 Observation admission time, is display ordering only. Newest records render at

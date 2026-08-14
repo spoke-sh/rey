@@ -787,8 +787,8 @@ provided it does not observe mutable state or invoke a tool.
 ### Feed
 
 The high-cadence human inspection plane at `/feed`. Its default independently
-scrolling, TweetDeck-like streams project rich Signals, retained workload
-Admission history, and observed workload Flow. The Firehose can compose up to
+scrolling, TweetDeck-like streams project rich Signals, retained environment
+and workload Admission history, and observed workload Flow. The Firehose can compose up to
 eight URL-addressed stream lenses without creating another store. Its compact
 rich-text modal admits one partial self-asserted human Observation directly to
 the existing observation log; it never creates a Journal entry. Feed owns no
@@ -812,7 +812,8 @@ operations copies, admits, schedules, or mutates projected source records.
 ### Firehose
 
 The bounded union of records already projected into Feed from Cadence, Journal,
-the verified workload commit log, observations, and admitted workload results.
+the verified environment and workload commit histories, observations, and
+admitted workload results.
 The Firehose rail is the configuration surface for adding and tuning Feed
 streams. It is not a durable global event log, an unbounded stream, or a new
 runtime owner.

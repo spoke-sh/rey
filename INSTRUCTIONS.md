@@ -99,8 +99,8 @@ environment-HEAD-admitted `gh` executable to retain current unread GitHub
 notifications and bounded pull-request comments for the mailbox; `rey agent`
 supervises that same command at the committed application cadence. Neither
 path marks provider notifications read or runs from discovery alone. Feed's
-Admission stream projects only retained workload commits; WORKING/INDEX review
-and exact approval remain on Workloads.
+Admission stream projects retained environment and workload commits only;
+WORKING/INDEX review and exact approval remain on their source surfaces.
 Feed's compact composer admits a partial self-asserted human Observation through
 the same bounded local store as `rey observations add`; it does not create a
 Journal entry or grant action authority.

@@ -106,7 +106,7 @@ application and the Vite build result remains in the terminal transcript.
 Rey organizes collaboration around two clients with one evidence plane:
 
 - **Humans navigate and consent.** Explorer provides the spatial bearing;
-  Feed carries incoming signals and retained workload-admission history;
+  Feed carries incoming signals and retained environment/workload admission history;
   exact workload review owns consent before a commit; Journal retains
   addressable human/agent synthesis. Channel topology stays behind the scenes
   as substrate for Feed, mailbox, and conversation rather than appearing as a
