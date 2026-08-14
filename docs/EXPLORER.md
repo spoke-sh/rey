@@ -1,873 +1,276 @@
-# Operator Feed And Context Topology Explorer
+# Explorer
 
-The Rey UI is the human operator's primary collaboration surface. `/feed`
-projects high-cadence change through rich Signals, committed environment and
-workload Admission history, and Flow streams,
-while Explorer is a high-fidelity spatial game engine for evidence-bound
-projections of high-dimensional context. It maps the bounded context Rey can
-currently explain, lets the operator move between semantic scales, and
-preserves exact runtime identities while the visual grammar and rendering
-fidelity change. Agents continue to use the `rey` CLI as their primary
-execution and diagnostic interface.
+Explorer is Rey's evidence-bound spatial interface. It turns admitted context
+into a world that a human can navigate from a global bearing to exact source
+evidence without changing the identity, scope, or authority of what is shown.
 
-The Explorer itself is a read-only projection. The adjacent `/agents` Journal
-may retain a typed entry that points to an exact semantic coordinate and
-numeric camera scale, but that
-does not mutate topology or make Explorer a runtime, scheduler, evidence store,
-or assessment authority.
+Explorer should feel like a high-fidelity 3D geospatial engine, but it is not
+an Earth viewer and it is not a general game engine. Its globe, maps, terrain,
+lighting, atmosphere, simulation, and level of detail are instruments for
+understanding bounded evidence. They cannot create evidence, infer coverage,
+or grant permission to act.
 
-Explorer is also the read-first runtime side of a level-editor architecture.
-The separate `rey editor` CLI assembles WORKING projects, stages exact native
-objects in INDEX, and commits linear `SCENE@n` history with immutable candidate
-scene packages. Deterministic generators may author tunable source features in
-WORKING, but generation itself grants no evidence authority. Those packages
-are not Explorer inputs. The file-backed `scene-admission` workload now
-validates one exact current package and its frozen GeoJSON objects, retains a
-typed accepted/rejected result, and emits a regional projection packet.
-`/explore` consumes only the latest accepted production result from that
-workload record. It rejects scenario fixtures, rejected results, candidates,
-and mismatched bindings before projection; editor commits alone still leave the
-browser unchanged. See
-[CLI](CLI.md), [Mining](MINING.md), and [Plan
-0003](../plans/0003-scene-to-explorer.md).
+This document describes the product concept and the desired rendering
+capabilities. [`@rey/explorer`](../packages/explorer/README.md) documents the
+technical package, public API, renderer lifecycle, current implementation, and
+extension points.
 
-## Operator Model
+## The Product Idea
 
-The intended division of labor is:
-
-| Persona                    | Primary surface                   | Normal use                                                                                                                    |
-| -------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Human operator             | `rey agent`, `/feed`, and `/explore` | Triage bounded change, orient on context, traverse attention, inspect workload neighborhoods, and understand the next bearing |
-| Agent or coding harness    | `rey` CLI and structured output   | Create, test, run, diagnose, and revise workloads through admitted contracts                                                  |
-| Human diagnosing a problem | `rey` CLI                         | Drop beneath the visual projection to inspect exact command evidence, verbosity layers, stderr, and exit semantics            |
-
-The UI and CLI are different projections over the same typed facts. The UI is
-not required to mimic a terminal document, but it must retain enough identity,
-scope, direction, completeness, limits, and lineage to reach the exact CLI
-evidence when investigation requires it.
-
-## Presentation Concepts
-
-The Explorer separates semantic address, retained map evidence, and browser
-presentation. Only canvas, lens, regime, camera, focus, and omission are
-React/read-model concepts:
+Explorer gives the operator one continuous spatial journey:
 
 ```text
-Coordinate         = typed provider-qualified semantic address for an object or
-                     bounded region; local bindings carry narrower guarantees
-Locator            = candidate address; resolution is a separate bounded act
-Context topology   = bounded typed anchors + classified relationships
-Context topography = topology + scale + surveyed coverage + frontier +
-                     explicit unexplored space
-Projection packet  = exact evidence + projection basis + fields + validity +
-                     revisions + limits + omissions
-Scene snapshot     = immutable stably ordered engine scene
-Terrain working set = bounded transient scalar/vector channels + validity
-Canvas             = spatial view over one bounded topography projection
-Camera             = center + continuous scale + viewport
-Lens               = semantic projection(topography, focus, camera)
-Regime             = one level-of-detail grammar on the lens continuum
-Render graph        = ordered material, relief, feature, label, and UI passes
-Editor project      = mutable workspace declaration of native candidate inputs
-Scene package       = immutable candidate + native objects; never admission
-World              = far projection of admitted charts, survey weather, and
-                     unresolved survey horizons
-Orientation globe  = pre-survey presentation sphere carrying exact workload
-                     beacons; never an admitted atlas or semantic-distance claim
-Workload beacon    = exact request, WORKING, INDEX, or admitted-but-unrun
-                     workload revision asking for operator attention
-Sector             = revision-bound synthetic atlas partition; never a source
-                     boundary or an inferred relationship
-County             = one admitted detailed regional scene with a stable
-                     footprint and local tangent coordinate frame
-Neighborhood       = bounded objects around one meaningful coordinate
-Focus              = selected coordinate retained while changing scale
-Omission           = evidence that the current projection folded or excluded
-                     known objects because of declared limits
+unmapped orientation
+        │ admit bounded survey or scene evidence
+        ▼
+World globe → Atlas map → County terrain → Object → Evidence
+   bearing      region       local scene     thing     exact basis
 ```
 
-The current interface hard-cuts the former matrix route. A semantic
-`rey+local://...` coordinate and continuous numeric scale are separate values;
-the `/explore` query envelope combines them only for navigation. Old matrix
-paths are unresolved and have no compatibility parser. [Locators](LOCATORS.md)
-defines the address and resolution boundary.
+The geometry may change posture as the operator moves closer, but the selected
+semantic identity must remain stable. Zooming from a sphere to a map and then
+into local terrain changes how evidence is perceived; it does not change the
+underlying source truth.
 
-Relationships are always labeled. Portfolio projections use `contains`,
-`directs`, `produces`, `observes`, and `depends`; admitted survey patches add
-exact `contains` and `references` edges. Line placement or proximity alone
-does not assert causality, ownership, or authority.
+Explorer has two starting postures:
 
-## Projection Engine
+- An **orientation globe** shows exact workload beacons when no admitted map
+  exists. Its coordinates are deterministic presentation scaffolding, not an
+  inferred semantic atlas.
+- An **admitted world** places retained survey regions and qualified regional
+  scenes on a revision-bound semantic globe. Only admitted evidence can shape
+  this world.
 
-Explorer is specialized like a high-fidelity map engine and structured as a
-small real-time game engine. The engine boundary is:
+Panning, orbiting, zooming, selecting, and opening a deep link are read-only.
+None of those gestures may run a locator, execute a workload, admit a scene, or
+silently widen source authority.
+
+## The Engine Model
+
+Explorer is easiest to understand as a sequence of cooperating components:
+
+| Component | Responsibility |
+| --- | --- |
+| Evidence boundary | Accept only qualified survey, atlas, and regional-scene inputs with exact revisions, limits, omissions, and lineage. |
+| Coordinate model | Keep native geographic, synthetic semantic, local scene, and camera coordinates distinct. |
+| Projection | Transform one stable identity between globe, wrapping map, and bounded local-scene postures. |
+| Scene compiler | Produce an immutable, stably ordered scene snapshot from admitted inputs. |
+| Field system | Materialize bounded elevation, normal, curvature, material, hydrology, weather, and validity channels. |
+| Camera and lens | Manage center, scale, viewport, orbit, pan, focus, and semantic level of detail without changing resource identity. |
+| Render graph | Order validity, terrain, lighting, contours, water/weather, features, labels, selection, evidence, and accessibility passes. |
+| Renderer | Reconcile declarative 3D scenes through WebGPU or WebGL2 while retaining a deterministic reference fallback. |
+| Interaction | Pick one semantic object, preserve focus across posture changes, and link back to exact evidence. |
+
+The intended data flow is:
 
 ```text
 admitted evidence
-  → evidence adapter / projector
-  → versioned projection packet
-  → immutable scene + field compiler
-  → camera + semantic/geometric LOD + culling
-  → explicit render graph
-  → deterministic reference or declarative React Three Fiber scene
-  → pinned Three.js WebGPURenderer/TSL lifecycle adapter
-  → WebGPU preferred or WebGL2 compatibility backend
-  → accessible React overlays and exact evidence links
+  → evidence adapter
+  → projection packet
+  → immutable scene + bounded fields
+  → camera + semantic/geometric LOD
+  → ordered render graph
+  → 3D renderer + accessible reference overlay
+  → exact evidence links
 ```
 
-Evidence adapters decide what a coordinate, field channel, validity class, and
-layer mean. Engine code decides how bounded scene objects and data-oriented
-fields are transformed, culled, picked, and rendered. Renderer code decides how
-materials and passes become pixels. React owns the route, controls,
-accessibility, evidence panels, and lifecycle around that surface. None may
-take over another layer's semantic authority.
+Each boundary has one kind of authority. Evidence adapters decide what values
+mean. Projection and scene compilation decide where admitted values appear.
+The renderer decides how those values become pixels. The UI owns controls,
+labels, accessibility, and evidence navigation. No downstream component may
+reinterpret an upstream semantic claim.
 
-Before admitted evidence exists, Explorer has a separate consent-first
-orientation flow:
+## The Spatial Journey
 
-```text
-file-backed request or WORKING package
-  → exact workload beacon on an unmapped orientation globe
-  → operator inspects source, digest, producer, graph, and scenario oracle
-  → operator explicitly qualifies and admits the exact workload revision
-  → agent may run the admitted survey only over explicitly chosen seeds
-  → retained topography patch + projection packet
-  → admitted semantic atlas and generated terrain
-```
+Zoom is a semantic operation as well as a camera operation. Explorer exposes
+six stable levels on one continuous scale:
 
-The orientation globe is the default `/explore` posture for a fresh `.rey`
-state and remains the only Explorer grammar until an admitted topography patch
-exists. Its stable beacon placement is presentation-only: it is neither
-`rey.semantic-atlas.v1` nor evidence of similarity, distance, geography, or a
-surveyed project boundary. A beacon may draw attention to exact file state but
-cannot execute, qualify, or admit itself. The initial
-`context-anchor-survey` beacon is the proposed first mapping step; selecting it
-opens exact workload inspection and its explicit approval control. Feed receives
-an Admission item only after that exact workload snapshot is committed. Only
-consent followed by a bounded agent run can reveal terrain.
-The orientation renderer uses dense deterministic spherical projection fabric,
-layered atmosphere, limb lighting, and depth-aware beacon occlusion rather than
-a coarse wireframe. Drag orbits that fabric and every label through one shared
-camera transform. The fabric remains presentation-only until admitted survey
-coordinates can emphasize it; it never stands in for surveyed land.
+| Level | Spatial posture | Operator question | Typical content |
+| --- | --- | --- | --- |
+| World | 3D globe | What admitted regions and global frontiers exist? | Regions, sectors, clusters, major POIs, atlas revision, global omissions |
+| Atlas | Wrapping map | Which admitted region should I enter? | Sector polygons, regional footprints, boundaries, frontier, unexplored space |
+| Landscape | 3D local terrain | What shapes this region? | Relief, watersheds, highways, districts, major roads, landmarks, workload aggregates |
+| Neighborhood | 3D local terrain | What is near this coordinate? | Anchors, roads, lots, structures, utilities, requests, attention, relationships |
+| Object | Local scene | What is this exact thing? | Feature, parcel, artifact, file, graph, scenario, dependency, or delta |
+| Evidence | Scene plus evidence overlay | What is the exact basis for this claim? | Native source, span, row, graph node, diff hunk, validity, limits, omissions, lineage |
 
-The upstream editor pipeline is deliberately outside this render flow:
+Projection posture and semantic detail are separate. A sphere may be
+unwrapping while labels and feature classes cross their own LOD thresholds.
+Hysteresis prevents small wheel reversals from flickering between grammars.
+Selection, coordinates, and source identity survive every transition.
 
-```text
-native survey files → editor WORKING → INDEX → candidate package
-                                              │
-                                              ▼ qualified admission workload
-                                      admitted evidence → projection packet
-```
+## Coordinate Spaces
 
-The first adapter accepts only geographic RFC 7946 GeoJSON in OGC CRS84. It
-indexes explicit features and marker POIs while preserving native bytes. An
-editor source may explicitly declare `features`, `markers`, `terrain`, `terrain_control`,
-`hydrology`, `boundary`, `highway`, `road`, `district`, `lot`, `structure`,
-`utility`, `label`, `beacon`, `construction`, or `connector`; admission keeps
-that role as an independently typed native object/layer and Explorer renders
-the retained kind without guessing from geometry, path, or appearance.
-`rey editor source add INPUT.geojson --id SOURCE --role ROLE` is the CLI-first
-registration path; its verified WORKING change remains reviewable through
-`status` and `diff`, and only `add`/`commit` can freeze it for later admission.
-The distinct `terrain` role requires Point geometry, an exact third-coordinate
-altitude, and a bounded `material` property. Admission retains those values as
-exact point-valid samples; County shows their height/material identity but does
-not generate a continuous surface. `terrain_control` remains candidate-only.
-GeoJSON coordinates cannot stand in for an unbound high-dimensional semantic
-chart, and line features do not become paths or source relationships. Detailed
-raster terrain and provider-qualified semantic chart formats require separate
-adapters and admission scenarios.
+Explorer deliberately uses several coordinate systems. Similar-looking
+numbers are not interchangeable.
 
-The renderer-independent result contracts and their file-backed admitting
-workload now exist. `rey.admitted-regional-scene.v1` binds one exact editor
-commit, package, snapshot, admission request, qualifying workload/graph/suite,
-capability snapshot, native bounds and objects, coordinate transforms, typed
-layers, validity/no-data records, limits, omissions, and lineage. Its embedded
-`rey.regional-projection-packet.v1` keeps five coordinate planes explicit:
-native OGC CRS84, synthetic semantic placement, semantic-Mercator chart,
-County-local east/north/up, and camera view state. The last is always
-view-only. Topography patch, retained atlas revision, projection packet, and
-terrain program identities are separate bindings; qualification fixtures may
-leave the atlas nullable, while an accepted production run records and
-cross-verifies its exact retained atlas revision without recursively changing
-`scene_id`. With no qualified
-terrain adapter, the contract must retain an unsupported terrain-height
-validity row, an absent terrain program, and the fact that candidate controls
-were not copied into observed terrain truth. `rey workloads test --staged
-scene-admission -vv` qualifies frozen acceptance and rejection cases;
-`rey workloads run scene-admission --scene SCENE@n` revalidates a real current
-editor revision and exposes the five coordinate planes, exact identities,
-validity, omissions, limits, and lineage in human or JSON form.
+| Space | Meaning | Authority |
+| --- | --- | --- |
+| Native OGC CRS84 | Longitude, latitude, and optional altitude from qualified geographic source data | Source/provider evidence |
+| Synthetic semantic sphere | Revision-bound longitude and latitude used to arrange admitted context globally | Admitted atlas projection; not Earth geography |
+| Semantic Mercator | Reversible wrapping chart of the synthetic sphere | Presentation projection; not EPSG:3857 |
+| County-local east/north/up | Bounded local frame derived from one admitted regional scene | Qualified regional transform |
+| Camera/view | Pan, orbit, scale, viewport, and selection | Ephemeral presentation state |
 
-`rey.explore-grammar.v1` freezes the six semantic levels independently from
-World-globe, semantic-Mercator, County-isometric, and County-evidence postures.
-It binds scale thresholds and hysteresis, bounded posture morphs, semantic and
-geometric LOD budgets, inverse picking, polar disclosure, antimeridian draw
-fragment identity, and renderer-independent camera constraints. The grammar
-contains no camera instance, evidence, admission, or renderer authority. Rust
-fixtures cover overlapping regional footprints, polar and antimeridian
-envelopes, rejected coordinate metadata, typed County boundary objects, and
-candidate-terrain authority rejection. Workload/CLI production of these
-documents and the accepted-result Explorer adapter now exist. The browser shows
-exact regional point placement, stable occupied fixed-grid sector polygons, and
-native object envelopes. A sector expresses synthetic membership only; it is
-not surveyed coverage or a native County footprint. Closer zoom without an
-explicit regional selection stops at Atlas. An explicit selection verifies the
-scene envelope's exact County-local transform and enters a bounded isometric
-plane only when the scene also binds one unique, source-revision-exact boundary
-Polygon. `rey.county-footprint-projection@1` projects those closed native rings
-as the County fabric and even-odd validity boundary; no envelope substitute is
-drawn. All explicit native source roles retain independent County layer kinds;
-at Object and Evidence lenses each selected object opens
-`/workloads/{workload}/scenes/{scene_id}/objects/{object_revision}`. The route
-retains the exact native source binding, admission result and revisions, typed
-layer, native validity/bounds, directed atlas delta, limits, omissions, and
-lineage. It fails closed when any current admitted binding or direct object
-validity is absent or ambiguous. A workspace-relative source path remains inert
-unless a source-reader provider is admitted, and the page identifies the
-absence of an object-local delta instead of substituting the atlas delta.
-Qualified regional terrain and the complete posture transitions frozen by the
-grammar remain open.
+The World projection preserves the poles. The Atlas projection discloses its
+Mercator latitude cutoff, splits antimeridian geometry into draw fragments
+without splitting semantic identity, and inverse-picks wrapped map copies back
+to one canonical coordinate.
 
-The engine is high-dimensional because its input basis may project many source
-dimensions into a stable navigable scene. It is not allowed to invent that
-basis. An admitted provider or operation must bind dimensions, exact inputs,
-algorithm and implementation revision, parameters, normalization, random seed
-when applicable, distance or neighborhood semantics, distortion, validity,
-limits, and omissions. The current standalone anchor placement remains a
-synthetic orientation layout rather than a language-space embedding.
+A semantic coordinate identifies an object or bounded region. A browser view
+combines that coordinate with a numeric scale, but camera state never becomes
+part of the resource identity. Canonical coordinate and view URI syntax lives
+in [Locators](LOCATORS.md).
 
-The current implementation remains incomplete but now crosses the live renderer
-and semantic-LOD boundaries. The admitted-survey adapter, camera transforms,
-immutable scene wrapper, typed terrain-field modules, SVG/DOM reference
-renderer, React Three Fiber `9.7.0` scene components, and pinned Three.js
-`0.185.1` WebGPU lifecycle adapter are separated. The
-projection packet now retains a deterministic terrain evaluator, seed,
-macro/meso/micro bands, absolute-coordinate and validity rules, and a bounded
-transient working set. The browser divides an exact camera window into bounded
-absolute-coordinate patches, evaluates validity, elevation, finite-horizon
-hydrology, erosion, normal, curvature, and presentation-only material through
-explicit halos, then crops one shared render border. Exact patch results enter
-an LRU constrained by the packet's cell and byte budgets. The immutable scene
-also retains one revisioned ordered pass graph shared by the reference and
-accelerated surfaces. Exact scene, camera, material, and graph revisions form
-the renderer invalidation key; an identical frame is quiet. Before geometry
-allocation, the accelerated terrain path totals its exact vertex attributes
-and index bytes, rejects more than the explicit 64 MiB engine budget, and
-reports current/maximum GPU bytes beside CPU field allocation. Before upload,
-every height, transformed normal, tint, occlusion, roughness, curvature, and
-validity-bound index is compared to the deterministic CPU field under
-`rey.terrain.cpu-mesh-upload-parity@1`. Upload arrays are separate copies, so
-renderer mutation cannot rewrite the reference fields. Frequency-band selection may add
-visual detail as sample spacing tightens but never adds semantic evidence or
-fills invalid support. The snapshot also binds a revisioned immutable picking
-index. Repeated Atlas chart copies resolve through its analytic inverse to one
-retained semantic identity; the application React shell only forwards the
-selected result. React Three Fiber declaratively reconciles the exact terrain
-buffers, cameras, lighting, globe layers, and named scene objects. A TSL node
-material consumes the active buffers as one continuous relief mesh in
-`/explore`; the application React shell retains the controls, accessible
-overlays, exact evidence links, active band/backend status, and current/maximum
-working-set allocation. The revisioned survey-terrain scene compiler owns
-reference field evaluation, contours, projected hydrology/weather, and natural
-features. A separate revisioned survey-scene layout projection owns bounded
-multi-chart placement, validity regions, anchor/frontier placement, landform
-envelopes, field requests, and omissions. Both revisions enter immutable scene
-lineage. A third revisioned survey-scene projection owns focus selection,
-semantic-globe adaptation, bearing, exact evidence details, and regime copy;
-`topology.ts` only dispatches admitted survey evidence into that projection.
-Legacy portfolio landscape and neighborhood adaptation now lives in
-`src/explore/projection/portfolio-scene.ts`, together with workload and agent
-object projections, draft and attention detail, portfolio objects, and the
-no-survey evidence boundary. Its revision enters immutable scene lineage when
-that projection is active. `topology.ts` now retains scene types, high-level
-dispatch, orientation, and admitted regional World/Atlas/County projection; it
-does not own survey or legacy portfolio lens adaptation. The reference surface remains mounted during accelerated initialization and is
-made visible again on initialization failure, WebGL context loss, or
-asynchronous WebGPU device loss; the latter is reported through the adapter's
-typed degraded status.
-The base terrain remains independently identified from contour, water, weather,
-and probe overlays. Explorer exposes no per-layer toolbar controls; every
-available admitted projection remains visible, and none can hide or replace the
-landform or validity boundary.
-Explorer exposes field evaluation, geometry construction, and renderer
-submission duration as transient unretained CPU measurements. Submission time
-is not GPU execution time or a frame-rate claim. Named machine voyages may
-retain and bound it only with that authority.
-The same renderer measurements remain available as machine-readable browser
-qualification attributes for accelerated semantic globes even though a globe
-is not a terrain field: they name the selected backend, bounded source/GPU
-bytes, triangle count, geometry construction, and submission time. The visible
-corner readout remains limited to zoom and authority-qualified geographic
-coordinates.
-The canvas also exposes its exact scene snapshot, focus, source revisions, and
-compiler revisions for browser qualification without making those attributes a
-second scene store.
-The immutable render graph records pass availability. A separate transient
-projection feeds the same available contour/water/weather/probe pass identities
-to reference markup and accelerated diagnostics; the application exposes no
-per-layer controls and does not revise semantic scene or graph identity.
+## Desired 3D Geospatial Capabilities
 
-The canvas footer is a transient map-status surface with the same background as
-the canvas header, separate from the global mailbox and conversation footer. It
-centers interaction guidance on first load, slides closed on the first wheel,
-keyboard, pointer, selection, fit, or fullscreen interaction, and remains quiet
-afterward unless exact map state changes. The zoom and geographic-coordinate
-diagnostics sit above that surface while it is visible and settle to the lower
-canvas edge when it closes. The coordinate row names latitude and longitude
-only when a coordinate binding exists: World reports the presentation globe
-view, Atlas reports the synthetic semantic-Mercator inverse, and
-footprint-bound County lenses report the native CRS84 inverse. An unbound local
-scene reports unavailable latitude/longitude; it does not relabel County-local
-X/Y as geographic position. Semantic lens transitions, focus selection, bound
-source-revision changes, delayed last-good scene revalidation, and renderer
-degradation may publish bounded auto-expiring notices. Ordinary renderer
-readiness and camera motion do not publish activity. Reduced-motion clients
-receive the same state changes without a perceptible transition.
-[Plan 0003](../plans/0003-scene-to-explorer.md) owns the remaining
-direct-browser transport voyage. Projection extraction, pass implementation,
-both native backend-loss paths, retained visual voyages, rendered parity,
-passive attention revalidation, and the named observable local performance
-budget are complete; GPU-execution/frame-rate claims remain absent.
+The engine is being built toward a continuous global-to-local geospatial
+experience. The table separates today's foundation from the capability we
+want, so target language is not mistaken for repository truth.
 
-### Terrain fidelity
+| Capability | Current foundation | Direction |
+| --- | --- | --- |
+| Global globe | Declarative lit sphere, deterministic stipple fabric, atmosphere, polar caps, orbit, occluded regions, and workload beacons | Rich global layers and identity-stable transitions without turning unsurveyed space into world geometry |
+| Globe-to-map projection | Reversible semantic Mercator, polar disclosure, antimeridian fragments, bounded wrapping copies, and a reference morph | One declarative accelerated transition shared by geometry, markers, labels, picking, and accessibility |
+| Regional coordinate frames | Qualified CRS84 GeoJSON, County-local transforms, exact footprints with holes, and typed native objects | Multiple qualified geospatial adapters while preserving each provider's CRS, resolution, and source identity |
+| 3D terrain | Accelerated continuous relief for admitted survey fields with elevation, normals, curvature, material channels, validity masks, and hillshade | Detailed provider-qualified regional elevation and material surfaces, multiresolution working sets, crack-free seams, and bounded terrain streaming |
+| Vector geography | Typed boundaries, hydrology, highways, roads, districts, lots, structures, utilities, labels, beacons, construction, and connectors in the reference scene | Batched accelerated line, polygon, point, extrusion, and annotation primitives with semantic picking parity |
+| Raster and imagery | No general raster or imagery adapter is admitted | Qualified raster elevation, imagery, and material adapters that retain tile/source revision, sampling, no-data, and attribution contracts |
+| Field effects | Deterministic bounded hydrology, weather, erosion, occlusion, and material derivation over admitted support | Declarative effects and simulation passes that remain inside exact validity and never masquerade as observations |
+| Semantic and geometric LOD | Six semantic levels, bounded field bands, label budgets, and camera-relative terrain patches | Independent content, geometry, material, and label LOD with stable identity and explicit omissions |
+| Picking and labels | Analytic inverse map picking, immutable picking index, stable focus, deterministic collision/culling, and accessible overlays | One renderer-neutral interaction contract across globe, map, terrain, vector features, and repeated chart copies |
+| Renderer resilience | WebGPU-first React Three Fiber, WebGL2 compatibility, deterministic reference renderer, context/device-loss fallback, and last-good scenes | Backend feature parity with explicit degradation, bounded resource residency, and retained visual qualification |
 
-The 2026-08-11 visual comparison establishes the target. Current Rey terrain
-is primarily isolines and feature strokes over a uniform plane. Mature map
-terrain reads as one continuous surface because elevation, multiscale detail,
-slope, aspect, hillshade, ridge/valley occlusion, tint, contours, water, labels,
-and overlays are composed together.
+These capabilities are constrained by evidence semantics. For example, a
+beautiful road-like line cannot become a dependency, a simulated river cannot
+become a discovered path, and smoothed terrain cannot fill an unexplored
+region.
 
-Google Maps-level fidelity means comparable perceptual terrain legibility, not
-Google data or style replication. Rey's target render graph is:
+## Terrain And Material Language
+
+Terrain should read as a continuous 3D surface before contours, labels, or POIs
+are added. The intended pass order is:
 
 ```text
-validity/background
+validity / background
   → base terrain material
-  → height normals + multidirectional hillshade
-  → ambient/valley occlusion + ridge/curvature enhancement
+  → normals + multidirectional hillshade
+  → ambient and valley occlusion + ridge enhancement
   → LOD-aware contours
-  → water + weather + boundary state
-  → POIs + labels + selection
+  → water + weather + boundaries
+  → vector features + labels + selection
   → evidence and accessibility overlays
 ```
 
-The base surface must read before contours or POIs are added. A field uses a
-bounded procedural program and camera-relative transient working set, explicit
-channel revisions, and a per-cell validity mask. Unknown, surveyed-empty,
-omitted, stale, unsupported, truncated, and frontier cells do not acquire
-height through blur, interpolation, erosion, or shading. Visual feathering may
-blend a known boundary into the application background while the exact mask
-and disclosure remain available.
+The field model carries elevation, normal, curvature, tint, roughness,
+occlusion, atmosphere, hydrology, and validity as separate revisioned channels.
+Their separation matters: presentation lighting may improve legibility, but it
+cannot alter authoritative height or support.
 
-The continuous `rey.explore-grammar.v1` contract couples a lit 3D World sphere,
-a flat semantic Mercator Atlas, and a stylized isometric County surface. This supersedes the
-former single top-down 2.5D target while retaining bounded cameras rather than
-unrestricted free orbit. Volumetric space, physics, and a general ECS remain
-deferred. World and County camera posture is presentation state; neither can
-change semantic coordinates, height authority, or admission.
-The production path uses React Three Fiber's declarative renderer over a narrow
-Three.js `WebGPURenderer` and TSL boundary. WebGPU is preferred and Three.js's
-WebGL2 backend is the compatibility path. The implemented lifecycle adapter
-awaits asynchronous initialization, can force WebGL2 for qualification, bounds
-viewport pixel work, records the active backend, disposes resources, and fails
-closed to reference status. R3F uses a demand-driven frame loop keyed by the
-exact scene, camera, material, and render-graph identities. It becomes the live
-base-terrain surface only when initialization and the first render succeed.
-The renderer-independent reference path remains visible until that point and
-preserves scene semantics and visible degradation when acceleration is
-unavailable. `?renderer=webgpu`, `?renderer=webgl2`, and
-`?renderer=reference` are view-envelope qualification controls; they do not
-change evidence or execute a probe.
-The router retains only those three declared values in the view envelope;
-unknown backend requests are discarded rather than becoming an untyped
-qualification mode.
-The named browser-voyage harness reads those machine-readable attributes from
-the same canvas, performs the semantic traversal through browser controls, and
-retains captures and a typed manifest only beneath ignored `.rey` runtime
-state. Its optional local-file route/base-path posture exists solely for
-socket-restricted qualification over the exact built assets and bounded API
-snapshots; the production HTTP route remains `/explore`, and the manifest must
-disclose when direct browser transport was not exercised.
-One separately named fulfilled voyage supplies an exact initial workload
-document followed by one bounded generated attention row. It proves that the
-five-second passive refresh publishes the changed typed projection into the
-mailbox while preserving the exact Explorer scene. The manifest identifies the
-row as qualification stimulus, never observed runtime activity.
-The voyage also retains scene/field/geometry CPU duration, upload residency,
-backend draw calls, label candidates, JavaScript heap, semantic interaction
-convergence, and a short browser presentation-cadence sample. A separate
-versioned matrix budget binds those observable values to one exact
-machine/browser, viewport, backend, transport, admitted input, and scene/source
-lineage. Presentation cadence is `requestAnimationFrame` scheduling and
-submission is a synchronous CPU boundary; neither is reported as GPU execution
-or a frame-rate result.
-Explicit loss voyages may destroy only the disposable selected WebGPU device
-or invoke the selected WebGL2 context's standard loss extension. They must
-retain the same immutable scene on the visible reference surface, mark the
-backend degraded, and continue browser traversal without changing evidence or
-creating a general renderer-control interface.
-The production build emits bounded chunks for React Three Fiber, the globe,
-terrain, WebGPU adapter, and pinned Three.js module, and the operator server
-supervised by `rey agent` embeds and
-serves each chunk. Starting the documented CLI surface therefore reaches the
-same accelerated path as a direct Vite build.
+Every field cell has a validity class. Surveyed, surveyed-empty, unexplored,
+omitted, stale, unsupported, truncated, and frontier regions remain distinct
+through generation, simulation, meshing, LOD, and rendering. Interpolation,
+erosion, shading, and feathering operate only where the admitted validity
+contract permits them.
 
-## Semantic Lens
+## Evidence And Presentation
 
-Zoom is a semantic operation, not only a CSS transform. The target lens owns a
-continuous camera scale and projects six deterministic levels of detail:
+The render graph classifies its work by authority:
 
-| Level                     | Projection posture | Operator posture                                                        | Target object grammar                                                                                                                             |
-| ------------------------- | ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| World / projection        | World globe        | Understand admitted regions and global topology                         | Semantic sphere, sectors, regional clusters, major admitted POIs, atlas revision, boundedness, and global omissions                              |
-| Atlas / topographic       | Mercator chart     | Choose a sector or admitted county                                      | Sector polygons, county footprints, coarse scene terrain, major natural/constructed systems, survey boundaries, frontier, and unexplored regions |
-| Landscape / telescope     | County isometric   | Survey one county and find concentrations or unresolved direction       | Continuous relief, boundary, watersheds, highways, districts, major roads, landmarks, workloads, and attention aggregates                       |
-| Neighborhood / mesoscopic | County isometric   | Compare local structures around one coordinate                          | Relief plus exact anchors, local roads, lots, structures, utilities, admitted beacons/construction, requests, attention, and relationships       |
-| Object / microscope       | County isometric   | Inspect the machinery within a selected coordinate                      | One parcel, feature, artifact, file, document, symbol, package/context binding, graph, scenario, dependency, or directed delta                    |
-| Evidence / specimen       | County + overlay   | Inspect the exact basis of an object or relation                        | Native source/tile, span, row, graph node, diff hunk, admission result, validity, omission, bound, and lineage                                    |
+- **Evidence** passes expose admitted support, boundaries, objects, and exact
+  source identity.
+- **Derived** passes compute bounded terrain, contours, hydrology, grouping,
+  or other deterministic projections from admitted inputs.
+- **Presentation** passes add lighting, atmosphere, tint, occlusion, smoothing,
+  animation, and other perceptual aids.
+- **Interface** passes provide labels, selection, diagnostics, evidence links,
+  and accessibility.
 
-Projection posture and semantic detail are orthogonal contracts. Geometry can
-morph at a posture boundary while semantic LOD cross-fades its own admitted
-layers. The current six named levels remain the public evidence ladder.
+Only the first category contains source observations. Derived and
+presentation passes must retain their algorithm and input revisions and cannot
+upgrade coverage, confidence, progress, or proof status.
 
-### Globe, Mercator, and county transforms
+## Interaction Principles
 
-World presents `rey.semantic-atlas.v1` as a high-fidelity lit sphere. Drag
-rotates that sphere and zoom preserves the semantic focus under the pointer.
-As World approaches Atlas, the same sector and region vertices unwrap into a
-horizontally wrapping spherical-Mercator chart. Rey calls it **semantic
-Mercator** because its inputs are synthetic semantic longitude/latitude rather
-than Earth coordinates. It is not Web Mercator, EPSG:3857, OGC CRS84, physical
-distance, or geographic area.
+- Wheel zoom stays anchored to the semantic point beneath the pointer and
+  cannot turn a clamped zoom interval into pan-only motion.
+- A World drag beginning on the atmosphere or globe orbits the sphere. A drag
+  beginning outside it pans the full projection.
+- Map pan wraps and recenters horizontally without changing the canonical
+  semantic coordinate.
+- Selecting an object preserves focus as the lens moves closer. A missing
+  admitted region stops traversal instead of choosing an arbitrary scene.
+- Full screen changes viewport ownership only.
+- Camera motion is quiet. Explorer asks for operator attention only when
+  retained map state, focus, source revisions, revalidation, or renderer
+  degradation changes materially.
 
-Semantic Mercator clamps at approximately `±85.05112878°`; World retains the
-polar caps and Atlas discloses clipped cap contents instead of silently
-dropping them. Antimeridian-crossing polygons may split into draw fragments
-while retaining one identity. Native GeoJSON/CRS84 coordinates remain native
-geographic evidence and require a qualified native-to-semantic region
-transform before admission.
+## Authoring And Admission
 
-The implemented `rey.semantic-mercator-projection@1` browser primitive makes
-that mechanism reversible and bounded: it canonicalizes the `360000000µ°`
-wrap, reports each chart-copy index, clamps at `±85051129µ°`, returns an
-analytic inverse synthetic coordinate, and gives every antimeridian draw
-fragment a distinct fragment ID beside one unchanged semantic identity. Its
-orthographic World endpoint and interpolation retain the same focus and object
-identity. Regional Atlas points and occupied sectors consume this primitive,
-and immutable scene snapshots retain its compiler revision plus one
-renderer-neutral transition manifest. The reference renderer now drives that
-manifest through the grammar's `0.14 → 0.24` scale band: region/focus identity
-and bounded sector vertices stay continuous across the World/Atlas regime
-switch, active globe rotation supplies the World endpoint, and the accelerated
-globe duplicate is hidden during the transition. At settled Atlas, the
-reference renderer draws exactly three bounded horizontal copies. The two
-duplicates remain pointer-usable but are removed from keyboard/accessibility
-order; every copy inverse-picks to the same canonical synthetic coordinate and
-retained region/focus identity. Drag pan recenters modulo rendered chart width,
-so horizontal camera state stays bounded. The implemented
-`rey.semantic-label-layout@1` engine then applies the grammar's 70-label World
-and 96-label Atlas budgets after each globe, morph, or chart projection.
-Canonical selected focus wins, followed by stable depth/copy priority and
-semantic identity. A collision or limit hides only the label/card: its marker,
-pick target, focus, exact coordinate, and semantic identity remain. Duplicate
-chart copies stay outside keyboard/accessibility order. The layout revision is
-retained in immutable scene compiler lineage.
-
-Atlas partitions the abstract sphere into revision-bound **sectors** and shows
-the footprints of admitted **county** scenes within them. Hover or keyboard
-focus may raise one sector as transient presentation and expose the exact
-admitted measure behind its interest. That lift cannot alter terrain, atlas
-layout, or evidence. Entering one selected admitted county expands its local
-east/north/up tangent frame and blends into a stylized isometric camera. If no
-admitted county exists under focus, the lens stops at Atlas and says so.
-
-Detailed county fabric comes from exact editor packages only after a qualified
-scene-admission workload. Its procedural terrain, boundary, hydrology,
-roads, highways, lots, structures, utilities, beacons, construction, labels,
-and markers remain separate typed layers. Source graph edges never become
-roads. Cross-county highways require compatible admitted connector identities;
-a beacon does not imply a running poller or relay; construction does not imply
-observed work. Candidate packages remain absent from `/explore`.
-
-The projection grammar is part of this contract; [Plan
-0003](../plans/0003-scene-to-explorer.md) owns its incomplete implementation
-and proof.
-
-The implementation covers all six levels over one persistent spatial scene.
-World aggregates admitted regional topographies on the semantic sphere. Atlas
-and closer lenses derive charted-land envelopes from displayed admitted
-anchors and separate survey horizons from anchors plus retained frontier
-points. Retained frontier conditions become local weather fronts without a
-line back to their source coordinate. Exact `contains` and `references` edges and shared
-coordinate identity remain available at deep inspection levels, but do not
-appear as roads, rivers, passages, probe trails, or curation paths.
-World now consumes `rey.semantic-atlas.v1`: admitted regional identity remains
-separate from synthetic semantic longitude/latitude on a revision-bound sphere.
-Those axes have no Earth CRS or physical-distance meaning. Atlas's target
-semantic-Mercator transform gives them a familiar wrapping chart without an
-EPSG:3857 or Earth claim. Zoom selects retained LOD and never reclusters; only
-a changed admitted source set or source topography revision changes the atlas
-layout. Atlas
-extracts nested contour isolines from a scalar field whose
-only height inputs are admitted anchor samples. A deterministic rainfall and
-eight-neighbor descent pass accumulates runoff, classifies projected streams
-and rivers, and erodes the displayed field before contour extraction.
-Overlapping anchor influence produces peaks, ridges, saddles, watersheds, and
-drainage basins; anchors remain visible as map points of interest. Landscape
-adds more POI labels and survey-state zones, Neighborhood expands the local
-station reading, Objects add inspection cards around the selected POI, and
-Evidence adds bounded locator, relationship, and lineage
-detail. Coordinates and POI positions do not jump when the level changes.
-When no survey patch is admitted, Atlas labels the topography unexplored and
-falls back to the narrower portfolio projection.
-
-Relief is an evidence projection, not an embedding claim. Current local
-topography places anchors deterministically and derives their prominence from
-admitted seed and resolution sampling rather than graph degree. Contour
-geometry communicates projected sample concentration and runoff erosion only.
-Weather, rainfall, watercourses, and erosion are deterministic presentation
-parameters rather than observed natural facts. They do not assert that visual
-distance is language similarity, interpolate an unexplored semantic region,
-manufacture an untyped relationship, or claim a discovered path. A future provider may bind high-dimensional semantic
-coordinates, but must expose that coordinate revision and projection contract
-before Rey may render semantic distance as observed terrain.
-
-The canvas supports pointer-centered wheel zoom, discrete semantic zoom
-controls, drag-to-pan, keyboard `+`, `-`, and `0`, selection-driven traversal,
-and a native full-screen mode. Available typed render passes remain active
-without per-layer controls. A control step cannot skip a semantic regime.
-At World, a drag beginning on the rendered atmosphere or globe orbits it; a
-drag beginning on the surrounding canvas pans the entire projection without
-changing globe yaw or pitch. The posture and source-revision caption remains
-centered with a clear gap beneath the outer atmosphere without repeating the
-admitted-region count.
-Selecting a World POI advances to
-Atlas, then through Landscape, Neighborhood, Object, and Evidence while
-centering that same POI. Level boundaries retain
-hysteresis so small wheel reversals do not flicker between grammars. The
-terrain camera spans `0.05..=5.4`; zooming out can reveal additional admitted
-survey scenes as the bounded world grows, and zooming in progressively admits
-denser visual layers without replacing the map.
-
-The map reading separates navigation from epistemic change. A selected anchor
-reports its admitted local sample conditions without deriving a route from
-source edges. A selected frontier names the required prerequisite: widen a
-bound, revalidate, admit a resolver, obtain authority, curate a locator, or
-verify absence. Its weather front indicates unresolved boundary pressure but
-does not supply a crossing. Discovered and constructed paths require a
-separate future typed artifact. Selection and visual presentation never reshape
-relief; only a later admitted patch with changed anchors, sampling, coverage,
-omissions, or frontier can change terrain.
-
-In the implemented camera, wheel zoom keeps the semantic coordinate beneath the
-pointer stationary using the actual rendered-scale ratio, so a clamped visual
-scale cannot produce a pan-only wheel frame. The viewport owns wheel input
-through a non-passive listener and prevents document scrolling before changing
-the lens. Control zoom keeps the selected focus stationary. Level-of-detail
-boundaries use hysteresis so small changes do not flicker. The coordinate and
-source identity survive every visual grammar change.
-
-`/explore`, its exact coordinate routes, and `/feed` own exactly the browser
-space remaining below Rey's application chrome. Explorer is height-locked to
-`100dvh`; its document cannot scroll and wheel input moves the semantic lens.
-Feed is also viewport-bound, but explicitly divides its remaining space into
-independently scrolling vertical streams and a narrow Firehose control rail.
-Additional streams extend horizontally instead of creating document scroll.
-`/cadence`, `/agents`, `/environment`, and `/workloads` remain ordinary
-scrollable documents.
-
-## Projection Invariants
-
-- Source identities and assessments survive a lens transition. Representation
-  and information density may change; source truth may not.
-- Projection basis, scene compiler, field derivation, material, render-graph,
-  LOD, and renderer revisions remain distinguishable. Camera motion and
-  measured frame time do not enter semantic scene identity.
-- Coordinates remain semantic addresses. Camera center, scale, viewport,
-  selection, and lens regime may be shareable view state but never become part
-  of resource identity.
-- The map is composed only from admitted topography patches. Empty space must
-  distinguish surveyed-empty from unexplored, omitted, stale, unsupported, and
-  frontier regions; visual interpolation is not evidence.
-- Before that map exists, the orientation globe may show exact file-backed
-  workload beacons. It must label itself unmapped, disclose its
-  presentation-only coordinate authority, and never render those beacons as
-  terrain, regions, paths, inferred activity, or an admitted semantic atlas.
-- Panning, zooming, selecting, or opening a deep link may retrieve and project
-  retained evidence. None of those gestures may run a locator, execute a
-  survey workload, admit a patch, or silently broaden authority.
-- Every projection is bounded. Patch-backed terrain renders at most 64 anchor
-  POIs, six frontier POIs, and 96 natural features per admitted
-  patch, plus four detail cards around an inspected POI. Folded rows and
-  admitted patch omissions remain available through exact map reading and
-  evidence surfaces; they are not copied into the transient canvas footer.
-  Legacy portfolio neighborhoods remain bounded to eight workload/request and
-  eight attention objects.
-- Object views disclose folded evidence and dependency references rather than
-  pretending one displayed reference is complete.
-- The selected focus remains a typed coordinate. It cannot grant access,
-  execute a workload, admit an action, or resolve its own attention row.
-- Relationship labels carry meaning; geometry is a navigation aid.
-- Source relationships and shared-coordinate identity remain inspection
-  evidence and never appear as terrain transport. Weather fronts do not imply
-  crossings; streams and rivers do not imply discovered or constructed paths.
-- World envelopes bound displayed evidence and retained frontier, not the
-  unknown context universe. No global area or coverage percentage is inferred.
-- Color is redundant with family, label, state, and relationship text.
-- Shading, antialiasing, occlusion, tint, smoothing, and simulated erosion may
-  improve spatial legibility but cannot change height-channel semantics,
-  validity, source assessment, or proof status.
-- Renderer loss, context loss, or unavailable acceleration must preserve the
-  last valid scene and expose fallback or degradation instead of returning a
-  semantically different map.
-- Full screen changes only viewport ownership. It does not change scope,
-  authority, limits, or the underlying topology.
-- Do not introduce a second scroll plane around the canvas. If application
-  chrome or explanatory copy grows, the canvas must still fit the remaining
-  viewport rather than causing document scroll and making the wheel ambiguous.
-- Passive revalidation may replace the source snapshot, but it cannot silently
-  mutate runtime state. Explorer remains read-only even when the UI admits a
-  separate Journal entry.
-- The fixed footer is a live communications channel. Its mailbox contains only
-  current messages retained by separately admitted application polls, typed
-  attention, or revalidation failure evidence; zero messages explicitly means
-  no operator attention is requested. Authored Observations remain on Feed.
-  `MAILBOX` selects that history
-  axis; the center chevrons select the separate operator/Rey/agent conversation
-  axis. Selecting the active axis closes the plane, selecting the other axis
-  switches it, and either Escape or a click on the background closes it.
-- A coordinate whose `revision` no longer matches is stale. A coordinate
-  whose identity is absent is missing. Neither may silently drift to a current
-  object while retaining the old URI.
-
-## Coordinate And View URIs
-
-The implemented standalone semantic coordinate is:
+Explorer is the read side of a separate level-editor architecture:
 
 ```text
-rey+local://{kind}/{identity}?revision={revision}[&role={agent-role}]
+native geospatial files
+  → editor WORKING
+  → reviewed INDEX
+  → immutable SCENE@n candidate
+  → qualified scene-admission workload
+  → admitted regional scene
+  → projection packet
+  → Explorer
 ```
 
-Current kinds are `portfolio`, `cluster`, `workload`, `attention`, `agent`,
-`workspace`, `file`, `document`, `external_resource`, and `topography`.
-Every coordinate is revision-bound. Agent coordinates alone require
-`role=coding_harness|rule|human`. Query dimensions serialize in the exact order
-`revision`, `role`; duplicates, unknown dimensions, missing values, invalid
-roles, and non-canonical encodings are rejected.
+Editor projects and scene packages are candidates, never evidence. The
+admission workload is the only bridge into Explorer. It freezes exact native
+objects, coordinate transforms, validity, limits, omissions, and lineage
+before a scene can affect the map. See [CLI](CLI.md), [Mining](MINING.md), and
+[Workloads](WORKLOADS.md) for those boundaries.
 
-The browser view envelope is:
+## Product Invariants
 
-```text
-/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}
-```
+- Source identity and assessment survive every camera, LOD, and posture
+  change.
+- Unknown space remains unknown. A renderer cannot interpolate evidence into
+  it.
+- Coordinate basis, scene, field, material, render graph, and renderer
+  revisions remain distinguishable.
+- Geometry and proximity aid navigation; typed relationships carry meaning.
+- Every scene, field, label set, picking index, and GPU allocation is bounded.
+- Rendering failure preserves the last valid scene and exposes degradation.
+- Color, lighting, depth, and motion are redundant aids, not the only carriers
+  of meaning.
+- Exact evidence, omissions, limits, and lineage remain reachable from the
+  visual surface.
+- Explorer is read-only even while the surrounding application revalidates or
+  admits separate Journal, Observation, or conversation records.
 
-For example:
+## Current Ownership
 
-```text
-/explore?coordinate=rey%2Blocal%3A%2F%2Fagent%2Fcodex%3Frevision%3Dgpt-5%26role%3Dcoding_harness&scale=2.05
-```
+The implementation deliberately spans two TypeScript packages:
 
-`scale` is presentation state and never enters the coordinate identity. The
-accepted range is `0.05..=5.4`, with deterministic World, Atlas, Landscape,
-Neighborhood, Object, and Evidence stops inside that continuum. The selected
-coordinate anchors the camera; free pan and viewport remain ephemeral. The
-scene extent is derived from the bounded projection instead of a fixed world
-rectangle. The matrix route is outside the current contract. Journal v2 stores
-coordinate and numeric scale as separate fields and derives the browser
-envelope. [Locators](LOCATORS.md) owns coordinate parsing and bounded
-resolution; this document owns World geometry and read-only probe navigation.
+| Owner | Responsibility |
+| --- | --- |
+| `@rey/agent` | Evidence adaptation, semantic projection, immutable scene snapshots, field evaluation, terrain working sets, render graph, picking, camera controls, accessible reference renderer, labels, routes, and evidence UI |
+| `@rey/explorer` | Reusable R3F canvas, globe and terrain GPU compilation, declarative 3D scene components, bounded renderer lifecycle, WebGPU/WebGL2 selection, resource accounting, and renderer reports |
 
-## Implemented Routes
+The one-way dependency is `@rey/agent → @rey/explorer`; the rendering package
+cannot import application evidence or policy. The reference renderer remains
+mounted until acceleration has produced a valid frame and becomes visible
+again after renderer loss.
 
-`GET /` redirects to `/explore`. The application routes are:
+The current package-level design is documented in
+[`packages/explorer/README.md`](../packages/explorer/README.md). The active
+delivery and qualification boundary remains [Plan
+0003](../plans/0003-scene-to-explorer.md).
 
-- `/feed`: a TweetDeck-like workspace whose default rich Git/environment/
-  Journal Signals, retained workload-commit Admission history, and admitted
-  workload Flow streams can be composed from the Firehose; its compact
-  tweet-like rich-text modal admits an Observation directly rather than
-  opening Journal;
-- `/explore`: the context-topology canvas and default human entry;
-- `/explore?coordinate=...&scale=...`: an exact coordinate-bound camera view;
-- `/cadence`: partially ordered Git, Rey-admission, and passive-scan clocks;
-- `/agents`: the Explore-bound Journal index and observed-work ledger; derived
-  system entries remain distinct from retained human/agent documents;
-- `/journal/new`: the unauthenticated, validated human Journal composer;
-- `/journal/{slug}`: one exact retained Journal document, with typed blocks
-  addressed by `#block-{block-id}` fragments;
-- `/environment`: two stacked Kinetic Precision evidence sections over the
-  exact typed `HEAD → INDEX → WORKING` environment delta—directed text and
-  bounded application search; inputs and topology remain in typed evidence and
-  the exact CLI projection;
-- `/workloads`: separate dense tables for admitted revisions and creation
-  requests, preserving aligned conformance, graph, evidence, mining, attention,
-  intent, admission, source, and target dimensions; and
-- `/workloads/$workloadId`: dense runtime/request posture and exact binding
-  relations, plus the admitted revision's bounded mining output.
+## Related Documents
 
-The Refresh control has been removed. The root workload, mounted Feed,
-environment, Cadence, and Journal projections passively revalidate every 5000
-ms from their typed GET endpoints. Revalidation changes only the browser
-projection; it does not invalidate the route, reset viewport or scroll state,
-test, run, create, add, commit, or schedule work. Failed background reads retain
-the last good projection and remain visible as delayed revalidation.
-Explorer also retains its last successfully compiled immutable scene when a
-new portfolio projection cannot compile. A visible delayed-scene boundary names
-the retained snapshot and compiler error; a later valid projection replaces the
-fallback. An invalid initial scene still fails into the route error boundary.
-
-Journal entries point at Explorer; they do not enter its source topology by
-being admitted. See [Collaboration Journal](JOURNAL.md) for the typed notebook,
-author paths, and separate execution boundary.
-
-`/feed` does not replace Cadence or portfolio attention. Its independently
-scrollable streams are bounded lenses over one Firehose: Signals carries rich
-posts, Admission carries verified retained environment and workload commits,
-and Flow carries admitted workload progress. WORKING/INDEX candidates,
-attention, qualification, drafts, repository posture, and approval controls do
-not become Admission posts. The default three lanes can be tuned, reordered,
-removed, or repeated, and the Firehose rail can add up to eight lanes. Signal
-lenses select all, Journal, Git, or environment records; Admission has one
-`all` lens; Flow lenses select all, attention-bearing, failing, or qualified
-workloads. The exact composition
-and each optional human stream name are encoded in the `streams` URL parameter
-rather than retained as new runtime state. Clicking a stream title edits it
-inline and autosaves on blur or Enter. Post evidence is collapsed by default
-and expands in place.
-
-Timestamped Signals, including retained Observation admission times, use
-newest-first display order followed by source-ordered records with no wall
-time. Equal-time Observations use descending local sequence. This is not causal
-order, unread state, or a durable global event log. Admission is commit-backed
-and inspect-only; it cannot admit a candidate or move a post into Flow. Exact
-candidate review and approval live on `/workloads/{workload-id}`.
-The first slice renders at most 64 recent Signals. Source completeness, limits,
-and omissions remain in the typed APIs and dedicated evidence surfaces instead
-of appearing as a synthetic Signal card. [Interfaces](INTERFACES.md) owns the
-exact Feed and HTTP boundary.
-
-`GET /api/v1/cadence` returns `rey.ui-cadence.v1`. Its leading repository-state
-plane separates working-tree attention from the exact local-upstream push
-relation. The remaining lanes keep newest-first Git reachability and
-environment sequence separate, report truncation and shallow boundaries, and
-describe existing browser scan contracts without claiming server-side or
-runtime scheduling. Git tick publication is relative to a retained local
-tracking-ref OID and never implies a network fetch. Retained environment
-commit wall time participates in display ordering but does not prove causal
-order across source clocks; mutable environment INDEX remains order-only.
-
-The global footer displays retained current-Channel mailbox messages beside
-typed-attention history, with chevrons that
-open the traditional conversation axis of the same plane, and the shortened Rey implementation Git revision linked through
-the complete revision to the canonical GitHub commit. This is separate from
-the BLAKE3 portfolio-attention identity: semantic evidence digests must never
-be presented as source commits. The current provider path is the latest
-retained exact-Channel-HEAD GitHub poll; it does not include authored
-Observations or imply GitHub read-state mutation. The conversation axis
-projects the bounded workspace-local
-transcript and conditionally appends through the exact session-declared human
-browser writer. An unavailable transcript or writer keeps the composer
-disabled; every retained append remains delivery-not-attempted and carries no
-agent invocation, Channel relay, action, or proof authority.
-
-The implemented Explorer topology is derived from `rey.workload-list.v1`:
-exact workload packages, HEAD/INDEX/WORKING revision state, drafts,
-graph/scenario/mining counts, portfolio
-attention, retained `rey.topography-patch.v1` artifacts, and their exact
-`rey.projection-packet.v1` envelopes. It also consumes the deterministic
-`rey.semantic-atlas.v1` projection of admitted survey patches and the latest
-accepted production `rey.scene-admission-result.v1` for each regional workload.
-Production survey runs and accepted production regional-scene runs expose one
-retained bounded atlas history and directed typed delta. Survey and regional
-members remain separate evidence families. Each regional member binds the exact
-scene, admission, package revision, packet, and unchanged synthetic placement.
-The immutable browser scene and bearing bind the latest delta only when its
-target and the last retained revision equal the current atlas; qualification
-fixtures and list/UI reads cannot advance it.
-With a fresh
-`.rey`, it projects incoming workload file state as an unmapped orientation
-globe and directs the operator toward consensual survey admission. At World the
-reference backend renders an accessible orthographic sphere and the React Three
-Fiber/Three.js backend renders a lit WebGPU-first globe; both bind the same
-admitted evidence.
-Regional results must match their retained atlas member, which preserves the
-packet's exact synthetic point with no inferred radius. Atlas applies semantic
-Mercator to that same point and its stable occupied synthetic sector. Closer
-zoom stops at Atlas until an exact regional identity is selected; the selected
-scene enters County only when it also retains an exact admitted footprint. The
-reference renderer draws that footprint's native rings through the verified,
-envelope-centered County-local isometric frame, preserves holes, and positions
-exact native objects within it. Regional terrain remains explicitly absent. Survey
-terrain fails closed unless the
-packet source patch and topography revision match. Packet objects, validity,
-extent, limits, and omissions now direct the existing SVG reference scene; the
-separate `/environment` route consumes `rey.environment-status.v2` and renders
-its exact variable, application, input, and reference operator projection.
-`/agents` consumes the workload-list document at a higher semantic level: it
-ranks current requests and attention as recommendations, then summarizes work
-supported by retained test, run, mining, delta, and revision evidence. Agent
-runtime discovery remains on `/environment`. Generator provenance still
-supplies agent neighborhoods in Explorer, but it is not
-presented as runtime availability, live activity, or assignment. The Explorer
-does not yet contain exact environment nodes, Git commit objects, source spans,
-scenario deltas, or proof manifests. Aggregates are labeled as aggregates; the
-Explorer must not imply that unavailable objects have been rendered. The
-workload endpoint returns local admitted topography patches. Remote or
-federated coordinates are not part of the current contract.
-
-## Current React Boundaries And Engine Cut
-
-`ExplorePage` owns route composition. `ContextCanvas` owns zoom, pan, focus,
-keyboard, and full-screen state while using framework-independent camera math.
-`ReferenceRenderer` renders accessible overlays and the deterministic fallback;
-it refuses graph edges on terrain even if one is supplied accidentally.
-`AcceleratedTerrainSurface` in `@rey/agent` materializes bounded terrain working
-sets and adapts the immutable scene into `@rey/explorer`. The package's
-`ExplorerCanvas` owns the bounded R3F root and Three.js lifecycle adapter;
-`fiber-scenes.tsx` declaratively expresses terrain buffers, bounded cameras,
-lighting, globe layers, instancing, and evidence-named scene objects. The pure
-`compileContinuousRelief` and `compileContextGlobe` paths retain upload parity,
-resource bounds, and renderer-neutral statistics. The surface reports its
-selected backend, active terrain bands, bounded field/triangle counts, and
-transient working-set allocation, and retains the reference terrain through
-initialization or failure. At World it materializes the semantic globe rather
-than the local terrain mesh, while the reference overlay preserves region
-labels and accessibility. Both paths use the same sparse, deterministic
-golden-angle stipple caps at exact presentation latitude ±90°. The caps remain
-unlabelled and identify the sphere's coordinate frame only through a subtle
-change in the existing surface pattern; they do not claim terrain, coverage,
-or native CRS84 authority.
-`buildTopologyScene` is a deterministic read-model projection over
-`rey.workload-list.v1` and is tested separately from browser mechanics. It
-requires an exact patch/packet pair before compiling admitted survey terrain,
-and an accepted non-scenario scene result with exact workload, graph,
-capability, package, snapshot, packet, terrain, coordinate-plane, and placement
-bindings before compiling regional World/Atlas/County objects. Typed
-field derivations live under `src/explore/terrain`; `topology.ts` still owns
-their scene adaptation plus contours and natural-feature overlays.
-
-This is current repository truth, not permission for components to become a
-second engine truth. [Plan 0003](../plans/0003-scene-to-explorer.md) retains the
-remaining direct-browser transport proof. Future windows and lenses add typed
-engine inputs rather than fetch or invent a second graph inside a visualization
-component. `@rey/explorer` has no import path back into `apps/agent`;
-application StyleX classes enter only through typed canvas props.
-
-## Next Boundaries
-
-The seed-to-map voyage, World globe rotation, and one exact
-editor-to-admission-to-regional-Explorer voyage are implemented and verified
-through the human CLI, structured workload endpoint, deterministic Explorer
-read model, and reference renderer. [Plan
-0003](../plans/0003-scene-to-explorer.md) now owns the critical path: extend
-deterministic editor authoring over the proven admission boundary, finish the
-engine/render-graph boundary, and qualify detailed regional terrain. Exact scenario/delta
-routes retain the delivered CLI `-v`/`-vv` evidence ladder in the browser
-without adding an independent assessment. Travel, trade, and economic layers
-require their own
-typed qualified evidence and are not inferred from survey edges or visual
-proximity.
-
-Browser mutation, workload campaign controls, authentication, multi-user
-scope, remote deployment, and remote streams remain separate decisions.
+- [Architecture](ARCHITECTURE.md) — system planes and ownership.
+- [Glossary](GLOSSARY.md) — canonical Explorer and evidence terminology.
+- [Locators](LOCATORS.md) — semantic coordinates and bounded resolution.
+- [Mining](MINING.md) — evidence projection and visualization authority.
+- [Interfaces](INTERFACES.md) — browser and structured-data contracts.
+- [`@rey/explorer` technical guide](../packages/explorer/README.md) — package
+  architecture, APIs, rendering pipelines, limits, tests, and extension path.
+- [Plan 0003](../plans/0003-scene-to-explorer.md) — current implementation
+  proof and remaining work.
