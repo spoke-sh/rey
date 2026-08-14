@@ -232,7 +232,10 @@ HEAD → INDEX → WORKING
 `status` observes the two directed deltas. `diff` opens them. `add` alone
 changes INDEX. `commit` records only the already reviewed and verified INDEX;
 it does not re-observe ambient state. History admission records evidence. It
-does not grant a tool, workload, agent, or scene permission to act.
+does not grant a tool, workload, agent, or scene permission to act. Environment
+patch admission offers only currently available applications; unresolved
+application searches remain unstaged, while full-snapshot admission can still
+retain their explicit degradation evidence.
 
 Repository activation uses a separate explicit evidence loop: `rey git init`
 retains a baseline and any exact `--watch-ref refs/...` scope, `poll` retains

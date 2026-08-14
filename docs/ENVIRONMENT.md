@@ -403,8 +403,14 @@ retain the complete working snapshot as a HEAD-bound
 or exact mapped-input paths retain only matching `INDEX → WORKING` capability
 changes. Directory pathspecs select bounded descendants, and every operand
 must match or the command leaves INDEX unchanged. `add -p` walks every
-unstaged hunk interactively; optional paths narrow the canonical capability
-changes it prompts over. Every
+stageable unstaged hunk interactively; optional paths narrow the canonical
+capability changes it prompts over. A current application search observation
+must be `available` to enter patch selection. `unavailable` and `error`
+application changes are counted as excluded, remain unstaged even after the
+interactive `a` choice, and cause a no-mutation failure when they are the only
+scoped changes. Complete `add .` and `add -A` remain the path for retaining an
+exact full snapshot that includes missing or errored application degradation.
+Every
 prompt renders an environment-native `diff --rey` hunk for a variable,
 application, input, or reference when possible, with an exact capability
 fallback. The fallback names changed semantic fields but omits raw structured

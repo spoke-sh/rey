@@ -5248,6 +5248,80 @@ nodes:
 }
 
 #[test]
+fn env_add_patch_excludes_unresolved_applications() {
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    let empty_path = workspace.path().join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    let empty_path = empty_path.to_str().unwrap();
+    let environment = [("PATH", empty_path)];
+
+    let exact = run_rey_with_stdin_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            "-p",
+            "environment/application/gh",
+        ],
+        "y\n",
+        &environment,
+    );
+    assert_eq!(exact.status.code(), Some(1));
+    assert!(exact.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&exact.stderr)
+            .contains("cannot stage unresolved applications (selected changes: 1)")
+    );
+    assert!(!workspace.path().join(".rey/env/index.json").exists());
+
+    let broad = run_rey_with_stdin_env(
+        &["env", "--workspace", workspace_path, "add", "-p"],
+        "a\n",
+        &environment,
+    );
+    assert!(
+        broad.status.success(),
+        "{}",
+        String::from_utf8_lossy(&broad.stderr)
+    );
+    assert!(broad.stderr.is_empty());
+    let broad = String::from_utf8(broad.stdout).unwrap();
+    assert!(broad.contains("INDEX → WORKING · 3 hunks"));
+    assert!(broad.contains("15 unresolved application hunks · remain unstaged"));
+    assert!(!broad.contains("diff --rey a/environment/application/"));
+    assert!(broad.contains("3 capability changes admitted"));
+    assert!(broad.contains("15 changes remain unstaged"));
+
+    let status = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "status",
+            "--format",
+            "json",
+        ],
+        &environment,
+    );
+    assert!(status.status.success());
+    let status: EnvironmentStatus = serde_json::from_slice(&status.stdout).unwrap();
+    let index = status
+        .admission_index
+        .expect("patch admission creates INDEX");
+    assert_eq!(index.snapshot.capabilities.len(), 3);
+    assert!(
+        index
+            .snapshot
+            .capabilities
+            .iter()
+            .all(|capability| capability.capability_kind == "environment_seed")
+    );
+    assert_eq!(status.unstaged_delta.changes.len(), 15);
+}
+
+#[test]
 fn env_add_patch_never_dumps_structured_provenance() {
     let workspace = TempDir::new().unwrap();
     let workspace_path = workspace.path().to_str().unwrap();

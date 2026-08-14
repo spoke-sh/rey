@@ -1379,7 +1379,7 @@ struct EnvAddArgs {
     )]
     paths: Vec<String>,
 
-    /// Interactively confirm scoped hunks; without paths, walk every unstaged hunk.
+    /// Interactively confirm stageable scoped hunks; unresolved applications stay unstaged.
     #[arg(short = 'p', long = "patch")]
     patch: bool,
 
@@ -11186,13 +11186,22 @@ fn select_capability_changes(
     projection: &EnvironmentOperatorProjection,
     scoped: &std::collections::BTreeSet<rey_diff::CapabilityKey>,
 ) -> Result<std::collections::BTreeSet<rey_diff::CapabilityKey>, CliError> {
-    let changes = delta
+    let scoped_changes = delta
         .changes
         .iter()
         .filter(|change| scoped.contains(&change.key))
         .collect::<Vec<_>>();
-    if changes.is_empty() {
+    if scoped_changes.is_empty() {
         return Err(LocalEnvironmentHistoryError::NothingToAdd.into());
+    }
+    let (changes, unresolved_applications): (Vec<_>, Vec<_>) = scoped_changes
+        .into_iter()
+        .partition(|change| !environment_patch_application_is_unresolved(change));
+    if changes.is_empty() {
+        return Err(LocalEnvironmentHistoryError::UnresolvedPatchApplications {
+            count: unresolved_applications.len(),
+        }
+        .into());
     }
     let style = TerminalStyle::stdout();
     let mut output = io::stdout().lock();
@@ -11206,6 +11215,13 @@ fn select_capability_changes(
         "  Working tree           INDEX → WORKING · {} hunks",
         changes.len()
     )?;
+    if !unresolved_applications.is_empty() {
+        writeln!(
+            output,
+            "  Excluded               {} unresolved application hunks · remain unstaged · inspect with `rey env status --format json`",
+            unresolved_applications.len()
+        )?;
+    }
     writeln!(
         output,
         "  Selection              y stage · n skip · q quit · a all · d done · ? help"
@@ -11266,6 +11282,15 @@ fn select_capability_changes(
     } else {
         Ok(selected)
     }
+}
+
+fn environment_patch_application_is_unresolved(change: &CapabilityChange) -> bool {
+    change.after.as_ref().is_some_and(|record| {
+        matches!(
+            record.capability_kind.as_str(),
+            "identity_probe" | "potential_executable"
+        ) && record.availability != Availability::Available
+    })
 }
 
 fn write_environment_admission_hunk(

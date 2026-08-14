@@ -63,7 +63,8 @@ a root pnpm/Turborepo monorepo whose first package is the operator UI, and a
 Git-shaped `env` CLI with process-owned `HOME`/`PWD`/`PATH` discovery seeds,
 explicit agent-generated mapping resources, verified local
 capability status, a `HEAD → INDEX → WORKING` admission plane, partial/full
-add, index-only commits, and patch history,
+add, resolved-application-only interactive patch selection, index-only commits,
+and patch history,
 lower-level proof and bounded local-only bundle contracts behind the runtime,
 pure runtime-state, frontier/progress/scheduling, and
 reasoning-surface contracts, plus a bounded workspace workload-package catalog,

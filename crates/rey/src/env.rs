@@ -1741,6 +1741,10 @@ pub enum LocalEnvironmentHistoryError {
     NothingToAdd,
     #[error("no environment capability changes were selected")]
     EmptyPatchSelection,
+    #[error(
+        "rey env add -p cannot stage unresolved applications (selected changes: {count}); only currently available applications are eligible for patch admission"
+    )]
+    UnresolvedPatchApplications { count: usize },
     #[error("environment pathspec {0:?} did not match any unstaged changes")]
     UnmatchedPathspec(String),
     #[error("selected capability {provider_id}/{capability_id} is not an unstaged change")]

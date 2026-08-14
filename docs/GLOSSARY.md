@@ -84,7 +84,10 @@ The HEAD-bound environment snapshot staged by an explicitly scoped
 verified snapshot without re-observing ambient state, while `rey env reset`
 clears it and reports freshly observed unstaged WORKING changes without
 mutating WORKING. `rey env add -p` is the Git-shaped exception to an explicit
-path operand: it walks every unstaged hunk unless paths narrow the set. See
+path operand: it walks every stageable unstaged hunk unless paths narrow the
+set, and it excludes application search outcomes whose current WORKING
+availability is not `available`. Complete `add .` or `add -A` can retain those
+explicit degradation outcomes as part of the full snapshot. See
 [Environment](ENVIRONMENT.md).
 
 ### Admissible action

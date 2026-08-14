@@ -91,8 +91,10 @@ rey <surface> log -p
 scope: `env add .` or `env add -A` stages every unstaged change, while one or
 more environment or mapped-input paths stage only matching changes.
 Interactive partial staging uses `env add -p [<path>...]`; without a path it
-walks every unstaged hunk. Workload and editor staging are complete snapshot
-operations.
+walks every stageable unstaged hunk. Application search outcomes whose current
+WORKING availability is `unavailable` or `error` are excluded from interactive
+selection and remain unstaged. Workload and editor staging are complete
+snapshot operations.
 
 Workloads add one mandatory gate between staging and commit:
 
@@ -273,8 +275,13 @@ select the complete `INDEX → WORKING` delta. Other operands match canonical
 environment paths such as `environment/application/git` or exact mapped input
 paths such as `docs/toolchain.toml`; directory prefixes select bounded
 descendants. Every pathspec must match an unstaged change. `-p` without a path
-walks all unstaged hunks; supplied paths narrow that interactive set. An
-unmatched path leaves INDEX unchanged.
+walks all stageable unstaged hunks; supplied paths narrow that interactive set.
+An unmatched path leaves INDEX unchanged. Patch selection offers only
+applications whose current WORKING observation is `available`; unavailable and
+errored application hunks are counted as excluded and cannot be selected by
+`y` or `a`. A scope containing only unresolved application hunks fails without
+creating or changing INDEX. Full `add .` and `add -A` retain the complete
+snapshot, including explicit missing/error degradation evidence.
 
 The compiled identity-only application inventory includes the major agent
 runtimes plus Slack (`slack-cli`), GitHub CLI (`gh`), Telegram CLI
