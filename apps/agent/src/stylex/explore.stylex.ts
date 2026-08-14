@@ -257,6 +257,10 @@ export const exploreStyles = stylex.create({
     strokeLinecap: "round",
     strokeWidth: "calc(1.6px * var(--rey-terrain-counter-scale))",
   },
+  semanticGlobePolePattern: {
+    opacity: 0.96,
+    stroke: "#243b38",
+  },
   semanticGlobeCluster: {
     fill: "color-mix(in srgb, #e8d18f 10%, transparent)",
     pointerEvents: "none",

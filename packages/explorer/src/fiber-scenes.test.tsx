@@ -83,6 +83,16 @@ describe("declarative React Three Fiber scenes", () => {
     expect(
       renderer.scene.findByProps({ name: "context-globe-atmosphere:2" }),
     ).toBeDefined();
+    const northPole = renderer.scene.findByProps({
+      name: "context-globe-pole-pattern:north",
+    });
+    const northPoleMaterial = (northPole.instance as InstancedMesh)
+      .material as MeshBasicNodeMaterial;
+    expect(northPoleMaterial.color.getHex()).toBe(0x243b38);
+    expect(northPoleMaterial.opacity).toBe(0.88);
+    expect(
+      renderer.scene.findByProps({ name: "context-globe-pole-pattern:south" }),
+    ).toBeDefined();
     expect(
       renderer.scene.findAll(
         ({ props }) =>

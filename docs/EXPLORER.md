@@ -830,7 +830,11 @@ selected backend, active terrain bands, bounded field/triangle counts, and
 transient working-set allocation, and retains the reference terrain through
 initialization or failure. At World it materializes the semantic globe rather
 than the local terrain mesh, while the reference overlay preserves region
-labels and accessibility.
+labels and accessibility. Both paths use the same sparse, deterministic
+golden-angle stipple caps at exact presentation latitude ±90°. The caps remain
+unlabelled and identify the sphere's coordinate frame only through a subtle
+change in the existing surface pattern; they do not claim terrain, coverage,
+or native CRS84 authority.
 `buildTopologyScene` is a deterministic read-model projection over
 `rey.workload-list.v1` and is tested separately from browser mechanics. It
 requires an exact patch/packet pair before compiling admitted survey terrain,

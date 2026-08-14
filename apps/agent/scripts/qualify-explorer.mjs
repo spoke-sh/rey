@@ -579,6 +579,14 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     const footerBounds = footer?.getBoundingClientRect();
     const globeCaptionBounds = globeCaption?.getBoundingClientRect();
     const globeAtmosphereBounds = globeAtmosphere?.getBoundingClientRect();
+    const globePoles = [...document.querySelectorAll("[data-globe-pole-pattern]")].map((pattern) => {
+      const pole = pattern.getAttribute("data-globe-pole-pattern");
+      return {
+        label_count: pattern.querySelectorAll("text").length,
+        pole,
+        sample_count: Number(pattern.getAttribute("data-globe-pole-sample-count")),
+      };
+    });
     const exactEvidence = [...document.querySelectorAll("[data-object-evidence]")].map((element) => ({
       href: element.getAttribute("href"),
       identity: element.getAttribute("data-semantic-identity"),
@@ -616,6 +624,11 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
         vertical_gap_from_atmosphere_px:
           globeCaptionBounds.y -
           (globeAtmosphereBounds.y + globeAtmosphereBounds.height),
+      } : null,
+      globe_poles: globeAtmosphereBounds ? {
+        atmosphere_center_y:
+          globeAtmosphereBounds.y + globeAtmosphereBounds.height / 2,
+        patterns: globePoles,
       } : null,
       scene_compilation_ms: Number(shell?.getAttribute("data-scene-compilation-ms") ?? "NaN"),
       scene_snapshot_id: shell?.getAttribute("data-scene-snapshot") ?? null,
@@ -1157,6 +1170,17 @@ async function runVoyage(options) {
     Math.abs(world.globe_caption.horizontal_offset_from_globe_center_px) < 1 &&
     world.globe_caption.vertical_gap_from_atmosphere_px >= 10 &&
     world.globe_caption.text?.includes("ADMITTED REGIONS") === false;
+  const northPole = world?.globe_poles?.patterns.find(
+    ({ pole }) => pole === "north",
+  );
+  const southPole = world?.globe_poles?.patterns.find(
+    ({ pole }) => pole === "south",
+  );
+  const patternedGlobePolesPresent =
+    northPole?.sample_count === 34 &&
+    southPole?.sample_count === 34 &&
+    northPole.label_count === 0 &&
+    southPole.label_count === 0;
   const exactEvidencePresent =
     (captures.find((capture) => capture.stage === "evidence")
       ?.exact_evidence_links.length ?? 0) > 0;
@@ -1217,6 +1241,7 @@ async function runVoyage(options) {
     expectedStagesPresent &&
     backendMatched &&
     worldCaptionCentered &&
+    patternedGlobePolesPresent &&
     exactEvidencePresent &&
     geographicCoordinatesPresent &&
     compactNavigationDiagnosticsPresent &&
@@ -1298,6 +1323,7 @@ async function runVoyage(options) {
     assertions: {
       backend_matched: backendMatched,
       centered_world_caption_observed: worldCaptionCentered,
+      patterned_globe_poles_present: patternedGlobePolesPresent,
       exact_evidence_present: exactEvidencePresent,
       expected_stages_present: expectedStagesPresent,
       diagnostics_follow_footer: diagnosticsFollowFooter,

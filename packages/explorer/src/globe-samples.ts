@@ -10,6 +10,17 @@ export interface GlobeSampleEmphasis {
   angular_radius_degrees: number;
 }
 
+export type GlobePole = "north" | "south";
+
+export interface GlobePolePattern {
+  id: string;
+  pole: GlobePole;
+  samples: readonly GlobeSample[];
+}
+
+export const CONTEXT_GLOBE_POLE_PATTERN_REVISION =
+  "rey.context-globe-pole-pattern@1";
+
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 /**
@@ -57,6 +68,41 @@ export function contextGlobeSamples(
     });
   }
   return Object.freeze(samples.map((sample) => Object.freeze(sample)));
+}
+
+/**
+ * Builds two deterministic dotted polar caps in the same coordinate fabric as
+ * the globe samples. They identify geometric ±90° only and carry no evidence,
+ * coverage, or native-CRS claim.
+ */
+export function contextGlobePolePatterns(): readonly GlobePolePattern[] {
+  const sampleCount = 34;
+  const capRadiusDegrees = 15;
+  return Object.freeze(
+    (["north", "south"] as const).map((pole) => {
+      const sign = pole === "north" ? 1 : -1;
+      return Object.freeze({
+        id: `${CONTEXT_GLOBE_POLE_PATTERN_REVISION}:${pole}`,
+        pole,
+        samples: Object.freeze(
+          Array.from({ length: sampleCount }, (_, sampleIndex) => {
+            const angularRadius =
+              capRadiusDegrees *
+              Math.sqrt(sampleIndex / Math.max(1, sampleCount - 1));
+            const azimuth =
+              sampleIndex === 0
+                ? 0
+                : ((sampleIndex * GOLDEN_ANGLE * sign * 180) / Math.PI) % 360;
+            return Object.freeze({
+              longitude_degrees: azimuth,
+              latitude_degrees: sign * (90 - angularRadius),
+              brightness: 0.58 + (1 - angularRadius / capRadiusDegrees) * 0.12,
+            });
+          }),
+        ),
+      });
+    }),
+  );
 }
 
 function pseudoRandom(index: number, seed: number) {

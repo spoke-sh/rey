@@ -200,7 +200,10 @@ execution timing.
 - [x] Express the accelerated terrain and globe scene declaratively through
   React Three Fiber while keeping scene/field semantics, upload parity,
   backend lifecycle, renderer loss, bounds, and reference fallback outside
-  component authority; cover the scene graph and lifecycle with Vitest.
+  component authority; cover the scene graph and lifecycle with Vitest. Share
+  sparse deterministic golden-angle north/south stipple caps with the reference
+  projection, keep them unlabelled and within the existing surface language,
+  and grant the pattern no evidence or CRS authority.
 - [x] Extract the reusable R3F/Three canvas, GPU compilers, and backend
   lifecycle into the one-way `@rey/explorer` workspace package; keep admitted
   evidence adaptation, terrain working sets, controls, accessibility, and the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contextGlobeSamples } from "./globe-samples";
+import { contextGlobePolePatterns, contextGlobeSamples } from "./globe-samples";
 
 describe("context globe samples", () => {
   it("materializes a dense deterministic spherical presentation field", () => {
@@ -28,5 +28,28 @@ describe("context globe samples", () => {
 
     expect(emphasized.length).toBeGreaterThanOrEqual(plain.length);
     expect(emphasized).not.toEqual(plain);
+  });
+
+  it("builds deterministic stipple caps at both exact poles", () => {
+    const patterns = contextGlobePolePatterns();
+
+    expect(patterns.map(({ pole }) => pole)).toEqual(["north", "south"]);
+    expect(patterns.every(({ samples }) => samples.length === 34)).toBe(true);
+    expect(patterns[0]?.samples[0]).toMatchObject({
+      latitude_degrees: 90,
+      longitude_degrees: 0,
+    });
+    expect(patterns[1]?.samples[0]).toMatchObject({
+      latitude_degrees: -90,
+      longitude_degrees: 0,
+    });
+    expect(
+      patterns.every(({ samples }) =>
+        samples.every(
+          ({ latitude_degrees }) => Math.abs(latitude_degrees) >= 75,
+        ),
+      ),
+    ).toBe(true);
+    expect(contextGlobePolePatterns()).toEqual(patterns);
   });
 });

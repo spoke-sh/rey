@@ -5,6 +5,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    "@rey/explorer#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "format": {
       "cache": false,
       "outputs": []

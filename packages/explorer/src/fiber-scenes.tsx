@@ -22,6 +22,7 @@ import type { GlobeCameraView, TerrainCameraView } from "./types";
 import {
   GLOBE_RADIUS,
   GLOBE_SAMPLE_RADIUS,
+  SEMANTIC_GLOBE_MATERIAL_REVISION,
   type CompiledContextGlobe,
 } from "./three-globe";
 import {
@@ -173,6 +174,9 @@ export function ContextGlobeScene({
         {compiled.sample_buckets.map((bucket) => (
           <GlobeSampleField bucket={bucket} key={bucket.id} />
         ))}
+        {compiled.pole_patterns.map((pattern) => (
+          <GlobePolePatternField key={pattern.id} pattern={pattern} />
+        ))}
         {compiled.globe.regions.map((region) => (
           <GlobeSurfaceMarker
             color={
@@ -229,7 +233,7 @@ export function ContextGlobeScene({
 function GlobeSurface() {
   const material = useMemo(() => {
     const next = new MeshStandardNodeMaterial();
-    next.name = "rey.semantic-globe.tsl-stippled-atmosphere@2";
+    next.name = SEMANTIC_GLOBE_MATERIAL_REVISION;
     next.color.set(0xe8e9df);
     next.roughness = 0.98;
     next.metalness = 0;
@@ -331,6 +335,55 @@ function GlobeSampleField({
       args={[undefined, undefined, bucket.samples.length]}
       material={material}
       name={bucket.id}
+      ref={meshRef}
+    >
+      <circleGeometry args={[GLOBE_SAMPLE_RADIUS, 5]} />
+    </instancedMesh>
+  );
+}
+
+function GlobePolePatternField({
+  pattern,
+}: {
+  pattern: CompiledContextGlobe["pole_patterns"][number];
+}) {
+  const meshRef = useRef<InstancedMesh>(null);
+  const material = useMemo(
+    () =>
+      new MeshBasicNodeMaterial({
+        color: 0x243b38,
+        opacity: 0.88,
+        transparent: true,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const matrix = new Matrix4();
+    const quaternion = new Quaternion();
+    const scale = new Vector3(1, 1, 1);
+    for (const [index, sample] of pattern.samples.entries()) {
+      const position = sphericalVector(
+        sample.longitude_degrees,
+        sample.latitude_degrees,
+        GLOBE_RADIUS * 1.005,
+      );
+      quaternion.setFromUnitVectors(
+        SURFACE_NORMAL,
+        position.clone().normalize(),
+      );
+      matrix.compose(position, quaternion, scale);
+      mesh.setMatrixAt(index, matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [pattern]);
+  return (
+    <instancedMesh
+      args={[undefined, undefined, pattern.samples.length]}
+      material={material}
+      name={`context-globe-pole-pattern:${pattern.pole}`}
       ref={meshRef}
     >
       <circleGeometry args={[GLOBE_SAMPLE_RADIUS, 5]} />

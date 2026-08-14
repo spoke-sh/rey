@@ -38,6 +38,10 @@ describe("Three.js semantic globe", () => {
     expect(compiled.sample_buckets.map(({ id }) => id)).toContain(
       "context-globe-samples:0",
     );
+    expect(compiled.pole_patterns.map(({ pole }) => pole)).toEqual([
+      "north",
+      "south",
+    ]);
     expect(compiled.statistics.triangles).toBeGreaterThan(80_000);
     expect(compiled.statistics.vertices).toBeGreaterThan(14_000);
     expect(compiled.statistics.geometry_compilation_ms).toBeGreaterThanOrEqual(

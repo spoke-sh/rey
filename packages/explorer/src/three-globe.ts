@@ -1,8 +1,12 @@
-import { contextGlobeSamples } from "./globe-samples";
+import {
+  contextGlobePolePatterns,
+  contextGlobeSamples,
+  type GlobePolePattern,
+} from "./globe-samples";
 import type { ExplorerGlobe } from "./types";
 
 export const SEMANTIC_GLOBE_MATERIAL_REVISION =
-  "rey.semantic-globe.tsl-stippled-atmosphere@2";
+  "rey.semantic-globe.tsl-stippled-atmosphere@4";
 export const GLOBE_RADIUS = 1.72;
 export const GLOBE_SAMPLE_RADIUS = 0.0082;
 export const GLOBE_SAMPLE_COUNT = 26_000;
@@ -10,6 +14,7 @@ export const GLOBE_SAMPLE_COUNT = 26_000;
 export interface CompiledContextGlobe {
   globe: ExplorerGlobe;
   material_revision: string;
+  pole_patterns: readonly GlobePolePattern[];
   sample_buckets: readonly {
     id: string;
     color: number;
@@ -38,6 +43,11 @@ export function compileContextGlobe(
     GLOBE_SAMPLE_COUNT,
     globe.regions,
   );
+  const polePatterns = contextGlobePolePatterns();
+  const poleSampleCount = polePatterns.reduce(
+    (total, pattern) => total + pattern.samples.length,
+    0,
+  );
   const bucketDefinitions = [
     { minimum: 0, color: 0x708079, opacity: 0.48 },
     { minimum: 0.58, color: 0x3e504c, opacity: 0.7 },
@@ -62,19 +72,22 @@ export function compileContextGlobe(
         ];
   });
   const markerTriangles = globe.regions.length * 24 + globe.beacons.length * 96;
-  const sampleTriangles = sampleBuckets.reduce(
-    (total, bucket) => total + bucket.samples.length * 5,
-    0,
-  );
+  const sampleTriangles =
+    sampleBuckets.reduce(
+      (total, bucket) => total + bucket.samples.length * 5,
+      0,
+    ) +
+    poleSampleCount * 5;
   const sphereVertices = (160 + 1) * (96 + 1);
-  const sourceBytes = samples.length * 16;
+  const sourceBytes = (samples.length + poleSampleCount) * 16;
   return Object.freeze({
     globe,
     material_revision: SEMANTIC_GLOBE_MATERIAL_REVISION,
+    pole_patterns: polePatterns,
     sample_buckets: Object.freeze(sampleBuckets),
     statistics: Object.freeze({
       field_sets: 1,
-      vertices: sphereVertices + samples.length,
+      vertices: sphereVertices + samples.length + poleSampleCount,
       triangles: 160 * 96 * 2 + sampleTriangles + markerTriangles,
       field_bytes: sourceBytes,
       gpu_bytes: sourceBytes,

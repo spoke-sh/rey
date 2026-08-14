@@ -21,7 +21,10 @@ import type {
   TopologyScene,
   TopologyTone,
 } from "../../topology";
-import { contextGlobeSamples } from "@rey/explorer/globe-samples";
+import {
+  contextGlobePolePatterns,
+  contextGlobeSamples,
+} from "@rey/explorer/globe-samples";
 import {
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
@@ -377,6 +380,22 @@ function SemanticGlobeLayer({
         `M${x.toFixed(1)} ${y.toFixed(1)}h${Math.max(0.45, 0.9 + depth * 0.85).toFixed(1)}`,
     )
     .join("");
+  const projectedPolePatterns = contextGlobePolePatterns().map((pattern) => {
+    const samples = pattern.samples
+      .map((sample) => ({
+        ...projectGlobe(sample, center, radius, globeView),
+      }))
+      .filter(({ visible }) => visible);
+    return {
+      pattern,
+      path: samples
+        .map(
+          ({ x, y, depth }) =>
+            `M${x.toFixed(1)} ${y.toFixed(1)}h${Math.max(0.45, 0.9 + depth * 0.85).toFixed(1)}`,
+        )
+        .join(""),
+    };
+  });
   const projectedRegions = (suppressSemanticObjects ? [] : globe.regions)
     .map((region) => ({
       region,
@@ -482,6 +501,25 @@ function SemanticGlobeLayer({
           d={samplePath}
         />
       ) : null}
+      {projectedPolePatterns.map(({ path, pattern }) => (
+        <g
+          aria-hidden="true"
+          data-globe-pole-pattern={pattern.pole}
+          data-globe-pole-sample-count={pattern.samples.length}
+          key={pattern.id}
+        >
+          {!accelerated && path ? (
+            <path
+              className={sx(
+                styles.semanticGlobeSamples,
+                styles.semanticGlobePolePattern,
+              )}
+              clipPath="url(#rey-semantic-globe-clip)"
+              d={path}
+            />
+          ) : null}
+        </g>
+      ))}
       <g aria-label={`${globe.clusters.length} world clusters`}>
         {projectedClusters.map(({ cluster, x, y, depth }) => (
           <circle

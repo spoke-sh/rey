@@ -184,6 +184,12 @@ describe("reference renderer", () => {
       expect(markup).toContain('data-semantic-region="region:2"');
       expect(markup).toContain('data-label-disposition="selected"');
       expect(markup).toContain('data-label-disposition="collision"');
+      expect(markup).toContain('data-globe-pole-pattern="north"');
+      expect(markup).toContain('data-globe-pole-pattern="south"');
+      expect(markup).toContain('data-globe-pole-sample-count="34"');
+      expect(markup).not.toContain("data-globe-pole-label");
+      expect(markup).not.toContain(">N</text>");
+      expect(markup).not.toContain(">S</text>");
       expect(markup).toContain("Synthetic semantic longitude and latitude");
       expect(markup).toContain(
         'data-globe-caption="" text-anchor="middle" x="750"',

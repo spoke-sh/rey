@@ -6,6 +6,11 @@ export type {
   RendererPreference,
 } from "./canvas";
 export {
+  CONTEXT_GLOBE_POLE_PATTERN_REVISION,
+  contextGlobePolePatterns,
+} from "./globe-samples";
+export type { GlobePole, GlobePolePattern } from "./globe-samples";
+export {
   compileContextGlobe,
   GLOBE_RADIUS,
   GLOBE_SAMPLE_COUNT,
