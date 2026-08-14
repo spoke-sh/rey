@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { globeAtlasViewCenter } from "@rey/explorer/globe-projection";
 import {
   invertSemanticMercator,
+  invertViewAlignedSemanticMercator,
   pickSemanticMercator,
   projectSemanticMercator,
   projectSemanticMercatorBounds,
+  projectViewAlignedSemanticMercator,
   projectWorldAtlasBoundsMorph,
   projectWorldAtlasMorph,
   SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
@@ -132,6 +135,65 @@ describe("semantic Mercator projection", () => {
     expect(middle.y).toBeCloseTo((world.y + atlas.y) / 2);
   });
 
+  it("keeps the rotated globe center fixed through every morph frame", () => {
+    const view = { yaw_degrees: 58, pitch_degrees: -24 };
+    const viewCenter = globeAtlasViewCenter(view);
+    const coordinate = {
+      longitude_microdegrees: Math.round(
+        viewCenter.longitude_degrees * 1_000_000,
+      ),
+      latitude_microdegrees: Math.round(
+        viewCenter.latitude_degrees * 1_000_000,
+      ),
+    };
+    const center = projectViewAlignedSemanticMercator(coordinate, frame, view);
+    expect(center.x).toBeCloseTo(frame.x + frame.width / 2, 3);
+    expect(center.y).toBeCloseTo(frame.y + frame.height / 2, 3);
+    expect(
+      invertViewAlignedSemanticMercator(center, frame, view).coordinate,
+    ).toEqual(coordinate);
+    for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+      const point = projectWorldAtlasMorph(
+        "region:center",
+        "regional:center",
+        coordinate,
+        { center: { x: 600, y: 360 }, radius: 295.2 },
+        frame,
+        view,
+        progress,
+      );
+      expect(point.x).toBeCloseTo(600, 3);
+      expect(point.y).toBeCloseTo(360, 3);
+    }
+  });
+
+  it("splits sectors at the view-relative seam instead of twisting them", () => {
+    const fragments = projectWorldAtlasBoundsMorph(
+      "sector:view-seam",
+      {
+        west_microdegrees: 115_000_000,
+        south_microdegrees: -10_000_000,
+        east_microdegrees: 145_000_000,
+        north_microdegrees: 10_000_000,
+        crosses_antimeridian: false,
+      },
+      { center: { x: 600, y: 360 }, radius: 295.2 },
+      frame,
+      { yaw_degrees: 58, pitch_degrees: -24 },
+      0.5,
+    );
+    expect(fragments).toHaveLength(2);
+    expect(
+      fragments.every(({ identity }) => identity === "sector:view-seam"),
+    ).toBe(true);
+    for (const fragment of fragments) {
+      const atlasWidth = Math.abs(
+        fragment.points[1]!.atlas.x - fragment.points[0]!.atlas.x,
+      );
+      expect(atlasWidth).toBeLessThan(frame.width / 2);
+    }
+  });
+
   it("morphs antimeridian fragments through shared semantic identity", () => {
     const fragments = projectWorldAtlasBoundsMorph(
       "sector:wrap",
@@ -144,7 +206,7 @@ describe("semantic Mercator projection", () => {
       },
       { center: { x: 600, y: 360 }, radius: 295.2 },
       frame,
-      { yaw_degrees: 18, pitch_degrees: -4 },
+      { yaw_degrees: 0, pitch_degrees: 0 },
       1,
     );
     expect(fragments).toHaveLength(2);

@@ -33,6 +33,7 @@ import {
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
   projectWorldAtlasMorph,
+  semanticMercatorViewOffset,
   type SemanticCoordinate,
 } from "../projection/semantic-mercator";
 import {
@@ -173,6 +174,7 @@ export function ReferenceRenderer({
       <CountyFeatureLayer onFocus={onFocus} scene={scene} />
       {wrappedAtlas ? (
         <AtlasFeatureLayer
+          globeView={globeView}
           labelPlacements={atlasLabelPlacements}
           onFocus={onFocus}
           scene={scene}
@@ -253,16 +255,22 @@ export function ReferenceRenderer({
 }
 
 function AtlasFeatureLayer({
+  globeView,
   labelPlacements,
   onFocus,
   scene,
   wrapIndexes,
 }: {
+  globeView: GlobeCameraView;
   labelPlacements: ReadonlyMap<string, SemanticLabelPlacement>;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
   wrapIndexes: readonly number[];
 }) {
+  const offset = semanticMercatorViewOffset(
+    scene.world_atlas_transition!.atlas_frame,
+    globeView,
+  );
   return (
     <svg
       aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
@@ -275,93 +283,98 @@ function AtlasFeatureLayer({
         Occupied sectors retain synthetic membership only. Markers retain one
         canonical identity through horizontally wrapped presentation copies.
       </title>
-      {wrapIndexes.flatMap((wrapIndex) =>
-        scene.regions.map((region) => (
-          <rect
-            aria-hidden="true"
-            className={sx(styles.atlasSector)}
-            data-chart-wrap-index={wrapIndex}
-            data-semantic-identity={region.id}
-            height={region.height}
-            key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
-            width={region.width}
-            x={region.x + wrapIndex * scene.world.width}
-            y={region.y}
-          >
-            <title>{`${region.label} / ${region.detail}`}</title>
-          </rect>
-        )),
-      )}
-      {wrapIndexes.flatMap((wrapIndex) =>
-        scene.nodes.map((node) => {
-          const placement = labelPlacements.get(`${wrapIndex}:${node.id}`)!;
-          const x = node.x + wrapIndex * scene.world.width;
-          return (
-            <g
-              aria-hidden={wrapIndex === 0 ? undefined : true}
-              aria-label={`${node.label}: ${node.detail}`}
-              className={sx(styles.atlasFeature)}
+      <g
+        data-atlas-view-offset={`${offset.x},${offset.y}`}
+        transform={`translate(${offset.x} ${offset.y})`}
+      >
+        {wrapIndexes.flatMap((wrapIndex) =>
+          scene.regions.map((region) => (
+            <rect
+              aria-hidden="true"
+              className={sx(styles.atlasSector)}
               data-chart-wrap-index={wrapIndex}
-              data-focus-id={node.focus_id}
-              data-label-disposition={placement.disposition}
-              data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
-              data-semantic-identity={node.semantic_identity ?? node.id}
-              key={`${wrapIndex}:${node.id}`}
-              onClick={() =>
-                onFocus({
-                  focus_id: node.focus_id,
-                  x,
-                  y: node.y,
-                  semantic_identity: node.semantic_identity,
-                  semantic_coordinate: node.semantic_coordinate,
-                  chart_wrap_index: wrapIndex,
-                })
-              }
-              onKeyDown={(event) => {
-                if (
-                  wrapIndex === 0 &&
-                  (event.key === "Enter" || event.key === " ")
-                ) {
-                  event.preventDefault();
+              data-semantic-identity={region.id}
+              height={region.height}
+              key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
+              width={region.width}
+              x={region.x + wrapIndex * scene.world.width}
+              y={region.y}
+            >
+              <title>{`${region.label} / ${region.detail}`}</title>
+            </rect>
+          )),
+        )}
+        {wrapIndexes.flatMap((wrapIndex) =>
+          scene.nodes.map((node) => {
+            const placement = labelPlacements.get(`${wrapIndex}:${node.id}`)!;
+            const x = node.x + wrapIndex * scene.world.width;
+            return (
+              <g
+                aria-hidden={wrapIndex === 0 ? undefined : true}
+                aria-label={`${node.label}: ${node.detail}`}
+                className={sx(styles.atlasFeature)}
+                data-chart-wrap-index={wrapIndex}
+                data-focus-id={node.focus_id}
+                data-label-disposition={placement.disposition}
+                data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
+                data-semantic-identity={node.semantic_identity ?? node.id}
+                key={`${wrapIndex}:${node.id}`}
+                onClick={() =>
                   onFocus({
                     focus_id: node.focus_id,
-                    x,
-                    y: node.y,
+                    x: x + offset.x,
+                    y: node.y + offset.y,
                     semantic_identity: node.semantic_identity,
                     semantic_coordinate: node.semantic_coordinate,
                     chart_wrap_index: wrapIndex,
-                  });
+                  })
                 }
-              }}
-              role="button"
-              tabIndex={wrapIndex === 0 ? 0 : -1}
-            >
-              <circle
-                className={sx(styles.atlasFeatureHalo)}
-                cx={x}
-                cy={node.y}
-                r={15}
-              />
-              <circle
-                className={sx(styles.atlasFeaturePoint)}
-                cx={x}
-                cy={node.y}
-                r={7}
-              />
-              {placement.visible ? (
-                <text
-                  className={sx(styles.atlasFeatureLabel)}
-                  x={x + 13}
-                  y={node.y - 11}
-                >
-                  {node.label}
-                </text>
-              ) : null}
-              <title>{node.detail}</title>
-            </g>
-          );
-        }),
-      )}
+                onKeyDown={(event) => {
+                  if (
+                    wrapIndex === 0 &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    onFocus({
+                      focus_id: node.focus_id,
+                      x: x + offset.x,
+                      y: node.y + offset.y,
+                      semantic_identity: node.semantic_identity,
+                      semantic_coordinate: node.semantic_coordinate,
+                      chart_wrap_index: wrapIndex,
+                    });
+                  }
+                }}
+                role="button"
+                tabIndex={wrapIndex === 0 ? 0 : -1}
+              >
+                <circle
+                  className={sx(styles.atlasFeatureHalo)}
+                  cx={x}
+                  cy={node.y}
+                  r={15}
+                />
+                <circle
+                  className={sx(styles.atlasFeaturePoint)}
+                  cx={x}
+                  cy={node.y}
+                  r={7}
+                />
+                {placement.visible ? (
+                  <text
+                    className={sx(styles.atlasFeatureLabel)}
+                    x={x + 13}
+                    y={node.y - 11}
+                  >
+                    {node.label}
+                  </text>
+                ) : null}
+                <title>{node.detail}</title>
+              </g>
+            );
+          }),
+        )}
+      </g>
     </svg>
   );
 }

@@ -276,6 +276,7 @@ function GlobeSurface({
   view: GlobeCameraView;
   world: { width: number; height: number };
 }) {
+  const opacity = globeProjectionMorphRemaining(progress);
   const material = useMemo(() => {
     const next = new MeshStandardNodeMaterial();
     next.name = SEMANTIC_GLOBE_MATERIAL_REVISION;
@@ -285,10 +286,18 @@ function GlobeSurface({
     return next;
   }, []);
   useEffect(() => () => material.dispose(), [material]);
+  useLayoutEffect(() => {
+    const wasTransparent = material.transparent;
+    material.depthWrite = opacity >= 1;
+    material.opacity = opacity;
+    material.transparent = opacity < 1;
+    if (material.transparent !== wasTransparent) material.needsUpdate = true;
+  }, [material, opacity]);
   const mesh = useMemo(
     () => buildProjectedGlobeMesh(view, world, progress),
     [progress, view.pitch_degrees, view.yaw_degrees, world.height, world.width],
   );
+  if (opacity <= 0) return null;
   return (
     <mesh material={material} name="context-globe-surface">
       <ProjectedMeshGeometry data={mesh} />

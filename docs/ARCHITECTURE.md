@@ -266,18 +266,19 @@ admitted county footprints are separate identities; focus may raise a sector
 as transient presentation without changing its evidence or height.
 
 The browser implements this transform as
-`rey.semantic-mercator-projection@1`, a deterministic primitive with an exact
+`rey.semantic-mercator-projection@2`, a deterministic primitive with an exact
 `360000000µ°` wrap, `±85051129µ°` cutoff and polar disclosure, analytic inverse,
-shared-identity antimeridian fragments, and stable World/Atlas endpoints. Its
-compiler revision is part of each regional immutable scene snapshot. Regional
-Atlas points and occupied sector rectangles use it now. The snapshot retains a
-renderer-neutral transition manifest over those exact identities, and the
-reference renderer interpolates its point/sector geometry continuously across
-the declared `0.14 → 0.24` World-to-Atlas scale band while retaining globe
-rotation at the World endpoint. Settled Atlas draws three bounded horizontal
-copies; duplicate copies are pointer-only and accessibility-hidden, inverse
-selection returns one canonical coordinate and retained identity, and pan is
-recentered modulo rendered chart width. The revisioned semantic-label engine
+view-relative shared-identity fragments, and stable World/Atlas endpoints. The
+coordinate facing the rotated globe remains centered, and the surface seam
+moves behind that view before the map unfurls. Its compiler revision is part of
+each regional immutable scene snapshot. Regional Atlas points and occupied
+sector rectangles use it now. The snapshot retains a renderer-neutral
+transition manifest over those exact identities, and the reference renderer
+interpolates its point/sector geometry continuously across the declared
+`0.14 → 0.24` World-to-Atlas scale band. Settled Atlas draws three bounded
+horizontal copies; duplicate copies are pointer-only and accessibility-hidden,
+inverse selection returns one canonical coordinate and retained identity, and
+pan is recentered modulo rendered chart width. The revisioned semantic-label engine
 applies the grammar's bounded World/Atlas budgets after globe, morph, and chart
 projection. Selected canonical focus wins deterministic collision ordering;
 culled/limited labels collapse without removing semantic markers or pick

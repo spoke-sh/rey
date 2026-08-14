@@ -364,14 +364,17 @@ pnpm --filter @rey/agent qualify:explorer -- \
 The harness uses an isolated Chrome/Chromium profile, traverses World → Atlas
 → County → Objects → Evidence through browser controls, and retains a typed
 manifest plus exact PNG digests beneath ignored
-`.rey/qualification/explorer`. Repeat the named voyage for `webgpu`, `webgl2`,
-and `reference` at both required viewports. The manifest binds the admitted
-region, atlas and workload inputs, machine/browser identity, requested and
-observed backend, scene/focus/source/compiler lineage, render passes, bounded
-GPU/source measurements, exact evidence links, console failures, omissions,
-and capture identities. It is local qualification evidence, not semantic
-evidence, GPU execution timing, a frame-rate claim, action authority, or proof
-authority.
+`.rey/qualification/explorer`. Before entering Atlas, it rotates the globe to
+the admitted region and uses real wheel input to sample the view-aligned
+unfurl. The voyage requires distinct intermediate projection frames and a
+retained nonzero Atlas view offset, so correct endpoints cannot conceal a
+twisted transition. Repeat the named voyage for `webgpu`, `webgl2`, and
+`reference` at both required viewports. The manifest binds the admitted region,
+atlas and workload inputs, machine/browser identity, requested and observed
+backend, scene/focus/source/compiler lineage, render passes, bounded GPU/source
+measurements, exact evidence links, console failures, omissions, and capture
+identities. It is local qualification evidence, not semantic evidence, GPU
+execution timing, a frame-rate claim, action authority, or proof authority.
 
 Direct browser HTTP is the default transport. A socket-restricted execution
 environment may add `--transport fulfilled`; that posture runs the exact built

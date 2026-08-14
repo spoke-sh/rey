@@ -6,6 +6,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
+    "./globe-projection": "./src/globe-projection.ts",
     "./globe-samples": "./src/globe-samples.ts",
     "./three-fiber-runtime": "./src/three-fiber-runtime.ts"
   },

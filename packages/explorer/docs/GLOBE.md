@@ -36,6 +36,12 @@ This contract prevents attached geometry from sliding over or detaching from
 the world during the morph. A new globe-bound primitive must consume the same
 projector instead of recreating sphere math or using screen coordinates.
 
+The coordinate facing the camera becomes the Mercator view center. The
+indexed surface moves its longitude seam to the back of that view before
+unfurling, and bounded sectors split against the same view-relative seam. A
+rotated globe therefore opens around the operator's current bearing instead of
+twisting back toward the canonical antimeridian.
+
 Projection progress, presentation progress, and camera scale are separate.
 The surface can keep morphing while posture-specific presentation exits on a
 faster curve and semantic content crosses independent LOD thresholds.
@@ -59,14 +65,14 @@ neither terrain nor coverage nor an Earth coordinate reference system.
 The transition deliberately does not drive every layer with the same visual
 curve:
 
-| Layer                        | Globe behavior                                 | Transition behavior                                          | Mercator behavior                                             |
-| ---------------------------- | ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
-| Indexed surface              | Spherical and oriented.                        | Unfurls and expands continuously.                            | Fills the intended planar canvas.                             |
-| Attached geometry            | Fixed to semantic coordinates.                 | Uses the exact surface projector.                            | Retains coordinate and identity.                              |
-| Atmosphere                   | Clearly visible around the sphere.             | Contracts while opacity falls on a faster fifth-power curve. | Absent before it can appear inside the map.                   |
-| Reference spherical scaffold | Establishes the fallback globe body.           | Keeps its diameter while fading in `@rey/agent`.             | Absent; no residual gray circle.                              |
-| Stipple                      | Subtle curvature texture.                      | Material response changes with posture.                      | Darker subdued texture remains legible on the flat surface.   |
-| Polar fabric                 | Sparse unlabeled caps in the stipple language. | Travels with the shared projector.                           | Does not claim geography outside the disclosed chart support. |
+| Layer                      | Globe behavior                                 | Transition behavior                                          | Mercator behavior                                             |
+| -------------------------- | ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
+| Indexed surface            | Spherical and oriented.                        | Unfurls and expands continuously.                            | Spans the intended planar canvas for projected attachments.   |
+| Attached geometry          | Fixed to semantic coordinates.                 | Uses the exact surface projector.                            | Retains coordinate and identity.                              |
+| Atmosphere                 | Clearly visible around the sphere.             | Contracts while opacity falls on a faster fifth-power curve. | Absent before it can appear inside the map.                   |
+| Neutral spherical scaffold | Establishes the globe body in both renderers.  | Keeps its projected extent while fading with the morph.      | Absent; no residual warm or gray plane.                       |
+| Stipple                    | Subtle curvature texture.                      | Material response changes with posture.                      | Darker subdued texture remains legible on the flat surface.   |
+| Polar fabric               | Sparse unlabeled caps in the stipple language. | Travels with the shared projector.                           | Does not claim geography outside the disclosed chart support. |
 
 The accelerated package owns the surface, fabric, and atmosphere behavior;
 `@rey/agent` owns the matching reference scaffold. Their independent curves

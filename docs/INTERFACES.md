@@ -545,16 +545,18 @@ then requires accepted status, no scenario identity, a current retained atlas
 delta, and matching workload, graph, capability, package, snapshot, packet,
 terrain, coordinate-plane, regional-member, and synthetic-placement bindings.
 It projects the atlas member's exact accepted synthetic point through
-World and the revisioned `rey.semantic-mercator-projection@1`, then exact native
+World and the revisioned `rey.semantic-mercator-projection@2`, then exact native
 object bounds inside a bounded County reference frame only when the selected
 scene has an admitted footprint. The primitive provides
-the declared horizontal wrap, polar cutoff/disclosure, shared-identity
-antimeridian fragments, analytic chart inverse, and stable World/Atlas
-endpoints; its compiler revision and renderer-neutral transition manifest enter
-the immutable scene snapshot. The reference renderer presents the exact
-region/focus and sector identities continuously through the declared morph
-band. The browser consumes retained footprint rings without reconstructing
-source geometry and does not invent footprint scale or regional terrain.
+the declared horizontal wrap, polar cutoff/disclosure, view-relative
+shared-identity fragments, analytic chart inverse, and stable World/Atlas
+endpoints. The coordinate facing a rotated globe remains centered while the
+surface seam moves behind the view; its compiler revision and renderer-neutral
+transition manifest enter the immutable scene snapshot. The reference renderer
+presents the exact region/focus and sector identities continuously through the
+declared morph band. The browser consumes retained footprint rings without
+reconstructing source geometry and does not invent footprint scale or regional
+terrain.
 Settled Atlas renders three bounded chart copies;
 duplicates are pointer-only and accessibility-hidden, inverse selection returns
 the canonical coordinate plus unchanged identity, and pan recenters modulo the

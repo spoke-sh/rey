@@ -387,7 +387,7 @@ describe("regional scene topology projection", () => {
     expect(world.world_atlas_transition).toMatchObject({
       schema: "rey.world-atlas-transition.v1",
       atlas_revision: "atlas:1",
-      projection_revision: "rey.semantic-mercator-projection@1",
+      projection_revision: "rey.semantic-mercator-projection@2",
       points: [
         {
           identity: "atlas-region:1",
@@ -459,7 +459,7 @@ describe("regional scene topology projection", () => {
         }),
       );
       expect(transitionMarkup).toContain(
-        'data-projection-morph="rey.semantic-mercator-projection@1"',
+        'data-projection-morph="rey.semantic-mercator-projection@2"',
       );
       expect(transitionMarkup).toContain(
         'data-projection-morph-progress="0.500"',
@@ -471,6 +471,7 @@ describe("regional scene topology projection", () => {
     }
     const wrappedMarkup = renderToStaticMarkup(
       ReferenceRenderer({
+        globeView: { yaw_degrees: 24, pitch_degrees: -8 },
         layers: { relief: true, water: true, weather: true, probes: true },
         onFocus: () => undefined,
         projectionMorphProgress: 1,
@@ -488,6 +489,8 @@ describe("regional scene topology projection", () => {
       'data-label-layout="rey.semantic-label-layout@1"',
     );
     expect(wrappedMarkup).toContain('data-label-disposition="selected"');
+    expect(wrappedMarkup).toContain('data-atlas-view-offset="');
+    expect(wrappedMarkup).not.toContain('data-atlas-view-offset="0,0"');
 
     const unselectedCloserView = buildTopologyScene(
       regionalPortfolio,

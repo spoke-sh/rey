@@ -50,7 +50,7 @@ import {
   countyLocalToNativePosition,
   invertCountyScreen,
 } from "./explore/projection/county-frame";
-import { invertSemanticMercator } from "./explore/projection/semantic-mercator";
+import { invertViewAlignedSemanticMercator } from "./explore/projection/semantic-mercator";
 import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
@@ -902,12 +902,16 @@ export function explorerGeographicCoordinate(
     };
   }
   if (scene.regime === "atlas") {
-    const semantic = invertSemanticMercator(cameraCenter, {
-      x: 0,
-      y: 0,
-      width: scene.world.width,
-      height: scene.world.height,
-    }).coordinate;
+    const semantic = invertViewAlignedSemanticMercator(
+      cameraCenter,
+      {
+        x: 0,
+        y: 0,
+        width: scene.world.width,
+        height: scene.world.height,
+      },
+      globeView,
+    ).coordinate;
     return {
       latitude_degrees: semantic.latitude_microdegrees / 1_000_000,
       longitude_degrees: semantic.longitude_microdegrees / 1_000_000,

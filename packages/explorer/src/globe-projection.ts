@@ -31,6 +31,11 @@ export interface GlobeProjectionBounds {
   crosses_antimeridian: boolean;
 }
 
+export interface GlobeAtlasViewCenter {
+  longitude_degrees: number;
+  latitude_degrees: number;
+}
+
 export function globeProjectionMorphRemaining(progress: number) {
   if (!Number.isFinite(progress))
     throw new Error("globe projection progress must be finite");
@@ -40,6 +45,26 @@ export function globeProjectionMorphRemaining(progress: number) {
 export function globeAtmosphereOpacity(progress: number) {
   const morphRemaining = globeProjectionMorphRemaining(progress);
   return morphRemaining ** 5;
+}
+
+/** The semantic coordinate facing the camera after the globe's yaw/pitch. */
+export function globeAtlasViewCenter(
+  view: Pick<GlobeCameraView, "yaw_degrees" | "pitch_degrees">,
+): GlobeAtlasViewCenter {
+  if (
+    !Number.isFinite(view.yaw_degrees) ||
+    !Number.isFinite(view.pitch_degrees)
+  )
+    throw new Error("globe view center requires finite orientation");
+  const pitch = (view.pitch_degrees * Math.PI) / 180;
+  const yaw = (view.yaw_degrees * Math.PI) / 180;
+  const x = -Math.sin(yaw);
+  const y = Math.sin(pitch) * Math.cos(yaw);
+  const z = Math.cos(pitch) * Math.cos(yaw);
+  return Object.freeze({
+    longitude_degrees: (Math.atan2(x, z) * 180) / Math.PI,
+    latitude_degrees: (Math.asin(Math.max(-1, Math.min(1, y))) * 180) / Math.PI,
+  });
 }
 
 export function projectGlobeCoordinate(
@@ -96,9 +121,23 @@ export function projectGlobeCoordinate(
   const aspect = world.width / world.height;
   const halfHeight = GLOBE_CAMERA_HALF_HEIGHT * 0.985;
   const halfWidth = GLOBE_CAMERA_HALF_HEIGHT * aspect * 0.985;
+  const atlasCenter = globeAtlasViewCenter(view);
+  const relativeLongitude = wrapLongitude(
+    longitudeDegrees - atlasCenter.longitude_degrees,
+  );
+  const centerLatitude = Math.max(
+    -SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES,
+    Math.min(
+      SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES,
+      atlasCenter.latitude_degrees,
+    ),
+  );
+  const centerLatitudeRadians = (centerLatitude * Math.PI) / 180;
   const atlasPosition = [
-    (wrapLongitude(longitudeDegrees) / 180) * halfWidth,
-    (Math.log(Math.tan(Math.PI / 4 + latitudeRadians / 2)) / Math.PI) *
+    (relativeLongitude / 180) * halfWidth,
+    ((Math.log(Math.tan(Math.PI / 4 + latitudeRadians / 2)) -
+      Math.log(Math.tan(Math.PI / 4 + centerLatitudeRadians / 2))) /
+      Math.PI) *
       halfHeight,
     planeDepth,
   ] as const;
@@ -143,10 +182,12 @@ export function buildProjectedGlobeMesh(
   const vertexCount = (longitudeSegments + 1) * (latitudeSegments + 1);
   const positions = new Float32Array(vertexCount * 3);
   const normals = new Float32Array(vertexCount * 3);
+  const atlasCenter = globeAtlasViewCenter(view);
+  const west = atlasCenter.longitude_degrees - 180;
   for (let row = 0; row <= latitudeSegments; row += 1) {
     const latitude = -90 + (row / latitudeSegments) * 180;
     for (let column = 0; column <= longitudeSegments; column += 1) {
-      const longitude = -180 + (column / longitudeSegments) * 360;
+      const longitude = west + (column / longitudeSegments) * 360;
       const point = projectGlobeCoordinate(
         longitude,
         latitude,
@@ -193,13 +234,7 @@ export function buildProjectedBoundsMeshes(
     bounds.south_degrees >= bounds.north_degrees
   )
     throw new Error("projected globe bounds are invalid");
-  const spans =
-    bounds.crosses_antimeridian || bounds.east_degrees < bounds.west_degrees
-      ? [
-          [bounds.west_degrees, 180] as const,
-          [-180, bounds.east_degrees] as const,
-        ]
-      : [[bounds.west_degrees, bounds.east_degrees] as const];
+  const spans = globeAtlasLongitudeSpans(bounds, view);
   return Object.freeze(
     spans.map(([west, east]) =>
       buildProjectionPatch(
@@ -215,6 +250,33 @@ export function buildProjectedBoundsMeshes(
       ),
     ),
   );
+}
+
+function globeAtlasLongitudeSpans(
+  bounds: GlobeProjectionBounds,
+  view: Pick<GlobeCameraView, "yaw_degrees" | "pitch_degrees">,
+): readonly (readonly [number, number])[] {
+  const center = globeAtlasViewCenter(view).longitude_degrees;
+  const chartWest = center - 180;
+  const chartEast = center + 180;
+  const sourceWest = bounds.west_degrees;
+  const sourceEast =
+    bounds.crosses_antimeridian || bounds.east_degrees < bounds.west_degrees
+      ? bounds.east_degrees + 360
+      : bounds.east_degrees;
+  const firstCopy = Math.floor((chartWest - sourceEast) / 360);
+  const lastCopy = Math.ceil((chartEast - sourceWest) / 360);
+  const spans: [number, number][] = [];
+  const copies = Array.from(
+    { length: lastCopy - firstCopy + 1 },
+    (_, index) => firstCopy + index,
+  ).sort((left, right) => Math.abs(left) - Math.abs(right) || left - right);
+  for (const copy of copies) {
+    const west = Math.max(chartWest, sourceWest + copy * 360);
+    const east = Math.min(chartEast, sourceEast + copy * 360);
+    if (east > west) spans.push([west, east]);
+  }
+  return Object.freeze(spans.map((span) => Object.freeze(span)));
 }
 
 function buildProjectionPatch(

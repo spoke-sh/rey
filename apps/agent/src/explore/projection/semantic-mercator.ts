@@ -1,7 +1,8 @@
 import type { GlobeCameraView } from "../engine/camera";
+import { globeAtlasViewCenter } from "@rey/explorer/globe-projection";
 
 export const SEMANTIC_MERCATOR_PROJECTION_REVISION =
-  "rey.semantic-mercator-projection@1";
+  "rey.semantic-mercator-projection@2";
 export const SEMANTIC_LONGITUDE_WRAP_MICRODEGREES = 360_000_000;
 export const SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES = 85_051_129;
 
@@ -19,6 +20,11 @@ export interface ProjectionFrame {
   y: number;
   width: number;
   height: number;
+}
+
+export interface SemanticMercatorViewOffset {
+  x: number;
+  y: number;
 }
 
 export interface SemanticBounds {
@@ -151,6 +157,72 @@ export function projectSemanticMercator(
   });
 }
 
+/** Keeps the coordinate facing the rotated globe at the center of the chart. */
+export function projectViewAlignedSemanticMercator(
+  coordinate: SemanticCoordinate,
+  frame: ProjectionFrame,
+  view: GlobeCameraView,
+  chartWrapIndex = 0,
+): SemanticMercatorPoint {
+  verifyFrame(frame);
+  verifyCoordinate(coordinate);
+  if (!Number.isInteger(chartWrapIndex))
+    throw new Error("semantic Mercator chart wrap index must be an integer");
+  const center = semanticMercatorViewCenter(view);
+  const longitude = wrapViewRelativeLongitude(
+    coordinate.longitude_microdegrees - center.longitude_microdegrees,
+  );
+  const latitude = Math.max(
+    -SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
+    Math.min(
+      SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
+      coordinate.latitude_microdegrees,
+    ),
+  );
+  const centerLatitude = Math.max(
+    -SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
+    Math.min(
+      SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES,
+      center.latitude_microdegrees,
+    ),
+  );
+  const unitX =
+    (longitude + HALF_LONGITUDE_WRAP_MICRODEGREES) /
+    SEMANTIC_LONGITUDE_WRAP_MICRODEGREES;
+  return Object.freeze({
+    x: frame.x + (unitX + chartWrapIndex) * frame.width,
+    y:
+      mercatorY(latitude, frame) +
+      (frame.y + frame.height / 2 - mercatorY(centerLatitude, frame)),
+    longitude_microdegrees: wrapSemanticLongitude(
+      coordinate.longitude_microdegrees,
+    ),
+    latitude_microdegrees: latitude,
+    source_latitude_microdegrees: coordinate.latitude_microdegrees,
+    wrap_index: chartWrapIndex,
+    polar_disclosure:
+      coordinate.latitude_microdegrees >
+      SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES
+        ? "north_cap"
+        : coordinate.latitude_microdegrees <
+            -SEMANTIC_MERCATOR_LATITUDE_CUTOFF_MICRODEGREES
+          ? "south_cap"
+          : null,
+  });
+}
+
+export function semanticMercatorViewOffset(
+  frame: ProjectionFrame,
+  view: GlobeCameraView,
+): SemanticMercatorViewOffset {
+  const center = semanticMercatorViewCenter(view);
+  const canonical = projectSemanticMercator(center, frame);
+  return Object.freeze({
+    x: frame.x + frame.width / 2 - canonical.x,
+    y: frame.y + frame.height / 2 - canonical.y,
+  });
+}
+
 /** Resolves any horizontally repeated chart point to one canonical coordinate. */
 export function invertSemanticMercator(
   point: { x: number; y: number },
@@ -179,6 +251,18 @@ export function invertSemanticMercator(
     wrap_index: wrapIndex,
     outside_vertical_extent: rawUnitY < 0 || rawUnitY > 1,
   });
+}
+
+export function invertViewAlignedSemanticMercator(
+  point: { x: number; y: number },
+  frame: ProjectionFrame,
+  view: GlobeCameraView,
+): SemanticMercatorInverse {
+  const offset = semanticMercatorViewOffset(frame, view);
+  return invertSemanticMercator(
+    { x: point.x - offset.x, y: point.y - offset.y },
+    frame,
+  );
 }
 
 /**
@@ -345,7 +429,11 @@ export function projectWorldAtlasMorph(
     worldFrame.radius,
     view,
   );
-  const atlas = projectSemanticMercator(coordinate, atlasFrame);
+  const atlas = projectViewAlignedSemanticMercator(
+    coordinate,
+    atlasFrame,
+    view,
+  );
   return Object.freeze({
     identity,
     focus_id: focusId,
@@ -378,58 +466,58 @@ export function projectWorldAtlasBoundsMorph(
   )
     polarDisclosures.push("south_cap");
   return Object.freeze(
-    longitudeBoundsFragments(bounds).map(({ west, east }, fragmentIndex) => {
-      const fragmentId = `${identity}#mercator-fragment:${fragmentIndex}`;
-      const coordinates = [
-        {
-          longitude_microdegrees: west,
-          latitude_microdegrees: bounds.north_microdegrees,
-        },
-        {
-          longitude_microdegrees: east,
-          latitude_microdegrees: bounds.north_microdegrees,
-        },
-        {
-          longitude_microdegrees: east,
-          latitude_microdegrees: bounds.south_microdegrees,
-        },
-        {
-          longitude_microdegrees: west,
-          latitude_microdegrees: bounds.south_microdegrees,
-        },
-      ];
-      const points = coordinates.map((coordinate, pointIndex) => {
-        const world = projectSemanticGlobe(
-          coordinate,
-          worldFrame.center,
-          worldFrame.radius,
-          view,
-        );
-        const atlas = projectSemanticMercator(
-          coordinate,
-          atlasFrame,
-          coordinate.longitude_microdegrees === HALF_LONGITUDE_WRAP_MICRODEGREES
-            ? 1
-            : 0,
-        );
-        const boundedProgress = Math.max(0, Math.min(1, progress));
-        return Object.freeze({
-          vertex_index: pointIndex,
-          progress: boundedProgress,
-          x: world.x + (atlas.x - world.x) * boundedProgress,
-          y: world.y + (atlas.y - world.y) * boundedProgress,
-          world,
-          atlas,
+    viewAlignedLongitudeBoundsFragments(bounds, view).map(
+      ({ west, east }, fragmentIndex) => {
+        const fragmentId = `${identity}#mercator-fragment:${fragmentIndex}`;
+        const coordinates = [
+          {
+            longitude_microdegrees: west,
+            latitude_microdegrees: bounds.north_microdegrees,
+          },
+          {
+            longitude_microdegrees: east,
+            latitude_microdegrees: bounds.north_microdegrees,
+          },
+          {
+            longitude_microdegrees: east,
+            latitude_microdegrees: bounds.south_microdegrees,
+          },
+          {
+            longitude_microdegrees: west,
+            latitude_microdegrees: bounds.south_microdegrees,
+          },
+        ];
+        const points = coordinates.map((coordinate, pointIndex) => {
+          const world = projectSemanticGlobe(
+            coordinate,
+            worldFrame.center,
+            worldFrame.radius,
+            view,
+          );
+          const atlas = projectViewAlignedSemanticMercator(
+            coordinate,
+            atlasFrame,
+            view,
+          );
+          const boundedProgress = Math.max(0, Math.min(1, progress));
+          return Object.freeze({
+            vertex_index: pointIndex,
+            progress: boundedProgress,
+            x: world.x + (atlas.x - world.x) * boundedProgress,
+            y: world.y + (atlas.y - world.y) * boundedProgress,
+            world,
+            atlas,
+          });
         });
-      });
-      return Object.freeze({
-        identity,
-        fragment_id: fragmentId,
-        fragment_index: fragmentIndex,
-        points: Object.freeze(points),
-        polar_disclosures: Object.freeze([...polarDisclosures]),
-      });
-    }),
+        return Object.freeze({
+          identity,
+          fragment_id: fragmentId,
+          fragment_index: fragmentIndex,
+          points: Object.freeze(points),
+          polar_disclosures: Object.freeze([...polarDisclosures]),
+        });
+      },
+    ),
   );
 }
 
@@ -478,6 +566,57 @@ function longitudeBoundsFragments(bounds: SemanticBounds) {
         },
       ]
     : [{ west: bounds.west_microdegrees, east: bounds.east_microdegrees }];
+}
+
+function semanticMercatorViewCenter(view: GlobeCameraView) {
+  const center = globeAtlasViewCenter(view);
+  return Object.freeze({
+    longitude_microdegrees: Math.round(
+      center.longitude_degrees * MICRODEGREES_PER_DEGREE,
+    ),
+    latitude_microdegrees: Math.round(
+      center.latitude_degrees * MICRODEGREES_PER_DEGREE,
+    ),
+  });
+}
+
+function viewAlignedLongitudeBoundsFragments(
+  bounds: SemanticBounds,
+  view: GlobeCameraView,
+) {
+  const center = semanticMercatorViewCenter(view).longitude_microdegrees;
+  const chartWest = center - HALF_LONGITUDE_WRAP_MICRODEGREES;
+  const chartEast = center + HALF_LONGITUDE_WRAP_MICRODEGREES;
+  const sourceWest = bounds.west_microdegrees;
+  const sourceEast =
+    bounds.crosses_antimeridian ||
+    bounds.east_microdegrees < bounds.west_microdegrees
+      ? bounds.east_microdegrees + SEMANTIC_LONGITUDE_WRAP_MICRODEGREES
+      : bounds.east_microdegrees;
+  const firstCopy = Math.floor(
+    (chartWest - sourceEast) / SEMANTIC_LONGITUDE_WRAP_MICRODEGREES,
+  );
+  const lastCopy = Math.ceil(
+    (chartEast - sourceWest) / SEMANTIC_LONGITUDE_WRAP_MICRODEGREES,
+  );
+  const spans: { west: number; east: number }[] = [];
+  const copies = Array.from(
+    { length: lastCopy - firstCopy + 1 },
+    (_, index) => firstCopy + index,
+  ).sort((left, right) => Math.abs(left) - Math.abs(right) || left - right);
+  for (const copy of copies) {
+    const shift = copy * SEMANTIC_LONGITUDE_WRAP_MICRODEGREES;
+    const west = Math.max(chartWest, sourceWest + shift);
+    const east = Math.min(chartEast, sourceEast + shift);
+    if (east > west) spans.push({ west, east });
+  }
+  return spans;
+}
+
+function wrapViewRelativeLongitude(longitudeMicrodegrees: number) {
+  if (longitudeMicrodegrees === HALF_LONGITUDE_WRAP_MICRODEGREES)
+    return HALF_LONGITUDE_WRAP_MICRODEGREES;
+  return wrapSemanticLongitude(longitudeMicrodegrees);
 }
 
 function verifyFrame(frame: ProjectionFrame) {

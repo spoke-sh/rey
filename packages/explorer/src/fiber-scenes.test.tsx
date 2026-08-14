@@ -5,6 +5,7 @@ import {
   type InstancedMesh,
   type Mesh,
   type MeshBasicNodeMaterial,
+  type MeshStandardNodeMaterial,
   type SphereGeometry,
 } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
@@ -148,6 +149,11 @@ describe("declarative React Three Fiber scenes", () => {
     expect((poleField.material as MeshBasicNodeMaterial).opacity).toBe(0);
     expect(
       renderer.scene.findAll(
+        ({ props }) => props.name === "context-globe-surface",
+      ),
+    ).toHaveLength(0);
+    expect(
+      renderer.scene.findAll(
         ({ props }) =>
           typeof props.name === "string" &&
           props.name.startsWith("context-globe-atmosphere:"),
@@ -173,6 +179,13 @@ describe("declarative React Three Fiber scenes", () => {
     const atmosphere = renderer.scene.findByProps({
       name: "context-globe-atmosphere:0",
     }).instance as Mesh;
+    const surface = renderer.scene.findByProps({
+      name: "context-globe-surface",
+    }).instance as Mesh;
+    const surfaceMaterial = surface.material as MeshStandardNodeMaterial;
+    expect(surfaceMaterial.opacity).toBeCloseTo(0.5);
+    expect(surfaceMaterial.transparent).toBe(true);
+    expect(surfaceMaterial.depthWrite).toBe(false);
     expect(
       (atmosphere.geometry as SphereGeometry).parameters.radius,
     ).toBeCloseTo(GLOBE_RADIUS * 1.018 * 0.5);

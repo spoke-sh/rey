@@ -689,6 +689,83 @@ async function verifySmoothWorldWheelZoom(connection, timeoutMs) {
   };
 }
 
+async function verifyRotatedWorldAtlasUnfurl(connection, timeoutMs) {
+  const before = await connection.evaluate(`(() => {
+    const viewport = document.querySelector('[role="application"]');
+    const bounds = viewport?.getBoundingClientRect();
+    return viewport && bounds ? {
+      bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      pitch: Number(viewport.getAttribute("data-globe-pitch")),
+      yaw: Number(viewport.getAttribute("data-globe-yaw")),
+      zoom: Number(viewport.getAttribute("data-camera-zoom")),
+    } : null;
+  })()`);
+  if (!before) throw new Error("the rotated World camera state is unavailable");
+  const pointer = {
+    x: before.bounds.x + before.bounds.width / 2,
+    y: before.bounds.y + before.bounds.height / 2,
+  };
+  const animationFrames = await connection.evaluate(`new Promise((resolve) => {
+    const viewport = document.querySelector('[role="application"]');
+    const samples = [];
+    const sample = () => {
+      const projection = document.querySelector('[data-projection-morph-progress]');
+      const regime = document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime');
+      samples.push({
+        progress: projection
+          ? Number(projection.getAttribute('data-projection-morph-progress'))
+          : regime === 'atlas' ? 1 : 0,
+        regime,
+        zoom: Number(viewport?.getAttribute('data-camera-zoom')),
+      });
+      if (samples.length >= 40 || regime === 'atlas') resolve(samples);
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    for (let index = 0; index < 4; index += 1) {
+      viewport?.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        cancelable: true,
+        clientX: ${pointer.x},
+        clientY: ${pointer.y},
+        deltaX: 0,
+        deltaY: -100,
+        view: window,
+      }));
+    }
+  })`);
+  await waitFor(
+    connection,
+    `document.querySelector('[data-lens-regime="atlas"]')?.dataset.lensRegime === "atlas"`,
+    "rotated World-to-Atlas wheel unfurl",
+    timeoutMs,
+  );
+  const after = await connection.evaluate(`(() => {
+    const viewport = document.querySelector('[role="application"]');
+    return {
+      atlas_view_offset: document.querySelector('[data-atlas-view-offset]')?.getAttribute('data-atlas-view-offset') ?? null,
+      zoom: Number(viewport?.getAttribute('data-camera-zoom')),
+    };
+  })()`);
+  const distinctIntermediateFrames = new Set(
+    animationFrames
+      .filter(({ progress }) => progress > 0 && progress < 1)
+      .map(({ progress }) => progress.toFixed(3)),
+  ).size;
+  return {
+    after,
+    animation_frames: animationFrames,
+    before,
+    distinct_intermediate_frames: distinctIntermediateFrames,
+    observed:
+      Math.abs(before.yaw) > 0.001 &&
+      distinctIntermediateFrames >= 3 &&
+      animationFrames.at(-1)?.regime === "atlas" &&
+      after.atlas_view_offset !== null &&
+      after.atlas_view_offset !== "0,0",
+  };
+}
+
 function regimeExpression(regime) {
   return `document.querySelector('[data-lens-regime="${regime}"]')?.dataset.lensRegime === "${regime}"`;
 }
@@ -966,6 +1043,7 @@ async function runVoyage(options) {
   let firstInteractionDismissalObserved = false;
   let mapNoticeObserved = false;
   let outsideGlobePan = null;
+  let rotatedWorldAtlasUnfurl = null;
   let smoothWorldWheel = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
@@ -1074,26 +1152,24 @@ async function runVoyage(options) {
 
     const region = JSON.stringify(options.region);
     const worldRegion = `[...document.querySelectorAll('[data-semantic-region]')].find((element) => element.getAttribute('aria-label')?.startsWith(${region} + ':'))`;
-    if (!(await connection.evaluate(`Boolean(${worldRegion})`))) {
-      process.stdout.write(`ROTATE world / ${options.region}\n`);
-      await measureInteraction(
-        interactions,
-        "rotate_world_to_region",
-        async () => {
-          await rotateGlobeToRegion(
-            connection,
-            admittedRegion.semantic_longitude_microdegrees,
-          );
-          await sleep(50);
-          await waitFor(
-            connection,
-            worldRegion,
-            `${options.region} visible World marker`,
-            options.timeoutMs,
-          );
-        },
-      );
-    }
+    process.stdout.write(`ROTATE world / ${options.region}\n`);
+    await measureInteraction(
+      interactions,
+      "rotate_world_to_region",
+      async () => {
+        await rotateGlobeToRegion(
+          connection,
+          admittedRegion.semantic_longitude_microdegrees,
+        );
+        await sleep(50);
+        await waitFor(
+          connection,
+          worldRegion,
+          `${options.region} visible World marker`,
+          options.timeoutMs,
+        );
+      },
+    );
     captures.push(
       await captureStage(connection, voyageDirectory, "world", startedAt),
     );
@@ -1129,19 +1205,15 @@ async function runVoyage(options) {
       );
     }
     await measureInteraction(interactions, "world_to_atlas", async () => {
-      await dispatchClick(
+      rotatedWorldAtlasUnfurl = await verifyRotatedWorldAtlasUnfurl(
         connection,
-        worldRegion,
-        `${options.region} World marker`,
-        options.timeoutMs,
-      );
-      await waitFor(
-        connection,
-        regimeExpression("atlas"),
-        "Atlas projection",
         options.timeoutMs,
       );
     });
+    if (!rotatedWorldAtlasUnfurl?.observed)
+      throw new Error(
+        "rotated World-to-Atlas wheel input did not retain a view-aligned unfurl",
+      );
     process.stdout.write("READY atlas\n");
     firstInteractionDismissalObserved = await connection.evaluate(`(() => {
       const footer = document.querySelector('[data-explorer-footer]');
@@ -1407,6 +1479,7 @@ async function runVoyage(options) {
     mapNoticeObserved &&
     smoothWorldWheel?.observed === true &&
     outsideGlobePan?.observed === true &&
+    rotatedWorldAtlasUnfurl?.observed === true &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
     exceptions.length === 0 &&
@@ -1496,12 +1569,15 @@ async function runVoyage(options) {
       no_unexpected_console_errors: unexpectedConsoleErrors.length === 0,
       onboarding_notice_observed: onboardingNoticeObserved,
       outside_globe_pan_observed: outsideGlobePan?.observed ?? false,
+      rotated_world_atlas_unfurl_observed:
+        rotatedWorldAtlasUnfurl?.observed ?? false,
       passive_revalidation_observed: passiveRevalidationObserved,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },
     captures,
     interactions,
     world_wheel_zoom: smoothWorldWheel,
+    rotated_world_atlas_unfurl: rotatedWorldAtlasUnfurl,
     world_drag_partition: outsideGlobePan,
     revalidation:
       options.revalidation === "attention"

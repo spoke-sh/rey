@@ -3,6 +3,7 @@ import {
   buildProjectedBoundsMeshes,
   buildProjectedGlobeMesh,
   GLOBE_CAMERA_HALF_HEIGHT,
+  globeAtlasViewCenter,
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
   projectGlobeCoordinate,
@@ -80,6 +81,65 @@ describe("declarative globe-to-Mercator projection", () => {
       southwest.position.map(Math.fround),
     );
     expect(sector!.indices.length).toBe(16 * 10 * 6);
+  });
+
+  it("keeps the rotated view center anchored while the globe unfurls", () => {
+    const rotatedView = { yaw_degrees: 58, pitch_degrees: -24 };
+    const center = globeAtlasViewCenter(rotatedView);
+    for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+      const projected = projectGlobeCoordinate(
+        center.longitude_degrees,
+        center.latitude_degrees,
+        rotatedView,
+        world,
+        progress,
+      );
+      expect(projected.position[0]).toBeCloseTo(0, 10);
+      expect(projected.position[1]).toBeCloseTo(0, 10);
+    }
+  });
+
+  it("moves the surface seam behind a rotated view", () => {
+    const rotatedView = { yaw_degrees: 72, pitch_degrees: -18 };
+    const center = globeAtlasViewCenter(rotatedView);
+    const mesh = buildProjectedGlobeMesh(rotatedView, world, 1, 12, 8);
+    const rowLength = 13 * 3;
+    const equatorOffset = 4 * rowLength;
+    expect(mesh.positions[equatorOffset]).toBeCloseTo(
+      -GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985,
+      5,
+    );
+    expect(mesh.positions[equatorOffset + 12 * 3]).toBeCloseTo(
+      GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height) * 0.985,
+      5,
+    );
+    expect(center.longitude_degrees).not.toBe(0);
+  });
+
+  it("splits attached sectors at the rotated view seam", () => {
+    const rotatedView = { yaw_degrees: 58, pitch_degrees: -24 };
+    const fragments = buildProjectedBoundsMeshes(
+      {
+        west_degrees: 115,
+        south_degrees: -10,
+        east_degrees: 145,
+        north_degrees: 10,
+        crosses_antimeridian: false,
+      },
+      rotatedView,
+      world,
+      1,
+      4,
+      2,
+    );
+    expect(fragments).toHaveLength(2);
+    for (const fragment of fragments) {
+      const west = fragment.positions[0]!;
+      const east = fragment.positions[4 * 3]!;
+      expect(Math.abs(east - west)).toBeLessThan(
+        GLOBE_CAMERA_HALF_HEIGHT * (world.width / world.height),
+      );
+    }
   });
 
   it("builds bounded indexed geometry at both projection endpoints", () => {

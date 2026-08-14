@@ -53,9 +53,10 @@ The package root exports:
 - structural inputs including `ExplorerGlobe`, `GlobeCameraView`,
   `TerrainFieldSetInput`, and `TerrainCameraView`.
 
-The deterministic globe fabric is also exported through
-`@rey/explorer/globe-samples`. The reference renderer can therefore share the
-same pattern without importing Three.js.
+Pure globe projection and fabric primitives are also exported through
+`@rey/explorer/globe-projection` and `@rey/explorer/globe-samples`. The
+reference renderer can therefore share view-center and pattern contracts
+without importing Three.js.
 
 See [`src/index.ts`](src/index.ts) for the exact current export surface.
 
