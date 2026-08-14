@@ -7,13 +7,8 @@ import {
   type MeshBasicNodeMaterial,
 } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
-import type { TopologyGlobe } from "../../topology";
-import {
-  compileTerrainProgram,
-  materializeTerrainWorkingSet,
-} from "../terrain/compile";
-import { proceduralProjection } from "../terrain/compile.test-fixture";
 import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
+import { globeFixture, terrainFieldFixture } from "./test-fixtures";
 import { compileContextGlobe } from "./three-globe";
 import { compileContinuousRelief } from "./three-terrain";
 
@@ -21,28 +16,9 @@ import { compileContinuousRelief } from "./three-terrain";
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-function terrainFields() {
-  const program = compileTerrainProgram({
-    source_id: "survey:fiber",
-    source_revision: "topography:one",
-    bounds: { x: 100, y: 80, width: 1300, height: 840 },
-    anchors: [{ id: "workspace", x: 750, y: 500, prominence: 4 }],
-    atmosphere: [],
-    unresolved_pressure: 0,
-    projection: proceduralProjection,
-  });
-  return materializeTerrainWorkingSet(program, {
-    working_set_id: "fiber:fixture",
-    bounds: program.bounds,
-    columns: 31,
-    rows: 21,
-    detail_authority: "React Three Fiber fixture",
-  });
-}
-
 describe("declarative React Three Fiber scenes", () => {
   it("materializes valid terrain buffers, lighting, and the bounded camera", async () => {
-    const fields = terrainFields();
+    const fields = terrainFieldFixture();
     const compiled = compileContinuousRelief([fields]);
     const renderer = await create(
       <ContinuousReliefScene
@@ -85,34 +61,7 @@ describe("declarative React Three Fiber scenes", () => {
   });
 
   it("keeps globe evidence identities in named declarative objects", async () => {
-    const globe: TopologyGlobe = {
-      schema: "rey.explore-orientation-globe.v1",
-      posture: "orientation",
-      globe_id: "orientation:fiber",
-      source_revision: "working:fiber",
-      compiler_revision: "orientation@1",
-      coordinate_authority: "presentation only",
-      clusters: [],
-      regions: [],
-      beacons: [
-        {
-          id: "workload-beacon:survey",
-          focus_id: "beacon:survey",
-          workload_id: "survey",
-          label: "Survey context",
-          detail: "WORKING",
-          source: "sys/survey/workload.yaml",
-          source_revision: "blake3:survey",
-          producer: "codex@gpt-5",
-          state: "working",
-          mapping_role: "survey",
-          next_step: "review and consent",
-          longitude_degrees: 14,
-          latitude_degrees: 6,
-          tone: "attention",
-        },
-      ],
-    };
+    const globe = globeFixture();
     const renderer = await create(
       <ContextGlobeScene
         compiled={compileContextGlobe(globe)}
@@ -122,7 +71,7 @@ describe("declarative React Three Fiber scenes", () => {
     );
 
     const root = renderer.scene.findByProps({
-      name: "context-globe:working:fiber",
+      name: "context-globe:working:fixture",
     });
     expect(
       root.instance.quaternion.equals(root.instance.quaternion.clone()),

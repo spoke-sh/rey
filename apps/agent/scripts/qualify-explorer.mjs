@@ -24,7 +24,7 @@ const REPOSITORY_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../..",
 );
-const DIST_ROOT = join(REPOSITORY_ROOT, "apps/rey-ui/dist");
+const DIST_ROOT = join(REPOSITORY_ROOT, "apps/agent/dist");
 
 function usage() {
   return `Retain one bounded World → Atlas → County → Evidence browser voyage.

@@ -79,10 +79,12 @@ GNU targets.
 devShells.default       complete local Rust development shell
 devShells.ci            smaller CI-oriented shell
 packages.default/rey    locked `rey` binary built through Crane
+packages.agent          immutable `@rey/agent` browser assets
 packages.dev            self-contained Rust/Just/Nix wrapper for root tasks
 apps.default/rey        `nix run . -- <rey arguments>`
 apps.dev                `nix run .#dev -- <just arguments>`
 checks.rey              proves the packaged binary
+checks.agent            proves the browser application and Explorer package
 checks.workspace-tests  runs locked offline Nextest workspace tests and doctests
 checks.dev-wrapper      proves the development wrapper
 formatter               Alejandra
@@ -138,9 +140,11 @@ Current behavior is:
 
 The repository root owns the private `rey` package, the exact pnpm version,
 the single `pnpm-lock.yaml`, and `turbo.json`. `pnpm-workspace.yaml` admits
-`apps/*`; `@rey/ui` is the first workspace package. Add future applications as
-separately named packages under that root graph rather than creating nested
-workspace files or lockfiles.
+`apps/*` and `packages/*`; `@rey/agent` is the browser application and
+`@rey/explorer` is its reusable canvas/rendering package. Add future
+applications or shared packages beneath those roots rather than creating
+nested workspace files or lockfiles. The dependency is one-way:
+`@rey/agent → @rey/explorer`; the canvas package cannot import the application.
 
 Root `pnpm` scripts are the JavaScript task surface. Turbo schedules and caches
 package `build`, `format:check`, `test`, and `typecheck` tasks, retains declared
@@ -151,7 +155,7 @@ the repository-wide surface that composes this JavaScript graph with Cargo,
 Nix, release, and documentation checks.
 
 Nix packages the same graph explicitly. A fixed-output dependency derivation
-materializes the root pnpm lock, a UI derivation runs Turbo/Vite, and Crane
+materializes the root pnpm lock, an agent-assets derivation runs Turbo/Vite, and Crane
 receives that immutable output through `REY_UI_DIST_DIR` before compiling the
 Rust workspace. The cargo-dist release workflow performs its pinned Node/pnpm
 setup and UI build before `dist build`. The Rust build script only validates
@@ -225,13 +229,13 @@ unplugin. Authored UI rules
 live only in `src/stylex/*.stylex.ts`; the build extracts one layered atomic
 CSS asset while typed Kinetic material values remain runtime custom
 properties. Exact MIT-licensed Hifi core/Kinetic Git packages are pinned to one
-GitHub revision in `apps/rey-ui/package.json` and the root `pnpm-lock.yaml`.
+GitHub revision in `apps/agent/package.json` and the root `pnpm-lock.yaml`.
 The pnpm workspace policy admits build scripts only for those exact two codeload
 artifacts; no ambient sibling checkout or arbitrary dependency build is
 trusted. Nix fetches the same revision and content hash, rebuilds only those two
-packages inside the UI derivation, and then runs the root Turbo build. Crane
+packages inside the agent-assets derivation, and then runs the root Turbo build. Crane
 passes the resulting immutable asset directory to the Rust build script for
-`include_bytes!`; neither `apps/rey-ui/dist` nor any other generated UI bundle
+`include_bytes!`; neither `apps/agent/dist` nor any other generated UI bundle
 is checked in. The packaged Rey binary does not need Node at runtime.
 
 `crates/rey/src/journal.rs` owns the shared typed entry validator, semantic
@@ -259,20 +263,20 @@ material inputs. Its compiler splits camera working sets into
 absolute-coordinate patches with explicit hydrology/relief halos, proves
 shared render-channel seams, and retains patch identities within packet-owned
 cell and byte limits.
-`src/explore/renderers/reference.tsx` owns the accessible SVG/DOM overlays and
+`apps/agent/src/explore/renderers/reference.tsx` owns the accessible SVG/DOM overlays and
 fallback beneath the React canvas shell. Seed edges
 remain deep inspection evidence and do not become relief, natural features, or
 paths.
 `src/explore/engine/render-graph.ts` owns the renderer-neutral ordered pass
 manifest and its evidence/derived/presentation/interface authority labels.
-`src/explore/engine/renderer.ts` owns exact frame invalidation; both surfaces
+`packages/explorer/src/renderer.ts` owns exact frame invalidation; both surfaces
 consume the immutable snapshot graph, and the accelerated adapter leaves an
-identical frame quiet. `src/explore/renderers/three-terrain.ts` measures every
+identical frame quiet. `packages/explorer/src/three-terrain.ts` measures every
 uploaded position, normal, material attribute, curvature, and index byte before
 allocation and fails visibly above its explicit 64 MiB GPU budget. It copies
 upload arrays away from immutable CPU fields and verifies every sample under a
 revisioned parity contract before React Three Fiber constructs the declared
-Three.js geometry in `src/explore/renderers/fiber-scenes.tsx`.
+Three.js geometry in `packages/explorer/src/fiber-scenes.tsx`.
 The live diagnostics time CPU field evaluation, geometry construction, and
 renderer submission with `performance.now()`. These values are explicitly
 transient and unretained; renderer submission is not GPU completion.
@@ -294,9 +298,9 @@ are loaded through dynamic imports, WebGPU uses Three.js's modular source graph,
 and explicit React, React Three Fiber, router, and Three.js chunk groups keep
 each emitted JavaScript object at or below 450 KiB. The build fails if that
 bound is crossed
-and emits `apps/rey-ui/dist/bundle-report.json` beside the disposable bundle,
+and emits `apps/agent/dist/bundle-report.json` beside the disposable bundle,
 including each chunk's exact byte size, imports, and entry or dynamic-entry
-role. Nix retains that report in the immutable UI derivation used to build the
+role. Nix retains that report in the immutable agent-assets derivation used to build the
 binary. The named production route-bundle workload reduced `app.js` from the
 650.17 kB baseline to 233,819 bytes and removed the prior 1,032.25 kB
 `three.webgpu.js` monolith. Rolldown preserves source execution order across
@@ -310,7 +314,7 @@ projections, immutable scenes, data-oriented fields, camera/LOD, render-pass
 selection, backend lifecycle, and the application React shell. Remaining
 direct-transport qualification is [Plan
 0003](../plans/0003-scene-to-explorer.md) work. React Three Fiber `9.7.0`
-declaratively reconciles the scene over a pinned Three.js `WebGPURenderer` and
+declaratively reconciles the scene inside `@rey/explorer` over a pinned Three.js `WebGPURenderer` and
 TSL adapter that prefers WebGPU and uses Three.js's WebGL2 backend as
 compatibility fallback. The current package pins Three.js `0.185.1`; its narrow
 lifecycle adapter has deterministic Vitest coverage
@@ -320,7 +324,7 @@ own viewport bounds. It is mounted lazily as `/explore`'s
 continuous base-terrain surface, while the reference renderer remains active
 through initialization and on failure. R3F test-renderer fixtures verify the
 declared terrain and globe scene graph without treating it as semantic proof.
-Vite binds R3F's exact `three` import to Rey's modular WebGPU runtime bridge so
+Vite binds R3F's exact `three` import to `@rey/explorer`'s modular WebGPU runtime bridge so
 R3F props, declared objects, and the renderer share constructor and color
 identities; the bridge exposes the source-graph `WebGLRenderer` only for R3F's
 headless Vitest harness and compatibility contract. Regression assertions retain
@@ -350,7 +354,7 @@ Run a retained Explorer browser voyage against an explicitly started CLI
 surface with:
 
 ```sh
-pnpm --filter @rey/ui qualify:explorer -- \
+pnpm --filter @rey/agent qualify:explorer -- \
   --base-url http://127.0.0.1:5714 \
   --backend webgpu \
   --width 1920 \
@@ -388,7 +392,7 @@ activity or admitted evidence.
 After retaining one bound trio, record structural and rendered parity with:
 
 ```sh
-pnpm --filter @rey/ui qualify:explorer-parity -- \
+pnpm --filter @rey/agent qualify:explorer-parity -- \
   --reference .rey/qualification/explorer/<reference>/manifest.json \
   --webgl2 .rey/qualification/explorer/<webgl2>/manifest.json \
   --webgpu .rey/qualification/explorer/<webgpu>/manifest.json
@@ -414,7 +418,7 @@ After retaining all six viewport/backend voyages with performance fields,
 evaluate the versioned local ceiling with:
 
 ```sh
-pnpm --filter @rey/ui qualify:explorer-performance -- \
+pnpm --filter @rey/agent qualify:explorer-performance -- \
   --machine-name rey-local-swiftshader \
   --manifest .rey/qualification/explorer/<voyage>/manifest.json \
   --manifest .rey/qualification/explorer/<voyage>/manifest.json
@@ -442,7 +446,7 @@ workbench consume that common derivation. TypeScript projection tests and the
 Rust HTTP/CLI tests are the interface proof; the browser never probes the host
 independently.
 
-`apps/rey-ui/src/passive.ts` owns passive browser revalidation independently of
+`apps/agent/src/passive.ts` owns passive browser revalidation independently of
 TanStack route lifecycle. Route loaders establish the initial typed document;
 the mounted React projection publishes later successful reads in place, rejects
 overlapping refreshes, retains the last good document after failure, and never

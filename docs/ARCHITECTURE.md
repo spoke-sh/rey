@@ -896,16 +896,18 @@ This table is an ownership proposal, not a requirement for one process per
 crate. The narrow `rey-mining` contract crate is implemented; provider
 execution remains in the adapters that own its source and tool semantics.
 
-The browser application has a parallel internal ownership boundary. Evidence
-adapters own projection-packet semantics; the Explorer engine owns immutable
-scenes, fields, camera, LOD, invalidation, render graph, and picking; terrain
-modules own versioned field derivations; React Three Fiber components own the
-declarative backend scene; renderer backends own graphics resources and pixels;
-and the application React shell owns routing, controls, accessibility, and
-evidence panels. Neither React Three Fiber nor the Three.js lifecycle adapter
-can absorb Rey's immutable scene, field, or evidence ownership. No new Rust
-crate is implied until a shared CLI/browser contract or server-side compiler
-requires one.
+The browser workspace has a parallel one-way ownership boundary. `@rey/agent`
+owns evidence adapters, projection-packet semantics, immutable scenes, fields,
+camera, LOD, render graph, picking, versioned terrain derivation, routing,
+controls, accessibility, reference rendering, and evidence panels.
+`@rey/explorer` owns only the reusable browser canvas: declarative React Three
+Fiber scenes, bounded Three.js resources, upload parity, backend lifecycle, and
+pixels. The agent passes already compiled, structurally typed scene inputs into
+that package; the package cannot import the application, fetch evidence, or
+reinterpret semantic state. Neither React Three Fiber nor the Three.js
+lifecycle adapter can absorb Rey's immutable scene, field, or evidence
+ownership. No new Rust crate is implied until a shared CLI/browser contract or
+server-side compiler requires one.
 
 ## Failure And Limits
 

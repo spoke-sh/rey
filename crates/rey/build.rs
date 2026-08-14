@@ -27,7 +27,7 @@ fn generate_ui_asset_manifest() {
     );
     let dist = env::var_os("REY_UI_DIST_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| manifest.join("../../apps/rey-ui/dist"));
+        .unwrap_or_else(|| manifest.join("../../apps/agent/dist"));
     let index = dist.join("index.html");
     let assets = dist.join("assets");
     println!("cargo:rerun-if-changed={}", dist.display());

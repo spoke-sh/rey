@@ -21,7 +21,7 @@ const REPOSITORY_ROOT = resolve(
 );
 const DEFAULT_BUDGET = join(
   REPOSITORY_ROOT,
-  "apps/rey-ui/qualification/explorer-performance-budget.json",
+  "apps/agent/qualification/explorer-performance-budget.json",
 );
 
 function usage() {

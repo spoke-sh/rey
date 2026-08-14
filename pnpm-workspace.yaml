@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "packages/*"
 
 allowBuilds:
   "@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/058c6504fc10740360717e97e687fd77bef6a5c5#path:packages/core": true

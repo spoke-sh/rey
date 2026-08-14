@@ -791,11 +791,13 @@ federated coordinates are not part of the current contract.
 keyboard, and full-screen state while using framework-independent camera math.
 `ReferenceRenderer` renders accessible overlays and the deterministic fallback;
 it refuses graph edges on terrain even if one is supplied accidentally.
-`AcceleratedTerrainSurface` owns the bounded R3F root and Three.js lifecycle
-adapter. `fiber-scenes.tsx` declaratively expresses terrain buffers, bounded
-cameras, lighting, globe layers, instancing, and evidence-named scene objects;
-the pure `compileContinuousRelief` and `compileContextGlobe` paths retain upload
-parity, resource bounds, and renderer-neutral statistics. The surface reports its
+`AcceleratedTerrainSurface` in `@rey/agent` materializes bounded terrain working
+sets and adapts the immutable scene into `@rey/explorer`. The package's
+`ExplorerCanvas` owns the bounded R3F root and Three.js lifecycle adapter;
+`fiber-scenes.tsx` declaratively expresses terrain buffers, bounded cameras,
+lighting, globe layers, instancing, and evidence-named scene objects. The pure
+`compileContinuousRelief` and `compileContextGlobe` paths retain upload parity,
+resource bounds, and renderer-neutral statistics. The surface reports its
 selected backend, active terrain bands, bounded field/triangle counts, and
 transient working-set allocation, and retains the reference terrain through
 initialization or failure. At World it materializes the semantic globe rather
@@ -814,7 +816,8 @@ This is current repository truth, not permission for components to become a
 second engine truth. [Plan 0003](../plans/0003-scene-to-explorer.md) retains the
 remaining direct-browser transport proof. Future windows and lenses add typed
 engine inputs rather than fetch or invent a second graph inside a visualization
-component.
+component. `@rey/explorer` has no import path back into `apps/agent`;
+application StyleX classes enter only through typed canvas props.
 
 ## Next Boundaries
 

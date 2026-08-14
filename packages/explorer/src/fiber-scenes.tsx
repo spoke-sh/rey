@@ -18,8 +18,7 @@ import {
   Vector3,
 } from "three/src/Three.WebGPU.js";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import type { GlobeCameraView } from "../engine/camera";
-import type { TerrainCameraView } from "../terrain/compile";
+import type { GlobeCameraView, TerrainCameraView } from "./types";
 import {
   GLOBE_RADIUS,
   GLOBE_SAMPLE_RADIUS,

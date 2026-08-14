@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TopologyGlobe } from "../../topology";
+import type { ExplorerGlobe } from "./types";
 import {
   SEMANTIC_GLOBE_MATERIAL_REVISION,
   compileContextGlobe,
@@ -7,7 +7,7 @@ import {
 
 describe("Three.js semantic globe", () => {
   it("materializes admitted regions without changing their semantic identity", () => {
-    const globe: TopologyGlobe = {
+    const globe: ExplorerGlobe = {
       schema: "rey.semantic-globe-scene.v1",
       posture: "semantic_atlas",
       globe_id: "atlas:1",
@@ -46,7 +46,7 @@ describe("Three.js semantic globe", () => {
   });
 
   it("materializes orientation beacons without claiming an admitted atlas", () => {
-    const globe: TopologyGlobe = {
+    const globe: ExplorerGlobe = {
       schema: "rey.explore-orientation-globe.v1",
       posture: "orientation",
       globe_id: "orientation:one",

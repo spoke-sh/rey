@@ -9,8 +9,8 @@
   "scripts": {
     "build": "turbo run build",
     "check": "pnpm run format:check && turbo run typecheck test build",
-    "format": "turbo run format && pnpm --filter @rey/ui exec prettier --write ../../package.json ../../pnpm-workspace.yaml ../../turbo.json",
-    "format:check": "turbo run format:check && pnpm --filter @rey/ui exec prettier --check ../../package.json ../../pnpm-workspace.yaml ../../turbo.json",
+    "format": "turbo run format && pnpm --filter @rey/agent exec prettier --write ../../package.json ../../pnpm-workspace.yaml ../../turbo.json",
+    "format:check": "turbo run format:check && pnpm --filter @rey/agent exec prettier --check ../../package.json ../../pnpm-workspace.yaml ../../turbo.json",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"
   },

@@ -1,5 +1,5 @@
-import type { TopologyGlobe } from "../../topology";
 import { contextGlobeSamples } from "./globe-samples";
+import type { ExplorerGlobe } from "./types";
 
 export const SEMANTIC_GLOBE_MATERIAL_REVISION =
   "rey.semantic-globe.tsl-stippled-atmosphere@2";
@@ -8,7 +8,7 @@ export const GLOBE_SAMPLE_RADIUS = 0.0082;
 export const GLOBE_SAMPLE_COUNT = 26_000;
 
 export interface CompiledContextGlobe {
-  globe: TopologyGlobe;
+  globe: ExplorerGlobe;
   material_revision: string;
   sample_buckets: readonly {
     id: string;
@@ -30,7 +30,7 @@ export interface CompiledContextGlobe {
 }
 
 export function compileContextGlobe(
-  globe: TopologyGlobe,
+  globe: ExplorerGlobe,
 ): CompiledContextGlobe {
   const compilationStarted = measurementNow();
   const samples = contextGlobeSamples(

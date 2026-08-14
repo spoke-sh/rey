@@ -197,6 +197,10 @@ execution timing.
   React Three Fiber while keeping scene/field semantics, upload parity,
   backend lifecycle, renderer loss, bounds, and reference fallback outside
   component authority; cover the scene graph and lifecycle with Vitest.
+- [x] Extract the reusable R3F/Three canvas, GPU compilers, and backend
+  lifecycle into the one-way `@rey/explorer` workspace package; keep admitted
+  evidence adaptation, terrain working sets, controls, accessibility, and the
+  deterministic reference renderer in the renamed `@rey/agent` application.
 - [x] Compile semantic Atlas candidates and inverse projection into one
   immutable scene-picking index consumed by the renderer; React forwards
   selected scene identity but does not own inverse-picking semantics.

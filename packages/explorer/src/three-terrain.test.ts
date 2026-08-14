@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  compileTerrainProgram,
-  materializeTerrainWorkingSet,
-} from "../terrain/compile";
-import { proceduralProjection } from "../terrain/compile.test-fixture";
-import {
   buildTerrainMeshData,
   compileContinuousRelief,
   createContinuousReliefMaterial,
@@ -12,29 +7,11 @@ import {
   terrainMeshByteLength,
   verifyTerrainMeshParity,
 } from "./three-terrain";
-
-function fields() {
-  const program = compileTerrainProgram({
-    source_id: "survey:one",
-    source_revision: "topography:one",
-    bounds: { x: 100, y: 80, width: 1300, height: 840 },
-    anchors: [{ id: "workspace", x: 750, y: 500, prominence: 4 }],
-    atmosphere: [],
-    unresolved_pressure: 0,
-    projection: proceduralProjection,
-  });
-  return materializeTerrainWorkingSet(program, {
-    working_set_id: "renderer:fixture",
-    bounds: program.bounds,
-    columns: 61,
-    rows: 41,
-    detail_authority: "renderer fixture",
-  });
-}
+import { terrainFieldFixture } from "./test-fixtures";
 
 describe("accelerated continuous terrain compiler", () => {
   it("builds triangles only from valid procedural working-set support", () => {
-    const fieldSet = fields();
+    const fieldSet = terrainFieldFixture();
     const mesh = buildTerrainMeshData(fieldSet);
     expect(mesh.positions).toHaveLength(fieldSet.field_cells * 3);
     expect(mesh.indices.length).toBeGreaterThan(0);
@@ -45,7 +22,7 @@ describe("accelerated continuous terrain compiler", () => {
   });
 
   it("constructs one TSL material graph and a bounded compiled scene", () => {
-    const fieldSet = fields();
+    const fieldSet = terrainFieldFixture();
     const material = createContinuousReliefMaterial();
     expect(material.isMeshStandardNodeMaterial).toBe(true);
     expect(material.colorNode).not.toBeNull();
@@ -92,7 +69,7 @@ describe("accelerated continuous terrain compiler", () => {
   });
 
   it("fails closed when an accelerated input diverges from its CPU field", () => {
-    const fieldSet = fields();
+    const fieldSet = terrainFieldFixture();
     const mesh = buildTerrainMeshData(fieldSet);
     mesh.tint[6] = Math.fround(mesh.tint[6]! + 0.01);
     expect(() => verifyTerrainMeshParity(fieldSet, mesh)).toThrow(
@@ -101,7 +78,7 @@ describe("accelerated continuous terrain compiler", () => {
   });
 
   it("rejects mesh allocation beyond the explicit GPU budget", () => {
-    expect(() => compileContinuousRelief([fields()], 1)).toThrow(
+    expect(() => compileContinuousRelief([terrainFieldFixture()], 1)).toThrow(
       "exceeds GPU budget",
     );
   });

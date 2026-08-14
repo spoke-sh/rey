@@ -16,7 +16,7 @@ import type {
   TopologyScene,
   TopologyTone,
 } from "../../topology";
-import { contextGlobeSamples } from "./globe-samples";
+import { contextGlobeSamples } from "@rey/explorer/globe-samples";
 import {
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,

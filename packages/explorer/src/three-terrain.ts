@@ -11,9 +11,7 @@ import {
   sub,
   vec3,
 } from "three/src/nodes/TSL.js";
-import { fieldPoint } from "../engine/fields";
-import type { TerrainFieldSet } from "../terrain/compile";
-import type { TerrainCameraView } from "../terrain/compile";
+import type { TerrainCameraView, TerrainFieldSetInput } from "./types";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
@@ -75,7 +73,7 @@ export function terrainMeshByteLength(mesh: TerrainMeshData): number {
 }
 
 export function verifyTerrainMeshParity(
-  fields: TerrainFieldSet,
+  fields: TerrainFieldSetInput,
   mesh: TerrainMeshData,
 ): number {
   if (
@@ -132,7 +130,9 @@ export function verifyTerrainMeshParity(
   return fields.field_cells;
 }
 
-export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
+export function buildTerrainMeshData(
+  fields: TerrainFieldSetInput,
+): TerrainMeshData {
   const { grid } = fields;
   const positions = new Float32Array(fields.field_cells * 3);
   const normals = new Float32Array(fields.normal.values.length);
@@ -187,7 +187,7 @@ export function buildTerrainMeshData(fields: TerrainFieldSet): TerrainMeshData {
 }
 
 export function compileContinuousRelief(
-  fields: readonly TerrainFieldSet[],
+  fields: readonly TerrainFieldSetInput[],
   gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
 ): CompiledContinuousRelief {
   const compilationStarted = measurementNow();
@@ -243,6 +243,28 @@ export function compileContinuousRelief(
 
 function measurementNow(): number {
   return globalThis.performance?.now() ?? Date.now();
+}
+
+function fieldPoint(
+  grid: TerrainFieldSetInput["grid"],
+  column: number,
+  row: number,
+) {
+  if (
+    !Number.isInteger(column) ||
+    !Number.isInteger(row) ||
+    column < 0 ||
+    column >= grid.columns ||
+    row < 0 ||
+    row >= grid.rows
+  )
+    throw new Error("field coordinate is outside the bounded grid");
+  return {
+    x:
+      grid.bounds.x +
+      (column / Math.max(1, grid.columns - 1)) * grid.bounds.width,
+    y: grid.bounds.y + (row / Math.max(1, grid.rows - 1)) * grid.bounds.height,
+  };
 }
 
 export function terrainCameraProjection(

@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from "vite";
 
 const MAX_JAVASCRIPT_CHUNK_BYTES = 450 * 1024;
 const THREE_WEBGPU_RUNTIME = new URL(
-  "./src/explore/renderers/three-fiber-runtime.ts",
+  "../../packages/explorer/src/three-fiber-runtime.ts",
   import.meta.url,
 ).pathname;
 
@@ -76,8 +76,8 @@ export default defineConfig({
   base: "/",
   resolve: {
     // R3F imports `three` internally. Bind that exact import to the same
-    // modular WebGPU runtime used by Rey's declarative objects so constructor
-    // and color-management identities cannot diverge.
+    // modular WebGPU runtime exported by @rey/explorer so constructor and
+    // color-management identities cannot diverge across the package boundary.
     alias: [{ find: /^three$/, replacement: THREE_WEBGPU_RUNTIME }],
   },
   build: {

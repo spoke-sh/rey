@@ -1,10 +1,9 @@
-import {
-  type AcceleratedBackend,
-  type RendererStatus,
-} from "../engine/renderer";
+import { type AcceleratedBackend, type RendererStatus } from "./renderer";
 
 export const THREE_RENDERER_REVISION =
-  "react-three-fiber@9.7.0+three@0.185.1:webgpu+tsl+unified-runtime@1";
+  "@rey/explorer@0.1.0+react-three-fiber@9.7.0+three@0.185.1:webgpu+tsl+unified-runtime@1";
+export const WEBGPU_DEVICE_LOSS_QUALIFICATION_EVENT =
+  "rey:qualify-webgpu-device-loss";
 
 export interface ThreeRendererFacade {
   readonly backend: {
