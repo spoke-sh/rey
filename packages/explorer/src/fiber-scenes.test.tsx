@@ -177,18 +177,18 @@ describe("declarative React Three Fiber scenes", () => {
         name: "context-globe-samples:0:wrap:1",
       }),
     ).toBeDefined();
-    expect(
-      renderer.scene.findAll(
-        ({ props }) => props.name === "context-globe-surface",
-      ),
-    ).toHaveLength(0);
-    expect(
-      renderer.scene.findAll(
-        ({ props }) =>
-          typeof props.name === "string" &&
-          props.name.startsWith("context-globe-atmosphere:"),
-      ),
-    ).toHaveLength(0);
+    const retainedSurface = renderer.scene.findByProps({
+      name: "context-globe-surface",
+    }).instance as Mesh;
+    const retainedAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0",
+    }).instance as Mesh;
+    expect(retainedSurface.visible).toBe(false);
+    expect(retainedAtmosphere.visible).toBe(false);
+    expect(retainedAtmosphere.scale.x).toBe(0);
+    expect((retainedAtmosphere.material as MeshBasicNodeMaterial).opacity).toBe(
+      0,
+    );
 
     await renderer.unmount();
   });
@@ -234,28 +234,36 @@ describe("declarative React Three Fiber scenes", () => {
     const leftGradient = repeatedLeft.geometry.getAttribute(
       "reyRepeatSeamWeight",
     ) as InstancedBufferAttribute;
-    expect(rightGradient.count).toBe(repeated.count);
-    expect(leftGradient.count).toBe(repeatedLeft.count);
+    expect(rightGradient.count).toBe(repeated.instanceMatrix.count);
+    expect(leftGradient.count).toBe(repeatedLeft.instanceMatrix.count);
+    expect(repeated.count).toBeGreaterThan(0);
+    expect(repeated.count).toBeLessThan(rightGradient.count);
+    expect(repeatedLeft.count).toBeGreaterThan(0);
+    expect(repeatedLeft.count).toBeLessThan(leftGradient.count);
     expect(Math.min(...rightGradient.array)).toBeLessThan(0.01);
     expect(Math.max(...rightGradient.array)).toBeGreaterThan(0.99);
-    for (const index of [0, 17, 101, rightGradient.count - 1]) {
-      expect(rightGradient.getX(index) + leftGradient.getX(index)).toBeCloseTo(
-        1,
+    expect(Math.min(...leftGradient.array)).toBeLessThan(0.01);
+    expect(Math.max(...leftGradient.array)).toBeGreaterThan(0.99);
+    for (let index = 1; index < rightGradient.count; index += 1) {
+      expect(rightGradient.getX(index)).toBeLessThanOrEqual(
+        rightGradient.getX(index - 1),
+      );
+      expect(leftGradient.getX(index)).toBeLessThanOrEqual(
+        leftGradient.getX(index - 1),
       );
     }
-    let outerIndex = 0;
-    let seamIndex = 0;
-    for (let index = 1; index < rightGradient.count; index += 1) {
-      if (rightGradient.getX(index) < rightGradient.getX(outerIndex))
-        outerIndex = index;
-      if (rightGradient.getX(index) > rightGradient.getX(seamIndex))
-        seamIndex = index;
-    }
-    const canonicalMatrix = new Matrix4();
+    const repeatedProjectionCache = repeated.userData
+      .reyRepeatProjectionCache as {
+      sourceIndexes: Uint32Array;
+    };
+    const seamIndex = 0;
+    const outerIndex = repeated.count - 1;
     const repeatedMatrix = new Matrix4();
-    canonical.getMatrixAt(outerIndex, canonicalMatrix);
     repeated.getMatrixAt(outerIndex, repeatedMatrix);
-    const outerSample = compiled.sample_buckets[0]!.samples[outerIndex]!;
+    const outerSample =
+      compiled.sample_buckets[0]!.samples[
+        repeatedProjectionCache.sourceIndexes[outerIndex]!
+      ]!;
     const expectedOuter = projectGlobeAtlasRepeatCoordinate(
       outerSample.longitude_degrees,
       outerSample.latitude_degrees,
@@ -278,9 +286,11 @@ describe("declarative React Three Fiber scenes", () => {
       expectedOuter.position[2],
       5,
     );
-    canonical.getMatrixAt(seamIndex, canonicalMatrix);
     repeated.getMatrixAt(seamIndex, repeatedMatrix);
-    const seamSample = compiled.sample_buckets[0]!.samples[seamIndex]!;
+    const seamSample =
+      compiled.sample_buckets[0]!.samples[
+        repeatedProjectionCache.sourceIndexes[seamIndex]!
+      ]!;
     const expectedSeam = projectGlobeAtlasRepeatCoordinate(
       seamSample.longitude_degrees,
       seamSample.latitude_degrees,
@@ -317,13 +327,32 @@ describe("declarative React Three Fiber scenes", () => {
       globeAtlasRepeatOffset(world, progress, 1),
     );
 
+    const repeatedMaterial = repeated.material;
+    const repeatedCount = repeated.count;
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{ ...view, projection_morph_progress: 0.84 }}
+        world={world}
+      />,
+    );
+    const updatedRepeat = renderer.scene.findByProps({
+      name: "context-globe-samples:0:wrap:1",
+    }).instance as InstancedMesh;
+    expect(updatedRepeat.material).toBe(repeatedMaterial);
+    expect(updatedRepeat.userData.reyRepeatProjectionCache).toBe(
+      repeatedProjectionCache,
+    );
+    expect(updatedRepeat.count).toBeGreaterThan(repeatedCount);
+
     await renderer.unmount();
   });
 
   it("contracts atmosphere shells while fading them ahead of the globe-to-map morph", async () => {
+    const compiled = compileContextGlobe(globeFixture());
     const renderer = await create(
       <ContextGlobeScene
-        compiled={compileContextGlobe(globeFixture())}
+        compiled={compiled}
         view={{
           yaw_degrees: 0,
           pitch_degrees: 0,
@@ -336,6 +365,8 @@ describe("declarative React Three Fiber scenes", () => {
     const atmosphere = renderer.scene.findByProps({
       name: "context-globe-atmosphere:0",
     }).instance as Mesh;
+    const atmosphereGeometry = atmosphere.geometry;
+    const atmosphereMaterial = atmosphere.material;
     const surface = renderer.scene.findByProps({
       name: "context-globe-surface",
     }).instance as Mesh;
@@ -345,10 +376,30 @@ describe("declarative React Three Fiber scenes", () => {
     expect(surfaceMaterial.depthWrite).toBe(false);
     expect(
       (atmosphere.geometry as SphereGeometry).parameters.radius,
-    ).toBeCloseTo(GLOBE_RADIUS * 1.018 * 0.5);
+    ).toBeCloseTo(GLOBE_RADIUS * 1.018);
+    expect(atmosphere.scale.x).toBeCloseTo(0.5);
+    expect(atmosphere.scale.y).toBeCloseTo(0.5);
+    expect(atmosphere.scale.z).toBeCloseTo(0.5);
     expect((atmosphere.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
       0.12 * 0.03125,
     );
+
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{
+          yaw_degrees: 0,
+          pitch_degrees: 0,
+          projection_morph_progress: 0.55,
+        }}
+        world={{ width: 1200, height: 720 }}
+      />,
+    );
+    const updatedAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0",
+    }).instance as Mesh;
+    expect(updatedAtmosphere.geometry).toBe(atmosphereGeometry);
+    expect(updatedAtmosphere.material).toBe(atmosphereMaterial);
 
     await renderer.unmount();
   });

@@ -54,6 +54,7 @@ const WHEEL_RELATIVE_ZOOM_SENSITIVITY = 0.0009;
 const WHEEL_MIN_MAX_STEP = 0.045;
 const WHEEL_MAX_RELATIVE_STEP = 0.09;
 const WHEEL_ZOOM_TIME_CONSTANT_MS = 50;
+const WHEEL_ZOOM_MAX_PRESENTATION_STEP_MS = 20;
 const WHEEL_ZOOM_SETTLE_EPSILON = 0.00005;
 
 const LENS_HYSTERESIS = 0.05;
@@ -152,7 +153,11 @@ export function smoothZoomStep(
   const target = clampLensZoom(targetZoom);
   if (elapsedMs <= 0 || current === target) return current;
   const interpolation =
-    1 - Math.exp(-Math.min(64, elapsedMs) / WHEEL_ZOOM_TIME_CONSTANT_MS);
+    1 -
+    Math.exp(
+      -Math.min(WHEEL_ZOOM_MAX_PRESENTATION_STEP_MS, elapsedMs) /
+        WHEEL_ZOOM_TIME_CONSTANT_MS,
+    );
   const next = current + (target - current) * interpolation;
   return Math.abs(target - next) <= WHEEL_ZOOM_SETTLE_EPSILON ? target : next;
 }

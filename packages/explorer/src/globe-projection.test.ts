@@ -16,6 +16,7 @@ import {
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
+  interpolateProjectedGlobeMeshes,
   projectGlobeAtlasRepeatCoordinate,
   projectGlobeCoordinate,
   SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES,
@@ -341,5 +342,35 @@ describe("declarative globe-to-Mercator projection", () => {
       expect([...mesh.positions].every(Number.isFinite)).toBe(true);
       expect(Math.max(...mesh.indices)).toBeLessThan(13 * 9);
     }
+  });
+
+  it("interpolates cached mesh endpoints without reprojecting coordinates", () => {
+    const sphere = buildProjectedGlobeMesh(view, world, 0, 12, 8);
+    const atlas = buildProjectedGlobeMesh(view, world, 1, 12, 8);
+    const interpolated = interpolateProjectedGlobeMeshes(sphere, atlas, 0.5);
+    const direct = buildProjectedGlobeMesh(view, world, 0.5, 12, 8);
+    for (let index = 0; index < interpolated.positions.length; index += 1)
+      expect(interpolated.positions[index]).toBeCloseTo(
+        direct.positions[index]!,
+        6,
+      );
+    for (let index = 0; index < interpolated.normals.length; index += 1)
+      expect(interpolated.normals[index]).toBeCloseTo(
+        direct.normals[index]!,
+        6,
+      );
+    expect(interpolated.indices).toBe(sphere.indices);
+    expect(interpolateProjectedGlobeMeshes(sphere, atlas, 0)).toBe(sphere);
+    expect(interpolateProjectedGlobeMeshes(sphere, atlas, 1)).toBe(atlas);
+    expect(() =>
+      interpolateProjectedGlobeMeshes(sphere, atlas, Number.NaN),
+    ).toThrow("globe mesh interpolation progress must be finite");
+    expect(() =>
+      interpolateProjectedGlobeMeshes(
+        sphere,
+        { ...atlas, positions: new Float32Array(0) },
+        0.5,
+      ),
+    ).toThrow("globe mesh interpolation endpoints must have equal shape");
   });
 });

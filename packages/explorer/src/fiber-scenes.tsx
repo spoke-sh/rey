@@ -19,7 +19,16 @@ import {
   SphereGeometry,
   Vector3,
 } from "three/src/Three.WebGPU.js";
-import { attribute, float, mul, smoothstep } from "three/src/nodes/TSL.js";
+import {
+  attribute,
+  float,
+  max,
+  mul,
+  smoothstep,
+  step,
+  sub,
+  uniform,
+} from "three/src/nodes/TSL.js";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { GlobeCameraView, TerrainCameraView } from "./types";
 import {
@@ -27,14 +36,18 @@ import {
   buildProjectedGlobeMesh,
   GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
   GLOBE_CAMERA_HALF_HEIGHT,
+  globeAtlasRepeatConnectionProgress,
+  globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOpacity,
   globeAtlasRepeatOffset,
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
   globeAtlasWidth,
+  globeAtlasViewCenter,
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
+  interpolateProjectedGlobeMeshes,
   projectGlobeAtlasRepeatCoordinate,
   projectGlobeCoordinate,
   type ProjectedGlobeMesh,
@@ -68,6 +81,22 @@ extend({
 
 const SURFACE_NORMAL = new Vector3(0, 0, 1);
 const MERCATOR_STIPPLE_OPACITY_SCALE = 0.36;
+
+interface GlobeRepeatProjectionCache {
+  readonly matrices: Float32Array;
+  readonly morphOffsets: Float32Array;
+  readonly projectionRevision: string;
+  readonly seamWeights: Float32Array;
+  readonly sourceBucket: CompiledContextGlobe["sample_buckets"][number];
+  readonly sourceIndexes: Uint32Array;
+}
+
+interface GlobeCanonicalProjectionCache {
+  readonly matrices: Float32Array;
+  readonly morphDeltas: Float32Array;
+  readonly projectionRevision: string;
+  readonly sourceBucket: CompiledContextGlobe["sample_buckets"][number];
+}
 
 export function ContinuousReliefScene({
   compiled,
@@ -174,8 +203,7 @@ export function ContextGlobeScene({
   const aspect = world.width / Math.max(1, world.height);
   const repeatOpacity = globeAtlasRepeatOpacity(projectionMorphProgress);
   const horizontalLayoutWrapIndexes = GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES;
-  const renderedWrapIndexes =
-    repeatOpacity > 0 ? GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES : ([0] as const);
+  const renderedWrapIndexes = GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES;
   const halfHeight = GLOBE_CAMERA_HALF_HEIGHT;
   return (
     <>
@@ -351,13 +379,25 @@ function GlobeSurface({
     material.transparent = opacity < 1;
     if (material.transparent !== wasTransparent) material.needsUpdate = true;
   }, [maskRepeats, material, opacity]);
-  const mesh = useMemo(
-    () => buildProjectedGlobeMesh(view, world, progress),
-    [progress, view.pitch_degrees, view.yaw_degrees, world.height, world.width],
+  const endpointMeshes = useMemo(
+    () => ({
+      atlas: buildProjectedGlobeMesh(view, world, 1),
+      sphere: buildProjectedGlobeMesh(view, world, 0),
+    }),
+    [view.pitch_degrees, view.yaw_degrees, world.height, world.width],
   );
-  if (morphRemaining <= 0) return null;
+  const mesh = useMemo(
+    () =>
+      interpolateProjectedGlobeMeshes(
+        endpointMeshes.sphere,
+        endpointMeshes.atlas,
+        1 - morphRemaining,
+      ),
+    [endpointMeshes, morphRemaining],
+  );
   return (
     <mesh
+      visible={morphRemaining > 0}
       material={material}
       name="context-globe-surface"
       renderOrder={maskRepeats ? -1 : 0}
@@ -370,7 +410,6 @@ function GlobeSurface({
 function GlobeAtmosphere({ progress }: { progress: number }) {
   const morphRemaining = globeProjectionMorphRemaining(progress);
   const opacity = globeAtmosphereOpacity(progress);
-  if (morphRemaining <= 0) return null;
   const layers = [
     { radius: GLOBE_RADIUS * 1.018, color: 0xf6ecd4, opacity: 0.12 },
     { radius: GLOBE_RADIUS * 1.045, color: 0xcbd8c9, opacity: 0.055 },
@@ -382,7 +421,8 @@ function GlobeAtmosphere({ progress }: { progress: number }) {
       key={index}
       name={`context-globe-atmosphere:${index}`}
       opacity={layer.opacity * opacity}
-      radius={layer.radius * morphRemaining}
+      radius={layer.radius}
+      scale={morphRemaining}
     />
   ));
 }
@@ -392,25 +432,30 @@ function NodeMaterialSphere({
   name,
   opacity,
   radius,
+  scale,
 }: {
   color: number;
   name: string;
   opacity: number;
   radius: number;
+  scale: number;
 }) {
   const material = useMemo(
     () =>
       new MeshBasicNodeMaterial({
         color,
         depthWrite: false,
-        opacity,
+        opacity: 0,
         transparent: true,
       }),
-    [color, opacity],
+    [color],
   );
+  useLayoutEffect(() => {
+    material.opacity = opacity;
+  }, [material, opacity]);
   useEffect(() => () => material.dispose(), [material]);
   return (
-    <mesh material={material} name={name}>
+    <mesh material={material} name={name} scale={scale} visible={scale > 0}>
       <sphereGeometry args={[radius, 112, 64]} />
     </mesh>
   );
@@ -438,31 +483,46 @@ function GlobeSampleField({
     () =>
       new MeshBasicNodeMaterial({
         color: bucket.color,
-        opacity: postureOpacity,
-        transparent: postureOpacity < 1,
+        opacity: bucket.opacity,
+        transparent: true,
       }),
-    [bucket.color, postureOpacity],
+    [bucket.color, bucket.opacity],
   );
-  const repeatedMaterial = useMemo(() => {
+  const repeatedMaterialState = useMemo(() => {
+    const repeatOpacityNode = uniform(0);
+    const postureOpacityNode = uniform(bucket.opacity);
     const material = new MeshBasicNodeMaterial({
       color: bucket.color,
       depthWrite: false,
-      opacity: postureOpacity,
+      opacity: bucket.opacity,
       transparent: true,
     });
-    material.opacityNode =
-      repeatOpacity === 0
-        ? float(0)
-        : mul(
-            smoothstep(
-              float(1 - repeatOpacity),
-              float(1),
-              attribute<"float">("reyRepeatSeamWeight", "float"),
-            ),
-            float(postureOpacity),
-          );
-    return material;
-  }, [bucket.color, postureOpacity, repeatOpacity]);
+    material.opacityNode = mul(
+      mul(
+        smoothstep(
+          sub(float(1), max(repeatOpacityNode, float(0.000_001))),
+          float(1),
+          attribute<"float">("reyRepeatSeamWeight", "float"),
+        ),
+        step(float(0.000_001), repeatOpacityNode),
+      ),
+      postureOpacityNode,
+    );
+    return { material, postureOpacityNode, repeatOpacityNode };
+  }, [bucket.color, bucket.opacity]);
+  const repeatedMaterial = repeatedMaterialState.material;
+  useLayoutEffect(() => {
+    canonicalMaterial.opacity = postureOpacity;
+    repeatedMaterial.opacity = postureOpacity;
+    repeatedMaterialState.postureOpacityNode.value = postureOpacity;
+    repeatedMaterialState.repeatOpacityNode.value = repeatOpacity;
+  }, [
+    canonicalMaterial,
+    postureOpacity,
+    repeatOpacity,
+    repeatedMaterial,
+    repeatedMaterialState,
+  ]);
   useEffect(
     () => () => {
       canonicalMaterial.dispose();
@@ -476,11 +536,17 @@ function GlobeSampleField({
     const matrix = new Matrix4();
     const quaternion = new Quaternion();
     const scale = new Vector3(1, 1, 1);
+    const position = new Vector3();
+    const normal = new Vector3();
     const repeatMeshes = new Map<
       number,
-      { attribute: InstancedBufferAttribute; mesh: InstancedMesh }
+      {
+        attribute: InstancedBufferAttribute;
+        cache: GlobeRepeatProjectionCache | null;
+        mesh: InstancedMesh;
+      }
     >();
-    const gradientRevision = [
+    const projectionRevision = [
       view.yaw_degrees,
       view.pitch_degrees,
       world.width,
@@ -492,10 +558,6 @@ function GlobeSampleField({
       const wrappedMesh = meshRefs.current.get(wrapIndex);
       if (!wrappedMesh) continue;
       const existing = wrappedMesh.geometry.getAttribute("reyRepeatSeamWeight");
-      const retainsGradient =
-        existing instanceof InstancedBufferAttribute &&
-        existing.count === bucket.samples.length &&
-        wrappedMesh.userData.reyRepeatSeamGradientRevision === gradientRevision;
       const attribute =
         existing instanceof InstancedBufferAttribute &&
         existing.count === bucket.samples.length
@@ -506,57 +568,185 @@ function GlobeSampleField({
             );
       if (attribute !== existing)
         wrappedMesh.geometry.setAttribute("reyRepeatSeamWeight", attribute);
-      repeatMeshes.set(wrapIndex, { attribute, mesh: wrappedMesh });
-      if (retainsGradient) continue;
-      wrappedMesh.userData.reyRepeatSeamGradientRevision = gradientRevision;
+      const cache = wrappedMesh.userData
+        .reyRepeatProjectionCache as GlobeRepeatProjectionCache | null;
+      repeatMeshes.set(wrapIndex, {
+        attribute,
+        cache:
+          cache?.projectionRevision === projectionRevision &&
+          cache.sourceBucket === bucket
+            ? cache
+            : null,
+        mesh: wrappedMesh,
+      });
     }
     const atlasWidth = globeAtlasWidth(world);
-    for (const [index, sample] of bucket.samples.entries()) {
-      const projected = projectGlobeCoordinate(
-        sample.longitude_degrees,
-        sample.latitude_degrees,
-        view,
-        world,
-        progress,
-        GLOBE_RADIUS * 1.005,
-        0.008,
-      );
-      const position = new Vector3(...projected.position);
-      quaternion.setFromUnitVectors(
-        SURFACE_NORMAL,
-        new Vector3(...projected.normal),
-      );
-      matrix.compose(position, quaternion, scale);
-      canonicalMesh.setMatrixAt(index, matrix);
-      const normalizedChartX = projected.atlas_position[0] / atlasWidth + 0.5;
-      for (const [wrapIndex, repeat] of repeatMeshes) {
-        const repeatAttribute = repeat.attribute;
-        repeatAttribute.setX(
-          index,
-          globeAtlasRepeatSeamWeight(normalizedChartX, wrapIndex),
-        );
-        const repeated = projectGlobeAtlasRepeatCoordinate(
+    const retainedCanonicalCache = canonicalMesh.userData
+      .reyCanonicalProjectionCache as GlobeCanonicalProjectionCache | null;
+    let canonicalCache =
+      retainedCanonicalCache?.projectionRevision === projectionRevision &&
+      retainedCanonicalCache.sourceBucket === bucket
+        ? retainedCanonicalCache
+        : null;
+    if (
+      canonicalCache === null ||
+      [...repeatMeshes.values()].some(({ cache }) => cache === null)
+    ) {
+      const atlasCenter = globeAtlasViewCenter(view);
+      canonicalCache = {
+        matrices: new Float32Array(bucket.samples.length * 16),
+        morphDeltas: new Float32Array(bucket.samples.length * 16),
+        projectionRevision,
+        sourceBucket: bucket,
+      };
+      const planarMatrices = new Float32Array(bucket.samples.length * 16);
+      const planarPositions = new Float32Array(bucket.samples.length * 3);
+      const closedSeamPositions = new Float32Array(bucket.samples.length * 3);
+      const normalizedChartXs = new Float32Array(bucket.samples.length);
+      for (const [index, sample] of bucket.samples.entries()) {
+        const spherical = projectGlobeCoordinate(
           sample.longitude_degrees,
           sample.latitude_degrees,
           view,
           world,
-          progress,
-          wrapIndex,
+          0,
           GLOBE_RADIUS * 1.005,
           0.008,
         );
-        position.set(...repeated.position);
-        quaternion.setFromUnitVectors(
-          SURFACE_NORMAL,
-          new Vector3(...repeated.normal),
+        const planar = projectGlobeCoordinate(
+          sample.longitude_degrees,
+          sample.latitude_degrees,
+          view,
+          world,
+          1,
+          GLOBE_RADIUS * 1.005,
+          0.008,
         );
+        const closedSeam = projectGlobeCoordinate(
+          atlasCenter.longitude_degrees + 180,
+          sample.latitude_degrees,
+          view,
+          world,
+          0,
+          GLOBE_RADIUS * 1.005,
+          0.008,
+        );
+        position.set(...spherical.position);
+        normal.set(...spherical.normal);
+        quaternion.setFromUnitVectors(SURFACE_NORMAL, normal);
         matrix.compose(position, quaternion, scale);
-        repeat.mesh.setMatrixAt(index, matrix);
+        const matrixOffset = index * 16;
+        canonicalCache.matrices.set(matrix.elements, matrixOffset);
+        matrix.makeTranslation(...planar.position);
+        planarMatrices.set(matrix.elements, matrixOffset);
+        for (let element = 0; element < 16; element += 1)
+          canonicalCache.morphDeltas[matrixOffset + element] =
+            matrix.elements[element]! -
+            canonicalCache.matrices[matrixOffset + element]!;
+        const morphOffset = index * 3;
+        planarPositions.set(planar.position, morphOffset);
+        closedSeamPositions.set(closedSeam.position, morphOffset);
+        normalizedChartXs[index] = planar.atlas_position[0] / atlasWidth + 0.5;
+      }
+      const caches = new Map<number, GlobeRepeatProjectionCache>();
+      for (const [wrapIndex, repeat] of repeatMeshes) {
+        const sourceIndexes = Uint32Array.from(
+          bucket.samples.map((_, index) => index),
+        );
+        sourceIndexes.sort((left, right) => {
+          const weightDifference =
+            globeAtlasRepeatSeamWeight(normalizedChartXs[right]!, wrapIndex) -
+            globeAtlasRepeatSeamWeight(normalizedChartXs[left]!, wrapIndex);
+          return weightDifference || left - right;
+        });
+        const cache: GlobeRepeatProjectionCache = {
+          matrices: new Float32Array(bucket.samples.length * 16),
+          morphOffsets: new Float32Array(bucket.samples.length * 3),
+          projectionRevision,
+          seamWeights: new Float32Array(bucket.samples.length),
+          sourceBucket: bucket,
+          sourceIndexes,
+        };
+        for (let index = 0; index < sourceIndexes.length; index += 1) {
+          const sourceIndex = sourceIndexes[index]!;
+          const matrixOffset = index * 16;
+          const sourceMatrixOffset = sourceIndex * 16;
+          const morphOffset = index * 3;
+          const sourceMorphOffset = sourceIndex * 3;
+          const seamWeight = globeAtlasRepeatSeamWeight(
+            normalizedChartXs[sourceIndex]!,
+            wrapIndex,
+          );
+          const connectionProgress =
+            globeAtlasRepeatConnectionProgress(seamWeight);
+          repeat.attribute.setX(index, seamWeight);
+          cache.seamWeights[index] = seamWeight;
+          cache.matrices.set(
+            planarMatrices.subarray(
+              sourceMatrixOffset,
+              sourceMatrixOffset + 16,
+            ),
+            matrixOffset,
+          );
+          cache.morphOffsets[morphOffset] =
+            closedSeamPositions[sourceMorphOffset]! * connectionProgress;
+          cache.morphOffsets[morphOffset + 1] =
+            (closedSeamPositions[sourceMorphOffset + 1]! -
+              planarPositions[sourceMorphOffset + 1]!) *
+            connectionProgress;
+          cache.morphOffsets[morphOffset + 2] =
+            (closedSeamPositions[sourceMorphOffset + 2]! -
+              planarPositions[sourceMorphOffset + 2]!) *
+              connectionProgress +
+            globeAtlasRepeatDepthOffset(0, seamWeight);
+        }
+        caches.set(wrapIndex, cache);
+      }
+      canonicalMesh.userData.reyCanonicalProjectionCache = canonicalCache;
+      for (const [wrapIndex, repeat] of repeatMeshes) {
+        const cache = caches.get(wrapIndex)!;
+        repeat.cache = cache;
+        repeat.mesh.userData.reyRepeatProjectionCache = cache;
+        repeat.attribute.needsUpdate = true;
       }
     }
+    const morphRemaining = globeProjectionMorphRemaining(progress);
+    const morphProgress = 1 - morphRemaining;
+    const canonicalMatrices = canonicalMesh.instanceMatrix.array;
+    canonicalMatrices.set(canonicalCache.matrices);
+    for (let element = 0; element < canonicalMatrices.length; element += 1)
+      canonicalMatrices[element] =
+        canonicalCache.matrices[element]! +
+        canonicalCache.morphDeltas[element]! * morphProgress;
     canonicalMesh.instanceMatrix.needsUpdate = true;
     for (const repeat of repeatMeshes.values()) {
-      repeat.attribute.needsUpdate = true;
+      const cache = repeat.cache!;
+      if (repeatOpacity <= 0) repeat.mesh.count = 0;
+      else {
+        const visibleStart = 1 - repeatOpacity;
+        let visibleCount = 0;
+        while (
+          visibleCount < cache.seamWeights.length &&
+          cache.seamWeights[visibleCount]! > visibleStart
+        )
+          visibleCount += 1;
+        repeat.mesh.count = visibleCount;
+      }
+      const matrices = repeat.mesh.instanceMatrix.array;
+      matrices.set(cache.matrices);
+      for (let index = 0; index < repeat.mesh.count; index += 1) {
+        const matrixOffset = index * 16;
+        const morphOffset = index * 3;
+        matrices[matrixOffset + 12] =
+          (matrices[matrixOffset + 12] ?? 0) +
+          cache.morphOffsets[morphOffset]! * morphRemaining;
+        matrices[matrixOffset + 13] =
+          (matrices[matrixOffset + 13] ?? 0) +
+          cache.morphOffsets[morphOffset + 1]! * morphRemaining;
+        matrices[matrixOffset + 14] =
+          (matrices[matrixOffset + 14] ?? 0) +
+          cache.morphOffsets[morphOffset + 2]! * morphRemaining;
+      }
       repeat.mesh.instanceMatrix.needsUpdate = true;
     }
   }, [bucket, progress, view, world, wrapIndexes]);
@@ -830,15 +1020,49 @@ function GlobeSector({
 
 function ProjectedMeshGeometry({ data }: { data: ProjectedGlobeMesh }) {
   const geometryRef = useRef<BufferGeometry>(null);
-  useLayoutEffect(() => geometryRef.current?.computeBoundingSphere(), [data]);
+  const positionAttributeRef = useRef<BufferAttribute>(null);
+  const normalAttributeRef = useRef<BufferAttribute>(null);
+  const indexAttributeRef = useRef<BufferAttribute>(null);
+  const positions = useMemo(
+    () => new Float32Array(data.positions.length),
+    [data.positions.length],
+  );
+  const normals = useMemo(
+    () => new Float32Array(data.normals.length),
+    [data.normals.length],
+  );
+  const indices = useMemo(
+    () => new Uint32Array(data.indices.length),
+    [data.indices.length],
+  );
+  useLayoutEffect(() => {
+    positions.set(data.positions);
+    normals.set(data.normals);
+    indices.set(data.indices);
+    if (positionAttributeRef.current)
+      positionAttributeRef.current.needsUpdate = true;
+    if (normalAttributeRef.current)
+      normalAttributeRef.current.needsUpdate = true;
+    if (indexAttributeRef.current) indexAttributeRef.current.needsUpdate = true;
+    geometryRef.current?.computeBoundingSphere();
+  }, [data, indices, normals, positions]);
   return (
     <bufferGeometry ref={geometryRef}>
       <bufferAttribute
-        args={[data.positions, 3]}
+        args={[positions, 3]}
         attach="attributes-position"
+        ref={positionAttributeRef}
       />
-      <bufferAttribute args={[data.normals, 3]} attach="attributes-normal" />
-      <bufferAttribute args={[data.indices, 1]} attach="index" />
+      <bufferAttribute
+        args={[normals, 3]}
+        attach="attributes-normal"
+        ref={normalAttributeRef}
+      />
+      <bufferAttribute
+        args={[indices, 1]}
+        attach="index"
+        ref={indexAttributeRef}
+      />
     </bufferGeometry>
   );
 }

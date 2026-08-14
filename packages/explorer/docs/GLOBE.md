@@ -110,12 +110,22 @@ vertical bounds could read as disconnected map edges. The same geometry may
 continue writing depth while fully transparent; color opacity and overlap
 occlusion are intentionally separate mechanisms.
 
-The canvas establishes all three chart extents while the globe is still
-spherical, but does not materialize the side copies until their opacity becomes
-nonzero. Entry and exit therefore require no GPU canvas resize, scale jump, or
-framing jump. Horizontal panning exposes no artificial edge. Wrapped copies
-remain view geometry: they keep canonical semantic identity and grant no
-additional evidence or coverage.
+The canvas establishes all three chart extents and prewarms transparent side
+copies while the globe is still spherical. Their planar instance matrices and
+closed-seam morph offsets are cached against exact orientation, viewport, and
+source-bucket identity. A morph frame updates those bounded offsets and stable
+material uniforms; it cannot reproject every repeated sample, rebuild node
+materials, or recreate atmosphere geometry. Repeat instances are ordered from
+the joined seam toward the outer edge, and each frame submits only the prefix
+that the dissolve can make visible. Transparent cached dots are not draw work.
+Entry and exit therefore require no compilation hitch, GPU canvas resize,
+scale jump, or framing jump.
+The agent retains that compiled globe across the World-to-Atlas regime handoff
+only when the next scene binds the same exact atlas transition revision; a
+different revision or direct Atlas entry compiles its own declared surface.
+Horizontal panning exposes no artificial edge. Wrapped copies remain view
+geometry: they keep canonical semantic identity and grant no additional
+evidence or coverage.
 
 The accelerated package owns the surface, fabric, and atmosphere behavior;
 `@rey/agent` owns the matching reference scaffold. Their independent curves

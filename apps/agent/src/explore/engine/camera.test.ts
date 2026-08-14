@@ -125,6 +125,16 @@ describe("Explorer camera engine", () => {
     );
   });
 
+  it("turns missed animation time into several visible zoom steps", () => {
+    const target = 0.24;
+    const regularFrame = smoothZoomStep(0.14, target, 20);
+    const delayedFrame = smoothZoomStep(0.14, target, 320);
+
+    expect(delayedFrame).toBeCloseTo(regularFrame);
+    expect(delayedFrame).toBeGreaterThan(0.14);
+    expect(delayedFrame).toBeLessThan(0.18);
+  });
+
   it("turns planar drag into bounded presentation-only globe rotation", () => {
     expect(
       draggedGlobeView(

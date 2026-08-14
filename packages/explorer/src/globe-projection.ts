@@ -111,6 +111,18 @@ export function globeAtlasRepeatDepthOffset(
   return -GLOBE_ATLAS_REPEAT_MAX_DEPTH * recessionProgress * morphRemaining;
 }
 
+/** Restricts seam bending to the same coplanar band used by repeat depth. */
+export function globeAtlasRepeatConnectionProgress(seamWeight: number) {
+  if (!Number.isFinite(seamWeight))
+    throw new Error("globe Atlas repeat seam weight must be finite");
+  const boundedWeight = Math.max(0, Math.min(1, seamWeight));
+  if (boundedWeight <= GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT) return 0;
+  return smoothstep(
+    (boundedWeight - GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT) /
+      (1 - GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT),
+  );
+}
+
 export function globeAtlasRepeatOpacity(progress: number) {
   if (!Number.isFinite(progress))
     throw new Error("globe Atlas repeat progress must be finite");
@@ -321,13 +333,7 @@ export function projectGlobeAtlasRepeatCoordinate(
   const atlasWidth = globeAtlasWidth(world);
   const normalizedChartX = planar.atlas_position[0] / atlasWidth + 0.5;
   const seamWeight = globeAtlasRepeatSeamWeight(normalizedChartX, wrapIndex);
-  const connectionProgress =
-    seamWeight <= GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT
-      ? 0
-      : smoothstep(
-          (seamWeight - GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT) /
-            (1 - GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT),
-        );
+  const connectionProgress = globeAtlasRepeatConnectionProgress(seamWeight);
   const atlasCenter = globeAtlasViewCenter(view);
   const connectedSeam = projectGlobeCoordinate(
     atlasCenter.longitude_degrees + wrapIndex * 180,
@@ -419,6 +425,49 @@ export function buildProjectedGlobeMesh(
     }
   }
   return Object.freeze({ positions, normals, indices });
+}
+
+/** Interpolates precompiled sphere/Mercator endpoint buffers for one frame. */
+export function interpolateProjectedGlobeMeshes(
+  source: ProjectedGlobeMesh,
+  target: ProjectedGlobeMesh,
+  progress: number,
+): ProjectedGlobeMesh {
+  if (!Number.isFinite(progress))
+    throw new Error("globe mesh interpolation progress must be finite");
+  if (
+    source.positions.length !== target.positions.length ||
+    source.normals.length !== target.normals.length ||
+    source.indices.length !== target.indices.length
+  )
+    throw new Error("globe mesh interpolation endpoints must have equal shape");
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  if (boundedProgress === 0) return source;
+  if (boundedProgress === 1) return target;
+  const positions = new Float32Array(source.positions.length);
+  const normals = new Float32Array(source.normals.length);
+  for (let index = 0; index < positions.length; index += 1)
+    positions[index] =
+      source.positions[index]! +
+      (target.positions[index]! - source.positions[index]!) * boundedProgress;
+  for (let index = 0; index < normals.length; index += 3) {
+    const x =
+      source.normals[index]! +
+      (target.normals[index]! - source.normals[index]!) * boundedProgress;
+    const y =
+      source.normals[index + 1]! +
+      (target.normals[index + 1]! - source.normals[index + 1]!) *
+        boundedProgress;
+    const z =
+      source.normals[index + 2]! +
+      (target.normals[index + 2]! - source.normals[index + 2]!) *
+        boundedProgress;
+    const length = Math.hypot(x, y, z) || 1;
+    normals[index] = x / length;
+    normals[index + 1] = y / length;
+    normals[index + 2] = z / length;
+  }
+  return Object.freeze({ positions, normals, indices: source.indices });
 }
 
 export function buildProjectedBoundsMeshes(

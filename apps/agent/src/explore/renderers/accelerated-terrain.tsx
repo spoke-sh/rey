@@ -21,6 +21,7 @@ import {
 import { TerrainPatchCache } from "../terrain/patch-cache";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
+import type { TopologyGlobe } from "../../topology";
 
 export type { RendererPreference } from "@rey/explorer";
 
@@ -115,10 +116,34 @@ export function AcceleratedTerrainSurface({
       }
     | undefined
   >(undefined);
+  const retainedTransitionGlobeRef = useRef<
+    | {
+        atlas_revision: string;
+        globe: TopologyGlobe;
+      }
+    | undefined
+  >(undefined);
+  const atlasTransition = snapshot.scene.world_atlas_transition;
+  if (
+    snapshot.scene.regime === "world" &&
+    snapshot.scene.globe &&
+    atlasTransition
+  )
+    retainedTransitionGlobeRef.current = {
+      atlas_revision: atlasTransition.atlas_revision,
+      globe: snapshot.scene.globe,
+    };
+  const retainedTransitionGlobe =
+    atlasTransition &&
+    retainedTransitionGlobeRef.current?.atlas_revision ===
+      atlasTransition.atlas_revision
+      ? retainedTransitionGlobeRef.current.globe
+      : null;
   const semanticGlobe = useMemo(() => {
     if (snapshot.scene.regime === "world") return snapshot.scene.globe;
     const transition = snapshot.scene.world_atlas_transition;
     if (snapshot.scene.regime !== "atlas" || !transition) return null;
+    if (retainedTransitionGlobe) return retainedTransitionGlobe;
     return {
       schema: "rey.semantic-globe-scene.v1" as const,
       posture: "semantic_atlas" as const,
@@ -141,27 +166,29 @@ export function AcceleratedTerrainSurface({
       })),
       beacons: [],
     };
-  }, [snapshot.scene]);
+  }, [retainedTransitionGlobe, snapshot.scene]);
   const projectionGlobe = useMemo(
     () =>
       semanticGlobe
         ? {
             ...semanticGlobe,
-            sectors: (snapshot.scene.world_atlas_transition?.sectors ?? []).map(
-              (sector) => ({
-                id: sector.identity,
-                label: sector.label,
-                west_degrees: sector.west_microdegrees / 1_000_000,
-                south_degrees: sector.south_microdegrees / 1_000_000,
-                east_degrees: sector.east_microdegrees / 1_000_000,
-                north_degrees: sector.north_microdegrees / 1_000_000,
-                crosses_antimeridian: sector.crosses_antimeridian,
-                tone: sector.tone,
-              }),
-            ),
+            sectors: (atlasTransition?.sectors ?? []).map((sector) => ({
+              id: sector.identity,
+              label: sector.label,
+              west_degrees: sector.west_microdegrees / 1_000_000,
+              south_degrees: sector.south_microdegrees / 1_000_000,
+              east_degrees: sector.east_microdegrees / 1_000_000,
+              north_degrees: sector.north_microdegrees / 1_000_000,
+              crosses_antimeridian: sector.crosses_antimeridian,
+              tone: sector.tone,
+            })),
           }
         : null,
-    [semanticGlobe, snapshot.scene.world_atlas_transition],
+    [
+      atlasTransition?.atlas_revision,
+      atlasTransition?.projection_revision,
+      semanticGlobe,
+    ],
   );
   const preference = rendererPreference(globalThis.location?.search ?? "");
   const programTotals = useMemo(

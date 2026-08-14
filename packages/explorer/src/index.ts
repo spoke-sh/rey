@@ -17,6 +17,7 @@ export {
   GLOBE_ATLAS_REPEAT_MAX_DEPTH,
   GLOBE_SURFACE_FADE_END,
   GLOBE_SURFACE_FADE_START,
+  globeAtlasRepeatConnectionProgress,
   globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOpacity,
   globeAtlasRepeatOffset,
@@ -28,6 +29,7 @@ export {
   globeAtmosphereOpacity,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
+  interpolateProjectedGlobeMeshes,
   projectGlobeAtlasRepeatCoordinate,
 } from "./globe-projection";
 export type { GlobeAtlasViewCenter } from "./globe-projection";

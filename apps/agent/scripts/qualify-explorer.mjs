@@ -717,6 +717,7 @@ async function verifyRotatedWorldAtlasUnfurl(
       const regime = document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime');
       const canvas = document.querySelector('canvas[data-globe-horizontal-wrap-opacity]');
       samples.push({
+        sampled_at_ms: performance.now(),
         progress: projection
           ? Number(projection.getAttribute('data-projection-morph-progress'))
           : regime === 'atlas' ? 1 : 0,
@@ -777,6 +778,7 @@ async function verifyRotatedWorldAtlasUnfurl(
       const regime = document.querySelector('[data-lens-regime]')?.getAttribute('data-lens-regime');
       const canvas = document.querySelector('canvas[data-globe-horizontal-wrap-opacity]');
       return {
+        sampled_at_ms: performance.now(),
         progress: projection
           ? Number(projection.getAttribute('data-projection-morph-progress'))
           : regime === 'atlas' ? 1 : 0,
@@ -807,7 +809,7 @@ async function verifyRotatedWorldAtlasUnfurl(
     if (
       depthTransitionScreenshot === null &&
       frame.repeat_opacity >= 0.1 &&
-      frame.repeat_opacity <= 0.55 &&
+      frame.repeat_opacity <= 0.7 &&
       frame.repeat_depth < 0
     ) {
       const response = await connection.send("Page.captureScreenshot", {
@@ -875,6 +877,12 @@ async function verifyRotatedWorldAtlasUnfurl(
       .filter(({ repeat_opacity: opacity }) => opacity > 0 && opacity < 1)
       .map(({ repeat_opacity: opacity }) => opacity.toFixed(3)),
   ).size;
+  const enteringPresentationGaps = animationFrames
+    .slice(1)
+    .map(
+      ({ sampled_at_ms: sampledAt }, index) =>
+        sampledAt - animationFrames[index].sampled_at_ms,
+    );
   const enteringDepthFrames = returnAnimationFrames.filter(
     ({ repeat_depth: depth, repeat_opacity: opacity }) =>
       opacity > 0 && opacity < 1 && depth < 0,
@@ -899,6 +907,10 @@ async function verifyRotatedWorldAtlasUnfurl(
     depth_transition_screenshot: depthTransitionScreenshot,
     entering_repeat_dissolve_frames: enteringDissolveFrames,
     entering_repeat_depth_frames: enteringDepthFrames,
+    entering_presentation_max_gap_ms:
+      enteringPresentationGaps.length > 0
+        ? Math.max(...enteringPresentationGaps)
+        : 0,
     exit_animation_frames: exitAnimationFrames,
     exiting_repeat_dissolve_frames: exitingDissolveFrames,
     exiting_repeat_depth_frames: exitingDepthFrames,
