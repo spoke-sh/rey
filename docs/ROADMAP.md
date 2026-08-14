@@ -165,6 +165,10 @@ delivery history remains in Git.
 - Preserve the delivered immutable observation/admission/resolution/frontier
   CLI and Feed projection, including retained partial broadcast
   outcomes, without granting execution authority.
+- Preserve the explicit and supervised admitted-cadence exact-HEAD `gh` inbox
+  poll, immutable provider-source Channel messages, retained outcomes, and
+  current mailbox projection. Generalize providers only through separately
+  admitted bounded contracts.
 - Preserve the delivered exact-observation Journal seeds as unretained catch-up
   proposals; require normal Journal admission before one becomes an entry.
 - Preserve unsuperseded Journal action cells as bounded authored-only

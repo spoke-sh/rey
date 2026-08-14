@@ -115,7 +115,7 @@ already admitted in HEAD.
 | `git` | Retained cursor → pending transition → acknowledged cursor | Reads the repository only; activation outputs are proposals and acknowledgement executes nothing. |
 | `workloads` | `WORKLOAD HEAD → INDEX → WORKING` plus staged qualification | Only qualified HEAD packages are runnable. |
 | `editor` | `SCENE HEAD → INDEX → WORKING` | Commits candidate packages; it does not admit `/explore` evidence. |
-| `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages and relay attempts | Graph commits admit topology only; relay separately requires admitted message, application, environment, and relay identities. |
+| `channels` | `CHANNEL HEAD → INDEX → WORKING` plus immutable messages, application polls, and relay attempts | Graph commits admit topology only; polling and relay separately require exact application, environment, and Channel identities. |
 | `conversations` | Immutable sessions plus append-only per-session transcript sequence | Admission retains local dialogue only; it does not deliver, invoke an agent, relay, schedule work, or grant proof authority. |
 | `journal` | Proposal → validated retained entry | Direct document admission; blocks are inert and gain no query or action authority. |
 | `agent` | Foreground Rey process with a bounded supervised topology | Orchestrator-owned operator projection with narrow Observation/Journal/conversation admission, Channel WORKING, and workload-admission writes; no autonomous workload or agent-runtime invocation. |
@@ -134,7 +134,7 @@ rey journal    add | list | seed | opportunities | query
 rey agent
 rey editor     generate | status | add | diff | commit | log
 rey version    [--format table|json]
-rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon
+rey channels   list | status | diff | apply | add | commit | log | message | relay | beacon | poll
 rey conversations status | session | message
 rey observations add | list | show | resolve
 rey git        status | init | poll | watch | ack
@@ -161,6 +161,7 @@ rey channels [--workspace PATH] [--state-dir PATH] message add MESSAGE.yaml
 rey channels [--workspace PATH] [--state-dir PATH] message list
 rey channels [--workspace PATH] [--state-dir PATH] relay MESSAGE_ID --relay RELAY_ID
 rey channels [--workspace PATH] [--state-dir PATH] beacon BEACON_ID
+rey channels [--workspace PATH] [--state-dir PATH] poll APPLICATION_ID
 ```
 
 `apply` validates a workspace-contained `rey.channel-graph.v1` YAML document
@@ -182,7 +183,37 @@ was discovered.
 `beacon` performs one explicit bounded polling tick over retained messages. It
 deduplicates already delivered message/relay pairs and invokes at most the
 beacon's admitted batch bound. It is not a resident daemon and it does not poll
-remote inboxes; scheduling and inbound cursors require a later runtime slice.
+remote inboxes.
+
+`poll` is the first provider-specific inbound path. The selected Channel-HEAD
+application must declare a GitHub inbox and bind the exact
+`comms.application.github.identity` capability, absolute `gh` path, executable
+digest, optional version, target Channel, `github.com` host, credential
+environment names, poll cadence, timeout, capture bound, and
+notification/PR/comment limits.
+The same exact capability must exist as available in environment HEAD before
+the command invokes it. Rey executes fixed `gh api` GET requests for the
+authenticated user's current unread notifications and, for bounded
+`PullRequest` subjects, the issue-level and review-thread comment endpoints.
+Comment requests select newest updated rows first and use the notification's
+provider `last_read_at` value as `since` when present.
+It never takes provider-supplied argv, invokes a shell, or marks notifications
+read. The current provider snapshot, exact source revisions and links, response
+digests, omissions, and idempotent Channel-message admissions are retained in
+`rey.github-channel-poll-receipt.v1`. Repeating the same provider snapshot
+reuses its immutable messages. The latest poll for the exact current Channel
+HEAD defines the mailbox frontier, so a later complete empty poll removes old
+notifications from the current projection without immediately deleting
+retained evidence.
+The bounded local store rolls its oldest poll receipts and then evicts only
+GitHub messages no longer referenced by a retained receipt; it does not evict
+locally authored Channel messages to make provider room.
+This command is the explicit one-shot verification surface. `rey agent`
+registers a separate supervised inbox worker that invokes the same command
+immediately when an admitted GitHub application appears and thereafter at its
+committed cadence. It performs no immediate retry; a complete or partial tick
+is retained before the next cadence, while an exact-admission failure fails the
+worker and foreground process closed.
 
 ### `rey conversations`
 
@@ -253,6 +284,9 @@ searched on `PATH`. These names are bounded
 discovery candidates, not claims that each project offers an official or
 compatible messaging CLI. Their discovery records explicitly leave transport,
 message admission, polling-beacon, and relay authority unsupported.
+The GitHub polling path does not weaken that boundary: only a separately
+committed Channel application plus an exact matching environment HEAD and an
+explicit `rey channels poll` command admit the read-only `gh api` probe.
 Declarations carry a normalized many-to-many group set. The initial groups are
 `communications`, `agents`, `retrieval`, and `code`; `env diff` groups the
 typed desired inventory in that order. `grep` and `rg` are retrieval
@@ -581,20 +615,24 @@ rey agent [--workspace PATH] [--state-dir PATH]
 ```
 
 `agent` starts the foreground Rey process. Its orchestrator registers the
-embedded operator HTTP server as its single bounded background worker and
-defaults the listener to loopback. The default human startup output is one
+embedded operator HTTP server and exact admitted GitHub inbox poller as two
+bounded background workers and defaults the listener to loopback. The inbox
+worker remains idle without a committed `github_inbox` application. The
+default human startup output is one
 line—`INFO:     Listening on http://127.0.0.1:5714 (Press CTRL+C to quit)`—and
 stderr first identifies the exact Rey version and build commit, then logs
 process, agent-startup, worker, shutdown, and failure lifecycle events.
 `--format json` exposes the complete `rey.agent-process.v1` document
 with its nested `rey.process.v1` and `rey.agent-topology.v1`; the same exact
-topology remains human-visible on `/agents`. SIGINT and SIGTERM stop the worker
-cooperatively; an unexpected exit fails the process closed. V1 never restarts
+topology remains human-visible on `/agents`. SIGINT and SIGTERM stop both
+workers cooperatively; an unexpected exit fails the process closed. V1 never restarts
 or detaches a worker and does not invoke discovered agent runtimes or
 autonomously schedule workloads.
 
 The operator worker projects the same workload, environment, cadence, Journal,
-and Explorer evidence.
+and Explorer evidence. The separate inbox worker polls only exact Channel- and
+environment-HEAD GitHub applications through `rey channels poll`; it neither
+invokes a discovered application directly nor marks notifications read.
 Its human entry route is `/explore`. A fresh workload state opens on an
 unmapped orientation globe whose beacons are exact file-backed workload
 candidates; inspection and consent descend into the exact workload review and
@@ -620,7 +658,9 @@ session identities, derives that writer rather than accepting an arbitrary
 author, and retains `delivery: not_attempted` through the same validator/store.
 Stale state, missing transport/writer, invalid content, or persistence failure
 rejects the write and keeps the composer or failure boundary visible. Mailbox
-history remains a separate read projection.
+history remains a separate read projection over current retained Channel poll
+messages, typed attention, and revalidation failures. Authored Observations do
+not enter it.
 
 Browser workload approval is a combined human action over visible file state:
 it checks expected HEAD and WORKING identities, freezes the reviewed files in
@@ -657,6 +697,7 @@ latest result.
 | `workloads run` | Executes an admitted graph and retains results under declared provider/effect contracts. |
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
 | `channels apply` | Writes only the Channel WORKING proposal. |
+| `channels poll` | Executes bounded read-only GitHub API probes only through exact Channel/environment HEAD application admission, then atomically retains the poll receipt and immutable Channel messages; it never marks provider notifications read. |
 | `journal add` | Retains a document only; notebook blocks remain inert. |
 | `journal seed`, `journal opportunities` | Read-only deterministic projections; neither retains a document, schedules work, or executes a block. |
 | `journal query admit` | Retains one exact read-only query admission; executes nothing and leaves the Journal unchanged. |

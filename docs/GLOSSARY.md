@@ -865,6 +865,15 @@ The context provider that owns repository, object, commit, ref, HEAD, semantic
 index, reachability, and bounded worktree observations. It is separate from the
 environment inventory row describing the `git` executable.
 
+### GitHub inbox poll
+
+The first provider-specific Channel ingress contract. It binds an exact
+committed `gh` application, environment HEAD, Channel HEAD, target Channel,
+credential-name allowlist, cadence, API version, limits, response digests, and
+partial omissions. `rey channels poll` verifies one tick; `rey agent`
+supervises the same tick at the admitted cadence. Neither path marks GitHub
+notifications read.
+
 ### Graph edge
 
 A directed dependency between compatible typed ports in a compute graph. Edges
@@ -1071,9 +1080,11 @@ physical-distance claim.
 
 ### Mailbox
 
-The history axis of the UI communication plane, populated by typed attention
+The history axis of the UI communication plane, populated by current retained
+Channel messages from separately admitted application polls, typed attention,
 and revalidation-failure evidence. A quiet mailbox means no operator attention
-is requested; it is not filled with synthetic heartbeat activity.
+is requested; it is not filled with authored Observations or synthetic
+heartbeat activity.
 
 ### Mining
 

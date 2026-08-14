@@ -38,6 +38,15 @@ export interface ChannelApplicationDeclaration {
   executable_version: string | null;
   executable_digest: string;
   relay_argv: string[];
+  github_inbox: {
+    channel_id: string;
+    hostname: string;
+    poll_interval_seconds: number;
+    notification_limit: number;
+    pull_request_limit: number;
+    comment_limit: number;
+    credential_environment: string[];
+  } | null;
   timeout_ms: number;
   max_output_bytes: number;
 }
@@ -152,6 +161,101 @@ export interface ChannelProjection {
     warning: string;
   };
   status: ChannelStatus;
+  mailbox: ChannelMailboxProjection;
+}
+
+export type ChannelMessageSource =
+  | { kind: "local_admission" }
+  | {
+      kind: "git_hub_notification";
+      application_id: string;
+      application_revision: number;
+      external_id: string;
+      source_revision: string;
+      repository: string;
+      subject_type: string;
+      subject_title: string;
+      reason: string;
+      provider_unread: boolean;
+      occurred_at_unix: number;
+      html_url: string;
+    }
+  | {
+      kind: "git_hub_issue_comment";
+      application_id: string;
+      application_revision: number;
+      external_id: string;
+      source_revision: string;
+      repository: string;
+      pull_number: number;
+      author: string;
+      occurred_at_unix: number;
+      html_url: string;
+    }
+  | {
+      kind: "git_hub_review_comment";
+      application_id: string;
+      application_revision: number;
+      external_id: string;
+      source_revision: string;
+      repository: string;
+      pull_number: number;
+      author: string;
+      occurred_at_unix: number;
+      html_url: string;
+      path: string;
+    };
+
+export interface ChannelMessage {
+  schema: "rey.channel-message-admission.v1";
+  message_id: string;
+  sequence: number;
+  admitted_at_unix: number;
+  channel_head_commit_id: string;
+  channel_graph_id: string;
+  proposal: {
+    schema: "rey.channel-message.v1";
+    channel_id: string;
+    kind: string;
+    body: string;
+    evidence_locators: string[];
+  };
+  source: ChannelMessageSource;
+}
+
+export interface GitHubPollReceipt {
+  schema: "rey.github-channel-poll-receipt.v1";
+  poll_id: string;
+  sequence: number;
+  polled_at_unix: number;
+  channel_head_commit_id: string;
+  channel_graph_id: string;
+  application_id: string;
+  application_revision: number;
+  environment_commit_id: string;
+  environment_capability_id: string;
+  hostname: string;
+  api_version: string;
+  request_count: number;
+  notification_count: number;
+  pull_request_count: number;
+  issue_comment_count: number;
+  review_comment_count: number;
+  admitted_message_count: number;
+  reused_message_count: number;
+  current_message_ids: string[];
+  complete: boolean;
+  omissions: string[];
+}
+
+export interface ChannelMailboxProjection {
+  schema: "rey.channel-mailbox.v1";
+  ordering: "provider_updated_desc";
+  messages: ChannelMessage[];
+  polls: GitHubPollReceipt[];
+  complete: boolean;
+  omissions: string[];
+  max_messages: number;
 }
 
 export interface ChannelWorkingWriteRequest {

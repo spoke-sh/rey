@@ -12,8 +12,8 @@ use std::{
 
 use rey::{
     channels::{
-        ChannelGraph, ChannelGraphSource, ChannelObservationKind, ChannelStatus, LocalChannelStore,
-        MAX_CHANNEL_GRAPH_INPUT_BYTES,
+        ChannelGraph, ChannelGraphSource, ChannelMailboxProjection, ChannelObservationKind,
+        ChannelStatus, LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
     },
     conversations::{
         CONVERSATION_MESSAGE_PROPOSAL_SCHEMA, ConversationMessageProposal, ConversationSource,
@@ -225,6 +225,7 @@ struct UiChannelProjection {
     authority: String,
     listener: UiChannelListener,
     status: ChannelStatus,
+    mailbox: ChannelMailboxProjection,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -584,8 +585,11 @@ impl UiServer {
 
     fn channels(&self) -> Response<Cursor<Vec<u8>>> {
         let store = LocalChannelStore::new(self.config.channel_directory.clone());
-        match store.status() {
-            Ok(status) => json_response(
+        match store.status().and_then(|status| {
+            let mailbox = store.mailbox(&status)?;
+            Ok((status, mailbox))
+        }) {
+            Ok((status, mailbox)) => json_response(
                 StatusCode(200),
                 &UiChannelProjection {
                     schema: UI_CHANNELS_SCHEMA.to_owned(),
@@ -605,6 +609,7 @@ impl UiServer {
                         },
                     },
                     status,
+                    mailbox,
                 },
             ),
             Err(error) => json_error(
@@ -2206,7 +2211,7 @@ mod tests {
         assert!(application.contains("./three-globe.js"));
         assert!(application.contains("./three-terrain.js"));
         assert!(application.contains("./three-webgpu.js"));
-        assert!(application.contains("HISTORY / RUNTIME + COLLABORATION"));
+        assert!(application.contains("HISTORY / CHANNELS + RUNTIME"));
         assert!(application.contains("Mailbox history"));
         assert!(application.contains("REY / AGENT / OPERATOR"));
         assert!(application.contains("data-communication-backdrop"));
@@ -2241,7 +2246,7 @@ mod tests {
         assert!(application.contains("EXACT SNAPSHOT APPROVAL"));
         assert!(application.contains("REY / WORKLOAD COMMIT"));
         assert!(application.contains("ADMIT EXACT FILE SNAPSHOT"));
-        assert!(application.contains("Display order is not causal order"));
+        assert!(!application.contains("Display order is not causal order"));
         assert!(application.contains("data-kinetic-dense-table"));
         assert!(application.contains("Incoming workload revisions"));
         assert!(application.contains("Admitted workload HEAD"));
@@ -2334,6 +2339,8 @@ mod tests {
         assert_eq!(initial["listener"]["loopback_only"], true);
         assert_eq!(initial["listener"]["authentication"], "none");
         assert_eq!(initial["status"]["state"], "clean");
+        assert_eq!(initial["mailbox"]["schema"], "rey.channel-mailbox.v1");
+        assert_eq!(initial["mailbox"]["messages"], serde_json::json!([]));
         let expected_head = initial["status"]["head"]["snapshot_id"]
             .as_str()
             .unwrap()

@@ -11,7 +11,7 @@ structure these plans must preserve.
 | Plan | State | Next verifiable closure | Depends on |
 | --- | --- | --- | --- |
 | [0003 — Admit scenes and complete Explorer](0003-scene-to-explorer.md) | Active | Repeat retained voyages through direct browser transport; keep GPU-execution/frame-rate claims absent until a separately capable measurement path exists. | Implemented editor-to-admission-to-Explorer voyage, deterministic bounded native source registration and review, exact source-bound regional height/material samples with no interpolation, projection packets, retained survey/regional atlas history with exact scene back-references, stable occupied sectors, typed deltas, reversible Mercator geometry, immutable/continuous World/Atlas transition, bounded wrapping/inverse picking/recentering, focus-preserving deterministic label layout, explicit regional selection, a verified reversible envelope-centered County frame, exact admitted footprint fabric/validity, independent admitted native layer kinds, exact selected-object evidence routes, bounded haloed absolute-coordinate survey-terrain patches with exact seams and a byte/cell-bounded retained cache, separated revisioned scene projections, one immutable ordered render graph with explicit frame invalidation, exact GPU upload measurement enforced against a visible 64 MiB engine budget, retained reference/WebGL2/WebGPU voyages at both target viewports, rendered parity, native backend-loss fallback, a named passive attention revalidation voyage, and a named budget over observable CPU/resource/interaction/browser-presentation measurements. |
-| [0004 — Refine the Rey agent process](0004-agent-process.md) | Active | Route the first admitted resident task through the orchestrator with exact lifecycle, cancellation, retry, and retained-outcome evidence before adding agent-runtime invocation. | Implemented `rey agent` hard cutover, foreground Rey process, concise listening output, lifecycle logs, one-worker supervised operator topology, JSON/browser/HTTP process status, cooperative shutdown, and fail-closed worker supervision. |
+| [0004 — Refine the Rey agent process](0004-agent-process.md) | Active | Prove the admitted GitHub inbox worker under drift, partial-provider failure, and cooperative cancellation before considering restart or agent-runtime invocation. | Implemented `rey agent` hard cutover, foreground Rey process, concise listening output, lifecycle logs, two-worker supervised topology, exact admitted-cadence GitHub polling through the human-verifiable CLI path, retained poll outcomes, JSON/browser/HTTP process status, cooperative shutdown, and fail-closed worker supervision. |
 
 The plans may advance in parallel when they do not share a contract, but their
 authority dependencies remain ordered:
@@ -38,9 +38,14 @@ The current repository already provides:
   Cadence, Environment, Workloads, Journal, bounded conversation transcripts,
   passive revalidation, exact Git links, and exact scenario/delta routes;
 - a foreground `rey agent` process whose orchestrator supervises that operator
-  server under a typed one-worker topology and stops it cooperatively without
-  invoking discovered agent runtimes or autonomous workloads;
+  server and the admitted GitHub inbox worker under a typed two-worker topology
+  and stops them cooperatively without invoking discovered agent runtimes or
+  autonomous workloads;
 - immutable Channel messages, explicit relay and one-shot beacon commands;
+- explicit and supervised admitted-cadence exact-Channel/environment-HEAD
+  GitHub notification and pull-request-comment polling through `gh`, with
+  retained outcomes, immutable Channel messages, and a current mailbox
+  projection;
 - immutable local conversation sessions and append-only messages with exact
   declared writers, conditional browser admission, and no delivery or
   execution claim;

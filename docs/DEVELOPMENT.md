@@ -502,6 +502,7 @@ nix run path:$PWD -- channels log -n 3 -p --format table
 nix run path:$PWD -- channels message add path/to/message.yaml --format table
 nix run path:$PWD -- channels relay MESSAGE_ID --relay RELAY_ID --format table
 nix run path:$PWD -- channels beacon BEACON_ID --format table
+nix run path:$PWD -- channels poll GITHUB_APPLICATION_ID --format table
 nix run path:$PWD -- env status
 nix run path:$PWD -- env diff
 nix run path:$PWD -- env add -p

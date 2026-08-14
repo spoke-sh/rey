@@ -131,6 +131,16 @@ a found application into assignment or execution authority.
 `/environment` is the human owner of this desired/search evidence; higher-order
 views may consume exact capabilities but do not repeat the executable inventory.
 
+The provider-specific GitHub mailbox path preserves this boundary. A committed
+environment HEAD may supply the exact available
+`comms.application.github.identity` executable evidence, but only a separately
+committed Channel application declaration admits bounded read-only `gh api`
+execution. `rey channels poll` verifies one explicit tick and the foreground
+`rey agent` inbox worker repeats that exact path at the committed cadence.
+Credential environment names are declared in Channel HEAD and their values are
+never retained. Discovery itself does not authenticate, contact GitHub, poll,
+or create mail.
+
 Environment discovery retains the `git` executable identity but does not run
 repository inspection or add `git.repository.inspect` to the environment
 snapshot. HEAD, refs, semantic index entries, and commit reachability belong to

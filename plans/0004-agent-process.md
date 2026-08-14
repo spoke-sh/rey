@@ -17,7 +17,7 @@ rey agent
   → Rey process (orchestrator)
     → supervised bounded background work
       → operator HTTP projection
-      → future explicitly admitted resident tasks
+      → exact admitted GitHub Channel polling
     → future admitted agent-runtime topology
 ```
 
@@ -25,19 +25,25 @@ rey agent
 
 The former `rey ui` command has been removed by a hard cutover. `rey agent`
 starts one foreground OS process whose root role is the orchestrator. The
-orchestrator registers the embedded operator HTTP server as its only worker,
-owns cooperative SIGINT/SIGTERM shutdown, and fails the process closed on an
-unexpected worker error, exit, or panic. `rey.agent-process.v1`,
+orchestrator registers the embedded operator HTTP server and GitHub Channel
+inbox poller as its two workers, owns cooperative SIGINT/SIGTERM shutdown, and
+fails the process closed on an unexpected worker error, exit, or panic. The
+inbox worker remains idle until Channel HEAD admits a `github_inbox`
+application whose exact `gh` capability is also present in environment HEAD.
+It polls immediately and then at the admitted cadence through the same bounded
+`rey channels poll` path exposed to humans. `rey.agent-process.v1`,
 `rey.process.v1`, and `rey.agent-topology.v1` expose the live PID, roles,
 parent/child edge, placement, state, restart policy, endpoint, authority,
-one-worker bound, and omissions through `--format json`,
+two-worker bound, and omissions through `--format json`,
 `GET /api/v1/agent`, and the operator's `/agents` route; health returns the
 same topology beside the existing operator descriptor.
 
-This topology is runtime-only local status. It is not a retained proof or
-process history. V1 has no restart, daemonization, crash durability,
-multi-process fencing, autonomous workload scheduling, or agent-runtime
-invocation. Browser passive revalidation remains browser-owned work.
+This topology is runtime-only local status. GitHub response evidence, partial
+failures, and current mailbox membership are retained separately as poll
+receipts and immutable Channel messages. V1 has no restart, daemonization,
+crash durability, multi-process fencing, autonomous workload scheduling, or
+agent-runtime invocation. Browser passive revalidation remains browser-owned
+work.
 
 ## Completion Checklist
 
@@ -57,6 +63,8 @@ invocation. Browser passive revalidation remains browser-owned work.
 ### 2. Supervise current background work
 
 - [x] Register the operator HTTP server as orchestrator-owned background work.
+- [x] Register exact admitted GitHub inbox polling as the first resident
+  orchestrator-owned task.
 - [x] Make SIGINT/SIGTERM cancellation cooperative and bind worker lifetime to
   the Rey process.
 - [x] Fail closed on unexpected worker error, exit, or panic; keep restart and
@@ -66,11 +74,12 @@ invocation. Browser passive revalidation remains browser-owned work.
 
 ### 3. Admit resident work deliberately
 
-- [ ] Select the first real server-side recurring task only with an explicit
+- [x] Select the first real server-side recurring task only with an explicit
   source, cadence, total bounds, cancellation boundary, retry policy,
   idempotency contract, retained outcome, and CLI/browser inspection path.
-- [ ] Distinguish queued, running, succeeded, failed, cancelled, timed out, and
-  lost process state from semantic progress and convergence.
+- [x] Keep poll execution state separate from semantic progress: complete and
+  partial receipts retain provider results and omissions, while invalid exact
+  admission fails the supervised worker closed.
 - [ ] Add bounded restart only if a concrete task proves its safe replay and
   retained-attempt semantics; never restart an effect from process status
   alone.

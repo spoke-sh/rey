@@ -7,8 +7,8 @@ typed contracts projected by those commands.
 
 The implemented local surface includes Git-shaped environment, workload,
 editor, and Channel topology histories; file-backed workload qualification;
-deterministic workload/mining/portfolio execution; immutable Channel messages
-and explicit relay attempts; bounded local conversation transcripts; bounded
+deterministic workload/mining/portfolio execution; immutable Channel messages,
+explicit admitted-`gh` inbox polls, and explicit relay attempts; bounded local conversation transcripts; bounded
 Journal admission; and a foreground `rey agent` process whose orchestrator
 supervises the embedded operator UI over the same evidence. Lower-level proof and
 local-bundle contracts remain library/runtime capabilities rather than manual
@@ -61,6 +61,7 @@ rey channels [--workspace PATH] [--state-dir PATH] message add <message.yaml>
 rey channels [--workspace PATH] [--state-dir PATH] message list
 rey channels [--workspace PATH] [--state-dir PATH] relay <message-id> --relay <relay-id>
 rey channels [--workspace PATH] [--state-dir PATH] beacon <beacon-id>
+rey channels [--workspace PATH] [--state-dir PATH] poll <application-id>
 rey conversations [--workspace PATH] [--state-dir PATH] status [--session ID] [-n COUNT]
 rey conversations [--workspace PATH] [--state-dir PATH] session add <session.yaml>
 rey conversations [--workspace PATH] [--state-dir PATH] session list
@@ -93,8 +94,10 @@ rey agent [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--ch
 ```
 
 `channels` exposes bounded collaboration topology through a complete local
-revision loop, admits immutable file-backed messages, and gates explicit relay
-and polling-beacon effects on exact Channel and environment HEAD identities.
+revision loop, admits immutable file-backed messages, gates explicit relay and
+polling-beacon effects on exact Channel and environment HEAD identities, and
+provides one read-only admitted-`gh` inbox poll with explicit CLI and
+supervised admitted-cadence invocation.
 `conversations` admits separate workspace-local sessions and messages through a
 declared-writer append-only transcript contract; it performs no delivery,
 agent invocation, relay, scheduling, action, or proof effect. `env`
@@ -111,8 +114,9 @@ visualize are discoverable operation contracts composed inside workloads and
 reasoning surfaces, not an accepted `rey mining` resource hierarchy.
 
 `agent` starts the foreground Rey process. Its root orchestrator owns every
-in-process background worker and initially registers only the operator HTTP
-server. The operator is primarily a presentation resource, not a peer runtime
+in-process background worker and registers the operator HTTP server plus the
+exact admitted GitHub Channel inbox poller. The operator is primarily a
+presentation resource, not a peer runtime
 or scheduler. It starts on `127.0.0.1:5714` unless configured otherwise,
 reports exact exposure and provenance, `/explore` human entry, and passive
 revalidation interval. It serves read-only workload, environment, cadence, and
@@ -1038,12 +1042,13 @@ runtime graph as `rey.agent-topology.v1`:
 
 ```text
 rey.orchestrator (OS process)
-  └─ supervises → rey.operator-http (bound background worker)
+  ├─ supervises → rey.operator-http (bound background worker)
+  └─ supervises → rey.channel-github-inbox (admitted-cadence worker)
 ```
 
 The topology records node kind, parent, execution placement, lifecycle, live
-state, restart policy, authority, endpoint, the supervision edge, and the
-fixed one-worker bound. `rey.agent-process.v1` combines that topology with the
+state, restart policy, authority, endpoint, the supervision edges, and the
+fixed two-worker bound. `rey.agent-process.v1` combines that topology with the
 nested `rey.ui-server.v1` operator descriptor. `--format json` emits that exact
 document; the default human startup output emits only the listening URL while
 stderr reports the exact semantic version and build commit before process and
@@ -1060,17 +1065,21 @@ page renders that omission and the process's bounded lifecycle authority
 explicitly.
 
 The orchestrator installs cooperative SIGINT/SIGTERM cancellation before it
-starts the worker, polls worker state at a bounded 50 ms interval, joins the
-worker at its request boundary, and fails the Rey process closed if the worker
-errors, panics, or exits without cancellation. V1 has no worker restart,
+starts either worker, polls worker state at a bounded 50 ms interval, joins
+both at bounded request or poll-command boundaries, and fails the Rey process
+closed if either worker errors, panics, or exits without cancellation. The
+inbox worker scans admitted Channel HEAD at a bounded 250 ms interval, polls a
+new exact GitHub application immediately, schedules its next tick only after
+the retained outcome, and performs no immediate retry. V1 has no worker restart,
 daemonization, multi-process fencing, process-crash durability, or retained
 process history. The runtime-only OS PID is not a semantic evidence identity.
 
-This is lifecycle authority only. Starting the agent process does not discover
-more applications, invoke or assign a discovered agent runtime, schedule a
-workload, execute a Git activation, relay a Channel message, or expand the
-operator listener's declared authority. Browser passive refresh remains
-browser-owned work rather than a supervised server worker.
+This is lifecycle authority plus the narrow admitted GitHub read contract.
+Starting the agent process does not discover more applications, invoke or
+assign a discovered agent runtime, schedule a workload, execute a Git
+activation, relay a Channel message, or expand the operator listener's
+declared authority. Browser passive refresh remains browser-owned work rather
+than a supervised server worker.
 
 ## Local Operator UI, Not A Public Rey Service
 
@@ -1261,7 +1270,7 @@ or causal-order claim. Its Observation mutation endpoint grants no assignment,
 action, relay, execution, or proof authority.
 
 The implemented Channel interface provides
-`rey channels list|status|diff|apply|add|commit|log|message|relay|beacon`. It
+`rey channels list|status|diff|apply|add|commit|log|message|relay|beacon|poll`. It
 derives one
 built-in workspace-local channel, one bounded subscription, and stable Signals,
 Admission, and Flow stream identities without writing local state. `apply`
@@ -1284,7 +1293,38 @@ route or navigation item. Feed layout resolution, deliberate adoption, and
 stable pointer/keyboard reorder persistence use the same graph validator/store,
 reject stale expected HEAD or WORKING snapshots, and can write WORKING only;
 INDEX, HEAD, relay, and execution remain CLI/runtime boundaries.
-Remote inbound polling, resident scheduling, and the richer
+The provider-specific `poll` command requires a Channel-HEAD application with
+one `github_inbox` declaration and an exact matching environment-HEAD
+`comms.application.github.identity` capability. The declaration binds the
+absolute `gh` executable, executable digest and optional version, `github.com`,
+target Channel, names-only credential environment allowlist, poll cadence,
+process timeout,
+capture bound, and notification, pull-request, and comment limits. Rey invokes
+only fixed authenticated `gh api` GET requests against GitHub REST API
+`2026-03-10`: current unread notifications first, then issue-level and
+review-thread comments for bounded `PullRequest` subjects, ordered by newest
+provider update and narrowed by provider `last_read_at` when present. It passes no
+provider-derived argv, invokes no shell, and never calls a mark-read endpoint.
+The command retains raw-response digests and byte counts, exact provider
+external identities/revisions/links, partial omissions, immutable Channel
+messages, and a content-identified `rey.github-channel-poll-receipt.v1`.
+Identical source revisions replay existing message identities. The newest
+receipt for each exact application revision on the current Channel HEAD defines
+`rey.channel-mailbox.v1`; complete absence in a later poll removes an item from
+the current mailbox without rewriting or immediately evicting its immutable
+evidence. Local retention
+keeps at most 256 newest poll receipts and 1,024 Channel messages; admitting a
+later poll first evicts oldest receipts and then GitHub messages no longer
+referenced by any retained receipt. It never evicts locally authored Channel
+messages to make room for provider ingress. `GET|HEAD
+/api/v1/channels` returns that mailbox projection beside Channel status, and
+the root operator state passively revalidates it every five seconds. The
+explicit command is the human-verifiable tick. The separately supervised
+`rey.channel-github-inbox` worker polls immediately after an exact application
+becomes current and then at its committed cadence, with no immediate retry.
+
+General remote inbound providers, durable provider cursors, and resident work
+beyond this exact GitHub path remain incomplete. The richer
 `rey observations add|list|show|resolve` now provides human and typed JSON
 rendering over the observation store. It retains immutable content-derived
 observations separately from Channel topology and Journal, exact
@@ -1359,14 +1399,15 @@ from StyleX modules into a layered atomic stylesheet, and browser responses
 carry restrictive security headers.
 
 The fixed footer is the live operator communications channel. Its mailbox
-count and bottom sheet derive from typed portfolio-attention rows and passive
-revalidation failures; an empty sheet states that no operator attention is
-requested. Authored Observation-frontier rows remain on Feed and never enter
-the mailbox merely because local Channel admission was retained. Discovered
-environment applications likewise remain inventory evidence and cannot create
-mail or Channel messages. Retained application-to-Channel ingress and its
-mailbox projection are not implemented yet. The mailbox never invents
-heartbeat messages, unread state, or transport activity. The mailbox button selects the
+count and bottom sheet derive from the current retained Channel mailbox,
+typed portfolio-attention rows, and passive revalidation failures; an empty
+sheet states that no operator attention is requested. Authored
+Observation-frontier rows remain on Feed and never enter the mailbox merely
+because local Channel admission was retained. A discovered environment
+application likewise remains inventory evidence: only the explicit exact
+Channel/environment HEAD `gh` poll may create current Channel mail. Provider
+`unread` is retained as source evidence; Rey does not invent its own unread
+state, heartbeat messages, or transport activity. The mailbox button selects the
 history axis; the center chevrons select a separate traditional conversation
 axis for operator ↔ Rey ↔ agent communication. Selecting the active axis
 closes the plane, selecting the other switches axes, and either Escape or a

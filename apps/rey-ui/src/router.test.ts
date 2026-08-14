@@ -2,11 +2,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ConversationTranscript } from "./conversations";
+import type { ChannelMessage } from "./channels";
 import {
   activateCommunicationAxis,
   browserRouterBasepath,
   CommunicationBackdrop,
   ConversationSurface,
+  GitHubMailboxMessage,
   isViewportLockedPath,
   journalSeedObservationIds,
   normalizeExplorerSearch,
@@ -117,6 +119,50 @@ describe("operator routes", () => {
     expect(markup).toContain("Append as Operator · self-asserted");
     expect(markup).toMatch(/<textarea(?![^>]*disabled)[^>]*>/);
     expect(markup).toContain("NO DELIVERY OR EXECUTION");
+  });
+
+  it("projects retained GitHub Channel comments as mailbox links", () => {
+    const message: ChannelMessage = {
+      schema: "rey.channel-message-admission.v1",
+      message_id: `blake3:${"a".repeat(64)}`,
+      sequence: 3,
+      admitted_at_unix: 1_786_644_060,
+      channel_head_commit_id: `blake3:${"b".repeat(64)}`,
+      channel_graph_id: `blake3:${"c".repeat(64)}`,
+      proposal: {
+        schema: "rey.channel-message.v1",
+        channel_id: "workspace",
+        kind: "finding",
+        body: "Keep the mailbox evidence-bound.",
+        evidence_locators: [
+          "https://github.com/spoke-sh/rey/pull/7#discussion_r92",
+        ],
+      },
+      source: {
+        kind: "git_hub_review_comment",
+        application_id: "github",
+        application_revision: 1,
+        external_id: "92",
+        source_revision: "2026-08-13T17:41:00Z",
+        repository: "spoke-sh/rey",
+        pull_number: 7,
+        author: "hubot",
+        occurred_at_unix: 1_786_644_060,
+        html_url: "https://github.com/spoke-sh/rey/pull/7#discussion_r92",
+        path: "src/mailbox.rs",
+      },
+    };
+    const markup = renderToStaticMarkup(
+      createElement(GitHubMailboxMessage, { message }),
+    );
+
+    expect(markup).toContain("GITHUB / REVIEW COMMENT");
+    expect(markup).toContain("spoke-sh/rey #7 · @hubot");
+    expect(markup).toContain("Keep the mailbox evidence-bound.");
+    expect(markup).toContain("src/mailbox.rs");
+    expect(markup).toContain(
+      'href="https://github.com/spoke-sh/rey/pull/7#discussion_r92"',
+    );
   });
 
   it("closes the communication plane when its backdrop is clicked", () => {

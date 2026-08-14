@@ -39,6 +39,7 @@ import {
   conversationParticipant,
   type ConversationTranscript,
 } from "./conversations";
+import type { ChannelMessage } from "./channels";
 import { operatorMailboxRows, shortDigest } from "./domain";
 import {
   environmentApplicationDiff,
@@ -217,7 +218,9 @@ function RootLayout() {
   );
   const [communicationAxis, setCommunicationAxis] =
     useState<CommunicationAxis | null>(null);
-  const mailboxCount = operatorMailboxRows(portfolio).length;
+  const mailboxCount =
+    operatorMailboxRows(portfolio).length +
+    portfolio.channels.mailbox.messages.length;
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -448,22 +451,27 @@ function MailboxHistory({
   portfolio: OperatorContext;
 }) {
   const attentionMessages = operatorMailboxRows(portfolio);
-  const messageCount = attentionMessages.length;
+  const channelMessages = portfolio.channels.mailbox.messages;
+  const channelBoundaryCount =
+    portfolio.channels.mailbox.omissions.length > 0 ? 1 : 0;
+  const messageCount =
+    attentionMessages.length + channelMessages.length + channelBoundaryCount;
   return (
     <>
       <header className={sx(styles.communicationsHeader)}>
         <div>
           <p className={sx(styles.micro, styles.sectionKicker)}>
-            HISTORY / RUNTIME ATTENTION
+            HISTORY / CHANNELS + RUNTIME
           </p>
           <h2 className={sx(styles.sectionTitle)}>Mailbox history</h2>
         </div>
         <div className={sx(styles.communicationsCoordinate)}>
           <span className={sx(styles.micro, styles.muted)}>
+            CHANNELS / {shortDigest(portfolio.channels.status.head.graph_id)} ·
             ATTENTION / {shortDigest(portfolio.attention.attention_id)}
           </span>
           <span className={sx(styles.micro)}>
-            {messageCount + (error ? 1 : 0)} ACTIVE · ATTENTION ORDER
+            {messageCount + (error ? 1 : 0)} ACTIVE · SOURCE ORDER
           </span>
         </div>
       </header>
@@ -476,6 +484,21 @@ function MailboxHistory({
             <strong>Portfolio projection</strong>
             <p>{error.message}</p>
           </article>
+        ) : null}
+        {channelMessages.length > 0 ? (
+          <MailboxBoundary
+            detail="Current unread GitHub notifications and bounded comments are retained by a poll through the exact gh application admitted in Channel HEAD and environment HEAD. The CLI verifies one tick; the foreground Rey process supervises its committed cadence. GitHub provider order does not establish causal order with runtime attention."
+            label={`GITHUB INBOX / ${portfolio.channels.mailbox.polls.length} POLL SOURCES`}
+          />
+        ) : null}
+        {channelMessages.map((message) => (
+          <GitHubMailboxMessage key={message.message_id} message={message} />
+        ))}
+        {portfolio.channels.mailbox.omissions.length > 0 ? (
+          <MailboxBoundary
+            detail={portfolio.channels.mailbox.omissions.join(" · ")}
+            label="GITHUB INBOX / PARTIAL"
+          />
         ) : null}
         {attentionMessages.length > 0 ? (
           <MailboxBoundary
@@ -506,13 +529,57 @@ function MailboxHistory({
             <span className={sx(styles.micro)}>NO NEWS</span>
             <strong>No mailbox entries in the current projection.</strong>
             <p>
-              No runtime attention rows or revalidation failures request
-              operator attention. Observations are Feed items, not mail.
+              No retained Channel messages, runtime attention rows, or
+              revalidation failures request operator attention. Observations are
+              Feed items, not mail.
             </p>
           </div>
         ) : null}
       </div>
     </>
+  );
+}
+
+export function GitHubMailboxMessage({ message }: { message: ChannelMessage }) {
+  const source = message.source;
+  if (source.kind === "local_admission") return null;
+  const isNotification = source.kind === "git_hub_notification";
+  const label = isNotification
+    ? `GITHUB / NOTIFICATION / ${source.reason.toUpperCase()}`
+    : source.kind === "git_hub_issue_comment"
+      ? "GITHUB / PR COMMENT"
+      : "GITHUB / REVIEW COMMENT";
+  const title = isNotification
+    ? source.repository
+    : `${source.repository} #${source.pull_number} · @${source.author}`;
+  const detail =
+    source.kind === "git_hub_review_comment"
+      ? `${source.path} · ${source.source_revision}`
+      : source.source_revision;
+  return (
+    <article
+      className={sx(styles.communicationMessage)}
+      data-mailbox-source="channel"
+    >
+      <span className={sx(styles.micro, styles.communicationAction)}>
+        {label}
+      </span>
+      <strong>
+        <a
+          className={sx(styles.focusable)}
+          href={source.html_url}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {title}
+        </a>
+      </strong>
+      <p>{message.proposal.body}</p>
+      <small className={sx(styles.micro, styles.muted)}>{detail}</small>
+      <code title={message.message_id}>
+        MESSAGE / {shortDigest(message.message_id)}
+      </code>
+    </article>
   );
 }
 

@@ -551,6 +551,15 @@ function channelProjection(): ChannelProjection {
       staged: delta("BUILT-IN", "INDEX"),
       unstaged: delta("INDEX", "WORKING"),
     },
+    mailbox: {
+      schema: "rey.channel-mailbox.v1",
+      ordering: "provider_updated_desc",
+      messages: [],
+      polls: [],
+      complete: true,
+      omissions: [],
+      max_messages: 128,
+    },
   };
 }
 

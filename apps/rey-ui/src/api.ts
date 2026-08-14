@@ -98,6 +98,7 @@ export interface WorkloadApprovalRequest {
 
 export type OperatorContext = WorkloadList & {
   agent_process: AgentProcessDescriptor;
+  channels: ChannelProjection;
   observations: ObservationFrontier;
   conversation: ConversationTranscript;
   workload_evidence: WorkloadEvidenceCatalog;
@@ -124,12 +125,14 @@ export async function loadPortfolio(): Promise<OperatorContext> {
     observations,
     workloadEvidence,
     conversation,
+    channels,
   ] = await Promise.all([
     fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
     fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
     loadObservations(),
     loadWorkloadEvidence(),
     loadConversation(),
+    loadChannels(),
   ]);
   if (!portfolioResponse.ok) {
     const detail = await portfolioResponse.text();
@@ -150,6 +153,7 @@ export async function loadPortfolio(): Promise<OperatorContext> {
   };
   return Object.assign(portfolio, {
     agent_process: health.agent,
+    channels,
     observations,
     conversation,
     ui_server: health.server,

@@ -593,8 +593,10 @@ scrollable documents.
   mutate runtime state. Explorer remains read-only even when the UI admits a
   separate Journal entry.
 - The fixed footer is a live communications channel. Its mailbox contains only
-  typed attention or revalidation failure evidence; zero messages explicitly
-  means no operator attention is requested. `MAILBOX` selects that history
+  current messages retained by separately admitted application polls, typed
+  attention, or revalidation failure evidence; zero messages explicitly means
+  no operator attention is requested. Authored Observations remain on Feed.
+  `MAILBOX` selects that history
   axis; the center chevrons select the separate operator/Rey/agent conversation
   axis. Selecting the active axis closes the plane, selecting the other axis
   switches it, and either Escape or a click on the background closes it.
@@ -716,12 +718,15 @@ runtime scheduling. Git tick publication is relative to a retained local
 tracking-ref OID and never implies a network fetch. Environment commit v1 has
 no wall time, so those ticks explicitly render as order-only.
 
-The global footer displays a typed-attention history mailbox, chevrons that
+The global footer displays retained current-Channel mailbox messages beside
+typed-attention history, with chevrons that
 open the traditional conversation axis of the same plane, and the shortened Rey implementation Git revision linked through
 the complete revision to the canonical GitHub commit. This is separate from
 the BLAKE3 portfolio-attention identity: semantic evidence digests must never
-be presented as source commits. Mailbox history is currently only the mounted
-projection. The conversation axis projects the bounded workspace-local
+be presented as source commits. The current provider path is the latest
+retained exact-Channel-HEAD GitHub poll; it does not include authored
+Observations or imply GitHub read-state mutation. The conversation axis
+projects the bounded workspace-local
 transcript and conditionally appends through the exact session-declared human
 browser writer. An unavailable transcript or writer keeps the composer
 disabled; every retained append remains delivery-not-attempted and carries no

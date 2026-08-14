@@ -118,7 +118,8 @@ order-only `O@sequence` signal with its exact identity, source, subject,
 evidence, omissions, limits, completeness, self-asserted author, and Channel
 admission count. The footer mailbox does not mirror this authored frontier:
 observations remain Feed collaboration records, not incoming mail. The mailbox
-currently projects runtime attention and passive-revalidation failures. Mounted
+may project retained Channel messages from separately admitted application
+polls beside runtime attention and passive-revalidation failures. Mounted
 portfolio and Feed state passively revalidate the observation endpoint while
 retaining the last good document on failure.
 

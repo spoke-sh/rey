@@ -93,8 +93,13 @@ SIGINT or SIGTERM. It does not invoke a discovered agent runtime or schedule a
 workload. The UI starts from that CLI process, passively revalidates the same workload-list
 derivation, defaults to loopback, and is not a general mutation plane or public
 Rey service. Channel topology remains non-navigable substrate behind Feed,
-mailbox, and conversation. Feed's Admission stream projects only retained
-workload commits; WORKING/INDEX review and exact approval remain on Workloads.
+mailbox, and conversation. `rey channels poll` may use an exact Channel- and
+environment-HEAD-admitted `gh` executable to retain current unread GitHub
+notifications and bounded pull-request comments for the mailbox; `rey agent`
+supervises that same command at the committed application cadence. Neither
+path marks provider notifications read or runs from discovery alone. Feed's
+Admission stream projects only retained workload commits; WORKING/INDEX review
+and exact approval remain on Workloads.
 Feed's compact composer admits a partial self-asserted human Observation through
 the same bounded local store as `rey observations add`; it does not create a
 Journal entry or grant action authority.
@@ -105,7 +110,8 @@ granting INDEX, HEAD, relay, or execution authority. The separate local
 observation log retains exact source/evidence bindings and Channel-admission
 edges without entering topology INDEX or granting relay authority. Its fixed
 footer is a two-axis communication plane: the mailbox
-shows the current typed-attention history projection, while chevrons open an
+shows retained application-poll Channel messages beside the current
+typed-attention history projection, while chevrons open an
 operator/Rey/agent chat shell whose composer remains disabled until a
 conversation transport is admitted. Workspace packages retain coding-harness provenance and
 freeze generated scenarios at admission. The first mining workload now executes exact local

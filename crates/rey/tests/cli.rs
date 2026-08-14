@@ -1179,6 +1179,7 @@ relays: []
     let help = String::from_utf8(help.stdout).unwrap();
     for command in [
         "list", "status", "diff", "apply", "add", "commit", "log", "message", "relay", "beacon",
+        "poll",
     ] {
         assert!(help.contains(command));
     }
@@ -1452,6 +1453,361 @@ beacons:
         fs::read_to_string(&delivery).unwrap(),
         "send --channel slack://channel/C123 --message Relay only admitted messages.\n"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn admitted_github_application_polls_notifications_and_pull_request_comments_into_channels() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let workspace = TempDir::new().unwrap();
+    let workspace_path = workspace.path().to_str().unwrap();
+    let bin = workspace.path().join("bin");
+    fs::create_dir(&bin).unwrap();
+    let gh = bin.join("gh");
+    let calls = workspace.path().join("github-api-calls.txt");
+    let fail = workspace.path().join("fail-github-api");
+    fs::write(
+        &gh,
+        format!(
+            r#"#!/bin/sh
+for argument do endpoint="$argument"; done
+printf '%s\n' "$endpoint" >> '{}'
+if [ -f '{}' ]; then exit 9; fi
+case "$endpoint" in
+  notifications*)
+    printf '%s' '[{{"id":"thread-7","unread":true,"reason":"comment","updated_at":"2026-08-13T18:00:00Z","last_read_at":"2026-08-13T17:00:00Z","repository":{{"full_name":"spoke-sh/rey"}},"subject":{{"title":"Keep mailbox evidence-bound","url":"https://api.github.com/repos/spoke-sh/rey/pulls/7","latest_comment_url":"https://api.github.com/repos/spoke-sh/rey/issues/comments/90","type":"PullRequest"}}}},{{"id":"thread-8","unread":true,"reason":"mention","updated_at":"2026-08-13T18:05:00Z","last_read_at":null,"repository":{{"full_name":"spoke-sh/rey"}},"subject":{{"title":"Track the provider boundary","url":"https://api.github.com/repos/spoke-sh/rey/issues/8","latest_comment_url":null,"type":"Issue"}}}}]'
+    ;;
+  repos/spoke-sh/rey/issues/7/comments*)
+    printf '%s' '[{{"id":91,"body":"Issue-level PR comment","user":{{"login":"octocat"}},"created_at":"2026-08-13T17:30:00Z","updated_at":"2026-08-13T17:31:00Z","html_url":"https://github.com/spoke-sh/rey/pull/7#issuecomment-91"}}]'
+    ;;
+  repos/spoke-sh/rey/pulls/7/comments*)
+    printf '%s' '[{{"id":92,"body":"Inline review comment","user":{{"login":"hubot"}},"created_at":"2026-08-13T17:40:00Z","updated_at":"2026-08-13T17:41:00Z","html_url":"https://github.com/spoke-sh/rey/pull/7#discussion_r92","path":"src/mailbox.rs"}}]'
+    ;;
+  *) exit 9 ;;
+esac
+"#,
+            calls.display(),
+            fail.display()
+        ),
+    )
+    .unwrap();
+    let mut permissions = fs::metadata(&gh).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&gh, permissions).unwrap();
+
+    let env_added = run_rey_with_env(
+        &[
+            "env",
+            "--workspace",
+            workspace_path,
+            "add",
+            ".",
+            "--format",
+            "json",
+        ],
+        &[("PATH", bin.to_str().unwrap())],
+    );
+    assert!(
+        env_added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&env_added.stderr)
+    );
+    let env_committed = run_rey(&[
+        "env",
+        "--workspace",
+        workspace_path,
+        "commit",
+        "-m",
+        "Admit GitHub application",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        env_committed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&env_committed.stderr)
+    );
+    let env_commit: EnvironmentCommitResult =
+        serde_json::from_slice(&env_committed.stdout).unwrap();
+    let gh_digest = env_commit
+        .commit
+        .snapshot
+        .capabilities
+        .iter()
+        .find(|capability| capability.capability_id == "comms.application.github.identity")
+        .and_then(|capability| capability.content_digest.as_deref())
+        .expect("admitted gh executable digest");
+    let graph = format!(
+        r#"schema: rey.channel-graph.v1
+channels:
+  - id: workspace
+    revision: 1
+    name: Workspace
+    scope: workspace_local
+    accepted_observation_kinds: [finding, question, progress, blocker, handoff]
+    broadcast_default: true
+subscriptions:
+  - id: workspace
+    revision: 1
+    channel_ids: [workspace]
+    observation_kinds: [finding, question, progress, blocker, handoff]
+    filters: {{}}
+    limit: 64
+streams:
+  - id: signals
+    revision: 1
+    name: Signals
+    subscription_id: workspace
+    lens: signals
+  - id: admission
+    revision: 1
+    name: Admission
+    subscription_id: workspace
+    lens: admission
+  - id: flow
+    revision: 1
+    name: Flow
+    subscription_id: workspace
+    lens: flow
+layout:
+  id: feed
+  revision: 1
+  stream_ids: [signals, admission, flow]
+applications:
+  - id: github
+    revision: 1
+    environment_capability_id: comms.application.github.identity
+    executable_path: "{}"
+    executable_version: null
+    executable_digest: "{}"
+    relay_argv: []
+    github_inbox:
+      channel_id: workspace
+      hostname: github.com
+      poll_interval_seconds: 1
+      notification_limit: 8
+      pull_request_limit: 4
+      comment_limit: 8
+      credential_environment: [HOME]
+    timeout_ms: 1000
+    max_output_bytes: 65536
+relays: []
+beacons: []
+"#,
+        gh.display(),
+        gh_digest,
+    );
+    fs::write(workspace.path().join("channels.yaml"), graph).unwrap();
+    for args in [
+        vec![
+            "channels",
+            "--workspace",
+            workspace_path,
+            "apply",
+            "channels.yaml",
+            "--format",
+            "json",
+        ],
+        vec![
+            "channels",
+            "--workspace",
+            workspace_path,
+            "add",
+            "--format",
+            "json",
+        ],
+        vec![
+            "channels",
+            "--workspace",
+            workspace_path,
+            "commit",
+            "-m",
+            "Admit GitHub inbox",
+            "--format",
+            "json",
+        ],
+    ] {
+        let output = run_rey(&args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let first = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "github",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let first: rey::channels::GitHubPollAdmission = serde_json::from_slice(&first.stdout).unwrap();
+    assert!(first.receipt.complete);
+    assert_eq!(first.receipt.notification_count, 2);
+    assert_eq!(first.receipt.pull_request_count, 1);
+    assert_eq!(first.receipt.issue_comment_count, 1);
+    assert_eq!(first.receipt.review_comment_count, 1);
+    assert_eq!(first.receipt.admitted_message_count, 4);
+    assert_eq!(first.receipt.reused_message_count, 0);
+    assert_eq!(first.messages.len(), 4);
+    assert!(first.messages.iter().any(|message| matches!(
+        message.source,
+        rey::channels::ChannelMessageSource::GitHubReviewComment { ref path, .. }
+            if path == "src/mailbox.rs"
+    )));
+
+    let second = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "github",
+        "--format",
+        "json",
+    ]);
+    assert!(
+        second.status.success(),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    let second: rey::channels::GitHubPollAdmission =
+        serde_json::from_slice(&second.stdout).unwrap();
+    assert_eq!(second.receipt.admitted_message_count, 0);
+    assert_eq!(second.receipt.reused_message_count, 4);
+
+    let rendered = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "github",
+        "--format",
+        "table",
+    ]);
+    assert!(
+        rendered.status.success(),
+        "{}",
+        String::from_utf8_lossy(&rendered.stderr)
+    );
+    assert!(rendered.stderr.is_empty());
+    let rendered = String::from_utf8(rendered.stdout).unwrap();
+    assert!(rendered.contains("GITHUB CHANNEL POLL"));
+    assert!(rendered.contains("P@3"));
+    assert!(rendered.contains("2 notifications · 1 pull requests"));
+    assert!(rendered.contains("0 newly admitted · 4 replayed"));
+    assert!(rendered.contains("notifications were not marked read"));
+
+    let listed = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "message",
+        "list",
+        "--format",
+        "json",
+    ]);
+    let listed: Vec<rey::channels::ChannelMessage> =
+        serde_json::from_slice(&listed.stdout).unwrap();
+    assert_eq!(listed.len(), 4);
+    let store = rey::channels::LocalChannelStore::default_for_workspace(workspace.path());
+    let status = store.status().unwrap();
+    let mailbox = store.mailbox(&status).unwrap();
+    assert!(mailbox.complete);
+    assert_eq!(mailbox.messages.len(), 4);
+    assert_eq!(mailbox.polls.len(), 1);
+    assert!(matches!(
+        mailbox.messages[0].source,
+        rey::channels::ChannelMessageSource::GitHubNotification {
+            ref external_id,
+            provider_unread: true,
+            ..
+        } if external_id == "thread-8"
+    ));
+    assert_eq!(fs::read_to_string(&calls).unwrap().lines().count(), 9);
+
+    let mut agent = Command::new(env!("CARGO_BIN_EXE_rey"))
+        .args([
+            "agent",
+            "--workspace",
+            workspace_path,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--format",
+            "json",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut agent_stdout = BufReader::new(agent.stdout.take().unwrap());
+    let mut startup = String::new();
+    agent_stdout.read_line(&mut startup).unwrap();
+    let descriptor: Value = serde_json::from_str(&startup).unwrap();
+    assert_eq!(
+        descriptor["topology"]["nodes"][2]["node_id"],
+        "rey.channel-github-inbox"
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while fs::read_to_string(&calls).unwrap().lines().count() < 12 && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(50));
+    }
+    assert!(
+        fs::read_to_string(&calls).unwrap().lines().count() >= 12,
+        "resident worker did not run the admitted GitHub poll"
+    );
+    let status = store.status().unwrap();
+    let mailbox = store.mailbox(&status).unwrap();
+    assert!(mailbox.polls[0].sequence >= 4);
+    assert_eq!(mailbox.messages.len(), 4);
+
+    assert!(
+        Command::new("kill")
+            .args(["-INT", &agent.id().to_string()])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let stopped = agent.wait_with_output().unwrap();
+    assert!(
+        stopped.status.success(),
+        "{}",
+        String::from_utf8_lossy(&stopped.stderr)
+    );
+
+    fs::write(&fail, "fail the provider probe\n").unwrap();
+    let failed = run_rey(&[
+        "channels",
+        "--workspace",
+        workspace_path,
+        "poll",
+        "github",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(failed.status.code(), Some(3));
+    assert!(failed.stderr.is_empty());
+    let failed: rey::channels::GitHubPollAdmission =
+        serde_json::from_slice(&failed.stdout).unwrap();
+    assert!(!failed.receipt.complete);
+    assert!(failed.receipt.current_message_ids.is_empty());
+    assert!(failed.receipt.omissions[0].contains("unread notifications were not retained"));
+    let status = store.status().unwrap();
+    let mailbox = store.mailbox(&status).unwrap();
+    assert!(!mailbox.complete);
+    assert!(mailbox.messages.is_empty());
+    assert!(mailbox.omissions[0].contains("unread notifications were not retained"));
 }
 
 #[test]
@@ -5987,7 +6343,7 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     )));
     assert!(lifecycle.contains("INFO:     Started Rey process ["));
     assert!(lifecycle.contains(
-        "INFO:     Agent startup complete; background worker rey.operator-http is running"
+        "INFO:     Agent startup complete; background workers rey.operator-http and rey.channel-github-inbox are running"
     ));
 
     let mut network_child = Command::new(env!("CARGO_BIN_EXE_rey"))
@@ -6013,12 +6369,16 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert_eq!(descriptor["schema"], "rey.agent-process.v1");
     assert_eq!(descriptor["process"]["role"], "orchestrator");
     assert_eq!(descriptor["topology"]["schema"], "rey.agent-topology.v1");
-    assert_eq!(descriptor["topology"]["nodes"].as_array().unwrap().len(), 2);
+    assert_eq!(descriptor["topology"]["nodes"].as_array().unwrap().len(), 3);
     assert_eq!(
         descriptor["topology"]["edges"][0]["relationship"],
         "supervises"
     );
-    assert_eq!(descriptor["topology"]["max_background_workers"], 1);
+    assert_eq!(descriptor["topology"]["max_background_workers"], 2);
+    assert_eq!(
+        descriptor["topology"]["nodes"][2]["node_id"],
+        "rey.channel-github-inbox"
+    );
     assert_eq!(descriptor["operator"]["schema"], "rey.ui-server.v1");
     assert_eq!(descriptor["operator"]["host"], "0.0.0.0");
     assert_eq!(descriptor["operator"]["loopback_only"], false);
@@ -6065,7 +6425,7 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     )));
     assert!(diagnostics.contains("INFO:     Started Rey process ["));
     assert!(diagnostics.contains(
-        "INFO:     Agent startup complete; background worker rey.operator-http is running"
+        "INFO:     Agent startup complete; background workers rey.operator-http and rey.channel-github-inbox are running"
     ));
 
     let network_address = format!(
@@ -6168,10 +6528,11 @@ fn agent_cli_is_a_hard_cutover_and_stops_supervised_work_cooperatively() {
     for message in [
         version_log.as_str(),
         "INFO:     Started Rey process [",
-        "INFO:     Agent startup complete; background worker rey.operator-http is running",
+        "INFO:     Agent startup complete; background workers rey.operator-http and rey.channel-github-inbox are running",
         "INFO:     Shutdown requested",
-        "INFO:     Agent shutdown started; stopping background worker rey.operator-http",
+        "INFO:     Agent shutdown started; stopping background workers rey.operator-http and rey.channel-github-inbox",
         "INFO:     Agent shutdown complete; background worker rey.operator-http stopped",
+        "INFO:     Agent shutdown complete; background worker rey.channel-github-inbox stopped",
         "INFO:     Finished Rey process [",
     ] {
         assert!(

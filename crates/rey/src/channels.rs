@@ -27,6 +27,9 @@ pub const CHANNEL_COMMIT_RESULT_SCHEMA: &str = "rey.channel-commit-result.v1";
 pub const CHANNEL_LOG_SCHEMA: &str = "rey.channel-log.v1";
 pub const CHANNEL_MESSAGE_SCHEMA: &str = "rey.channel-message.v1";
 pub const CHANNEL_MESSAGE_ADMISSION_SCHEMA: &str = "rey.channel-message-admission.v1";
+pub const GITHUB_POLL_RECEIPT_SCHEMA: &str = "rey.github-channel-poll-receipt.v1";
+pub const GITHUB_POLL_ADMISSION_SCHEMA: &str = "rey.github-channel-poll-admission.v1";
+pub const CHANNEL_MAILBOX_SCHEMA: &str = "rey.channel-mailbox.v1";
 pub const CHANNEL_RELAY_ATTEMPT_SCHEMA: &str = "rey.channel-relay-attempt.v1";
 pub const POLLING_BEACON_TICK_SCHEMA: &str = "rey.polling-beacon-tick.v1";
 pub const LOCAL_CHANNEL_HISTORY_SCHEMA: &str = "rey.local-channel-history.v1";
@@ -57,8 +60,15 @@ const MESSAGES_FILE_NAME: &str = "messages.json";
 const ATTEMPTS_FILE_NAME: &str = "relay-attempts.json";
 const LOCK_FILE_NAME: &str = "channels.lock";
 const MAX_CHANNEL_MESSAGES: usize = 1_024;
+const MAX_GITHUB_POLL_RECEIPTS: usize = 256;
 const MAX_RELAY_ATTEMPTS: usize = 4_096;
 const MAX_CHANNEL_MESSAGE_BODY_BYTES: usize = 16 * 1_024;
+const MAX_GITHUB_NOTIFICATION_LIMIT: u64 = 50;
+const MAX_GITHUB_PULL_REQUEST_LIMIT: u64 = 16;
+const MAX_GITHUB_COMMENT_LIMIT: u64 = 50;
+pub const MAX_GITHUB_POLL_MESSAGES: usize = 128;
+
+pub const GITHUB_API_VERSION: &str = "2026-03-10";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -169,9 +179,24 @@ pub struct ChannelApplicationDeclaration {
     pub executable_path: String,
     pub executable_version: Option<String>,
     pub executable_digest: String,
+    #[serde(default)]
     pub relay_argv: Vec<String>,
+    #[serde(default)]
+    pub github_inbox: Option<GitHubInboxDeclaration>,
     pub timeout_ms: u64,
     pub max_output_bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitHubInboxDeclaration {
+    pub channel_id: String,
+    pub hostname: String,
+    pub poll_interval_seconds: u64,
+    pub notification_limit: u64,
+    pub pull_request_limit: u64,
+    pub comment_limit: u64,
+    pub credential_environment: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -218,6 +243,11 @@ impl ChannelGraph {
         for subscription in &mut self.subscriptions {
             subscription.channel_ids.sort();
             subscription.observation_kinds.sort();
+        }
+        for application in &mut self.applications {
+            if let Some(inbox) = &mut application.github_inbox {
+                inbox.credential_environment.sort();
+            }
         }
         validate_graph_references(&self)?;
         Ok(self)
@@ -941,10 +971,12 @@ impl ChannelMessageProposal {
         Ok(())
     }
 
-    fn identity(&self) -> Result<SemanticDigest, ChannelGraphError> {
+    fn identity(&self, source: &ChannelMessageSource) -> Result<SemanticDigest, ChannelGraphError> {
         self.verify()?;
+        source.verify()?;
         let mut hasher = SemanticHasher::new(CHANNEL_MESSAGE_SCHEMA);
         hasher.add_bytes(&serde_json::to_vec(self)?);
+        hasher.add_bytes(&serde_json::to_vec(source)?);
         Ok(hasher.finish())
     }
 }
@@ -966,6 +998,166 @@ pub struct ChannelMessage {
     pub channel_head_commit_id: Option<SemanticDigest>,
     pub channel_graph_id: SemanticDigest,
     pub proposal: ChannelMessageProposal,
+    pub source: ChannelMessageSource,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ChannelMessageSource {
+    LocalAdmission,
+    GitHubNotification {
+        application_id: String,
+        application_revision: u64,
+        external_id: String,
+        source_revision: String,
+        repository: String,
+        subject_type: String,
+        subject_title: String,
+        reason: String,
+        provider_unread: bool,
+        occurred_at_unix: i64,
+        html_url: String,
+    },
+    GitHubIssueComment {
+        application_id: String,
+        application_revision: u64,
+        external_id: String,
+        source_revision: String,
+        repository: String,
+        pull_number: u64,
+        author: String,
+        occurred_at_unix: i64,
+        html_url: String,
+    },
+    GitHubReviewComment {
+        application_id: String,
+        application_revision: u64,
+        external_id: String,
+        source_revision: String,
+        repository: String,
+        pull_number: u64,
+        author: String,
+        occurred_at_unix: i64,
+        html_url: String,
+        path: String,
+    },
+}
+
+impl ChannelMessageSource {
+    pub fn verify(&self) -> Result<(), ChannelGraphError> {
+        match self {
+            Self::LocalAdmission => Ok(()),
+            Self::GitHubNotification {
+                application_id,
+                application_revision,
+                external_id,
+                source_revision,
+                repository,
+                subject_type,
+                subject_title,
+                reason,
+                occurred_at_unix,
+                html_url,
+                ..
+            } => {
+                validate_github_source_common(
+                    application_id,
+                    *application_revision,
+                    external_id,
+                    source_revision,
+                    repository,
+                    *occurred_at_unix,
+                    html_url,
+                )?;
+                validate_name("GitHub subject type", subject_type)?;
+                validate_locator("GitHub subject title", subject_title)?;
+                validate_name("GitHub notification reason", reason)
+            }
+            Self::GitHubIssueComment {
+                application_id,
+                application_revision,
+                external_id,
+                source_revision,
+                repository,
+                pull_number,
+                author,
+                occurred_at_unix,
+                html_url,
+            } => validate_github_comment_source(
+                application_id,
+                *application_revision,
+                external_id,
+                source_revision,
+                repository,
+                *pull_number,
+                author,
+                *occurred_at_unix,
+                html_url,
+            ),
+            Self::GitHubReviewComment {
+                application_id,
+                application_revision,
+                external_id,
+                source_revision,
+                repository,
+                pull_number,
+                author,
+                occurred_at_unix,
+                html_url,
+                path,
+            } => {
+                validate_github_comment_source(
+                    application_id,
+                    *application_revision,
+                    external_id,
+                    source_revision,
+                    repository,
+                    *pull_number,
+                    author,
+                    *occurred_at_unix,
+                    html_url,
+                )?;
+                validate_locator("GitHub review path", path)
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn occurred_at_unix(&self) -> Option<i64> {
+        match self {
+            Self::LocalAdmission => None,
+            Self::GitHubNotification {
+                occurred_at_unix, ..
+            }
+            | Self::GitHubIssueComment {
+                occurred_at_unix, ..
+            }
+            | Self::GitHubReviewComment {
+                occurred_at_unix, ..
+            } => Some(*occurred_at_unix),
+        }
+    }
+
+    fn github_application(&self) -> Option<(&str, u64)> {
+        match self {
+            Self::LocalAdmission => None,
+            Self::GitHubNotification {
+                application_id,
+                application_revision,
+                ..
+            }
+            | Self::GitHubIssueComment {
+                application_id,
+                application_revision,
+                ..
+            }
+            | Self::GitHubReviewComment {
+                application_id,
+                application_revision,
+                ..
+            } => Some((application_id, *application_revision)),
+        }
+    }
 }
 
 impl ChannelMessage {
@@ -981,7 +1173,8 @@ impl ChannelMessage {
         if self.sequence == 0 {
             return Err(ChannelGraphError::MessageSequence);
         }
-        if self.message_id != self.proposal.identity()? {
+        self.source.verify()?;
+        if self.message_id != self.proposal.identity(&self.source)? {
             return Err(ChannelGraphError::MessageIdentity);
         }
         validate_semantic_digest("message channel graph", &self.channel_graph_id)?;
@@ -992,7 +1185,36 @@ impl ChannelMessage {
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 struct ChannelMessageLog {
+    #[serde(default)]
     messages: Vec<ChannelMessage>,
+    #[serde(default)]
+    github_polls: Vec<GitHubPollReceipt>,
+}
+
+fn github_new_message_count(
+    log: &ChannelMessageLog,
+    poll: &GitHubPollProposal,
+) -> Result<usize, ChannelGraphError> {
+    let retained = log
+        .messages
+        .iter()
+        .map(|message| &message.message_id)
+        .collect::<BTreeSet<_>>();
+    poll.messages.iter().try_fold(0_usize, |count, message| {
+        let message_id = message.proposal.identity(&message.source)?;
+        Ok(count + usize::from(!retained.contains(&message_id)))
+    })
+}
+
+fn prune_unreferenced_github_messages(log: &mut ChannelMessageLog) {
+    let referenced = log
+        .github_polls
+        .iter()
+        .flat_map(|receipt| receipt.current_message_ids.iter())
+        .collect::<BTreeSet<_>>();
+    log.messages.retain(|message| {
+        message.source.github_application().is_none() || referenced.contains(&message.message_id)
+    });
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1001,6 +1223,267 @@ pub struct ChannelMessageAdmission {
     pub schema: String,
     pub admitted: bool,
     pub message: ChannelMessage,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitHubPolledMessage {
+    pub proposal: ChannelMessageProposal,
+    pub source: ChannelMessageSource,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GitHubPollProposal {
+    pub polled_at_unix: i64,
+    pub expected_channel_head_commit_id: SemanticDigest,
+    pub expected_channel_graph_id: SemanticDigest,
+    pub application_id: String,
+    pub application_revision: u64,
+    pub environment_commit_id: SemanticDigest,
+    pub environment_capability_id: String,
+    pub hostname: String,
+    pub request_count: u64,
+    pub notification_count: u64,
+    pub pull_request_count: u64,
+    pub issue_comment_count: u64,
+    pub review_comment_count: u64,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+    pub responses: Vec<GitHubApiResponseEvidence>,
+    pub messages: Vec<GitHubPolledMessage>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitHubApiResponseEvidence {
+    pub endpoint: String,
+    pub content_digest: SemanticDigest,
+    pub bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitHubPollReceipt {
+    pub schema: String,
+    pub poll_id: SemanticDigest,
+    pub sequence: u64,
+    pub polled_at_unix: i64,
+    pub channel_head_commit_id: SemanticDigest,
+    pub channel_graph_id: SemanticDigest,
+    pub application_id: String,
+    pub application_revision: u64,
+    pub environment_commit_id: SemanticDigest,
+    pub environment_capability_id: String,
+    pub hostname: String,
+    pub api_version: String,
+    pub request_count: u64,
+    pub notification_count: u64,
+    pub pull_request_count: u64,
+    pub issue_comment_count: u64,
+    pub review_comment_count: u64,
+    pub admitted_message_count: u64,
+    pub reused_message_count: u64,
+    pub current_message_ids: Vec<SemanticDigest>,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+    pub responses: Vec<GitHubApiResponseEvidence>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GitHubPollAdmission {
+    pub schema: String,
+    pub receipt: GitHubPollReceipt,
+    pub messages: Vec<ChannelMessage>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChannelMailboxProjection {
+    pub schema: String,
+    pub ordering: String,
+    pub messages: Vec<ChannelMessage>,
+    pub polls: Vec<GitHubPollReceipt>,
+    pub complete: bool,
+    pub omissions: Vec<String>,
+    pub max_messages: u64,
+}
+
+impl GitHubPollProposal {
+    fn verify(&self) -> Result<(), ChannelGraphError> {
+        validate_commit_timestamp(self.polled_at_unix)?;
+        validate_semantic_digest(
+            "GitHub poll Channel HEAD",
+            &self.expected_channel_head_commit_id,
+        )?;
+        validate_semantic_digest("GitHub poll graph", &self.expected_channel_graph_id)?;
+        validate_identifier("GitHub poll application", &self.application_id)?;
+        validate_revision(
+            "GitHub poll application",
+            &self.application_id,
+            self.application_revision,
+        )?;
+        validate_semantic_digest("GitHub poll environment", &self.environment_commit_id)?;
+        validate_identifier(
+            "GitHub poll environment capability",
+            &self.environment_capability_id,
+        )?;
+        if self.hostname != "github.com" {
+            return Err(ChannelGraphError::GitHubHostname(self.hostname.clone()));
+        }
+        if self.request_count == 0 || self.request_count > 1 + MAX_GITHUB_PULL_REQUEST_LIMIT * 2 {
+            return Err(ChannelGraphError::GitHubPollRequestLimit(
+                self.request_count,
+            ));
+        }
+        if self.notification_count > MAX_GITHUB_NOTIFICATION_LIMIT
+            || self.pull_request_count > MAX_GITHUB_PULL_REQUEST_LIMIT
+            || self.issue_comment_count > MAX_GITHUB_PULL_REQUEST_LIMIT * MAX_GITHUB_COMMENT_LIMIT
+            || self.review_comment_count > MAX_GITHUB_PULL_REQUEST_LIMIT * MAX_GITHUB_COMMENT_LIMIT
+            || self.messages.len() > MAX_GITHUB_POLL_MESSAGES
+        {
+            return Err(ChannelGraphError::GitHubPollResultLimit);
+        }
+        if self.omissions.len() > 64 || self.responses.len() > self.request_count as usize {
+            return Err(ChannelGraphError::GitHubPollResultLimit);
+        }
+        for omission in &self.omissions {
+            validate_locator("GitHub poll omission", omission)?;
+        }
+        for response in &self.responses {
+            response.verify()?;
+        }
+        let mut message_ids = BTreeSet::new();
+        for message in &self.messages {
+            message.proposal.verify()?;
+            message.source.verify()?;
+            if !message_ids.insert(message.proposal.identity(&message.source)?) {
+                return Err(ChannelGraphError::GitHubPollDuplicateMessage);
+            }
+        }
+        if self.complete && !self.omissions.is_empty() {
+            return Err(ChannelGraphError::GitHubPollCompleteness);
+        }
+        Ok(())
+    }
+}
+
+impl GitHubApiResponseEvidence {
+    fn verify(&self) -> Result<(), ChannelGraphError> {
+        validate_locator("GitHub API endpoint", &self.endpoint)?;
+        validate_semantic_digest("GitHub API response", &self.content_digest)?;
+        if self.bytes == 0 || self.bytes > MAX_CHANNEL_STATE_BYTES {
+            return Err(ChannelGraphError::GitHubPollResultLimit);
+        }
+        Ok(())
+    }
+}
+
+impl GitHubPollReceipt {
+    fn new(
+        poll: GitHubPollProposal,
+        sequence: u64,
+        admitted_message_count: u64,
+        reused_message_count: u64,
+        current_message_ids: Vec<SemanticDigest>,
+    ) -> Result<Self, ChannelGraphError> {
+        let mut receipt = Self {
+            schema: GITHUB_POLL_RECEIPT_SCHEMA.to_owned(),
+            poll_id: SemanticHasher::new("rey.github-channel-poll-placeholder.v1").finish(),
+            sequence,
+            polled_at_unix: poll.polled_at_unix,
+            channel_head_commit_id: poll.expected_channel_head_commit_id,
+            channel_graph_id: poll.expected_channel_graph_id,
+            application_id: poll.application_id,
+            application_revision: poll.application_revision,
+            environment_commit_id: poll.environment_commit_id,
+            environment_capability_id: poll.environment_capability_id,
+            hostname: poll.hostname,
+            api_version: GITHUB_API_VERSION.to_owned(),
+            request_count: poll.request_count,
+            notification_count: poll.notification_count,
+            pull_request_count: poll.pull_request_count,
+            issue_comment_count: poll.issue_comment_count,
+            review_comment_count: poll.review_comment_count,
+            admitted_message_count,
+            reused_message_count,
+            current_message_ids,
+            complete: poll.complete,
+            omissions: poll.omissions,
+            responses: poll.responses,
+        };
+        receipt.poll_id = receipt.identity()?;
+        receipt.verify()?;
+        Ok(receipt)
+    }
+
+    fn identity(&self) -> Result<SemanticDigest, ChannelGraphError> {
+        let mut hasher = SemanticHasher::new(GITHUB_POLL_RECEIPT_SCHEMA);
+        let mut value = serde_json::to_value(self)?;
+        value["poll_id"] = serde_json::Value::Null;
+        hasher.add_bytes(&serde_json::to_vec(&value)?);
+        Ok(hasher.finish())
+    }
+
+    fn verify(&self) -> Result<(), ChannelGraphError> {
+        if self.schema != GITHUB_POLL_RECEIPT_SCHEMA {
+            return Err(ChannelGraphError::Schema {
+                expected: GITHUB_POLL_RECEIPT_SCHEMA,
+                actual: self.schema.clone(),
+            });
+        }
+        validate_commit_timestamp(self.polled_at_unix)?;
+        validate_semantic_digest("GitHub poll", &self.poll_id)?;
+        if self.sequence == 0 {
+            return Err(ChannelGraphError::GitHubPollSequence);
+        }
+        validate_semantic_digest("GitHub poll Channel HEAD", &self.channel_head_commit_id)?;
+        validate_semantic_digest("GitHub poll graph", &self.channel_graph_id)?;
+        validate_identifier("GitHub poll application", &self.application_id)?;
+        validate_revision(
+            "GitHub poll application",
+            &self.application_id,
+            self.application_revision,
+        )?;
+        validate_semantic_digest("GitHub poll environment", &self.environment_commit_id)?;
+        validate_identifier(
+            "GitHub poll environment capability",
+            &self.environment_capability_id,
+        )?;
+        if self.hostname != "github.com" || self.api_version != GITHUB_API_VERSION {
+            return Err(ChannelGraphError::GitHubHostname(self.hostname.clone()));
+        }
+        if self.request_count == 0
+            || self.request_count > 1 + MAX_GITHUB_PULL_REQUEST_LIMIT * 2
+            || self.notification_count > MAX_GITHUB_NOTIFICATION_LIMIT
+            || self.pull_request_count > MAX_GITHUB_PULL_REQUEST_LIMIT
+            || self.issue_comment_count > MAX_GITHUB_PULL_REQUEST_LIMIT * MAX_GITHUB_COMMENT_LIMIT
+            || self.review_comment_count > MAX_GITHUB_PULL_REQUEST_LIMIT * MAX_GITHUB_COMMENT_LIMIT
+            || self.current_message_ids.len()
+                != (self.admitted_message_count + self.reused_message_count) as usize
+            || self.current_message_ids.len() > MAX_GITHUB_POLL_MESSAGES
+            || self.responses.len() > self.request_count as usize
+            || self.omissions.len() > 64
+        {
+            return Err(ChannelGraphError::GitHubPollResultLimit);
+        }
+        let mut identities = BTreeSet::new();
+        for message_id in &self.current_message_ids {
+            validate_semantic_digest("GitHub poll message", message_id)?;
+            if !identities.insert(message_id) {
+                return Err(ChannelGraphError::GitHubPollDuplicateMessage);
+            }
+        }
+        for response in &self.responses {
+            response.verify()?;
+        }
+        if self.complete && !self.omissions.is_empty() {
+            return Err(ChannelGraphError::GitHubPollCompleteness);
+        }
+        if self.identity()? != self.poll_id {
+            return Err(ChannelGraphError::GitHubPollIdentity);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1343,6 +1826,7 @@ impl LocalChannelStore {
         proposal: ChannelMessageProposal,
     ) -> Result<ChannelMessageAdmission, ChannelGraphError> {
         proposal.verify()?;
+        let source = ChannelMessageSource::LocalAdmission;
         self.with_lock(|| {
             let history = self.load_history()?;
             let head_commit = history
@@ -1359,7 +1843,7 @@ impl LocalChannelStore {
                 return Err(ChannelGraphError::RejectedMessageKind);
             }
             let mut log = self.load_messages()?;
-            let message_id = proposal.identity()?;
+            let message_id = proposal.identity(&source)?;
             if let Some(message) = log
                 .messages
                 .iter()
@@ -1377,11 +1861,15 @@ impl LocalChannelStore {
             let message = ChannelMessage {
                 schema: CHANNEL_MESSAGE_ADMISSION_SCHEMA.to_owned(),
                 message_id,
-                sequence: log.messages.len() as u64 + 1,
+                sequence: log
+                    .messages
+                    .last()
+                    .map_or(1, |message| message.sequence.saturating_add(1)),
                 admitted_at_unix: Utc::now().timestamp(),
                 channel_head_commit_id: Some(head_commit.commit_id.clone()),
                 channel_graph_id: head_commit.snapshot.graph_id.clone(),
                 proposal,
+                source,
             };
             message.verify()?;
             log.messages.push(message.clone());
@@ -1396,6 +1884,206 @@ impl LocalChannelStore {
 
     pub fn messages(&self) -> Result<Vec<ChannelMessage>, ChannelGraphError> {
         Ok(self.load_messages()?.messages)
+    }
+
+    pub fn admit_github_poll(
+        &self,
+        poll: GitHubPollProposal,
+    ) -> Result<GitHubPollAdmission, ChannelGraphError> {
+        poll.verify()?;
+        self.with_lock(|| {
+            let history = self.load_history()?;
+            let head = history
+                .head()
+                .ok_or(ChannelGraphError::NoAdmittedChannelHead)?;
+            if head.commit_id != poll.expected_channel_head_commit_id
+                || head.snapshot.graph_id != poll.expected_channel_graph_id
+            {
+                return Err(ChannelGraphError::StaleGitHubPoll);
+            }
+            let application = head
+                .snapshot
+                .graph
+                .applications
+                .iter()
+                .find(|application| application.id == poll.application_id)
+                .ok_or_else(|| {
+                    ChannelGraphError::UnknownGitHubApplication(poll.application_id.clone())
+                })?;
+            if application.revision != poll.application_revision
+                || application.environment_capability_id != poll.environment_capability_id
+                || application.github_inbox.is_none()
+            {
+                return Err(ChannelGraphError::StaleGitHubPoll);
+            }
+            let inbox = application
+                .github_inbox
+                .as_ref()
+                .expect("GitHub inbox presence was checked");
+            for message in &poll.messages {
+                if message.proposal.channel_id != inbox.channel_id
+                    || message.source.github_application()
+                        != Some((application.id.as_str(), application.revision))
+                {
+                    return Err(ChannelGraphError::GitHubPollMessageBinding);
+                }
+            }
+
+            let mut log = self.load_messages()?;
+            let next_message_sequence = log
+                .messages
+                .last()
+                .map_or(1, |message| message.sequence.saturating_add(1));
+            let next_poll_sequence = log
+                .github_polls
+                .last()
+                .map_or(1, |receipt| receipt.sequence.saturating_add(1));
+            while log.github_polls.len() >= MAX_GITHUB_POLL_RECEIPTS {
+                log.github_polls.remove(0);
+                prune_unreferenced_github_messages(&mut log);
+            }
+            while log.messages.len() + github_new_message_count(&log, &poll)? > MAX_CHANNEL_MESSAGES
+            {
+                if log.github_polls.is_empty() {
+                    return Err(ChannelGraphError::MessageLimit(MAX_CHANNEL_MESSAGES));
+                }
+                log.github_polls.remove(0);
+                prune_unreferenced_github_messages(&mut log);
+            }
+            let mut selected = Vec::with_capacity(poll.messages.len());
+            let mut current_message_ids = Vec::with_capacity(poll.messages.len());
+            let mut admitted_message_count = 0_u64;
+            let mut reused_message_count = 0_u64;
+            let mut sequence = next_message_sequence;
+            for polled in &poll.messages {
+                let message_id = polled.proposal.identity(&polled.source)?;
+                if let Some(message) = log
+                    .messages
+                    .iter()
+                    .find(|message| message.message_id == message_id)
+                    .cloned()
+                {
+                    reused_message_count += 1;
+                    current_message_ids.push(message.message_id.clone());
+                    selected.push(message);
+                    continue;
+                }
+                if log.messages.len() >= MAX_CHANNEL_MESSAGES {
+                    return Err(ChannelGraphError::MessageLimit(MAX_CHANNEL_MESSAGES));
+                }
+                let message = ChannelMessage {
+                    schema: CHANNEL_MESSAGE_ADMISSION_SCHEMA.to_owned(),
+                    message_id,
+                    sequence,
+                    admitted_at_unix: poll.polled_at_unix,
+                    channel_head_commit_id: Some(head.commit_id.clone()),
+                    channel_graph_id: head.snapshot.graph_id.clone(),
+                    proposal: polled.proposal.clone(),
+                    source: polled.source.clone(),
+                };
+                message.verify()?;
+                admitted_message_count += 1;
+                current_message_ids.push(message.message_id.clone());
+                selected.push(message.clone());
+                log.messages.push(message);
+                sequence = sequence.saturating_add(1);
+            }
+            let receipt = GitHubPollReceipt::new(
+                poll,
+                next_poll_sequence,
+                admitted_message_count,
+                reused_message_count,
+                current_message_ids,
+            )?;
+            log.github_polls.push(receipt.clone());
+            self.save_json(MESSAGES_FILE_NAME, &log)?;
+            Ok(GitHubPollAdmission {
+                schema: GITHUB_POLL_ADMISSION_SCHEMA.to_owned(),
+                receipt,
+                messages: selected,
+            })
+        })
+    }
+
+    pub fn mailbox(
+        &self,
+        status: &ChannelStatus,
+    ) -> Result<ChannelMailboxProjection, ChannelGraphError> {
+        status.head.verify()?;
+        let Some(head) = status.head_commit.as_ref() else {
+            return Ok(ChannelMailboxProjection {
+                schema: CHANNEL_MAILBOX_SCHEMA.to_owned(),
+                ordering: "provider_updated_desc".to_owned(),
+                messages: Vec::new(),
+                polls: Vec::new(),
+                complete: true,
+                omissions: Vec::new(),
+                max_messages: MAX_GITHUB_POLL_MESSAGES as u64,
+            });
+        };
+        let log = self.load_messages()?;
+        let github_applications = status
+            .head
+            .graph
+            .applications
+            .iter()
+            .filter(|application| application.github_inbox.is_some())
+            .collect::<Vec<_>>();
+        let mut polls = Vec::new();
+        let mut omissions = Vec::new();
+        for application in github_applications {
+            if let Some(receipt) = log.github_polls.iter().rev().find(|receipt| {
+                receipt.channel_head_commit_id == head.commit_id
+                    && receipt.channel_graph_id == status.head.graph_id
+                    && receipt.application_id == application.id
+                    && receipt.application_revision == application.revision
+            }) {
+                polls.push(receipt.clone());
+            } else {
+                omissions.push(format!(
+                    "GitHub application {}@{} has no retained poll for current Channel HEAD",
+                    application.id, application.revision
+                ));
+            }
+        }
+        let mut identities = BTreeSet::new();
+        let mut messages = polls
+            .iter()
+            .flat_map(|poll| poll.current_message_ids.iter())
+            .filter(|message_id| identities.insert((*message_id).clone()))
+            .filter_map(|message_id| {
+                log.messages
+                    .iter()
+                    .find(|message| &message.message_id == message_id)
+                    .cloned()
+            })
+            .collect::<Vec<_>>();
+        messages.sort_by(|left, right| {
+            right
+                .source
+                .occurred_at_unix()
+                .cmp(&left.source.occurred_at_unix())
+                .then_with(|| right.sequence.cmp(&left.sequence))
+        });
+        if messages.len() > MAX_GITHUB_POLL_MESSAGES {
+            messages.truncate(MAX_GITHUB_POLL_MESSAGES);
+            omissions.push(format!(
+                "mailbox projection retained only the newest {MAX_GITHUB_POLL_MESSAGES} GitHub messages"
+            ));
+        }
+        let complete = omissions.is_empty() && polls.iter().all(|poll| poll.complete);
+        for poll in &polls {
+            omissions.extend(poll.omissions.iter().cloned());
+        }
+        Ok(ChannelMailboxProjection {
+            schema: CHANNEL_MAILBOX_SCHEMA.to_owned(),
+            ordering: "provider_updated_desc".to_owned(),
+            messages,
+            polls,
+            complete,
+            omissions,
+            max_messages: MAX_GITHUB_POLL_MESSAGES as u64,
+        })
     }
 
     pub fn relay_attempts(&self) -> Result<Vec<RelayAttempt>, ChannelGraphError> {
@@ -1561,14 +2249,36 @@ impl LocalChannelStore {
         if log.messages.len() > MAX_CHANNEL_MESSAGES {
             return Err(ChannelGraphError::MessageLimit(MAX_CHANNEL_MESSAGES));
         }
+        if log.github_polls.len() > MAX_GITHUB_POLL_RECEIPTS {
+            return Err(ChannelGraphError::GitHubPollLimit(MAX_GITHUB_POLL_RECEIPTS));
+        }
         let mut identities = BTreeSet::new();
-        for (position, message) in log.messages.iter().enumerate() {
+        let mut prior_message_sequence = 0_u64;
+        for message in &log.messages {
             message.verify()?;
-            if message.sequence != position as u64 + 1 {
+            if message.sequence <= prior_message_sequence {
                 return Err(ChannelGraphError::MessageSequence);
             }
+            prior_message_sequence = message.sequence;
             if !identities.insert(message.message_id.clone()) {
                 return Err(ChannelGraphError::MessageIdentity);
+            }
+        }
+        let mut poll_identities = BTreeSet::new();
+        let mut prior_poll_sequence = 0_u64;
+        for poll in &log.github_polls {
+            poll.verify()?;
+            if poll.sequence <= prior_poll_sequence {
+                return Err(ChannelGraphError::GitHubPollSequence);
+            }
+            prior_poll_sequence = poll.sequence;
+            if !poll_identities.insert(poll.poll_id.clone()) {
+                return Err(ChannelGraphError::GitHubPollIdentity);
+            }
+            for message_id in &poll.current_message_ids {
+                if !identities.contains(message_id) {
+                    return Err(ChannelGraphError::GitHubPollMessageBinding);
+                }
             }
         }
         Ok(log)
@@ -1915,8 +2625,7 @@ fn validate_graph_members(graph: &ChannelGraph) -> Result<(), ChannelGraphError>
             "channel application executable",
             &application.executable_digest,
         )?;
-        if application.relay_argv.is_empty()
-            || application.relay_argv.len() > MAX_RELAY_ARGUMENTS
+        if application.relay_argv.len() > MAX_RELAY_ARGUMENTS
             || application.relay_argv.iter().any(|argument| {
                 argument.is_empty()
                     || argument.len() > MAX_RELAY_ARGUMENT_BYTES
@@ -1935,14 +2644,54 @@ fn validate_graph_members(graph: &ChannelGraph) -> Result<(), ChannelGraphError>
             .iter()
             .filter(|argument| argument.as_str() == "{message}")
             .count();
-        if target_placeholders != 1
-            || message_placeholders != 1
-            || application.relay_argv.iter().any(|argument| {
-                (argument.contains("{target}") && argument != "{target}")
-                    || (argument.contains("{message}") && argument != "{message}")
-            })
+        if !application.relay_argv.is_empty()
+            && (target_placeholders != 1
+                || message_placeholders != 1
+                || application.relay_argv.iter().any(|argument| {
+                    (argument.contains("{target}") && argument != "{target}")
+                        || (argument.contains("{message}") && argument != "{message}")
+                }))
         {
             return Err(ChannelGraphError::RelayArguments(application.id.clone()));
+        }
+        if let Some(inbox) = &application.github_inbox {
+            if application.environment_capability_id != "comms.application.github.identity" {
+                return Err(ChannelGraphError::GitHubCapability(
+                    application.environment_capability_id.clone(),
+                ));
+            }
+            validate_identifier("GitHub inbox channel", &inbox.channel_id)?;
+            if inbox.hostname != "github.com" {
+                return Err(ChannelGraphError::GitHubHostname(inbox.hostname.clone()));
+            }
+            if inbox.poll_interval_seconds == 0
+                || inbox.poll_interval_seconds > 3_600
+                || inbox.notification_limit == 0
+                || inbox.notification_limit > MAX_GITHUB_NOTIFICATION_LIMIT
+                || inbox.pull_request_limit == 0
+                || inbox.pull_request_limit > MAX_GITHUB_PULL_REQUEST_LIMIT
+                || inbox.comment_limit == 0
+                || inbox.comment_limit > MAX_GITHUB_COMMENT_LIMIT
+            {
+                return Err(ChannelGraphError::GitHubInboxLimit(application.id.clone()));
+            }
+            if inbox.credential_environment.is_empty() || inbox.credential_environment.len() > 4 {
+                return Err(ChannelGraphError::GitHubCredentialEnvironment(
+                    application.id.clone(),
+                ));
+            }
+            let mut credential_environment = BTreeSet::new();
+            for name in &inbox.credential_environment {
+                if !matches!(
+                    name.as_str(),
+                    "HOME" | "GH_CONFIG_DIR" | "GH_TOKEN" | "GITHUB_TOKEN"
+                ) || !credential_environment.insert(name)
+                {
+                    return Err(ChannelGraphError::GitHubCredentialEnvironment(
+                        application.id.clone(),
+                    ));
+                }
+            }
         }
         if application.timeout_ms == 0 || application.timeout_ms > 60_000 {
             return Err(ChannelGraphError::ApplicationTimeout(
@@ -2030,11 +2779,11 @@ fn validate_graph_references(graph: &ChannelGraph) -> Result<(), ChannelGraphErr
         .iter()
         .map(|stream| stream.id.as_str())
         .collect::<BTreeSet<_>>();
-    let application_ids = graph
+    let applications = graph
         .applications
         .iter()
-        .map(|application| application.id.as_str())
-        .collect::<BTreeSet<_>>();
+        .map(|application| (application.id.as_str(), application))
+        .collect::<BTreeMap<_, _>>();
     let relays = graph
         .relays
         .iter()
@@ -2082,17 +2831,32 @@ fn validate_graph_references(graph: &ChannelGraph) -> Result<(), ChannelGraphErr
                 target_id: relay.source_channel_id.clone(),
             });
         }
-        if !application_ids.contains(relay.provider_id.as_str()) {
+        let Some(application) = applications.get(relay.provider_id.as_str()) else {
             return Err(ChannelGraphError::MissingReference {
                 owner_kind: "relay",
                 owner_id: relay.id.clone(),
                 target_kind: "application",
                 target_id: relay.provider_id.clone(),
             });
+        };
+        if application.relay_argv.is_empty() {
+            return Err(ChannelGraphError::RelayArguments(application.id.clone()));
+        }
+    }
+    for application in &graph.applications {
+        if let Some(inbox) = &application.github_inbox
+            && !channel_ids.contains(inbox.channel_id.as_str())
+        {
+            return Err(ChannelGraphError::MissingReference {
+                owner_kind: "GitHub inbox",
+                owner_id: application.id.clone(),
+                target_kind: "channel",
+                target_id: inbox.channel_id.clone(),
+            });
         }
     }
     for beacon in &graph.beacons {
-        if !application_ids.contains(beacon.application_id.as_str()) {
+        if !applications.contains_key(beacon.application_id.as_str()) {
             return Err(ChannelGraphError::MissingReference {
                 owner_kind: "beacon",
                 owner_id: beacon.id.clone(),
@@ -2712,6 +3476,58 @@ fn validate_commit_timestamp(committed_at_unix: i64) -> Result<(), ChannelGraphE
     Ok(())
 }
 
+fn validate_github_source_common(
+    application_id: &str,
+    application_revision: u64,
+    external_id: &str,
+    source_revision: &str,
+    repository: &str,
+    occurred_at_unix: i64,
+    html_url: &str,
+) -> Result<(), ChannelGraphError> {
+    validate_identifier("GitHub source application", application_id)?;
+    validate_revision(
+        "GitHub source application",
+        application_id,
+        application_revision,
+    )?;
+    validate_locator("GitHub external id", external_id)?;
+    validate_locator("GitHub source revision", source_revision)?;
+    validate_locator("GitHub repository", repository)?;
+    validate_commit_timestamp(occurred_at_unix)?;
+    if !html_url.starts_with("https://github.com/") {
+        return Err(ChannelGraphError::GitHubSourceUrl(html_url.to_owned()));
+    }
+    validate_locator("GitHub source URL", html_url)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_github_comment_source(
+    application_id: &str,
+    application_revision: u64,
+    external_id: &str,
+    source_revision: &str,
+    repository: &str,
+    pull_number: u64,
+    author: &str,
+    occurred_at_unix: i64,
+    html_url: &str,
+) -> Result<(), ChannelGraphError> {
+    validate_github_source_common(
+        application_id,
+        application_revision,
+        external_id,
+        source_revision,
+        repository,
+        occurred_at_unix,
+        html_url,
+    )?;
+    if pull_number == 0 {
+        return Err(ChannelGraphError::GitHubPullNumber);
+    }
+    validate_name("GitHub comment author", author)
+}
+
 fn validate_count(
     field: &'static str,
     actual: usize,
@@ -2916,6 +3732,14 @@ pub enum ChannelGraphError {
     ApplicationTimeout(String),
     #[error("channel application {0} output limit is outside 1..=1048576 bytes")]
     ApplicationOutputLimit(String),
+    #[error("GitHub inbox requires comms.application.github.identity, found {0}")]
+    GitHubCapability(String),
+    #[error("GitHub inbox supports only github.com in this revision, found {0}")]
+    GitHubHostname(String),
+    #[error("GitHub inbox limits are invalid for application {0}")]
+    GitHubInboxLimit(String),
+    #[error("GitHub credential environment is invalid for application {0}")]
+    GitHubCredentialEnvironment(String),
     #[error("polling beacon {0} interval is outside 5..=86400 seconds")]
     BeaconInterval(String),
     #[error("polling beacon {0} batch limit is outside 1..=64")]
@@ -3006,12 +3830,36 @@ pub enum ChannelGraphError {
     MessageEvidenceLimit,
     #[error("channel message repeats evidence locator {0}")]
     MessageEvidenceDuplicate(String),
-    #[error("channel message sequence is not contiguous")]
+    #[error("channel message retained sequence is not strictly increasing")]
     MessageSequence,
     #[error("channel message identity does not match its proposal")]
     MessageIdentity,
+    #[error("GitHub source URL is not an exact github.com URL: {0}")]
+    GitHubSourceUrl(String),
+    #[error("GitHub pull request number must be positive")]
+    GitHubPullNumber,
     #[error("channel message log exceeds the {0}-message limit")]
     MessageLimit(usize),
+    #[error("GitHub poll receipt log exceeds the {0}-receipt limit")]
+    GitHubPollLimit(usize),
+    #[error("GitHub poll request count {0} exceeds its admitted bound")]
+    GitHubPollRequestLimit(u64),
+    #[error("GitHub poll result exceeds its admitted bound")]
+    GitHubPollResultLimit,
+    #[error("GitHub poll contains a duplicate message revision")]
+    GitHubPollDuplicateMessage,
+    #[error("GitHub poll completeness conflicts with retained omissions")]
+    GitHubPollCompleteness,
+    #[error("GitHub poll identity does not match its retained evidence")]
+    GitHubPollIdentity,
+    #[error("GitHub poll retained sequence is not strictly increasing")]
+    GitHubPollSequence,
+    #[error("GitHub poll message does not match its application or target channel")]
+    GitHubPollMessageBinding,
+    #[error("Channel HEAD changed before the GitHub poll could be retained")]
+    StaleGitHubPoll,
+    #[error("unknown admitted GitHub application {0}")]
+    UnknownGitHubApplication(String),
     #[error("relay attempt log exceeds the {0}-attempt limit")]
     RelayAttemptLimit(usize),
     #[error("relay attempt identity does not match its retained evidence")]

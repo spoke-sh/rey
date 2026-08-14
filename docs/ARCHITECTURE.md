@@ -60,12 +60,13 @@ Rey separates ten responsibilities:
 These are responsibility boundaries, not requirements for separate processes.
 The first topology is the foreground local Rey process started by `rey agent`.
 Its root role is an orchestrator that owns all in-process background-work
-lifecycle. The first registered worker is the embedded operator HTTP server;
+lifecycle. The registered workers are the embedded operator HTTP server and
+the exact admitted GitHub Channel inbox poller;
 the startup log binds that process to its package version and build commit,
 while the startup document and `GET /api/v1/agent` expose the exact process,
 worker, and supervision edge. `rey version` projects the same immutable build
 identity without starting the process. SIGINT or SIGTERM requests cooperative
-shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a fixed one-worker
+shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a fixed two-worker
 bound and no restart, daemonization, multi-process fencing, or crash-durability
 claim.
 
@@ -318,15 +319,21 @@ becoming assignments or execution authority. Tasks still organize intent,
 operation, artifact references, desired delta, readiness, and assignment;
 journeys remain derived. Agent
 application discovery stays on `/environment`, and generator tuples remain
-provenance rather than activity or assignment. `/cadence`
+provenance rather than activity or assignment. A separately admitted exact
+`gh` application may be invoked only by the bounded Channel poll contract; the
+CLI verifies one tick and the supervised inbox worker repeats it at the exact
+committed cadence. Its retained GitHub notifications and pull-request comments
+then enter the mailbox.
+`/cadence`
 keeps bounded Git reachability, environment sequence, and mounted browser scan
 schedules on separate clocks instead of fabricating a total event order. Its
 repository-state plane separately shows staged, unstaged, untracked, and
 conflicted working-tree attention plus exact `HEAD`-to-local-upstream
 publication. That relation is revision-bound and performs no remote transport.
-The fixed footer is a live communications channel over typed attention and
-passive-revalidation health. A quiet mailbox means no operator attention is
-requested; it is not filled with synthetic heartbeat activity. The mailbox
+The fixed footer is a live communications channel over current retained
+Channel poll messages, typed attention, and passive-revalidation health. A
+quiet mailbox means no operator attention is requested; it is not filled with
+authored Observations or synthetic heartbeat activity. The mailbox
 control selects the history axis. The center chevrons select a separate
 operator/Rey/agent conversation axis with a conventional transcript and
 composer. A bounded workspace-local transcript provider admits exact sessions
@@ -347,7 +354,9 @@ different interfaces; channel admission grants no action or transport
 authority. The local revision slice implements the canonical built-in graph,
 bounded snapshots/deltas, symlink-safe `CHANNEL HEAD → INDEX → WORKING` store,
 and `channels list/status/diff/apply/add/commit/log`. Immutable file-backed
-messages, explicit relay attempts, and bounded one-shot polling-beacon ticks
+messages, explicit relay attempts, bounded one-shot polling-beacon ticks, and
+an exact-environment-HEAD `gh` poll for unread GitHub notifications
+plus issue-level and review-thread comments on bounded pull-request subjects
 are also implemented. The Channel graph and browser API remain non-navigable
 substrate behind Feed, mailbox, and conversation; there is no top-level
 `/channels` route or navigation item. Feed selects detached URL preview,
@@ -368,10 +377,13 @@ implemented. The separate local conversation log now retains immutable
 sessions, declared participants/writers, per-session message order, exact
 sources, availability, authority, limits, and failure posture; no append
 invokes an agent or uses Channel relay. Browser conversation projection and
-conditional append are delivered. Resident beacon scheduling and remote
-inbound cursors remain planned behavior. Until retained application-to-Channel
-ingress exists, the mailbox projects only typed runtime attention and passive
-revalidation failures; it does not reinterpret authored Observations as mail.
+conditional append are delivered. Resident beacon scheduling and durable
+remote provider cursors remain planned behavior. The implemented GitHub poll
+has both an explicit one-shot CLI and a supervised admitted-cadence worker; its
+latest exact-Channel-HEAD receipt defines the current provider mailbox
+frontier. The mailbox projects that frontier beside
+typed runtime attention and passive revalidation failures; it does not
+reinterpret authored Observations as mail.
 
 Hifi's
 Kinetic grammar with the Precision theme defines the interaction and material

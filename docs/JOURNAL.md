@@ -198,8 +198,8 @@ carry no execution authority.
 ## Channel Relationship
 
 Journal remains separate from Channel topology and immutable Channel messages.
-The implemented `rey channels message|relay|beacon` paths do not create or
-revise Journal documents. The standalone observation frontier retains exact
+The implemented `rey channels message|relay|beacon|poll` paths do not create
+or revise Journal documents. The standalone observation frontier retains exact
 evidence and source bindings; a Journal is deliberate notebook synthesis that
 may cite several observations. A broadcast associates one retained observation
 identity with explicit local channels without creating or duplicating a

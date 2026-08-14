@@ -5,6 +5,7 @@ pub mod conversations;
 pub mod editor;
 pub mod env;
 pub mod git;
+pub mod github;
 pub mod ignore;
 pub mod journal;
 pub mod journal_opportunities;

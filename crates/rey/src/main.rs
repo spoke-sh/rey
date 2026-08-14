@@ -24,12 +24,14 @@ use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use rey::{
     ReyError,
     channels::{
-        ChannelAddResult, ChannelApplyResult, ChannelCommitResult, ChannelDiff, ChannelGraph,
-        ChannelGraphChange, ChannelGraphError, ChannelGraphSource, ChannelLog, ChannelMessage,
-        ChannelMessageAdmission, ChannelMessageProposal, ChannelObjectKind, ChannelStatus,
-        ChannelWorkingState, LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
-        POLLING_BEACON_TICK_SCHEMA, PollingBeaconTick, RelayAttempt, RelayAttemptOutcome,
-        relay_output_digest,
+        ChannelAddResult, ChannelApplicationDeclaration, ChannelApplyResult, ChannelCommitResult,
+        ChannelDiff, ChannelGraph, ChannelGraphChange, ChannelGraphError, ChannelGraphSource,
+        ChannelLog, ChannelMessage, ChannelMessageAdmission, ChannelMessageProposal,
+        ChannelMessageSource, ChannelObjectKind, ChannelStatus, ChannelWorkingState,
+        GITHUB_API_VERSION, GitHubApiResponseEvidence, GitHubInboxDeclaration, GitHubPollAdmission,
+        GitHubPollProposal, GitHubPolledMessage, LocalChannelStore, MAX_CHANNEL_GRAPH_INPUT_BYTES,
+        MAX_GITHUB_POLL_MESSAGES, POLLING_BEACON_TICK_SCHEMA, PollingBeaconTick, RelayAttempt,
+        RelayAttemptOutcome, relay_output_digest,
     },
     conversations::{
         ConversationError, ConversationLog, ConversationMessageAdmission,
@@ -60,6 +62,11 @@ use rey::{
         GitWatchStopReason, LocalGitState, LocalGitStateError, LocalGitStore,
         MAX_GIT_WATCH_ELAPSED_MS, MAX_GIT_WATCH_INTERVAL_MS, MAX_GIT_WATCH_ITERATIONS,
         MAX_GIT_WATCH_RETRIES,
+    },
+    github::{
+        GitHubIssueComment, GitHubNotificationThread, GitHubPollParseError, GitHubReviewComment,
+        notification_html_url, parse_issue_comments, parse_notifications, parse_review_comments,
+        parse_timestamp, pull_request_number,
     },
     inspect_environment_with_mapping,
     journal::{
@@ -744,6 +751,8 @@ enum ChannelsCommand {
     Relay(ChannelRelayArgs),
     /// Run one explicit bounded polling-beacon tick.
     Beacon(ChannelBeaconArgs),
+    /// Poll one admitted GitHub application for notifications and PR comments.
+    Poll(ChannelPollArgs),
 }
 
 #[derive(Debug, Args)]
@@ -842,6 +851,15 @@ struct ChannelRelayArgs {
 struct ChannelBeaconArgs {
     /// Exact polling beacon id from Channel HEAD.
     beacon_id: String,
+
+    #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
+    format: WorkloadOutputFormat,
+}
+
+#[derive(Debug, Args)]
+struct ChannelPollArgs {
+    /// Exact GitHub application id from Channel HEAD.
+    application_id: String,
 
     #[arg(long, value_enum, default_value_t = WorkloadOutputFormat::Auto)]
     format: WorkloadOutputFormat,
@@ -2217,6 +2235,7 @@ fn channels_command(args: ChannelsArgs) -> Result<ExitCode, CliError> {
         ChannelsCommand::Message(command) => channel_message(&store, &workspace, command),
         ChannelsCommand::Relay(command) => channel_relay(&store, &workspace, command),
         ChannelsCommand::Beacon(command) => channel_beacon(&store, &workspace, command),
+        ChannelsCommand::Poll(command) => channel_poll(&store, &workspace, command),
     }
 }
 
@@ -2419,6 +2438,623 @@ fn channel_beacon(
         WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
     }
     Ok(exit)
+}
+
+fn channel_poll(
+    store: &LocalChannelStore,
+    workspace: &Path,
+    args: ChannelPollArgs,
+) -> Result<ExitCode, CliError> {
+    let head = store.admitted_head()?;
+    let application = head
+        .snapshot
+        .graph
+        .applications
+        .iter()
+        .find(|application| application.id == args.application_id)
+        .ok_or_else(|| CliError::UnknownChannelApplication(args.application_id.clone()))?;
+    let inbox = application
+        .github_inbox
+        .as_ref()
+        .ok_or_else(|| CliError::NotGitHubInbox(application.id.clone()))?;
+    let environment_store = LocalEnvironmentStore::default_for_workspace(workspace);
+    let environment = environment_store.load()?;
+    let environment_head = environment.head().ok_or(CliError::NoEnvironmentHead)?;
+    let capability = environment_head
+        .snapshot
+        .capabilities
+        .iter()
+        .find(|capability| capability.capability_id == application.environment_capability_id)
+        .ok_or_else(|| {
+            CliError::UnadmittedChannelApplication(application.environment_capability_id.clone())
+        })?;
+    if capability.availability != Availability::Available
+        || capability.resolved_location.as_deref() != Some(application.executable_path.as_str())
+        || application
+            .executable_version
+            .as_deref()
+            .is_some_and(|version| capability.version.as_deref() != Some(version))
+        || capability.content_digest.as_deref() != Some(application.executable_digest.as_str())
+    {
+        return Err(CliError::ChannelApplicationDrift(application.id.clone()));
+    }
+    verify_channel_application_executable(application)?;
+    let command_environment = github_command_environment(inbox)?;
+    let poll = collect_github_poll(
+        workspace,
+        application,
+        inbox,
+        &command_environment,
+        &head.commit_id,
+        &head.snapshot.graph_id,
+        &environment_head.commit_id,
+    )?;
+    let admission = store.admit_github_poll(poll)?;
+    let exit = if admission.receipt.complete {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(3)
+    };
+    let mut stdout = io::stdout().lock();
+    match args.format.resolve() {
+        WorkloadOutputFormat::Json => write_json_line(&mut stdout, &admission)?,
+        WorkloadOutputFormat::Table => write_github_poll_admission(&mut stdout, &admission)?,
+        WorkloadOutputFormat::Auto => unreachable!("auto output is resolved before rendering"),
+    }
+    Ok(exit)
+}
+
+#[derive(Debug)]
+struct GitHubApiResponse {
+    evidence: GitHubApiResponseEvidence,
+    bytes: Vec<u8>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_github_poll(
+    workspace: &Path,
+    application: &ChannelApplicationDeclaration,
+    inbox: &GitHubInboxDeclaration,
+    environment: &[(OsString, OsString)],
+    channel_head_commit_id: &SemanticDigest,
+    channel_graph_id: &SemanticDigest,
+    environment_commit_id: &SemanticDigest,
+) -> Result<GitHubPollProposal, CliError> {
+    let notification_endpoint = format!(
+        "notifications?all=false&participating=false&per_page={}",
+        inbox.notification_limit
+    );
+    let notification_response = match github_api(
+        workspace,
+        application,
+        inbox,
+        environment,
+        &notification_endpoint,
+    ) {
+        Ok(response) => response,
+        Err(error) => {
+            return Ok(empty_github_poll(
+                application,
+                inbox,
+                channel_head_commit_id,
+                channel_graph_id,
+                environment_commit_id,
+                format!("unread notifications were not retained: {error}"),
+                Vec::new(),
+            ));
+        }
+    };
+    let notifications = match parse_notifications(&notification_response.bytes) {
+        Ok(notifications) => notifications,
+        Err(error) => {
+            return Ok(empty_github_poll(
+                application,
+                inbox,
+                channel_head_commit_id,
+                channel_graph_id,
+                environment_commit_id,
+                format!("unread notification response was rejected: {error}"),
+                vec![notification_response.evidence],
+            ));
+        }
+    };
+    if notifications.len() > inbox.notification_limit as usize {
+        return Err(CliError::GitHubPollResponseLimit);
+    }
+
+    let mut messages = Vec::new();
+    let mut responses = vec![notification_response.evidence];
+    let mut omissions = Vec::new();
+    let mut request_count = 1_u64;
+    let mut pull_request_count = 0_u64;
+    let mut issue_comment_count = 0_u64;
+    let mut review_comment_count = 0_u64;
+    if notifications.len() == inbox.notification_limit as usize {
+        push_github_omission(
+            &mut omissions,
+            format!(
+                "notification response reached the {}-row bound; additional unread notifications may exist",
+                inbox.notification_limit
+            ),
+        );
+    }
+
+    for notification in &notifications {
+        push_github_notification(
+            &mut messages,
+            &mut omissions,
+            application,
+            inbox,
+            notification,
+        )?;
+        let Some(pull_number) = pull_request_number(notification)? else {
+            continue;
+        };
+        if pull_request_count >= inbox.pull_request_limit {
+            if !omissions
+                .iter()
+                .any(|omission| omission.contains("PR comment polling stopped"))
+            {
+                push_github_omission(
+                    &mut omissions,
+                    format!(
+                        "PR comment polling stopped at the {}-pull-request bound",
+                        inbox.pull_request_limit
+                    ),
+                );
+            }
+            continue;
+        }
+        pull_request_count += 1;
+        let repository = &notification.repository.full_name;
+        let since = notification
+            .last_read_at
+            .as_deref()
+            .map(|value| format!("&since={value}"))
+            .unwrap_or_default();
+        let issue_endpoint = format!(
+            "repos/{repository}/issues/{pull_number}/comments?per_page={}&sort=updated&direction=desc{}",
+            inbox.comment_limit, since
+        );
+        request_count += 1;
+        match github_api(workspace, application, inbox, environment, &issue_endpoint) {
+            Ok(response) => {
+                let comments = match parse_issue_comments(&response.bytes, repository, pull_number)
+                {
+                    Ok(comments) => comments,
+                    Err(error) => {
+                        push_github_omission(
+                            &mut omissions,
+                            format!(
+                                "{repository}#{pull_number} issue comment response was rejected: {error}"
+                            ),
+                        );
+                        Vec::new()
+                    }
+                };
+                if comments.len() > inbox.comment_limit as usize {
+                    return Err(CliError::GitHubPollResponseLimit);
+                }
+                issue_comment_count += comments.len() as u64;
+                if comments.len() == inbox.comment_limit as usize {
+                    push_github_omission(
+                        &mut omissions,
+                        format!(
+                            "{repository}#{pull_number} issue comments reached the {}-row bound",
+                            inbox.comment_limit
+                        ),
+                    );
+                }
+                responses.push(response.evidence);
+                for comment in comments {
+                    push_github_issue_comment(
+                        &mut messages,
+                        &mut omissions,
+                        application,
+                        inbox,
+                        repository,
+                        pull_number,
+                        comment,
+                    )?;
+                }
+            }
+            Err(error) => push_github_omission(
+                &mut omissions,
+                format!("{repository}#{pull_number} issue comments were not retained: {error}"),
+            ),
+        }
+
+        let review_endpoint = format!(
+            "repos/{repository}/pulls/{pull_number}/comments?per_page={}&sort=updated&direction=desc{}",
+            inbox.comment_limit, since
+        );
+        request_count += 1;
+        match github_api(workspace, application, inbox, environment, &review_endpoint) {
+            Ok(response) => {
+                let comments = match parse_review_comments(&response.bytes, repository, pull_number)
+                {
+                    Ok(comments) => comments,
+                    Err(error) => {
+                        push_github_omission(
+                            &mut omissions,
+                            format!(
+                                "{repository}#{pull_number} review comment response was rejected: {error}"
+                            ),
+                        );
+                        Vec::new()
+                    }
+                };
+                if comments.len() > inbox.comment_limit as usize {
+                    return Err(CliError::GitHubPollResponseLimit);
+                }
+                review_comment_count += comments.len() as u64;
+                if comments.len() == inbox.comment_limit as usize {
+                    push_github_omission(
+                        &mut omissions,
+                        format!(
+                            "{repository}#{pull_number} review comments reached the {}-row bound",
+                            inbox.comment_limit
+                        ),
+                    );
+                }
+                responses.push(response.evidence);
+                for comment in comments {
+                    push_github_review_comment(
+                        &mut messages,
+                        &mut omissions,
+                        application,
+                        inbox,
+                        repository,
+                        pull_number,
+                        comment,
+                    )?;
+                }
+            }
+            Err(error) => push_github_omission(
+                &mut omissions,
+                format!("{repository}#{pull_number} review comments were not retained: {error}"),
+            ),
+        }
+    }
+    let complete = omissions.is_empty();
+    Ok(GitHubPollProposal {
+        polled_at_unix: Utc::now().timestamp(),
+        expected_channel_head_commit_id: channel_head_commit_id.clone(),
+        expected_channel_graph_id: channel_graph_id.clone(),
+        application_id: application.id.clone(),
+        application_revision: application.revision,
+        environment_commit_id: environment_commit_id.clone(),
+        environment_capability_id: application.environment_capability_id.clone(),
+        hostname: inbox.hostname.clone(),
+        request_count,
+        notification_count: notifications.len() as u64,
+        pull_request_count,
+        issue_comment_count,
+        review_comment_count,
+        complete,
+        omissions,
+        responses,
+        messages,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn empty_github_poll(
+    application: &ChannelApplicationDeclaration,
+    inbox: &GitHubInboxDeclaration,
+    channel_head_commit_id: &SemanticDigest,
+    channel_graph_id: &SemanticDigest,
+    environment_commit_id: &SemanticDigest,
+    omission: String,
+    responses: Vec<GitHubApiResponseEvidence>,
+) -> GitHubPollProposal {
+    GitHubPollProposal {
+        polled_at_unix: Utc::now().timestamp(),
+        expected_channel_head_commit_id: channel_head_commit_id.clone(),
+        expected_channel_graph_id: channel_graph_id.clone(),
+        application_id: application.id.clone(),
+        application_revision: application.revision,
+        environment_commit_id: environment_commit_id.clone(),
+        environment_capability_id: application.environment_capability_id.clone(),
+        hostname: inbox.hostname.clone(),
+        request_count: 1,
+        notification_count: 0,
+        pull_request_count: 0,
+        issue_comment_count: 0,
+        review_comment_count: 0,
+        complete: false,
+        omissions: vec![omission],
+        responses,
+        messages: Vec::new(),
+    }
+}
+
+fn github_api(
+    workspace: &Path,
+    application: &ChannelApplicationDeclaration,
+    inbox: &GitHubInboxDeclaration,
+    environment: &[(OsString, OsString)],
+    endpoint: &str,
+) -> Result<GitHubApiResponse, CliError> {
+    let args = vec![
+        OsString::from("api"),
+        OsString::from("--hostname"),
+        OsString::from(&inbox.hostname),
+        OsString::from("-H"),
+        OsString::from("Accept: application/vnd.github+json"),
+        OsString::from("-H"),
+        OsString::from(format!("X-GitHub-Api-Version: {GITHUB_API_VERSION}")),
+        OsString::from(endpoint),
+    ];
+    let output = run_bounded(&CommandRequest {
+        program: PathBuf::from(&application.executable_path),
+        args,
+        cwd: workspace.to_owned(),
+        timeout: Duration::from_millis(application.timeout_ms),
+        max_capture_bytes: application.max_output_bytes,
+        environment: environment.to_vec(),
+    })?;
+    if output.timed_out {
+        return Err(CliError::GitHubPollApi(format!(
+            "{endpoint} exceeded the admitted {}ms timeout",
+            application.timeout_ms
+        )));
+    }
+    if output.overflowed {
+        return Err(CliError::GitHubPollApi(format!(
+            "{endpoint} exceeded the admitted {}-byte output bound",
+            application.max_output_bytes
+        )));
+    }
+    if !output.status.success() {
+        let detail = bounded_process_detail(&output.stderr)
+            .map(|detail| format!(" · {detail}"))
+            .unwrap_or_default();
+        return Err(CliError::GitHubPollApi(format!(
+            "{endpoint} exited with {}{detail}",
+            output
+                .status
+                .code()
+                .map_or_else(|| "no status".to_owned(), |code| code.to_string())
+        )));
+    }
+    if output.stdout.is_empty() {
+        return Err(CliError::GitHubPollApi(format!(
+            "{endpoint} returned an empty response"
+        )));
+    }
+    let mut hasher = SemanticHasher::new("rey.github-api-response.v1");
+    hasher.add_str(endpoint);
+    hasher.add_bytes(&output.stdout);
+    Ok(GitHubApiResponse {
+        evidence: GitHubApiResponseEvidence {
+            endpoint: endpoint.to_owned(),
+            content_digest: hasher.finish(),
+            bytes: output.stdout.len() as u64,
+        },
+        bytes: output.stdout,
+    })
+}
+
+fn bounded_process_detail(bytes: &[u8]) -> Option<String> {
+    let detail = String::from_utf8_lossy(bytes)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(256)
+        .collect::<String>();
+    (!detail.is_empty()).then_some(detail)
+}
+
+fn github_command_environment(
+    inbox: &GitHubInboxDeclaration,
+) -> Result<Vec<(OsString, OsString)>, CliError> {
+    let mut environment = vec![
+        (OsString::from("GH_PROMPT_DISABLED"), OsString::from("1")),
+        (OsString::from("GH_PAGER"), OsString::from("cat")),
+        (OsString::from("NO_COLOR"), OsString::from("1")),
+        (OsString::from("LC_ALL"), OsString::from("C")),
+    ];
+    for name in &inbox.credential_environment {
+        let value = std::env::var_os(name)
+            .ok_or_else(|| CliError::GitHubCredentialEnvironmentMissing(name.clone()))?;
+        environment.push((OsString::from(name), value));
+    }
+    Ok(environment)
+}
+
+fn verify_channel_application_executable(
+    application: &ChannelApplicationDeclaration,
+) -> Result<(), CliError> {
+    let executable = PathBuf::from(&application.executable_path);
+    let metadata =
+        fs::symlink_metadata(&executable).map_err(|source| CliError::RelayExecutable {
+            path: executable.clone(),
+            source,
+        })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(CliError::RelayExecutableType(executable));
+    }
+    Ok(())
+}
+
+fn push_github_notification(
+    messages: &mut Vec<GitHubPolledMessage>,
+    omissions: &mut Vec<String>,
+    application: &ChannelApplicationDeclaration,
+    inbox: &GitHubInboxDeclaration,
+    notification: &GitHubNotificationThread,
+) -> Result<(), CliError> {
+    let body = notification.subject.title.trim().to_owned();
+    let html_url = notification_html_url(notification)?;
+    let proposal = ChannelMessageProposal {
+        schema: "rey.channel-message.v1".to_owned(),
+        channel_id: inbox.channel_id.clone(),
+        kind: rey::channels::ChannelObservationKind::Finding,
+        body,
+        evidence_locators: vec![html_url.clone()],
+    };
+    let source = ChannelMessageSource::GitHubNotification {
+        application_id: application.id.clone(),
+        application_revision: application.revision,
+        external_id: notification.id.clone(),
+        source_revision: notification.updated_at.clone(),
+        repository: notification.repository.full_name.clone(),
+        subject_type: notification.subject.subject_type.clone(),
+        subject_title: notification.subject.title.trim().to_owned(),
+        reason: notification.reason.clone(),
+        provider_unread: notification.unread,
+        occurred_at_unix: parse_timestamp(&notification.updated_at)?,
+        html_url,
+    };
+    push_github_message(messages, omissions, proposal, source, "notification")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_github_issue_comment(
+    messages: &mut Vec<GitHubPolledMessage>,
+    omissions: &mut Vec<String>,
+    application: &ChannelApplicationDeclaration,
+    inbox: &GitHubInboxDeclaration,
+    repository: &str,
+    pull_number: u64,
+    comment: GitHubIssueComment,
+) -> Result<(), CliError> {
+    let Some(body) = comment
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|body| !body.is_empty())
+        .map(str::to_owned)
+    else {
+        push_github_omission(
+            omissions,
+            format!(
+                "{repository}#{pull_number} issue comment {} has no retained body",
+                comment.id
+            ),
+        );
+        return Ok(());
+    };
+    let author = comment
+        .user
+        .as_ref()
+        .map_or_else(|| "ghost".to_owned(), |user| user.login.clone());
+    let proposal = ChannelMessageProposal {
+        schema: "rey.channel-message.v1".to_owned(),
+        channel_id: inbox.channel_id.clone(),
+        kind: rey::channels::ChannelObservationKind::Finding,
+        body,
+        evidence_locators: vec![comment.html_url.clone()],
+    };
+    let source = ChannelMessageSource::GitHubIssueComment {
+        application_id: application.id.clone(),
+        application_revision: application.revision,
+        external_id: comment.id.to_string(),
+        source_revision: comment.updated_at.clone(),
+        repository: repository.to_owned(),
+        pull_number,
+        author,
+        occurred_at_unix: parse_timestamp(&comment.updated_at)?,
+        html_url: comment.html_url,
+    };
+    push_github_message(messages, omissions, proposal, source, "issue comment")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_github_review_comment(
+    messages: &mut Vec<GitHubPolledMessage>,
+    omissions: &mut Vec<String>,
+    application: &ChannelApplicationDeclaration,
+    inbox: &GitHubInboxDeclaration,
+    repository: &str,
+    pull_number: u64,
+    comment: GitHubReviewComment,
+) -> Result<(), CliError> {
+    let Some(body) = comment
+        .body
+        .as_deref()
+        .map(str::trim)
+        .filter(|body| !body.is_empty())
+        .map(str::to_owned)
+    else {
+        push_github_omission(
+            omissions,
+            format!(
+                "{repository}#{pull_number} review comment {} has no retained body",
+                comment.id
+            ),
+        );
+        return Ok(());
+    };
+    let author = comment
+        .user
+        .as_ref()
+        .map_or_else(|| "ghost".to_owned(), |user| user.login.clone());
+    let proposal = ChannelMessageProposal {
+        schema: "rey.channel-message.v1".to_owned(),
+        channel_id: inbox.channel_id.clone(),
+        kind: rey::channels::ChannelObservationKind::Finding,
+        body,
+        evidence_locators: vec![comment.html_url.clone()],
+    };
+    let source = ChannelMessageSource::GitHubReviewComment {
+        application_id: application.id.clone(),
+        application_revision: application.revision,
+        external_id: comment.id.to_string(),
+        source_revision: comment.updated_at.clone(),
+        repository: repository.to_owned(),
+        pull_number,
+        author,
+        occurred_at_unix: parse_timestamp(&comment.updated_at)?,
+        html_url: comment.html_url,
+        path: comment.path,
+    };
+    push_github_message(messages, omissions, proposal, source, "review comment")
+}
+
+fn push_github_message(
+    messages: &mut Vec<GitHubPolledMessage>,
+    omissions: &mut Vec<String>,
+    proposal: ChannelMessageProposal,
+    source: ChannelMessageSource,
+    label: &str,
+) -> Result<(), CliError> {
+    if messages.len() >= MAX_GITHUB_POLL_MESSAGES {
+        if !omissions
+            .iter()
+            .any(|omission| omission.contains("mailbox message bound"))
+        {
+            push_github_omission(
+                omissions,
+                format!(
+                    "GitHub poll reached the {MAX_GITHUB_POLL_MESSAGES}-message mailbox message bound"
+                ),
+            );
+        }
+        return Ok(());
+    }
+    if let Err(error) = proposal.verify() {
+        push_github_omission(omissions, format!("GitHub {label} was omitted: {error}"));
+        return Ok(());
+    }
+    if let Err(error) = source.verify() {
+        push_github_omission(omissions, format!("GitHub {label} was omitted: {error}"));
+        return Ok(());
+    }
+    messages.push(GitHubPolledMessage { proposal, source });
+    Ok(())
+}
+
+fn push_github_omission(omissions: &mut Vec<String>, detail: String) {
+    const MAX_RETAINED_OMISSIONS: usize = 64;
+    if omissions.len() < MAX_RETAINED_OMISSIONS - 1 {
+        omissions.push(detail);
+    } else if omissions.len() == MAX_RETAINED_OMISSIONS - 1 {
+        omissions
+            .push("additional GitHub poll omissions were folded at the 64-row bound".to_owned());
+    }
 }
 
 fn execute_channel_relay(
@@ -4450,6 +5086,23 @@ fn write_channel_list(output: &mut impl Write, status: &ChannelStatus) -> Result
                 application.executable_path,
                 application.timeout_ms,
             )?;
+            if let Some(inbox) = &application.github_inbox {
+                writeln!(
+                    output,
+                    "    GitHub inbox          {} → {} · every {}s · {} notifications · {} PRs · {} comments/PR",
+                    inbox.hostname,
+                    inbox.channel_id,
+                    inbox.poll_interval_seconds,
+                    inbox.notification_limit,
+                    inbox.pull_request_limit,
+                    inbox.comment_limit
+                )?;
+                writeln!(
+                    output,
+                    "    Credentials           names only [{}] · values unretained",
+                    inbox.credential_environment.join(", ")
+                )?;
+            }
         }
     }
 
@@ -4977,6 +5630,82 @@ fn write_polling_beacon_tick(
             attempt.outcome, attempt.message_id, attempt.relay_id, attempt.target_channel_locator
         )?;
     }
+    Ok(())
+}
+
+fn write_github_poll_admission(
+    output: &mut impl Write,
+    admission: &GitHubPollAdmission,
+) -> Result<(), CliError> {
+    let receipt = &admission.receipt;
+    writeln!(output, "GITHUB CHANNEL POLL")?;
+    write_portfolio_field(
+        output,
+        "Application",
+        &format!(
+            "{}@{} · {}",
+            receipt.application_id, receipt.application_revision, receipt.environment_capability_id
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Poll",
+        &format!("P@{} · {}", receipt.sequence, receipt.poll_id),
+    )?;
+    write_portfolio_field(
+        output,
+        "Inputs",
+        &format!(
+            "Channel {} · graph {} · environment {}",
+            receipt.channel_head_commit_id, receipt.channel_graph_id, receipt.environment_commit_id
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Provider",
+        &format!(
+            "{} · GitHub REST {} · {} bounded requests",
+            receipt.hostname, receipt.api_version, receipt.request_count
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Observed",
+        &format!(
+            "{} notifications · {} pull requests · {} issue comments · {} review comments",
+            receipt.notification_count,
+            receipt.pull_request_count,
+            receipt.issue_comment_count,
+            receipt.review_comment_count
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Mailbox",
+        &format!(
+            "{} current · {} newly admitted · {} replayed",
+            receipt.current_message_ids.len(),
+            receipt.admitted_message_count,
+            receipt.reused_message_count
+        ),
+    )?;
+    write_portfolio_field(
+        output,
+        "Completeness",
+        if receipt.complete {
+            "complete within declared notification, pull-request, comment, request, time, and byte bounds"
+        } else {
+            "partial · inspect omissions below"
+        },
+    )?;
+    for omission in &receipt.omissions {
+        writeln!(output, "  Omission               {omission}")?;
+    }
+    write_portfolio_field(
+        output,
+        "Effects",
+        "read-only GitHub API requests and local Channel retention · notifications were not marked read",
+    )?;
     Ok(())
 }
 
@@ -12418,6 +13147,8 @@ enum CliError {
     UnknownChannelApplication(String),
     #[error("unknown admitted polling beacon {0}")]
     UnknownBeacon(String),
+    #[error("admitted channel application {0} has no GitHub inbox poll declaration")]
+    NotGitHubInbox(String),
     #[error("relay requires an admitted environment HEAD")]
     NoEnvironmentHead,
     #[error("environment HEAD does not admit communications capability {0}")]
@@ -12430,6 +13161,12 @@ enum CliError {
     RelayExecutable { path: PathBuf, source: io::Error },
     #[error("relay executable must be a regular non-symlinked file: {0}")]
     RelayExecutableType(PathBuf),
+    #[error("GitHub poll requires declared credential environment variable {0}")]
+    GitHubCredentialEnvironmentMissing(String),
+    #[error("GitHub API poll failed: {0}")]
+    GitHubPollApi(String),
+    #[error("GitHub API returned more rows than the admitted poll bound")]
+    GitHubPollResponseLimit,
     #[error("journal proposal {path} could not be read: {source}")]
     JournalInput { path: PathBuf, source: io::Error },
     #[error("journal proposal must be a regular non-symlinked file: {0}")]
@@ -12448,6 +13185,8 @@ enum CliError {
     Discovery(#[from] rey_environment::DiscoveryError),
     #[error(transparent)]
     Command(#[from] rey_environment::CommandError),
+    #[error(transparent)]
+    GitHubPollParse(#[from] GitHubPollParseError),
     #[error(transparent)]
     Delta(#[from] rey_diff::DeltaError),
     #[error(transparent)]
