@@ -98,6 +98,7 @@ export function AcceleratedTerrainSurface({
   visible,
   renderVisibility,
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
+  projectionMorphProgress = 0,
 }: {
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
@@ -105,6 +106,7 @@ export function AcceleratedTerrainSurface({
   visible: boolean;
   renderVisibility: ExplorerRenderVisibility;
   globeView?: GlobeCameraView;
+  projectionMorphProgress?: number;
 }) {
   const patchCacheRef = useRef<
     | {
@@ -113,8 +115,54 @@ export function AcceleratedTerrainSurface({
       }
     | undefined
   >(undefined);
-  const semanticGlobe =
-    snapshot.scene.regime === "world" ? snapshot.scene.globe : null;
+  const semanticGlobe = useMemo(() => {
+    if (snapshot.scene.regime === "world") return snapshot.scene.globe;
+    const transition = snapshot.scene.world_atlas_transition;
+    if (snapshot.scene.regime !== "atlas" || !transition) return null;
+    return {
+      schema: "rey.semantic-globe-scene.v1" as const,
+      posture: "semantic_atlas" as const,
+      globe_id: `atlas-map:${transition.atlas_revision}`,
+      source_revision: transition.atlas_revision,
+      compiler_revision: transition.projection_revision,
+      coordinate_authority: transition.authority,
+      clusters: [],
+      regions: transition.points.map((point) => ({
+        id: point.identity,
+        cluster_id: "atlas-map",
+        focus_id: point.focus_id,
+        workload_id: point.identity,
+        label: point.label,
+        detail: "retained regional identity on the semantic Mercator atlas",
+        longitude_degrees: point.longitude_microdegrees / 1_000_000,
+        latitude_degrees: point.latitude_microdegrees / 1_000_000,
+        angular_radius_degrees: 0,
+        tone: point.tone,
+      })),
+      beacons: [],
+    };
+  }, [snapshot.scene]);
+  const projectionGlobe = useMemo(
+    () =>
+      semanticGlobe
+        ? {
+            ...semanticGlobe,
+            sectors: (snapshot.scene.world_atlas_transition?.sectors ?? []).map(
+              (sector) => ({
+                id: sector.identity,
+                label: sector.label,
+                west_degrees: sector.west_microdegrees / 1_000_000,
+                south_degrees: sector.south_microdegrees / 1_000_000,
+                east_degrees: sector.east_microdegrees / 1_000_000,
+                north_degrees: sector.north_microdegrees / 1_000_000,
+                crosses_antimeridian: sector.crosses_antimeridian,
+                tone: sector.tone,
+              }),
+            ),
+          }
+        : null,
+    [semanticGlobe, snapshot.scene.world_atlas_transition],
+  );
   const preference = rendererPreference(globalThis.location?.search ?? "");
   const programTotals = useMemo(
     () =>
@@ -180,8 +228,8 @@ export function AcceleratedTerrainSurface({
     });
   }, [limitsRevision, semanticGlobe, snapshot.snapshot_id, workingSetRevision]);
   const globeCompilation = useMemo(
-    () => (semanticGlobe ? compileContextGlobe(semanticGlobe) : null),
-    [semanticGlobe],
+    () => (projectionGlobe ? compileContextGlobe(projectionGlobe) : null),
+    [projectionGlobe],
   );
   const terrainCompilation = useMemo(
     () =>
@@ -202,7 +250,9 @@ export function AcceleratedTerrainSurface({
       geometry_compilation_ms: 0,
     };
   const materialRevision =
-    globeCompilation?.material_revision ??
+    (globeCompilation
+      ? `${globeCompilation.material_revision}:${globeCompilation.projection_revision}`
+      : undefined) ??
     terrainCompilation?.material_revision ??
     "unbound";
   const activeRenderPassIds = useMemo(
@@ -224,7 +274,10 @@ export function AcceleratedTerrainSurface({
     ? {
         kind: "globe",
         compiled: globeCompilation,
-        view: globeView,
+        view: {
+          ...globeView,
+          projection_morph_progress: projectionMorphProgress,
+        },
         world: snapshot.scene.world,
       }
     : terrainCompilation
@@ -238,7 +291,7 @@ export function AcceleratedTerrainSurface({
   const frame = {
     snapshot_id: snapshot.snapshot_id,
     camera_revision: semanticGlobe
-      ? `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}`
+      ? `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}:${projectionMorphProgress}`
       : `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
     material_revision: materialRevision,
     render_graph_id: snapshot.render_graph.graph_id,

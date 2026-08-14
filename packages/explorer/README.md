@@ -52,6 +52,7 @@ accelerated frame and reveals it again after renderer failure.
 | Structural inputs | [`src/types.ts`](src/types.ts) | Defines the renderer-facing globe, marker, camera, and terrain field shapes. |
 | Globe compiler | [`src/three-globe.ts`](src/three-globe.ts) | Converts semantic globe input into deterministic sample buckets, polar patterns, marker statistics, and material identity. |
 | Globe fabric | [`src/globe-samples.ts`](src/globe-samples.ts) | Generates revision-seeded spherical stipple and subtle north/south cap patterns. |
+| Globe projection | [`src/globe-projection.ts`](src/globe-projection.ts) | Compiles one bounded indexed surface from an oriented sphere through a full-canvas semantic Mercator plane and applies the same projection to occupied sectors and markers. |
 | Terrain compiler | [`src/three-terrain.ts`](src/three-terrain.ts) | Converts valid field grids into bounded indexed meshes, verifies CPU/upload parity, accounts bytes, and builds the TSL relief material. |
 | Declarative scenes | [`src/fiber-scenes.tsx`](src/fiber-scenes.tsx) | Expresses globe and continuous-relief cameras, lights, materials, instancing, geometry, and evidence-named scene objects. |
 | Shared Three graph | [`src/three-fiber-runtime.ts`](src/three-fiber-runtime.ts) | Exposes the modular WebGPU Three.js graph plus the legacy renderer required by the R3F test harness. |
@@ -109,9 +110,9 @@ The accelerated globe path is:
 ```text
 ExplorerGlobe
   → compileContextGlobe
-  → revision-seeded stipple buckets + polar caps + marker accounting
+  → revision-seeded stipple buckets + polar caps + sectors + marker accounting
   → ContextGlobeScene
-  → orthographic camera + lit sphere + atmosphere + instanced dots + markers
+  → orthographic camera + sphere/Mercator surface + atmosphere + instanced dots + sectors + markers
 ```
 
 ### Input contract
@@ -133,7 +134,7 @@ The current scene uses:
 - two directional lights and one ambient light;
 - three transparent atmosphere shells;
 - an orthographic camera;
-- quaternion-based yaw and pitch over the complete globe group; and
+- one shared yaw/pitch transform applied by the coordinate projector; and
 - depth-tested surface markers and optional beacon halos.
 
 The atmosphere, lighting, and stipple are presentation. They do not imply
@@ -149,13 +150,16 @@ new support.
 The compiler partitions retained samples into three color/opacity buckets for
 instanced rendering. North and south use sparse deterministic golden-angle cap
 patterns in the same dot language. The caps identify the spherical frame
-visually; they are not labels or geographic evidence.
+visually; they are not labels or geographic evidence. The spherical stipple
+fades as the surface reaches the Mercator endpoint so it remains texture
+rather than competing with regional vector geography.
 
 ### Current omissions
 
-The package globe does not yet render the World-to-Atlas morph, sector
-polygons, vector geography, labels, or picking. `@rey/agent` currently owns
-those projection and accessible overlay paths.
+The package globe now keeps its indexed surface, stipple, occupied sectors,
+and markers in one declarative World-to-Atlas projection. The application
+still owns semantic chart wrapping, labels, picking, accessibility, and vector
+geography.
 
 ## Terrain Pipeline
 
@@ -237,6 +241,11 @@ boundaries, roads, structures, labels, selection, or evidence overlays. Those
 passes exist in the application render graph and reference renderer. The
 accelerated package currently owns the base continuous-relief surface only.
 
+Admitted regional packets without a terrain program do not enter this relief
+pipeline. The application renders their exact footprint, point locations, and
+native bounds as a sparse County vector layer; it does not substitute cards or
+turn terrain-control geometry into elevation.
+
 ## Renderer Lifecycle
 
 `ReactThreeFiberRendererAdapter` wraps Three.js's asynchronous
@@ -294,6 +303,7 @@ The package root exports four groups.
 
 - `compileContextGlobe`
 - `CompiledContextGlobe`
+- `CONTEXT_GLOBE_PROJECTION_REVISION`
 - `contextGlobePolePatterns`
 - `GlobePole` and `GlobePolePattern`
 - globe geometry, sample, pole-pattern, and material revision constants
@@ -314,7 +324,8 @@ share exactly the same presentation pattern without importing Three.js.
 
 ### Structural types
 
-- `ExplorerGlobe`, `ExplorerGlobeRegion`, and `ExplorerGlobeBeacon`
+- `ExplorerGlobe`, `ExplorerGlobeRegion`, `ExplorerGlobeSector`, and
+  `ExplorerGlobeBeacon`
 - `GlobeCameraView`
 - `TerrainFieldSetInput` and `TerrainCameraView`
 
@@ -346,7 +357,7 @@ The next rendering components should extend the same declarative architecture:
 
 | Component | Desired package capability |
 | --- | --- |
-| Projection scenes | Reconcile globe, globe-to-map morph, wrapped map, and bounded local 3D postures through one stable identity. |
+| Projection scenes | Extend the implemented globe-to-map surface into wrapped maps and bounded local 3D postures through one stable identity. |
 | Terrain residency | Consume multiresolution camera working sets with crack-free seams, explicit no-data, frustum culling, and bounded GPU residency. |
 | Raster primitives | Upload provider-qualified elevation, imagery, and material tiles without losing source revision, resolution, attribution, or no-data semantics. |
 | Vector primitives | Batch points, lines, polygons, holes, extrusions, and connectors while preserving feature and layer identity. |
@@ -397,6 +408,7 @@ The package test suite covers:
 - WebGPU/WebGL2 initialization, forced backend selection, loss, and disposal;
 - globe determinism, polar patterns, compilation statistics, and declarative
   object identity;
+- sphere-to-Mercator mesh endpoints and shared sector anchoring;
 - terrain mesh construction, validity holes, parity, byte accounting, camera
   projection, TSL material creation, and the GPU budget; and
 - R3F globe and terrain scene structure through the React Three test renderer.

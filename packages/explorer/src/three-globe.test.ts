@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExplorerGlobe } from "./types";
 import {
+  CONTEXT_GLOBE_PROJECTION_REVISION,
   SEMANTIC_GLOBE_MATERIAL_REVISION,
   compileContextGlobe,
 } from "./three-globe";
@@ -34,6 +35,9 @@ describe("Three.js semantic globe", () => {
     const compiled = compileContextGlobe(globe);
 
     expect(compiled.material_revision).toBe(SEMANTIC_GLOBE_MATERIAL_REVISION);
+    expect(compiled.projection_revision).toBe(
+      CONTEXT_GLOBE_PROJECTION_REVISION,
+    );
     expect(compiled.globe.regions[0]?.id).toBe("region:1");
     expect(compiled.sample_buckets.map(({ id }) => id)).toContain(
       "context-globe-samples:0",

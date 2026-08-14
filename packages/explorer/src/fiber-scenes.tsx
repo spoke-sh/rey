@@ -4,6 +4,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
+  DoubleSide,
   DirectionalLight,
   Group,
   InstancedMesh,
@@ -19,6 +20,13 @@ import {
 } from "three/src/Three.WebGPU.js";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { GlobeCameraView, TerrainCameraView } from "./types";
+import {
+  buildProjectedBoundsMeshes,
+  buildProjectedGlobeMesh,
+  GLOBE_CAMERA_HALF_HEIGHT,
+  projectGlobeCoordinate,
+  type ProjectedGlobeMesh,
+} from "./globe-projection";
 import {
   GLOBE_RADIUS,
   GLOBE_SAMPLE_RADIUS,
@@ -47,8 +55,6 @@ extend({
 });
 
 const SURFACE_NORMAL = new Vector3(0, 0, 1);
-const X_AXIS = new Vector3(1, 0, 0);
-const Y_AXIS = new Vector3(0, 1, 0);
 
 export function ContinuousReliefScene({
   compiled,
@@ -148,12 +154,12 @@ export function ContextGlobeScene({
   view: GlobeCameraView;
   world: { width: number; height: number };
 }) {
-  const quaternion = useMemo(
-    () => globeQuaternion(view),
-    [view.pitch_degrees, view.yaw_degrees],
+  const projectionMorphProgress = Math.max(
+    0,
+    Math.min(1, view.projection_morph_progress ?? 0),
   );
   const aspect = world.width / Math.max(1, world.height);
-  const halfHeight = 2.12;
+  const halfHeight = GLOBE_CAMERA_HALF_HEIGHT;
   return (
     <>
       <ReyOrthographicCamera
@@ -165,17 +171,39 @@ export function ContextGlobeScene({
         rotation={[0, 0, 0]}
         top={halfHeight}
       />
-      <group
-        name={`context-globe:${compiled.globe.source_revision}`}
-        quaternion={quaternion}
-      >
-        <GlobeSurface />
-        <GlobeAtmosphere />
+      <group name={`context-globe:${compiled.globe.source_revision}`}>
+        <GlobeSurface
+          progress={projectionMorphProgress}
+          view={view}
+          world={world}
+        />
+        <GlobeAtmosphere progress={projectionMorphProgress} />
+        {(compiled.globe.sectors ?? []).map((sector) => (
+          <GlobeSector
+            key={sector.id}
+            progress={projectionMorphProgress}
+            sector={sector}
+            view={view}
+            world={world}
+          />
+        ))}
         {compiled.sample_buckets.map((bucket) => (
-          <GlobeSampleField bucket={bucket} key={bucket.id} />
+          <GlobeSampleField
+            bucket={bucket}
+            key={bucket.id}
+            progress={projectionMorphProgress}
+            view={view}
+            world={world}
+          />
         ))}
         {compiled.pole_patterns.map((pattern) => (
-          <GlobePolePatternField key={pattern.id} pattern={pattern} />
+          <GlobePolePatternField
+            key={pattern.id}
+            pattern={pattern}
+            progress={projectionMorphProgress}
+            view={view}
+            world={world}
+          />
         ))}
         {compiled.globe.regions.map((region) => (
           <GlobeSurfaceMarker
@@ -190,9 +218,12 @@ export function ContextGlobeScene({
             latitude={region.latitude_degrees}
             longitude={region.longitude_degrees}
             name={`semantic-region:${region.id}`}
+            progress={projectionMorphProgress}
             radius={
               0.026 + Math.min(0.056, region.angular_radius_degrees / 2_200)
             }
+            view={view}
+            world={world}
           />
         ))}
         {compiled.globe.beacons.map((beacon) => (
@@ -211,7 +242,10 @@ export function ContextGlobeScene({
             latitude={beacon.latitude_degrees}
             longitude={beacon.longitude_degrees}
             name={`workload-beacon:${beacon.workload_id}`}
+            progress={projectionMorphProgress}
             radius={beacon.mapping_role === "survey" ? 0.065 : 0.048}
+            view={view}
+            world={world}
           />
         ))}
       </group>
@@ -230,7 +264,15 @@ export function ContextGlobeScene({
   );
 }
 
-function GlobeSurface() {
+function GlobeSurface({
+  progress,
+  view,
+  world,
+}: {
+  progress: number;
+  view: GlobeCameraView;
+  world: { width: number; height: number };
+}) {
   const material = useMemo(() => {
     const next = new MeshStandardNodeMaterial();
     next.name = SEMANTIC_GLOBE_MATERIAL_REVISION;
@@ -240,14 +282,18 @@ function GlobeSurface() {
     return next;
   }, []);
   useEffect(() => () => material.dispose(), [material]);
+  const mesh = useMemo(
+    () => buildProjectedGlobeMesh(view, world, progress),
+    [progress, view.pitch_degrees, view.yaw_degrees, world.height, world.width],
+  );
   return (
     <mesh material={material} name="context-globe-surface">
-      <sphereGeometry args={[GLOBE_RADIUS, 160, 96]} />
+      <ProjectedMeshGeometry data={mesh} />
     </mesh>
   );
 }
 
-function GlobeAtmosphere() {
+function GlobeAtmosphere({ progress }: { progress: number }) {
   const layers = [
     { radius: GLOBE_RADIUS * 1.018, color: 0xf6ecd4, opacity: 0.12 },
     { radius: GLOBE_RADIUS * 1.045, color: 0xcbd8c9, opacity: 0.055 },
@@ -258,7 +304,7 @@ function GlobeAtmosphere() {
       color={layer.color}
       key={index}
       name={`context-globe-atmosphere:${index}`}
-      opacity={layer.opacity}
+      opacity={layer.opacity * (1 - progress)}
       radius={layer.radius}
     />
   ));
@@ -295,18 +341,25 @@ function NodeMaterialSphere({
 
 function GlobeSampleField({
   bucket,
+  progress,
+  view,
+  world,
 }: {
   bucket: CompiledContextGlobe["sample_buckets"][number];
+  progress: number;
+  view: GlobeCameraView;
+  world: { width: number; height: number };
 }) {
   const meshRef = useRef<InstancedMesh>(null);
+  const opacity = bucket.opacity * (1 - progress * 0.82);
   const material = useMemo(
     () =>
       new MeshBasicNodeMaterial({
         color: bucket.color,
-        opacity: bucket.opacity,
-        transparent: bucket.opacity < 1,
+        opacity,
+        transparent: opacity < 1,
       }),
-    [bucket.color, bucket.opacity],
+    [bucket.color, opacity],
   );
   useEffect(() => () => material.dispose(), [material]);
   useLayoutEffect(() => {
@@ -316,20 +369,25 @@ function GlobeSampleField({
     const quaternion = new Quaternion();
     const scale = new Vector3(1, 1, 1);
     for (const [index, sample] of bucket.samples.entries()) {
-      const position = sphericalVector(
+      const projected = projectGlobeCoordinate(
         sample.longitude_degrees,
         sample.latitude_degrees,
+        view,
+        world,
+        progress,
         GLOBE_RADIUS * 1.005,
+        0.008,
       );
+      const position = new Vector3(...projected.position);
       quaternion.setFromUnitVectors(
         SURFACE_NORMAL,
-        position.clone().normalize(),
+        new Vector3(...projected.normal),
       );
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(index, matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
-  }, [bucket]);
+  }, [bucket, progress, view, world]);
   return (
     <instancedMesh
       args={[undefined, undefined, bucket.samples.length]}
@@ -344,18 +402,24 @@ function GlobeSampleField({
 
 function GlobePolePatternField({
   pattern,
+  progress,
+  view,
+  world,
 }: {
   pattern: CompiledContextGlobe["pole_patterns"][number];
+  progress: number;
+  view: GlobeCameraView;
+  world: { width: number; height: number };
 }) {
   const meshRef = useRef<InstancedMesh>(null);
   const material = useMemo(
     () =>
       new MeshBasicNodeMaterial({
         color: 0x243b38,
-        opacity: 0.88,
+        opacity: 0.88 * (1 - progress),
         transparent: true,
       }),
-    [],
+    [progress],
   );
   useEffect(() => () => material.dispose(), [material]);
   useLayoutEffect(() => {
@@ -365,20 +429,25 @@ function GlobePolePatternField({
     const quaternion = new Quaternion();
     const scale = new Vector3(1, 1, 1);
     for (const [index, sample] of pattern.samples.entries()) {
-      const position = sphericalVector(
+      const projected = projectGlobeCoordinate(
         sample.longitude_degrees,
         sample.latitude_degrees,
+        view,
+        world,
+        progress,
         GLOBE_RADIUS * 1.005,
+        0.008,
       );
+      const position = new Vector3(...projected.position);
       quaternion.setFromUnitVectors(
         SURFACE_NORMAL,
-        position.clone().normalize(),
+        new Vector3(...projected.normal),
       );
       matrix.compose(position, quaternion, scale);
       mesh.setMatrixAt(index, matrix);
     }
     mesh.instanceMatrix.needsUpdate = true;
-  }, [pattern]);
+  }, [pattern, progress, view, world]);
   return (
     <instancedMesh
       args={[undefined, undefined, pattern.samples.length]}
@@ -397,14 +466,20 @@ function GlobeSurfaceMarker({
   latitude,
   longitude,
   name,
+  progress,
   radius,
+  view,
+  world,
 }: {
   color: number;
   halo?: boolean;
   latitude: number;
   longitude: number;
   name: string;
+  progress: number;
   radius: number;
+  view: GlobeCameraView;
+  world: { width: number; height: number };
 }) {
   const pointMaterial = useMemo(
     () => new MeshBasicNodeMaterial({ color }),
@@ -427,10 +502,19 @@ function GlobeSurfaceMarker({
     },
     [haloMaterial, pointMaterial],
   );
-  const position = sphericalVector(longitude, latitude, GLOBE_RADIUS * 1.013);
+  const projected = projectGlobeCoordinate(
+    longitude,
+    latitude,
+    view,
+    world,
+    progress,
+    GLOBE_RADIUS * 1.013,
+    0.02,
+  );
+  const position = new Vector3(...projected.position);
   const quaternion = new Quaternion().setFromUnitVectors(
     SURFACE_NORMAL,
-    position.clone().normalize(),
+    new Vector3(...projected.normal),
   );
   return (
     <group name={name} position={position} quaternion={quaternion}>
@@ -443,6 +527,82 @@ function GlobeSurfaceMarker({
         </mesh>
       ) : null}
     </group>
+  );
+}
+
+function GlobeSector({
+  progress,
+  sector,
+  view,
+  world,
+}: {
+  progress: number;
+  sector: NonNullable<CompiledContextGlobe["globe"]["sectors"]>[number];
+  view: GlobeCameraView;
+  world: { width: number; height: number };
+}) {
+  const meshes = useMemo(
+    () =>
+      buildProjectedBoundsMeshes(
+        {
+          west_degrees: sector.west_degrees,
+          south_degrees: sector.south_degrees,
+          east_degrees: sector.east_degrees,
+          north_degrees: sector.north_degrees,
+          crosses_antimeridian: sector.crosses_antimeridian,
+        },
+        view,
+        world,
+        progress,
+      ),
+    [
+      progress,
+      sector.crosses_antimeridian,
+      sector.east_degrees,
+      sector.north_degrees,
+      sector.south_degrees,
+      sector.west_degrees,
+      view.pitch_degrees,
+      view.yaw_degrees,
+      world.height,
+      world.width,
+    ],
+  );
+  const material = useMemo(
+    () =>
+      new MeshBasicNodeMaterial({
+        color: 0xd57824,
+        depthWrite: false,
+        opacity: 0.18,
+        side: DoubleSide,
+        transparent: true,
+      }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  return meshes.map((mesh, index) => (
+    <mesh
+      material={material}
+      name={`context-globe-sector:${sector.id}:${index}`}
+      key={index}
+    >
+      <ProjectedMeshGeometry data={mesh} />
+    </mesh>
+  ));
+}
+
+function ProjectedMeshGeometry({ data }: { data: ProjectedGlobeMesh }) {
+  const geometryRef = useRef<BufferGeometry>(null);
+  useLayoutEffect(() => geometryRef.current?.computeBoundingSphere(), [data]);
+  return (
+    <bufferGeometry ref={geometryRef}>
+      <bufferAttribute
+        args={[data.positions, 3]}
+        attach="attributes-position"
+      />
+      <bufferAttribute args={[data.normals, 3]} attach="attributes-normal" />
+      <bufferAttribute args={[data.indices, 1]} attach="index" />
+    </bufferGeometry>
   );
 }
 
@@ -487,32 +647,5 @@ function ReyOrthographicCamera({
       rotation={rotation}
       top={top}
     />
-  );
-}
-
-function globeQuaternion(view: GlobeCameraView) {
-  const pitch = new Quaternion().setFromAxisAngle(
-    X_AXIS,
-    (view.pitch_degrees * Math.PI) / 180,
-  );
-  const yaw = new Quaternion().setFromAxisAngle(
-    Y_AXIS,
-    (view.yaw_degrees * Math.PI) / 180,
-  );
-  return yaw.multiply(pitch);
-}
-
-function sphericalVector(
-  longitudeDegrees: number,
-  latitudeDegrees: number,
-  radius: number,
-) {
-  const longitude = (longitudeDegrees * Math.PI) / 180;
-  const latitude = (latitudeDegrees * Math.PI) / 180;
-  const latitudeRadius = Math.cos(latitude) * radius;
-  return new Vector3(
-    Math.sin(longitude) * latitudeRadius,
-    Math.sin(latitude) * radius,
-    Math.cos(longitude) * latitudeRadius,
   );
 }

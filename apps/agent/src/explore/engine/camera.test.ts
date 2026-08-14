@@ -63,7 +63,7 @@ describe("Explorer camera engine", () => {
 
   it("does not pan when wheel zoom is inside a clamped render interval", () => {
     const currentScale = renderedSceneScale(false, 1, 0.12, "world");
-    const nextScale = renderedSceneScale(false, 1, 0.16, "world");
+    const nextScale = renderedSceneScale(false, 1, 0.13, "world");
 
     expect(currentScale).toBe(nextScale);
     expect(
@@ -74,6 +74,12 @@ describe("Explorer camera engine", () => {
         nextScale,
       ),
     ).toEqual({ x: 24, y: -12 });
+  });
+
+  it("keeps the shared surface scale continuous across the Atlas endpoint", () => {
+    expect(renderedSceneScale(false, 1, 0.14, "world")).toBeCloseTo(1.16);
+    expect(renderedSceneScale(false, 1, 0.24, "world")).toBeCloseTo(1);
+    expect(renderedSceneScale(false, 1, 0.24, "atlas")).toBeCloseTo(1);
   });
 
   it("turns planar drag into bounded presentation-only globe rotation", () => {

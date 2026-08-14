@@ -213,6 +213,9 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
           semantic_coordinate: node.semantic_coordinate
             ? Object.freeze({ ...node.semantic_coordinate })
             : undefined,
+          spatial_feature: node.spatial_feature
+            ? Object.freeze({ ...node.spatial_feature })
+            : undefined,
         }),
       ),
     ) as TopologyScene["nodes"],

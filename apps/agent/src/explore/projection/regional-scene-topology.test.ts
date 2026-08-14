@@ -494,9 +494,10 @@ describe("regional scene topology projection", () => {
       0.58,
       "cluster:portfolio",
     );
-    expect(unselectedCloserView.regime).toBe("atlas");
-    expect(unselectedCloserView.county_frame).toBeNull();
-    expect(unselectedCloserView.county_footprint).toBeNull();
+    expect(unselectedCloserView.regime).toBe("landscape");
+    expect(unselectedCloserView.focus_id).toBe("regional:scene:1");
+    expect(unselectedCloserView.county_frame).not.toBeNull();
+    expect(unselectedCloserView.county_footprint).not.toBeNull();
     const unknownSelection = buildTopologyScene(
       regionalPortfolio,
       0.58,
@@ -546,9 +547,15 @@ describe("regional scene topology projection", () => {
       focus_id: "regional-object:ridge",
       workload_id: "scene-admission",
       tone: "unsupported",
+      spatial_feature: {
+        geometry_kind: "Polygon",
+        layer: "terrain_control",
+        authority: "exact admitted native geometry",
+      },
       evidence_uri:
         "/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1",
     });
+    expect(ridgeNode?.spatial_feature?.envelope_path).toMatch(/^M.+ Z$/);
     expect(county.omissions).toContain("no qualified terrain height");
     expect(county.omissions).toContain(
       "unsupported: terrain_height · no qualified terrain-height adapter",
@@ -563,8 +570,12 @@ describe("regional scene topology projection", () => {
     expect(markup).toContain('data-county-footprint="footprint:1"');
     expect(markup).toContain('data-source-object="county-boundary"');
     expect(markup).toContain('fill-rule="evenodd"');
+    expect(markup).toContain('data-county-feature="regional-object:ridge"');
+    expect(markup).toContain('data-feature-layer="terrain_control"');
+    expect(markup).toContain("Feature marks use exact admitted native bounds");
     expect(markup).toContain("ridge");
     expect(markup).toContain("terrain.geojson");
+    expect(markup).not.toContain('data-feature-label-visible="true"');
     expect(markup).not.toContain("topology-terrain-field");
     const objectCounty = buildTopologyScene(
       regionalPortfolio,
@@ -581,6 +592,8 @@ describe("regional scene topology projection", () => {
     expect(objectMarkup).toContain(
       'data-object-evidence="/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1"',
     );
+    expect(objectMarkup).toContain('data-feature-label-visible="true"');
+    expect(objectMarkup).toContain("RIDGE");
     expect(objectMarkup).toContain("OPEN EXACT EVIDENCE");
 
     const evidence = resolveRegionalObjectEvidence(

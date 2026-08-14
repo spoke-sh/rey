@@ -1,5 +1,6 @@
 import type {
   ProjectionPacket,
+  RegionalLayerKind,
   SemanticAtlas,
   SemanticAtlasDelta,
   WorkloadList,
@@ -22,6 +23,7 @@ import {
 } from "./explore/projection/semantic-mercator";
 import {
   countyFrameView,
+  nativePositionToCountyLocal,
   nativeBoundsToCountyLocal,
   projectCountyFootprint,
   projectCountyLocal,
@@ -214,6 +216,12 @@ export interface TopologyNode {
     longitude_microdegrees: number;
     latitude_microdegrees: number;
   };
+  spatial_feature?: {
+    geometry_kind: string;
+    layer: RegionalLayerKind;
+    envelope_path: string;
+    authority: string;
+  };
 }
 
 export interface TopologyEdge {
@@ -309,9 +317,19 @@ export function buildTopologyScene(
     );
   else if (regionalScenes.length > 0 && regime === "atlas" && !surveyFocus)
     projection = buildRegionalAtlas(regionalScenes, focusId);
-  else if (regionalScenes.length > 0 && !surveyFocus && !regionalFocus)
-    projection = buildRegionalAtlas(regionalScenes, focusId);
-  else if (
+  else if (regionalScenes.length > 0 && !surveyFocus && !regionalFocus) {
+    const traversable = regionalScenes.filter(
+      ({ county_footprint }) => county_footprint !== null,
+    );
+    projection =
+      traversable.length === 1 && focusId === "cluster:portfolio"
+        ? buildRegionalCounty(
+            regionalScenes,
+            `regional:${traversable[0]!.scene.scene_id}`,
+            regime,
+          )
+        : buildRegionalAtlas(regionalScenes, focusId);
+  } else if (
     regionalScenes.length > 0 &&
     regionalFocus &&
     !surveyFocus &&
@@ -928,6 +946,11 @@ function buildRegionalCounty(
     const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
     const screen = projectCountyLocal(countyFrame, local, frameView);
     const width = countyObjectWidth(bounds, object.native_bounds, world);
+    const envelopePath = projectRegionalObjectEnvelope(
+      countyFrame,
+      object.native_bounds,
+      frameView,
+    );
     const terrainSample = scene.projection.terrain?.samples.find(
       (sample) => sample.source_object_id === object.object_id,
     );
@@ -952,6 +975,12 @@ function buildRegionalCounty(
         scene.scene_id,
         object.object_revision,
       ),
+      spatial_feature: {
+        geometry_kind: object.geometry_kind,
+        layer: object.layer,
+        envelope_path: envelopePath,
+        authority: object.authority,
+      },
     };
   });
   const selectedObject = objects.find(
@@ -1014,6 +1043,31 @@ function buildRegionalCounty(
     county_frame: countyFrame,
     county_footprint: projectedFootprint,
   };
+}
+
+function projectRegionalObjectEnvelope(
+  frame: CountyFrame,
+  bounds: AdmittedRegionalProjection["scene"]["native_bounds"],
+  view: ReturnType<typeof countyFrameView>,
+) {
+  const corners = [
+    [bounds.west_microdegrees, bounds.south_microdegrees],
+    [bounds.east_microdegrees, bounds.south_microdegrees],
+    [bounds.east_microdegrees, bounds.north_microdegrees],
+    [bounds.west_microdegrees, bounds.north_microdegrees],
+  ] as const;
+  return (
+    corners
+      .map((position, index) => {
+        const point = projectCountyLocal(
+          frame,
+          nativePositionToCountyLocal(frame, position),
+          view,
+        );
+        return `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+      })
+      .join(" ") + " Z"
+  );
 }
 
 function selectRegionalScene(

@@ -73,10 +73,16 @@ describe("declarative React Three Fiber scenes", () => {
     const root = renderer.scene.findByProps({
       name: "context-globe:working:fixture",
     });
+    expect(root.instance.quaternion.y).toBe(0);
+    const surface = renderer.scene.findByProps({
+      name: "context-globe-surface",
+    }).instance as Mesh;
+    expect(surface.geometry.getAttribute("position").count).toBe(161 * 97);
     expect(
-      root.instance.quaternion.equals(root.instance.quaternion.clone()),
-    ).toBe(true);
-    expect(root.instance.quaternion.y).not.toBe(0);
+      renderer.scene.findByProps({
+        name: "context-globe-sector:sector:fixture:0",
+      }),
+    ).toBeDefined();
     expect(
       renderer.scene.findByProps({ name: "workload-beacon:survey" }),
     ).toBeDefined();
@@ -112,6 +118,33 @@ describe("declarative React Three Fiber scenes", () => {
     expect((sampleField.material as MeshBasicNodeMaterial).color.getHex()).toBe(
       0x708079,
     );
+
+    await renderer.unmount();
+  });
+
+  it("subdues spherical fabric at the Mercator endpoint", async () => {
+    const renderer = await create(
+      <ContextGlobeScene
+        compiled={compileContextGlobe(globeFixture())}
+        view={{
+          yaw_degrees: 24,
+          pitch_degrees: -8,
+          projection_morph_progress: 1,
+        }}
+        world={{ width: 1200, height: 720 }}
+      />,
+    );
+
+    const sampleField = renderer.scene.findByProps({
+      name: "context-globe-samples:0",
+    }).instance as InstancedMesh;
+    const poleField = renderer.scene.findByProps({
+      name: "context-globe-pole-pattern:north",
+    }).instance as InstancedMesh;
+    expect((sampleField.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
+      0.48 * 0.18,
+    );
+    expect((poleField.material as MeshBasicNodeMaterial).opacity).toBe(0);
 
     await renderer.unmount();
   });

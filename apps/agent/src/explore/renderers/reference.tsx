@@ -122,6 +122,7 @@ export function ReferenceRenderer({
       className={sx(
         styles.projection,
         scene.terrain && styles.terrainProjection,
+        scene.county_frame && styles.countyProjection,
         scene.terrain && accelerated && styles.acceleratedTerrainProjection,
         scene.terrain &&
           scene.regime === "world" &&
@@ -134,6 +135,7 @@ export function ReferenceRenderer({
     >
       {!globeWorld &&
         !morphActive &&
+        !wrappedAtlas &&
         chartWrapIndexes.flatMap((wrapIndex) =>
           scene.regions.map((region) => (
             <div
@@ -164,6 +166,15 @@ export function ReferenceRenderer({
           )),
         )}
       <CountyFootprintLayer scene={scene} />
+      <CountyFeatureLayer onFocus={onFocus} scene={scene} />
+      {wrappedAtlas ? (
+        <AtlasFeatureLayer
+          labelPlacements={atlasLabelPlacements}
+          onFocus={onFocus}
+          scene={scene}
+          wrapIndexes={chartWrapIndexes}
+        />
+      ) : null}
       <WorldGeometryLayer
         accelerated={accelerated}
         globeView={globeView}
@@ -173,6 +184,7 @@ export function ReferenceRenderer({
       />
       {morphActive ? (
         <WorldAtlasTransitionLayer
+          accelerated={accelerated}
           globeView={globeView}
           onFocus={onFocus}
           progress={projectionMorphProgress}
@@ -209,6 +221,8 @@ export function ReferenceRenderer({
           ))}
       {!globeWorld &&
         !morphActive &&
+        !scene.county_frame &&
+        !wrappedAtlas &&
         chartWrapIndexes.flatMap((wrapIndex) =>
           scene.nodes.map((node) => (
             <TopologyObject
@@ -231,6 +245,266 @@ export function ReferenceRenderer({
         )}
     </div>
   );
+}
+
+function AtlasFeatureLayer({
+  labelPlacements,
+  onFocus,
+  scene,
+  wrapIndexes,
+}: {
+  labelPlacements: ReadonlyMap<string, SemanticLabelPlacement>;
+  onFocus: (node: FocusableTopologyObject) => void;
+  scene: TopologyScene;
+  wrapIndexes: readonly number[];
+}) {
+  return (
+    <svg
+      aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
+      className={sx(styles.worldGeometryLayer, styles.atlasFeatureLayer)}
+      data-atlas-feature-layer={scene.world_atlas_transition?.atlas_revision}
+      role="group"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>
+        Occupied sectors retain synthetic membership only. Markers retain one
+        canonical identity through horizontally wrapped presentation copies.
+      </title>
+      {wrapIndexes.flatMap((wrapIndex) =>
+        scene.regions.map((region) => (
+          <rect
+            aria-hidden="true"
+            className={sx(styles.atlasSector)}
+            data-chart-wrap-index={wrapIndex}
+            data-semantic-identity={region.id}
+            height={region.height}
+            key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
+            width={region.width}
+            x={region.x + wrapIndex * scene.world.width}
+            y={region.y}
+          >
+            <title>{`${region.label} / ${region.detail}`}</title>
+          </rect>
+        )),
+      )}
+      {wrapIndexes.flatMap((wrapIndex) =>
+        scene.nodes.map((node) => {
+          const placement = labelPlacements.get(`${wrapIndex}:${node.id}`)!;
+          const x = node.x + wrapIndex * scene.world.width;
+          return (
+            <g
+              aria-hidden={wrapIndex === 0 ? undefined : true}
+              aria-label={`${node.label}: ${node.detail}`}
+              className={sx(styles.atlasFeature)}
+              data-chart-wrap-index={wrapIndex}
+              data-focus-id={node.focus_id}
+              data-label-disposition={placement.disposition}
+              data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
+              data-semantic-identity={node.semantic_identity ?? node.id}
+              key={`${wrapIndex}:${node.id}`}
+              onClick={() =>
+                onFocus({
+                  focus_id: node.focus_id,
+                  x,
+                  y: node.y,
+                  semantic_identity: node.semantic_identity,
+                  semantic_coordinate: node.semantic_coordinate,
+                  chart_wrap_index: wrapIndex,
+                })
+              }
+              onKeyDown={(event) => {
+                if (
+                  wrapIndex === 0 &&
+                  (event.key === "Enter" || event.key === " ")
+                ) {
+                  event.preventDefault();
+                  onFocus({
+                    focus_id: node.focus_id,
+                    x,
+                    y: node.y,
+                    semantic_identity: node.semantic_identity,
+                    semantic_coordinate: node.semantic_coordinate,
+                    chart_wrap_index: wrapIndex,
+                  });
+                }
+              }}
+              role="button"
+              tabIndex={wrapIndex === 0 ? 0 : -1}
+            >
+              <circle
+                className={sx(styles.atlasFeatureHalo)}
+                cx={x}
+                cy={node.y}
+                r={15}
+              />
+              <circle
+                className={sx(styles.atlasFeaturePoint)}
+                cx={x}
+                cy={node.y}
+                r={7}
+              />
+              {placement.visible ? (
+                <text
+                  className={sx(styles.atlasFeatureLabel)}
+                  x={x + 13}
+                  y={node.y - 11}
+                >
+                  {node.label}
+                </text>
+              ) : null}
+              <title>{node.detail}</title>
+            </g>
+          );
+        }),
+      )}
+    </svg>
+  );
+}
+
+function CountyFeatureLayer({
+  onFocus,
+  scene,
+}: {
+  onFocus: (node: FocusableTopologyObject) => void;
+  scene: TopologyScene;
+}) {
+  if (!scene.county_frame) return null;
+  const features = scene.nodes.filter(
+    (node) =>
+      node.spatial_feature &&
+      node.id !== `regional-object:${scene.county_footprint?.source_object_id}`,
+  );
+  if (features.length === 0) return null;
+  return (
+    <svg
+      aria-label={`${features.length} admitted County feature envelopes`}
+      className={sx(styles.worldGeometryLayer, styles.countyFeatureLayer)}
+      data-county-feature-layer={scene.county_frame.frame_id}
+      role="group"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <title>
+        Feature marks use exact admitted native bounds. An envelope does not
+        reconstruct source geometry or terrain between admitted samples.
+      </title>
+      {features.map((node) => {
+        const feature = node.spatial_feature!;
+        const point = feature.geometry_kind.toLowerCase() === "point";
+        const linear =
+          feature.geometry_kind.toLowerCase().includes("line") ||
+          ["highway", "road", "utility", "connector"].includes(feature.layer);
+        const selected = node.focus_id === scene.focus_id;
+        const showLabel = selected;
+        const content = (
+          <g
+            aria-label={`${node.family}: ${node.label}. ${node.detail}`}
+            className={sx(
+              styles.countyFeature,
+              selected && styles.countyFeatureSelected,
+            )}
+            data-county-feature={node.id}
+            data-feature-geometry={feature.geometry_kind}
+            data-feature-layer={feature.layer}
+            data-feature-source-authority={feature.authority}
+            onClick={
+              scene.regime === "objects" || scene.regime === "evidence"
+                ? undefined
+                : () => onFocus(node)
+            }
+            onKeyDown={(event) => {
+              if (
+                scene.regime !== "objects" &&
+                scene.regime !== "evidence" &&
+                (event.key === "Enter" || event.key === " ")
+              ) {
+                event.preventDefault();
+                onFocus(node);
+              }
+            }}
+            role={
+              scene.regime === "objects" || scene.regime === "evidence"
+                ? undefined
+                : "button"
+            }
+            tabIndex={
+              scene.regime === "objects" || scene.regime === "evidence"
+                ? undefined
+                : 0
+            }
+          >
+            {point ? (
+              <>
+                <circle
+                  className={sx(styles.countyFeaturePoint)}
+                  cx={node.x}
+                  cy={node.y}
+                  r={feature.layer === "terrain" ? 11 : 7}
+                />
+                {feature.layer === "terrain" ? (
+                  <circle
+                    className={sx(styles.countyTerrainSampleHalo)}
+                    cx={node.x}
+                    cy={node.y}
+                    r={18}
+                  />
+                ) : null}
+              </>
+            ) : (
+              <path
+                className={sx(
+                  styles.countyFeatureEnvelope,
+                  linear && styles.countyFeatureLinear,
+                  feature.layer === "hydrology" &&
+                    styles.countyFeatureHydrology,
+                  feature.layer === "boundary" && styles.countyFeatureBoundary,
+                  feature.layer === "terrain_control" &&
+                    styles.countyTerrainControl,
+                )}
+                d={feature.envelope_path}
+              />
+            )}
+            {showLabel ? (
+              <text
+                className={sx(styles.countyFeatureLabel)}
+                data-feature-label-visible="true"
+                x={node.x + 12}
+                y={node.y - 12}
+              >
+                {countyFeatureLabel(node.label)}
+              </text>
+            ) : null}
+            <title>{`${node.detail} / ${feature.authority}`}</title>
+          </g>
+        );
+        return node.evidence_uri &&
+          (scene.regime === "objects" || scene.regime === "evidence") ? (
+          <a
+            data-object-evidence={node.evidence_uri}
+            href={node.evidence_uri}
+            key={node.id}
+          >
+            {content}
+            {selected ? (
+              <text
+                className={sx(styles.countyFeatureEvidenceLabel)}
+                x={node.x + 12}
+                y={node.y + 3}
+              >
+                OPEN EXACT EVIDENCE
+              </text>
+            ) : null}
+          </a>
+        ) : (
+          <g key={node.id}>{content}</g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function countyFeatureLabel(label: string) {
+  const concise = label.split(/[/:]/).filter(Boolean).at(-1) ?? label;
+  return concise.replaceAll("-", " ").toUpperCase();
 }
 
 function CountyFootprintLayer({ scene }: { scene: TopologyScene }) {
@@ -656,7 +930,7 @@ function SemanticGlobeLayer({
         data-globe-caption=""
         textAnchor="middle"
         x={center.x}
-        y={center.y + radius * WORLD_GLOBE_ATMOSPHERE_SCALE + 24}
+        y={center.y + radius * WORLD_GLOBE_ATMOSPHERE_SCALE + 30}
       >
         {globe.posture === "orientation"
           ? `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`
@@ -667,11 +941,13 @@ function SemanticGlobeLayer({
 }
 
 function WorldAtlasTransitionLayer({
+  accelerated,
   globeView,
   onFocus,
   progress,
   scene,
 }: {
+  accelerated: boolean;
   globeView: GlobeCameraView;
   onFocus: (node: FocusableTopologyObject) => void;
   progress: number;
@@ -735,17 +1011,19 @@ function WorldAtlasTransitionLayer({
     >
       <title>{transition.authority}</title>
       <g aria-label={`${transition.sectors.length} retained sector identities`}>
-        {sectorFragments.map(({ fragment, sector }) => (
-          <path
-            className={sx(styles.worldAtlasMorphSector)}
-            d={`${fragment.points.map(({ x, y }, index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ")} Z`}
-            data-semantic-identity={fragment.identity}
-            data-wrap-fragment={fragment.fragment_id}
-            key={fragment.fragment_id}
-          >
-            <title>{`${sector.label} / ${fragment.polar_disclosures.join(" + ") || "inside Mercator latitude cutoff"}`}</title>
-          </path>
-        ))}
+        {!accelerated
+          ? sectorFragments.map(({ fragment, sector }) => (
+              <path
+                className={sx(styles.worldAtlasMorphSector)}
+                d={`${fragment.points.map(({ x, y }, index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ")} Z`}
+                data-semantic-identity={fragment.identity}
+                data-wrap-fragment={fragment.fragment_id}
+                key={fragment.fragment_id}
+              >
+                <title>{`${sector.label} / ${fragment.polar_disclosures.join(" + ") || "inside Mercator latitude cutoff"}`}</title>
+              </path>
+            ))
+          : null}
       </g>
       <g aria-label={`${points.length} retained regional identities`}>
         {points.map(({ point, projected }) => {

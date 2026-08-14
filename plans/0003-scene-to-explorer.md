@@ -34,9 +34,10 @@ now consumes only the latest accepted production result retained by the
 workload read model: rejected results, qualification scenarios, candidate
 packages, and mismatched workload/graph/package/packet/coordinate bindings
 fail closed. It projects the exact synthetic point at World, the same point on
-a semantic-Mercator chart at Atlas, and enters County only for an explicit
-selection whose projection packet binds one unique envelope-matching boundary
-Polygon. That content-identified footprint retains its exact source object,
+a semantic-Mercator chart at Atlas, and enters County for an explicit selection
+or automatically when exactly one traversable admitted region binds one unique
+envelope-matching boundary Polygon. Multiple or unknown choices still stop at
+Atlas. That content-identified footprint retains its exact source object,
 artifact, revision, bounded closed native rings, coordinate count, and
 authority. `rey.county-footprint-projection@1` projects those rings as the
 County fabric and even-odd validity boundary; the former envelope-shaped
@@ -62,14 +63,16 @@ World endpoint, and identity-stable World-to-Atlas interpolation. Regional
 Atlas points and sector fragments consume that primitive, and its compiler
 revision enters the immutable scene snapshot. The snapshot also retains one
 renderer-neutral transition manifest with the same region/focus and sector
-identities at both endpoints. The reference renderer uses the grammar's
-`0.14 → 0.24` scale band to interpolate those points and bounded sector
-vertices continuously across the World/Atlas regime switch; active globe
-rotation remains the World endpoint and the accelerated duplicate is withheld
-during the transition. At settled Atlas the reference renderer materializes
-exactly three bounded horizontal chart copies. Duplicate copies are pointer-only
-and accessibility-hidden; inverse picking resolves their projected centers to
-one canonical synthetic coordinate and retained region/focus identity. Drag pan
+identities at both endpoints. The R3F renderer uses the grammar's
+`0.14 → 0.24` scale band to unfurl one indexed surface, stipple fabric,
+occupied sector mesh, and marker set continuously across the World/Atlas regime
+switch; active globe rotation remains the World endpoint. The accessible
+reference overlay retains labels, focus, and wrapped identity while the
+accelerated surface remains active. At settled Atlas the reference overlay
+materializes exactly three bounded horizontal chart copies. Duplicate copies
+are pointer-only and accessibility-hidden; inverse picking resolves their
+projected centers to one canonical synthetic coordinate and retained
+region/focus identity. Drag pan
 recenters modulo the rendered chart width, keeping horizontal camera state
 bounded without changing selection or semantic identity. Explorer implements the fresh
 orientation globe, semantic World globe rotation, local relief, procedural
@@ -80,9 +83,10 @@ deterministic label engine applies the grammar's 70-label World and 96-label
 Atlas budgets across globe rotation, morph, and chart copies. Selected canonical
 focus wins, then depth/copy priority and identity provide stable ordering;
 collided or over-limit labels collapse without removing markers or pick targets.
-Its compiler revision enters immutable scene lineage. Closer zoom without an
-explicit regional focus now stops at Atlas. An explicit region selection enters
-only after Rust admission and the browser adapter both verify one exact
+Its compiler revision enters immutable scene lineage. Closer zoom with exactly
+one traversable admitted region enters that County without inserting an
+intermediate selection card; multiple or unknown choices stop at Atlas. County
+entry occurs only after Rust admission and the browser adapter both verify one exact
 native-to-County-local transform centered on the admitted native envelope.
 `rey.county-frame-projection@1` then applies a bounded `35.26439°` pitch / `45°`
 yaw isometric forward/inverse plane projection, retains the frame in the
@@ -175,8 +179,9 @@ execution timing.
 
 ### 4. Enter a bounded County
 
-- [x] Stop closer navigation at Atlas until an admitted regional identity is
-  explicitly selected; never fall back to the first available scene.
+- [x] Enter County automatically only when exactly one admitted regional
+  identity has a qualified footprint; stop multiple or unknown choices at
+  Atlas and never choose the first member of an ambiguous set.
 - [x] Verify the selected scene's exact envelope-centered County-local
   transform and expand that revision-bound plane through a bounded reversible
   isometric camera while disclosing that envelope geometry is not a footprint.

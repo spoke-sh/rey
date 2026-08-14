@@ -58,6 +58,18 @@ export function globeFixture(): ExplorerGlobe {
     coordinate_authority: "presentation only",
     clusters: [],
     regions: [],
+    sectors: [
+      {
+        id: "sector:fixture",
+        label: "SECTOR 4.3",
+        west_degrees: -60,
+        south_degrees: 10,
+        east_degrees: -30,
+        north_degrees: 30,
+        crosses_antimeridian: false,
+        tone: "neutral",
+      },
+    ],
     beacons: [
       {
         id: "workload-beacon:survey",

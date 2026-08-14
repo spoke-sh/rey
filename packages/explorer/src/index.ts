@@ -12,6 +12,7 @@ export {
 export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
   compileContextGlobe,
+  CONTEXT_GLOBE_PROJECTION_REVISION,
   GLOBE_RADIUS,
   GLOBE_SAMPLE_COUNT,
   GLOBE_SAMPLE_RADIUS,
@@ -43,6 +44,7 @@ export type {
   ExplorerGlobe,
   ExplorerGlobeBeacon,
   ExplorerGlobeRegion,
+  ExplorerGlobeSector,
   TerrainCameraView,
   TerrainFieldSetInput,
 } from "./types";

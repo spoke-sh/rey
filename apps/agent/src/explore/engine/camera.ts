@@ -44,7 +44,7 @@ export const OBJECT_LENS_ZOOM = 2.05;
 export const EVIDENCE_LENS_ZOOM = 3.55;
 export const WORLD_ATLAS_MORPH_START_ZOOM = 0.14;
 export const WORLD_ATLAS_MORPH_END_ZOOM = 0.24;
-export const WORLD_GLOBE_RADIUS_RATIO = 0.41;
+export const WORLD_GLOBE_RADIUS_RATIO = 0.4;
 export const WORLD_GLOBE_ATMOSPHERE_SCALE = 1.09;
 
 const LENS_HYSTERESIS = 0.05;
@@ -214,9 +214,13 @@ export function renderedSceneScale(
       fitScale *
       (zoom / (regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM))
     );
+  if (regime === "world") {
+    const magnified = Math.min(1.16, Math.max(0.84, zoom / WORLD_LENS_ZOOM));
+    const progress = worldAtlasMorphProgress(zoom);
+    return fitScale * (magnified + (1 - magnified) * progress);
+  }
   const regimeBase = {
-    world: WORLD_LENS_ZOOM,
-    atlas: DEFAULT_LENS_ZOOM,
+    atlas: WORLD_ATLAS_MORPH_END_ZOOM,
     landscape: LANDSCAPE_LENS_ZOOM,
     neighborhoods: NEIGHBORHOOD_LENS_ZOOM,
     objects: OBJECT_LENS_ZOOM,

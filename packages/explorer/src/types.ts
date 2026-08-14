@@ -1,6 +1,7 @@
 export interface GlobeCameraView {
   yaw_degrees: number;
   pitch_degrees: number;
+  projection_morph_progress?: number;
 }
 
 export interface TerrainCameraView {
@@ -43,6 +44,17 @@ export interface ExplorerGlobeBeacon {
   tone: string;
 }
 
+export interface ExplorerGlobeSector {
+  id: string;
+  label: string;
+  west_degrees: number;
+  south_degrees: number;
+  east_degrees: number;
+  north_degrees: number;
+  crosses_antimeridian: boolean;
+  tone: string;
+}
+
 export interface ExplorerGlobe {
   schema: string;
   posture: string;
@@ -53,6 +65,7 @@ export interface ExplorerGlobe {
   clusters: readonly unknown[];
   regions: readonly ExplorerGlobeRegion[];
   beacons: readonly ExplorerGlobeBeacon[];
+  sectors?: readonly ExplorerGlobeSector[];
 }
 
 export interface TerrainFieldSetInput {

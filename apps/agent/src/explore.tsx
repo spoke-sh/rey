@@ -241,7 +241,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     scene.world_atlas_transition !== null &&
     projectionMorphProgress >= 1;
   const renderedScale = renderedSceneScale(
-    scene.terrain,
+    scene.terrain || scene.county_frame !== null,
     fitScale,
     zoom,
     scene.regime,
@@ -551,9 +551,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   };
 
   const sceneStyle = {
-    "--rey-terrain-counter-scale": scene.terrain
-      ? (scene.regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM) / zoom
-      : 1,
+    "--rey-terrain-counter-scale":
+      scene.terrain || scene.county_frame
+        ? (scene.regime === "world" ? WORLD_LENS_ZOOM : DEFAULT_LENS_ZOOM) /
+          zoom
+        : 1,
     height: scene.world.height,
     transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${renderedScale})`,
     width: scene.world.width,
@@ -600,7 +602,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         aria-label="Interactive context topology map. Drag the globe to orbit or the surrounding canvas to pan; use the mouse wheel or plus and minus keys to move through semantic lens levels."
         className={sx(
           styles.canvasViewport,
-          scene.terrain && styles.terrainViewport,
+          (scene.terrain || scene.county_frame) && styles.terrainViewport,
           scene.globe?.posture === "orientation" && styles.orientationViewport,
           isDragging && styles.canvasViewportDragging,
         )}
@@ -639,10 +641,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           className={sx(styles.scene, isDragging && styles.sceneDragging)}
           style={sceneStyle}
         >
-          {scene.globe ? (
+          {scene.globe ||
+          (scene.regime === "atlas" && scene.world_atlas_transition) ? (
             <AcceleratedTerrainSurface
               globeView={globeView}
               onReport={setTerrainRenderer}
+              projectionMorphProgress={projectionMorphProgress}
               renderVisibility={renderVisibility}
               snapshot={snapshot}
               view={{
@@ -654,11 +658,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
                 pan_x: pan.x,
                 pan_y: pan.y,
               }}
-              visible={!projectionMorphActive}
+              visible
             />
           ) : null}
           <ReferenceRenderer
-            accelerated={acceleratedReady && !projectionMorphActive}
+            accelerated={acceleratedReady}
             globeView={globeView}
             layers={layers}
             onFocus={focusNode}

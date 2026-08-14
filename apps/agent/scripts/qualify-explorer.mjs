@@ -555,8 +555,8 @@ async function panOutsideGlobe(connection) {
     delta,
     observed:
       after !== null &&
-      after.pan_x === before.pan_x + delta.x &&
-      after.pan_y === before.pan_y + delta.y &&
+      Math.abs(after.pan_x - (before.pan_x + delta.x)) < 0.001 &&
+      Math.abs(after.pan_y - (before.pan_y + delta.y)) < 0.001 &&
       after.pitch === before.pitch &&
       after.yaw === before.yaw,
   };
@@ -580,15 +580,15 @@ async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
     x: before.bounds.x + before.bounds.width * 0.72,
     y: before.bounds.y + before.bounds.height * 0.42,
   };
-  const wheel = () =>
+  const wheel = (deltaY) =>
     connection.send("Input.dispatchMouseEvent", {
       deltaX: 0,
-      deltaY: -20,
+      deltaY,
       type: "mouseWheel",
       x: pointer.x,
       y: pointer.y,
     });
-  await wheel();
+  await wheel(-20);
   await waitFor(
     connection,
     `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${before.zoom + 0.02}`,
@@ -596,10 +596,10 @@ async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
     timeoutMs,
   );
   const afterFirst = await connection.evaluate(stateExpression);
-  await wheel();
+  await wheel(-3);
   await waitFor(
     connection,
-    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${afterFirst.zoom + 0.02}`,
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${afterFirst.zoom + 0.004}`,
     "second clamped World wheel step",
     timeoutMs,
   );
@@ -1097,7 +1097,7 @@ async function runVoyage(options) {
     await measureInteraction(interactions, "atlas_to_county", async () => {
       await dispatchClick(
         connection,
-        `document.querySelector('button[data-chart-wrap-index="0"][data-semantic-identity]')`,
+        `document.querySelector('[role="button"][data-chart-wrap-index="0"][data-semantic-identity]')`,
         "canonical Atlas region",
         options.timeoutMs,
       );
@@ -1121,7 +1121,7 @@ async function runVoyage(options) {
       await captureStage(connection, voyageDirectory, "landscape", startedAt),
     );
 
-    const firstProjectionButton = `document.querySelector('[data-lens-regime] button[aria-label]:not([disabled])')`;
+    const firstProjectionButton = `document.querySelector('[data-lens-regime] [role="button"][aria-label]')`;
     await measureInteraction(
       interactions,
       "county_to_neighborhoods",

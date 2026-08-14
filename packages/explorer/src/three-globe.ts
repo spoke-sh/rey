@@ -5,8 +5,10 @@ import {
 } from "./globe-samples";
 import type { ExplorerGlobe } from "./types";
 
+export const CONTEXT_GLOBE_PROJECTION_REVISION =
+  "rey.context-globe.sphere-mercator-projection@1";
 export const SEMANTIC_GLOBE_MATERIAL_REVISION =
-  "rey.semantic-globe.tsl-stippled-atmosphere@4";
+  "rey.semantic-globe.tsl-stippled-atmosphere@5";
 export const GLOBE_RADIUS = 1.72;
 export const GLOBE_SAMPLE_RADIUS = 0.0082;
 export const GLOBE_SAMPLE_COUNT = 26_000;
@@ -14,6 +16,7 @@ export const GLOBE_SAMPLE_COUNT = 26_000;
 export interface CompiledContextGlobe {
   globe: ExplorerGlobe;
   material_revision: string;
+  projection_revision: string;
   pole_patterns: readonly GlobePolePattern[];
   sample_buckets: readonly {
     id: string;
@@ -83,6 +86,7 @@ export function compileContextGlobe(
   return Object.freeze({
     globe,
     material_revision: SEMANTIC_GLOBE_MATERIAL_REVISION,
+    projection_revision: CONTEXT_GLOBE_PROJECTION_REVISION,
     pole_patterns: polePatterns,
     sample_buckets: Object.freeze(sampleBuckets),
     statistics: Object.freeze({

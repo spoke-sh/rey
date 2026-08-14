@@ -188,6 +188,11 @@ export const exploreStyles = stylex.create({
   terrainProjection: {
     backgroundColor: "color-mix(in srgb, #eef0e3 25%, transparent)",
   },
+  countyProjection: {
+    backgroundColor: "color-mix(in srgb, #d8e2d3 34%, transparent)",
+    backgroundImage:
+      "radial-gradient(ellipse at 34% 42%, color-mix(in srgb, #78946d 12%, transparent), transparent 34%), radial-gradient(ellipse at 68% 58%, color-mix(in srgb, #526f5c 10%, transparent), transparent 38%)",
+  },
   acceleratedTerrainProjection: { backgroundColor: "transparent" },
   acceleratedTerrainCanvas: {
     height: "100%",
@@ -220,11 +225,88 @@ export const exploreStyles = stylex.create({
     zIndex: 0,
   },
   countyFootprint: {
-    fill: "color-mix(in srgb, #89a76f 15%, var(--rey-background))",
-    stroke: "color-mix(in srgb, #47604d 70%, var(--rey-foreground))",
+    fill: "color-mix(in srgb, #89a76f 11%, var(--rey-background))",
+    stroke: "color-mix(in srgb, #47604d 58%, var(--rey-foreground))",
     strokeLinejoin: "round",
     strokeWidth: 2,
     vectorEffect: "non-scaling-stroke",
+  },
+  countyFeatureLayer: {
+    pointerEvents: "auto",
+    zIndex: 3,
+  },
+  countyFeature: {
+    cursor: "pointer",
+    outline: {
+      default: "none",
+      ":focus-visible": "2px solid var(--rey-accent)",
+    },
+  },
+  countyFeatureEnvelope: {
+    fill: "color-mix(in srgb, #78946d 9%, transparent)",
+    stroke: "color-mix(in srgb, #355b4c 44%, var(--rey-foreground))",
+    strokeLinejoin: "round",
+    strokeWidth: 1.5,
+    vectorEffect: "non-scaling-stroke",
+  },
+  countyFeatureLinear: {
+    fill: "none",
+    stroke: "color-mix(in srgb, #b67a2c 68%, var(--rey-foreground))",
+    strokeWidth: 2.2,
+  },
+  countyFeatureHydrology: {
+    fill: "none",
+    stroke: "color-mix(in srgb, #477d86 76%, var(--rey-foreground))",
+    strokeWidth: 2.4,
+  },
+  countyFeatureBoundary: {
+    fill: "none",
+    stroke: "color-mix(in srgb, #314941 64%, var(--rey-foreground))",
+    strokeDasharray: "2 4",
+    strokeWidth: 1.2,
+  },
+  countyTerrainControl: {
+    fill: "color-mix(in srgb, #7d7160 5%, transparent)",
+    stroke: "color-mix(in srgb, #78684f 47%, var(--rey-foreground))",
+    strokeDasharray: "4 5",
+  },
+  countyFeaturePoint: {
+    fill: "#446c61",
+    stroke: "#f0ead6",
+    strokeWidth: 1.5,
+    vectorEffect: "non-scaling-stroke",
+  },
+  countyTerrainSampleHalo: {
+    fill: "color-mix(in srgb, #446c61 12%, transparent)",
+    stroke: "color-mix(in srgb, #446c61 54%, transparent)",
+    strokeWidth: 1,
+    vectorEffect: "non-scaling-stroke",
+  },
+  countyFeatureSelected: {
+    filter:
+      "drop-shadow(0 0 7px color-mix(in srgb, var(--rey-accent) 62%, transparent))",
+  },
+  countyFeatureLabel: {
+    fill: "var(--rey-foreground)",
+    fontFamily: mono,
+    fontSize: 9,
+    fontWeight: 800,
+    letterSpacing: "0.05em",
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, var(--rey-background) 92%, transparent)",
+    strokeWidth: 4,
+  },
+  countyFeatureEvidenceLabel: {
+    fill: "var(--rey-accent)",
+    fontFamily: mono,
+    fontSize: 7,
+    fontWeight: 850,
+    letterSpacing: "0.08em",
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, var(--rey-background) 94%, transparent)",
+    strokeWidth: 3,
   },
   worldGraticule: {
     fill: "none",
@@ -388,6 +470,48 @@ export const exploreStyles = stylex.create({
     pointerEvents: "none",
     stroke: "color-mix(in srgb, var(--rey-background) 88%, transparent)",
     strokeWidth: 5,
+  },
+  atlasFeatureLayer: {
+    pointerEvents: "auto",
+    zIndex: 3,
+  },
+  atlasSector: {
+    fill: "color-mix(in srgb, var(--rey-accent) 6%, transparent)",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, var(--rey-accent) 48%, var(--line))",
+    strokeDasharray: "5 5",
+    strokeWidth: 1.2,
+    vectorEffect: "non-scaling-stroke",
+  },
+  atlasFeature: {
+    cursor: "pointer",
+    outline: {
+      default: "none",
+      ":focus-visible": "2px solid var(--rey-accent)",
+    },
+  },
+  atlasFeatureHalo: {
+    fill: "color-mix(in srgb, var(--rey-accent) 12%, transparent)",
+    stroke: "color-mix(in srgb, var(--rey-accent) 38%, transparent)",
+    strokeWidth: 1,
+    vectorEffect: "non-scaling-stroke",
+  },
+  atlasFeaturePoint: {
+    fill: "#446c61",
+    stroke: "#f4f0df",
+    strokeWidth: 2,
+    vectorEffect: "non-scaling-stroke",
+  },
+  atlasFeatureLabel: {
+    fill: "#213532",
+    fontFamily: mono,
+    fontSize: 10,
+    fontWeight: 850,
+    letterSpacing: "0.06em",
+    paintOrder: "stroke",
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #f4f2e8 94%, transparent)",
+    strokeWidth: 4,
   },
   worldHorizon: {
     fill: "color-mix(in srgb, #78959b 5%, transparent)",
