@@ -185,6 +185,11 @@ describe("reference renderer", () => {
       expect(markup).toContain('data-label-disposition="selected"');
       expect(markup).toContain('data-label-disposition="collision"');
       expect(markup).toContain("Synthetic semantic longitude and latitude");
+      expect(markup).toContain(
+        'data-globe-caption="" text-anchor="middle" x="750"',
+      );
+      expect(markup).toContain("SEMANTIC SPHERE / REV atlas:1");
+      expect(markup).not.toContain("2 ADMITTED REGIONS");
       expect(markup).not.toContain('data-world-geometry="charted"');
       expect(markup).not.toContain('data-natural-feature="stream"');
     }

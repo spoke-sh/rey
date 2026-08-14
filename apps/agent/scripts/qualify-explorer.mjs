@@ -573,8 +573,12 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     const diagnostics = document.querySelector("[data-renderer-diagnostics]");
     const geographicCoordinate = diagnostics?.querySelector("[data-coordinate-authority]");
     const footer = document.querySelector("[data-explorer-footer]");
+    const globeCaption = document.querySelector("[data-globe-caption]");
+    const globeAtmosphere = document.querySelector("[data-globe-atmosphere]");
     const diagnosticsBounds = diagnostics?.getBoundingClientRect();
     const footerBounds = footer?.getBoundingClientRect();
+    const globeCaptionBounds = globeCaption?.getBoundingClientRect();
+    const globeAtmosphereBounds = globeAtmosphere?.getBoundingClientRect();
     const exactEvidence = [...document.querySelectorAll("[data-object-evidence]")].map((element) => ({
       href: element.getAttribute("href"),
       identity: element.getAttribute("data-semantic-identity"),
@@ -604,6 +608,15 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
         footer_height_px: footerBounds?.height ?? null,
         footer_visible: footer?.getAttribute("data-visible") === "true",
       },
+      globe_caption: globeCaption && globeCaptionBounds && globeAtmosphereBounds ? {
+        horizontal_offset_from_globe_center_px:
+          globeCaptionBounds.x + globeCaptionBounds.width / 2 -
+          (globeAtmosphereBounds.x + globeAtmosphereBounds.width / 2),
+        text: globeCaption.textContent?.replace(/\s+/g, " ").trim() ?? null,
+        vertical_gap_from_atmosphere_px:
+          globeCaptionBounds.y -
+          (globeAtmosphereBounds.y + globeAtmosphereBounds.height),
+      } : null,
       scene_compilation_ms: Number(shell?.getAttribute("data-scene-compilation-ms") ?? "NaN"),
       scene_snapshot_id: shell?.getAttribute("data-scene-snapshot") ?? null,
       source_revisions: shell?.getAttribute("data-scene-sources")?.split(",").filter(Boolean) ?? [],
@@ -1138,6 +1151,12 @@ async function runVoyage(options) {
     captures.some((capture) => capture.stage === stage),
   );
   const backendMatched = world?.renderer?.backend === options.backend;
+  const worldCaptionCentered =
+    world?.globe_caption !== null &&
+    world?.globe_caption !== undefined &&
+    Math.abs(world.globe_caption.horizontal_offset_from_globe_center_px) < 1 &&
+    world.globe_caption.vertical_gap_from_atmosphere_px >= 10 &&
+    world.globe_caption.text?.includes("ADMITTED REGIONS") === false;
   const exactEvidencePresent =
     (captures.find((capture) => capture.stage === "evidence")
       ?.exact_evidence_links.length ?? 0) > 0;
@@ -1197,6 +1216,7 @@ async function runVoyage(options) {
     !failure &&
     expectedStagesPresent &&
     backendMatched &&
+    worldCaptionCentered &&
     exactEvidencePresent &&
     geographicCoordinatesPresent &&
     compactNavigationDiagnosticsPresent &&
@@ -1277,6 +1297,7 @@ async function runVoyage(options) {
     },
     assertions: {
       backend_matched: backendMatched,
+      centered_world_caption_observed: worldCaptionCentered,
       exact_evidence_present: exactEvidencePresent,
       expected_stages_present: expectedStagesPresent,
       diagnostics_follow_footer: diagnosticsFollowFooter,

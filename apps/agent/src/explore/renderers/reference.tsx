@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import {
   OBJECT_LENS_ZOOM,
+  WORLD_GLOBE_ATMOSPHERE_SCALE,
   WORLD_GLOBE_RADIUS_RATIO,
   type LensRegime,
 } from "../engine/camera";
@@ -463,7 +464,7 @@ function SemanticGlobeLayer({
         cy={center.y}
         data-globe-atmosphere=""
         fill="url(#rey-semantic-globe-atmosphere)"
-        r={radius * 1.09}
+        r={radius * WORLD_GLOBE_ATMOSPHERE_SCALE}
       />
       <circle
         className={sx(styles.semanticGlobeSphere)}
@@ -614,12 +615,14 @@ function SemanticGlobeLayer({
       </g>
       <text
         className={sx(styles.semanticGlobeCaption)}
-        x={center.x - radius}
-        y={center.y + radius + 34}
+        data-globe-caption=""
+        textAnchor="middle"
+        x={center.x}
+        y={center.y + radius * WORLD_GLOBE_ATMOSPHERE_SCALE + 24}
       >
         {globe.posture === "orientation"
           ? `UNMAPPED PROJECT / ${globe.beacons.length} WORKLOAD BEACONS / NO DISTANCE CLAIM`
-          : `${globe.posture === "semantic_atlas" ? "SEMANTIC SPHERE" : "REGIONAL WORLD"} / ${globe.regions.length} ADMITTED REGIONS / REV ${globe.source_revision.slice(0, 12)}`}
+          : `${globe.posture === "semantic_atlas" ? "SEMANTIC SPHERE" : "REGIONAL WORLD"} / REV ${globe.source_revision.slice(0, 12)}`}
       </text>
     </svg>
   );

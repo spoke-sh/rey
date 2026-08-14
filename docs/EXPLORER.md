@@ -540,7 +540,10 @@ and a native full-screen mode. Available typed render passes remain active
 without per-layer controls. A control step cannot skip a semantic regime.
 At World, a drag beginning on the rendered atmosphere or globe orbits it; a
 drag beginning on the surrounding canvas pans the entire projection without
-changing globe yaw or pitch. Selecting a World POI advances to
+changing globe yaw or pitch. The posture and source-revision caption remains
+centered with a clear gap beneath the outer atmosphere without repeating the
+admitted-region count.
+Selecting a World POI advances to
 Atlas, then through Landscape, Neighborhood, Object, and Evidence while
 centering that same POI. Level boundaries retain
 hysteresis so small wheel reversals do not flicker between grammars. The
