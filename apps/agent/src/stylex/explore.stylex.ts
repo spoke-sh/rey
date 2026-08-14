@@ -130,23 +130,6 @@ export const exploreStyles = stylex.create({
     paddingBlock: 7,
     paddingInline: 12,
   },
-  layerButton: {
-    backgroundColor: "transparent",
-    borderColor: "var(--line)",
-    color: "var(--muted)",
-    fontFamily: mono,
-    fontSize: "0.48rem",
-    fontWeight: 800,
-    letterSpacing: "0.08em",
-    minHeight: 30,
-    paddingBlock: 5,
-    paddingInline: 8,
-  },
-  layerButtonActive: {
-    backgroundColor: "color-mix(in srgb, var(--rey-accent) 11%, transparent)",
-    borderColor: "var(--rey-accent)",
-    color: "var(--rey-foreground)",
-  },
   canvasViewport: {
     backgroundColor: "var(--rey-background)",
     backgroundImage:

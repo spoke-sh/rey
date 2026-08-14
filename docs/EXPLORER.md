@@ -287,10 +287,10 @@ does not own survey or legacy portfolio lens adaptation. The reference surface r
 made visible again on initialization failure, WebGL context loss, or
 asynchronous WebGPU device loss; the latter is reported through the adapter's
 typed degraded status.
-The base terrain remains active independently from optional contour, water,
-weather, and probe overlays. The UI names the old relief toggle `CONTOURS` to
-match its actual scope; disabling it cannot hide the landform or validity
-boundary.
+The base terrain remains independently identified from contour, water, weather,
+and probe overlays. Explorer exposes no per-layer toolbar controls; every
+available admitted projection remains visible, and none can hide or replace the
+landform or validity boundary.
 Explorer exposes field evaluation, geometry construction, and renderer
 submission duration as transient unretained CPU measurements. Submission time
 is not GPU execution time or a frame-rate claim. Named machine voyages may
@@ -531,7 +531,7 @@ source edges. A selected frontier names the required prerequisite: widen a
 bound, revalidate, admit a resolver, obtain authority, curate a locator, or
 verify absence. Its weather front indicates unresolved boundary pressure but
 does not supply a crossing. Discovered and constructed paths require a
-separate future typed artifact. Selection and layer toggles never reshape
+separate future typed artifact. Selection and visual presentation never reshape
 relief; only a later admitted patch with changed anchors, sampling, coverage,
 omissions, or frontier can change terrain.
 

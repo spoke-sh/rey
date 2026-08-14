@@ -1008,9 +1008,10 @@ exact vertex/index upload bytes before geometry allocation, enforces a 64 MiB
 engine budget, verifies every upload sample against isolated deterministic CPU
 fields, and exposes the allocation and parity revision through the live
 renderer report.
-Transient layer controls project the active subset of that graph for both
-surfaces without changing the immutable graph or scene identity; base terrain
-and validity remain independently present when optional contours are hidden.
+Both surfaces project the active admitted subset of that graph without changing
+the immutable graph or scene identity. Explorer exposes no transient per-layer
+controls: available contours, water, weather, and probes remain visible while
+base terrain and validity retain their independent pass identities.
 The revisioned survey-terrain scene compiler owns reference field evaluation,
 contours, projected hydrology/weather, and natural-feature derivation. Named
 reference, WebGL2, and WebGPU voyages retain both target viewports; parity

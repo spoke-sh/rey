@@ -67,6 +67,12 @@ interface Point {
 }
 
 const zeroPoint: Point = { x: 0, y: 0 };
+const visibleReferenceLayers: ReferenceLayerVisibility = {
+  relief: true,
+  water: true,
+  weather: true,
+  probes: true,
+};
 
 export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
   return (
@@ -120,12 +126,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [terrainRenderer, setTerrainRenderer] =
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
-  const [layers, setLayers] = useState<ReferenceLayerVisibility>({
-    relief: true,
-    water: true,
-    weather: true,
-    probes: true,
-  });
+  const layers = visibleReferenceLayers;
   const [sceneCompiler] = useState(() => new LastGoodSceneCompiler());
   const retainedRegime = useRef<LensRegime | undefined>(undefined);
   const regime = lensRegimeForZoom(zoom, retainedRegime.current);
@@ -363,14 +364,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       ) : null}
       <CanvasToolbar
         isFullscreen={isFullscreen}
-        layers={layers}
         onFit={resetView}
         onFullscreen={() => void toggleFullscreen()}
         onZoomIn={() => setZoomAt(stepLensZoom(zoom, 1))}
         onZoomOut={() => setZoomAt(stepLensZoom(zoom, -1))}
-        onToggleLayer={(layer) =>
-          setLayers((current) => ({ ...current, [layer]: !current[layer] }))
-        }
         scene={scene}
         zoom={zoom}
       />
@@ -567,50 +564,53 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         </div>
         <ReferenceMapReading scene={scene} />
       </div>
-      <footer
-        className={sx(
-          styles.canvasFooter,
-          scene.globe?.posture === "orientation" &&
-            styles.orientationCanvasFooter,
-        )}
-      >
-        <span>
-          WHEEL / + − TO CHANGE LENS ·{" "}
-          {scene.globe ? "DRAG TO ORBIT" : "DRAG TO PAN"} · SELECT TO TRAVERSE
-        </span>
-        <span>
-          {scene.omissions.length > 0
-            ? `BOUNDED / ${scene.omissions.join(" · ")}`
-            : "BOUNDED / NO PROJECTION OMISSIONS"}
-        </span>
-        {coordinate ? (
-          <code className={sx(styles.coordinateUri)}>
-            {explorerViewPath(coordinate.view)}
-          </code>
-        ) : null}
-      </footer>
+      <CanvasFooter coordinate={coordinate} scene={scene} />
     </section>
   );
 }
 
-function CanvasToolbar({
+export function CanvasFooter({
+  coordinate,
+  scene,
+}: {
+  coordinate?: ExplorerViewResolution;
+  scene: TopologyScene;
+}) {
+  return (
+    <footer
+      className={sx(
+        styles.canvasFooter,
+        scene.globe?.posture === "orientation" &&
+          styles.orientationCanvasFooter,
+      )}
+    >
+      <span>
+        WHEEL / + − TO CHANGE LENS ·{" "}
+        {scene.globe ? "DRAG TO ORBIT" : "DRAG TO PAN"} · SELECT TO TRAVERSE
+      </span>
+      {coordinate ? (
+        <code className={sx(styles.coordinateUri)}>
+          {explorerViewPath(coordinate.view)}
+        </code>
+      ) : null}
+    </footer>
+  );
+}
+
+export function CanvasToolbar({
   isFullscreen,
-  layers,
   onFit,
   onFullscreen,
   onZoomIn,
   onZoomOut,
-  onToggleLayer,
   scene,
   zoom,
 }: {
   isFullscreen: boolean;
-  layers: ReferenceLayerVisibility;
   onFit: () => void;
   onFullscreen: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onToggleLayer: (layer: keyof ReferenceLayerVisibility) => void;
   scene: TopologyScene;
   zoom: number;
 }) {
@@ -627,23 +627,8 @@ function CanvasToolbar({
           LENS / {lensLabel(scene.regime)}
         </span>
         <strong>{scene.label}</strong>
-        <small>{scene.detail}</small>
       </div>
       <div className={sx(styles.canvasControls)}>
-        {(["relief", "water", "weather", "probes"] as const).map((layer) => (
-          <KineticButton
-            aria-pressed={layers[layer]}
-            className={sx(
-              styles.layerButton,
-              layers[layer] && styles.layerButtonActive,
-            )}
-            key={layer}
-            onClick={() => onToggleLayer(layer)}
-            theme="precision"
-          >
-            {layer === "relief" ? "CONTOURS" : layer.toUpperCase()}
-          </KineticButton>
-        ))}
         <span className={sx(styles.micro, styles.zoomReadout)}>
           {Math.round(zoom * 100)}%
         </span>
