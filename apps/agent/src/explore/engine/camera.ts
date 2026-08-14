@@ -140,13 +140,20 @@ export function fitScaleForViewport(
   );
 }
 
-export function panForZoomAtPoint(
+export function panForScaleAtPoint(
   pan: CameraPoint,
   pointerFromViewportCenter: CameraPoint,
-  currentZoom: number,
-  nextZoom: number,
+  currentScale: number,
+  nextScale: number,
 ): CameraPoint {
-  const scaleRatio = clampLensZoom(nextZoom) / currentZoom;
+  if (
+    !Number.isFinite(currentScale) ||
+    currentScale <= 0 ||
+    !Number.isFinite(nextScale) ||
+    nextScale <= 0
+  )
+    throw new Error("zoom anchoring requires positive rendered scales");
+  const scaleRatio = nextScale / currentScale;
   return {
     x:
       pointerFromViewportCenter.x -

@@ -9,7 +9,6 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
-  type WheelEvent,
 } from "react";
 import type { WorkloadList } from "./domain";
 import {
@@ -31,7 +30,7 @@ import {
   fitScaleForViewport,
   lensRegimeForZoom,
   panForFocusedPoint,
-  panForZoomAtPoint,
+  panForScaleAtPoint,
   pointerWithinRenderedGlobeAtmosphere,
   recenterWrappedChartPan,
   renderedSceneScale,
@@ -169,6 +168,9 @@ export function ExplorePage({ portfolio, coordinate }: ContextCanvasProps) {
 export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const wheelHandlerRef = useRef<(event: globalThis.WheelEvent) => void>(
+    () => undefined,
+  );
   const dragRef = useRef<
     | {
         pointerId: number;
@@ -396,7 +398,15 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         x: client.x - rect.left - rect.width / 2,
         y: client.y - rect.top - rect.height / 2,
       };
-      setPan(panForZoomAtPoint(pan, pointer, zoom, boundedZoom));
+      const nextRenderedScale = renderedSceneScale(
+        scene.terrain,
+        fitScale,
+        boundedZoom,
+        nextRegime,
+      );
+      setPan(
+        panForScaleAtPoint(pan, pointer, renderedScale, nextRenderedScale),
+      );
     }
     setZoom(boundedZoom);
   };
@@ -426,13 +436,23 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     setZoom(nextZoom);
   };
 
-  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+  const handleWheel = (event: globalThis.WheelEvent) => {
     event.preventDefault();
     const signedDelta = Math.sign(-event.deltaY);
     const boundedDelta =
       signedDelta * Math.min(0.12, Math.abs(event.deltaY) * 0.0015);
     setZoomAt(zoom + boundedDelta, { x: event.clientX, y: event.clientY });
   };
+  wheelHandlerRef.current = handleWheel;
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const onWheel = (event: globalThis.WheelEvent) =>
+      wheelHandlerRef.current(event);
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, []);
 
   const beginPan = (event: PointerEvent<HTMLDivElement>) => {
     const target = event.target;
@@ -589,12 +609,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         onPointerDown={beginPan}
         onPointerMove={movePan}
         onPointerUp={endPan}
-        onWheel={handleWheel}
         ref={viewportRef}
         role="application"
         tabIndex={0}
         data-camera-pan-x={pan.x}
         data-camera-pan-y={pan.y}
+        data-camera-zoom={zoom}
         data-globe-pitch={scene.globe ? globeView.pitch_degrees : undefined}
         data-globe-yaw={scene.globe ? globeView.yaw_degrees : undefined}
       >

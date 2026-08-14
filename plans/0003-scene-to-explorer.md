@@ -168,9 +168,10 @@ execution timing.
 - [x] Preserve focus, selection, and one semantic identity through globe
   rotation, deterministic label culling, collisions, and camera changes; orbit
   only for drags beginning inside the rendered World atmosphere and pan the
-  projection for drags beginning on the surrounding canvas. Center the
-  posture/revision caption beneath the globe without a redundant admitted-region
-  count.
+  projection for drags beginning on the surrounding canvas. Bind wheel input
+  non-passively to the viewport and anchor it with actual rendered scale so a
+  clamped zoom interval cannot become pan-only motion. Center the posture/revision
+  caption beneath the globe without a redundant admitted-region count.
 
 ### 4. Enter a bounded County
 

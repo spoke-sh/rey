@@ -562,6 +562,85 @@ async function panOutsideGlobe(connection) {
   };
 }
 
+async function verifyClampedWorldWheelDoesNotPan(connection, timeoutMs) {
+  const stateExpression = `(() => {
+    const viewport = document.querySelector('[role="application"]');
+    const bounds = viewport?.getBoundingClientRect();
+    return viewport && bounds ? {
+      bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      pan_x: Number(viewport.getAttribute("data-camera-pan-x")),
+      pan_y: Number(viewport.getAttribute("data-camera-pan-y")),
+      zoom: Number(viewport.getAttribute("data-camera-zoom")),
+    } : null;
+  })()`;
+  const before = await connection.evaluate(stateExpression);
+  if (!before)
+    throw new Error("the Explorer wheel camera state is unavailable");
+  const pointer = {
+    x: before.bounds.x + before.bounds.width * 0.72,
+    y: before.bounds.y + before.bounds.height * 0.42,
+  };
+  const wheel = () =>
+    connection.send("Input.dispatchMouseEvent", {
+      deltaX: 0,
+      deltaY: -20,
+      type: "mouseWheel",
+      x: pointer.x,
+      y: pointer.y,
+    });
+  await wheel();
+  await waitFor(
+    connection,
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${before.zoom + 0.02}`,
+    "first clamped World wheel step",
+    timeoutMs,
+  );
+  const afterFirst = await connection.evaluate(stateExpression);
+  await wheel();
+  await waitFor(
+    connection,
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) > ${afterFirst.zoom + 0.02}`,
+    "second clamped World wheel step",
+    timeoutMs,
+  );
+  const afterSecond = await connection.evaluate(stateExpression);
+  await dispatchClick(
+    connection,
+    `[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "FIT")`,
+    "Explorer fit control",
+    timeoutMs,
+  );
+  await waitFor(
+    connection,
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) === 0.26`,
+    "Explorer fit reset",
+    timeoutMs,
+  );
+  await dispatchClick(
+    connection,
+    `document.querySelector('[aria-label="Zoom out one semantic level"]')`,
+    "World zoom control",
+    timeoutMs,
+  );
+  await waitFor(
+    connection,
+    `Number(document.querySelector('[role="application"]')?.getAttribute("data-camera-zoom")) === 0.1`,
+    "World zoom reset",
+    timeoutMs,
+  );
+  return {
+    after_first: afterFirst,
+    after_second: afterSecond,
+    before,
+    observed:
+      afterFirst !== null &&
+      afterSecond !== null &&
+      afterSecond.zoom > afterFirst.zoom &&
+      Math.abs(afterSecond.pan_x - afterFirst.pan_x) < 0.001 &&
+      Math.abs(afterSecond.pan_y - afterFirst.pan_y) < 0.001,
+  };
+}
+
 function regimeExpression(regime) {
   return `document.querySelector('[data-lens-regime="${regime}"]')?.dataset.lensRegime === "${regime}"`;
 }
@@ -826,6 +905,7 @@ async function runVoyage(options) {
   let firstInteractionDismissalObserved = false;
   let mapNoticeObserved = false;
   let outsideGlobePan = null;
+  let clampedWorldWheel = null;
   const startedAt = performance.now();
   const startedAtUnixMs = Date.now();
   try {
@@ -896,6 +976,20 @@ async function runVoyage(options) {
       options.timeoutMs,
     );
     process.stdout.write(`READY world / ${options.backend}\n`);
+    await measureInteraction(
+      interactions,
+      "clamped_world_wheel_zoom",
+      async () => {
+        clampedWorldWheel = await verifyClampedWorldWheelDoesNotPan(
+          connection,
+          options.timeoutMs,
+        );
+      },
+    );
+    if (!clampedWorldWheel?.observed)
+      throw new Error(
+        "wheel zoom panned inside a clamped World scale interval",
+      );
     await measureInteraction(
       interactions,
       "pan_outside_world_globe",
@@ -1250,6 +1344,7 @@ async function runVoyage(options) {
     onboardingNoticeObserved &&
     firstInteractionDismissalObserved &&
     mapNoticeObserved &&
+    clampedWorldWheel?.observed === true &&
     outsideGlobePan?.observed === true &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
@@ -1329,6 +1424,7 @@ async function runVoyage(options) {
       diagnostics_follow_footer: diagnosticsFollowFooter,
       compact_navigation_diagnostics_present:
         compactNavigationDiagnosticsPresent,
+      clamped_world_wheel_zoom_observed: clampedWorldWheel?.observed ?? false,
       first_interaction_dismissal_observed: firstInteractionDismissalObserved,
       expected_loss_console_entries: expectedLossConsoleEntries.length,
       loss_fallback_observed: lossFallbackObserved,
@@ -1344,6 +1440,7 @@ async function runVoyage(options) {
     },
     captures,
     interactions,
+    world_wheel_zoom: clampedWorldWheel,
     world_drag_partition: outsideGlobePan,
     revalidation:
       options.revalidation === "attention"

@@ -13,7 +13,7 @@ import {
   fitScaleForViewport,
   lensRegimeForZoom,
   panForFocusedPoint,
-  panForZoomAtPoint,
+  panForScaleAtPoint,
   pointerWithinRenderedGlobeAtmosphere,
   renderedSceneScale,
   recenterWrappedChartPan,
@@ -48,9 +48,9 @@ describe("Explorer camera engine", () => {
         { width: 1500, height: 1000 },
       ),
     ).toBe(1);
-    expect(panForZoomAtPoint({ x: 0, y: 0 }, { x: 100, y: -50 }, 1, 2)).toEqual(
-      { x: -100, y: 50 },
-    );
+    expect(
+      panForScaleAtPoint({ x: 0, y: 0 }, { x: 100, y: -50 }, 1, 2),
+    ).toEqual({ x: -100, y: 50 });
     expect(
       panForFocusedPoint(
         { x: 900, y: 650 },
@@ -59,6 +59,21 @@ describe("Explorer camera engine", () => {
       ),
     ).toEqual({ x: -75, y: -75 });
     expect(renderedSceneScale(true, 0.5, DEFAULT_LENS_ZOOM, "atlas")).toBe(0.5);
+  });
+
+  it("does not pan when wheel zoom is inside a clamped render interval", () => {
+    const currentScale = renderedSceneScale(false, 1, 0.12, "world");
+    const nextScale = renderedSceneScale(false, 1, 0.16, "world");
+
+    expect(currentScale).toBe(nextScale);
+    expect(
+      panForScaleAtPoint(
+        { x: 24, y: -12 },
+        { x: 320, y: -180 },
+        currentScale,
+        nextScale,
+      ),
+    ).toEqual({ x: 24, y: -12 });
   });
 
   it("turns planar drag into bounded presentation-only globe rotation", () => {

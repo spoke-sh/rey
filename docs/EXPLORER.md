@@ -562,9 +562,12 @@ relief; only a later admitted patch with changed anchors, sampling, coverage,
 omissions, or frontier can change terrain.
 
 In the implemented camera, wheel zoom keeps the semantic coordinate beneath the
-pointer stationary and control zoom keeps the selected focus stationary.
-Level-of-detail boundaries use hysteresis so small changes do not flicker. The
-coordinate and source identity survive every visual grammar change.
+pointer stationary using the actual rendered-scale ratio, so a clamped visual
+scale cannot produce a pan-only wheel frame. The viewport owns wheel input
+through a non-passive listener and prevents document scrolling before changing
+the lens. Control zoom keeps the selected focus stationary. Level-of-detail
+boundaries use hysteresis so small changes do not flicker. The coordinate and
+source identity survive every visual grammar change.
 
 `/explore`, its exact coordinate routes, and `/feed` own exactly the browser
 space remaining below Rey's application chrome. Explorer is height-locked to
