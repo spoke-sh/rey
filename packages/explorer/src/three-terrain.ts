@@ -11,7 +11,11 @@ import {
   sub,
   vec3,
 } from "three/src/nodes/TSL.js";
-import type { TerrainCameraView, TerrainFieldSetInput } from "./types";
+import type {
+  TerrainCameraView,
+  TerrainFieldSetInput,
+  TerrainRenderPassSetInput,
+} from "./types";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
@@ -21,6 +25,7 @@ export const TERRAIN_MESH_PARITY_REVISION =
 
 export interface CompiledContinuousRelief {
   material_revision: string;
+  render_passes?: TerrainRenderPassSetInput;
   meshes: readonly {
     field_set_id: string;
     data: TerrainMeshData;
@@ -215,6 +220,7 @@ export function terrainTriangleIndices(
 export function compileContinuousRelief(
   fields: readonly TerrainFieldSetInput[],
   gpuBudgetBytes = MAX_ACCELERATED_TERRAIN_GPU_BYTES,
+  renderPasses?: TerrainRenderPassSetInput,
 ): CompiledContinuousRelief {
   const compilationStarted = measurementNow();
   if (!Number.isSafeInteger(gpuBudgetBytes) || gpuBudgetBytes < 1)
@@ -244,7 +250,10 @@ export function compileContinuousRelief(
   }
 
   return {
-    material_revision: CONTINUOUS_RELIEF_MATERIAL_REVISION,
+    material_revision: renderPasses
+      ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${renderPasses.pass_set_id}`
+      : CONTINUOUS_RELIEF_MATERIAL_REVISION,
+    render_passes: renderPasses,
     meshes: Object.freeze(
       fields.map((fieldSet, index) =>
         Object.freeze({
@@ -330,9 +339,13 @@ export function terrainCameraProjection(
   });
 }
 
-export function createContinuousReliefMaterial(): MeshStandardNodeMaterial {
+export function createContinuousReliefMaterial(
+  renderPasses?: TerrainRenderPassSetInput,
+): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
-  material.name = CONTINUOUS_RELIEF_MATERIAL_REVISION;
+  material.name = renderPasses
+    ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${renderPasses.pass_set_id}`
+    : CONTINUOUS_RELIEF_MATERIAL_REVISION;
   material.metalness = 0;
   const tint = attribute<"vec3">("reyTint", "vec3");
   const occlusion = attribute<"float">("reyOcclusion", "float");
@@ -342,16 +355,31 @@ export function createContinuousReliefMaterial(): MeshStandardNodeMaterial {
     .dot(vec3(-0.42, 0.84, -0.34).normalize())
     .max(0);
   const southeast = normalWorld.dot(vec3(0.5, 0.72, 0.48).normalize()).max(0);
-  const multidirectionalHillshade = northwest
-    .mul(0.62)
-    .add(southeast.mul(0.2))
-    .add(float(0.3))
-    .clamp(0.32, 1.08);
-  const ridge = mul(max(negate(curvature), 0), 0.18);
-  const valley = mul(max(curvature, 0), 0.12);
+  const enabled = (id: TerrainRenderPassSetInput["passes"][number]["id"]) =>
+    renderPasses?.passes.some((pass) => pass.id === id) ?? true;
+  const multidirectionalHillshade = enabled("height_normals_hillshade")
+    ? northwest
+        .mul(0.62)
+        .add(southeast.mul(0.2))
+        .add(float(0.3))
+        .clamp(0.32, 1.08)
+    : float(1);
+  const ridge = enabled("ambient_valley_occlusion")
+    ? mul(max(negate(curvature), 0), 0.18)
+    : float(0);
+  const valley = enabled("ambient_valley_occlusion")
+    ? mul(max(curvature, 0), 0.12)
+    : float(0);
+  const baseTint = enabled("base_terrain") ? tint : vec3(0.32, 0.33, 0.31);
+  const ambientOcclusion = enabled("ambient_valley_occlusion")
+    ? occlusion
+    : float(1);
   material.colorNode = clamp(
     sub(
-      add(mul(mul(tint, multidirectionalHillshade), occlusion), ridge),
+      add(
+        mul(mul(baseTint, multidirectionalHillshade), ambientOcclusion),
+        ridge,
+      ),
       valley,
     ),
     0,

@@ -72,6 +72,11 @@ export type {
   ExplorerGlobeRegion,
   ExplorerGlobeSector,
   TerrainCameraView,
+  TerrainExecutablePass,
+  TerrainExecutablePassId,
   TerrainFieldSetInput,
+  TerrainLineFeatureInput,
+  TerrainPointFeatureInput,
+  TerrainRenderPassSetInput,
 } from "./types";
 export type { RendererStatus } from "./renderer";

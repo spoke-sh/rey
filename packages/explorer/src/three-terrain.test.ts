@@ -7,7 +7,7 @@ import {
   terrainMeshByteLength,
   verifyTerrainMeshParity,
 } from "./three-terrain";
-import { terrainFieldFixture } from "./test-fixtures";
+import { terrainFieldFixture, terrainRenderPassFixture } from "./test-fixtures";
 
 describe("accelerated continuous terrain compiler", () => {
   it("builds triangles only from valid procedural working-set support", () => {
@@ -86,6 +86,25 @@ describe("accelerated continuous terrain compiler", () => {
     expect(orbit.position[0]).not.toBe(orbit.center_x);
     expect(orbit.position[2]).not.toBe(orbit.center_y);
     expect(orbit.target).toEqual([orbit.center_x, 0, orbit.center_y]);
+  });
+
+  it("binds executable material stages to the compiled pass-set revision", () => {
+    const fieldSet = terrainFieldFixture();
+    const passes = terrainRenderPassFixture();
+    const material = createContinuousReliefMaterial(passes);
+    expect(material.name).toBe(
+      "rey.terrain.tsl-continuous-relief@1:terrain-passes:fixture",
+    );
+    expect(material.colorNode).not.toBeNull();
+    material.dispose();
+
+    const compiled = compileContinuousRelief(
+      [fieldSet],
+      64 * 1024 * 1024,
+      passes,
+    );
+    expect(compiled.render_passes).toBe(passes);
+    expect(compiled.material_revision).toContain(passes.pass_set_id);
   });
 
   it("chooses the supported cell diagonal around explicit no-data", () => {

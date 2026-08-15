@@ -1,4 +1,8 @@
-import type { ExplorerGlobe, TerrainFieldSetInput } from "./types";
+import type {
+  ExplorerGlobe,
+  TerrainFieldSetInput,
+  TerrainRenderPassSetInput,
+} from "./types";
 
 export function terrainFieldFixture(): TerrainFieldSetInput {
   const columns = 5;
@@ -88,5 +92,76 @@ export function globeFixture(): ExplorerGlobe {
         tone: "attention",
       },
     ],
+  };
+}
+
+export function terrainRenderPassFixture(): TerrainRenderPassSetInput {
+  return {
+    schema: "rey.terrain-render-pass-set.v1",
+    pass_set_id: "terrain-passes:fixture",
+    bounds: { x: 100, y: 80, width: 1300, height: 840 },
+    passes: [
+      {
+        id: "validity_background",
+        implementation_revision: "validity-pass:fixture",
+        input_revision: "validity:fixture",
+        authority: "evidence",
+      },
+      {
+        id: "base_terrain",
+        implementation_revision: "base-pass:fixture",
+        input_revision: "material:fixture",
+        authority: "derived",
+      },
+      {
+        id: "height_normals_hillshade",
+        implementation_revision: "hillshade-pass:fixture",
+        input_revision: "normal:fixture",
+        authority: "derived",
+      },
+      {
+        id: "ambient_valley_occlusion",
+        implementation_revision: "occlusion-pass:fixture",
+        input_revision: "curvature:fixture",
+        authority: "presentation",
+      },
+      {
+        id: "contours",
+        implementation_revision: "contour-pass:fixture",
+        input_revision: "contour:fixture",
+        authority: "derived",
+      },
+      {
+        id: "features_labels_selection",
+        implementation_revision: "feature-pass:fixture",
+        input_revision: "feature:fixture",
+        authority: "interface",
+      },
+    ],
+    lines: [
+      {
+        id: "contour:fixture",
+        pass_id: "contours",
+        kind: "contour",
+        source_revision: "contour-source:fixture",
+        authority: "derived contour over admitted support",
+        positions: Float32Array.from([200, 4, 240, 420, 8, 360]),
+        color: 0xd8c99a,
+        opacity: 0.46,
+      },
+    ],
+    points: [
+      {
+        id: "selection:fixture",
+        pass_id: "features_labels_selection",
+        kind: "selection",
+        source_revision: "selection-source:fixture",
+        authority: "interface selection of retained identity",
+        position: [360, 9, 300],
+        color: 0xffd36e,
+        radius: 6,
+      },
+    ],
+    omissions: [],
   };
 }

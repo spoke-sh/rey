@@ -13,12 +13,15 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   KeepStencilOp,
+  Line,
+  LineBasicNodeMaterial,
   Matrix4,
   Mesh,
   MeshBasicNodeMaterial,
   MeshStandardNodeMaterial,
   NotEqualStencilFunc,
   OrthographicCamera,
+  PlaneGeometry,
   Quaternion,
   ReplaceStencilOp,
   RingGeometry,
@@ -81,8 +84,11 @@ extend({
   DirectionalLight,
   Group,
   InstancedMesh,
+  Line,
+  LineBasicNodeMaterial,
   Mesh,
   OrthographicCamera,
+  PlaneGeometry,
   RingGeometry,
 });
 
@@ -119,9 +125,10 @@ export function ContinuousReliefScene({
   view: TerrainCameraView;
   world: { width: number; height: number };
 }) {
-  const material = useMemo(createContinuousReliefMaterial, [
-    compiled.material_revision,
-  ]);
+  const material = useMemo(
+    () => createContinuousReliefMaterial(compiled.render_passes),
+    [compiled.material_revision, compiled.render_passes],
+  );
   useEffect(() => () => material.dispose(), [material]);
   const camera = terrainCameraProjection(world, view);
 
@@ -169,9 +176,122 @@ export function ContinuousReliefScene({
             name={mesh.field_set_id}
           />
         ))}
+        {compiled.render_passes ? (
+          <TerrainExecutablePasses passes={compiled.render_passes} />
+        ) : null}
       </group>
     </>
   );
+}
+
+function TerrainExecutablePasses({
+  passes,
+}: {
+  passes: NonNullable<CompiledContinuousRelief["render_passes"]>;
+}) {
+  const validity = passes.passes.some(
+    (pass) => pass.id === "validity_background",
+  );
+  return (
+    <group name={`terrain-passes:${passes.pass_set_id}`}>
+      {validity ? <TerrainValidityBackground bounds={passes.bounds} /> : null}
+      {passes.lines.map((line) => (
+        <TerrainPassLine key={line.id} line={line} />
+      ))}
+      {passes.points.map((point) => (
+        <TerrainPassPoint key={point.id} point={point} />
+      ))}
+    </group>
+  );
+}
+
+function TerrainValidityBackground({
+  bounds,
+}: {
+  bounds: NonNullable<CompiledContinuousRelief["render_passes"]>["bounds"];
+}) {
+  const object = useMemo(() => {
+    const geometry = new PlaneGeometry(bounds.width, bounds.height);
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new Mesh(
+      geometry,
+      new MeshBasicNodeMaterial({ color: 0x171814 }),
+    );
+    mesh.name = "terrain-pass:validity_background";
+    mesh.position.set(
+      bounds.x + bounds.width / 2,
+      -0.35,
+      bounds.y + bounds.height / 2,
+    );
+    return mesh;
+  }, [bounds.height, bounds.width, bounds.x, bounds.y]);
+  useEffect(
+    () => () => {
+      object.geometry.dispose();
+      object.material.dispose();
+    },
+    [object],
+  );
+  return <primitive object={object} />;
+}
+
+function TerrainPassPoint({
+  point,
+}: {
+  point: NonNullable<
+    CompiledContinuousRelief["render_passes"]
+  >["points"][number];
+}) {
+  const object = useMemo(() => {
+    const geometry = new CircleGeometry(point.radius, 20);
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new Mesh(
+      geometry,
+      new MeshBasicNodeMaterial({ color: point.color }),
+    );
+    mesh.name = `terrain-pass:${point.pass_id}:${point.id}`;
+    mesh.position.set(...point.position);
+    return mesh;
+  }, [point.color, point.id, point.pass_id, point.position, point.radius]);
+  useEffect(
+    () => () => {
+      object.geometry.dispose();
+      object.material.dispose();
+    },
+    [object],
+  );
+  return <primitive object={object} />;
+}
+
+function TerrainPassLine({
+  line,
+}: {
+  line: NonNullable<CompiledContinuousRelief["render_passes"]>["lines"][number];
+}) {
+  const material = useMemo(
+    () =>
+      new LineBasicNodeMaterial({
+        color: line.color,
+        opacity: line.opacity,
+        transparent: line.opacity < 1,
+      }),
+    [line.color, line.opacity],
+  );
+  const object = useMemo(() => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(line.positions, 3));
+    const object = new Line(geometry, material);
+    object.name = `terrain-pass:${line.pass_id}:${line.id}`;
+    return object;
+  }, [line.id, line.pass_id, line.positions, material]);
+  useEffect(
+    () => () => {
+      object.geometry.dispose();
+      material.dispose();
+    },
+    [material, object],
+  );
+  return <primitive object={object} />;
 }
 
 function TerrainMesh({

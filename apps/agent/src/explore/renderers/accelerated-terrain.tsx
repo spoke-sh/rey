@@ -12,6 +12,7 @@ import {
   activeExplorerRenderPasses,
   type ExplorerRenderVisibility,
 } from "../engine/render-graph";
+import { compileTerrainRenderPasses } from "../engine/terrain-passes";
 import type { SceneSnapshot } from "../engine/scene";
 import {
   terrainPatchRequestsForView,
@@ -45,6 +46,9 @@ export interface AcceleratedTerrainReport {
   triangles: number;
   render_graph_id: string;
   active_render_passes: readonly string[];
+  render_pass_set_id: string;
+  render_pass_line_count: number;
+  render_pass_point_count: number;
   gpu_bytes: number;
   gpu_budget_bytes: number;
   parity_revision: string;
@@ -70,6 +74,7 @@ export interface AcceleratedTerrainReport {
   resident_evictions: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
+  render_pass_omissions: readonly string[];
   measurement_authority: "transient_cpu_unretained";
 }
 
@@ -94,6 +99,9 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     triangles: 0,
     render_graph_id: "unbound",
     active_render_passes: Object.freeze([]),
+    render_pass_set_id: "unbound",
+    render_pass_line_count: 0,
+    render_pass_point_count: 0,
     gpu_bytes: 0,
     gpu_budget_bytes: 0,
     parity_revision: "unbound",
@@ -118,6 +126,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     resident_evictions: 0,
     gpu_timing_ms: null,
     gpu_timing_authority: "unavailable_without_capable_gpu_timer",
+    render_pass_omissions: Object.freeze([]),
     measurement_authority: "transient_cpu_unretained",
   } satisfies AcceleratedTerrainReport,
 );
@@ -441,7 +450,30 @@ export function AcceleratedTerrainSurface({
     () => (projectionGlobe ? compileContextGlobe(projectionGlobe) : null),
     [projectionGlobe],
   );
-  const terrainCompilation = semanticGlobe ? null : activeTerrain?.compiled;
+  const terrainRenderPasses = useMemo(
+    () =>
+      compileTerrainRenderPasses(
+        snapshot.scene,
+        snapshot.render_graph,
+        renderVisibility,
+      ),
+    [
+      renderVisibility.contours,
+      renderVisibility.probes,
+      renderVisibility.water,
+      renderVisibility.weather,
+      snapshot.snapshot_id,
+    ],
+  );
+  const terrainCompilation = useMemo(() => {
+    if (semanticGlobe || !activeTerrain?.compiled) return null;
+    if (!terrainRenderPasses) return activeTerrain.compiled;
+    return Object.freeze({
+      ...activeTerrain.compiled,
+      material_revision: `${activeTerrain.compiled.material_revision}:${terrainRenderPasses.pass_set_id}`,
+      render_passes: terrainRenderPasses,
+    });
+  }, [activeTerrain, semanticGlobe, terrainRenderPasses]);
   const terrainMetrics = activeTerrain?.result.metrics;
   const residency = activeTerrain?.residency;
   const activeTileLevels = Object.freeze(
@@ -528,6 +560,12 @@ export function AcceleratedTerrainSurface({
       triangles: statistics.triangles,
       render_graph_id: snapshot.render_graph.graph_id,
       active_render_passes: activeRenderPassIds,
+      render_pass_set_id:
+        terrainCompilation?.render_passes?.pass_set_id ?? "unbound",
+      render_pass_line_count:
+        terrainCompilation?.render_passes?.lines.length ?? 0,
+      render_pass_point_count:
+        terrainCompilation?.render_passes?.points.length ?? 0,
       gpu_bytes: statistics.gpu_bytes,
       gpu_budget_bytes: statistics.gpu_budget_bytes,
       parity_revision: statistics.parity_revision,
@@ -558,6 +596,8 @@ export function AcceleratedTerrainSurface({
       gpu_timing_authority:
         terrainMetrics?.gpu_timing_authority ??
         "unavailable_without_capable_gpu_timer",
+      render_pass_omissions:
+        terrainCompilation?.render_passes?.omissions ?? Object.freeze([]),
       measurement_authority: "transient_cpu_unretained",
     });
 

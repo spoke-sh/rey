@@ -1019,9 +1019,16 @@ Qualified regional grids follow a separate non-procedural path: the browser
 maps exact admitted row-major height/material and valid/no-data vertices into
 one renderer-neutral field, binds its dataset/compiler revisions into the
 immutable scene, and shares one adaptive validity-safe triangulation between
-the reference and accelerated paths. This first in-memory grid proves the
-contract; tiling, worker evaluation, resident LOD, the bounded 3D County
-camera, and geographic passes remain Plan 0005 work.
+the reference and accelerated paths. A conservative source-bound tile pyramid,
+cancellable worker, bounded residency, 3D County camera, and reversible
+Atlas-to-Landscape projector now consume that field. Revisioned material,
+hillshade, occlusion, contour, hydrology/weather/boundary, feature, and
+selection passes execute in the accelerated terrain group. Drape compilation
+checks every crossed grid cell and splits at no-data; labels, evidence, and
+accessibility remain in the mounted deterministic reference overlay. The first
+in-memory grid and absent imagery provider remain explicit boundaries; Plan
+0005 owns retained fidelity/performance qualification and future native raster
+adapters.
 Both surfaces project the active admitted subset of that graph without changing
 the immutable graph or scene identity. Explorer exposes no transient per-layer
 controls: available contours, water, weather, and probes remain visible while

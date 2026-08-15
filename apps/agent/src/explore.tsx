@@ -908,6 +908,16 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             terrainRenderer.resident_tile_count
           }
           data-renderer-render-graph-id={terrainRenderer.render_graph_id}
+          data-renderer-render-pass-line-count={
+            terrainRenderer.render_pass_line_count
+          }
+          data-renderer-render-pass-omissions={terrainRenderer.render_pass_omissions.join(
+            "|",
+          )}
+          data-renderer-render-pass-point-count={
+            terrainRenderer.render_pass_point_count
+          }
+          data-renderer-render-pass-set-id={terrainRenderer.render_pass_set_id}
           data-renderer-revision={terrainRenderer.status.renderer_revision}
           data-renderer-submission-ms={terrainRenderer.render_submission_ms}
           data-renderer-terrain-decode-ms={terrainRenderer.terrain_decode_ms}

@@ -1,22 +1,46 @@
 import { describe, expect, it } from "vitest";
 import type { TopologyScene } from "../../topology";
 import {
+  EXPLORER_RENDER_GRAPH_REVISION,
   activeExplorerRenderPasses,
   compileExplorerRenderGraph,
+  type ExplorerRenderGraph,
 } from "./render-graph";
 
-const scene = {
-  regime: "landscape",
-  terrain: true,
-  contours: [{ id: "contour" }],
-  natural_features: [],
-  regions: [],
-  nodes: [{ id: "node" }],
-  points: [],
-} as unknown as TopologyScene;
+function sceneFixture(): TopologyScene {
+  const field = {
+    field_set_id: "terrain:one",
+    source_revision: "source:one",
+    validity: { implementation_revision: "validity:one" },
+    elevation: { implementation_revision: "elevation:one" },
+    normal: { implementation_revision: "normal:one" },
+    curvature: { implementation_revision: "curvature:one" },
+    material: { implementation_revision: "material:one" },
+  };
+  return {
+    regime: "landscape",
+    focus_id: "node",
+    terrain: true,
+    terrain_fields: [field],
+    contours: [
+      {
+        id: "contour",
+        path: "M0,0 L10,10",
+        threshold: 0.5,
+      },
+    ],
+    natural_features: [],
+    regions: [],
+    county_footprint: null,
+    nodes: [{ id: "node", evidence_uri: "evidence:one" }],
+    points: [],
+    omissions: [],
+  } as unknown as TopologyScene;
+}
 
 describe("Explorer render graph", () => {
   it("retains one ordered authority-bearing pass graph", () => {
+    const scene = sceneFixture();
     const graph = compileExplorerRenderGraph(scene);
     expect(graph.passes.map(({ id }) => id)).toEqual([
       "validity_background",
@@ -37,10 +61,19 @@ describe("Explorer render graph", () => {
     expect(
       graph.passes.find(({ id }) => id === "water_weather_boundary")?.enabled,
     ).toBe(false);
+    expect(
+      graph.passes.find(({ id }) => id === "height_normals_hillshade"),
+    ).toMatchObject({
+      implementation_revision: "rey.render-pass.height-normals-hillshade@1",
+      input_revision:
+        "terrain:one:source:one:elevation:one|terrain:one:source:one:normal:one",
+      depends_on: ["base_terrain"],
+    });
     expect(Object.isFrozen(graph.passes)).toBe(true);
   });
 
-  it("changes identity only when pass availability or regime changes", () => {
+  it("invalidates identity when pass availability, inputs, or regime change", () => {
+    const scene = sceneFixture();
     const first = compileExplorerRenderGraph(scene);
     expect(
       compileExplorerRenderGraph({ ...scene } as TopologyScene).graph_id,
@@ -49,11 +82,33 @@ describe("Explorer render graph", () => {
       compileExplorerRenderGraph({
         ...scene,
         terrain: false,
+        terrain_fields: [],
       } as TopologyScene).graph_id,
+    ).not.toBe(first.graph_id);
+    expect(
+      compileExplorerRenderGraph({
+        ...scene,
+        contours: [{ ...scene.contours[0]!, path: "M0,0 L12,10" }],
+      }).graph_id,
+    ).not.toBe(first.graph_id);
+    expect(
+      compileExplorerRenderGraph({
+        ...scene,
+        terrain_fields: [
+          {
+            ...scene.terrain_fields[0]!,
+            normal: {
+              ...scene.terrain_fields[0]!.normal,
+              implementation_revision: "normal:two",
+            },
+          },
+        ],
+      }).graph_id,
     ).not.toBe(first.graph_id);
   });
 
   it("projects transient controls without changing graph identity", () => {
+    const scene = sceneFixture();
     const graph = compileExplorerRenderGraph(scene);
     const active = activeExplorerRenderPasses(graph, {
       contours: false,
@@ -66,5 +121,26 @@ describe("Explorer render graph", () => {
     expect(graph.passes.find(({ id }) => id === "contours")?.enabled).toBe(
       true,
     );
+  });
+
+  it("fails closed when an enabled pass loses an executable dependency", () => {
+    const graph = compileExplorerRenderGraph(sceneFixture());
+    const invalid = {
+      ...graph,
+      passes: graph.passes.map((pass) =>
+        pass.id === "base_terrain" ? { ...pass, enabled: false } : pass,
+      ),
+    } satisfies ExplorerRenderGraph;
+    const active = activeExplorerRenderPasses(invalid, {
+      contours: true,
+      water: true,
+      weather: true,
+      probes: true,
+    });
+    expect(active.map(({ id }) => id)).not.toContain(
+      "height_normals_hillshade",
+    );
+    expect(active.map(({ id }) => id)).not.toContain("contours");
+    expect(graph.compiler_revision).toBe(EXPLORER_RENDER_GRAPH_REVISION);
   });
 });

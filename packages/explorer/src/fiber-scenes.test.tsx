@@ -21,7 +21,11 @@ import {
   globeAtmosphereRepeatOpacity,
   projectGlobeAtlasRepeatCoordinate,
 } from "./globe-projection";
-import { globeFixture, terrainFieldFixture } from "./test-fixtures";
+import {
+  globeFixture,
+  terrainFieldFixture,
+  terrainRenderPassFixture,
+} from "./test-fixtures";
 import { compileContextGlobe, GLOBE_RADIUS } from "./three-globe";
 import { compileContinuousRelief } from "./three-terrain";
 
@@ -108,6 +112,54 @@ describe("declarative React Three Fiber scenes", () => {
     expect(camera.position.x).not.toBe(750);
     expect(camera.position.z).not.toBe(500);
     expect(camera.rotation.x).not.toBeCloseTo(-Math.PI / 2);
+    await renderer.unmount();
+  });
+
+  it("attaches validity, draped vectors, and selection to the terrain transform", async () => {
+    const fields = terrainFieldFixture();
+    const passes = terrainRenderPassFixture();
+    const renderer = await create(
+      <ContinuousReliefScene
+        compiled={compileContinuousRelief([fields], 64 * 1024 * 1024, passes)}
+        view={{
+          world_width: 1500,
+          world_height: 1000,
+          viewport_width: 900,
+          viewport_height: 600,
+          rendered_scale: 2,
+          pan_x: 0,
+          pan_y: 0,
+          model_transform: {
+            scale_x: 0.5,
+            scale_z: 0.4,
+            translate_x: 30,
+            translate_z: 40,
+            elevation_scale: 0.7,
+          },
+        }}
+        world={{ width: 1500, height: 1000 }}
+      />,
+    );
+    const terrain = renderer.scene.findByProps({
+      name: "rey-continuous-relief",
+    });
+    expect(terrain.instance.position.toArray()).toEqual([30, 0, 40]);
+    expect(terrain.instance.scale.toArray()).toEqual([0.5, 0.7, 0.4]);
+    expect(
+      terrain.instance.getObjectByName("terrain-pass:validity_background"),
+    ).toBeDefined();
+    expect(
+      terrain.instance.getObjectByName("terrain-pass:contours:contour:fixture"),
+    ).toBeDefined();
+    expect(
+      terrain.instance.getObjectByName(
+        "terrain-pass:features_labels_selection:selection:fixture",
+      ),
+    ).toBeDefined();
+    expect(
+      terrain.instance.getObjectByName(`terrain-passes:${passes.pass_set_id}`)
+        ?.parent,
+    ).toBe(terrain.instance);
     await renderer.unmount();
   });
 

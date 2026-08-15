@@ -12,9 +12,9 @@ TerrainFieldSetInput[]
   → buildTerrainMeshData
   → verifyTerrainMeshParity
   → enforce GPU byte budget
-  → CompiledContinuousRelief
+  → CompiledContinuousRelief + revisioned render-pass set
   → ContinuousReliefScene
-  → orthographic camera + TSL material + indexed relief meshes
+  → orthographic camera + TSL stages + indexed relief + draped geography
 ```
 
 ## Field Contract
@@ -65,7 +65,7 @@ current parity identity is `rey.terrain.cpu-mesh-upload-parity@1`.
 ## Material And Lighting
 
 `createContinuousReliefMaterial` produces a `MeshStandardNodeMaterial` with
-TSL. It combines:
+TSL. Its separately revisioned pass inputs gate:
 
 - source tint;
 - world-space multidirectional hillshade;
@@ -80,6 +80,40 @@ screen-axis pan resolves to one ground target, and an optional model transform
 keeps the terrain attached during projection changes. R3F owns the declarative
 camera and terrain-group lifecycle; `@rey/agent` owns orbit interaction and the
 semantic projection curve.
+
+## Executable Geographic Passes
+
+`@rey/agent` owns `rey.explorer.render-graph@2` and compiles its active terrain
+subset into `rey.terrain-render-pass-set.v1`. The package accepts only typed,
+already bounded inputs:
+
+| Pass                      | Accelerated result                                             | Authority retained                  |
+| ------------------------- | -------------------------------------------------------------- | ----------------------------------- |
+| Validity/background       | A dark plane behind, never in place of, valid terrain.         | Evidence support boundary.          |
+| Base terrain              | Source/derived material tint on valid triangles.               | Derived from admitted material.     |
+| Height/normals/hillshade  | Multidirectional normal response.                              | Derived presentation of height.     |
+| Ambient/valley occlusion  | Curvature and occlusion response.                              | Presentation only.                  |
+| Contours                  | Conservative terrain-draped line segments.                     | Derived contour revision.           |
+| Water/weather/boundary    | Draped native or derived line segments.                        | Per-feature authority and source.   |
+| Features/labels/selection | Draped envelopes and point/selection anchors.                  | Interface over retained identity.   |
+| Evidence/accessibility    | Mounted application reference overlay; no accelerated replica. | Exact links and accessible meaning. |
+
+Every pass binds an implementation revision, input revision, and dependency.
+The material and scene identity include the compiled pass-set identity. A
+missing dependency prevents its children from executing.
+
+Line draping is conservative. The compiler adds probes at every crossed field
+grid boundary and within every crossed cell, evaluates only fully valid source
+support, and splits a line when support is absent. A native vector therefore
+cannot bridge a no-data hole merely because its endpoints are valid. The
+surface, validity background, lines, and point anchors share one R3F terrain
+group and one Atlas-to-Landscape model transform.
+
+Text labels, evidence links, descriptions, and pointer semantics deliberately
+remain in `@rey/agent`'s deterministic reference overlay. It stays mounted
+under the accelerated surface and becomes visible on backend failure. No
+imagery source or license authority is currently admitted, so the package does
+not synthesize an imagery layer from elevation or styling.
 
 ## Tiling, Workers, And Residency
 
@@ -111,10 +145,12 @@ GPU timer.
 
 ## Current Boundary
 
-The package currently owns the accelerated base continuous-relief surface. It
-does not yet upload or draw contours, water, weather, boundaries, roads,
-structures, labels, selection, or evidence overlays. Those passes exist in the
-application render graph and reference renderer.
+The package owns the accelerated continuous-relief material and typed
+geographic line/point presentation. The application still owns native geometry
+interpretation, pass compilation, label layout, picking, evidence links, and
+the accessible reference renderer. Structure polygons currently enter as
+their admitted envelopes; a later qualified mesh adapter may add volumetric
+geometry without changing their authority.
 
 Regional packets without a terrain program do not enter this pipeline. Exact
 isolated regional samples remain source points because they authorize no
@@ -126,7 +162,7 @@ geometry never becomes observed elevation.
 The source regional field is currently one bounded in-memory grid rendered by
 a bounded 3D orthographic terrain camera through a tiled accelerated working
 set. The application binds one selected synthetic Atlas sector to the exact
-regional field and drives the same reversible model transform through both
-accelerated and reference paths. Native raster streaming and additional
-geographic passes remain application/engine work tracked by
-[Plan 0005](../../../plans/0005-landscape-terrain.md).
+regional field and drives the same reversible model transform through surface,
+passes, and reference paths. Native raster/imagery streaming and retained
+Landscape fidelity voyages remain work tracked by [Plan
+0005](../../../plans/0005-landscape-terrain.md).

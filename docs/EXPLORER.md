@@ -272,7 +272,8 @@ admitted dataset + explicit validity
   → renderer-neutral reference field
   → bounded tiles + worker evaluation + resident LOD
   → reversible Atlas ↔ Landscape camera/projection
-  → imagery/material + water + vectors + labels as typed passes
+  → material + water + vectors + label/selection anchors as typed passes
+  → provider-qualified imagery when source and license authority exist
   → retained fidelity, continuity, and performance voyages
 ```
 
@@ -281,6 +282,16 @@ point-only dataset; a denser mesh cannot compensate for missing validity; and
 a faster renderer cannot compensate for a scene swap at the Atlas boundary.
 Each stage must preserve the exact dataset and semantic identity established by
 the previous stage.
+
+Geographic passes are executable contracts, not a painter's-order comment.
+Each pass binds its implementation, exact input revision, authority, and
+dependencies. Material stages can be invalidated independently; vectors and
+selection anchors live under the same terrain transform as relief. Every
+terrain cell crossed by a draped vector is checked, and the vector splits at
+no-data instead of spanning the unknown. Text, evidence links, and accessible
+interaction remain in the deterministic reference overlay. In the absence of
+an admitted imagery provider and license authority, an empty imagery pass is
+more truthful than familiar-looking synthetic map texture.
 
 ## Interaction And Admission
 

@@ -97,3 +97,51 @@ export interface TerrainFieldSetInput {
     roughness: Float32Array;
   };
 }
+
+export type TerrainExecutablePassId =
+  | "validity_background"
+  | "base_terrain"
+  | "height_normals_hillshade"
+  | "ambient_valley_occlusion"
+  | "contours"
+  | "water_weather_boundary"
+  | "features_labels_selection";
+
+export interface TerrainExecutablePass {
+  id: TerrainExecutablePassId;
+  implementation_revision: string;
+  input_revision: string;
+  authority: "evidence" | "derived" | "presentation" | "interface";
+}
+
+export interface TerrainLineFeatureInput {
+  id: string;
+  pass_id: "contours" | "water_weather_boundary" | "features_labels_selection";
+  kind: string;
+  source_revision: string;
+  authority: string;
+  positions: Float32Array;
+  color: number;
+  opacity: number;
+}
+
+export interface TerrainPointFeatureInput {
+  id: string;
+  pass_id: "features_labels_selection";
+  kind: string;
+  source_revision: string;
+  authority: string;
+  position: readonly [number, number, number];
+  color: number;
+  radius: number;
+}
+
+export interface TerrainRenderPassSetInput {
+  schema: "rey.terrain-render-pass-set.v1";
+  pass_set_id: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  passes: readonly TerrainExecutablePass[];
+  lines: readonly TerrainLineFeatureInput[];
+  points: readonly TerrainPointFeatureInput[];
+  omissions: readonly string[];
+}

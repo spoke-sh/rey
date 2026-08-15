@@ -66,10 +66,22 @@ direction-independent curve. Terrain pan remains the camera target, focus is
 solved analytically in camera axes, Shift-drag orbits within declared bounds,
 and the native coordinate readout inverts the same target.
 
-This proves admission, renderer parity, and bounded tiled execution, not the
-final fidelity bar. The current source dataset remains one bounded in-memory
-field, and geographic imagery, water, vectors, and labels are not yet
-accelerated passes.
+The render graph now binds every pass to a separate implementation revision,
+exact input revision, authority, and dependency set. The accelerated material
+executes base terrain, normal-driven hillshade, and ambient/valley occlusion as
+independently gated stages. Contours, derived hydrology/weather, exact County
+boundaries, admitted feature envelopes, points, and selection compile into
+terrain-draped R3F inputs. Drape sampling visits every crossed terrain cell and
+splits at no-data; it cannot bridge an unsupported interval. The same bounded
+terrain transform carries surface and overlays through Atlas-to-Landscape.
+Labels, interaction, evidence links, and accessible descriptions remain in the
+deterministic reference overlay, which stays mounted across backend loss.
+
+This proves admission, renderer parity, bounded tiled execution, transition
+continuity, and executable geographic passes, not the final fidelity bar. The
+current source dataset remains one bounded in-memory field. No imagery provider
+or license authority is admitted, so the engine renders admitted material and
+discloses the absence instead of fabricating familiar map imagery.
 
 ## Delivery Sequence
 
@@ -124,12 +136,14 @@ accelerated passes.
 
 ### 5. Turn geographic layers into executable passes
 
-- [ ] Accelerate validity/background, base terrain, height/normals/hillshade,
+- [x] Accelerate validity/background, base terrain, height/normals/hillshade,
       and ambient/valley occlusion as separately revisioned inputs and passes.
-- [ ] Add admitted imagery/material, hydrology/water, boundaries, roads,
+- [x] Add admitted material, hydrology/water, boundaries, roads,
       structures, labels, selection, and evidence overlays without upgrading their
-      authority or flattening native geometry into cards.
-- [ ] Make render-graph dependencies and invalidation executable, preserving a
+      authority or flattening native geometry into cards. Keep imagery absent until
+      a provider and license authority are admitted; keep labels/evidence in the
+      accessible reference overlay while their anchors execute in 3D.
+- [x] Make render-graph dependencies and invalidation executable, preserving a
       deterministic accessible fallback for every semantic layer.
 
 ### 6. Qualify fidelity and performance
