@@ -107,6 +107,16 @@ workload/backend/viewport rows only; fulfilled transport exercises the
 disclosed main-thread fallback and cannot close direct networking or
 dedicated-worker coverage.
 
+The normal Rey County fixture now also carries a deterministic 41×41 authored
+regional grid. Its exact County footprint and Unexplored Scrub become 523
+explicit no-data vertices; 1,158 valid vertices retain five bounded materials
+and 86.17–1,689.11 meters of authored semantic relief. The source is generated
+reproducibly from checked-in boundary, feature, hydrology, and terrain-control
+inputs, retained through the ordinary editor path, and admitted as a production
+regional scene. This makes the implemented Landscape path visible in the
+default project bearing without treating terrain controls as observed height or
+closing the still-open named fidelity matrix.
+
 ## Delivery Sequence
 
 ### 1. Admit one bounded regional elevation dataset

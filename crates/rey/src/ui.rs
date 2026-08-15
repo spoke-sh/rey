@@ -1,10 +1,10 @@
 use std::{
-    env,
+    env, fs,
     io::{Cursor, Read},
     net::{IpAddr, SocketAddr},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -42,7 +42,7 @@ use rey::{
     },
     workloads::{LocalWorkloadStore, WorkloadCommit},
 };
-use rey_core::SemanticDigest;
+use rey_core::{SemanticDigest, SemanticHasher};
 use rey_environment::{DiscoveryLimits, resolve_executable};
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
 use serde::{Deserialize, Serialize};
@@ -60,10 +60,13 @@ const UI_CHANNEL_WORKING_WRITE_SCHEMA: &str = "rey.ui-channel-working-write.v1";
 const UI_CONVERSATION_MESSAGE_WRITE_SCHEMA: &str = "rey.ui-conversation-message-write.v1";
 const UI_OBSERVATION_WRITE_SCHEMA: &str = "rey.ui-observation-write.v1";
 const UI_FEED_ADMISSIONS_SCHEMA: &str = "rey.ui-feed-admissions.v1";
+const UI_REVALIDATION_SCHEMA: &str = "rey.ui-revalidation.v1";
 const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const MAX_UI_OBSERVATION_WRITE_BYTES: u64 = 32 * 1_024;
 const MAX_UI_OBSERVATION_BODY_CHARS: usize = 500;
+const MAX_REVALIDATION_SOURCE_BYTES: u64 = 128 * 1_024 * 1_024;
+const MAX_REVALIDATION_SOURCE_ENTRIES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
 const CADENCE_GIT_COMMIT_LIMIT: usize = 24;
 const CADENCE_ENVIRONMENT_COMMIT_LIMIT: usize = 24;
@@ -341,10 +344,35 @@ struct UiObservationWrite {
     body: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+struct UiRevalidationCursor {
+    schema: String,
+    revision: SemanticDigest,
+    poll_after_ms: u64,
+    basis: String,
+    source_entries: usize,
+    source_bytes: u64,
+    scope: Vec<String>,
+    authority: String,
+    omissions: Vec<String>,
+}
+
 pub struct UiServer {
     server: Server,
     config: UiServerConfig,
     descriptor: UiServerDescriptor,
+    projection_cache: Mutex<UiProjectionCache>,
+}
+
+#[derive(Default)]
+struct UiProjectionCache {
+    workloads: Option<CachedJsonProjection>,
+    workload_evidence: Option<CachedJsonProjection>,
+}
+
+struct CachedJsonProjection {
+    source_revision: SemanticDigest,
+    bytes: Vec<u8>,
 }
 
 impl UiServer {
@@ -385,6 +413,7 @@ impl UiServer {
             server,
             config,
             descriptor,
+            projection_cache: Mutex::new(UiProjectionCache::default()),
         })
     }
 
@@ -466,6 +495,7 @@ impl UiServer {
             "/" => redirect_response("/explore"),
             "/api/v1/health" => self.health(),
             "/api/v1/agent" => self.agent(),
+            "/api/v1/revalidation" => self.revalidation(),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/channels" => self.channels(),
             "/api/v1/conversations" => self.conversations(),
@@ -521,7 +551,67 @@ impl UiServer {
         )
     }
 
+    fn revalidation(&self) -> Response<Cursor<Vec<u8>>> {
+        match self.revalidation_cursor() {
+            Ok(cursor) => json_response(StatusCode(200), &cursor),
+            Err(detail) => json_error(StatusCode(500), "revalidation_unavailable", &detail),
+        }
+    }
+
+    fn revalidation_cursor(&self) -> Result<UiRevalidationCursor, String> {
+        let catalog = if self.config.catalog_directory.is_absolute() {
+            self.config.catalog_directory.clone()
+        } else {
+            self.config.workspace.join(&self.config.catalog_directory)
+        };
+        let sources = [
+            ("workloads", self.config.state_directory.clone()),
+            ("catalog", catalog),
+            (
+                "environment",
+                self.config.workspace.join(".rey").join("environment"),
+            ),
+            ("git", self.config.workspace.join(".rey").join("git")),
+            ("channels", self.config.channel_directory.clone()),
+            ("conversations", self.config.conversation_directory.clone()),
+        ];
+        let mut hasher = SemanticHasher::new(UI_REVALIDATION_SCHEMA);
+        let mut scan = RevalidationScan::default();
+        let mut scope = Vec::with_capacity(sources.len());
+        for (label, root) in sources {
+            scope.push(label.to_owned());
+            hash_revalidation_source(&mut hasher, label, &root, &mut scan)?;
+        }
+        Ok(UiRevalidationCursor {
+            schema: UI_REVALIDATION_SCHEMA.to_owned(),
+            revision: hasher.finish(),
+            poll_after_ms: LIVE_REFRESH_INTERVAL_MS,
+            basis: "exact bounded source bytes; missing roots and non-regular entries are framed explicitly"
+                .to_owned(),
+            source_entries: scan.entries,
+            source_bytes: scan.bytes,
+            scope,
+            authority: "change detection only; a changed cursor causes the browser to reload typed projections"
+                .to_owned(),
+            omissions: vec![
+                "the cursor does not assess, admit, execute, schedule, or retain source state"
+                    .to_owned(),
+            ],
+        })
+    }
+
     fn workloads(&self) -> Response<Cursor<Vec<u8>>> {
+        let source_revision = self
+            .revalidation_cursor()
+            .ok()
+            .map(|cursor| cursor.revision);
+        if let Some(revision) = &source_revision
+            && let Ok(cache) = self.projection_cache.lock()
+            && let Some(cached) = &cache.workloads
+            && &cached.source_revision == revision
+        {
+            return json_bytes_response(StatusCode(200), cached.bytes.clone());
+        }
         let result = {
             let store = LocalWorkloadStore::new(self.config.state_directory.clone());
             super::current_workload_list(
@@ -532,23 +622,24 @@ impl UiServer {
             .map_err(|error| error.to_string())
         };
         match result {
-            Ok(list) => json_response(StatusCode(200), &list),
+            Ok(list) => self.cache_workloads(source_revision, &list),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
         }
     }
 
     fn workload_evidence(&self) -> Response<Cursor<Vec<u8>>> {
+        let source_revision = self
+            .revalidation_cursor()
+            .ok()
+            .map(|cursor| cursor.revision);
+        if let Some(revision) = &source_revision
+            && let Ok(cache) = self.projection_cache.lock()
+            && let Some(cached) = &cache.workload_evidence
+            && &cached.source_revision == revision
+        {
+            return json_bytes_response(StatusCode(200), cached.bytes.clone());
+        }
         let store = LocalWorkloadStore::new(self.config.state_directory.clone());
-        let catalog = match store.head_catalog() {
-            Ok(catalog) => catalog,
-            Err(error) => {
-                return json_error(
-                    StatusCode(500),
-                    "workload_evidence_unavailable",
-                    &error.to_string(),
-                );
-            }
-        };
         let state = match store.load() {
             Ok(state) => state,
             Err(error) => {
@@ -559,15 +650,75 @@ impl UiServer {
                 );
             }
         };
+        let catalog = match store.head_catalog_from_state(&state) {
+            Ok(catalog) => catalog,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "workload_evidence_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
         let result = workload_evidence_catalog(&catalog, &state);
         match result {
-            Ok(evidence) => json_response(StatusCode(200), &evidence),
+            Ok(evidence) => self.cache_workload_evidence(source_revision, &evidence),
             Err(error) => json_error(
                 StatusCode(500),
                 "workload_evidence_unavailable",
                 &error.to_string(),
             ),
         }
+    }
+
+    fn cache_workloads(
+        &self,
+        source_revision: Option<SemanticDigest>,
+        list: &impl Serialize,
+    ) -> Response<Cursor<Vec<u8>>> {
+        self.cache_projection(source_revision, list, |cache, projection| {
+            cache.workloads = Some(projection);
+        })
+    }
+
+    fn cache_workload_evidence(
+        &self,
+        source_revision: Option<SemanticDigest>,
+        evidence: &impl Serialize,
+    ) -> Response<Cursor<Vec<u8>>> {
+        self.cache_projection(source_revision, evidence, |cache, projection| {
+            cache.workload_evidence = Some(projection);
+        })
+    }
+
+    fn cache_projection(
+        &self,
+        source_revision: Option<SemanticDigest>,
+        value: &impl Serialize,
+        retain: impl FnOnce(&mut UiProjectionCache, CachedJsonProjection),
+    ) -> Response<Cursor<Vec<u8>>> {
+        let bytes = match serde_json::to_vec(value) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return json_error(StatusCode(500), "json_encoding_failed", &error.to_string());
+            }
+        };
+        if let Some(source_revision) = source_revision
+            && self
+                .revalidation_cursor()
+                .ok()
+                .is_some_and(|cursor| cursor.revision == source_revision)
+            && let Ok(mut cache) = self.projection_cache.lock()
+        {
+            retain(
+                &mut cache,
+                CachedJsonProjection {
+                    source_revision,
+                    bytes: bytes.clone(),
+                },
+            );
+        }
+        json_bytes_response(StatusCode(200), bytes)
     }
 
     fn workload_admissions(&self) -> Response<Cursor<Vec<u8>>> {
@@ -708,8 +859,8 @@ impl UiServer {
             }
         };
         let store = LocalWorkloadStore::new(self.config.state_directory.clone());
-        let catalog = match store.head_catalog() {
-            Ok(catalog) => catalog,
+        let state = match store.load() {
+            Ok(state) => state,
             Err(error) => {
                 return json_error(
                     StatusCode(500),
@@ -718,8 +869,8 @@ impl UiServer {
                 );
             }
         };
-        let state = match store.load() {
-            Ok(state) => state,
+        let catalog = match store.head_catalog_from_state(&state) {
+            Ok(catalog) => catalog,
             Err(error) => {
                 return json_error(
                     StatusCode(500),
@@ -1607,8 +1758,8 @@ impl UiServer {
             schedules: vec![
                 UiCadenceSchedule {
                     id: "ui.portfolio.passive-revalidation".to_owned(),
-                    label: "Portfolio scan".to_owned(),
-                    source: "/api/v1/workloads".to_owned(),
+                    label: "Portfolio change scan".to_owned(),
+                    source: "/api/v1/revalidation".to_owned(),
                     interval_ms: LIVE_REFRESH_INTERVAL_MS,
                     activation: "application_mounted".to_owned(),
                     authority: "mounted_browser_projection".to_owned(),
@@ -1654,6 +1805,129 @@ impl UiServer {
             omissions: projection_omissions,
         })
     }
+}
+
+#[derive(Default)]
+struct RevalidationScan {
+    entries: usize,
+    bytes: u64,
+}
+
+fn hash_revalidation_source(
+    hasher: &mut SemanticHasher,
+    label: &str,
+    root: &Path,
+    scan: &mut RevalidationScan,
+) -> Result<(), String> {
+    hasher.add_str(label);
+    let metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            hasher.add_str("missing");
+            return Ok(());
+        }
+        Err(error) => {
+            return Err(format!(
+                "could not inspect revalidation source {}: {error}",
+                root.display()
+            ));
+        }
+    };
+    hash_revalidation_path(hasher, root, Path::new(""), &metadata, scan)
+}
+
+fn hash_revalidation_path(
+    hasher: &mut SemanticHasher,
+    path: &Path,
+    relative: &Path,
+    metadata: &fs::Metadata,
+    scan: &mut RevalidationScan,
+) -> Result<(), String> {
+    scan.entries = scan.entries.saturating_add(1);
+    if scan.entries > MAX_REVALIDATION_SOURCE_ENTRIES {
+        return Err(format!(
+            "revalidation sources exceed the {MAX_REVALIDATION_SOURCE_ENTRIES}-entry limit"
+        ));
+    }
+    hasher.add_bytes(relative.as_os_str().as_encoded_bytes());
+    let file_type = metadata.file_type();
+    if file_type.is_dir() {
+        hasher.add_str("directory");
+        let mut entries = fs::read_dir(path)
+            .map_err(|error| {
+                format!(
+                    "could not enumerate revalidation source {}: {error}",
+                    path.display()
+                )
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| {
+                format!(
+                    "could not enumerate revalidation source {}: {error}",
+                    path.display()
+                )
+            })?;
+        entries.sort_by_key(fs::DirEntry::file_name);
+        for entry in entries {
+            let child_path = entry.path();
+            let child_relative = relative.join(entry.file_name());
+            let child_metadata = fs::symlink_metadata(&child_path).map_err(|error| {
+                format!(
+                    "could not inspect revalidation source {}: {error}",
+                    child_path.display()
+                )
+            })?;
+            hash_revalidation_path(hasher, &child_path, &child_relative, &child_metadata, scan)?;
+        }
+        return Ok(());
+    }
+    if file_type.is_symlink() {
+        hasher.add_str("symlink");
+        let target = fs::read_link(path).map_err(|error| {
+            format!(
+                "could not inspect revalidation symlink {}: {error}",
+                path.display()
+            )
+        })?;
+        hasher.add_bytes(target.as_os_str().as_encoded_bytes());
+        return Ok(());
+    }
+    if !file_type.is_file() {
+        hasher.add_str("non_regular");
+        return Ok(());
+    }
+
+    hasher.add_str("file");
+    let remaining = MAX_REVALIDATION_SOURCE_BYTES.saturating_sub(scan.bytes);
+    if metadata.len() > remaining {
+        return Err(format!(
+            "revalidation sources exceed the {MAX_REVALIDATION_SOURCE_BYTES}-byte limit"
+        ));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    fs::File::open(path)
+        .map_err(|error| {
+            format!(
+                "could not read revalidation source {}: {error}",
+                path.display()
+            )
+        })?
+        .take(remaining.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            format!(
+                "could not read revalidation source {}: {error}",
+                path.display()
+            )
+        })?;
+    if bytes.len() as u64 > remaining {
+        return Err(format!(
+            "revalidation sources exceed the {MAX_REVALIDATION_SOURCE_BYTES}-byte limit"
+        ));
+    }
+    scan.bytes = scan.bytes.saturating_add(bytes.len() as u64);
+    hasher.add_bytes(&bytes);
+    Ok(())
 }
 
 fn decode_path_segment(value: &str) -> Result<String, &'static str> {
@@ -1723,13 +1997,15 @@ fn static_ui_asset(path: &str) -> Option<Response<Cursor<Vec<u8>>>> {
 
 fn json_response(value_status: StatusCode, value: &impl Serialize) -> Response<Cursor<Vec<u8>>> {
     match serde_json::to_vec(value) {
-        Ok(bytes) => {
-            let response = Response::from_data(bytes).with_status_code(value_status);
-            let response = with_header(response, "Content-Type", "application/json; charset=utf-8");
-            with_common_headers(response, "no-store")
-        }
+        Ok(bytes) => json_bytes_response(value_status, bytes),
         Err(error) => json_error(StatusCode(500), "json_encoding_failed", &error.to_string()),
     }
+}
+
+fn json_bytes_response(value_status: StatusCode, bytes: Vec<u8>) -> Response<Cursor<Vec<u8>>> {
+    let response = Response::from_data(bytes).with_status_code(value_status);
+    let response = with_header(response, "Content-Type", "application/json; charset=utf-8");
+    with_common_headers(response, "no-store")
 }
 
 fn journal_admission_response(admission: &JournalAdmission) -> Response<Cursor<Vec<u8>>> {
@@ -2026,7 +2302,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(43 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(46 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -2035,6 +2311,18 @@ mod tests {
         assert!(health.contains("\"schema\":\"rey.agent-health.v1\""));
         assert!(health.contains("\"schema\":\"rey.agent-process.v1\""));
         assert!(health.contains("\"loopback_only\":true"));
+
+        let revalidation = request(&address, "GET /api/v1/revalidation HTTP/1.1");
+        assert!(revalidation.starts_with("HTTP/1.1 200"));
+        let revalidation: serde_json::Value =
+            serde_json::from_str(response_body(&revalidation)).unwrap();
+        assert_eq!(revalidation["schema"], "rey.ui-revalidation.v1");
+        assert_eq!(revalidation["poll_after_ms"], 5_000);
+        assert_eq!(
+            revalidation["basis"],
+            "exact bounded source bytes; missing roots and non-regular entries are framed explicitly"
+        );
+        let initial_revalidation_revision = revalidation["revision"].clone();
 
         let conversation = request(&address, "GET /api/v1/conversations HTTP/1.1");
         assert!(conversation.starts_with("HTTP/1.1 200"));
@@ -2077,6 +2365,8 @@ mod tests {
         assert!(workloads.contains("\"schema\":\"rey.workload-list.v1\""));
         assert!(workloads.contains("\"state\":\"working\""));
         assert!(workloads.contains("\"index\":null"));
+        let cached_workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
+        assert_eq!(response_body(&cached_workloads), response_body(&workloads));
 
         let approval = serde_json::json!({
             "message": "Approve exact context survey",
@@ -2113,6 +2403,12 @@ mod tests {
         assert!(approved.starts_with("HTTP/1.1 201"), "{approved}");
         assert!(approved.contains("\"schema\":\"rey.workload-commit-result.v1\""));
         assert!(approved.contains("\"sequence\":1"));
+
+        let revalidation = request(&address, "GET /api/v1/revalidation HTTP/1.1");
+        assert!(revalidation.starts_with("HTTP/1.1 200"));
+        let revalidation: serde_json::Value =
+            serde_json::from_str(response_body(&revalidation)).unwrap();
+        assert_ne!(revalidation["revision"], initial_revalidation_revision);
 
         let admitted = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert!(admitted.starts_with("HTTP/1.1 200"));

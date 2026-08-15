@@ -474,10 +474,13 @@ independently.
 
 `apps/agent/src/passive.ts` owns passive browser revalidation independently of
 TanStack route lifecycle. Route loaders establish the initial typed document;
-the mounted React projection publishes later successful reads in place, rejects
-overlapping refreshes, retains the last good document after failure, and never
-uses router invalidation as a polling mechanism. Focused fake-timer tests prove
-the scheduling and failure behavior without a browser timing dependency.
+the mounted React projection publishes later successful reads in place, waits
+a complete interval after each read, retains the last good document after
+failure, and never uses router invalidation as a polling mechanism. The root
+portfolio polls only `rey.ui-revalidation.v1`; unchanged exact source bytes do
+not refetch or deserialize the heavyweight workload and evidence projections.
+Focused fake-timer and fetch tests prove the scheduling and no-change behavior
+without a browser timing dependency.
 
 `crates/rey/build.rs` binds the composition binary to its implementation Git
 revision. A clean Nix build supplies `self.rev`; local Cargo builds resolve the

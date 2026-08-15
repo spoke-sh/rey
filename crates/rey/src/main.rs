@@ -4212,15 +4212,15 @@ fn current_workload_list(
     workspace: &Path,
     catalog_dir: &Path,
 ) -> Result<WorkloadList, CliError> {
-    let mut catalog = store.head_catalog()?;
-    let revision = store.status(workspace, catalog_dir)?;
+    let state = store.load()?;
+    let mut catalog = store.head_catalog_from_state(&state)?;
+    let revision = store.status_from_state(workspace, catalog_dir, &state)?;
     catalog.descriptor.workload_count = catalog
         .workloads
         .len()
         .max(revision.working.packages.len())
         .saturating_add(revision.drafts.len()) as u64;
     catalog.descriptor.draft_count = revision.drafts.len() as u64;
-    let state = store.load()?;
     let summaries = catalog
         .workloads
         .iter()

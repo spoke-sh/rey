@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use serde::{Deserialize, Serialize};
@@ -745,6 +745,11 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
         .iter()
         .map(|object| object.object_id.as_str())
         .collect::<BTreeSet<_>>();
+    let objects_by_id = packet
+        .objects
+        .iter()
+        .map(|object| (object.object_id.as_str(), object))
+        .collect::<BTreeMap<_, _>>();
     for object in &packet.objects {
         validate_identifier_path(&object.object_id)?;
         validate_bounds(&object.native_bounds)?;
@@ -756,10 +761,7 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
     }
     if let Some(footprint) = &packet.footprint {
         footprint.verify()?;
-        let source = packet
-            .objects
-            .iter()
-            .find(|object| object.object_id == footprint.source_object_id);
+        let source = objects_by_id.get(footprint.source_object_id.as_str());
         if source.is_none_or(|object| {
             object.layer != RegionalLayerKind::Boundary
                 || object.geometry_kind != "Polygon"
@@ -783,11 +785,10 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
             .map_or(0, |grid| grid.cells.len() as u64);
         if terrain.samples.len() as u64 + grid_cells > packet.limits.max_native_objects
             || terrain.samples.iter().any(|sample| {
-                packet
-                    .objects
-                    .iter()
-                    .find(|object| {
-                        object.object_id == sample.source_object_id
+                objects_by_id
+                    .get(sample.source_object_id.as_str())
+                    .is_none_or(|object| {
+                        !(object.object_id == sample.source_object_id
                             && object.layer == RegionalLayerKind::Terrain
                             && object.geometry_kind == "Point"
                             && object.source_artifact_id == sample.source_artifact_id
@@ -795,29 +796,28 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
                             && object.native_bounds.west_microdegrees == sample.position[0]
                             && object.native_bounds.east_microdegrees == sample.position[0]
                             && object.native_bounds.south_microdegrees == sample.position[1]
-                            && object.native_bounds.north_microdegrees == sample.position[1]
+                            && object.native_bounds.north_microdegrees == sample.position[1])
                     })
-                    .is_none()
             })
             || terrain.grid.as_ref().is_some_and(|grid| {
                 grid.cells.iter().any(|cell| {
-                    packet
-                        .objects
-                        .iter()
-                        .find(|object| {
-                            object.object_id == cell.source_object_id
+                    objects_by_id
+                        .get(cell.source_object_id.as_str())
+                        .is_none_or(|object| {
+                            !(object.object_id == cell.source_object_id
                                 && object.layer == RegionalLayerKind::Terrain
                                 && object.geometry_kind == "Point"
                                 && object.source_artifact_id == cell.source_artifact_id
                                 && object.object_revision == cell.source_object_revision
-                                && object.native_bounds.west_microdegrees == cell.native_position[0]
-                                && object.native_bounds.east_microdegrees == cell.native_position[0]
+                                && object.native_bounds.west_microdegrees
+                                    == cell.native_position[0]
+                                && object.native_bounds.east_microdegrees
+                                    == cell.native_position[0]
                                 && object.native_bounds.south_microdegrees
                                     == cell.native_position[1]
                                 && object.native_bounds.north_microdegrees
-                                    == cell.native_position[1]
+                                    == cell.native_position[1])
                         })
-                        .is_none()
                 })
             })
         {

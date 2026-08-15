@@ -12,11 +12,14 @@ export function startPassiveRevalidation<T>({
   reportError,
 }: PassiveRevalidationOptions<T>): () => void {
   let active = true;
-  let inFlight = false;
+  let timeout: ReturnType<typeof globalThis.setTimeout> | undefined;
+
+  const schedule = () => {
+    if (!active) return;
+    timeout = globalThis.setTimeout(() => void refresh(), intervalMs);
+  };
 
   const refresh = async () => {
-    if (inFlight) return;
-    inFlight = true;
     try {
       const document = await load();
       if (active) {
@@ -26,14 +29,14 @@ export function startPassiveRevalidation<T>({
     } catch (error) {
       if (active) reportError(normalizeError(error));
     } finally {
-      inFlight = false;
+      schedule();
     }
   };
 
-  const interval = globalThis.setInterval(() => void refresh(), intervalMs);
+  schedule();
   return () => {
     active = false;
-    globalThis.clearInterval(interval);
+    if (timeout !== undefined) globalThis.clearTimeout(timeout);
   };
 }
 

@@ -13,6 +13,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -27,7 +28,9 @@ import {
   loadJournal,
   loadJournalSeed,
   loadPortfolio,
+  loadPortfolioAfterRevision,
   loadWorkloadDeltaEvidence,
+  loadWorkloadEvidence,
   loadWorkloadScenarioEvidence,
   writeChannelWorking,
   writeConversationMessage,
@@ -210,12 +213,32 @@ function usePortfolio(): OperatorContext {
   return portfolio;
 }
 
+function usePassivePortfolio(initialDocument: OperatorContext) {
+  const [document, setDocument] = useState(initialDocument);
+  const [error, setError] = useState<Error | null>(null);
+  const retainedRevision = useRef(initialDocument.revalidation.revision);
+  useEffect(() => {
+    retainedRevision.current = initialDocument.revalidation.revision;
+    setDocument(initialDocument);
+    setError(null);
+    return startPassiveRevalidation({
+      intervalMs: initialDocument.revalidation.poll_after_ms,
+      load: () => loadPortfolioAfterRevision(retainedRevision.current),
+      publish: (next) => {
+        if (!next) return;
+        retainedRevision.current = next.revalidation.revision;
+        setDocument(next);
+      },
+      reportError: setError,
+    });
+  }, [initialDocument]);
+  return { document, error };
+}
+
 function RootLayout() {
   const initialPortfolio = rootRoute.useLoaderData();
-  const { document: portfolio, error: portfolioError } = usePassiveDocument(
-    initialPortfolio,
-    loadPortfolio,
-  );
+  const { document: portfolio, error: portfolioError } =
+    usePassivePortfolio(initialPortfolio);
   const [communicationAxis, setCommunicationAxis] =
     useState<CommunicationAxis | null>(null);
   const mailboxCount =
@@ -1056,6 +1079,7 @@ function WorkloadsRoutePage() {
 
 function WorkloadDetailRoutePage() {
   const portfolio = usePortfolio();
+  const workloadEvidence = workloadDetailRoute.useLoaderData();
   const { workloadId } = workloadDetailRoute.useParams();
   const workload = portfolio.workloads.find(
     (candidate) => candidate.workload.id === workloadId,
@@ -1084,7 +1108,7 @@ function WorkloadDetailRoutePage() {
   if (draft) return <DraftWorkloadDetail draft={draft} />;
 
   if (!workload) return <NotFoundPage />;
-  const evidence = portfolio.workload_evidence.workloads.find(
+  const evidence = workloadEvidence.workloads.find(
     (candidate) => candidate.workload_id === workloadId,
   );
   return <AdmittedWorkloadDetail evidence={evidence} workload={workload} />;
@@ -1417,6 +1441,7 @@ const workloadsRoute = createRoute({
 const workloadDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads/$workloadId",
+  loader: loadWorkloadEvidence,
   component: WorkloadDetailRoutePage,
 });
 

@@ -1,72 +1,125 @@
 # Rey County
 
-Rey County is an authored **editor candidate** built from the first fresh v1
-Rey environment and workload run. It exercises every GeoJSON role currently
-accepted by `rey editor`: boundary, terrain control, hydrology, features, and
-markers.
+Rey County is a source-controlled authored world for exercising the complete
+Explorer journey. It translates the project's architecture into a geographic
+grammar without pretending to be an Earth survey or a measurement of the
+repository.
 
-The geometry uses an arbitrary OGC CRS84 extent because GeoJSON admission
-requires geographic longitude/latitude. It is not an Earth survey, a claim
-that land exists at this extent, a semantic-distance map, or admitted
-topography. District shapes, elevation controls, streams, and labels are
-authoring choices whose properties cite the exact Rey evidence that motivated
-them. Hydrology is a candidate natural feature and is not derived from the 76
-survey source edges; no road, route, or traversability is claimed.
+The native files are editor candidates. They become Explorer evidence only
+after exact editor retention and the separately qualified `scene-admission`
+workload. Admission preserves their authored authority; it does not turn the
+metaphor into physical geography, observed code activity, or proof.
 
-## Fresh evidence basis
+## First Principles
 
-- Environment: `ENV@1`, commit
-  `blake3:6070a3c40b82ce885f912b522dfd9977d219412267a75dcf4de6b428bedce831`,
-  capability snapshot
-  `blake3:fc2e6648a63ba3df153b710b8616f0eff8602cd2f5fb2a41da0055a3549493d8`.
-  Rey observed 14 capabilities; Git 2.55.0 and ripgrep 15.2.0 were identity
-  probed, seven of eight declared applications were found, and Copilot was not
-  found.
-- Context survey: package
-  `blake3:12ae63362e55d82f00367a5dea5eb75229c3de784d8072494b19d0fe007e39ff`,
-  graph `blake3:27083b635f810fae7213484cfea07c5f1ca9bc11bd17e1ec4588398ce663497a`,
-  run `blake3:73d579860d01e1d334204db433d875e8d730c1af2c259628786fec47f04c8369`,
-  patch `blake3:2f4c0c28c1b5fb259c1b5b7c7252abd75947a89bd49ab50dfd5f66f81ebda448`,
-  topography
-  `blake3:c1d64839c0d95eb4886ecfd24759806bf72bf65391afe0a09aba429b5db5427f`,
-  and projection packet
-  `blake3:b767c2dd78fde8caa548436bb7372cdefd99da8f5d7c2df62dad0a94517aaa94`.
-  Five seeds produced 56 anchors, 76 source edges excluded from terrain/path
-  geometry, one frontier probe, and nine retained field channels.
-- Label normalization: package
-  `blake3:d1a67ec0d2a0e5849642690a576051fcd261e3b4b69ca68e16651773f2941426`,
-  graph `blake3:88c196d992f65fe8d56be7f4d6a704afe4484a928c2dd578754dc9437014f7b5`,
-  and run
-  `blake3:70e6615ebcd02f121f506c5e0bb34389255a72d51019f5de846f28dc55922d7a`
-  produced the canonical label `REY COUNTY`.
+The County is built from five rules:
 
-## Retention transcript
+1. **Topology precedes decoration.** Foundations, runtime, mining, proof, and
+   Explorer have distinct spatial bearings before labels or material styling.
+2. **Terrain is a dataset, not a hint.** `terrain-controls.geojson` remains the
+   reviewable authoring basis. Only the exact rectilinear points in
+   `terrain.geojson` can become admitted height.
+3. **Unknown remains a hole.** Grid vertices outside the exact County boundary
+   and inside Unexplored Scrub are explicit `no_data`; they have no height or
+   material for the renderer to interpolate.
+4. **Channels retain separate meaning.** Elevation, validity, material,
+   hydrology, boundaries, districts, and markers enter the scene independently.
+   Evidence River can shape the authored field without becoming a route or an
+   observed watershed.
+5. **The whole artifact is bounded and reproducible.** One deterministic
+   generator produces a grid that fits editor, scene-admission, workload-state,
+   terrain-tile, CPU, and GPU limits.
 
-The checked-in native files are the authored source fixture. They include
-generated terrain-control lineage plus exact agent fine-tuning and additional
-feature families; the generator recipe is not presented as reproducing those
-subsequent edits. The project declaration and `SCENE@1` history that originally
-grouped these files are local Rey state and are not checked into the workspace.
-These sources therefore do not become an ambient default scene when
-`rey editor status` runs.
+## Project Topography
 
-The historical retention loop was:
+The landforms summarize the ownership and dependency shape found across the
+foundational contracts, twelve Rust crates, `@rey/agent`, and `@rey/explorer`:
 
-```text
-rey editor status
-rey editor diff
-rey editor add
-rey editor diff --staged
-rey editor commit -m 'establish Rey County'
-rey editor log -p
+| Landform               | Project bearing                                                   |
+| ---------------------- | ----------------------------------------------------------------- |
+| Anchor Range           | Constitution, instructions, exact context, and shared foundations |
+| Architecture Highlands | Ownership boundaries and the one-way system dependency shape      |
+| Explorer Terraces      | Globe, Atlas, Landscape, semantic projection, and rendering       |
+| Runtime Basin          | Workload execution, nested loops, scheduling, and convergence     |
+| Mining Ridge           | Source/relational mining, locators, frames, and directed deltas   |
+| Proof Escarpment       | Qualification, exact evidence, limits, and staleness              |
+| Unexplored Scrub       | Explicitly unsupported or not-yet-surveyed space                  |
+
+The terrain model combines the retained control geometry with bounded
+multi-scale relief. Existing hydrology carves valleys, Explorer receives a
+subtle terrace response, and the five renderer-recognized materials are chosen
+independently from height. These are authored semantic choices recorded in the
+native source, not facts inferred by the renderer.
+
+## Native Sources
+
+| File                       | Editor role       | Meaning                                                           |
+| -------------------------- | ----------------- | ----------------------------------------------------------------- |
+| `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                      |
+| `terrain.geojson`          | `terrain`         | 41×41 row-major elevation/material dataset with explicit validity |
+| `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height   |
+| `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry            |
+| `features.geojson`         | `features`        | Districts, meadow, and the explicit unexplored region             |
+| `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD            |
+
+The terrain grid contains 1,681 vertices at exact integer-microdegree spacing:
+
+- 1,158 valid vertices;
+- 493 no-data vertices outside the County footprint;
+- 36 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
+  predicates, producing 523 unique no-data vertices);
+- 86.17–1,689.11 meters of authored relief; and
+- `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
+
+Forty intervals per axis preserve the County's exact bounds and cross the
+renderer’s 32-interval tile boundary in both directions. The resulting 2×2
+leaf working set exercises tiled evaluation and residency while the complete
+admitted result remains inside the bounded local workload store.
+
+## Regeneration And Verification
+
+Regeneration reads only the checked-in boundary, feature, hydrology, and
+terrain-control files. Their SHA-256 identities, derivation principles, grid
+shape, and summary are embedded in the GeoJSON foreign metadata. Same inputs
+produce the same bytes.
+
+```sh
+node scenes/rey-county/generate-terrain.mjs
+node scenes/rey-county/generate-terrain.mjs --check
+pnpm --filter @rey/agent exec vitest run \
+  scripts/rey-county-terrain.test.mjs
 ```
 
-For a new scene, `rey editor generate terrain ... --scene-id <scene>` creates
-`.rey/editor/project.json` and the first workspace-native source. The agent then
-fine-tunes generated files in WORKING before using the same retention loop.
-There is no separate initialization, import, or validation command; registering
-an existing multi-source fixture remains future editor work. Commit validates
-the frozen INDEX and refuses to advance on failure.
+The Vitest contract verifies row-major coordinates, exact bounds, footprint
+and internal no-data, distinct landforms, relief, bounded materials, and
+byte-for-byte agreement with the checked-in artifact.
 
-Packaging freezes a candidate only. `/explore` cannot consume this package
-until a separate qualified scene-admission workload is implemented.
+## Editor And Admission
+
+A fresh local editor store can register the source-controlled fixture without
+copying or rewriting it:
+
+```sh
+rey editor source add scenes/rey-county/boundary.geojson \
+  --id rey-county-boundary --role boundary --scene-id rey-county
+rey editor source add scenes/rey-county/features.geojson \
+  --id rey-county-features --role features
+rey editor source add scenes/rey-county/hydrology.geojson \
+  --id rey-county-hydrology --role hydrology
+rey editor source add scenes/rey-county/markers.geojson \
+  --id rey-county-markers --role markers
+rey editor source add scenes/rey-county/terrain-controls.geojson \
+  --id rey-county-terrain-controls --role terrain_control
+rey editor source add scenes/rey-county/terrain.geojson \
+  --id rey-county-terrain --role terrain
+rey editor add
+rey editor diff --staged
+rey editor commit -m "Admit Rey County"
+rey workloads run scene-admission --scene SCENE@n
+```
+
+`SCENE@n` is the exact scene label printed by the editor commit. The final run
+re-inspects frozen native bytes, rejects divergent grid metadata or validity,
+and retains `rey.regional-terrain-grid.v1`. `/explore` consumes only that latest
+accepted production result; a checkout containing these files but no local
+editor/workload history correctly remains unadmitted.

@@ -970,11 +970,15 @@ explicit conformance selection. It uses a bounded
 `rey.local-workload-state.v1` result index at
 `${workspace}/.rey/workloads/state.json`, overridable by explicit
 `--state-dir`. Reads reject symlinked state files and verify every retained
-semantic result. Writes use a same-directory temporary file and rename. This
-single-process provider claims no `fsync`, lock, or remote durability. A graph
-selected for future runs cannot exist solely in a disposable cache. A stronger
-publication protocol requires a separate accepted contract; the current
-workload and mining contracts do not select an engine.
+semantic result. The complete serialized state is bounded to 64 MiB so one
+production scene may retain its exact native-object and terrain-cell bindings;
+an aggregate that exceeds that bound fails before publication and leaves the
+prior state authoritative. Writes use a same-directory temporary file and
+rename. This single-process provider claims no `fsync`, lock, or remote
+durability. A graph selected for future runs cannot exist solely in a
+disposable cache. A stronger publication protocol requires a separate
+accepted contract; the current workload and mining contracts do not select an
+engine.
 
 ## Workspace Ignore Surface
 
@@ -1089,6 +1093,7 @@ The operator worker under `rey agent` is the implemented exception to a
 CLI-only interface: a bounded HTTP projection started explicitly with the Rey
 process. It serves the embedded TanStack Router application plus
 `GET|HEAD /api/v1/health`, `GET|HEAD /api/v1/agent`,
+`GET|HEAD /api/v1/revalidation`,
 `GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
 `GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/feed/admissions`,
 `GET|HEAD /api/v1/journal`, bounded read-only
@@ -1117,7 +1122,14 @@ query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
 assets to root-relative `/assets/...` paths so exact nested routes resolve the
 same-origin JavaScript and CSS rather than route-relative HTML fallbacks. The workload endpoint is
 derived anew from the selected workspace catalog and retained local result
-index, just like `workloads list`. The environment endpoint is derived anew
+index, just like `workloads list`, while decoding the retained workload state
+only once per projection. The lightweight `rey.ui-revalidation.v1` cursor
+hashes the exact bytes of the bounded workload, catalog, environment, Git,
+Channel/Observation, and conversation roots. It grants change-detection
+authority only: an unchanged cursor suppresses redundant heavyweight
+portfolio reads and reuses only response bytes keyed by that exact source
+revision, while a changed cursor invalidates the response cache and causes the
+browser to reload and validate the typed projections. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
 
@@ -1150,9 +1162,10 @@ attention, repository posture, qualification posture, or browser state. An
 empty Admission stream therefore means both retained commit histories are
 empty.
 
-The exact evidence index is `rey.ui-workload-evidence-catalog.v1`. An admitted
-workload detail adds its bounded scenario relation only when a retained result
-exists. Scenario references carry the declared scenario contract, required or
+The exact evidence index is `rey.ui-workload-evidence-catalog.v1`. It is loaded
+only for an exact workload detail route rather than being attached to every
+Explorer or portfolio read. An admitted workload detail adds its bounded
+scenario relation only when a retained result exists. Scenario references carry the declared scenario contract, required or
 optional role, stored evaluation, exact execution identity, and every retained
 output-text, source-match, and topography delta identity. Scenario pages render
 plain outcome and unresolved assertions, the complete compact `-v`
@@ -1440,11 +1453,14 @@ repository binding exists, the UI exposes that boundary instead of displaying
 or mislinking the SHA. BLAKE3 identities and non-Git revisions are not linked
 as commits.
 
-The Refresh control does not exist. Mounted application state passively reloads
-the read-only portfolio, Feed sources, and environment delta every five seconds without
-invalidating or remounting the active route. A failed background request keeps
-the last good document and reports delayed revalidation; it does not reset the
-viewport. `ContextCanvas` projects the portfolio document through landscape,
+The Refresh control does not exist. Mounted application state checks the
+bounded portfolio revalidation cursor five seconds after the preceding check
+completes and reloads the heavyweight read-only portfolio only when its exact
+source revision changes. Mounted Feed sources and environment deltas retain
+their route-scoped passive reads. No passive read overlaps or immediately
+restarts after a slow response. A failed background request keeps the last
+good document and reports delayed revalidation; it does not reset the viewport.
+`ContextCanvas` projects the portfolio document through landscape,
 neighborhood, and object regimes with bounded
 omission disclosures; full screen, pan, focus, and zoom do not widen the data
 or action authority. Implemented local semantic coordinates have the shape

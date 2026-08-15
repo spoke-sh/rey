@@ -57,7 +57,10 @@ pub const WORKLOAD_ACTIVATION_RECOMPUTATION_SCHEMA: &str =
 
 const STATE_FILE_NAME: &str = "state.json";
 const LOCK_FILE_NAME: &str = "workloads.lock";
-const MAX_STATE_BYTES: u64 = 4 * 1_024 * 1_024;
+// Scene admission retains exact native-object and terrain-cell bindings in the
+// production result. Keep the aggregate store bounded, but large enough for a
+// result admitted under the runtime's 64 MiB total native-source ceiling.
+const MAX_STATE_BYTES: u64 = 64 * 1_024 * 1_024;
 const MAX_STATE_RECORDS: usize = 64;
 const MAX_RETAINED_SEMANTIC_ATLASES: usize = 64;
 const WORKLOAD_PACKAGE_FILE_NAME: &str = "workload.yaml";
@@ -2763,8 +2766,17 @@ impl LocalWorkloadStore {
         workspace: &Path,
         catalog_dir: &Path,
     ) -> Result<WorkloadRevisionStatus, LocalWorkloadStateError> {
-        let observed = self.observe(workspace, catalog_dir)?;
         let state = self.load()?;
+        self.status_from_state(workspace, catalog_dir, &state)
+    }
+
+    pub fn status_from_state(
+        &self,
+        workspace: &Path,
+        catalog_dir: &Path,
+        state: &LocalWorkloadState,
+    ) -> Result<WorkloadRevisionStatus, LocalWorkloadStateError> {
+        let observed = self.observe(workspace, catalog_dir)?;
         let head = state.commits.last().cloned();
         let head_snapshot = head.as_ref().map(|commit| &commit.snapshot);
         let staged = WorkloadChangeSet::derive(
@@ -2825,7 +2837,7 @@ impl LocalWorkloadStore {
             schema: WORKLOAD_REVISION_STATUS_SCHEMA.to_owned(),
             state: state_kind,
             head,
-            index: state.index,
+            index: state.index.clone(),
             working: observed.snapshot,
             staged,
             unstaged,
@@ -2896,6 +2908,13 @@ impl LocalWorkloadStore {
 
     pub fn head_catalog(&self) -> Result<WorkloadCatalog, LocalWorkloadStateError> {
         let state = self.load()?;
+        self.head_catalog_from_state(&state)
+    }
+
+    pub fn head_catalog_from_state(
+        &self,
+        state: &LocalWorkloadState,
+    ) -> Result<WorkloadCatalog, LocalWorkloadStateError> {
         match state.commits.last() {
             Some(commit) => {
                 self.catalog_from_snapshot(&commit.snapshot, WorkloadAdmissionState::Accepted)

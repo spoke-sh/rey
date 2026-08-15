@@ -44,6 +44,18 @@ export interface UiServerIdentity {
   read_only: boolean;
 }
 
+export interface UiRevalidationCursor {
+  schema: "rey.ui-revalidation.v1";
+  revision: string;
+  poll_after_ms: number;
+  basis: string;
+  source_entries: number;
+  source_bytes: number;
+  scope: string[];
+  authority: string;
+  omissions: string[];
+}
+
 export interface ReyProcessDescriptor {
   schema: "rey.process.v1";
   process_id: string;
@@ -105,7 +117,7 @@ export type OperatorContext = WorkloadList & {
   channels: ChannelProjection;
   observations: ObservationFrontier;
   conversation: ConversationTranscript;
-  workload_evidence: WorkloadEvidenceCatalog;
+  revalidation: UiRevalidationCursor;
   ui_server: UiServerIdentity;
 };
 
@@ -171,20 +183,26 @@ export interface AgentJournalDocument {
 }
 
 export async function loadPortfolio(): Promise<OperatorContext> {
+  return loadPortfolioDocument();
+}
+
+async function loadPortfolioDocument(
+  retainedRevalidation?: UiRevalidationCursor,
+): Promise<OperatorContext> {
   const [
     portfolioResponse,
     healthResponse,
     observations,
-    workloadEvidence,
     conversation,
     channels,
+    revalidation,
   ] = await Promise.all([
     fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
     fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
     loadObservations(),
-    loadWorkloadEvidence(),
     loadConversation(),
     loadChannels(),
+    retainedRevalidation ?? loadPortfolioRevalidation(),
   ]);
   if (!portfolioResponse.ok) {
     const detail = await portfolioResponse.text();
@@ -208,9 +226,30 @@ export async function loadPortfolio(): Promise<OperatorContext> {
     channels,
     observations,
     conversation,
+    revalidation,
     ui_server: health.server,
-    workload_evidence: workloadEvidence,
   });
+}
+
+export async function loadPortfolioRevalidation(): Promise<UiRevalidationCursor> {
+  const response = await fetch("/api/v1/revalidation", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Portfolio revalidation request failed (${response.status}): ${detail}`,
+    );
+  }
+  return (await response.json()) as UiRevalidationCursor;
+}
+
+export async function loadPortfolioAfterRevision(
+  retainedRevision: string,
+): Promise<OperatorContext | null> {
+  const revalidation = await loadPortfolioRevalidation();
+  if (revalidation.revision === retainedRevision) return null;
+  return loadPortfolioDocument(revalidation);
 }
 
 export async function loadConversation(): Promise<ConversationTranscript> {
