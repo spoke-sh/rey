@@ -322,8 +322,9 @@ export function buildTopologyScene(
     focusId.startsWith("anchor:") ||
     focusId.startsWith("frontier:");
   const regionalFocus = regionalScenes.some(
-    ({ scene, county_footprint }) =>
-      Boolean(county_footprint) && regionalSceneMatchesFocus(scene, focusId),
+    (regionalScene) =>
+      regionalSceneTraversable(regionalScene) &&
+      regionalSceneMatchesFocus(regionalScene.scene, focusId),
   );
   let projection: TopologyProjection;
   if (isFreshProjectOrientation(portfolio))
@@ -337,9 +338,7 @@ export function buildTopologyScene(
   else if (regionalScenes.length > 0 && regime === "atlas" && !surveyFocus)
     projection = buildRegionalAtlas(regionalScenes, focusId);
   else if (regionalScenes.length > 0 && !surveyFocus && !regionalFocus) {
-    const traversable = regionalScenes.filter(
-      ({ county_footprint }) => county_footprint !== null,
-    );
+    const traversable = regionalScenes.filter(regionalSceneTraversable);
     projection =
       traversable.length === 1 && focusId === "cluster:portfolio"
         ? buildRegionalCounty(
@@ -1039,21 +1038,25 @@ function buildRegionalCounty(
     county_frame: countyFrame,
     county_footprint: countyFootprint,
   } = selected;
-  if (!countyFootprint)
-    throw new Error("County projection requires an admitted footprint");
   const world = TOPOLOGY_WORLD;
   const bounds = scene.native_bounds;
   const objects = scene.projection.objects;
   const frameView = countyFrameView(countyFrame, world);
   const terrainField = compileRegionalTerrainField(scene, world);
-  const projectedFootprint = terrainField
-    ? projectRegionalTerrainFootprint(
-        countyFrame,
-        scene.native_bounds,
-        countyFootprint,
-        world,
-      )
-    : projectCountyFootprint(countyFrame, countyFootprint, frameView);
+  if (!countyFootprint && !terrainField)
+    throw new Error(
+      "County projection requires an admitted footprint or terrain validity grid",
+    );
+  const projectedFootprint = countyFootprint
+    ? terrainField
+      ? projectRegionalTerrainFootprint(
+          countyFrame,
+          scene.native_bounds,
+          countyFootprint,
+          world,
+        )
+      : projectCountyFootprint(countyFrame, countyFootprint, frameView)
+    : null;
   const terrainGridObjectIds = new Set(
     scene.projection.terrain?.grid?.cells.map(
       (cell) => cell.source_object_id,
@@ -1132,8 +1135,8 @@ function buildRegionalCounty(
   );
   const copyByRegime: Record<LensRegime, readonly [string, string]> = {
     landscape: [
-      "ADMITTED COUNTY",
-      `${scene.region_id} · exact admitted footprint · ${scene.projection.terrain?.grid ? `${scene.projection.terrain.grid.columns}×${scene.projection.terrain.grid.rows} admitted terrain grid; no-data retained` : scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
+      countyFootprint ? "ADMITTED COUNTY" : "ADMITTED TERRAIN",
+      `${scene.region_id} · ${countyFootprint ? "exact admitted footprint" : "exact terrain-grid validity mask"} · ${scene.projection.terrain?.grid ? `${scene.projection.terrain.grid.columns}×${scene.projection.terrain.grid.rows} admitted terrain grid; no-data retained` : scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
     ],
     neighborhoods: [
       "COUNTY NEIGHBORHOODS",
@@ -1171,13 +1174,17 @@ function buildRegionalCounty(
       ...validityBoundaries.map(
         (validity) => `${validity.class}: ${validity.scope} · ${validity.rule}`,
       ),
-      `County fabric and validity end at exact footprint ${shortCoordinate(countyFootprint.footprint_id)} from ${countyFootprint.source_object_id}; holes remain holes`,
+      countyFootprint
+        ? `County fabric and validity end at exact footprint ${shortCoordinate(countyFootprint.footprint_id)} from ${countyFootprint.source_object_id}; holes remain holes`
+        : `Terrain fabric and validity end at exact grid ${shortCoordinate(scene.projection.terrain!.grid!.dataset_id)}; no-data vertices cut triangle support and remain holes`,
       countyFrame.authority,
     ],
     bearing: {
       status: "charted",
-      label: "EXACT COUNTY FOOTPRINT",
-      detail: `result ${shortCoordinate(result.result_id)} · packet ${shortCoordinate(scene.projection.packet_id)} · footprint ${shortCoordinate(countyFootprint.footprint_id)} · frame ${shortCoordinate(countyFrame.transform_digest)} · ${countyFrame.pitch_degrees}° pitch / ${countyFrame.yaw_degrees}° yaw · County-local presentation retains native CRS84 source identity`,
+      label: countyFootprint
+        ? "EXACT COUNTY FOOTPRINT"
+        : "EXACT TERRAIN VALIDITY",
+      detail: `result ${shortCoordinate(result.result_id)} · packet ${shortCoordinate(scene.projection.packet_id)} · ${countyFootprint ? `footprint ${shortCoordinate(countyFootprint.footprint_id)}` : `terrain grid ${shortCoordinate(scene.projection.terrain!.grid!.dataset_id)}`} · frame ${shortCoordinate(countyFrame.transform_digest)} · ${countyFrame.pitch_degrees}° pitch / ${countyFrame.yaw_degrees}° yaw · County-local presentation retains native CRS84 source identity`,
       sampled_conditions: objects.length,
       unresolved_boundaries: scene.omissions.length + validityBoundaries.length,
     },
@@ -1246,6 +1253,15 @@ function regionalSceneMatchesFocus(
     scene.projection.objects.some(
       (object) => focusId === `regional-object:${object.object_id}`,
     )
+  );
+}
+
+function regionalSceneTraversable(
+  regionalScene: AdmittedRegionalProjection,
+): boolean {
+  return (
+    regionalScene.county_footprint !== null ||
+    regionalScene.scene.projection.terrain?.grid !== undefined
   );
 }
 

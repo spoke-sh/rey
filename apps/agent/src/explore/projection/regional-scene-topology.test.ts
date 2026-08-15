@@ -857,6 +857,7 @@ describe("regional scene topology projection", () => {
       (validity) => validity.scope !== "terrain_height",
     );
     scene.projection.omissions = [];
+    scene.projection.footprint = null;
 
     const county = buildTopologyScene(
       terrainPortfolio,
@@ -864,6 +865,7 @@ describe("regional scene topology projection", () => {
       "regional:scene:1",
     );
     expect(county.terrain).toBe(true);
+    expect(county.county_footprint).toBeNull();
     expect(county.detail).toContain(
       "2×2 admitted terrain grid; no-data retained",
     );
