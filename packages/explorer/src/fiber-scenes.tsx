@@ -134,6 +134,7 @@ export function ContinuousReliefScene({
         position={camera.position}
         right={camera.right}
         rotation={camera.rotation}
+        target={camera.target}
         top={camera.top}
       />
       <ambientLight color={0xdde4da} intensity={1.32} />
@@ -147,7 +148,19 @@ export function ContinuousReliefScene({
         intensity={0.72}
         position={[world.width * 0.5, world.width * 0.7, world.height * 0.48]}
       />
-      <group name="rey-continuous-relief">
+      <group
+        name="rey-continuous-relief"
+        position={[
+          view.model_transform?.translate_x ?? 0,
+          0,
+          view.model_transform?.translate_z ?? 0,
+        ]}
+        scale={[
+          view.model_transform?.scale_x ?? 1,
+          view.model_transform?.elevation_scale ?? 1,
+          view.model_transform?.scale_z ?? 1,
+        ]}
+      >
         {compiled.meshes.map((mesh) => (
           <TerrainMesh
             data={mesh.data}
@@ -1213,6 +1226,7 @@ function ReyOrthographicCamera({
   position,
   right,
   rotation,
+  target,
   top,
 }: {
   bottom: number;
@@ -1221,6 +1235,7 @@ function ReyOrthographicCamera({
   position: readonly [number, number, number];
   right: number;
   rotation: readonly [number, number, number];
+  target?: readonly [number, number, number];
   top: number;
 }) {
   const cameraRef = useRef<OrthographicCamera>(null);
@@ -1231,10 +1246,11 @@ function ReyOrthographicCamera({
     if (!camera) return;
     const previous = get().camera;
     (camera as OrthographicCamera & { manual?: boolean }).manual = true;
+    if (target) camera.lookAt(target[0], target[1], target[2]);
     camera.updateProjectionMatrix();
     set({ camera });
     return () => set({ camera: previous });
-  }, [bottom, far, get, left, position, right, rotation, set, top]);
+  }, [bottom, far, get, left, position, right, rotation, set, target, top]);
   return (
     <orthographicCamera
       bottom={bottom}

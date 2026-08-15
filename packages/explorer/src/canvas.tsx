@@ -52,6 +52,7 @@ export interface ExplorerCanvasProps {
   content: ExplorerCanvasContent;
   frame: RenderFrameIdentity;
   onReport: (report: ExplorerCanvasReport) => void;
+  opacity?: number;
   preference: RendererPreference;
   readyClassName?: string;
   visible: boolean;
@@ -70,6 +71,7 @@ export function ExplorerCanvas({
   content,
   frame,
   onReport,
+  opacity = 1,
   preference,
   readyClassName,
   visible,
@@ -97,8 +99,9 @@ export function ExplorerCanvas({
           transform: `translate(-50%, -50%) scale(${(content.world.width * horizontalWrapIndexes.length) / viewport.width}, ${content.world.height / viewport.height})`,
           transformOrigin: "center center",
           width: viewport.width,
+          opacity,
         }
-      : undefined;
+      : { opacity };
   const onReportRef = useRef(onReport);
   onReportRef.current = onReport;
   const report = (status: Readonly<RendererStatus>) => {

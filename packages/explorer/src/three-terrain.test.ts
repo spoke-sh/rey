@@ -65,7 +65,27 @@ describe("accelerated continuous terrain compiler", () => {
       right: 225,
       top: 150,
       bottom: -150,
+      target: [700, 0, 520],
     });
+
+    const orbit = terrainCameraProjection(
+      { width: 1500, height: 1000 },
+      {
+        world_width: 1500,
+        world_height: 1000,
+        viewport_width: 900,
+        viewport_height: 600,
+        rendered_scale: 2,
+        pan_x: 100,
+        pan_y: -40,
+        pitch_degrees: 35.26439,
+        yaw_degrees: 45,
+      },
+    );
+    expect(orbit.position[1]).toBeGreaterThan(0);
+    expect(orbit.position[0]).not.toBe(orbit.center_x);
+    expect(orbit.position[2]).not.toBe(orbit.center_y);
+    expect(orbit.target).toEqual([orbit.center_x, 0, orbit.center_y]);
   });
 
   it("chooses the supported cell diagonal around explicit no-data", () => {

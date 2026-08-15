@@ -4,6 +4,7 @@ import type { AdmittedRegionalScene } from "../../domain";
 import {
   REGIONAL_TERRAIN_SCENE_COMPILER_REVISION,
   compileRegionalTerrainField,
+  invertRegionalTerrainPosition,
   projectRegionalTerrainPosition,
 } from "./regional-terrain";
 
@@ -122,5 +123,15 @@ describe("regional terrain projection", () => {
         { width: 1200, height: 720 },
       ),
     ).toEqual({ x: 1104, y: 648 });
+    expect(
+      invertRegionalTerrainPosition(
+        bounds,
+        { x: 600, y: 360 },
+        {
+          width: 1200,
+          height: 720,
+        },
+      ),
+    ).toEqual([-122_500_000, 37_500_000]);
   });
 });

@@ -55,11 +55,21 @@ checking, and mesh preparation; environments without workers disclose a
 main-thread fallback. Deterministic residency retains compiled tiles under
 separate 48 MiB CPU and 64 MiB GPU budgets.
 
+A selected regional Atlas member now retains one
+`rey.atlas-landscape-transition.v1` binding from its exact synthetic sector
+fragment to its exact regional terrain field. One reversible projector drives
+the accelerated terrain model, reference/vector plane, terrain opacity,
+elevation rise, and bounded camera pitch/yaw. Atlas and terrain overlap through
+the transition instead of swapping at the semantic lens threshold. Click
+traversal animates the same zoom path; wheel traversal uses the same
+direction-independent curve. Terrain pan remains the camera target, focus is
+solved analytically in camera axes, Shift-drag orbits within declared bounds,
+and the native coordinate readout inverts the same target.
+
 This proves admission, renderer parity, and bounded tiled execution, not the
 final fidelity bar. The current source dataset remains one bounded in-memory
-field, its accelerated camera is overhead orthographic, and geographic
-imagery, water, vectors, labels, and the Atlas-to-Landscape transition are not
-yet accelerated passes.
+field, and geographic imagery, water, vectors, and labels are not yet
+accelerated passes.
 
 ## Delivery Sequence
 
@@ -103,13 +113,13 @@ yet accelerated passes.
 
 ### 4. Deliver a bounded 3D Landscape camera and transition
 
-- [ ] Replace the overhead terrain camera with a bounded target/orbit camera
+- [x] Replace the overhead terrain camera with a bounded target/orbit camera
       that preserves north, scale, focus, pointer anchoring, and analytic
       native/County-local picking.
-- [ ] Define one reversible Atlas-to-Landscape projector so selected geography,
+- [x] Define one reversible Atlas-to-Landscape projector so selected geography,
       footprint, terrain, vectors, and pick targets stay attached through every
       intermediate frame.
-- [ ] Add transition hysteresis and perceptual curves independently from
+- [x] Add transition hysteresis and perceptual curves independently from
       semantic LOD; a camera threshold cannot become a scene swap.
 
 ### 5. Turn geographic layers into executable passes

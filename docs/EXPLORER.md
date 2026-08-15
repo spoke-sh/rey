@@ -258,6 +258,13 @@ workers so interaction does not turn React reconciliation into a terrain
 compute loop. Worker loss or budget failure reveals the deterministic
 reference surface.
 
+Atlas-to-Landscape continuity is one reversible projection, not a route-time
+scene replacement. The selected Atlas sector, exact regional field, footprint,
+vectors, and pick identities share one source-to-target mapping. Perceptual
+curves control overlap, elevation rise, and camera tilt without becoming
+semantic LOD. The bounded camera retains an analytic ground target, north/yaw,
+scale, focus, and native-coordinate inverse through both traversal directions.
+
 Terrain fidelity then grows in this order:
 
 ```text

@@ -11,10 +11,12 @@ import {
   WORLD_LENS_ZOOM,
   clampLensZoom,
   draggedGlobeView,
+  draggedTerrainOrbit,
   fitScaleForViewport,
   lensRegimeForZoom,
   panForFocusedPoint,
   panForScaleAtPoint,
+  panForTerrainTarget,
   pointerWithinRenderedGlobeAtmosphere,
   renderedSceneScale,
   recenterWrappedChartPan,
@@ -146,6 +148,40 @@ describe("Explorer camera engine", () => {
       draggedGlobeView({ yaw_degrees: 0, pitch_degrees: 58 }, { x: 0, y: -100 })
         .pitch_degrees,
     ).toBe(62);
+  });
+
+  it("keeps terrain orbit inside its declared pitch and yaw bounds", () => {
+    expect(
+      draggedTerrainOrbit(
+        { yaw_degrees: 170, pitch_degrees: 35 },
+        { x: 100, y: -400 },
+      ),
+    ).toEqual({ yaw_degrees: -172, pitch_degrees: 72 });
+    expect(
+      draggedTerrainOrbit(
+        { yaw_degrees: -170, pitch_degrees: 35 },
+        { x: -100, y: 400 },
+      ),
+    ).toEqual({ yaw_degrees: 172, pitch_degrees: 22 });
+  });
+
+  it("solves the bounded terrain target in camera screen axes", () => {
+    expect(
+      panForTerrainTarget(
+        { x: 900, y: 500 },
+        { width: 1500, height: 1000 },
+        2,
+        { pitch_degrees: 90, yaw_degrees: 0 },
+      ),
+    ).toEqual({ x: -300, y: -0 });
+    const isometric = panForTerrainTarget(
+      { x: 900, y: 620 },
+      { width: 1500, height: 1000 },
+      2,
+      { pitch_degrees: 35.26439, yaw_degrees: 45 },
+    );
+    expect(isometric.x).toBeCloseTo(-42.4264, 3);
+    expect(isometric.y).toBeCloseTo(-220.454, 2);
   });
 
   it("partitions World drag between the rendered atmosphere and surrounding canvas", () => {

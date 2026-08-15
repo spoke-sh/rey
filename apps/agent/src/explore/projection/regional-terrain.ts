@@ -223,6 +223,32 @@ export function projectRegionalTerrainPosition(
   });
 }
 
+export function invertRegionalTerrainPosition(
+  sceneBounds: RegionalBounds,
+  point: { x: number; y: number },
+  world: { width: number; height: number },
+): readonly [number, number] {
+  if (sceneBounds.crosses_antimeridian)
+    throw new Error("regional terrain grids do not yet cross the antimeridian");
+  const frame = regionalTerrainCanvasFrame(world);
+  if (
+    !Number.isFinite(point.x) ||
+    !Number.isFinite(point.y) ||
+    frame.width <= 0 ||
+    frame.height <= 0
+  )
+    throw new Error("regional terrain inverse requires a finite point");
+  const longitude =
+    sceneBounds.west_microdegrees +
+    ((point.x - frame.x) / frame.width) *
+      (sceneBounds.east_microdegrees - sceneBounds.west_microdegrees);
+  const latitude =
+    sceneBounds.north_microdegrees -
+    ((point.y - frame.y) / frame.height) *
+      (sceneBounds.north_microdegrees - sceneBounds.south_microdegrees);
+  return Object.freeze([longitude, latitude]);
+}
+
 export function projectRegionalTerrainFootprint(
   frame: CountyFrame,
   sceneBounds: RegionalBounds,

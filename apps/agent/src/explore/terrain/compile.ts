@@ -101,6 +101,15 @@ export interface TerrainCameraView {
   rendered_scale: number;
   pan_x: number;
   pan_y: number;
+  pitch_degrees?: number;
+  yaw_degrees?: number;
+  model_transform?: {
+    scale_x: number;
+    scale_z: number;
+    translate_x: number;
+    translate_z: number;
+    elevation_scale: number;
+  };
 }
 
 export function terrainWorkingSetForView(

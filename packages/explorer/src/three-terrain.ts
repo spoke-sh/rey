@@ -48,6 +48,7 @@ export interface TerrainCameraProjection {
   top: number;
   position: readonly [number, number, number];
   rotation: readonly [number, number, number];
+  target: readonly [number, number, number];
 }
 
 export interface TerrainMeshData {
@@ -299,22 +300,33 @@ export function terrainCameraProjection(
   const scale = Math.max(0.000_001, view?.rendered_scale ?? 1);
   const viewportWidth = view?.viewport_width ?? world.width;
   const viewportHeight = view?.viewport_height ?? world.height;
-  const centerX = world.width / 2 - (view?.pan_x ?? 0) / scale;
-  const centerY = world.height / 2 - (view?.pan_y ?? 0) / scale;
+  const pitchDegrees = Math.max(22, Math.min(90, view?.pitch_degrees ?? 90));
+  const yawDegrees = Math.max(-180, Math.min(180, view?.yaw_degrees ?? 0));
+  const pitch = (pitchDegrees * Math.PI) / 180;
+  const yaw = (yawDegrees * Math.PI) / 180;
+  const panX = (view?.pan_x ?? 0) / scale;
+  const panY = (view?.pan_y ?? 0) / (scale * Math.max(0.2, Math.sin(pitch)));
+  const centerX = world.width / 2 - panX * Math.cos(yaw) - panY * Math.sin(yaw);
+  const centerY =
+    world.height / 2 + panX * Math.sin(yaw) - panY * Math.cos(yaw);
+  const distance = Math.max(world.width, world.height) * 1.75;
+  const horizontalDistance =
+    pitchDegrees === 90 ? 0 : distance * Math.cos(pitch);
   return Object.freeze({
     bottom: -viewportHeight / scale / 2,
     center_x: centerX,
     center_y: centerY,
-    far: Math.max(world.width, world.height) * 4,
+    far: distance * 4,
     left: -viewportWidth / scale / 2,
     right: viewportWidth / scale / 2,
     top: viewportHeight / scale / 2,
     position: Object.freeze([
-      centerX,
-      Math.max(world.width, world.height) * 1.75,
-      centerY,
+      centerX + Math.sin(yaw) * horizontalDistance,
+      Math.sin(pitch) * distance,
+      centerY + Math.cos(yaw) * horizontalDistance,
     ] as const),
-    rotation: Object.freeze([-Math.PI / 2, 0, 0] as const),
+    rotation: Object.freeze([0, 0, 0] as const),
+    target: Object.freeze([centerX, 0, centerY] as const),
   });
 }
 

@@ -12,6 +12,7 @@ import {
   COUNTY_FRAME_PROJECTION_REVISION,
 } from "../projection/county-frame";
 import { REGIONAL_TERRAIN_SCENE_COMPILER_REVISION } from "../projection/regional-terrain";
+import { ATLAS_LANDSCAPE_PROJECTION_REVISION } from "../projection/atlas-landscape";
 import type {
   CountyFrame,
   ProjectedCountyFootprint,
@@ -168,6 +169,8 @@ export function compileSceneSnapshot(
     compilerRevisions.push(COUNTY_FOOTPRINT_PROJECTION_REVISION);
   if (regionalScenes.some(({ scene }) => scene.projection.terrain?.grid))
     compilerRevisions.push(REGIONAL_TERRAIN_SCENE_COMPILER_REVISION);
+  if (scene.atlas_landscape_transition)
+    compilerRevisions.push(ATLAS_LANDSCAPE_PROJECTION_REVISION);
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   if (
@@ -248,6 +251,17 @@ function freezeTopologyScene(scene: TopologyScene): TopologyScene {
           }),
           points: freezeRows(scene.world_atlas_transition.points),
           sectors: freezeRows(scene.world_atlas_transition.sectors),
+        })
+      : null,
+    atlas_landscape_transition: scene.atlas_landscape_transition
+      ? Object.freeze({
+          ...scene.atlas_landscape_transition,
+          source_frame: Object.freeze({
+            ...scene.atlas_landscape_transition.source_frame,
+          }),
+          target_frame: Object.freeze({
+            ...scene.atlas_landscape_transition.target_frame,
+          }),
         })
       : null,
     county_frame: scene.county_frame

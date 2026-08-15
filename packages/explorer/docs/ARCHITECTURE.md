@@ -115,6 +115,12 @@ accounting, and R3F presentation. Both rendering paths call the same
 `terrainTriangleIndices` rule, so backend selection cannot change the admitted
 support boundary.
 
+The application also supplies the bounded terrain orbit and optional
+Atlas-to-Landscape model transform. The package applies them declaratively to
+one orthographic camera and one terrain group. It does not choose transition
+timing, semantic LOD, source/target frames, focus, or native-coordinate inverse
+policy.
+
 ## Render-Graph Boundary
 
 The immutable render graph lives in `@rey/agent`:

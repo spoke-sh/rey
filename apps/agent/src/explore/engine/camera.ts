@@ -16,9 +16,18 @@ export interface GlobeCameraView {
   pitch_degrees: number;
 }
 
+export interface TerrainOrbitView {
+  yaw_degrees: number;
+  pitch_degrees: number;
+}
+
 export const DEFAULT_GLOBE_VIEW: GlobeCameraView = Object.freeze({
   yaw_degrees: 0,
   pitch_degrees: 0,
+});
+export const DEFAULT_TERRAIN_ORBIT: TerrainOrbitView = Object.freeze({
+  yaw_degrees: 45,
+  pitch_degrees: 35.26439,
 });
 
 export function draggedGlobeView(
@@ -32,6 +41,29 @@ export function draggedGlobeView(
       Math.max(-62, origin.pitch_degrees - delta.y * 0.18),
     ),
   };
+}
+
+export function draggedTerrainOrbit(
+  origin: TerrainOrbitView,
+  delta: CameraPoint,
+): TerrainOrbitView {
+  if (
+    !Number.isFinite(origin.yaw_degrees) ||
+    !Number.isFinite(origin.pitch_degrees) ||
+    !Number.isFinite(delta.x) ||
+    !Number.isFinite(delta.y)
+  )
+    throw new Error("terrain orbit requires finite camera values");
+  let yaw = origin.yaw_degrees + delta.x * 0.18;
+  while (yaw > 180) yaw -= 360;
+  while (yaw < -180) yaw += 360;
+  return Object.freeze({
+    yaw_degrees: yaw,
+    pitch_degrees: Math.min(
+      72,
+      Math.max(22, origin.pitch_degrees - delta.y * 0.14),
+    ),
+  });
 }
 
 export const MIN_LENS_ZOOM = 0.05;
@@ -239,6 +271,32 @@ export function panForFocusedPoint(
   return {
     x: -(point.x - world.width / 2) * renderedScale,
     y: -(point.y - world.height / 2) * renderedScale,
+  };
+}
+
+export function panForTerrainTarget(
+  point: CameraPoint,
+  world: WorldExtent,
+  renderedScale: number,
+  orbit: TerrainOrbitView,
+): CameraPoint {
+  if (
+    !Number.isFinite(renderedScale) ||
+    renderedScale <= 0 ||
+    !Number.isFinite(orbit.pitch_degrees) ||
+    !Number.isFinite(orbit.yaw_degrees)
+  )
+    throw new Error("terrain focus requires finite bounded camera values");
+  const yaw = (orbit.yaw_degrees * Math.PI) / 180;
+  const pitch = (orbit.pitch_degrees * Math.PI) / 180;
+  const deltaX = point.x - world.width / 2;
+  const deltaY = point.y - world.height / 2;
+  return {
+    x: (-Math.cos(yaw) * deltaX + Math.sin(yaw) * deltaY) * renderedScale,
+    y:
+      -Math.max(0.2, Math.sin(pitch)) *
+      (Math.sin(yaw) * deltaX + Math.cos(yaw) * deltaY) *
+      renderedScale,
   };
 }
 

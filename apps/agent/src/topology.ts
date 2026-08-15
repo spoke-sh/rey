@@ -35,6 +35,7 @@ import {
   projectRegionalTerrainFootprint,
   projectRegionalTerrainPosition,
 } from "./explore/projection/regional-terrain";
+import { ATLAS_LANDSCAPE_PROJECTION_REVISION } from "./explore/projection/atlas-landscape";
 import {
   type TerrainFieldSet,
   type TerrainProgram,
@@ -258,6 +259,7 @@ export interface TopologyScene {
   terrain_programs: TerrainProgram[];
   globe: TopologyGlobe | null;
   world_atlas_transition: TopologyWorldAtlasTransition | null;
+  atlas_landscape_transition: TopologyAtlasLandscapeTransition | null;
   county_frame: CountyFrame | null;
   county_footprint: ProjectedCountyFootprint | null;
 }
@@ -289,6 +291,18 @@ export interface TopologyWorldAtlasTransition {
   atlas_frame: { x: number; y: number; width: number; height: number };
   points: TopologyWorldAtlasPoint[];
   sectors: TopologyWorldAtlasSector[];
+  authority: string;
+}
+
+export interface TopologyAtlasLandscapeTransition {
+  schema: "rey.atlas-landscape-transition.v1";
+  transition_id: string;
+  atlas_revision: string;
+  scene_id: string;
+  terrain_field_id: string;
+  projection_revision: typeof ATLAS_LANDSCAPE_PROJECTION_REVISION;
+  source_frame: { x: number; y: number; width: number; height: number };
+  target_frame: { x: number; y: number; width: number; height: number };
   authority: string;
 }
 
@@ -350,6 +364,13 @@ export function buildTopologyScene(
   else if (regime === "objects")
     projection = buildPortfolioObjects(portfolio, focusId);
   else projection = buildPortfolioEvidence(portfolio, focusId);
+  const atlasLandscape =
+    regionalScenes.length > 0 &&
+    !surveyFocus &&
+    regionalFocus &&
+    (regime === "atlas" || regime === "landscape")
+      ? buildAtlasLandscapeTransition(regionalScenes, focusId)
+      : null;
   return {
     ...projection,
     landforms: projection.landforms ?? [],
@@ -364,15 +385,22 @@ export function buildTopologyScene(
       unresolved_boundaries: 0,
     },
     terrain: projection.terrain ?? false,
-    terrain_fields: projection.terrain_fields ?? [],
+    terrain_fields:
+      projection.terrain_fields ??
+      (regime === "atlas" && atlasLandscape
+        ? [atlasLandscape.terrain_field]
+        : []),
     terrain_programs: projection.terrain_programs ?? [],
     globe: projection.globe ?? null,
     world_atlas_transition:
       regionalScenes.length > 0 &&
       !surveyFocus &&
-      (regime === "world" || regime === "atlas")
+      (regime === "world" ||
+        regime === "atlas" ||
+        (regime === "landscape" && atlasLandscape !== null))
         ? buildWorldAtlasTransition(regionalScenes)
         : null,
+    atlas_landscape_transition: atlasLandscape?.transition ?? null,
     county_frame: projection.county_frame ?? null,
     county_footprint: projection.county_footprint ?? null,
     world: projection.world ?? topologyWorld(projection),
@@ -408,6 +436,7 @@ export type TopologyProjection = Omit<
   | "terrain_programs"
   | "world"
   | "world_atlas_transition"
+  | "atlas_landscape_transition"
   | "county_frame"
   | "county_footprint"
 > & {
@@ -423,6 +452,7 @@ export type TopologyProjection = Omit<
   fit_world?: TopologyWorld;
   globe?: TopologyGlobe | null;
   world_atlas_transition?: TopologyWorldAtlasTransition | null;
+  atlas_landscape_transition?: TopologyAtlasLandscapeTransition | null;
   county_frame?: CountyFrame | null;
   county_footprint?: ProjectedCountyFootprint | null;
 };
@@ -468,6 +498,79 @@ function buildWorldAtlasTransition(
     authority:
       "same retained atlas identities through presentation-only World-to-Atlas geometry; no locate, survey, admission, or distance authority",
   };
+}
+
+function buildAtlasLandscapeTransition(
+  regionalScenes: AdmittedRegionalProjection[],
+  focusId: string,
+): {
+  transition: TopologyAtlasLandscapeTransition;
+  terrain_field: TerrainFieldSet;
+} | null {
+  const selected = selectRegionalScene(regionalScenes, focusId);
+  const terrainField = compileRegionalTerrainField(
+    selected.scene,
+    TOPOLOGY_WORLD,
+  );
+  const atlasRevision = selected.scene.artifacts.admitted_atlas_revision;
+  if (!terrainField || !atlasRevision) return null;
+  const fragments = projectSemanticMercatorBounds(
+    `atlas-landscape:${selected.atlas_sector.sector_id}`,
+    {
+      ...selected.atlas_sector,
+      crosses_antimeridian: false,
+    },
+    semanticMercatorFrame(),
+  );
+  const point = projectSemanticMercator(
+    {
+      longitude_microdegrees:
+        selected.atlas_region.semantic_longitude_microdegrees,
+      latitude_microdegrees:
+        selected.atlas_region.semantic_latitude_microdegrees,
+    },
+    semanticMercatorFrame(),
+  );
+  const source =
+    fragments.find(
+      (fragment) =>
+        point.x >= fragment.x &&
+        point.x <= fragment.x + fragment.width &&
+        point.y >= fragment.y &&
+        point.y <= fragment.y + fragment.height,
+    ) ?? fragments[0];
+  if (!source)
+    throw new Error("Atlas-to-Landscape transition has no source fragment");
+  const sourceFrame = Object.freeze({
+    x: source.x,
+    y: source.y,
+    width: Math.max(1, source.width),
+    height: Math.max(1, source.height),
+  });
+  const targetFrame = Object.freeze({ ...terrainField.grid.bounds });
+  return Object.freeze({
+    transition: Object.freeze({
+      schema: "rey.atlas-landscape-transition.v1",
+      transition_id: [
+        "rey.atlas-landscape-transition.v1",
+        atlasRevision,
+        selected.scene.scene_id,
+        terrainField.field_set_id,
+        ATLAS_LANDSCAPE_PROJECTION_REVISION,
+        `${sourceFrame.x},${sourceFrame.y},${sourceFrame.width},${sourceFrame.height}`,
+        `${targetFrame.x},${targetFrame.y},${targetFrame.width},${targetFrame.height}`,
+      ].join("|"),
+      atlas_revision: atlasRevision,
+      scene_id: selected.scene.scene_id,
+      terrain_field_id: terrainField.field_set_id,
+      projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
+      source_frame: sourceFrame,
+      target_frame: targetFrame,
+      authority:
+        "reversible presentation mapping from one exact admitted synthetic Atlas sector to one exact admitted regional terrain field; it grants no geographic relationship between the coordinate spaces",
+    }),
+    terrain_field: terrainField,
+  });
 }
 
 function currentSemanticAtlasDelta(

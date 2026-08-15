@@ -73,6 +73,44 @@ describe("declarative React Three Fiber scenes", () => {
     await renderer.unmount();
   });
 
+  it("applies the bounded terrain model and orbit camera declaratively", async () => {
+    const fields = terrainFieldFixture();
+    const renderer = await create(
+      <ContinuousReliefScene
+        compiled={compileContinuousRelief([fields])}
+        view={{
+          world_width: 1500,
+          world_height: 1000,
+          viewport_width: 900,
+          viewport_height: 600,
+          rendered_scale: 2,
+          pan_x: 0,
+          pan_y: 0,
+          pitch_degrees: 35.26439,
+          yaw_degrees: 45,
+          model_transform: {
+            scale_x: 0.25,
+            scale_z: 0.2,
+            translate_x: 120,
+            translate_z: 160,
+            elevation_scale: 0.5,
+          },
+        }}
+        world={{ width: 1500, height: 1000 }}
+      />,
+    );
+    const terrain = renderer.scene.findByProps({
+      name: "rey-continuous-relief",
+    }).instance;
+    expect(terrain.position.toArray()).toEqual([120, 0, 160]);
+    expect(terrain.scale.toArray()).toEqual([0.25, 0.5, 0.2]);
+    const camera = renderer.scene.findByType("OrthographicCamera").instance;
+    expect(camera.position.x).not.toBe(750);
+    expect(camera.position.z).not.toBe(500);
+    expect(camera.rotation.x).not.toBeCloseTo(-Math.PI / 2);
+    await renderer.unmount();
+  });
+
   it("keeps globe evidence identities in named declarative objects", async () => {
     const globe = globeFixture();
     const renderer = await create(

@@ -74,9 +74,12 @@ TSL. It combines:
 - bounded roughness.
 
 `ContinuousReliefScene` shares the material across compiled meshes and adds
-warm and cool directional lights plus ambient fill. The accelerated camera is
-currently bounded, orthographic, and overhead. A unified bounded
-County-isometric 3D camera remains engine direction, not current package fact.
+warm and cool directional lights plus ambient fill. Its orthographic camera is
+a bounded target/orbit view: application-supplied pitch and yaw are clamped,
+screen-axis pan resolves to one ground target, and an optional model transform
+keeps the terrain attached during projection changes. R3F owns the declarative
+camera and terrain-group lifecycle; `@rey/agent` owns orbit interaction and the
+semantic projection curve.
 
 ## Tiling, Workers, And Residency
 
@@ -121,7 +124,9 @@ valid/no-data cells, then compiled it into this field contract. Terrain-control
 geometry never becomes observed elevation.
 
 The source regional field is currently one bounded in-memory grid rendered by
-an overhead orthographic terrain camera through a tiled accelerated working
-set. Native raster streaming, the bounded 3D County camera, and the reversible
-Atlas-to-Landscape transition remain application/engine work tracked by
+a bounded 3D orthographic terrain camera through a tiled accelerated working
+set. The application binds one selected synthetic Atlas sector to the exact
+regional field and drives the same reversible model transform through both
+accelerated and reference paths. Native raster streaming and additional
+geographic passes remain application/engine work tracked by
 [Plan 0005](../../../plans/0005-landscape-terrain.md).

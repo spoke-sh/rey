@@ -1,4 +1,5 @@
 import { KineticButton } from "@hifi/kinetic";
+import { terrainCameraProjection } from "@rey/explorer";
 import {
   useEffect,
   useLayoutEffect,
@@ -27,11 +28,14 @@ import {
   WORLD_LENS_ZOOM,
   clampLensZoom,
   DEFAULT_GLOBE_VIEW,
+  DEFAULT_TERRAIN_ORBIT,
   draggedGlobeView,
+  draggedTerrainOrbit,
   fitScaleForViewport,
   lensRegimeForZoom,
   panForFocusedPoint,
   panForScaleAtPoint,
+  panForTerrainTarget,
   pointerWithinRenderedGlobeAtmosphere,
   recenterWrappedChartPan,
   renderedSceneScale,
@@ -41,6 +45,7 @@ import {
   worldAtlasMorphProgress,
   type LensRegime,
   type GlobeCameraView,
+  type TerrainOrbitView,
 } from "./explore/engine/camera";
 import { LastGoodSceneCompiler } from "./explore/engine/scene";
 import { admittedTopographies } from "./explore/projection/topography-projector";
@@ -51,6 +56,11 @@ import {
   invertCountyScreen,
 } from "./explore/projection/county-frame";
 import { invertViewAlignedSemanticMercator } from "./explore/projection/semantic-mercator";
+import {
+  atlasLandscapeMorphProgress,
+  atlasLandscapePresentation,
+} from "./explore/projection/atlas-landscape";
+import { invertRegionalTerrainPosition } from "./explore/projection/regional-terrain";
 import {
   AcceleratedTerrainSurface,
   REFERENCE_TERRAIN_REPORT,
@@ -177,6 +187,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const animatedZoomRef = useRef<(zoom: number, client?: Point) => void>(
     () => undefined,
   );
+  const startWheelZoomRef = useRef<() => void>(() => undefined);
   const wheelAnimationFrameRef = useRef<number | null>(null);
   const wheelAnimationTimestampRef = useRef<number | null>(null);
   const wheelPointerRef = useRef<Point | undefined>(undefined);
@@ -186,8 +197,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         origin: Point;
         pan: Point;
         globeView: GlobeCameraView;
+        terrainOrbit: TerrainOrbitView;
         distance: number;
-        mode: "orbit" | "pan";
+        mode: "orbit" | "pan" | "terrain_orbit";
       }
     | undefined
   >(undefined);
@@ -204,6 +216,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [pan, setPan] = useState<Point>(zeroPoint);
   const [globeView, setGlobeView] =
     useState<GlobeCameraView>(DEFAULT_GLOBE_VIEW);
+  const [terrainOrbit, setTerrainOrbit] = useState<TerrainOrbitView>(
+    DEFAULT_TERRAIN_ORBIT,
+  );
   const [fitScale, setFitScale] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
   const [focusId, setFocusId] = useState(
@@ -242,6 +257,28 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const sceneProjection = measuredSceneProjection.projection;
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
+  const atlasLandscapeProgress = scene.atlas_landscape_transition
+    ? atlasLandscapeMorphProgress(zoom)
+    : scene.terrain
+      ? 1
+      : 0;
+  const terrainTargetFrame = scene.atlas_landscape_transition?.target_frame ??
+    scene.terrain_fields[0]?.grid.bounds ?? {
+      x: 0,
+      y: 0,
+      width: scene.world.width,
+      height: scene.world.height,
+    };
+  const landscapePresentation = atlasLandscapePresentation(
+    {
+      source_frame:
+        scene.atlas_landscape_transition?.source_frame ?? terrainTargetFrame,
+      target_frame: terrainTargetFrame,
+    },
+    atlasLandscapeProgress,
+    terrainOrbit,
+    scene.world,
+  );
   const projectionMorphProgress = worldAtlasMorphProgress(zoom);
   const projectionMorphActive =
     scene.world_atlas_transition !== null &&
@@ -272,6 +309,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     pan,
     renderedScale,
     globeView,
+    landscapePresentation,
   );
   const sourceRevisionKey = snapshot.source_revisions.join(",");
   const previousNoticeRegimeRef = useRef(regime);
@@ -487,9 +525,20 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         nextZoom,
         lensRegimeForZoom(nextZoom, regime),
       );
-      setPan(panForFocusedPoint(node, scene.world, nextScale));
+      setPan(
+        panForTerrainTarget(node, scene.world, nextScale, {
+          pitch_degrees: landscapePresentation.pitch_degrees,
+          yaw_degrees: landscapePresentation.yaw_degrees,
+        }),
+      );
     } else setPan(zeroPoint);
-    commitImmediateZoom(nextZoom);
+    if (
+      scene.regime === "atlas" &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    ) {
+      wheelTargetZoomRef.current = nextZoom;
+      startWheelZoomRef.current();
+    } else commitImmediateZoom(nextZoom);
   };
 
   const startWheelZoom = () => {
@@ -513,6 +562,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     };
     wheelAnimationFrameRef.current = window.requestAnimationFrame(animate);
   };
+  startWheelZoomRef.current = startWheelZoom;
 
   const handleWheel = (event: globalThis.WheelEvent) => {
     event.preventDefault();
@@ -561,21 +611,24 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     event.currentTarget.setPointerCapture(event.pointerId);
     const bounds = event.currentTarget.getBoundingClientRect();
     const mode =
-      scene.globe &&
-      pointerWithinRenderedGlobeAtmosphere(
-        { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
-        { width: bounds.width, height: bounds.height },
-        scene.world,
-        renderedScale,
-        pan,
-      )
-        ? "orbit"
-        : "pan";
+      (scene.terrain || scene.atlas_landscape_transition) && event.shiftKey
+        ? "terrain_orbit"
+        : scene.globe &&
+            pointerWithinRenderedGlobeAtmosphere(
+              { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
+              { width: bounds.width, height: bounds.height },
+              scene.world,
+              renderedScale,
+              pan,
+            )
+          ? "orbit"
+          : "pan";
     dragRef.current = {
       pointerId: event.pointerId,
       origin: { x: event.clientX, y: event.clientY },
       pan,
       globeView,
+      terrainOrbit,
       distance: 0,
       mode,
     };
@@ -592,6 +645,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     drag.distance = Math.hypot(delta.x, delta.y);
     if (drag.mode === "orbit")
       setGlobeView(draggedGlobeView(drag.globeView, delta));
+    else if (drag.mode === "terrain_orbit")
+      setTerrainOrbit(draggedTerrainOrbit(drag.terrainOrbit, delta));
     else {
       const nextPan = { x: drag.pan.x + delta.x, y: drag.pan.y + delta.y };
       setPan(
@@ -622,6 +677,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     commitImmediateZoom(nextZoom);
     setPan(zeroPoint);
     setGlobeView(DEFAULT_GLOBE_VIEW);
+    setTerrainOrbit(DEFAULT_TERRAIN_ORBIT);
     setFocusId("cluster:portfolio");
   };
 
@@ -696,7 +752,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         zoom={zoom}
       />
       <div
-        aria-label="Interactive context topology map. Drag the globe to orbit or the surrounding canvas to pan; use the mouse wheel or plus and minus keys to move through semantic lens levels."
+        aria-label="Interactive context topology map. Drag the globe to orbit or the surrounding canvas to pan; Shift-drag admitted terrain to orbit it; use the mouse wheel or plus and minus keys to move through semantic lens levels."
         className={sx(
           styles.canvasViewport,
           (scene.terrain || scene.county_frame) && styles.terrainViewport,
@@ -717,9 +773,24 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         data-camera-zoom={zoom}
         data-globe-pitch={scene.globe ? globeView.pitch_degrees : undefined}
         data-globe-yaw={scene.globe ? globeView.yaw_degrees : undefined}
+        data-terrain-pitch={
+          scene.terrain || scene.atlas_landscape_transition
+            ? landscapePresentation.pitch_degrees
+            : undefined
+        }
+        data-terrain-yaw={
+          scene.terrain || scene.atlas_landscape_transition
+            ? landscapePresentation.yaw_degrees
+            : undefined
+        }
       >
-        {scene.terrain && scene.globe === null ? (
+        {(scene.terrain ||
+          (scene.atlas_landscape_transition &&
+            landscapePresentation.terrain_opacity > 0)) &&
+        scene.globe === null ? (
           <AcceleratedTerrainSurface
+            canvasOpacity={landscapePresentation.terrain_opacity}
+            contentMode="terrain"
             onReport={setTerrainRenderer}
             renderVisibility={renderVisibility}
             snapshot={snapshot}
@@ -731,6 +802,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               rendered_scale: renderedScale,
               pan_x: pan.x,
               pan_y: pan.y,
+              pitch_degrees: landscapePresentation.pitch_degrees,
+              yaw_degrees: landscapePresentation.yaw_degrees,
+              model_transform: landscapePresentation.model_transform,
             }}
             visible={!projectionMorphActive}
           />
@@ -740,10 +814,18 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           style={sceneStyle}
         >
           {scene.globe ||
-          (scene.regime === "atlas" && scene.world_atlas_transition) ? (
+          (scene.world_atlas_transition &&
+            (scene.regime === "atlas" ||
+              landscapePresentation.atlas_opacity > 0)) ? (
             <AcceleratedTerrainSurface
+              canvasOpacity={landscapePresentation.atlas_opacity}
+              contentMode="globe"
               globeView={globeView}
-              onReport={setTerrainRenderer}
+              onReport={
+                landscapePresentation.terrain_opacity === 0
+                  ? setTerrainRenderer
+                  : () => undefined
+              }
               projectionMorphProgress={projectionMorphProgress}
               renderVisibility={renderVisibility}
               snapshot={snapshot}
@@ -761,6 +843,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           ) : null}
           <ReferenceRenderer
             accelerated={acceleratedReady}
+            atlasLandscapeMorphProgress={atlasLandscapeProgress}
+            atlasLandscapePresentation={landscapePresentation}
             globeView={globeView}
             layers={layers}
             onFocus={focusNode}
@@ -904,6 +988,10 @@ export function explorerGeographicCoordinate(
   pan: Point,
   renderedScale: number,
   globeView: GlobeCameraView,
+  terrainPresentation?: {
+    pitch_degrees: number;
+    yaw_degrees: number;
+  },
 ): ExplorerGeographicCoordinate | null {
   if (scene.globe) {
     return {
@@ -918,6 +1006,29 @@ export function explorerGeographicCoordinate(
     y: scene.world.height / 2 - pan.y / renderedScale,
   };
   if (scene.county_frame) {
+    if (scene.terrain) {
+      const camera = terrainCameraProjection(scene.world, {
+        world_width: scene.world.width,
+        world_height: scene.world.height,
+        viewport_width: scene.world.width,
+        viewport_height: scene.world.height,
+        rendered_scale: renderedScale,
+        pan_x: pan.x,
+        pan_y: pan.y,
+        pitch_degrees: terrainPresentation?.pitch_degrees,
+        yaw_degrees: terrainPresentation?.yaw_degrees,
+      });
+      const native = invertRegionalTerrainPosition(
+        scene.county_frame.source_bounds,
+        { x: camera.center_x, y: camera.center_y },
+        scene.world,
+      );
+      return {
+        latitude_degrees: native[1] / 1_000_000,
+        longitude_degrees: native[0] / 1_000_000,
+        authority: "native_crs84",
+      };
+    }
     const local = invertCountyScreen(
       scene.county_frame,
       cameraCenter,

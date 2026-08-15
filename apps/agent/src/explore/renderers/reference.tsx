@@ -52,6 +52,7 @@ import {
   pickSceneNode,
   type ScenePickingIndex,
 } from "../engine/picking";
+import type { AtlasLandscapePresentation } from "../projection/atlas-landscape";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -79,6 +80,8 @@ export function ReferenceRenderer({
   projectionMorphProgress = scene.regime === "world" ? 0 : 1,
   renderGraph,
   pickingIndex,
+  atlasLandscapeMorphProgress = scene.terrain ? 1 : 0,
+  atlasLandscapePresentation,
 }: {
   accelerated?: boolean;
   layers: ReferenceLayerVisibility;
@@ -88,6 +91,8 @@ export function ReferenceRenderer({
   projectionMorphProgress?: number;
   renderGraph?: ExplorerRenderGraph;
   pickingIndex?: ScenePickingIndex;
+  atlasLandscapeMorphProgress?: number;
+  atlasLandscapePresentation?: AtlasLandscapePresentation;
 }) {
   const activeRenderGraph = renderGraph ?? compileExplorerRenderGraph(scene);
   const activeRenderPasses = activeExplorerRenderPasses(activeRenderGraph, {
@@ -154,6 +159,16 @@ export function ReferenceRenderer({
       data-render-graph={activeRenderGraph.graph_id}
       data-render-passes={activeRenderPasses.map(({ id }) => id).join(",")}
       data-renderer={accelerated ? "reference-overlays" : "reference"}
+      data-atlas-landscape-progress={atlasLandscapeMorphProgress}
+      style={
+        scene.terrain && atlasLandscapePresentation
+          ? {
+              opacity: atlasLandscapePresentation.terrain_opacity,
+              transform: atlasLandscapePresentation.css_transform,
+              transformOrigin: "0 0",
+            }
+          : undefined
+      }
     >
       {!globeWorld &&
         !morphActive &&
@@ -188,7 +203,9 @@ export function ReferenceRenderer({
           )),
         )}
       <CountyFootprintLayer scene={scene} />
-      {!accelerated ? <AdmittedTerrainFieldLayer scene={scene} /> : null}
+      {!accelerated && scene.terrain ? (
+        <AdmittedTerrainFieldLayer scene={scene} />
+      ) : null}
       <CountyFeatureLayer onFocus={onFocus} scene={scene} />
       {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer

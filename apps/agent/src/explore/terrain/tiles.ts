@@ -579,13 +579,32 @@ function validityBorder(
 
 function visibleTerrainBounds(view: TerrainCameraView): FieldBounds {
   const scale = Math.max(0.000_001, view.rendered_scale);
-  const width = view.viewport_width / scale;
-  const height = view.viewport_height / scale;
+  const pitch =
+    (Math.max(22, Math.min(90, view.pitch_degrees ?? 90)) * Math.PI) / 180;
+  const yaw =
+    (Math.max(-180, Math.min(180, view.yaw_degrees ?? 0)) * Math.PI) / 180;
+  const panX = view.pan_x / scale;
+  const panY = view.pan_y / (scale * Math.max(0.2, Math.sin(pitch)));
+  const centerX =
+    view.world_width / 2 - panX * Math.cos(yaw) - panY * Math.sin(yaw);
+  const centerY =
+    view.world_height / 2 + panX * Math.sin(yaw) - panY * Math.cos(yaw);
+  const halfScreenWidth = view.viewport_width / scale / 2;
+  const halfScreenHeight =
+    view.viewport_height / scale / Math.max(0.2, Math.sin(pitch)) / 2;
+  const halfWidth =
+    Math.abs(Math.cos(yaw)) * halfScreenWidth +
+    Math.abs(Math.sin(yaw)) * halfScreenHeight;
+  const halfHeight =
+    Math.abs(Math.sin(yaw)) * halfScreenWidth +
+    Math.abs(Math.cos(yaw)) * halfScreenHeight;
+  const width = halfWidth * 2;
+  const height = halfHeight * 2;
   const overscanX = width * 0.125;
   const overscanY = height * 0.125;
   return {
-    x: view.world_width / 2 - view.pan_x / scale - width / 2 - overscanX,
-    y: view.world_height / 2 - view.pan_y / scale - height / 2 - overscanY,
+    x: centerX - width / 2 - overscanX,
+    y: centerY - height / 2 - overscanY,
     width: width + overscanX * 2,
     height: height + overscanY * 2,
   };

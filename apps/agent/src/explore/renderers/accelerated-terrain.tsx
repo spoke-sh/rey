@@ -125,6 +125,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
 interface ResolvedTerrainCompilation {
   job_id: string;
   snapshot_id: string;
+  source_key: string;
   result: TerrainCompilationResult;
   fields: TerrainCompilationResult["fields"];
   compiled: TerrainCompilationResult["compiled"];
@@ -150,6 +151,8 @@ export function AcceleratedTerrainSurface({
   renderVisibility,
   globeView = { yaw_degrees: 0, pitch_degrees: 0 },
   projectionMorphProgress = 0,
+  contentMode = "auto",
+  canvasOpacity = 1,
 }: {
   onReport: (report: AcceleratedTerrainReport) => void;
   snapshot: SceneSnapshot;
@@ -158,6 +161,8 @@ export function AcceleratedTerrainSurface({
   renderVisibility: ExplorerRenderVisibility;
   globeView?: GlobeCameraView;
   projectionMorphProgress?: number;
+  contentMode?: "auto" | "globe" | "terrain";
+  canvasOpacity?: number;
 }) {
   const workerClientRef = useRef<TerrainCompilationWorkerClient | null>(null);
   const residencyRef = useRef<TerrainTileResidency | null>(null);
@@ -188,9 +193,15 @@ export function AcceleratedTerrainSurface({
       ? retainedTransitionGlobeRef.current.globe
       : null;
   const semanticGlobe = useMemo(() => {
+    if (contentMode === "terrain") return null;
     if (snapshot.scene.regime === "world") return snapshot.scene.globe;
     const transition = snapshot.scene.world_atlas_transition;
-    if (snapshot.scene.regime !== "atlas" || !transition) return null;
+    if (
+      (snapshot.scene.regime !== "atlas" &&
+        !snapshot.scene.atlas_landscape_transition) ||
+      !transition
+    )
+      return null;
     if (retainedTransitionGlobe) return retainedTransitionGlobe;
     return {
       schema: "rey.semantic-globe-scene.v1" as const,
@@ -214,7 +225,7 @@ export function AcceleratedTerrainSurface({
       })),
       beacons: [],
     };
-  }, [retainedTransitionGlobe, snapshot.scene]);
+  }, [contentMode, retainedTransitionGlobe, snapshot.scene]);
   const projectionGlobe = useMemo(
     () =>
       semanticGlobe
@@ -273,6 +284,13 @@ export function AcceleratedTerrainSurface({
       view.pan_x,
       view.pan_y,
       view.rendered_scale,
+      view.pitch_degrees,
+      view.yaw_degrees,
+      view.model_transform?.elevation_scale,
+      view.model_transform?.scale_x,
+      view.model_transform?.scale_z,
+      view.model_transform?.translate_x,
+      view.model_transform?.translate_z,
       view.viewport_height,
       view.viewport_width,
     ],
@@ -280,12 +298,26 @@ export function AcceleratedTerrainSurface({
   const workingSetRevision = workingSetRequests
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
+  const terrainSourceKey = [
+    ...snapshot.scene.terrain_fields.map((field) => field.field_set_id),
+    ...snapshot.scene.terrain_programs.map((program) => program.program_id),
+  ]
+    .sort((left, right) => left.localeCompare(right))
+    .join("|");
   const terrainCompilationView = useMemo(
     () => ({
       ...view,
       rendered_scale: 2 ** (Math.round(Math.log2(view.rendered_scale) * 8) / 8),
       pan_x: Math.round(view.pan_x / 32) * 32,
       pan_y: Math.round(view.pan_y / 32) * 32,
+      pitch_degrees:
+        view.pitch_degrees === undefined
+          ? undefined
+          : Math.round(view.pitch_degrees / 3) * 3,
+      yaw_degrees:
+        view.yaw_degrees === undefined
+          ? undefined
+          : Math.round(view.yaw_degrees / 4) * 4,
     }),
     [
       view.pan_x,
@@ -304,6 +336,8 @@ export function AcceleratedTerrainSurface({
     terrainCompilationView.rendered_scale,
     terrainCompilationView.pan_x,
     terrainCompilationView.pan_y,
+    terrainCompilationView.pitch_degrees ?? 90,
+    terrainCompilationView.yaw_degrees ?? 0,
   ].join("|");
   const [resolvedTerrain, setResolvedTerrain] =
     useState<ResolvedTerrainCompilation | null>(null);
@@ -367,6 +401,7 @@ export function AcceleratedTerrainSurface({
         setResolvedTerrain({
           job_id: terrainJobId,
           snapshot_id: snapshot.snapshot_id,
+          source_key: terrainSourceKey,
           result,
           fields,
           compiled,
@@ -382,7 +417,7 @@ export function AcceleratedTerrainSurface({
     return () => abort.abort();
   }, [semanticGlobe, snapshot.snapshot_id, terrainJobId, workingSetRevision]);
   const activeTerrain =
-    !semanticGlobe && resolvedTerrain?.snapshot_id === snapshot.snapshot_id
+    !semanticGlobe && resolvedTerrain?.source_key === terrainSourceKey
       ? resolvedTerrain
       : null;
   const fieldProjection = useMemo(() => {
@@ -471,7 +506,7 @@ export function AcceleratedTerrainSurface({
     snapshot_id: snapshot.snapshot_id,
     camera_revision: semanticGlobe
       ? `orthographic-globe:${globeView.yaw_degrees}:${globeView.pitch_degrees}:${projectionMorphProgress}`
-      : `orthographic:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}`,
+      : `terrain-orbit:${view.viewport_width}x${view.viewport_height}:${view.rendered_scale}:${view.pan_x}:${view.pan_y}:${view.pitch_degrees ?? 90}:${view.yaw_degrees ?? 0}:${view.model_transform ? Object.values(view.model_transform).join(":") : "identity"}`,
     material_revision: materialRevision,
     render_graph_id: snapshot.render_graph.graph_id,
   };
@@ -552,6 +587,7 @@ export function AcceleratedTerrainSurface({
       content={content}
       frame={frame}
       onReport={completeReport}
+      opacity={canvasOpacity}
       preference={preference}
       readyClassName={sx(styles.acceleratedTerrainCanvasReady)}
       visible={visible}

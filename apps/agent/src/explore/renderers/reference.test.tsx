@@ -77,6 +77,7 @@ const terrainScene = {
   terrain_programs: [],
   globe: null,
   world_atlas_transition: null,
+  atlas_landscape_transition: null,
   county_frame: null,
   county_footprint: null,
 } satisfies TopologyScene;
