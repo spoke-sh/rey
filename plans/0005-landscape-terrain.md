@@ -94,6 +94,19 @@ WebGPU; the performance aggregator enforces their ceilings. The harness never
 injects a synthetic scene: each named workload must be separately admitted and
 then selected with `--landscape-workload`.
 
+The first source-controlled input is a 3×3 explicit-hole grid. It has been
+admitted through `rey editor` and the qualified `scene-admission` workload,
+then traversed through World → Atlas → Landscape → Objects → Evidence in a
+1920×1080 fulfilled-transport reference voyage and its WebGL2 counterpart.
+Those voyages retained eight valid vertices, one no-data vertex, zero leaked
+triangles, zero seam mismatches, bounded residency, exact dataset/compiler
+lineage, and all semantic-stage snapshots. The corresponding software-WebGPU
+voyage remains a retained failure: renderer starvation can still skip the
+required exit-dissolve samples. These runs close two
+workload/backend/viewport rows only; fulfilled transport exercises the
+disclosed main-thread fallback and cannot close direct networking or
+dedicated-worker coverage.
+
 ## Delivery Sequence
 
 ### 1. Admit one bounded regional elevation dataset

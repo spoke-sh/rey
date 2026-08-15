@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
 import {
   evaluateLandscapeCapture,
   landscapeWorkload,
@@ -52,6 +53,47 @@ const capture = {
 };
 
 describe("Landscape browser workload qualification", () => {
+  it("retains a reproducible row-major explicit-hole source fixture", async () => {
+    const document = JSON.parse(
+      await readFile(
+        new URL(
+          "../qualification/fixtures/explicit-holes-terrain.geojson",
+          import.meta.url,
+        ),
+      ),
+    );
+    const cells = document.features.map((feature) => ({
+      column: feature.properties.terrain_grid_column,
+      coordinates: feature.geometry.coordinates,
+      row: feature.properties.terrain_grid_row,
+      validity: feature.properties.terrain_grid_validity,
+    }));
+
+    expect(cells).toHaveLength(9);
+    expect(cells.map(({ column, row }) => `${row}:${column}`)).toEqual([
+      "0:0",
+      "0:1",
+      "0:2",
+      "1:0",
+      "1:1",
+      "1:2",
+      "2:0",
+      "2:1",
+      "2:2",
+    ]);
+    expect(cells.filter(({ validity }) => validity === "valid")).toHaveLength(
+      8,
+    );
+    expect(cells.filter(({ validity }) => validity === "no_data")).toEqual([
+      {
+        column: 1,
+        coordinates: [-122.5, 37.5],
+        row: 1,
+        validity: "no_data",
+      },
+    ]);
+  });
+
   it("selects one named workload only at a target viewport", () => {
     expect(validateLandscapeWorkloadSuite(suite)).toBe(suite);
     expect(landscapeWorkload(suite, "holes", "1920x1080").id).toBe("holes");

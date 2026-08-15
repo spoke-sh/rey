@@ -369,7 +369,10 @@ manifest plus exact PNG digests beneath ignored
 the admitted region and uses real wheel input to sample the view-aligned
 unfurl. The voyage requires distinct intermediate projection frames and a
 retained nonzero Atlas view offset, so correct endpoints cannot conceal a
-twisted transition. Repeat the named voyage for `webgpu`, `webgl2`, and
+twisted transition. Entry and exit dissolve samples run inside the browser's
+animation-frame loop; synchronous screenshot readback is not treated as camera
+cadence because accelerated readback can outlive the transition. Repeat the
+named voyage for `webgpu`, `webgl2`, and
 `reference` at both required viewports. The manifest binds the admitted region,
 atlas and workload inputs, machine/browser identity, requested and observed
 backend, scene/focus/source/compiler lineage, render passes, bounded GPU/source
@@ -392,9 +395,11 @@ Direct browser HTTP is the default transport. A socket-restricted execution
 environment may add `--transport fulfilled`; that posture runs the exact built
 JS/CSS assets in Chrome and supplies only the bounded root-loader GET documents
 read from the named `rey agent` origin through a local-file bootstrap. The
-manifest discloses that it did not exercise direct browser networking. Such a
-voyage remains useful for rendering and interaction qualification but cannot
-close a direct-transport claim.
+manifest discloses that it did not exercise direct browser networking. Because
+module workers cannot load from that file-origin bootstrap, the posture also
+exercises and discloses the bounded main-thread terrain fallback. Such a voyage
+remains useful for rendering and interaction qualification but cannot close
+direct-transport or dedicated-worker claims.
 
 Add `--revalidation attention` to one fulfilled reference voyage to supply a
 two-document workload sequence: the exact initial document followed by one

@@ -1,0 +1,130 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "cell-0-0",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 0,
+        "terrain_grid_row": 0,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.75, 37.75, 100] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-0-1",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 1,
+        "terrain_grid_row": 0,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.5, 37.75, 118] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-0-2",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 2,
+        "terrain_grid_row": 0,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.25, 37.75, 136] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-1-0",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 0,
+        "terrain_grid_row": 1,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.75, 37.5, 132] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-1-1",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 1,
+        "terrain_grid_row": 1,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "no_data"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.5, 37.5] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-1-2",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 2,
+        "terrain_grid_row": 1,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.25, 37.5, 168] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-2-0",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 0,
+        "terrain_grid_row": 2,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.75, 37.25, 164] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-2-1",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 1,
+        "terrain_grid_row": 2,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.5, 37.25, 182] }
+    },
+    {
+      "type": "Feature",
+      "id": "cell-2-2",
+      "properties": {
+        "terrain_grid_id": "explicit-holes-dem",
+        "terrain_grid_column": 2,
+        "terrain_grid_row": 2,
+        "terrain_grid_columns": 3,
+        "terrain_grid_rows": 3,
+        "terrain_grid_validity": "valid",
+        "material": "granite"
+      },
+      "geometry": { "type": "Point", "coordinates": [-122.25, 37.25, 200] }
+    }
+  ]
+}
