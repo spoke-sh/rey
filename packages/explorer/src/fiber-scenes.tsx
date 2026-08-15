@@ -1,5 +1,6 @@
 import { extend, useThree } from "@react-three/fiber";
 import {
+  AdditiveBlending,
   AlwaysStencilFunc,
   AmbientLight,
   BackSide,
@@ -87,6 +88,11 @@ extend({
 
 const SURFACE_NORMAL = new Vector3(0, 0, 1);
 const MERCATOR_STIPPLE_OPACITY_SCALE = 0.36;
+const GLOBE_ATMOSPHERE_LAYERS = [
+  { radius: GLOBE_RADIUS * 1.035, color: 0xffd977, opacity: 0.17 },
+  { radius: GLOBE_RADIUS * 1.068, color: 0xfff0bd, opacity: 0.15 },
+  { radius: GLOBE_RADIUS * 1.11, color: 0xf4dfa5, opacity: 0.09 },
+] as const;
 
 interface GlobeRepeatProjectionCache {
   readonly matrices: Float32Array;
@@ -431,11 +437,6 @@ function GlobeAtmosphere({
   const opacity = globeAtmosphereOpacity(progress);
   const repeatGlowOpacity = globeAtmosphereRepeatOpacity(progress);
   const shellScale = globeAtmosphereShellScale(progress);
-  const layers = [
-    { radius: GLOBE_RADIUS * 1.018, color: 0xf2dc9a, opacity: 0.24 },
-    { radius: GLOBE_RADIUS * 1.045, color: 0xf7edd7, opacity: 0.13 },
-    { radius: GLOBE_RADIUS * 1.082, color: 0x6f9188, opacity: 0.04 },
-  ];
   return (
     <>
       <AtmosphereStencilMask
@@ -443,7 +444,7 @@ function GlobeAtmosphere({
         name="context-globe-atmosphere-mask"
         visible={opacity > 0}
       />
-      {layers.map((layer, index) => (
+      {GLOBE_ATMOSPHERE_LAYERS.map((layer, index) => (
         <ProjectedAtmosphereLayer
           color={layer.color}
           geometry={geometry}
@@ -466,7 +467,7 @@ function GlobeAtmosphere({
             name={`context-globe-atmosphere-mask:wrap:${wrapIndex}`}
             visible={repeatGlowOpacity > 0}
           />
-          {layers.map((layer, index) => (
+          {GLOBE_ATMOSPHERE_LAYERS.map((layer, index) => (
             <ProjectedAtmosphereLayer
               color={layer.color}
               geometry={geometry}
@@ -533,7 +534,11 @@ function ProjectedAtmosphereLayer({
 }) {
   const materialState = useMemo(() => {
     const shellOffsetNode = uniform(0);
+    const opacityNode = uniform(0);
+    const falloffLimitNode = uniform(1);
+    const sphereNormal = attribute<"vec3">("reySphereNormal", "vec3");
     const material = new MeshBasicNodeMaterial({
+      blending: AdditiveBlending,
       color,
       depthWrite: false,
       opacity: 0,
@@ -541,7 +546,11 @@ function ProjectedAtmosphereLayer({
       transparent: true,
     });
     material.positionNode = positionLocal.add(
-      attribute<"vec3">("reySphereNormal", "vec3").mul(shellOffsetNode),
+      sphereNormal.mul(shellOffsetNode),
+    );
+    material.opacityNode = mul(
+      opacityNode,
+      smoothstep(float(0), falloffLimitNode, sphereNormal.z.abs()),
     );
     material.stencilWrite = true;
     material.stencilRef = 1;
@@ -549,12 +558,18 @@ function ProjectedAtmosphereLayer({
     material.stencilFail = KeepStencilOp;
     material.stencilZFail = KeepStencilOp;
     material.stencilZPass = KeepStencilOp;
-    return { material, shellOffsetNode };
+    return { falloffLimitNode, material, opacityNode, shellOffsetNode };
   }, [color]);
   const material = materialState.material;
   useLayoutEffect(() => {
     material.opacity = opacity;
+    materialState.opacityNode.value = opacity;
     materialState.shellOffsetNode.value = shellOffset;
+    const shellRadius = GLOBE_RADIUS + shellOffset;
+    materialState.falloffLimitNode.value = Math.max(
+      0.0001,
+      Math.sqrt(Math.max(0, 1 - (GLOBE_RADIUS / shellRadius) ** 2)),
+    );
   }, [material, materialState, opacity, shellOffset]);
   useEffect(() => () => material.dispose(), [material]);
   return (

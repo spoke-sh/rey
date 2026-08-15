@@ -81,19 +81,24 @@ spherical posture while opacity follows its square, so geometry can retain a
 soft exterior outline without carrying bright light into the planar posture.
 The radial attribute keeps the halo visible in screen space even while the
 projected surface normal still points toward the camera. Each layer renders
-its rear shell face; globe depth masks
+its rear shell face and derives fragment opacity from a smoothstep over the
+retained spherical normal. The falloff is normalized to the layer's live shell
+extent, including while that extent shrinks, so every layer reaches zero before
+its outer silhouette instead of ending at a constant-opacity ring. Globe depth masks
 the interior at the spherical endpoint. During intermediate postures, a
 colorless double-sided silhouette pass writes one stencil value for the live
 canonical and wrapped projections, and every atmosphere layer accepts only
 pixels outside that union. This leaves a clear rim without tinting the surface
-or drawing an atmosphere band across Mercator. A saturated muted-yellow inner
-shell and pale-yellow middle shell restore the warm glow, while a low-opacity
-green outer shell lets it fall back into the canvas. The same progress value
-now produces the same shell extent and opacity while entering or exiting
-Atlas. Every band retains its settled color and relative opacity, so reversing
-the wheel cannot switch visual modes, jump toward full brightness, overshoot
-the final extent, or introduce an independently scaled sphere inside the wider
-projection.
+or drawing an atmosphere band across Mercator. A clear warm-yellow inner shell,
+pale gold middle shell, and cream outer shell overlap across widening radii to
+create a continuous warm falloff without the prior dark green edge or visible
+brightness steps. The bands use additive blending so
+they emit a luminous yellow rim instead of reading as translucent pigment over
+the gray canvas. The same progress value now produces the same shell extent and
+opacity while entering or exiting Atlas. Every band retains its settled color
+and relative opacity, so reversing the wheel cannot switch visual modes, jump
+toward full brightness, overshoot the final extent, or introduce an
+independently scaled sphere inside the wider projection.
 
 The indexed globe body uses neutral ambient and directional light. Warm light
 belongs to the exterior atmosphere bands only; returning surface opacity cannot

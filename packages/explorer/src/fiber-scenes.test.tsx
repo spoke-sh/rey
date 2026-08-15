@@ -1,5 +1,6 @@
 import { create } from "@react-three/test-renderer";
 import {
+  AdditiveBlending,
   BackSide,
   Color,
   DirectionalLight,
@@ -413,7 +414,13 @@ describe("declarative React Three Fiber scenes", () => {
     expect(
       (atmosphere.material as MeshBasicNodeMaterial).positionNode,
     ).not.toBeNull();
+    expect(
+      (atmosphere.material as MeshBasicNodeMaterial).opacityNode,
+    ).not.toBeNull();
     expect((atmosphere.material as MeshBasicNodeMaterial).side).toBe(BackSide);
+    expect((atmosphere.material as MeshBasicNodeMaterial).blending).toBe(
+      AdditiveBlending,
+    );
     expect((atmosphere.material as MeshBasicNodeMaterial).stencilFunc).toBe(
       NotEqualStencilFunc,
     );
@@ -425,9 +432,15 @@ describe("declarative React Three Fiber scenes", () => {
     ).toBe(true);
     expect(
       (warmAtmosphere.material as MeshBasicNodeMaterial).color.getHex(),
-    ).toBe(0xf7edd7);
+    ).toBe(0xfff0bd);
+    expect((atmosphere.material as MeshBasicNodeMaterial).color.getHex()).toBe(
+      0xffd977,
+    );
+    expect(
+      (outerAtmosphere.material as MeshBasicNodeMaterial).color.getHex(),
+    ).toBe(0xf4dfa5);
     expect((atmosphere.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
-      0.24 * 0.25,
+      0.17 * 0.25,
     );
 
     await renderer.update(
@@ -448,7 +461,7 @@ describe("declarative React Three Fiber scenes", () => {
     expect(updatedAtmosphere.material).toBe(atmosphereMaterial);
     expect(
       (updatedAtmosphere.material as MeshBasicNodeMaterial).opacity,
-    ).toBeCloseTo(0.24 * 0.42525 ** 2);
+    ).toBeCloseTo(0.17 * 0.42525 ** 2);
 
     await renderer.update(
       <ContextGlobeScene
@@ -468,14 +481,14 @@ describe("declarative React Three Fiber scenes", () => {
     expect(closingAtmosphere.material).toBe(atmosphereMaterial);
     expect(
       (closingAtmosphere.material as MeshBasicNodeMaterial).opacity,
-    ).toBeCloseTo(0.24 * 0.25);
+    ).toBeCloseTo(0.17 * 0.25);
     const closingOuterAtmosphere = renderer.scene.findByProps({
       name: "context-globe-atmosphere:2",
     }).instance as Mesh;
     expect(closingOuterAtmosphere.material).toBe(outerAtmosphereMaterial);
     expect(
       (closingOuterAtmosphere.material as MeshBasicNodeMaterial).opacity,
-    ).toBeCloseTo(0.04 * 0.25);
+    ).toBeCloseTo(0.09 * 0.25);
 
     await renderer.update(
       <ContextGlobeScene
@@ -505,7 +518,7 @@ describe("declarative React Three Fiber scenes", () => {
     expect(closingRepeatedAtmosphere.geometry).toBe(atmosphereGeometry);
     expect(
       (closingRepeatedAtmosphere.material as MeshBasicNodeMaterial).opacity,
-    ).toBeCloseTo(0.24 * globeAtmosphereRepeatOpacity(0.79));
+    ).toBeCloseTo(0.17 * globeAtmosphereRepeatOpacity(0.79));
 
     await renderer.unmount();
   });
