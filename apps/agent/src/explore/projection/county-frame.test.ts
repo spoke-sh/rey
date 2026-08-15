@@ -9,6 +9,7 @@ import {
   nativeBoundsToCountyLocal,
   projectCountyFootprint,
   projectCountyLocal,
+  regionalBoundsCenter,
 } from "./county-frame";
 
 const scene = {
@@ -92,6 +93,27 @@ const scene = {
 } as unknown as AdmittedRegionalScene;
 
 describe("County-local frame", () => {
+  it("matches Rust integer division for odd microdegree spans", () => {
+    expect(
+      regionalBoundsCenter({
+        west_microdegrees: -122_750_000,
+        south_microdegrees: 37_250_000,
+        east_microdegrees: -122_250_000,
+        north_microdegrees: 37_784_437,
+        crosses_antimeridian: false,
+      }),
+    ).toEqual([-122_500_000, 37_517_218]);
+    expect(
+      regionalBoundsCenter({
+        west_microdegrees: -180_000_000,
+        south_microdegrees: -5,
+        east_microdegrees: -179_999_999,
+        north_microdegrees: 0,
+        crosses_antimeridian: false,
+      }),
+    ).toEqual([-179_999_999, -2]);
+  });
+
   it("binds the exact native envelope origin and round-trips its plane", () => {
     const frame = compileCountyFrame(scene);
     const local = nativeBoundsToCountyLocal(frame, {

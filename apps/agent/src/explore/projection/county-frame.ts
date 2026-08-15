@@ -317,11 +317,11 @@ export function regionalBoundsCenter(
   const east = bounds.crosses_antimeridian
     ? bounds.east_microdegrees + 360_000_000
     : bounds.east_microdegrees;
-  let longitude = (bounds.west_microdegrees + east) / 2;
+  let longitude = Math.trunc((bounds.west_microdegrees + east) / 2);
   if (longitude > 180_000_000) longitude -= 360_000_000;
   return Object.freeze([
     longitude,
-    (bounds.south_microdegrees + bounds.north_microdegrees) / 2,
+    Math.trunc((bounds.south_microdegrees + bounds.north_microdegrees) / 2),
   ]);
 }
 
