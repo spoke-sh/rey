@@ -162,7 +162,8 @@ export interface RegionalProjectionPacket {
     rule: string;
   }>;
   terrain?: {
-    schema: "rey.regional-terrain-program.v1";
+    schema:
+      "rey.regional-terrain-program.v1" | "rey.regional-terrain-program.v2";
     program_id: string;
     evaluator: ContractIdentity;
     samples: Array<{
@@ -174,6 +175,29 @@ export interface RegionalProjectionPacket {
       material: string;
       authority: string;
     }>;
+    grid?: {
+      schema: "rey.regional-terrain-grid.v1";
+      dataset_id: string;
+      source_dataset_id: string;
+      columns: number;
+      rows: number;
+      native_bounds: RegionalBounds;
+      cells: Array<{
+        cell_id: string;
+        source_object_id: string;
+        source_artifact_id: string;
+        source_object_revision: string;
+        grid_position: [number, number];
+        native_position: [number, number];
+        elevation_micrometers: number | null;
+        material: string | null;
+        validity: "valid" | "no_data";
+        authority: string;
+      }>;
+      validity_semantics: string;
+      interpolation: string;
+      authority: string;
+    };
     height_unit: "micrometer";
     interpolation: string;
     material_semantics: string;

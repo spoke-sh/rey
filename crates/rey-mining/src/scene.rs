@@ -9,6 +9,8 @@ use crate::{ExplorerGrammar, ExplorerGrammarError};
 pub const ADMITTED_REGIONAL_SCENE_SCHEMA: &str = "rey.admitted-regional-scene.v1";
 pub const REGIONAL_PROJECTION_PACKET_SCHEMA: &str = "rey.regional-projection-packet.v1";
 pub const REGIONAL_TERRAIN_PROGRAM_SCHEMA: &str = "rey.regional-terrain-program.v1";
+pub const REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA: &str = "rey.regional-terrain-program.v2";
+pub const REGIONAL_TERRAIN_GRID_SCHEMA: &str = "rey.regional-terrain-grid.v1";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -99,11 +101,166 @@ pub struct RegionalTerrainSample {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RegionalTerrainGridCell {
+    pub cell_id: SemanticDigest,
+    pub source_object_id: String,
+    pub source_artifact_id: SemanticDigest,
+    pub source_object_revision: SemanticDigest,
+    pub grid_position: [u64; 2],
+    pub native_position: [i64; 2],
+    pub elevation_micrometers: Option<i64>,
+    pub material: Option<String>,
+    pub validity: RegionalValidityClass,
+    pub authority: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegionalTerrainGrid {
+    pub schema: String,
+    pub dataset_id: SemanticDigest,
+    pub source_dataset_id: String,
+    pub columns: u64,
+    pub rows: u64,
+    pub native_bounds: RegionalBounds,
+    pub cells: Vec<RegionalTerrainGridCell>,
+    pub validity_semantics: String,
+    pub interpolation: String,
+    pub authority: String,
+}
+
+impl RegionalTerrainGrid {
+    pub fn finalize(mut self) -> Result<Self, RegionalSceneError> {
+        for cell in &mut self.cells {
+            cell.cell_id = regional_terrain_grid_cell_digest(cell)?;
+        }
+        self.dataset_id = regional_terrain_grid_digest(&self)?;
+        self.verify()?;
+        Ok(self)
+    }
+
+    pub fn verify(&self) -> Result<(), RegionalSceneError> {
+        validate_identifier(&self.source_dataset_id)?;
+        validate_bounds(&self.native_bounds)?;
+        let expected_cells = self
+            .columns
+            .checked_mul(self.rows)
+            .ok_or(RegionalSceneError::TerrainAuthority)?;
+        if self.schema != REGIONAL_TERRAIN_GRID_SCHEMA
+            || self.columns < 2
+            || self.rows < 2
+            || self.native_bounds.crosses_antimeridian
+            || self.native_bounds.west_microdegrees >= self.native_bounds.east_microdegrees
+            || self.native_bounds.south_microdegrees >= self.native_bounds.north_microdegrees
+            || self.cells.len() as u64 != expected_cells
+            || self.validity_semantics
+                != "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
+            || self.interpolation
+                != "piecewise linear only within triangles whose three admitted source vertices are valid"
+            || self.authority
+                != "qualified rectilinear height/material grid; validity ends at supported source triangles"
+            || self.dataset_id != regional_terrain_grid_digest(self)?
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        let longitude_span =
+            i128::from(self.native_bounds.east_microdegrees - self.native_bounds.west_microdegrees);
+        let latitude_span = i128::from(
+            self.native_bounds.north_microdegrees - self.native_bounds.south_microdegrees,
+        );
+        let column_divisor = i128::from(self.columns - 1);
+        let row_divisor = i128::from(self.rows - 1);
+        if longitude_span % column_divisor != 0 || latitude_span % row_divisor != 0 {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        let longitude_step = longitude_span / column_divisor;
+        let latitude_step = latitude_span / row_divisor;
+        unique(
+            self.cells.iter().map(|cell| cell.cell_id.as_str()),
+            "terrain grid cell",
+        )?;
+        unique(
+            self.cells.iter().map(|cell| cell.source_object_id.as_str()),
+            "terrain grid source object",
+        )?;
+        let source_artifact_id = self
+            .cells
+            .first()
+            .map(|cell| &cell.source_artifact_id)
+            .ok_or(RegionalSceneError::TerrainAuthority)?;
+        let mut has_valid_triangle = false;
+        for (index, cell) in self.cells.iter().enumerate() {
+            let expected_column = index as u64 % self.columns;
+            let expected_row = index as u64 / self.columns;
+            let expected_longitude = i128::from(self.native_bounds.west_microdegrees)
+                + i128::from(expected_column) * longitude_step;
+            let expected_latitude = i128::from(self.native_bounds.north_microdegrees)
+                - i128::from(expected_row) * latitude_step;
+            validate_identifier_path(&cell.source_object_id)?;
+            if cell.grid_position != [expected_column, expected_row]
+                || i128::from(cell.native_position[0]) != expected_longitude
+                || i128::from(cell.native_position[1]) != expected_latitude
+                || &cell.source_artifact_id != source_artifact_id
+                || cell.cell_id != regional_terrain_grid_cell_digest(cell)?
+            {
+                return Err(RegionalSceneError::TerrainAuthority);
+            }
+            match cell.validity {
+                RegionalValidityClass::Valid
+                    if cell.elevation_micrometers.is_some_and(|height| {
+                        (-12_000_000_000..=100_000_000_000).contains(&height)
+                    }) && cell.material.as_ref().is_some_and(|material| {
+                        !material.is_empty()
+                            && material.chars().count() <= 64
+                            && material.chars().all(|character| {
+                                character.is_ascii_alphanumeric()
+                                    || matches!(character, '-' | '_' | '.')
+                            })
+                    }) && cell.authority
+                        == "exact admitted Point altitude and material at one valid grid vertex" => {
+                }
+                RegionalValidityClass::NoData
+                    if cell.elevation_micrometers.is_none()
+                        && cell.material.is_none()
+                        && cell.authority
+                            == "explicit source no-data vertex; geometry locates the hole but supplies no height or material" =>
+                    {}
+                _ => return Err(RegionalSceneError::TerrainAuthority),
+            }
+        }
+        for row in 0..self.rows - 1 {
+            for column in 0..self.columns - 1 {
+                let top_left = (row * self.columns + column) as usize;
+                let top_right = top_left + 1;
+                let bottom_left = top_left + self.columns as usize;
+                let bottom_right = bottom_left + 1;
+                let valid =
+                    |index: usize| self.cells[index].validity == RegionalValidityClass::Valid;
+                if (valid(top_left) && valid(bottom_left) && valid(bottom_right))
+                    || (valid(top_left) && valid(bottom_right) && valid(top_right))
+                    || (valid(top_left) && valid(bottom_left) && valid(top_right))
+                    || (valid(top_right) && valid(bottom_left) && valid(bottom_right))
+                {
+                    has_valid_triangle = true;
+                }
+            }
+        }
+        if !has_valid_triangle {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegionalTerrainProgram {
     pub schema: String,
     pub program_id: SemanticDigest,
     pub evaluator: ContractIdentity,
     pub samples: Vec<RegionalTerrainSample>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grid: Option<RegionalTerrainGrid>,
     pub height_unit: String,
     pub interpolation: String,
     pub material_semantics: String,
@@ -118,21 +275,45 @@ impl RegionalTerrainProgram {
     }
 
     pub fn verify(&self) -> Result<(), RegionalSceneError> {
-        if self.schema != REGIONAL_TERRAIN_PROGRAM_SCHEMA
-            || self.samples.is_empty()
+        let point_program = self.grid.is_none()
+            && !self.samples.is_empty()
+            && self.evaluator
+                == ContractIdentity::new(
+                    "rey.regional-terrain.exact-samples",
+                    1,
+                    "retain exact admitted Point altitude/material samples without interpolation or coverage expansion",
+                )
+            && self.interpolation == "none; exact admitted samples only"
+            && self.authority
+                == "qualified exact height/material samples; no interpolated terrain coverage";
+        let grid_program = self.samples.is_empty()
+            && self.grid.is_some()
+            && self.evaluator
+                == ContractIdentity::new(
+                    "rey.regional-terrain.rectilinear-grid",
+                    1,
+                    "retain one exact row-major terrain grid and authorize piecewise-linear interpolation only inside fully supported source triangles",
+                )
+            && self.interpolation
+                == "piecewise linear only within triangles whose three admitted source vertices are valid"
+            && self.authority
+                == "qualified rectilinear height/material grid; validity ends at supported source triangles";
+        if (!point_program && !grid_program)
+            || (point_program && self.schema != REGIONAL_TERRAIN_PROGRAM_SCHEMA)
+            || (grid_program && self.schema != REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA)
             || !self
                 .samples
                 .windows(2)
                 .all(|pair| pair[0].sample_id < pair[1].sample_id)
             || self.height_unit != "micrometer"
-            || self.interpolation != "none; exact admitted samples only"
             || self.material_semantics
                 != "source-declared bounded material identifier; no inferred physical properties"
-            || self.authority
-                != "qualified exact height/material samples; no interpolated terrain coverage"
             || self.program_id != regional_terrain_program_digest(self)?
         {
             return Err(RegionalSceneError::TerrainAuthority);
+        }
+        if let Some(grid) = &self.grid {
+            grid.verify()?;
         }
         unique(
             self.samples.iter().map(|sample| sample.sample_id.as_str()),
@@ -416,7 +597,12 @@ impl AdmittedRegionalScene {
         }
         if self.artifacts.terrain_program_id.is_some()
             && self.artifacts.terrain_authority
-                != "qualified exact height/material samples; interpolation and terrain coverage remain absent"
+                != self
+                    .projection
+                    .terrain
+                    .as_ref()
+                    .map(|terrain| terrain.authority.as_str())
+                    .unwrap_or_default()
         {
             return Err(RegionalSceneError::TerrainAuthority);
         }
@@ -591,7 +777,11 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
     }
     if let Some(terrain) = &packet.terrain {
         terrain.verify()?;
-        if terrain.samples.len() as u64 > packet.limits.max_native_objects
+        let grid_cells = terrain
+            .grid
+            .as_ref()
+            .map_or(0, |grid| grid.cells.len() as u64);
+        if terrain.samples.len() as u64 + grid_cells > packet.limits.max_native_objects
             || terrain.samples.iter().any(|sample| {
                 packet
                     .objects
@@ -608,6 +798,27 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
                             && object.native_bounds.north_microdegrees == sample.position[1]
                     })
                     .is_none()
+            })
+            || terrain.grid.as_ref().is_some_and(|grid| {
+                grid.cells.iter().any(|cell| {
+                    packet
+                        .objects
+                        .iter()
+                        .find(|object| {
+                            object.object_id == cell.source_object_id
+                                && object.layer == RegionalLayerKind::Terrain
+                                && object.geometry_kind == "Point"
+                                && object.source_artifact_id == cell.source_artifact_id
+                                && object.object_revision == cell.source_object_revision
+                                && object.native_bounds.west_microdegrees == cell.native_position[0]
+                                && object.native_bounds.east_microdegrees == cell.native_position[0]
+                                && object.native_bounds.south_microdegrees
+                                    == cell.native_position[1]
+                                && object.native_bounds.north_microdegrees
+                                    == cell.native_position[1]
+                        })
+                        .is_none()
+                })
             })
         {
             return Err(RegionalSceneError::TerrainAuthority);
@@ -630,7 +841,13 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
         }
         if layer.kind == RegionalLayerKind::Terrain
             && layer.authority
-                != "qualified exact height/material samples; no interpolated terrain coverage"
+                != packet
+                    .terrain
+                    .as_ref()
+                    .map(|terrain| terrain.authority.as_str())
+                    .unwrap_or(
+                        "qualified exact height/material samples; no interpolated terrain coverage",
+                    )
         {
             return Err(RegionalSceneError::TerrainAuthority);
         }
@@ -741,7 +958,32 @@ fn regional_terrain_program_digest(
 ) -> Result<SemanticDigest, RegionalSceneError> {
     let mut normalized = program.clone();
     normalized.program_id = placeholder_digest();
-    let mut hasher = SemanticHasher::new(REGIONAL_TERRAIN_PROGRAM_SCHEMA);
+    let identity_schema = if program.grid.is_some() {
+        REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA
+    } else {
+        REGIONAL_TERRAIN_PROGRAM_SCHEMA
+    };
+    let mut hasher = SemanticHasher::new(identity_schema);
+    hasher.add_bytes(&serde_json::to_vec(&normalized)?);
+    Ok(hasher.finish())
+}
+
+fn regional_terrain_grid_cell_digest(
+    cell: &RegionalTerrainGridCell,
+) -> Result<SemanticDigest, RegionalSceneError> {
+    let mut normalized = cell.clone();
+    normalized.cell_id = placeholder_digest();
+    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid-cell.v1");
+    hasher.add_bytes(&serde_json::to_vec(&normalized)?);
+    Ok(hasher.finish())
+}
+
+fn regional_terrain_grid_digest(
+    grid: &RegionalTerrainGrid,
+) -> Result<SemanticDigest, RegionalSceneError> {
+    let mut normalized = grid.clone();
+    normalized.dataset_id = placeholder_digest();
+    let mut hasher = SemanticHasher::new(REGIONAL_TERRAIN_GRID_SCHEMA);
     hasher.add_bytes(&serde_json::to_vec(&normalized)?);
     Ok(hasher.finish())
 }

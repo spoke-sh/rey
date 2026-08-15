@@ -319,8 +319,21 @@ pub struct SceneFeatureIndex {
 pub struct SceneTerrainSample {
     pub longitude_microdegrees: i64,
     pub latitude_microdegrees: i64,
-    pub elevation_micrometers: i64,
-    pub material: String,
+    pub elevation_micrometers: Option<i64>,
+    pub material: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grid: Option<SceneTerrainGridCell>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTerrainGridCell {
+    pub dataset_id: String,
+    pub column: u64,
+    pub row: u64,
+    pub columns: u64,
+    pub rows: u64,
+    pub validity: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1322,6 +1335,16 @@ impl LocalEditorStore {
                         latitude_microdegrees: sample.latitude_microdegrees,
                         elevation_micrometers: sample.elevation_micrometers,
                         material: sample.material.clone(),
+                        grid: sample.grid.as_ref().map(|grid| {
+                            rey_runtime::SceneAdmissionTerrainGridCell {
+                                dataset_id: grid.dataset_id.clone(),
+                                column: grid.column,
+                                row: grid.row,
+                                columns: grid.columns,
+                                rows: grid.rows,
+                                validity: grid.validity.clone(),
+                            }
+                        }),
                     }
                 }),
             })
@@ -2127,39 +2150,101 @@ fn terrain_sample(
         .get("coordinates")
         .and_then(Value::as_array)
         .ok_or_else(|| EditorError::TerrainSample(feature_id.to_owned()))?;
-    if coordinates.len() != 3 {
+    let grid = terrain_grid_cell(feature_id, properties)?;
+    let no_data = grid.as_ref().is_some_and(|grid| grid.validity == "no_data");
+    if coordinates.len() != 3 && !(no_data && coordinates.len() == 2) {
         return Err(EditorError::TerrainSample(format!(
-            "{feature_id} requires longitude, latitude, and elevation"
+            "{feature_id} requires longitude, latitude, and elevation unless it is an explicit grid no-data vertex"
         )));
     }
     let longitude = finite_number(&coordinates[0])?;
     let latitude = finite_number(&coordinates[1])?;
-    let elevation = finite_number(&coordinates[2])?;
-    if !(-12_000.0..=100_000.0).contains(&elevation) {
+    let elevation = coordinates.get(2).map(finite_number).transpose()?;
+    if elevation.is_some_and(|elevation| !(-12_000.0..=100_000.0).contains(&elevation)) {
         return Err(EditorError::TerrainSample(format!(
             "{feature_id} elevation is outside -12000..=100000 meters"
         )));
     }
-    let material = properties
-        .get("material")
-        .and_then(Value::as_str)
-        .filter(|material| {
-            !material.is_empty()
-                && material.chars().count() <= 64
-                && material.chars().all(|character| {
-                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
-                })
-        })
-        .ok_or_else(|| {
-            EditorError::TerrainSample(format!(
-                "{feature_id} requires a bounded material identifier"
-            ))
-        })?;
+    let material = properties.get("material").and_then(Value::as_str);
+    let valid_material = material.is_some_and(|material| {
+        !material.is_empty()
+            && material.chars().count() <= 64
+            && material.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+            })
+    });
+    if !no_data && (elevation.is_none() || !valid_material) {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} requires a bounded elevation and material identifier"
+        )));
+    }
+    if no_data && material.is_some() {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} no-data vertex must not declare a material"
+        )));
+    }
     Ok(Some(SceneTerrainSample {
         longitude_microdegrees: (longitude * 1_000_000.0).round() as i64,
         latitude_microdegrees: (latitude * 1_000_000.0).round() as i64,
-        elevation_micrometers: (elevation * 1_000_000.0).round() as i64,
-        material: material.to_owned(),
+        elevation_micrometers: elevation.map(|value| (value * 1_000_000.0).round() as i64),
+        material: material.map(str::to_owned),
+        grid,
+    }))
+}
+
+fn terrain_grid_cell(
+    feature_id: &str,
+    properties: &serde_json::Map<String, Value>,
+) -> Result<Option<SceneTerrainGridCell>, EditorError> {
+    const KEYS: [&str; 6] = [
+        "terrain_grid_id",
+        "terrain_grid_column",
+        "terrain_grid_row",
+        "terrain_grid_columns",
+        "terrain_grid_rows",
+        "terrain_grid_validity",
+    ];
+    if !KEYS.iter().any(|key| properties.contains_key(*key)) {
+        return Ok(None);
+    }
+    if KEYS.iter().any(|key| !properties.contains_key(*key)) {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} has an incomplete terrain grid binding"
+        )));
+    }
+    let dataset_id = properties["terrain_grid_id"]
+        .as_str()
+        .ok_or_else(|| EditorError::TerrainSample(feature_id.to_owned()))?;
+    validate_identifier("terrain grid id", dataset_id)?;
+    let integer = |key: &'static str| {
+        properties[key]
+            .as_u64()
+            .ok_or_else(|| EditorError::TerrainSample(format!("{feature_id} has invalid {key}")))
+    };
+    let column = integer("terrain_grid_column")?;
+    let row = integer("terrain_grid_row")?;
+    let columns = integer("terrain_grid_columns")?;
+    let rows = integer("terrain_grid_rows")?;
+    let validity = properties["terrain_grid_validity"]
+        .as_str()
+        .filter(|validity| matches!(*validity, "valid" | "no_data"))
+        .ok_or_else(|| {
+            EditorError::TerrainSample(format!(
+                "{feature_id} terrain_grid_validity must be valid or no_data"
+            ))
+        })?;
+    if columns < 2 || rows < 2 || column >= columns || row >= rows {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} has an out-of-bounds terrain grid position"
+        )));
+    }
+    Ok(Some(SceneTerrainGridCell {
+        dataset_id: dataset_id.to_owned(),
+        column,
+        row,
+        columns,
+        rows,
+        validity: validity.to_owned(),
     }))
 }
 
@@ -3262,8 +3347,9 @@ mod tests {
             Some(super::SceneTerrainSample {
                 longitude_microdegrees: -122_500_000,
                 latitude_microdegrees: 37_500_000,
-                elevation_micrometers: 153_250_000,
-                material: "granite".to_owned(),
+                elevation_micrometers: Some(153_250_000),
+                material: Some("granite".to_owned()),
+                grid: None,
             })
         );
 
@@ -3277,6 +3363,50 @@ mod tests {
                 std::path::Path::new("invalid.geojson"),
                 None,
                 "invalid-terrain".to_owned(),
+                SceneSourceRole::Terrain,
+            ),
+            Err(super::EditorError::TerrainSample(_))
+        ));
+    }
+
+    #[test]
+    fn terrain_grid_vertices_require_complete_layout_and_explicit_no_data() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        fs::write(
+            workspace.path().join("terrain-grid.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"northwest","properties":{"material":"granite","terrain_grid_id":"dem","terrain_grid_column":0,"terrain_grid_row":0,"terrain_grid_columns":2,"terrain_grid_rows":2,"terrain_grid_validity":"valid"},"geometry":{"type":"Point","coordinates":[-123.0,38.0,120.0]}},{"type":"Feature","id":"northeast","properties":{"terrain_grid_id":"dem","terrain_grid_column":1,"terrain_grid_row":0,"terrain_grid_columns":2,"terrain_grid_rows":2,"terrain_grid_validity":"no_data"},"geometry":{"type":"Point","coordinates":[-122.0,38.0]}},{"type":"Feature","id":"southwest","properties":{"material":"granite","terrain_grid_id":"dem","terrain_grid_column":0,"terrain_grid_row":1,"terrain_grid_columns":2,"terrain_grid_rows":2,"terrain_grid_validity":"valid"},"geometry":{"type":"Point","coordinates":[-123.0,37.0,80.0]}},{"type":"Feature","id":"southeast","properties":{"material":"granite","terrain_grid_id":"dem","terrain_grid_column":1,"terrain_grid_row":1,"terrain_grid_columns":2,"terrain_grid_rows":2,"terrain_grid_validity":"valid"},"geometry":{"type":"Point","coordinates":[-122.0,37.0,90.0]}}]}"#,
+        )
+        .unwrap();
+        store
+            .add_source(
+                std::path::Path::new("terrain-grid.geojson"),
+                Some("county-grid".to_owned()),
+                "terrain-grid".to_owned(),
+                SceneSourceRole::Terrain,
+            )
+            .unwrap();
+        let snapshot = store.add().unwrap().snapshot;
+        let no_data = snapshot
+            .features
+            .iter()
+            .find(|feature| feature.source_feature_id == "northeast")
+            .and_then(|feature| feature.terrain_sample.as_ref())
+            .unwrap();
+        assert_eq!(no_data.elevation_micrometers, None);
+        assert_eq!(no_data.material, None);
+        assert_eq!(no_data.grid.as_ref().unwrap().validity, "no_data");
+
+        fs::write(
+            workspace.path().join("incomplete-grid.geojson"),
+            r#"{"type":"Feature","id":"broken","properties":{"material":"granite","terrain_grid_id":"dem"},"geometry":{"type":"Point","coordinates":[-123.0,38.0,120.0]}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            store.add_source(
+                std::path::Path::new("incomplete-grid.geojson"),
+                None,
+                "incomplete-grid".to_owned(),
                 SceneSourceRole::Terrain,
             ),
             Err(super::EditorError::TerrainSample(_))

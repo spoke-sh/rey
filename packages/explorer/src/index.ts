@@ -53,6 +53,7 @@ export {
   TERRAIN_MESH_PARITY_REVISION,
   terrainCameraProjection,
   terrainMeshByteLength,
+  terrainTriangleIndices,
   verifyTerrainMeshParity,
 } from "./three-terrain";
 export type {

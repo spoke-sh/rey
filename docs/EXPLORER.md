@@ -82,13 +82,13 @@ identity swap.
 The World-to-Atlas transition is the reference example for the whole engine.
 It establishes five simultaneous forms of continuity:
 
-| Continuity | Required result |
-| --- | --- |
-| Semantic | One region, marker, or selection retains one identity and evidence basis. |
-| Geometric | One reversible projector moves the surface and attached geometry through every intermediate posture. |
-| Perceptual | Atmosphere, scaffold, fabric, light, and contrast enter and leave when their visual purpose begins or ends. |
-| Interaction | Zoom is smooth, anchored, responsive to every bounded input, and stable across lens thresholds. |
-| Evidentiary | Validity, omissions, limits, coordinate authority, and source lineage survive the transition. |
+| Continuity  | Required result                                                                                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------- |
+| Semantic    | One region, marker, or selection retains one identity and evidence basis.                                   |
+| Geometric   | One reversible projector moves the surface and attached geometry through every intermediate posture.        |
+| Perceptual  | Atmosphere, scaffold, fabric, light, and contrast enter and leave when their visual purpose begins or ends. |
+| Interaction | Zoom is smooth, anchored, responsive to every bounded input, and stable across lens thresholds.             |
+| Evidentiary | Validity, omissions, limits, coordinate authority, and source lineage survive the transition.               |
 
 The projection path is one surface, not a scene swap:
 
@@ -204,13 +204,13 @@ confidence, progress, or proof.
 
 Similar-looking coordinates are not interchangeable:
 
-| Space | Meaning |
-| --- | --- |
-| Native OGC CRS84 | Provider-qualified longitude, latitude, and optional altitude. |
-| Synthetic semantic sphere | Revision-bound longitude and latitude arranging admitted context globally; not Earth geography. |
-| Semantic Mercator | Reversible wrapping chart of that semantic sphere; not EPSG:3857. |
-| County-local east/north/up | Bounded local frame derived from one admitted regional scene. |
-| Camera/view | Ephemeral pan, orbit, scale, viewport, and selection. |
+| Space                      | Meaning                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| Native OGC CRS84           | Provider-qualified longitude, latitude, and optional altitude.                                  |
+| Synthetic semantic sphere  | Revision-bound longitude and latitude arranging admitted context globally; not Earth geography. |
+| Semantic Mercator          | Reversible wrapping chart of that semantic sphere; not EPSG:3857.                               |
+| County-local east/north/up | Bounded local frame derived from one admitted regional scene.                                   |
+| Camera/view                | Ephemeral pan, orbit, scale, viewport, and selection.                                           |
 
 World preserves the poles. Atlas discloses its Mercator latitude cutoff,
 splits antimeridian geometry into draw fragments without splitting semantic
@@ -240,6 +240,31 @@ hydrology, and validity remain separate revisioned channels. Lighting may make
 height easier to read; it cannot become authoritative height. Interpolation,
 erosion, shading, and feathering operate only where the admitted validity
 contract permits them.
+
+The foundational terrain unit is an admitted dataset, not a mesh. A dataset
+binds exact source identity, native coordinates, elevation/material values,
+validity/no-data, interpolation scope, limits, and lineage before either
+renderer sees it. The first delivered unit is a bounded rectilinear regional
+grid. Its no-data vertices carry no height or material, and a triangle may
+exist only when all three of its source vertices are valid. Reference,
+WebGL2, and WebGPU paths consume that same rule.
+
+Terrain fidelity then grows in this order:
+
+```text
+admitted dataset + explicit validity
+  → renderer-neutral reference field
+  → bounded tiles + worker evaluation + resident LOD
+  → reversible Atlas ↔ Landscape camera/projection
+  → imagery/material + water + vectors + labels as typed passes
+  → retained fidelity, continuity, and performance voyages
+```
+
+This order is architectural. A richer material cannot compensate for a
+point-only dataset; a denser mesh cannot compensate for missing validity; and
+a faster renderer cannot compensate for a scene swap at the Atlas boundary.
+Each stage must preserve the exact dataset and semantic identity established by
+the previous stage.
 
 ## Interaction And Admission
 

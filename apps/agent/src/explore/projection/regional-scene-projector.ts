@@ -144,13 +144,19 @@ function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
       scene.artifacts.terrain_program_id === null
     );
   if (
-    terrain.schema !== "rey.regional-terrain-program.v1" ||
+    ![
+      "rey.regional-terrain-program.v1",
+      "rey.regional-terrain-program.v2",
+    ].includes(terrain.schema) ||
     terrain.program_id !== scene.projection.terrain_program_id ||
     terrain.program_id !== scene.artifacts.terrain_program_id ||
-    terrain.samples.length === 0
+    terrain.authority !== scene.artifacts.terrain_authority ||
+    terrain.height_unit !== "micrometer" ||
+    terrain.material_semantics !==
+      "source-declared bounded material identifier; no inferred physical properties"
   )
     return false;
-  return terrain.samples.every((sample) => {
+  const samplesValid = terrain.samples.every((sample) => {
     const object = scene.projection.objects.find(
       (candidate) => candidate.object_id === sample.source_object_id,
     );
@@ -165,6 +171,131 @@ function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
       object.native_bounds.north_microdegrees === sample.position[1]
     );
   });
+  if (!samplesValid) return false;
+  if (terrain.grid)
+    return (
+      terrain.samples.length === 0 &&
+      terrain.schema === "rey.regional-terrain-program.v2" &&
+      terrain.evaluator.id === "rey.regional-terrain.rectilinear-grid" &&
+      terrain.evaluator.revision === 1 &&
+      terrain.interpolation ===
+        "piecewise linear only within triangles whose three admitted source vertices are valid" &&
+      terrain.authority ===
+        "qualified rectilinear height/material grid; validity ends at supported source triangles" &&
+      validRegionalTerrainGrid(scene, terrain.grid)
+    );
+  return (
+    terrain.samples.length > 0 &&
+    terrain.schema === "rey.regional-terrain-program.v1" &&
+    terrain.evaluator.id === "rey.regional-terrain.exact-samples" &&
+    terrain.evaluator.revision === 1 &&
+    terrain.interpolation === "none; exact admitted samples only" &&
+    terrain.authority ===
+      "qualified exact height/material samples; no interpolated terrain coverage"
+  );
+}
+
+function validRegionalTerrainGrid(
+  scene: AdmittedRegionalScene,
+  grid: NonNullable<AdmittedRegionalScene["projection"]["terrain"]>["grid"],
+): boolean {
+  if (!grid) return false;
+  const expectedCells = grid.columns * grid.rows;
+  if (
+    grid.schema !== "rey.regional-terrain-grid.v1" ||
+    !Number.isSafeInteger(grid.columns) ||
+    !Number.isSafeInteger(grid.rows) ||
+    grid.columns < 2 ||
+    grid.rows < 2 ||
+    grid.cells.length !== expectedCells ||
+    grid.dataset_id.length === 0 ||
+    grid.source_dataset_id.length === 0 ||
+    grid.native_bounds.crosses_antimeridian ||
+    grid.native_bounds.west_microdegrees >=
+      grid.native_bounds.east_microdegrees ||
+    grid.native_bounds.south_microdegrees >=
+      grid.native_bounds.north_microdegrees ||
+    grid.validity_semantics !==
+      "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support" ||
+    grid.interpolation !==
+      "piecewise linear only within triangles whose three admitted source vertices are valid" ||
+    grid.authority !==
+      "qualified rectilinear height/material grid; validity ends at supported source triangles"
+  )
+    return false;
+  const longitudeStep =
+    (grid.native_bounds.east_microdegrees -
+      grid.native_bounds.west_microdegrees) /
+    (grid.columns - 1);
+  const latitudeStep =
+    (grid.native_bounds.north_microdegrees -
+      grid.native_bounds.south_microdegrees) /
+    (grid.rows - 1);
+  if (!Number.isInteger(longitudeStep) || !Number.isInteger(latitudeStep))
+    return false;
+  const identities = new Set<string>();
+  const objects = new Set<string>();
+  const cellsValid = grid.cells.every((cell, index) => {
+    const column = index % grid.columns;
+    const row = Math.floor(index / grid.columns);
+    const object = scene.projection.objects.find(
+      (candidate) => candidate.object_id === cell.source_object_id,
+    );
+    const validValue =
+      cell.validity === "valid"
+        ? Number.isSafeInteger(cell.elevation_micrometers) &&
+          cell.elevation_micrometers! >= -12_000_000_000 &&
+          cell.elevation_micrometers! <= 100_000_000_000 &&
+          typeof cell.material === "string" &&
+          /^[A-Za-z0-9._-]{1,64}$/.test(cell.material) &&
+          cell.authority ===
+            "exact admitted Point altitude and material at one valid grid vertex"
+        : cell.validity === "no_data" &&
+          cell.elevation_micrometers === null &&
+          cell.material === null &&
+          cell.authority ===
+            "explicit source no-data vertex; geometry locates the hole but supplies no height or material";
+    return (
+      cell.cell_id.length > 0 &&
+      !identities.has(cell.cell_id) &&
+      !objects.has(cell.source_object_id) &&
+      Boolean(identities.add(cell.cell_id)) &&
+      Boolean(objects.add(cell.source_object_id)) &&
+      cell.grid_position[0] === column &&
+      cell.grid_position[1] === row &&
+      cell.native_position[0] ===
+        grid.native_bounds.west_microdegrees + column * longitudeStep &&
+      cell.native_position[1] ===
+        grid.native_bounds.north_microdegrees - row * latitudeStep &&
+      validValue &&
+      object?.layer === "terrain" &&
+      object.geometry_kind === "Point" &&
+      object.source_artifact_id === cell.source_artifact_id &&
+      object.object_revision === cell.source_object_revision &&
+      object.native_bounds.west_microdegrees === cell.native_position[0] &&
+      object.native_bounds.east_microdegrees === cell.native_position[0] &&
+      object.native_bounds.south_microdegrees === cell.native_position[1] &&
+      object.native_bounds.north_microdegrees === cell.native_position[1]
+    );
+  });
+  if (!cellsValid) return false;
+  for (let row = 0; row < grid.rows - 1; row += 1) {
+    for (let column = 0; column < grid.columns - 1; column += 1) {
+      const topLeft = row * grid.columns + column;
+      const topRight = topLeft + 1;
+      const bottomLeft = topLeft + grid.columns;
+      const bottomRight = bottomLeft + 1;
+      const valid = (index: number) => grid.cells[index]?.validity === "valid";
+      if (
+        (valid(topLeft) && valid(bottomLeft) && valid(bottomRight)) ||
+        (valid(topLeft) && valid(bottomRight) && valid(topRight)) ||
+        (valid(topLeft) && valid(bottomLeft) && valid(topRight)) ||
+        (valid(topRight) && valid(bottomLeft) && valid(bottomRight))
+      )
+        return true;
+    }
+  }
+  return false;
 }
 
 function safeCountyFrame(scene: AdmittedRegionalScene) {

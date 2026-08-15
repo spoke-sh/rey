@@ -3,12 +3,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use rey_core::{ContractIdentity, SemanticDigest, SemanticHasher};
 use rey_mining::{
     ADMITTED_REGIONAL_SCENE_SCHEMA, AdmittedRegionalScene, ExplorerGrammar,
-    REGIONAL_PROJECTION_PACKET_SCHEMA, REGIONAL_TERRAIN_PROGRAM_SCHEMA, RegionalArtifactBindings,
+    REGIONAL_PROJECTION_PACKET_SCHEMA, REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA,
+    REGIONAL_TERRAIN_GRID_SCHEMA, REGIONAL_TERRAIN_PROGRAM_SCHEMA, RegionalArtifactBindings,
     RegionalBounds, RegionalCoordinateBinding, RegionalCoordinateSpace, RegionalCoordinateStatus,
     RegionalFootprint, RegionalLayer, RegionalLayerKind, RegionalNativeObject,
     RegionalProjectionPacket, RegionalSceneLimits, RegionalSceneLineage, RegionalSceneOmission,
-    RegionalTerrainProgram, RegionalTerrainSample, RegionalTransform, RegionalValidity,
-    RegionalValidityClass, SceneAdmissionBinding, finalize_regional_terrain_sample,
+    RegionalTerrainGrid, RegionalTerrainGridCell, RegionalTerrainProgram, RegionalTerrainSample,
+    RegionalTransform, RegionalValidity, RegionalValidityClass, SceneAdmissionBinding,
+    finalize_regional_terrain_sample,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -67,8 +69,21 @@ pub struct SceneAdmissionFeature {
 pub struct SceneAdmissionTerrainSample {
     pub longitude_microdegrees: i64,
     pub latitude_microdegrees: i64,
-    pub elevation_micrometers: i64,
-    pub material: String,
+    pub elevation_micrometers: Option<i64>,
+    pub material: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grid: Option<SceneAdmissionTerrainGridCell>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionTerrainGridCell {
+    pub dataset_id: String,
+    pub column: u64,
+    pub row: u64,
+    pub columns: u64,
+    pub rows: u64,
+    pub validity: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -459,11 +474,20 @@ pub fn render_scene_admission_result(result: &SceneAdmissionResult) -> String {
                 "COVERAGE {} · {} omissions · native objects complete; {}",
                 if scene.complete { "complete" } else { "partial" },
                 scene.omissions.len(),
-                scene.projection.terrain.as_ref().map_or(
-                    "terrain height explicitly unsupported".to_owned(),
-                    |terrain| format!(
-                        "{} exact height/material samples; interpolation and terrain coverage absent",
-                        terrain.samples.len()
+                scene.projection.terrain.as_ref().map_or_else(
+                    || "terrain height explicitly unsupported".to_owned(),
+                    |terrain| terrain.grid.as_ref().map_or_else(
+                        || format!(
+                            "{} exact height/material samples; interpolation and terrain coverage absent",
+                            terrain.samples.len()
+                        ),
+                        |grid| format!(
+                            "{}x{} admitted terrain grid · {} valid / {} no-data vertices · interpolation bounded to supported source triangles",
+                            grid.columns,
+                            grid.rows,
+                            grid.cells.iter().filter(|cell| cell.validity == RegionalValidityClass::Valid).count(),
+                            grid.cells.iter().filter(|cell| cell.validity == RegionalValidityClass::NoData).count(),
+                        ),
                     ),
                 )
             ),
@@ -858,7 +882,9 @@ fn inspect_terrain_sample(
         .get("coordinates")
         .and_then(Value::as_array)
         .ok_or(SceneAdmissionError::TerrainSample)?;
-    if coordinates.len() != 3 {
+    let grid = inspect_terrain_grid_cell(feature_id, properties)?;
+    let no_data = grid.as_ref().is_some_and(|grid| grid.validity == "no_data");
+    if coordinates.len() != 3 && !(no_data && coordinates.len() == 2) {
         return Err(SceneAdmissionError::TerrainSample);
     }
     let number = |index: usize| {
@@ -869,32 +895,81 @@ fn inspect_terrain_sample(
     };
     let longitude = number(0)?;
     let latitude = number(1)?;
-    let elevation = number(2)?;
+    let elevation = coordinates.get(2).map(|_| number(2)).transpose()?;
     if !(-180.0..=180.0).contains(&longitude)
         || !(-90.0..=90.0).contains(&latitude)
-        || !(-12_000.0..=100_000.0).contains(&elevation)
+        || elevation.is_some_and(|value| !(-12_000.0..=100_000.0).contains(&value))
     {
         return Err(SceneAdmissionError::TerrainSample);
     }
-    let material = properties
-        .get("material")
-        .and_then(Value::as_str)
-        .filter(|material| {
-            !material.is_empty()
-                && material.chars().count() <= 64
-                && material.chars().all(|character| {
-                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
-                })
-        })
-        .ok_or(SceneAdmissionError::TerrainSample)?;
-    if feature_id.is_empty() {
+    let material = properties.get("material").and_then(Value::as_str);
+    let valid_material = material.is_some_and(|material| {
+        !material.is_empty()
+            && material.chars().count() <= 64
+            && material.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+            })
+    });
+    if feature_id.is_empty()
+        || (!no_data && (elevation.is_none() || !valid_material))
+        || (no_data && material.is_some())
+    {
         return Err(SceneAdmissionError::TerrainSample);
     }
     Ok(Some(SceneAdmissionTerrainSample {
         longitude_microdegrees: to_microdegrees(longitude),
         latitude_microdegrees: to_microdegrees(latitude),
-        elevation_micrometers: (elevation * 1_000_000.0).round() as i64,
-        material: material.to_owned(),
+        elevation_micrometers: elevation.map(|value| (value * 1_000_000.0).round() as i64),
+        material: material.map(str::to_owned),
+        grid,
+    }))
+}
+
+fn inspect_terrain_grid_cell(
+    feature_id: &str,
+    properties: &serde_json::Map<String, Value>,
+) -> Result<Option<SceneAdmissionTerrainGridCell>, SceneAdmissionError> {
+    const KEYS: [&str; 6] = [
+        "terrain_grid_id",
+        "terrain_grid_column",
+        "terrain_grid_row",
+        "terrain_grid_columns",
+        "terrain_grid_rows",
+        "terrain_grid_validity",
+    ];
+    if !KEYS.iter().any(|key| properties.contains_key(*key)) {
+        return Ok(None);
+    }
+    if KEYS.iter().any(|key| !properties.contains_key(*key)) {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    let dataset_id = properties["terrain_grid_id"]
+        .as_str()
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    validate_identifier(dataset_id)?;
+    let integer = |key: &'static str| {
+        properties[key]
+            .as_u64()
+            .ok_or(SceneAdmissionError::TerrainSample)
+    };
+    let column = integer("terrain_grid_column")?;
+    let row = integer("terrain_grid_row")?;
+    let columns = integer("terrain_grid_columns")?;
+    let rows = integer("terrain_grid_rows")?;
+    let validity = properties["terrain_grid_validity"]
+        .as_str()
+        .filter(|validity| matches!(*validity, "valid" | "no_data"))
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    if feature_id.is_empty() || columns < 2 || rows < 2 || column >= columns || row >= rows {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    Ok(Some(SceneAdmissionTerrainGridCell {
+        dataset_id: dataset_id.to_owned(),
+        column,
+        row,
+        columns,
+        rows,
+        validity: validity.to_owned(),
     }))
 }
 
@@ -938,6 +1013,10 @@ fn build_scene(
         .collect::<Result<Vec<_>, SceneAdmissionError>>()?;
     objects.sort_by(|left, right| left.object_id.cmp(&right.object_id));
     let footprint = build_regional_footprint(candidate, &objects)?;
+    let terrain = build_regional_terrain(candidate, &objects)?;
+    let gridded_terrain = terrain
+        .as_ref()
+        .is_some_and(|terrain| terrain.grid.is_some());
     let mut grouped = BTreeMap::<RegionalLayerKind, Vec<String>>::new();
     for object in &objects {
         grouped
@@ -954,8 +1033,16 @@ fn build_scene(
                     "native terrain-control geometry retained for exact inspection; generated effects and hints are excluded",
                 ),
                 RegionalLayerKind::Terrain => (
-                    "qualified exact height/material samples; no interpolated terrain coverage",
-                    "exact Point altitude and bounded material property retained only at admitted sample coordinates",
+                    if gridded_terrain {
+                        "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                    } else {
+                        "qualified exact height/material samples; no interpolated terrain coverage"
+                    },
+                    if gridded_terrain {
+                        "exact row-major Point vertices with explicit valid/no-data support; piecewise-linear triangles cannot cross no-data"
+                    } else {
+                        "exact Point altitude and bounded material property retained only at admitted sample coordinates"
+                    },
                 ),
                 _ => (
                     "exact admitted native geometry",
@@ -973,7 +1060,6 @@ fn build_scene(
         })
         .collect::<Vec<_>>();
     layers.sort_by(|left, right| left.layer_id.cmp(&right.layer_id));
-    let terrain = build_regional_terrain(candidate, &objects)?;
     let mut validity = objects
         .iter()
         .map(|object| RegionalValidity {
@@ -1164,12 +1250,13 @@ fn build_scene(
             admitted_atlas_revision: None,
             projection_packet_id: projection.packet_id.clone(),
             terrain_program_id: projection.terrain_program_id.clone(),
-            terrain_authority: if projection.terrain_program_id.is_some() {
-                "qualified exact height/material samples; interpolation and terrain coverage remain absent"
-            } else {
-                "none; candidate-only terrain controls were not copied into observed terrain truth"
-            }
-            .to_owned(),
+            terrain_authority: projection.terrain.as_ref().map_or_else(
+                || {
+                    "none; candidate-only terrain controls were not copied into observed terrain truth"
+                        .to_owned()
+                },
+                |terrain| terrain.authority.clone(),
+            ),
         },
         complete: true,
         omissions,
@@ -1184,14 +1271,42 @@ fn build_regional_terrain(
     candidate: &SceneAdmissionCandidate,
     objects: &[RegionalNativeObject],
 ) -> Result<Option<RegionalTerrainProgram>, SceneAdmissionError> {
-    let mut samples = candidate
+    let terrain_features = candidate
         .features
         .iter()
-        .filter_map(|feature| feature.terrain_sample.as_ref().map(|sample| (feature, sample)))
+        .filter_map(|feature| {
+            feature
+                .terrain_sample
+                .as_ref()
+                .map(|sample| (feature, sample))
+        })
+        .collect::<Vec<_>>();
+    if terrain_features.is_empty() {
+        return Ok(None);
+    }
+    let grid_count = terrain_features
+        .iter()
+        .filter(|(_, sample)| sample.grid.is_some())
+        .count();
+    if grid_count != 0 && grid_count != terrain_features.len() {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    if grid_count == terrain_features.len() {
+        return build_regional_terrain_grid(terrain_features, objects).map(Some);
+    }
+    let mut samples = terrain_features
+        .into_iter()
         .map(|(feature, sample)| {
             let object = objects
                 .iter()
                 .find(|object| object.object_id == feature.feature_id)
+                .ok_or(SceneAdmissionError::TerrainSample)?;
+            let elevation = sample
+                .elevation_micrometers
+                .ok_or(SceneAdmissionError::TerrainSample)?;
+            let material = sample
+                .material
+                .as_ref()
                 .ok_or(SceneAdmissionError::TerrainSample)?;
             finalize_regional_terrain_sample(RegionalTerrainSample {
                 sample_id: placeholder_digest(),
@@ -1201,17 +1316,14 @@ fn build_regional_terrain(
                 position: [
                     sample.longitude_microdegrees,
                     sample.latitude_microdegrees,
-                    sample.elevation_micrometers,
+                    elevation,
                 ],
-                material: sample.material.clone(),
+                material: material.clone(),
                 authority: "exact admitted Point altitude and material property; valid only at this source coordinate".to_owned(),
             })
             .map_err(SceneAdmissionError::from)
         })
         .collect::<Result<Vec<_>, SceneAdmissionError>>()?;
-    if samples.is_empty() {
-        return Ok(None);
-    }
     samples.sort_by(|left, right| left.sample_id.cmp(&right.sample_id));
     RegionalTerrainProgram {
         schema: REGIONAL_TERRAIN_PROGRAM_SCHEMA.to_owned(),
@@ -1222,6 +1334,7 @@ fn build_regional_terrain(
             "retain exact admitted Point altitude/material samples without interpolation or coverage expansion",
         ),
         samples,
+        grid: None,
         height_unit: "micrometer".to_owned(),
         interpolation: "none; exact admitted samples only".to_owned(),
         material_semantics:
@@ -1231,6 +1344,157 @@ fn build_regional_terrain(
     }
     .finalize()
     .map(Some)
+    .map_err(SceneAdmissionError::from)
+}
+
+fn build_regional_terrain_grid(
+    terrain_features: Vec<(&SceneAdmissionFeature, &SceneAdmissionTerrainSample)>,
+    objects: &[RegionalNativeObject],
+) -> Result<RegionalTerrainProgram, SceneAdmissionError> {
+    let first = terrain_features
+        .first()
+        .and_then(|(_, sample)| sample.grid.as_ref())
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let first_source_id = terrain_features
+        .first()
+        .map(|(feature, _)| feature.source_id.as_str())
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let expected_cells = first
+        .columns
+        .checked_mul(first.rows)
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    if terrain_features.len() as u64 != expected_cells {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    let mut cells = terrain_features
+        .into_iter()
+        .map(|(feature, sample)| {
+            let grid = sample
+                .grid
+                .as_ref()
+                .ok_or(SceneAdmissionError::TerrainSample)?;
+            if grid.dataset_id != first.dataset_id
+                || grid.columns != first.columns
+                || grid.rows != first.rows
+                || feature.source_id != first_source_id
+            {
+                return Err(SceneAdmissionError::TerrainSample);
+            }
+            let object = objects
+                .iter()
+                .find(|object| object.object_id == feature.feature_id)
+                .ok_or(SceneAdmissionError::TerrainSample)?;
+            let valid = grid.validity == "valid";
+            Ok(RegionalTerrainGridCell {
+                cell_id: placeholder_digest(),
+                source_object_id: object.object_id.clone(),
+                source_artifact_id: object.source_artifact_id.clone(),
+                source_object_revision: object.object_revision.clone(),
+                grid_position: [grid.column, grid.row],
+                native_position: [
+                    sample.longitude_microdegrees,
+                    sample.latitude_microdegrees,
+                ],
+                elevation_micrometers: if valid {
+                    Some(
+                        sample
+                            .elevation_micrometers
+                            .ok_or(SceneAdmissionError::TerrainSample)?,
+                    )
+                } else {
+                    None
+                },
+                material: if valid {
+                    Some(
+                        sample
+                            .material
+                            .clone()
+                            .ok_or(SceneAdmissionError::TerrainSample)?,
+                    )
+                } else {
+                    None
+                },
+                validity: if valid {
+                    RegionalValidityClass::Valid
+                } else {
+                    RegionalValidityClass::NoData
+                },
+                authority: if valid {
+                    "exact admitted Point altitude and material at one valid grid vertex"
+                } else {
+                    "explicit source no-data vertex; geometry locates the hole but supplies no height or material"
+                }
+                .to_owned(),
+            })
+        })
+        .collect::<Result<Vec<_>, SceneAdmissionError>>()?;
+    cells.sort_by_key(|cell| (cell.grid_position[1], cell.grid_position[0]));
+    let west = cells
+        .iter()
+        .map(|cell| cell.native_position[0])
+        .min()
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let east = cells
+        .iter()
+        .map(|cell| cell.native_position[0])
+        .max()
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let south = cells
+        .iter()
+        .map(|cell| cell.native_position[1])
+        .min()
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let north = cells
+        .iter()
+        .map(|cell| cell.native_position[1])
+        .max()
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let grid = RegionalTerrainGrid {
+        schema: REGIONAL_TERRAIN_GRID_SCHEMA.to_owned(),
+        dataset_id: placeholder_digest(),
+        source_dataset_id: first.dataset_id.clone(),
+        columns: first.columns,
+        rows: first.rows,
+        native_bounds: RegionalBounds {
+            west_microdegrees: west,
+            south_microdegrees: south,
+            east_microdegrees: east,
+            north_microdegrees: north,
+            crosses_antimeridian: false,
+        },
+        cells,
+        validity_semantics:
+            "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
+                .to_owned(),
+        interpolation:
+            "piecewise linear only within triangles whose three admitted source vertices are valid"
+                .to_owned(),
+        authority:
+            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                .to_owned(),
+    }
+    .finalize()?;
+    RegionalTerrainProgram {
+        schema: REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA.to_owned(),
+        program_id: placeholder_digest(),
+        evaluator: ContractIdentity::new(
+            "rey.regional-terrain.rectilinear-grid",
+            1,
+            "retain one exact row-major terrain grid and authorize piecewise-linear interpolation only inside fully supported source triangles",
+        ),
+        samples: Vec::new(),
+        grid: Some(grid),
+        height_unit: "micrometer".to_owned(),
+        interpolation:
+            "piecewise linear only within triangles whose three admitted source vertices are valid"
+                .to_owned(),
+        material_semantics:
+            "source-declared bounded material identifier; no inferred physical properties".to_owned(),
+        authority:
+            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                .to_owned(),
+    }
+    .finalize()
     .map_err(SceneAdmissionError::from)
 }
 
@@ -1896,10 +2160,122 @@ mod tests {
             terrain_sample: Some(SceneAdmissionTerrainSample {
                 longitude_microdegrees: -122_500_000,
                 latitude_microdegrees: 37_500_000,
-                elevation_micrometers: 153_250_000,
-                material: "granite".to_owned(),
+                elevation_micrometers: Some(153_250_000),
+                material: Some("granite".to_owned()),
+                grid: None,
             }),
         });
+        candidate.candidate_id = candidate_digest(&candidate).unwrap();
+        candidate
+    }
+
+    fn candidate_with_qualified_terrain_grid() -> SceneAdmissionCandidate {
+        let mut candidate = scene_admission_fixture(SceneAdmissionFixture::Accepted).unwrap();
+        let mut native_features = Vec::new();
+        let mut indexed_features = Vec::new();
+        for row in 0..3_u64 {
+            for column in 0..3_u64 {
+                let source_feature_id = format!("cell-{row}-{column}");
+                let longitude = -122.6 + column as f64 * 0.1;
+                let latitude = 37.6 - row as f64 * 0.1;
+                let valid = !(row == 1 && column == 1);
+                let mut properties = serde_json::json!({
+                    "terrain_grid_id": "fixture-dem",
+                    "terrain_grid_column": column,
+                    "terrain_grid_row": row,
+                    "terrain_grid_columns": 3,
+                    "terrain_grid_rows": 3,
+                    "terrain_grid_validity": if valid { "valid" } else { "no_data" },
+                })
+                .as_object()
+                .unwrap()
+                .clone();
+                if valid {
+                    properties.insert("material".to_owned(), Value::String("granite".to_owned()));
+                }
+                let elevation = 100.0 + row as f64 * 20.0 + column as f64 * 12.0;
+                let coordinates = if valid {
+                    serde_json::json!([longitude, latitude, elevation])
+                } else {
+                    serde_json::json!([longitude, latitude])
+                };
+                let feature_value = serde_json::json!({
+                    "type": "Feature",
+                    "id": source_feature_id,
+                    "properties": properties,
+                    "geometry": {"type": "Point", "coordinates": coordinates},
+                });
+                let property_bytes =
+                    serde_json::to_vec(feature_value["properties"].as_object().unwrap()).unwrap();
+                indexed_features.push(SceneAdmissionFeature {
+                    feature_id: format!("fixture-terrain-grid/{source_feature_id}"),
+                    source_id: "fixture-terrain-grid".to_owned(),
+                    source_feature_id: source_feature_id.clone(),
+                    role: "terrain".to_owned(),
+                    geometry_kind: "Point".to_owned(),
+                    native_bounds: RegionalBounds {
+                        west_microdegrees: to_microdegrees(longitude),
+                        south_microdegrees: to_microdegrees(latitude),
+                        east_microdegrees: to_microdegrees(longitude),
+                        north_microdegrees: to_microdegrees(latitude),
+                        crosses_antimeridian: false,
+                    },
+                    coordinate_count: 1,
+                    properties_digest: properties_digest(&property_bytes),
+                    feature_revision: feature_digest(
+                        "fixture-terrain-grid",
+                        "terrain",
+                        &feature_value,
+                    )
+                    .unwrap(),
+                    terrain_sample: Some(SceneAdmissionTerrainSample {
+                        longitude_microdegrees: to_microdegrees(longitude),
+                        latitude_microdegrees: to_microdegrees(latitude),
+                        elevation_micrometers: valid
+                            .then_some((elevation * 1_000_000.0).round() as i64),
+                        material: valid.then(|| "granite".to_owned()),
+                        grid: Some(SceneAdmissionTerrainGridCell {
+                            dataset_id: "fixture-dem".to_owned(),
+                            column,
+                            row,
+                            columns: 3,
+                            rows: 3,
+                            validity: if valid { "valid" } else { "no_data" }.to_owned(),
+                        }),
+                    }),
+                });
+                native_features.push(feature_value);
+            }
+        }
+        let native = serde_json::to_vec(&serde_json::json!({
+            "type": "FeatureCollection",
+            "features": native_features,
+        }))
+        .unwrap();
+        candidate.sources.push(SceneAdmissionSource {
+            source_id: "fixture-terrain-grid".to_owned(),
+            worktree_path: "fixtures/terrain-grid.geojson".to_owned(),
+            format: "geo_json".to_owned(),
+            role: "terrain".to_owned(),
+            media_type: "application/geo+json".to_owned(),
+            artifact_id: native_artifact_digest(&native),
+            artifact_path: "objects/fixture-terrain-grid.geojson".to_owned(),
+            declared_bytes: native.len() as u64,
+            native_bytes: Some(native),
+            feature_count: 9,
+            coordinate_count: 9,
+        });
+        candidate.features.extend(indexed_features);
+        let terrain_source = candidate.sources.last().unwrap();
+        let inspected = inspect_geojson_source(
+            terrain_source,
+            terrain_source.native_bytes.as_ref().unwrap(),
+        )
+        .unwrap();
+        candidate
+            .features
+            .retain(|feature| feature.source_id != "fixture-terrain-grid");
+        candidate.features.extend(inspected.features);
         candidate.candidate_id = candidate_digest(&candidate).unwrap();
         candidate
     }
@@ -1942,7 +2318,13 @@ mod tests {
         let contracts = contracts();
         let campaign = semantic_digest("fixture.campaign", "one");
         let result = execute_scene_admission(context(&input, &contracts, &campaign)).unwrap();
-        assert_eq!(result.status, SceneAdmissionStatus::Accepted);
+        assert_eq!(
+            result.status,
+            SceneAdmissionStatus::Accepted,
+            "{}: {}",
+            result.code,
+            result.detail
+        );
         let scene = result.scene.unwrap();
         assert_eq!(scene.projection.coordinate_bindings.len(), 5);
         let footprint = scene.projection.footprint.as_ref().expect("footprint");
@@ -2026,7 +2408,10 @@ mod tests {
             .terrain_sample
             .as_mut()
             .unwrap()
-            .elevation_micrometers += 1;
+            .elevation_micrometers
+            .as_mut()
+            .map(|elevation| *elevation += 1)
+            .unwrap();
         tampered.candidate_id = candidate_digest(&tampered).unwrap();
         let tampered_input = SceneAdmissionInput {
             candidate: tampered,
@@ -2035,6 +2420,67 @@ mod tests {
         };
         let rejected =
             execute_scene_admission(context(&tampered_input, &contracts, &campaign)).unwrap();
+        assert_eq!(rejected.status, SceneAdmissionStatus::Rejected);
+        assert_eq!(rejected.code, "package_tampering");
+    }
+
+    #[test]
+    fn qualified_terrain_grid_preserves_no_data_and_rejects_metadata_tampering() {
+        let candidate = candidate_with_qualified_terrain_grid();
+        let input = SceneAdmissionInput {
+            candidate: candidate.clone(),
+            limits: SceneAdmissionLimits::default(),
+            capability_snapshot_id: semantic_digest("fixture.capabilities", "terrain-grid"),
+        };
+        let contracts = contracts();
+        let campaign = semantic_digest("fixture.campaign", "terrain-grid");
+        let result = execute_scene_admission(context(&input, &contracts, &campaign)).unwrap();
+        assert_eq!(
+            result.status,
+            SceneAdmissionStatus::Accepted,
+            "{}: {}",
+            result.code,
+            result.detail
+        );
+        let scene = result.scene.unwrap();
+        let terrain = scene.projection.terrain.as_ref().expect("terrain program");
+        assert!(terrain.samples.is_empty());
+        let grid = terrain.grid.as_ref().expect("terrain grid");
+        assert_eq!((grid.columns, grid.rows), (3, 3));
+        assert_eq!(grid.cells.len(), 9);
+        assert_eq!(grid.cells[4].grid_position, [1, 1]);
+        assert_eq!(grid.cells[4].validity, RegionalValidityClass::NoData);
+        assert_eq!(grid.cells[4].elevation_micrometers, None);
+        assert_eq!(grid.cells[4].material, None);
+        assert_eq!(
+            terrain.interpolation,
+            "piecewise linear only within triangles whose three admitted source vertices are valid"
+        );
+        assert_eq!(scene.artifacts.terrain_authority, terrain.authority);
+
+        let mut tampered = candidate;
+        let sample = tampered
+            .features
+            .iter_mut()
+            .find(|feature| feature.source_feature_id == "cell-1-1")
+            .and_then(|feature| feature.terrain_sample.as_mut())
+            .and_then(|sample| sample.grid.as_mut())
+            .unwrap();
+        sample.validity = "valid".to_owned();
+        tampered.candidate_id = candidate_digest(&tampered).unwrap();
+        let rejected = execute_scene_admission(context(
+            &SceneAdmissionInput {
+                candidate: tampered,
+                limits: SceneAdmissionLimits::default(),
+                capability_snapshot_id: semantic_digest(
+                    "fixture.capabilities",
+                    "terrain-grid-tampered",
+                ),
+            },
+            &contracts,
+            &campaign,
+        ))
+        .unwrap();
         assert_eq!(rejected.status, SceneAdmissionStatus::Rejected);
         assert_eq!(rejected.code, "package_tampering");
     }

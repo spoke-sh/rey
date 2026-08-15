@@ -326,11 +326,15 @@ reusing its path under another ID is rejected rather than silently rebound.
 The human receipt exposes the exact content revision, bytes, feature/coordinate
 coverage, native bounds, and candidate-only authority. It does not copy,
 rewrite, stage, commit, admit, or fetch the source.
-For `--role terrain`, each feature must be a Point with longitude, latitude,
-and elevation in meters plus a bounded `material` property. The receipt and
-later `-vv` admission evidence retain exact content/object revisions; an
-accepted scene prints `TERRAIN` with its program, evaluator, micrometer samples,
-materials, and no-interpolation authority. `terrain_control` does not qualify.
+For `--role terrain`, an isolated feature must be a Point with longitude,
+latitude, elevation in meters, and a bounded `material` property. A complete
+rectilinear Point dataset may additionally bind one grid ID, zero-based
+row/column, common dimensions, and explicit `valid`/`no_data` at every vertex;
+no-data omits height and material. The receipt and later `-vv` admission
+evidence retain exact content/object revisions. An accepted scene prints
+`TERRAIN` with its program, evaluator, source bindings, micrometer values,
+validity, and interpolation authority, then summarizes grid dimensions and
+valid/no-data counts. `terrain_control` does not qualify.
 
 `generate terrain` deterministically creates or updates an owned native
 GeoJSON terrain-control source and bootstraps `.rey/editor/project.json` when

@@ -94,6 +94,26 @@ four exact identities changes:
 An identical frame is quiet. Measured timings are observations, never frame
 identity.
 
+## Regional Terrain Flow
+
+Regional terrain reinforces the package boundary:
+
+```text
+frozen native terrain source
+  → Rust editor index + independent scene-admission verification
+  → content-identified regional grid + explicit valid/no-data cells
+  → @rey/agent regional field compiler
+  → TerrainFieldSetInput
+       ├─ @rey/agent reference triangles
+       └─ @rey/explorer bounded GPU mesh
+```
+
+The application owns what a row, column, height, material, and validity value
+mean. The package owns deterministic field-to-mesh conversion, parity, resource
+accounting, and R3F presentation. Both rendering paths call the same
+`terrainTriangleIndices` rule, so backend selection cannot change the admitted
+support boundary.
+
 ## Render-Graph Boundary
 
 The immutable render graph lives in `@rey/agent`:

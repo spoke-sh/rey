@@ -31,6 +31,11 @@ import {
   type ProjectedCountyFootprint,
 } from "./explore/projection/county-frame";
 import {
+  compileRegionalTerrainField,
+  projectRegionalTerrainFootprint,
+  projectRegionalTerrainPosition,
+} from "./explore/projection/regional-terrain";
+import {
   type TerrainFieldSet,
   type TerrainProgram,
 } from "./explore/terrain/compile";
@@ -937,24 +942,60 @@ function buildRegionalCounty(
   const bounds = scene.native_bounds;
   const objects = scene.projection.objects;
   const frameView = countyFrameView(countyFrame, world);
-  const projectedFootprint = projectCountyFootprint(
-    countyFrame,
-    countyFootprint,
-    frameView,
+  const terrainField = compileRegionalTerrainField(scene, world);
+  const projectedFootprint = terrainField
+    ? projectRegionalTerrainFootprint(
+        countyFrame,
+        scene.native_bounds,
+        countyFootprint,
+        world,
+      )
+    : projectCountyFootprint(countyFrame, countyFootprint, frameView);
+  const terrainGridObjectIds = new Set(
+    scene.projection.terrain?.grid?.cells.map(
+      (cell) => cell.source_object_id,
+    ) ?? [],
   );
-  const nodes = objects.map((object) => {
+  const visibleObjects =
+    terrainField && (regime === "landscape" || regime === "neighborhoods")
+      ? objects.filter((object) => !terrainGridObjectIds.has(object.object_id))
+      : objects;
+  const nodes = visibleObjects.map((object) => {
     const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
-    const screen = projectCountyLocal(countyFrame, local, frameView);
+    const nativeCenter = [
+      object.native_bounds.west_microdegrees +
+        (object.native_bounds.east_microdegrees -
+          object.native_bounds.west_microdegrees) /
+          2,
+      object.native_bounds.south_microdegrees +
+        (object.native_bounds.north_microdegrees -
+          object.native_bounds.south_microdegrees) /
+          2,
+    ] as const;
+    const screen = terrainField
+      ? projectRegionalTerrainPosition(scene.native_bounds, nativeCenter, world)
+      : projectCountyLocal(countyFrame, local, frameView);
     const width = countyObjectWidth(bounds, object.native_bounds, world);
     const envelopePath = projectRegionalObjectEnvelope(
       countyFrame,
       object.native_bounds,
       frameView,
+      terrainField ? { scene_bounds: scene.native_bounds, world } : undefined,
     );
     const terrainSample = scene.projection.terrain?.samples.find(
       (sample) => sample.source_object_id === object.object_id,
     );
-    const exactDetail = `${object.layer.replaceAll("_", " ")} · ${object.geometry_kind} · ${object.source_path} · ${shortCoordinate(object.object_revision)}${terrainSample ? ` · ${terrainSample.position[2]}µm · ${terrainSample.material}` : ""}`;
+    const terrainGridCell = scene.projection.terrain?.grid?.cells.find(
+      (cell) => cell.source_object_id === object.object_id,
+    );
+    const terrainDetail = terrainSample
+      ? ` · ${terrainSample.position[2]}µm · ${terrainSample.material}`
+      : terrainGridCell?.validity === "valid"
+        ? ` · ${terrainGridCell.elevation_micrometers}µm · ${terrainGridCell.material} · grid ${terrainGridCell.grid_position.join(",")}`
+        : terrainGridCell
+          ? ` · NO DATA · grid ${terrainGridCell.grid_position.join(",")}`
+          : "";
+    const exactDetail = `${object.layer.replaceAll("_", " ")} · ${object.geometry_kind} · ${object.source_path} · ${shortCoordinate(object.object_revision)}${terrainDetail}`;
     return {
       ...node(
         `regional-object:${object.object_id}`,
@@ -989,7 +1030,7 @@ function buildRegionalCounty(
   const copyByRegime: Record<LensRegime, readonly [string, string]> = {
     landscape: [
       "ADMITTED COUNTY",
-      `${scene.region_id} · exact admitted footprint · ${scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
+      `${scene.region_id} · exact admitted footprint · ${scene.projection.terrain?.grid ? `${scene.projection.terrain.grid.columns}×${scene.projection.terrain.grid.rows} admitted terrain grid; no-data retained` : scene.projection.terrain ? `${scene.projection.terrain.samples.length} exact terrain samples; no interpolation` : "terrain height unsupported"}`,
     ],
     neighborhoods: [
       "COUNTY NEIGHBORHOODS",
@@ -1039,7 +1080,8 @@ function buildRegionalCounty(
     },
     world,
     fit_world: world,
-    terrain: false,
+    terrain: terrainField !== null,
+    terrain_fields: terrainField ? [terrainField] : [],
     county_frame: countyFrame,
     county_footprint: projectedFootprint,
   };
@@ -1049,6 +1091,10 @@ function projectRegionalObjectEnvelope(
   frame: CountyFrame,
   bounds: AdmittedRegionalProjection["scene"]["native_bounds"],
   view: ReturnType<typeof countyFrameView>,
+  terrain?: {
+    scene_bounds: AdmittedRegionalProjection["scene"]["native_bounds"];
+    world: { width: number; height: number };
+  },
 ) {
   const corners = [
     [bounds.west_microdegrees, bounds.south_microdegrees],
@@ -1059,11 +1105,17 @@ function projectRegionalObjectEnvelope(
   return (
     corners
       .map((position, index) => {
-        const point = projectCountyLocal(
-          frame,
-          nativePositionToCountyLocal(frame, position),
-          view,
-        );
+        const point = terrain
+          ? projectRegionalTerrainPosition(
+              terrain.scene_bounds,
+              position,
+              terrain.world,
+            )
+          : projectCountyLocal(
+              frame,
+              nativePositionToCountyLocal(frame, position),
+              view,
+            );
         return `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
       })
       .join(" ") + " Z"

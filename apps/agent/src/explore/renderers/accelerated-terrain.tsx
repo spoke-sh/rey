@@ -191,22 +191,32 @@ export function AcceleratedTerrainSurface({
     ],
   );
   const preference = rendererPreference(globalThis.location?.search ?? "");
-  const programTotals = useMemo(
-    () =>
-      snapshot.scene.terrain_programs.reduce(
-        (result, program) => ({
-          cells:
-            result.cells +
-            program.projection.terrain_program.working_set.max_cells,
-          bytes:
-            result.bytes +
-            program.projection.terrain_program.working_set.max_bytes,
-        }),
-        { cells: 0, bytes: 0 },
-      ),
-    [snapshot.snapshot_id],
-  );
-  const limitsRevision = `${programTotals.cells}:${programTotals.bytes}`;
+  const programTotals = useMemo(() => {
+    const dynamic = snapshot.scene.terrain_programs.reduce(
+      (result, program) => ({
+        cells:
+          result.cells +
+          program.projection.terrain_program.working_set.max_cells,
+        bytes:
+          result.bytes +
+          program.projection.terrain_program.working_set.max_bytes,
+      }),
+      { cells: 0, bytes: 0 },
+    );
+    const total = snapshot.scene.terrain_fields.reduce(
+      (result, field) => ({
+        cells: result.cells + field.field_cells,
+        bytes: result.bytes + field.field_bytes,
+      }),
+      dynamic,
+    );
+    return {
+      ...total,
+      dynamic_cells: dynamic.cells,
+      dynamic_bytes: dynamic.bytes,
+    };
+  }, [snapshot.snapshot_id]);
+  const limitsRevision = `${programTotals.dynamic_cells}:${programTotals.dynamic_bytes}`;
   const workingSetRequests = useMemo(
     () =>
       semanticGlobe
@@ -229,18 +239,28 @@ export function AcceleratedTerrainSurface({
     .join("|");
   const fieldProjection = useMemo(() => {
     const evaluationStarted = measurementNow();
-    if (!semanticGlobe && patchCacheRef.current?.limits !== limitsRevision)
+    if (
+      !semanticGlobe &&
+      snapshot.scene.terrain_programs.length > 0 &&
+      patchCacheRef.current?.limits !== limitsRevision
+    )
       patchCacheRef.current = {
         limits: limitsRevision,
-        cache: new TerrainPatchCache(programTotals.cells, programTotals.bytes),
+        cache: new TerrainPatchCache(
+          programTotals.dynamic_cells,
+          programTotals.dynamic_bytes,
+        ),
       };
-    const fields = snapshot.scene.terrain_programs.flatMap((program, index) =>
-      semanticGlobe
-        ? []
-        : workingSetRequests[index]!.map((request) =>
-            patchCacheRef.current!.cache.materialize(program, request),
+    const fields = semanticGlobe
+      ? []
+      : [
+          ...snapshot.scene.terrain_fields,
+          ...snapshot.scene.terrain_programs.flatMap((program, index) =>
+            workingSetRequests[index]!.map((request) =>
+              patchCacheRef.current!.cache.materialize(program, request),
+            ),
           ),
-    );
+        ];
     return Object.freeze({
       fields: Object.freeze(fields),
       evaluation_ms: measurementNow() - evaluationStarted,
@@ -248,8 +268,10 @@ export function AcceleratedTerrainSurface({
       bytes: fields.reduce((total, field) => total + field.field_bytes, 0),
       active_band_ids: Object.freeze(
         [
-          ...(semanticGlobe ? ["semantic_globe"] : []),
-          ...new Set(fields.flatMap((field) => field.active_band_ids)),
+          ...new Set([
+            ...(semanticGlobe ? ["semantic_globe"] : []),
+            ...fields.flatMap((field) => field.active_band_ids),
+          ]),
         ].sort((left, right) => left.localeCompare(right)),
       ),
     });
@@ -331,7 +353,10 @@ export function AcceleratedTerrainSurface({
       field_sets: statistics.field_sets,
       field_cells: fieldProjection.cells,
       field_bytes: statistics.field_bytes,
-      program_count: snapshot.scene.terrain_programs.length,
+      program_count: new Set([
+        ...snapshot.scene.terrain_programs.map((program) => program.program_id),
+        ...snapshot.scene.terrain_fields.map((field) => field.program_id),
+      ]).size,
       working_set_limit_cells: programTotals.cells,
       working_set_limit_bytes: programTotals.bytes,
       draw_calls: canvasReport.draw_calls,

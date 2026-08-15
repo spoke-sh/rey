@@ -34,6 +34,7 @@ import {
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
 } from "@rey/explorer";
+import { terrainTriangleIndices } from "@rey/explorer";
 import {
   projectSemanticGlobe,
   projectWorldAtlasBoundsMorph,
@@ -187,6 +188,7 @@ export function ReferenceRenderer({
           )),
         )}
       <CountyFootprintLayer scene={scene} />
+      {!accelerated ? <AdmittedTerrainFieldLayer scene={scene} /> : null}
       <CountyFeatureLayer onFocus={onFocus} scene={scene} />
       {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer
@@ -269,6 +271,70 @@ export function ReferenceRenderer({
           )),
         )}
     </div>
+  );
+}
+
+function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
+  const fields = scene.terrain_fields.filter((field) =>
+    field.active_band_ids.includes("admitted_dem"),
+  );
+  if (fields.length === 0) return null;
+  return (
+    <svg
+      aria-label={`${fields.length} admitted regional terrain field${fields.length === 1 ? "" : "s"}`}
+      className={sx(styles.worldGeometryLayer)}
+      data-regional-terrain-reference="rey.reference-regional-terrain@1"
+      role="img"
+      viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
+    >
+      <desc>
+        Triangles exist only where three admitted source vertices are valid.
+        Explicit no-data vertices remain holes.
+      </desc>
+      {fields.flatMap((field) => {
+        const indices = terrainTriangleIndices(field);
+        const point = (index: number) => {
+          const column = index % field.grid.columns;
+          const row = Math.floor(index / field.grid.columns);
+          return {
+            x:
+              field.grid.bounds.x +
+              (column / (field.grid.columns - 1)) * field.grid.bounds.width,
+            y:
+              field.grid.bounds.y +
+              (row / (field.grid.rows - 1)) * field.grid.bounds.height,
+          };
+        };
+        return Array.from({ length: indices.length / 3 }, (_, triangle) => {
+          const vertexIndexes = [
+            indices[triangle * 3]!,
+            indices[triangle * 3 + 1]!,
+            indices[triangle * 3 + 2]!,
+          ] as const;
+          const vertices = vertexIndexes.map(point);
+          const tint = [0, 1, 2].map(
+            (component) =>
+              vertexIndexes.reduce(
+                (total, index) =>
+                  total + field.material.tint[index * 3 + component]!,
+                0,
+              ) / 3,
+          );
+          const fill = `rgb(${tint.map((value) => Math.round(Math.max(0, Math.min(1, value)) * 255)).join(" ")})`;
+          return (
+            <polygon
+              data-field-set-id={field.field_set_id}
+              data-terrain-triangle={triangle}
+              fill={fill}
+              key={`${field.field_set_id}:${triangle}`}
+              points={vertices.map(({ x, y }) => `${x},${y}`).join(" ")}
+              stroke="rgba(247, 232, 184, 0.14)"
+              strokeWidth={0.45}
+            />
+          );
+        });
+      })}
+    </svg>
   );
 }
 

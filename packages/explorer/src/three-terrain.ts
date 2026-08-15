@@ -151,6 +151,22 @@ export function buildTerrainMeshData(
     }
   }
 
+  const indices = terrainTriangleIndices(fields);
+  return {
+    positions,
+    normals,
+    tint: fields.material.tint.slice(),
+    occlusion: fields.material.occlusion.slice(),
+    roughness: fields.material.roughness.slice(),
+    curvature: fields.curvature.values.slice(),
+    indices,
+  };
+}
+
+export function terrainTriangleIndices(
+  fields: Pick<TerrainFieldSetInput, "grid" | "validity">,
+): Uint32Array {
+  const { grid } = fields;
   const indices: number[] = [];
   const appendTriangle = (first: number, second: number, third: number) => {
     if (
@@ -166,24 +182,33 @@ export function buildTerrainMeshData(
       const topRight = topLeft + 1;
       const bottomLeft = topLeft + grid.columns;
       const bottomRight = bottomLeft + 1;
-      if ((row + column) % 2 === 0) {
-        appendTriangle(topLeft, bottomLeft, bottomRight);
-        appendTriangle(topLeft, bottomRight, topRight);
-      } else {
-        appendTriangle(topLeft, bottomLeft, topRight);
-        appendTriangle(topRight, bottomLeft, bottomRight);
-      }
+      const descending = [
+        [topLeft, bottomLeft, bottomRight],
+        [topLeft, bottomRight, topRight],
+      ] as const;
+      const ascending = [
+        [topLeft, bottomLeft, topRight],
+        [topRight, bottomLeft, bottomRight],
+      ] as const;
+      const score = (triangles: typeof descending) =>
+        triangles.filter((triangle) =>
+          triangle.every((index) => fields.validity.values[index] !== 0),
+        ).length;
+      const descendingScore = score(descending);
+      const ascendingScore = score(ascending);
+      const triangles =
+        descendingScore === ascendingScore
+          ? (row + column) % 2 === 0
+            ? descending
+            : ascending
+          : descendingScore > ascendingScore
+            ? descending
+            : ascending;
+      for (const triangle of triangles)
+        appendTriangle(triangle[0], triangle[1], triangle[2]);
     }
   }
-  return {
-    positions,
-    normals,
-    tint: fields.material.tint.slice(),
-    occlusion: fields.material.occlusion.slice(),
-    roughness: fields.material.roughness.slice(),
-    curvature: fields.curvature.values.slice(),
-    indices: Uint32Array.from(indices),
-  };
+  return Uint32Array.from(indices);
 }
 
 export function compileContinuousRelief(

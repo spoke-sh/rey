@@ -68,6 +68,15 @@ describe("accelerated continuous terrain compiler", () => {
     });
   });
 
+  it("chooses the supported cell diagonal around explicit no-data", () => {
+    const fieldSet = terrainFieldFixture();
+    fieldSet.validity.values[6] = 0;
+    const mesh = buildTerrainMeshData(fieldSet);
+    expect(mesh.indices.length).toBeGreaterThan(0);
+    expect([...mesh.indices]).not.toContain(6);
+    expect(mesh.indices.length % 3).toBe(0);
+  });
+
   it("fails closed when an accelerated input diverges from its CPU field", () => {
     const fieldSet = terrainFieldFixture();
     const mesh = buildTerrainMeshData(fieldSet);

@@ -48,7 +48,8 @@ The package root exports:
 - globe contracts such as `compileContextGlobe`, `CompiledContextGlobe`,
   `CONTEXT_GLOBE_PROJECTION_REVISION`, and polar/material revision identities;
 - terrain contracts such as `compileContinuousRelief`,
-  `buildTerrainMeshData`, `verifyTerrainMeshParity`,
+  `buildTerrainMeshData`, `terrainTriangleIndices`,
+  `verifyTerrainMeshParity`,
   `createContinuousReliefMaterial`, and the GPU-budget contracts; and
 - structural inputs including `ExplorerGlobe`, `GlobeCameraView`,
   `TerrainFieldSetInput`, and `TerrainCameraView`.
@@ -83,3 +84,4 @@ the `@rey/agent` Explorer voyage. See
 - [Mining and visualization](../../docs/MINING.md)
 - [Interfaces](../../docs/INTERFACES.md)
 - [Plan 0003](../../plans/0003-scene-to-explorer.md)
+- [Plan 0005](../../plans/0005-landscape-terrain.md)

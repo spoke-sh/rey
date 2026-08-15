@@ -1547,16 +1547,27 @@ not folded back into an invented recipe. Generated effect values are candidate
 hints and gain no admission authority. See [Context Topology
 Explorer](EXPLORER.md).
 
-A `terrain` source is deliberately narrower than `terrain_control`. Each
-feature must be a Point with `[longitude, latitude, elevation_meters]` and a
-bounded ASCII `material` property. Editor INDEX and the admission candidate
-retain the exact parsed micrometer elevation/material beside the feature and
-source revisions. Admission re-parses the frozen native bytes and rejects any
-index disagreement. A successful packet embeds
-`rey.regional-terrain-program.v1`, whose samples bind object, artifact, object
-revision, exact three-dimensional position, material, evaluator, units, and
-authority. Its interpolation is exactly `none`; validity ends at the sample
-coordinate. Candidate terrain controls never enter that program.
+A `terrain` source is deliberately narrower than `terrain_control`. An
+isolated terrain feature is a Point with
+`[longitude, latitude, elevation_meters]` and a bounded ASCII `material`
+property. Its successful `rey.regional-terrain-program.v1` sample binds the
+object, artifact, revision, exact three-dimensional position, material,
+evaluator, units, and authority; interpolation is `none` and validity ends at
+the sample coordinate.
+
+A terrain source may instead declare one complete rectilinear dataset. Every
+Point carries the same `terrain_grid_id`, `terrain_grid_columns`, and
+`terrain_grid_rows`, a unique zero-based `terrain_grid_column` and
+`terrain_grid_row`, and `terrain_grid_validity` equal to `valid` or `no_data`.
+Row zero is north and column zero is west. Valid vertices require elevation
+and material. No-data vertices may omit altitude and must omit material.
+Editor INDEX retains that metadata beside the feature/source revisions;
+admission re-parses the frozen bytes and rejects mixed, incomplete,
+non-rectilinear, duplicate, or divergent bindings. The resulting
+`rey.regional-terrain-grid.v1` retains one content identity and row-major exact
+source binding. It authorizes piecewise-linear triangles only where all three
+vertices are valid through `rey.regional-terrain-program.v2`. Candidate
+terrain controls never enter either terrain form.
 
 `/environment` has no dashboard hero or metric strip. Its entire route body is
 two full-width stacked evidence sections: directed variable text and bounded

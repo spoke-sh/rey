@@ -828,7 +828,7 @@ fn editor_source_add_is_a_reviewable_native_identity_path() {
             .as_ref()
             .unwrap()
             .elevation_micrometers,
-        153_250_000
+        Some(153_250_000)
     );
     assert!(!committed.admission_request.admitted);
 }
@@ -7214,9 +7214,47 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "5",
     ]);
     assert!(generated.status.success());
+    let terrain_grid = (0..3_u64)
+        .flat_map(|row| {
+            (0..3_u64).map(move |column| {
+                let valid = !(row == 1 && column == 1);
+                let mut properties = serde_json::json!({
+                    "terrain_grid_id": "regional-dem",
+                    "terrain_grid_column": column,
+                    "terrain_grid_row": row,
+                    "terrain_grid_columns": 3,
+                    "terrain_grid_rows": 3,
+                    "terrain_grid_validity": if valid { "valid" } else { "no_data" },
+                });
+                if valid {
+                    properties["material"] = "granite".into();
+                }
+                let longitude = -122.75 + column as f64 * 0.25;
+                let latitude = 37.75 - row as f64 * 0.25;
+                let elevation = 100.0 + row as f64 * 32.0 + column as f64 * 18.0;
+                serde_json::json!({
+                    "type": "Feature",
+                    "id": format!("cell-{row}-{column}"),
+                    "properties": properties,
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": if valid {
+                            serde_json::json!([longitude, latitude, elevation])
+                        } else {
+                            serde_json::json!([longitude, latitude])
+                        },
+                    },
+                })
+            })
+        })
+        .collect::<Vec<_>>();
     fs::write(
         workspace.path().join("terrain-samples.geojson"),
-        r#"{"type":"Feature","id":"summit","properties":{"material":"granite"},"geometry":{"type":"Point","coordinates":[-122.5,37.5,153.25]}}"#,
+        serde_json::to_vec(&serde_json::json!({
+            "type": "FeatureCollection",
+            "features": terrain_grid,
+        }))
+        .unwrap(),
     )
     .unwrap();
     let registered = run_rey_workspace(&[
@@ -7329,15 +7367,15 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     for evidence in [
         "Result                 PASSED",
         "Node order             admit → render",
-        "SCENE regional-demo · SCENE@1 · 3 native objects",
+        "SCENE regional-demo · SCENE@1 · 11 native objects",
         "BINDING scene=blake3:",
         "package=blake3:",
         "packet=blake3:",
         "atlas=blake3:",
         "FOOTPRINT none · no unique admitted boundary Polygon",
-        "TERRAIN {\"schema\":\"rey.regional-terrain-program.v1\"",
+        "TERRAIN {\"schema\":\"rey.regional-terrain-program.v2\"",
         "COORDINATE {\"space\":\"camera\"",
-        "1 exact height/material samples; interpolation and terrain coverage absent",
+        "3x3 admitted terrain grid · 8 valid / 1 no-data vertices",
     ] {
         assert!(human.contains(evidence), "missing run evidence: {evidence}");
     }
@@ -7361,12 +7399,17 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let scene = admission.scene.as_ref().unwrap();
     assert_eq!(scene.admission.editor_sequence, 1);
     assert_eq!(scene.projection.coordinate_bindings.len(), 5);
-    assert_eq!(scene.projection.objects.len(), 3);
+    assert_eq!(scene.projection.objects.len(), 11);
     assert!(scene.projection.footprint.is_none());
     let terrain = scene.projection.terrain.as_ref().unwrap();
-    assert_eq!(terrain.samples.len(), 1);
-    assert_eq!(terrain.samples[0].material, "granite");
-    assert_eq!(terrain.samples[0].position[2], 153_250_000);
+    assert!(terrain.samples.is_empty());
+    let grid = terrain.grid.as_ref().expect("terrain grid");
+    assert_eq!((grid.columns, grid.rows), (3, 3));
+    assert_eq!(
+        grid.cells[4].validity,
+        rey_mining::RegionalValidityClass::NoData
+    );
+    assert_eq!(grid.cells[4].elevation_micrometers, None);
     assert_eq!(
         scene.artifacts.terrain_program_id.as_ref(),
         Some(&terrain.program_id)

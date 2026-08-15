@@ -668,7 +668,7 @@ describe("regional scene topology projection", () => {
     const scene = terrainPortfolio.workloads[0]!.latest_scene_admission!.scene!;
     scene.artifacts.terrain_program_id = "terrain-program:1";
     scene.artifacts.terrain_authority =
-      "qualified exact height/material samples; interpolation and terrain coverage remain absent";
+      "qualified exact height/material samples; no interpolated terrain coverage";
     scene.omissions = [];
     scene.projection.terrain_program_id = "terrain-program:1";
     scene.projection.terrain = {
@@ -758,6 +758,150 @@ describe("regional scene topology projection", () => {
     );
 
     scene.projection.terrain.samples[0]!.source_object_revision = "tampered";
+    expect(
+      buildTopologyScene(terrainPortfolio, 0.1, "regional:scene:1").globe
+        ?.posture,
+    ).not.toBe("regional_scenes");
+  });
+
+  it("renders a qualified regional grid while retaining an explicit no-data hole", () => {
+    const terrainPortfolio = structuredClone(regionalPortfolio);
+    const scene = terrainPortfolio.workloads[0]!.latest_scene_admission!.scene!;
+    const authority =
+      "qualified rectilinear height/material grid; validity ends at supported source triangles";
+    const positions = [
+      [-123_000_000, 38_000_000],
+      [-122_000_000, 38_000_000],
+      [-123_000_000, 37_000_000],
+      [-122_000_000, 37_000_000],
+    ] as const;
+    const objectIds = positions.map(
+      (_, index) => `terrain-grid/cell-${Math.floor(index / 2)}-${index % 2}`,
+    );
+    const cells = positions.map((position, index) => {
+      const valid = index !== 3;
+      return {
+        cell_id: `terrain-cell:${index}`,
+        source_object_id: objectIds[index]!,
+        source_artifact_id: "artifact:terrain-grid",
+        source_object_revision: `terrain-object:${index}`,
+        grid_position: [index % 2, Math.floor(index / 2)] as [number, number],
+        native_position: [...position] as [number, number],
+        elevation_micrometers: valid ? (100 + index * 40) * 1_000_000 : null,
+        material: valid ? "granite" : null,
+        validity: valid ? ("valid" as const) : ("no_data" as const),
+        authority: valid
+          ? "exact admitted Point altitude and material at one valid grid vertex"
+          : "explicit source no-data vertex; geometry locates the hole but supplies no height or material",
+      };
+    });
+    scene.artifacts.terrain_program_id = "terrain-program:grid";
+    scene.artifacts.terrain_authority = authority;
+    scene.omissions = [];
+    scene.projection.terrain_program_id = "terrain-program:grid";
+    scene.projection.terrain = {
+      schema: "rey.regional-terrain-program.v2",
+      program_id: "terrain-program:grid",
+      evaluator: contract("rey.regional-terrain.rectilinear-grid"),
+      samples: [],
+      grid: {
+        schema: "rey.regional-terrain-grid.v1",
+        dataset_id: "terrain-dataset:grid",
+        source_dataset_id: "regional-dem",
+        columns: 2,
+        rows: 2,
+        native_bounds: { ...scene.native_bounds },
+        cells,
+        validity_semantics:
+          "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support",
+        interpolation:
+          "piecewise linear only within triangles whose three admitted source vertices are valid",
+        authority,
+      },
+      height_unit: "micrometer",
+      interpolation:
+        "piecewise linear only within triangles whose three admitted source vertices are valid",
+      material_semantics:
+        "source-declared bounded material identifier; no inferred physical properties",
+      authority,
+    };
+    scene.projection.objects.push(
+      ...positions.map((position, index) => ({
+        object_id: objectIds[index]!,
+        source_id: "terrain-grid",
+        source_path: "terrain-grid.geojson",
+        source_artifact_id: "artifact:terrain-grid",
+        object_revision: `terrain-object:${index}`,
+        geometry_kind: "Point",
+        native_bounds: {
+          west_microdegrees: position[0],
+          south_microdegrees: position[1],
+          east_microdegrees: position[0],
+          north_microdegrees: position[1],
+          crosses_antimeridian: false,
+        },
+        layer: "terrain" as const,
+        authority: "exact admitted native geometry",
+      })),
+    );
+    scene.projection.layers.push({
+      layer_id: "regional-demo.terrain",
+      kind: "terrain",
+      object_ids: objectIds,
+      authority,
+      semantics:
+        "exact row-major Point vertices with explicit valid/no-data support",
+      source_revision: "snapshot:1",
+    });
+    scene.projection.validity = scene.projection.validity.filter(
+      (validity) => validity.scope !== "terrain_height",
+    );
+    scene.projection.omissions = [];
+
+    const county = buildTopologyScene(
+      terrainPortfolio,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(county.terrain).toBe(true);
+    expect(county.detail).toContain(
+      "2×2 admitted terrain grid; no-data retained",
+    );
+    expect(county.terrain_fields).toHaveLength(1);
+    expect(county.terrain_fields[0]?.validity.values).toEqual(
+      Uint8Array.from([1, 1, 1, 0]),
+    );
+    expect(
+      county.nodes.some(({ id }) =>
+        id.startsWith("regional-object:terrain-grid"),
+      ),
+    ).toBe(false);
+    const snapshot = compileSceneSnapshot(
+      terrainPortfolio,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(snapshot.source_revisions).toContain("terrain-dataset:grid");
+    expect(snapshot.compiler_revisions).toContain(
+      "rey.explorer.regional-terrain-grid@1",
+    );
+    const markup = renderToStaticMarkup(
+      ReferenceRenderer({
+        layers: {
+          relief: true,
+          water: false,
+          weather: false,
+          probes: false,
+        },
+        onFocus: () => undefined,
+        scene: county,
+      }),
+    );
+    expect(markup).toContain("data-regional-terrain-reference");
+    expect(markup).toContain("Explicit no-data vertices remain holes");
+    expect(markup).toContain("data-terrain-triangle");
+
+    scene.projection.terrain.grid!.cells[3]!.material = "granite";
     expect(
       buildTopologyScene(terrainPortfolio, 0.1, "regional:scene:1").globe
         ?.posture,

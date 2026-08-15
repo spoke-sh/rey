@@ -11,6 +11,7 @@ import {
   COUNTY_FOOTPRINT_PROJECTION_REVISION,
   COUNTY_FRAME_PROJECTION_REVISION,
 } from "../projection/county-frame";
+import { REGIONAL_TERRAIN_SCENE_COMPILER_REVISION } from "../projection/regional-terrain";
 import type {
   CountyFrame,
   ProjectedCountyFootprint,
@@ -104,6 +105,9 @@ export function compileSceneSnapshot(
             regionalScenes.flatMap(({ county_footprint, result, scene }) => [
               result.result_id,
               scene.projection.packet_id,
+              ...(scene.projection.terrain?.grid
+                ? [scene.projection.terrain.grid.dataset_id]
+                : []),
               ...(county_footprint
                 ? [
                     county_footprint.footprint_id,
@@ -162,6 +166,8 @@ export function compileSceneSnapshot(
   }
   if (regionalScenes.some(({ county_footprint }) => county_footprint))
     compilerRevisions.push(COUNTY_FOOTPRINT_PROJECTION_REVISION);
+  if (regionalScenes.some(({ scene }) => scene.projection.terrain?.grid))
+    compilerRevisions.push(REGIONAL_TERRAIN_SCENE_COMPILER_REVISION);
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   if (

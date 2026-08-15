@@ -336,13 +336,19 @@ bounded closed native rings. Missing or ambiguous boundary geometry remains an
 explicit omission rather than an inferred envelope polygon. This evidence is
 carried by the embedded `rey.regional-projection-packet.v1`. Topography, atlas,
 projection, and terrain
-identities remain separate. The qualified `terrain` adapter admits only exact
-RFC 7946 Point positions with a third-coordinate altitude in meters and a
-bounded `material` property. `rey.regional-terrain-program.v1` content-identifies
-the resulting source-bound height/material samples in micrometers and declares
-`none; exact admitted samples only` interpolation; it does not claim a
-continuous field, material physics, or coverage. Without those samples the
-program remains absent and height validity remains explicitly unsupported. A
+identities remain separate. The qualified `terrain` adapter admits exact RFC
+7946 Point positions. An isolated point requires a third-coordinate altitude
+in meters and a bounded `material` property;
+`rey.regional-terrain-program.v1` retains those source-bound values in
+micrometers with no interpolation or coverage. A complete rectilinear source
+may additionally bind one grid identity, row/column, dimensions, and explicit
+`valid`/`no_data` at every vertex. Admission independently reconstructs and
+verifies `rey.regional-terrain-grid.v1`; valid cells retain exact height and
+material, while no-data cells retain neither. The grid authorizes
+piecewise-linear interpolation only inside triangles whose three source
+vertices are valid through `rey.regional-terrain-program.v2`. It does not claim
+material physics or support outside those triangles. Without qualified samples or a grid the program remains
+absent and height validity remains explicitly unsupported. A
 terrain-control layer remains candidate control geometry and cannot
 be interpreted as observed terrain. Layer kinds come only from explicit source
 roles retained through the admitted object and layer records; geometry and
