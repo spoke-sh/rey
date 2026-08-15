@@ -97,6 +97,9 @@ describe("reference renderer", () => {
     expect(markup).toContain('data-natural-feature="stream"');
     expect(markup).not.toContain("topology-arrow");
     expect(markup).toContain("not a source relationship");
+    expect(markup).toContain("<desc>");
+    expect(markup).not.toContain("<title>");
+    expect(markup).not.toContain(" title=");
   });
 
   it("keeps the base landform independent from optional contour overlays", () => {
@@ -198,6 +201,8 @@ describe("reference renderer", () => {
       expect(markup).not.toContain("2 ADMITTED REGIONS");
       expect(markup).not.toContain('data-world-geometry="charted"');
       expect(markup).not.toContain('data-natural-feature="stream"');
+      expect(markup).not.toContain("<title>");
+      expect(markup).not.toContain(" title=");
     }
 
     const halfwayMarkup = renderToStaticMarkup(
@@ -298,5 +303,10 @@ describe("reference renderer", () => {
     expect(markup).toContain('href="/workloads/context-anchor-survey"');
     expect(markup).toContain("NO SURVEY CLAIM");
     expect(markup).not.toContain('data-world-geometry="charted"');
+    expect(markup).toContain(
+      'aria-label="WORKING · sys/context-anchor-survey/workload.yaml · revision blake3:package"',
+    );
+    expect(markup).not.toContain("<title>");
+    expect(markup).not.toContain(" title=");
   });
 });

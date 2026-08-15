@@ -301,10 +301,10 @@ function AtlasFeatureLayer({
       role="group"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>
+      <desc>
         Occupied sectors retain synthetic membership only. Markers retain one
         canonical identity through horizontally wrapped presentation copies.
-      </title>
+      </desc>
       <g
         data-atlas-view-offset={`${offset.x},${offset.y}`}
         transform={`translate(${offset.x} ${offset.y})`}
@@ -336,7 +336,7 @@ function AtlasFeatureLayer({
                 x={region.x + wrapIndex * wrapOffset}
                 y={region.y}
               >
-                <title>{`${region.label} / ${region.detail}`}</title>
+                <desc>{`${region.label} / ${region.detail}`}</desc>
               </rect>
             );
           }),
@@ -419,7 +419,7 @@ function AtlasFeatureLayer({
                     {node.label}
                   </text>
                 ) : null}
-                <title>{node.detail}</title>
+                <desc>{node.detail}</desc>
               </g>
             );
           }),
@@ -451,10 +451,10 @@ function CountyFeatureLayer({
       role="group"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>
+      <desc>
         Feature marks use exact admitted native bounds. An envelope does not
         reconstruct source geometry or terrain between admitted samples.
-      </title>
+      </desc>
       {features.map((node) => {
         const feature = node.spatial_feature!;
         const point = feature.geometry_kind.toLowerCase() === "point";
@@ -541,7 +541,7 @@ function CountyFeatureLayer({
                 {countyFeatureLabel(node.label)}
               </text>
             ) : null}
-            <title>{`${node.detail} / ${feature.authority}`}</title>
+            <desc>{`${node.detail} / ${feature.authority}`}</desc>
           </g>
         );
         return node.evidence_uri &&
@@ -588,7 +588,7 @@ function CountyFootprintLayer({ scene }: { scene: TopologyScene }) {
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>{`${footprint.source_object_id} / ${footprint.coordinate_count} exact native coordinates / ${footprint.authority}`}</title>
+      <desc>{`${footprint.source_object_id} / ${footprint.coordinate_count} exact native coordinates / ${footprint.authority}`}</desc>
       <path
         className={sx(styles.countyFootprint)}
         d={footprint.path}
@@ -638,10 +638,10 @@ function WorldGeometryLayer({
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>
+      <desc>
         Charted land is derived from admitted anchor extents. Dashed horizons
         include unresolved frontier probes and do not claim observed terrain.
-      </title>
+      </desc>
       <g className={sx(styles.worldGraticule)} aria-hidden="true">
         {meridians.map((x) => (
           <line
@@ -671,7 +671,7 @@ function WorldGeometryLayer({
             data-world-geometry={landform.kind}
             key={landform.id}
           >
-            <title>{`${landform.label} / ${landform.detail}`}</title>
+            <desc>{`${landform.label} / ${landform.detail}`}</desc>
           </path>
         ))}
       {scene.landforms
@@ -687,7 +687,7 @@ function WorldGeometryLayer({
             data-world-geometry={landform.kind}
             key={landform.id}
           >
-            <title>{`${landform.label} / ${landform.detail}`}</title>
+            <desc>{`${landform.label} / ${landform.detail}`}</desc>
           </path>
         ))}
     </svg>
@@ -807,13 +807,13 @@ function SemanticGlobeLayer({
       role="group"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>
+      <desc>
         {globe.posture === "orientation"
           ? "This unmapped globe orients exact file-backed workload candidates. Beacon positions are stable presentation geometry, not admitted semantic coordinates or distance claims."
           : globe.posture === "semantic_atlas"
             ? "Synthetic semantic longitude and latitude place admitted survey regions on a spherical world. They are not Earth coordinates, and zoom never reclusters this atlas revision."
             : "Revision-bound synthetic placements and occupied sector membership from the retained atlas. They are not Earth coordinates, native County footprints, or physical-distance claims."}
-      </title>
+      </desc>
       <defs>
         <radialGradient id="rey-semantic-globe-fill" cx="34%" cy="26%" r="76%">
           <stop offset="0%" stopColor="#f4f1e4" />
@@ -899,7 +899,7 @@ function SemanticGlobeLayer({
                 (0.72 + depth * 0.28),
             )}
           >
-            <title>{`${cluster.member_count} admitted regions / ${cluster.dominant_feature.replaceAll("_", " ")} structure`}</title>
+            <desc>{`${cluster.member_count} admitted regions / ${cluster.dominant_feature.replaceAll("_", " ")} structure`}</desc>
           </circle>
         ))}
       </g>
@@ -951,7 +951,7 @@ function SemanticGlobeLayer({
                   </text>
                 </>
               ) : null}
-              <title>{region.detail}</title>
+              <desc>{region.detail}</desc>
             </g>
           );
         })}
@@ -1012,7 +1012,7 @@ function SemanticGlobeLayer({
             >
               {beacon.state.toUpperCase()} · SELECT TO REVIEW
             </text>
-            <title>{`${beacon.label} / ${beacon.detail} / ${beacon.next_step}`}</title>
+            <desc>{`${beacon.label} / ${beacon.detail} / ${beacon.next_step}`}</desc>
           </g>
         ))}
       </g>
@@ -1100,7 +1100,7 @@ function WorldAtlasTransitionLayer({
       role="group"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>{transition.authority}</title>
+      <desc>{transition.authority}</desc>
       <g aria-label={`${transition.sectors.length} retained sector identities`}>
         {!accelerated
           ? sectorFragments.map(({ fragment, sector }) => (
@@ -1111,7 +1111,7 @@ function WorldAtlasTransitionLayer({
                 data-wrap-fragment={fragment.fragment_id}
                 key={fragment.fragment_id}
               >
-                <title>{`${sector.label} / ${fragment.polar_disclosures.join(" + ") || "inside Mercator latitude cutoff"}`}</title>
+                <desc>{`${sector.label} / ${fragment.polar_disclosures.join(" + ") || "inside Mercator latitude cutoff"}`}</desc>
               </path>
             ))
           : null}
@@ -1229,12 +1229,12 @@ function NaturalFeatureLayer({
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>
+      <desc>
         Weather fronts derive from unresolved admitted survey conditions.
         Streams and rivers derive from rainfall accumulation over anchor-only
         relief and visibly erode that projected field. None are source edges,
         discovered paths, or retained natural facts.
-      </title>
+      </desc>
       {features.map((feature) => {
         const pathId = `natural-feature-${feature.id.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}`;
         return (
@@ -1253,7 +1253,7 @@ function NaturalFeatureLayer({
                 strokeWidth: `calc(${0.7 + feature.intensity * (feature.kind === "river" ? 0.48 : 0.22)}px * var(--rey-terrain-counter-scale))`,
               }}
             >
-              <title>{`${feature.label} / ${feature.detail}`}</title>
+              <desc>{`${feature.label} / ${feature.detail}`}</desc>
             </path>
             {showLabels &&
             (feature.kind === "river" || feature.kind === "weather_front") ? (
@@ -1283,11 +1283,11 @@ function ReliefLayer({ scene }: { scene: TopologyScene }) {
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
-      <title>
+      <desc>
         Relief height is derived only from admitted anchor samples, then eroded
         by the deterministic runoff projection. It does not assert semantic
         similarity or a discovered path.
-      </title>
+      </desc>
       {scene.contours.map((contour) => (
         <path
           className={sx(
@@ -1640,7 +1640,9 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
             <small className={sx(styles.bearingDetail)}>
               {selectedBeacon.next_step}
             </small>
-            <code title={selectedBeacon.source_revision}>
+            <code
+              aria-label={`${selectedBeacon.state.toUpperCase()} · ${selectedBeacon.source} · revision ${selectedBeacon.source_revision}`}
+            >
               {selectedBeacon.state.toUpperCase()} · {selectedBeacon.source}
             </code>
             <span className={sx(styles.orientationActions)}>
