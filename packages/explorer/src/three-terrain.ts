@@ -130,10 +130,25 @@ export function verifyTerrainMeshParity(
         );
     }
   }
-  for (const index of mesh.indices)
-    if (fields.validity.values[index] === 0)
-      throw new Error("accelerated terrain mesh indexes invalid CPU support");
+  if (terrainNoDataLeakTriangleCount(fields, mesh) > 0)
+    throw new Error("accelerated terrain mesh indexes invalid CPU support");
   return fields.field_cells;
+}
+
+export function terrainNoDataLeakTriangleCount(
+  fields: Pick<TerrainFieldSetInput, "validity">,
+  mesh: Pick<TerrainMeshData, "indices">,
+): number {
+  let leaks = 0;
+  for (let index = 0; index < mesh.indices.length; index += 3) {
+    if (
+      fields.validity.values[mesh.indices[index]!] === 0 ||
+      fields.validity.values[mesh.indices[index + 1]!] === 0 ||
+      fields.validity.values[mesh.indices[index + 2]!] === 0
+    )
+      leaks += 1;
+  }
+  return leaks;
 }
 
 export function buildTerrainMeshData(

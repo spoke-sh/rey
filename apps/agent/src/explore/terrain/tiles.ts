@@ -272,6 +272,24 @@ export function selectTerrainTilesForView(
   });
 }
 
+export function terrainTileSeamMismatchCount(
+  tiles: readonly TerrainTileDescriptor[],
+): number {
+  const indexed = new Map(
+    tiles.map((tile) => [`${tile.level}:${tile.column}:${tile.row}`, tile]),
+  );
+  let mismatches = 0;
+  for (const tile of tiles) {
+    const east = indexed.get(`${tile.level}:${tile.column + 1}:${tile.row}`);
+    if (east && tile.validity_border.east !== east.validity_border.west)
+      mismatches += 1;
+    const south = indexed.get(`${tile.level}:${tile.column}:${tile.row + 1}`);
+    if (south && tile.validity_border.south !== south.validity_border.north)
+      mismatches += 1;
+  }
+  return mismatches;
+}
+
 export function materializeTerrainTile(
   source: TerrainFieldSet,
   tile: TerrainTileDescriptor,

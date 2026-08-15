@@ -26,7 +26,7 @@ export default defineConfig({
   },
   test: {
     alias: TEST_ALIASES,
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
     server: {
       deps: {
         inline: true,

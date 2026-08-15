@@ -81,14 +81,29 @@ function stableEvidence(capture) {
       .map(({ uri }) => uri)
       .sort((left, right) => left.localeCompare(right)),
     focus_id: capture.focus_id,
+    labels: capture.labels,
     projection: {
       regime: capture.projection.regime,
       render_graph_id: capture.projection.render_graph_id,
       render_passes: capture.projection.render_passes,
     },
     scene_snapshot_id: capture.scene_snapshot_id,
+    scene_omissions: capture.scene_omissions,
     source_revisions: capture.source_revisions,
     stage: capture.stage,
+    terrain: {
+      no_data_leak_triangles: capture.renderer?.terrain_no_data_leak_triangles,
+      render_pass_kinds: capture.renderer?.render_pass_kinds,
+      render_pass_line_count: capture.renderer?.render_pass_line_count,
+      render_pass_point_count: capture.renderer?.render_pass_point_count,
+      render_pass_set_id: capture.renderer?.render_pass_set_id,
+      source_elevation_maximum: capture.renderer?.source_elevation_maximum,
+      source_elevation_minimum: capture.renderer?.source_elevation_minimum,
+      source_elevation_span: capture.renderer?.source_elevation_span,
+      source_no_data_vertices: capture.renderer?.source_no_data_vertices,
+      source_valid_vertices: capture.renderer?.source_valid_vertices,
+      tile_seam_mismatches: capture.renderer?.terrain_tile_seam_mismatches,
+    },
   };
 }
 
@@ -147,7 +162,13 @@ async function run(options) {
   const referenceRequest = inputs.reference.manifest.request;
   for (const backend of BACKENDS.slice(1)) {
     const request = inputs[backend].manifest.request;
-    for (const key of ["device_pixel_ratio", "height", "region", "width"]) {
+    for (const key of [
+      "device_pixel_ratio",
+      "height",
+      "landscape_workload",
+      "region",
+      "width",
+    ]) {
       if (request[key] !== referenceRequest[key])
         throw new Error(`${backend} request does not match reference ${key}`);
     }
@@ -158,6 +179,8 @@ async function run(options) {
       inputs.reference.manifest.inputs.attention_snapshot_id,
     admitted_scene_id:
       inputs.reference.manifest.inputs.admitted_region.source_scene_id,
+    landscape_workload:
+      inputs.reference.manifest.inputs.landscape_workload ?? null,
   };
   for (const backend of BACKENDS.slice(1)) {
     const candidate = inputs[backend].manifest.inputs;
@@ -165,7 +188,9 @@ async function run(options) {
       candidate.atlas_revision !== inputBinding.atlas_revision ||
       candidate.attention_snapshot_id !== inputBinding.attention_snapshot_id ||
       candidate.admitted_region.source_scene_id !==
-        inputBinding.admitted_scene_id
+        inputBinding.admitted_scene_id ||
+      JSON.stringify(candidate.landscape_workload ?? null) !==
+        JSON.stringify(inputBinding.landscape_workload)
     ) {
       throw new Error(
         `${backend} voyage does not bind the same admitted inputs`,

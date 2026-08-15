@@ -331,6 +331,13 @@ A rendering change is incomplete until its human journey is qualified.
   fallback, and loss behavior.
 - Transition checks sample intermediate frames, not only globe and map
   endpoints, and retain exact backend, revision, limits, and omissions.
+- Named Landscape captures separately qualify steep relief, low relief,
+  coastline/water, dense vectors, explicit holes, stale data, and backend loss
+  at both target viewports. A capture binds a real admitted fixture; the harness
+  never fabricates one.
+- Landscape manifests retain source validity and relief, screen-space error,
+  tile seams, no-data leakage, pass identity, labels, resident budgets, picking
+  continuity, interaction convergence, backend, and exact scene lineage.
 - WebGPU, WebGL2 compatibility, and the deterministic reference renderer keep
   semantic parity; unsupported visual fidelity is disclosed rather than
   hidden.

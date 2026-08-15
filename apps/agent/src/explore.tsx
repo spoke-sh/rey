@@ -724,6 +724,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       data-scene-compilers={snapshot.compiler_revisions.join(",")}
       data-scene-compilation-ms={measuredSceneProjection.compilation_ms}
       data-scene-focus={snapshot.focus_id}
+      data-scene-omissions={JSON.stringify(scene.omissions)}
       data-scene-snapshot={snapshot.snapshot_id}
       data-scene-sources={snapshot.source_revisions.join(",")}
       ref={shellRef}
@@ -917,10 +918,37 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-render-pass-point-count={
             terrainRenderer.render_pass_point_count
           }
+          data-renderer-render-pass-kinds={terrainRenderer.render_pass_kinds.join(
+            ",",
+          )}
           data-renderer-render-pass-set-id={terrainRenderer.render_pass_set_id}
           data-renderer-revision={terrainRenderer.status.renderer_revision}
+          data-renderer-source-elevation-maximum={
+            terrainRenderer.source_elevation_maximum
+          }
+          data-renderer-source-elevation-minimum={
+            terrainRenderer.source_elevation_minimum
+          }
+          data-renderer-source-elevation-span={
+            terrainRenderer.source_elevation_span
+          }
+          data-renderer-source-no-data-vertices={
+            terrainRenderer.source_no_data_vertices
+          }
+          data-renderer-source-valid-vertices={
+            terrainRenderer.source_valid_vertices
+          }
           data-renderer-submission-ms={terrainRenderer.render_submission_ms}
           data-renderer-terrain-decode-ms={terrainRenderer.terrain_decode_ms}
+          data-renderer-terrain-maximum-screen-error-pixels={
+            terrainRenderer.terrain_maximum_screen_error_pixels
+          }
+          data-renderer-terrain-no-data-leak-triangles={
+            terrainRenderer.terrain_no_data_leak_triangles
+          }
+          data-renderer-terrain-tile-seam-mismatches={
+            terrainRenderer.terrain_tile_seam_mismatches
+          }
           data-renderer-terrain-tile-projection-ms={
             terrainRenderer.terrain_tile_projection_ms
           }

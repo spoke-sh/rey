@@ -5,6 +5,7 @@ import {
   createContinuousReliefMaterial,
   terrainCameraProjection,
   terrainMeshByteLength,
+  terrainNoDataLeakTriangleCount,
   verifyTerrainMeshParity,
 } from "./three-terrain";
 import { terrainFieldFixture, terrainRenderPassFixture } from "./test-fixtures";
@@ -17,6 +18,7 @@ describe("accelerated continuous terrain compiler", () => {
     expect(mesh.indices.length).toBeGreaterThan(0);
     expect(terrainMeshByteLength(mesh)).toBeGreaterThan(fieldSet.field_bytes);
     expect(verifyTerrainMeshParity(fieldSet, mesh)).toBe(fieldSet.field_cells);
+    expect(terrainNoDataLeakTriangleCount(fieldSet, mesh)).toBe(0);
     for (const index of mesh.indices)
       expect(fieldSet.validity.values[index]).not.toBe(0);
   });
@@ -122,6 +124,17 @@ describe("accelerated continuous terrain compiler", () => {
     mesh.tint[6] = Math.fround(mesh.tint[6]! + 0.01);
     expect(() => verifyTerrainMeshParity(fieldSet, mesh)).toThrow(
       "diverges from CPU fields at sample 2",
+    );
+  });
+
+  it("counts any triangle that leaks across explicit no-data", () => {
+    const fieldSet = terrainFieldFixture();
+    const mesh = buildTerrainMeshData(fieldSet);
+    const leakedVertex = mesh.indices[0]!;
+    fieldSet.validity.values[leakedVertex] = 0;
+    expect(terrainNoDataLeakTriangleCount(fieldSet, mesh)).toBeGreaterThan(0);
+    expect(() => verifyTerrainMeshParity(fieldSet, mesh)).toThrow(
+      "indexes invalid CPU support",
     );
   });
 

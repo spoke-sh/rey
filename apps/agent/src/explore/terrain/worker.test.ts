@@ -22,6 +22,9 @@ describe("bounded terrain compilation worker", () => {
     expect(result.metrics).toMatchObject({
       workload_id: "landscape-seam-fixture",
       decode_ms: 0,
+      maximum_screen_error_pixels: expect.any(Number),
+      tile_seam_mismatches: 0,
+      no_data_leak_triangles: 0,
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
     });

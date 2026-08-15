@@ -49,6 +49,12 @@ export interface AcceleratedTerrainReport {
   render_pass_set_id: string;
   render_pass_line_count: number;
   render_pass_point_count: number;
+  render_pass_kinds: readonly string[];
+  source_valid_vertices: number;
+  source_no_data_vertices: number;
+  source_elevation_minimum: number | null;
+  source_elevation_maximum: number | null;
+  source_elevation_span: number | null;
   gpu_bytes: number;
   gpu_budget_bytes: number;
   parity_revision: string;
@@ -59,6 +65,9 @@ export interface AcceleratedTerrainReport {
   terrain_update_ms: number;
   terrain_decode_ms: number;
   terrain_tile_projection_ms: number;
+  terrain_maximum_screen_error_pixels: number;
+  terrain_tile_seam_mismatches: number;
+  terrain_no_data_leak_triangles: number;
   terrain_worker_execution:
     "dedicated_worker" | "main_thread_fallback" | "none";
   terrain_worker_revision: string;
@@ -102,6 +111,12 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     render_pass_set_id: "unbound",
     render_pass_line_count: 0,
     render_pass_point_count: 0,
+    render_pass_kinds: Object.freeze([]),
+    source_valid_vertices: 0,
+    source_no_data_vertices: 0,
+    source_elevation_minimum: null,
+    source_elevation_maximum: null,
+    source_elevation_span: null,
     gpu_bytes: 0,
     gpu_budget_bytes: 0,
     parity_revision: "unbound",
@@ -112,6 +127,9 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     terrain_update_ms: 0,
     terrain_decode_ms: 0,
     terrain_tile_projection_ms: 0,
+    terrain_maximum_screen_error_pixels: 0,
+    terrain_tile_seam_mismatches: 0,
+    terrain_no_data_leak_triangles: 0,
     terrain_worker_execution: "none",
     terrain_worker_revision: "unbound",
     active_tile_count: 0,
@@ -279,6 +297,33 @@ export function AcceleratedTerrainSurface({
       dynamic,
     );
     return total;
+  }, [snapshot.snapshot_id]);
+  const sourceTerrainSummary = useMemo(() => {
+    let validVertices = 0;
+    let noDataVertices = 0;
+    let minimum = Number.POSITIVE_INFINITY;
+    let maximum = Number.NEGATIVE_INFINITY;
+    for (const field of snapshot.scene.terrain_fields) {
+      for (let index = 0; index < field.field_cells; index += 1) {
+        if (field.validity.values[index] === 0) {
+          noDataVertices += 1;
+          continue;
+        }
+        validVertices += 1;
+        const elevation =
+          field.elevation.values[index]! * field.elevation_scale;
+        minimum = Math.min(minimum, elevation);
+        maximum = Math.max(maximum, elevation);
+      }
+    }
+    const hasElevation = validVertices > 0;
+    return Object.freeze({
+      valid_vertices: validVertices,
+      no_data_vertices: noDataVertices,
+      elevation_minimum: hasElevation ? minimum : null,
+      elevation_maximum: hasElevation ? maximum : null,
+      elevation_span: hasElevation ? maximum - minimum : null,
+    });
   }, [snapshot.snapshot_id]);
   const workingSetRequests = useMemo(
     () =>
@@ -566,6 +611,23 @@ export function AcceleratedTerrainSurface({
         terrainCompilation?.render_passes?.lines.length ?? 0,
       render_pass_point_count:
         terrainCompilation?.render_passes?.points.length ?? 0,
+      render_pass_kinds: Object.freeze(
+        [
+          ...new Set([
+            ...(terrainCompilation?.render_passes?.lines.map(
+              ({ kind }) => kind,
+            ) ?? []),
+            ...(terrainCompilation?.render_passes?.points.map(
+              ({ kind }) => kind,
+            ) ?? []),
+          ]),
+        ].sort((left, right) => left.localeCompare(right)),
+      ),
+      source_valid_vertices: sourceTerrainSummary.valid_vertices,
+      source_no_data_vertices: sourceTerrainSummary.no_data_vertices,
+      source_elevation_minimum: sourceTerrainSummary.elevation_minimum,
+      source_elevation_maximum: sourceTerrainSummary.elevation_maximum,
+      source_elevation_span: sourceTerrainSummary.elevation_span,
       gpu_bytes: statistics.gpu_bytes,
       gpu_budget_bytes: statistics.gpu_budget_bytes,
       parity_revision: statistics.parity_revision,
@@ -576,6 +638,11 @@ export function AcceleratedTerrainSurface({
       terrain_update_ms: terrainMetrics?.update_ms ?? 0,
       terrain_decode_ms: terrainMetrics?.decode_ms ?? 0,
       terrain_tile_projection_ms: terrainMetrics?.tile_projection_ms ?? 0,
+      terrain_maximum_screen_error_pixels:
+        terrainMetrics?.maximum_screen_error_pixels ?? 0,
+      terrain_tile_seam_mismatches: terrainMetrics?.tile_seam_mismatches ?? 0,
+      terrain_no_data_leak_triangles:
+        terrainMetrics?.no_data_leak_triangles ?? 0,
       terrain_worker_execution:
         activeTerrain?.result.execution ?? (semanticGlobe ? "none" : "none"),
       terrain_worker_revision:

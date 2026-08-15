@@ -1,0 +1,98 @@
+{
+  "schema": "rey.explorer-landscape-workloads.v1",
+  "suite_id": "rey.explorer.landscape-fidelity@1",
+  "authority": "source-controlled browser qualification requirements for separately admitted named fixtures; not terrain evidence, permission to synthesize inputs, or proof authority",
+  "target_viewports": ["1920x1080", "3840x2160"],
+  "workloads": [
+    {
+      "id": "steep-relief",
+      "purpose": "retain legible high-gradient relief and bounded screen-space error",
+      "requirements": {
+        "minimum_elevation_span": 75,
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0,
+        "required_render_passes": [
+          "height_normals_hillshade",
+          "ambient_valley_occlusion"
+        ]
+      }
+    },
+    {
+      "id": "low-relief",
+      "purpose": "retain subtle material and hillshade response without exaggerating source height",
+      "requirements": {
+        "maximum_elevation_span": 5,
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0,
+        "required_render_passes": ["base_terrain", "height_normals_hillshade"]
+      }
+    },
+    {
+      "id": "coastline-water",
+      "purpose": "retain water and admitted boundary geometry against explicit land/water support",
+      "requirements": {
+        "minimum_source_no_data_vertices": 1,
+        "minimum_render_pass_lines": 2,
+        "required_render_passes": ["water_weather_boundary"],
+        "required_render_pass_kinds": ["admitted_boundary", "river"],
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0
+      }
+    },
+    {
+      "id": "dense-vectors",
+      "purpose": "retain dense admitted and derived linework within the draw and interaction budgets",
+      "requirements": {
+        "minimum_render_pass_lines": 32,
+        "minimum_label_candidates": 16,
+        "required_render_passes": [
+          "contours",
+          "water_weather_boundary",
+          "features_labels_selection"
+        ],
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0
+      }
+    },
+    {
+      "id": "explicit-holes",
+      "purpose": "retain visible no-data holes through tiling, meshing, passes, and both accelerated backends",
+      "requirements": {
+        "minimum_source_no_data_vertices": 1,
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0,
+        "required_render_passes": ["validity_background", "base_terrain"]
+      }
+    },
+    {
+      "id": "stale-data",
+      "purpose": "retain stale-source disclosure without treating it as fresh terrain",
+      "requirements": {
+        "required_scene_omission_terms": ["stale"],
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0
+      }
+    },
+    {
+      "id": "backend-loss",
+      "purpose": "retain the same semantic Landscape and visible reference fallback after real backend loss",
+      "requirements": {
+        "require_backend_loss": true,
+        "maximum_screen_error_pixels": 1.5,
+        "maximum_tile_seam_mismatches": 0,
+        "maximum_no_data_leak_triangles": 0,
+        "required_render_passes": [
+          "validity_background",
+          "base_terrain",
+          "evidence_accessibility"
+        ]
+      }
+    }
+  ]
+}

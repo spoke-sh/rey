@@ -140,8 +140,10 @@ rejects output above `MAX_ACCELERATED_TERRAIN_GPU_BYTES`, currently 64 MiB.
 Statistics retain field-set, tile, level, vertex, triangle, source-byte,
 resident CPU/GPU byte, budget, hit, miss, eviction, parity-sample, update,
 projection, evaluation, geometry-compilation, draw, and submission counts or
-timings. GPU execution time remains explicitly unavailable without a capable
-GPU timer.
+timings. Browser diagnostics additionally retain source valid/no-data vertex
+counts and relief span, maximum selected screen-space error, shared validity
+seam mismatches, and no-data triangle leaks. GPU execution time remains
+explicitly unavailable without a capable GPU timer.
 
 ## Current Boundary
 

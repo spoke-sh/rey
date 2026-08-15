@@ -109,6 +109,11 @@ function summarizeVoyage(document, path) {
     throw new Error(`${path} has unexpected schema ${document.schema}`);
   if (document.voyage?.complete !== true)
     throw new Error(`${path} is not a complete voyage`);
+  if (
+    document.request?.landscape_workload &&
+    document.landscape_workload?.passed !== true
+  )
+    throw new Error(`${path} did not pass its named Landscape workload`);
   const captures = document.captures ?? [];
   if (captures.length === 0) throw new Error(`${path} has no captures`);
   const interactions = document.interactions ?? [];
@@ -163,6 +168,54 @@ function summarizeVoyage(document, path) {
         finiteNumber(capture.renderer?.gpu_bytes, `${path} GPU upload bytes`),
       ),
     ),
+    resident_cpu_bytes: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.resident_cpu_bytes,
+          `${path} resident CPU bytes`,
+        ),
+      ),
+    ),
+    resident_gpu_bytes: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.resident_gpu_bytes,
+          `${path} resident GPU bytes`,
+        ),
+      ),
+    ),
+    render_pass_lines: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.render_pass_line_count,
+          `${path} render-pass lines`,
+        ),
+      ),
+    ),
+    terrain_screen_error_pixels: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.terrain_maximum_screen_error_pixels,
+          `${path} terrain screen error`,
+        ),
+      ),
+    ),
+    terrain_tile_seam_mismatches: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.terrain_tile_seam_mismatches,
+          `${path} terrain tile seam mismatches`,
+        ),
+      ),
+    ),
+    terrain_no_data_leak_triangles: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.terrain_no_data_leak_triangles,
+          `${path} terrain no-data leakage`,
+        ),
+      ),
+    ),
     label_candidates: maximum(
       captures.map((capture) =>
         finiteNumber(capture.labels?.total, `${path} label candidates`),
@@ -204,6 +257,7 @@ function summarizeVoyage(document, path) {
     input_identity: JSON.stringify({
       admitted_region: document.inputs.admitted_region,
       atlas_revision: document.inputs.atlas_revision,
+      landscape_workload: document.inputs.landscape_workload ?? null,
       workload_revision: document.inputs.workload_revision,
     }),
     machine_identity: machineIdentity(document.machine),
@@ -218,6 +272,7 @@ function summarizeVoyage(document, path) {
       })),
     ),
     transport: document.request.transport,
+    landscape_workload: document.request.landscape_workload ?? null,
     viewport: `${document.request.width}x${document.request.height}`,
   };
 }
@@ -265,6 +320,11 @@ async function qualify(options) {
     throw new Error("voyages were not captured on one exact machine/browser");
   if (new Set(voyages.map(({ transport }) => transport)).size !== 1)
     throw new Error("voyages do not share one transport posture");
+  if (
+    new Set(voyages.map(({ landscape_workload }) => landscape_workload))
+      .size !== 1
+  )
+    throw new Error("voyages do not share one named Landscape workload");
   for (const viewport of budget.required_viewports) {
     const members = voyages.filter((voyage) => voyage.viewport === viewport);
     if (new Set(members.map(({ input_identity }) => input_identity)).size !== 1)
@@ -334,6 +394,7 @@ async function qualify(options) {
       complete_backend_viewport_matrix: true,
       exact_machine_browser_match: true,
       exact_viewport_input_and_scene_lineage_match: true,
+      one_landscape_workload: true,
       one_transport_posture: true,
     },
     evaluations,

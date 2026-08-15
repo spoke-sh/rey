@@ -5,6 +5,7 @@ import {
   materializeTerrainTile,
   projectTerrainTilePyramid,
   selectTerrainTilesForView,
+  terrainTileSeamMismatchCount,
 } from "./tiles";
 
 describe("admitted terrain tile projection", () => {
@@ -21,12 +22,24 @@ describe("admitted terrain tile projection", () => {
     expect(left.column_indices.at(-1)).toBe(right.column_indices[0]);
     expect(left.validity_border.east).toBe(right.validity_border.west);
     expect(left.validity_border.east[16]).toBe("0");
+    expect(terrainTileSeamMismatchCount([left, right])).toBe(0);
 
     for (const descriptor of [left, right]) {
       const tile = materializeTerrainTile(source, descriptor);
       for (const index of terrainTriangleIndices(tile))
         expect(tile.validity.values[index]).toBe(1);
     }
+  });
+
+  it("detects a mismatched retained validity seam", () => {
+    const pyramid = projectTerrainTilePyramid(admittedField());
+    const left = tileAt(pyramid, 2, 0, 0);
+    const right = tileAt(pyramid, 2, 1, 0);
+    const mismatched = {
+      ...right,
+      validity_border: { ...right.validity_border, west: "0" },
+    };
+    expect(terrainTileSeamMismatchCount([left, mismatched])).toBe(1);
   });
 
   it("can only remove support at coarse levels and refines by screen error", () => {

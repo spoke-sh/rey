@@ -6,6 +6,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { cpus, hostname, platform, release, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  evaluateLandscapeCapture,
+  landscapeWorkload,
+  validateLandscapeWorkloadSuite,
+} from "./explorer-landscape-qualification.mjs";
 
 const SCHEMA = "rey.explorer-qualification-voyage.v1";
 const AUTHORITY =
@@ -25,6 +30,10 @@ const REPOSITORY_ROOT = resolve(
   "../../..",
 );
 const DIST_ROOT = join(REPOSITORY_ROOT, "apps/agent/dist");
+const LANDSCAPE_WORKLOAD_SUITE = join(
+  REPOSITORY_ROOT,
+  "apps/agent/qualification/explorer-landscape-workloads.json",
+);
 
 function usage() {
   return `Retain one bounded World → Atlas → County → Evidence browser voyage.
@@ -42,6 +51,8 @@ Options:
   --height PIXELS       Viewport height (default: 1080)
   --dpr NUMBER          Device pixel ratio (default: 1)
   --region ID           Admitted scene region to enter (default: rey-county)
+  --landscape-workload ID
+                        Bind and assert one named Landscape fidelity workload
   --loss MODE           none (default), webgl-context, or webgpu-device
   --revalidation MODE   none (default) or attention
   --output-dir PATH     Retained output root (default: .rey/qualification/explorer)
@@ -129,6 +140,7 @@ function parseArguments(argv) {
     browser: values.get("browser"),
     devicePixelRatio: positiveNumber("dpr", 1, false),
     height: positiveNumber("height", 1080),
+    landscapeWorkload: values.get("landscape-workload") ?? null,
     loss,
     outputRoot: resolve(
       values.get("output-dir") ??
@@ -1030,6 +1042,10 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     const renderedGlobeAtmosphereBounds = globeAtmosphere?.getBoundingClientRect();
     const globeSphereBounds = globeSphere?.getBoundingClientRect();
     const globeHaloScale = Number(globeSphere?.getAttribute("data-globe-halo-scale"));
+    let sceneOmissions = [];
+    try {
+      sceneOmissions = JSON.parse(shell?.getAttribute("data-scene-omissions") ?? "[]");
+    } catch {}
     const globeAtmosphereBounds = renderedGlobeAtmosphereBounds ?? (
       globeSphereBounds && Number.isFinite(globeHaloScale)
         ? {
@@ -1094,6 +1110,7 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
       scene_compilation_ms: Number(shell?.getAttribute("data-scene-compilation-ms") ?? "NaN"),
       scene_snapshot_id: shell?.getAttribute("data-scene-snapshot") ?? null,
       source_revisions: shell?.getAttribute("data-scene-sources")?.split(",").filter(Boolean) ?? [],
+      scene_omissions: sceneOmissions,
       labels: [...document.querySelectorAll("[data-label-disposition]")].reduce((counts, element) => {
         const disposition = element.getAttribute("data-label-disposition") ?? "unknown";
         counts[disposition] = (counts[disposition] ?? 0) + 1;
@@ -1207,7 +1224,23 @@ async function runVoyage(options) {
     );
   }
 
-  const voyageName = `world-atlas-county-evidence-${options.backend}-${options.width}x${options.height}${options.loss === "none" ? "" : `-${options.loss}`}${options.revalidation === "none" ? "" : `-${options.revalidation}-revalidation`}`;
+  let landscapeWorkloadBinding = null;
+  if (options.landscapeWorkload) {
+    const bytes = await readFile(LANDSCAPE_WORKLOAD_SUITE);
+    const suite = validateLandscapeWorkloadSuite(JSON.parse(bytes));
+    landscapeWorkloadBinding = {
+      path: LANDSCAPE_WORKLOAD_SUITE,
+      sha256: sha256(bytes),
+      suite_id: suite.suite_id,
+      workload: landscapeWorkload(
+        suite,
+        options.landscapeWorkload,
+        `${options.width}x${options.height}`,
+      ),
+    };
+  }
+
+  const voyageName = `world-atlas-county-evidence-${options.backend}-${options.width}x${options.height}${landscapeWorkloadBinding ? `-${landscapeWorkloadBinding.workload.id}` : ""}${options.loss === "none" ? "" : `-${options.loss}`}${options.revalidation === "none" ? "" : `-${options.revalidation}-revalidation`}`;
   const voyageDirectory = join(
     options.outputRoot,
     `${timestamp()}-${voyageName}`,
@@ -1666,6 +1699,17 @@ async function runVoyage(options) {
             capture.renderer?.degraded === "true" &&
             capture.renderer?.lifecycle === "failed",
         );
+  const landscapeCapture = captures.find(
+    (capture) => capture.stage === "landscape",
+  );
+  const landscapeWorkloadEvaluation = landscapeWorkloadBinding
+    ? evaluateLandscapeCapture(
+        landscapeCapture,
+        landscapeWorkloadBinding.workload,
+        options,
+        lossFallbackObserved,
+      )
+    : null;
   const sceneIdentityRetained =
     captures.length > 0 &&
     new Set(captures.map((capture) => capture.scene_snapshot_id)).size === 5;
@@ -1725,6 +1769,7 @@ async function runVoyage(options) {
     smoothWorldWheel?.observed === true &&
     outsideGlobePan?.observed === true &&
     rotatedWorldAtlasUnfurl?.observed === true &&
+    landscapeWorkloadEvaluation?.passed !== false &&
     lossFallbackObserved !== false &&
     passiveRevalidationObserved !== false &&
     exceptions.length === 0 &&
@@ -1739,6 +1784,15 @@ async function runVoyage(options) {
           "the admitted regional fixture has no terrain object; accelerated World globe capture does not claim County terrain acceleration",
         ]
       : []),
+    ...(!landscapeWorkloadBinding
+      ? [
+          "named Landscape fidelity requirements were not selected; add --landscape-workload to qualify a Plan 0005 fixture",
+        ]
+      : landscapeWorkloadEvaluation?.passed
+        ? []
+        : [
+            `Landscape workload ${landscapeWorkloadBinding.workload.id} did not satisfy every retained requirement`,
+          ]),
     "captures do not measure GPU execution duration or frame rate",
     ...(options.loss === "none"
       ? [
@@ -1771,6 +1825,7 @@ async function runVoyage(options) {
       base_url: options.baseUrl,
       device_pixel_ratio: options.devicePixelRatio,
       height: options.height,
+      landscape_workload: options.landscapeWorkload,
       loss: options.loss,
       region: options.region,
       revalidation: options.revalidation,
@@ -1793,6 +1848,14 @@ async function runVoyage(options) {
       attention_snapshot_id: portfolio.attention.source_snapshot_id,
       workload_revision:
         portfolio.revision?.head?.snapshot?.snapshot_revision ?? null,
+      landscape_workload: landscapeWorkloadBinding
+        ? {
+            path: landscapeWorkloadBinding.path,
+            sha256: landscapeWorkloadBinding.sha256,
+            suite_id: landscapeWorkloadBinding.suite_id,
+            workload_id: landscapeWorkloadBinding.workload.id,
+          }
+        : null,
     },
     assertions: {
       backend_matched: backendMatched,
@@ -1816,6 +1879,7 @@ async function runVoyage(options) {
       outside_globe_pan_observed: outsideGlobePan?.observed ?? false,
       rotated_world_atlas_unfurl_observed:
         rotatedWorldAtlasUnfurl?.observed ?? false,
+      landscape_workload_passed: landscapeWorkloadEvaluation?.passed ?? null,
       passive_revalidation_observed: passiveRevalidationObserved,
       scene_snapshot_changed_with_each_semantic_stage: sceneIdentityRetained,
     },
@@ -1824,6 +1888,7 @@ async function runVoyage(options) {
     world_wheel_zoom: smoothWorldWheel,
     rotated_world_atlas_unfurl: rotatedWorldAtlasUnfurl,
     world_drag_partition: outsideGlobePan,
+    landscape_workload: landscapeWorkloadEvaluation,
     revalidation:
       options.revalidation === "attention"
         ? {

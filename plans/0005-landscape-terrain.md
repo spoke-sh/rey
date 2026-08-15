@@ -83,6 +83,17 @@ current source dataset remains one bounded in-memory field. No imagery provider
 or license authority is admitted, so the engine renders admitted material and
 discloses the absence instead of fabricating familiar map imagery.
 
+Fidelity qualification is now executable but has not yet been retained for the
+complete matrix. `rey.explorer.landscape-fidelity@1` names steep relief, low
+relief, coastline/water, dense vectors, explicit holes, stale data, and backend
+loss at 1920×1080 and 3840×2160. Browser captures retain source terrain counts
+and relief span, pass-set identity and kinds, maximum screen-space error, seam
+mismatches, no-data triangle leakage, resident budgets, labels, exact scene
+lineage, and omissions. Parity binds those values across reference, WebGL2, and
+WebGPU; the performance aggregator enforces their ceilings. The harness never
+injects a synthetic scene: each named workload must be separately admitted and
+then selected with `--landscape-workload`.
+
 ## Delivery Sequence
 
 ### 1. Admit one bounded regional elevation dataset
@@ -148,12 +159,17 @@ discloses the absence instead of fabricating familiar map imagery.
 
 ### 6. Qualify fidelity and performance
 
+- [x] Define versioned target viewports and named requirements for steep relief,
+      low relief, coastline/water, dense vectors, explicit holes, stale data, and
+      backend loss without injecting synthetic evidence into the browser.
 - [ ] Add retained Landscape captures at target viewports with steep relief,
       low relief, coastline/water, dense vectors, explicit holes, stale data, and
       backend-loss fixtures.
-- [ ] Assert screen-space terrain error, no-data leakage, tile seams,
+- [x] Instrument and assert screen-space terrain error, no-data leakage, tile seams,
       selection/picking continuity, stable labels, bounded resident bytes, and
-      interaction convergence across reference, WebGL2, and WebGPU.
+      interaction convergence in named voyage, parity, and performance manifests.
+- [ ] Retain the complete named workload matrices across reference, WebGL2, and
+      WebGPU and evaluate rendered parity and performance on one exact machine.
 - [ ] Repeat World → Atlas → Landscape → Object → Evidence through direct
       browser transport and retain exact source, dataset, compiler, backend,
       omissions, limits, and performance lineage.

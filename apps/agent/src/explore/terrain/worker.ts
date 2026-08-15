@@ -1,5 +1,6 @@
 import {
   compileContinuousRelief,
+  terrainNoDataLeakTriangleCount,
   type CompiledContinuousRelief,
 } from "@rey/explorer";
 import {
@@ -15,6 +16,7 @@ import {
   materializeTerrainTile,
   projectTerrainTilePyramid,
   selectTerrainTilesForView,
+  terrainTileSeamMismatchCount,
   type TerrainTilePyramid,
   type TerrainTileSelection,
 } from "./tiles";
@@ -46,6 +48,9 @@ export interface TerrainCompilationMetrics {
   tile_projection_ms: number;
   field_evaluation_ms: number;
   mesh_preparation_ms: number;
+  maximum_screen_error_pixels: number;
+  tile_seam_mismatches: number;
+  no_data_leak_triangles: number;
   gpu_timing_ms: null;
   gpu_timing_authority: "unavailable_without_capable_gpu_timer";
 }
@@ -140,6 +145,12 @@ export function executeTerrainCompilationJob(
   );
   if (tiles.some((tile) => tile.mesh === undefined))
     throw new Error("terrain worker mesh output lost a selected tile");
+  const noDataLeakTriangles = fields.reduce(
+    (total, field, index) =>
+      total +
+      terrainNoDataLeakTriangleCount(field, compiled.meshes[index]!.data),
+    0,
+  );
   return Object.freeze({
     job_id: job.job_id,
     worker_revision: TERRAIN_COMPILATION_WORKER_REVISION,
@@ -159,6 +170,17 @@ export function executeTerrainCompilationJob(
       tile_projection_ms: tileProjectionMs,
       field_evaluation_ms: fieldEvaluationMs,
       mesh_preparation_ms: meshPreparationMs,
+      maximum_screen_error_pixels: selections.reduce(
+        (maximum, selection) =>
+          Math.max(maximum, selection.screen_error_pixels),
+        0,
+      ),
+      tile_seam_mismatches: selections.reduce(
+        (total, selection) =>
+          total + terrainTileSeamMismatchCount(selection.tiles),
+        0,
+      ),
+      no_data_leak_triangles: noDataLeakTriangles,
       gpu_timing_ms: null,
       gpu_timing_authority: "unavailable_without_capable_gpu_timer",
     }),

@@ -358,7 +358,8 @@ pnpm --filter @rey/agent qualify:explorer -- \
   --base-url http://127.0.0.1:5714 \
   --backend webgpu \
   --width 1920 \
-  --height 1080
+  --height 1080 \
+  --landscape-workload explicit-holes
 ```
 
 The harness uses an isolated Chrome/Chromium profile, traverses World → Atlas
@@ -375,6 +376,17 @@ backend, scene/focus/source/compiler lineage, render passes, bounded GPU/source
 measurements, exact evidence links, console failures, omissions, and capture
 identities. It is local qualification evidence, not semantic evidence, GPU
 execution timing, a frame-rate claim, action authority, or proof authority.
+
+`qualification/explorer-landscape-workloads.json` binds the target viewports
+and seven named Landscape requirements: steep relief, low relief,
+coastline/water, dense vectors, explicit holes, stale data, and backend loss.
+`--landscape-workload` selects one requirement set and binds the suite digest
+into the retained manifest. The harness requires an already admitted matching
+scene; it does not inject synthetic data or upgrade a fixture's authority. In
+addition to the PNG, the Landscape capture retains source valid/no-data counts
+and relief span, render-pass identity/kinds/counts, maximum screen-space error,
+seam mismatches, no-data triangle leaks, labels, resident budgets, exact source
+and compiler lineage, and omissions.
 
 Direct browser HTTP is the default transport. A socket-restricted execution
 environment may add `--transport fulfilled`; that posture runs the exact built
@@ -436,6 +448,12 @@ field, geometry, and synchronous render-submission CPU duration; upload bytes;
 backend-reported draw calls; label candidates; JavaScript heap; interaction
 convergence; and `requestAnimationFrame` presentation cadence. The last two
 timing families do not measure GPU completion or establish a frame-rate claim.
+
+Run one complete six-voyage backend/viewport matrix per named Landscape
+workload. The aggregator requires all manifests in one invocation to bind the
+same workload and adds resident CPU/GPU bytes, render-pass line count, terrain
+screen error, seam mismatch count, and no-data leakage to the versioned
+ceilings.
 
 The mapping parser hard-cuts to `rey.env-map.v2`; the process-owned discovery
 seed set is `HOME`, `PWD`, and `PATH`; a map is loaded only through explicit
