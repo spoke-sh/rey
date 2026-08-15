@@ -209,8 +209,11 @@ describe("reference renderer", () => {
       />,
     );
     expect(halfwayMarkup).toContain('data-globe-atmosphere-remaining="0.5"');
-    expect(halfwayMarkup).toContain('data-globe-atmosphere-opacity="0.03125"');
-    expect(halfwayMarkup).toContain('opacity="0.03125" r="218.');
+    expect(halfwayMarkup).toContain('data-globe-atmosphere-opacity="0.25"');
+    expect(halfwayMarkup).toContain(
+      'data-globe-atmosphere-shell-scale="0.707106',
+    );
+    expect(halfwayMarkup).toContain('opacity="0.25" r="308.');
     expect(halfwayMarkup).toContain(
       'data-globe-sphere="" data-globe-surface-opacity="0.25" fill="url(#rey-semantic-globe-fill)" opacity="0.25" r="400"',
     );
@@ -224,13 +227,8 @@ describe("reference renderer", () => {
         scene={globeScene}
       />,
     );
-    expect(acceleratedMarkup).toContain(
-      'data-globe-atmosphere-remaining="0.5"',
-    );
-    expect(acceleratedMarkup).toContain(
-      'data-globe-atmosphere-opacity="0.03125"',
-    );
-    expect(acceleratedMarkup).toContain('opacity="0.03125" r="218.');
+    expect(acceleratedMarkup).not.toContain('data-globe-atmosphere=""');
+    expect(acceleratedMarkup).not.toContain("data-globe-atmosphere-remaining=");
     expect(acceleratedMarkup).toContain(
       'data-globe-sphere="" data-globe-surface-opacity="0.25" fill="transparent" opacity="0.25" r="400"',
     );

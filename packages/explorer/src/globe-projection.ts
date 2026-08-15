@@ -173,9 +173,20 @@ export function globeSurfaceOpacity(progress: number) {
   return morphRemaining * (1 - smoothstep(fadeProgress));
 }
 
+export function globeAtmosphereShellScale(progress: number) {
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  return Math.sqrt(morphRemaining);
+}
+
 export function globeAtmosphereOpacity(progress: number) {
   const morphRemaining = globeProjectionMorphRemaining(progress);
-  return morphRemaining ** 5;
+  return morphRemaining ** 2;
+}
+
+/** Echoes atmosphere only through the bounded horizontal-repeat dissolve. */
+export function globeAtmosphereRepeatOpacity(progress: number) {
+  const repeatOpacity = globeAtlasRepeatOpacity(progress);
+  return repeatOpacity * (1 - repeatOpacity);
 }
 
 /** The semantic coordinate facing the camera after the globe's yaw/pitch. */

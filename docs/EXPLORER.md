@@ -115,8 +115,13 @@ As the lens moves toward Atlas:
 - the globe unfurls and expands into the available canvas;
 - every sector and marker stays fixed to its semantic coordinate and scales
   with the surface;
-- the atmosphere contracts and fades faster than the surface morph, so it
-  never becomes a halo inside the map;
+- the atmosphere shares the projected surface, while its outward shell
+  thickness contracts and fades faster than the surface morph so it never
+  becomes a halo inside the map;
+- its shell extent and light are functions of projection posture, not traversal
+  direction, so reversing the lens cannot switch into a brighter halo mode;
+- while repeated Atlas charts remain, wrapped copies of the exterior warm
+  shell echo on the x-axis and ease away with the bounded dissolve;
 - the non-geographic circular scaffold fades without shrinking, avoiding a
   collapsing gray disc;
 - the stipple darkens as the background and surface flatten so the same fabric

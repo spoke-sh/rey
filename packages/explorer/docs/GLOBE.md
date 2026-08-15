@@ -69,10 +69,49 @@ curve:
 | -------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
 | Indexed surface            | Spherical and oriented.                        | Unfurls and expands continuously.                                                                                                    | Spans the intended planar canvas for projected attachments.   |
 | Attached geometry          | Fixed to semantic coordinates.                 | Uses the exact surface projector.                                                                                                    | Retains coordinate and identity.                              |
-| Atmosphere                 | Clearly visible around the sphere.             | Contracts while opacity falls on a faster fifth-power curve.                                                                         | Absent before it can appear inside the map.                   |
+| Atmosphere                 | Projected shell outside the same surface.      | One reversible shell and opacity response; traversal direction cannot select a brighter material state.                              | Absent before it can appear inside the map.                   |
 | Neutral spherical scaffold | Establishes the globe body in both renderers.  | Keeps its extent but finishes its color fade before repeated fabric becomes prominent; depth-only geometry may briefly mask overlap. | Absent; no residual warm or gray plane.                       |
 | Stipple                    | Subtle curvature texture.                      | Material response changes with posture.                                                                                              | Darker subdued texture remains legible on the flat surface.   |
 | Polar fabric               | Sparse unlabeled caps in the stipple language. | Travels with the shared projector.                                                                                                   | Does not claim geography outside the disclosed chart support. |
+
+The accelerated atmosphere reuses the exact projected surface geometry. Its
+TSL material offsets that surface along the retained rotated spherical normal
+by a bounded shell thickness. Shell extent follows the square root of remaining
+spherical posture while opacity follows its square, so geometry can retain a
+soft exterior outline without carrying bright light into the planar posture.
+The radial attribute keeps the halo visible in screen space even while the
+projected surface normal still points toward the camera. Each layer renders
+its rear shell face; globe depth masks
+the interior at the spherical endpoint. During intermediate postures, a
+colorless double-sided silhouette pass writes one stencil value for the live
+canonical and wrapped projections, and every atmosphere layer accepts only
+pixels outside that union. This leaves a clear rim without tinting the surface
+or drawing an atmosphere band across Mercator. A saturated muted-yellow inner
+shell and pale-yellow middle shell restore the warm glow, while a low-opacity
+green outer shell lets it fall back into the canvas. The same progress value
+now produces the same shell extent and opacity while entering or exiting
+Atlas. Every band retains its settled color and relative opacity, so reversing
+the wheel cannot switch visual modes, jump toward full brightness, overshoot
+the final extent, or introduce an independently scaled sphere inside the wider
+projection.
+
+The indexed globe body uses neutral ambient and directional light. Warm light
+belongs to the exterior atmosphere bands only; returning surface opacity cannot
+recolor the projected interior yellow and be mistaken for a bright halo.
+
+During the interval where horizontal Atlas copies still exist, the same
+projected rear-face shells repeat at chart offsets `-1` and `1`. They share the
+canonical projected geometry and radial band falloff, so no glow can fill a
+chart interior: it exists only beyond the current globe silhouette. Repeat
+opacity is the bounded product of the repeat dissolve and its complement. It
+therefore follows the same path in either direction, peaks only while charts
+are actively dissolving, and is transparent at both World and Atlas endpoints.
+
+The accelerated renderer is the sole atmosphere owner. Its transparent SVG
+reference scaffold does not render the fallback radial-gradient circle, so a
+late legacy halo cannot replace or compound the projected shell near the World
+endpoint. The fallback atmosphere remains available only when the reference
+renderer owns the surface.
 
 As the projection approaches the planar endpoint, the accelerated scene
 dissolves projected sectors, stipple, regions, and beacons into horizontal

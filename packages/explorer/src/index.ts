@@ -27,6 +27,8 @@ export {
   globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,
+  globeAtmosphereRepeatOpacity,
+  globeAtmosphereShellScale,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
   interpolateProjectedGlobeMeshes,

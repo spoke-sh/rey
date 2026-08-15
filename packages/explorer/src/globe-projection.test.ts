@@ -14,6 +14,8 @@ import {
   globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,
+  globeAtmosphereRepeatOpacity,
+  globeAtmosphereShellScale,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
   interpolateProjectedGlobeMeshes,
@@ -36,11 +38,29 @@ describe("declarative globe-to-Mercator projection", () => {
     );
   });
 
-  it("fades atmosphere faster than it contracts", () => {
+  it("uses one bounded atmosphere opacity at each projection posture", () => {
     expect(globeAtmosphereOpacity(0)).toBe(1);
-    expect(globeAtmosphereOpacity(0.5)).toBe(0.03125);
-    expect(globeAtmosphereOpacity(0.75)).toBeCloseTo(0.0000931323);
+    expect(globeAtmosphereOpacity(0.5)).toBe(0.25);
+    expect(globeAtmosphereOpacity(0.75)).toBeCloseTo(0.0244140625);
+    expect(globeAtmosphereOpacity(0.975)).toBeLessThan(0.000_004);
     expect(globeAtmosphereOpacity(1)).toBe(0);
+  });
+
+  it("uses one shell extent in both traversal directions", () => {
+    expect(globeAtmosphereShellScale(0.75)).toBeCloseTo(Math.sqrt(0.15625));
+    expect(globeAtmosphereShellScale(0.5)).toBeCloseTo(Math.sqrt(0.5));
+    expect(globeAtmosphereShellScale(1)).toBe(0);
+    expect(globeAtmosphereShellScale(0)).toBe(1);
+  });
+
+  it("fades atmosphere symmetrically through the horizontal-repeat dissolve", () => {
+    expect(globeAtmosphereRepeatOpacity(1)).toBe(0);
+    expect(globeAtmosphereRepeatOpacity(0.58)).toBe(0);
+    const repeatOpacity = globeAtlasRepeatOpacity(0.79);
+    expect(globeAtmosphereRepeatOpacity(0.79)).toBeCloseTo(
+      repeatOpacity * (1 - repeatOpacity),
+    );
+    expect(globeAtmosphereRepeatOpacity(0.79)).toBeLessThanOrEqual(0.25);
   });
 
   it("removes the visible globe scaffold before repeat fabric is prominent", () => {

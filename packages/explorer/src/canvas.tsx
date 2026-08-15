@@ -13,6 +13,10 @@ import {
   GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
   globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOpacity,
+  globeAtmosphereOpacity,
+  globeAtmosphereRepeatOpacity,
+  globeAtmosphereShellScale,
+  globeSurfaceOpacity,
 } from "./globe-projection";
 import {
   ReactThreeFiberRendererAdapter,
@@ -303,6 +307,34 @@ export function ExplorerCanvas({
       }
       data-globe-horizontal-wrap-opacity={
         content.kind === "globe" ? horizontalWrapOpacity.toFixed(3) : undefined
+      }
+      data-globe-atmosphere-opacity={
+        content.kind === "globe"
+          ? globeAtmosphereOpacity(
+              content.view.projection_morph_progress ?? 0,
+            ).toFixed(3)
+          : undefined
+      }
+      data-globe-atmosphere-repeat-opacity={
+        content.kind === "globe"
+          ? globeAtmosphereRepeatOpacity(
+              content.view.projection_morph_progress ?? 0,
+            ).toFixed(3)
+          : undefined
+      }
+      data-globe-atmosphere-shell-scale={
+        content.kind === "globe"
+          ? globeAtmosphereShellScale(
+              content.view.projection_morph_progress ?? 0,
+            ).toFixed(3)
+          : undefined
+      }
+      data-globe-surface-opacity={
+        content.kind === "globe"
+          ? globeSurfaceOpacity(
+              content.view.projection_morph_progress ?? 0,
+            ).toFixed(3)
+          : undefined
       }
       data-renderer="react-three-fiber"
       ref={canvasRef}

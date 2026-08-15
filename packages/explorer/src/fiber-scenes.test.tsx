@@ -1,5 +1,6 @@
 import { create } from "@react-three/test-renderer";
 import {
+  BackSide,
   Color,
   DirectionalLight,
   type InstancedBufferAttribute,
@@ -8,7 +9,7 @@ import {
   type Mesh,
   type MeshBasicNodeMaterial,
   type MeshStandardNodeMaterial,
-  type SphereGeometry,
+  NotEqualStencilFunc,
 } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
 import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
@@ -16,6 +17,7 @@ import {
   globeAtlasRepeatOpacity,
   globeAtlasRepeatOffset,
   globeAtlasWidth,
+  globeAtmosphereRepeatOpacity,
   projectGlobeAtlasRepeatCoordinate,
 } from "./globe-projection";
 import { globeFixture, terrainFieldFixture } from "./test-fixtures";
@@ -120,7 +122,8 @@ describe("declarative React Three Fiber scenes", () => {
     expect(globeLights).toHaveLength(2);
     const globeKeyLight = globeLights[0]?.instance as DirectionalLight;
     expect(globeKeyLight.color).toBeInstanceOf(Color);
-    expect(globeKeyLight.color.getHex()).toBe(0xfff4d2);
+    expect(globeKeyLight.color.getHex()).toBe(0xfffef8);
+    expect(globeKeyLight.intensity).toBe(1.85);
     const sampleField = renderer.scene.findByProps({
       name: "context-globe-samples:0",
     }).instance as InstancedMesh;
@@ -185,7 +188,10 @@ describe("declarative React Three Fiber scenes", () => {
     }).instance as Mesh;
     expect(retainedSurface.visible).toBe(false);
     expect(retainedAtmosphere.visible).toBe(false);
-    expect(retainedAtmosphere.scale.x).toBe(0);
+    expect(retainedAtmosphere.geometry).toBe(retainedSurface.geometry);
+    expect(
+      (retainedAtmosphere.material as MeshBasicNodeMaterial).positionNode,
+    ).not.toBeNull();
     expect((retainedAtmosphere.material as MeshBasicNodeMaterial).opacity).toBe(
       0,
     );
@@ -218,6 +224,12 @@ describe("declarative React Three Fiber scenes", () => {
     const repeatedAtlas = renderer.scene.findByProps({
       name: "context-globe-atlas-wrap:1",
     }).instance;
+    const repeatedGlow = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0:wrap:1",
+    }).instance as Mesh;
+    const repeatedGlowLeft = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0:wrap:-1",
+    }).instance as Mesh;
     const postureOpacity = 0.48 * (1 - progress * (1 - 0.36));
     expect((canonical.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
       postureOpacity,
@@ -326,6 +338,16 @@ describe("declarative React Three Fiber scenes", () => {
     expect(repeatedAtlas.position.x).toBeCloseTo(
       globeAtlasRepeatOffset(world, progress, 1),
     );
+    expect(repeatedGlow.parent?.position.x).toBeCloseTo(
+      globeAtlasRepeatOffset(world, progress, 1),
+    );
+    expect(repeatedGlowLeft.parent?.position.x).toBeCloseTo(
+      globeAtlasRepeatOffset(world, progress, -1),
+    );
+    expect(repeatedGlow.geometry).toBe(surface.geometry);
+    expect((repeatedGlow.material as MeshBasicNodeMaterial).side).toBe(
+      BackSide,
+    );
 
     const repeatedMaterial = repeated.material;
     const repeatedCount = repeated.count;
@@ -348,7 +370,7 @@ describe("declarative React Three Fiber scenes", () => {
     await renderer.unmount();
   });
 
-  it("contracts atmosphere shells while fading them ahead of the globe-to-map morph", async () => {
+  it("keeps atmosphere presentation stable when traversal reverses", async () => {
     const compiled = compileContextGlobe(globeFixture());
     const renderer = await create(
       <ContextGlobeScene
@@ -365,8 +387,18 @@ describe("declarative React Three Fiber scenes", () => {
     const atmosphere = renderer.scene.findByProps({
       name: "context-globe-atmosphere:0",
     }).instance as Mesh;
+    const atmosphereMask = renderer.scene.findByProps({
+      name: "context-globe-atmosphere-mask",
+    }).instance as Mesh;
+    const warmAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:1",
+    }).instance as Mesh;
+    const outerAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:2",
+    }).instance as Mesh;
     const atmosphereGeometry = atmosphere.geometry;
     const atmosphereMaterial = atmosphere.material;
+    const outerAtmosphereMaterial = outerAtmosphere.material;
     const surface = renderer.scene.findByProps({
       name: "context-globe-surface",
     }).instance as Mesh;
@@ -374,14 +406,28 @@ describe("declarative React Three Fiber scenes", () => {
     expect(surfaceMaterial.opacity).toBeCloseTo(0.25);
     expect(surfaceMaterial.transparent).toBe(true);
     expect(surfaceMaterial.depthWrite).toBe(false);
+    expect(atmosphere.geometry).toBe(surface.geometry);
+    expect(atmosphere.geometry.getAttribute("reySphereNormal").count).toBe(
+      surface.geometry.getAttribute("position").count,
+    );
     expect(
-      (atmosphere.geometry as SphereGeometry).parameters.radius,
-    ).toBeCloseTo(GLOBE_RADIUS * 1.018);
-    expect(atmosphere.scale.x).toBeCloseTo(0.5);
-    expect(atmosphere.scale.y).toBeCloseTo(0.5);
-    expect(atmosphere.scale.z).toBeCloseTo(0.5);
+      (atmosphere.material as MeshBasicNodeMaterial).positionNode,
+    ).not.toBeNull();
+    expect((atmosphere.material as MeshBasicNodeMaterial).side).toBe(BackSide);
+    expect((atmosphere.material as MeshBasicNodeMaterial).stencilFunc).toBe(
+      NotEqualStencilFunc,
+    );
+    expect((atmosphereMask.material as MeshBasicNodeMaterial).colorWrite).toBe(
+      false,
+    );
+    expect(
+      (atmosphereMask.material as MeshBasicNodeMaterial).stencilWrite,
+    ).toBe(true);
+    expect(
+      (warmAtmosphere.material as MeshBasicNodeMaterial).color.getHex(),
+    ).toBe(0xf7edd7);
     expect((atmosphere.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
-      0.12 * 0.03125,
+      0.24 * 0.25,
     );
 
     await renderer.update(
@@ -400,6 +446,66 @@ describe("declarative React Three Fiber scenes", () => {
     }).instance as Mesh;
     expect(updatedAtmosphere.geometry).toBe(atmosphereGeometry);
     expect(updatedAtmosphere.material).toBe(atmosphereMaterial);
+    expect(
+      (updatedAtmosphere.material as MeshBasicNodeMaterial).opacity,
+    ).toBeCloseTo(0.24 * 0.42525 ** 2);
+
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{
+          yaw_degrees: 0,
+          pitch_degrees: 0,
+          projection_morph_progress: 0.5,
+        }}
+        world={{ width: 1200, height: 720 }}
+      />,
+    );
+    const closingAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0",
+    }).instance as Mesh;
+    expect(closingAtmosphere.geometry).toBe(atmosphereGeometry);
+    expect(closingAtmosphere.material).toBe(atmosphereMaterial);
+    expect(
+      (closingAtmosphere.material as MeshBasicNodeMaterial).opacity,
+    ).toBeCloseTo(0.24 * 0.25);
+    const closingOuterAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:2",
+    }).instance as Mesh;
+    expect(closingOuterAtmosphere.material).toBe(outerAtmosphereMaterial);
+    expect(
+      (closingOuterAtmosphere.material as MeshBasicNodeMaterial).opacity,
+    ).toBeCloseTo(0.04 * 0.25);
+
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{
+          yaw_degrees: 0,
+          pitch_degrees: 0,
+          projection_morph_progress: 1,
+        }}
+        world={{ width: 1200, height: 720 }}
+      />,
+    );
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{
+          yaw_degrees: 0,
+          pitch_degrees: 0,
+          projection_morph_progress: 0.79,
+        }}
+        world={{ width: 1200, height: 720 }}
+      />,
+    );
+    const closingRepeatedAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0:wrap:1",
+    }).instance as Mesh;
+    expect(closingRepeatedAtmosphere.geometry).toBe(atmosphereGeometry);
+    expect(
+      (closingRepeatedAtmosphere.material as MeshBasicNodeMaterial).opacity,
+    ).toBeCloseTo(0.24 * globeAtmosphereRepeatOpacity(0.79));
 
     await renderer.unmount();
   });

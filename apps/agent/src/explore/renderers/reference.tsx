@@ -30,6 +30,7 @@ import {
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
   globeAtmosphereOpacity,
+  globeAtmosphereShellScale,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
 } from "@rey/explorer";
@@ -716,6 +717,9 @@ function SemanticGlobeLayer({
     projectionMorphProgress,
   );
   const atmosphereOpacity = globeAtmosphereOpacity(projectionMorphProgress);
+  const atmosphereShellScale = globeAtmosphereShellScale(
+    projectionMorphProgress,
+  );
   const surfaceOpacity = globeSurfaceOpacity(projectionMorphProgress);
   const projectedSamples = accelerated
     ? []
@@ -827,7 +831,7 @@ function SemanticGlobeLayer({
           <circle cx={center.x} cy={center.y} r={radius} />
         </clipPath>
       </defs>
-      {atmosphereRemaining > 0 ? (
+      {!accelerated && atmosphereRemaining > 0 ? (
         <circle
           aria-hidden="true"
           className={sx(styles.semanticGlobeAtmosphere)}
@@ -836,9 +840,10 @@ function SemanticGlobeLayer({
           data-globe-atmosphere=""
           data-globe-atmosphere-remaining={atmosphereRemaining}
           data-globe-atmosphere-opacity={atmosphereOpacity}
+          data-globe-atmosphere-shell-scale={atmosphereShellScale}
           fill="url(#rey-semantic-globe-atmosphere)"
           opacity={atmosphereOpacity}
-          r={radius * WORLD_GLOBE_ATMOSPHERE_SCALE * atmosphereRemaining}
+          r={radius * WORLD_GLOBE_ATMOSPHERE_SCALE * atmosphereShellScale}
         />
       ) : null}
       <circle

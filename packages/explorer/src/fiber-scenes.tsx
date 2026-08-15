@@ -1,6 +1,8 @@
 import { extend, useThree } from "@react-three/fiber";
 import {
+  AlwaysStencilFunc,
   AmbientLight,
+  BackSide,
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
@@ -9,14 +11,16 @@ import {
   Group,
   InstancedBufferAttribute,
   InstancedMesh,
+  KeepStencilOp,
   Matrix4,
   Mesh,
   MeshBasicNodeMaterial,
   MeshStandardNodeMaterial,
+  NotEqualStencilFunc,
   OrthographicCamera,
   Quaternion,
+  ReplaceStencilOp,
   RingGeometry,
-  SphereGeometry,
   Vector3,
 } from "three/src/Three.WebGPU.js";
 import {
@@ -24,6 +28,7 @@ import {
   float,
   max,
   mul,
+  positionLocal,
   smoothstep,
   step,
   sub,
@@ -45,6 +50,8 @@ import {
   globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,
+  globeAtmosphereRepeatOpacity,
+  globeAtmosphereShellScale,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
   interpolateProjectedGlobeMeshes,
@@ -76,7 +83,6 @@ extend({
   Mesh,
   OrthographicCamera,
   RingGeometry,
-  SphereGeometry,
 });
 
 const SURFACE_NORMAL = new Vector3(0, 0, 1);
@@ -205,6 +211,27 @@ export function ContextGlobeScene({
   const horizontalLayoutWrapIndexes = GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES;
   const renderedWrapIndexes = GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES;
   const halfHeight = GLOBE_CAMERA_HALF_HEIGHT;
+  const morphRemaining = globeProjectionMorphRemaining(projectionMorphProgress);
+  const endpointMeshes = useMemo(
+    () => ({
+      atlas: buildProjectedGlobeMesh(view, world, 1),
+      sphere: buildProjectedGlobeMesh(view, world, 0),
+    }),
+    [view.pitch_degrees, view.yaw_degrees, world.height, world.width],
+  );
+  const projectedMesh = useMemo(
+    () =>
+      interpolateProjectedGlobeMeshes(
+        endpointMeshes.sphere,
+        endpointMeshes.atlas,
+        1 - morphRemaining,
+      ),
+    [endpointMeshes, morphRemaining],
+  );
+  const projectedGeometry = useProjectedMeshGeometry(
+    projectedMesh,
+    endpointMeshes.sphere.normals,
+  );
   return (
     <>
       <ReyOrthographicCamera
@@ -218,12 +245,15 @@ export function ContextGlobeScene({
       />
       <group name={`context-globe:${compiled.globe.source_revision}`}>
         <GlobeSurface
+          geometry={projectedGeometry}
           maskRepeats={repeatOpacity > 0}
           progress={projectionMorphProgress}
-          view={view}
+        />
+        <GlobeAtmosphere
+          geometry={projectedGeometry}
+          progress={projectionMorphProgress}
           world={world}
         />
-        <GlobeAtmosphere progress={projectionMorphProgress} />
         {renderedWrapIndexes.map((wrapIndex) => (
           <GlobeAtlasLayers
             compiled={compiled}
@@ -255,15 +285,15 @@ export function ContextGlobeScene({
           />
         ))}
       </group>
-      <ambientLight color={0xf4f0df} intensity={1.72} />
+      <ambientLight color={0xffffff} intensity={0.72} />
       <directionalLight
-        color={0xfff4d2}
-        intensity={3.4}
+        color={0xfffef8}
+        intensity={1.85}
         position={[-3.8, 4.8, 6.2]}
       />
       <directionalLight
-        color={0x8fb6ac}
-        intensity={1.55}
+        color={0xa6b8b2}
+        intensity={0.62}
         position={[4.8, 1.4, -3.8]}
       />
     </>
@@ -351,15 +381,13 @@ function GlobeAtlasLayers({
 }
 
 function GlobeSurface({
+  geometry,
   maskRepeats,
   progress,
-  view,
-  world,
 }: {
+  geometry: BufferGeometry;
   maskRepeats: boolean;
   progress: number;
-  view: GlobeCameraView;
-  world: { width: number; height: number };
 }) {
   const morphRemaining = globeProjectionMorphRemaining(progress);
   const opacity = globeSurfaceOpacity(progress);
@@ -379,85 +407,164 @@ function GlobeSurface({
     material.transparent = opacity < 1;
     if (material.transparent !== wasTransparent) material.needsUpdate = true;
   }, [maskRepeats, material, opacity]);
-  const endpointMeshes = useMemo(
-    () => ({
-      atlas: buildProjectedGlobeMesh(view, world, 1),
-      sphere: buildProjectedGlobeMesh(view, world, 0),
-    }),
-    [view.pitch_degrees, view.yaw_degrees, world.height, world.width],
-  );
-  const mesh = useMemo(
-    () =>
-      interpolateProjectedGlobeMeshes(
-        endpointMeshes.sphere,
-        endpointMeshes.atlas,
-        1 - morphRemaining,
-      ),
-    [endpointMeshes, morphRemaining],
-  );
   return (
     <mesh
+      geometry={geometry}
       visible={morphRemaining > 0}
       material={material}
       name="context-globe-surface"
       renderOrder={maskRepeats ? -1 : 0}
-    >
-      <ProjectedMeshGeometry data={mesh} />
-    </mesh>
+    />
   );
 }
 
-function GlobeAtmosphere({ progress }: { progress: number }) {
+function GlobeAtmosphere({
+  geometry,
+  progress,
+  world,
+}: {
+  geometry: BufferGeometry;
+  progress: number;
+  world: { width: number; height: number };
+}) {
   const morphRemaining = globeProjectionMorphRemaining(progress);
   const opacity = globeAtmosphereOpacity(progress);
+  const repeatGlowOpacity = globeAtmosphereRepeatOpacity(progress);
+  const shellScale = globeAtmosphereShellScale(progress);
   const layers = [
-    { radius: GLOBE_RADIUS * 1.018, color: 0xf6ecd4, opacity: 0.12 },
-    { radius: GLOBE_RADIUS * 1.045, color: 0xcbd8c9, opacity: 0.055 },
-    { radius: GLOBE_RADIUS * 1.082, color: 0x6f9188, opacity: 0.022 },
+    { radius: GLOBE_RADIUS * 1.018, color: 0xf2dc9a, opacity: 0.24 },
+    { radius: GLOBE_RADIUS * 1.045, color: 0xf7edd7, opacity: 0.13 },
+    { radius: GLOBE_RADIUS * 1.082, color: 0x6f9188, opacity: 0.04 },
   ];
-  return layers.map((layer, index) => (
-    <NodeMaterialSphere
-      color={layer.color}
-      key={index}
-      name={`context-globe-atmosphere:${index}`}
-      opacity={layer.opacity * opacity}
-      radius={layer.radius}
-      scale={morphRemaining}
-    />
-  ));
+  return (
+    <>
+      <AtmosphereStencilMask
+        geometry={geometry}
+        name="context-globe-atmosphere-mask"
+        visible={opacity > 0}
+      />
+      {layers.map((layer, index) => (
+        <ProjectedAtmosphereLayer
+          color={layer.color}
+          geometry={geometry}
+          key={index}
+          name={`context-globe-atmosphere:${index}`}
+          opacity={layer.opacity * opacity}
+          shellOffset={(layer.radius - GLOBE_RADIUS) * shellScale}
+        />
+      ))}
+      {GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES.filter(
+        (wrapIndex) => wrapIndex !== 0,
+      ).map((wrapIndex) => (
+        <group
+          key={wrapIndex}
+          name={`context-globe-atmosphere-wrap:${wrapIndex}`}
+          position={[globeAtlasRepeatOffset(world, progress, wrapIndex), 0, 0]}
+        >
+          <AtmosphereStencilMask
+            geometry={geometry}
+            name={`context-globe-atmosphere-mask:wrap:${wrapIndex}`}
+            visible={repeatGlowOpacity > 0}
+          />
+          {layers.map((layer, index) => (
+            <ProjectedAtmosphereLayer
+              color={layer.color}
+              geometry={geometry}
+              key={index}
+              name={`context-globe-atmosphere:${index}:wrap:${wrapIndex}`}
+              opacity={layer.opacity * repeatGlowOpacity}
+              shellOffset={(layer.radius - GLOBE_RADIUS) * shellScale}
+            />
+          ))}
+        </group>
+      ))}
+    </>
+  );
 }
 
-function NodeMaterialSphere({
-  color,
+function AtmosphereStencilMask({
+  geometry,
   name,
-  opacity,
-  radius,
-  scale,
+  visible,
 }: {
-  color: number;
+  geometry: BufferGeometry;
   name: string;
-  opacity: number;
-  radius: number;
-  scale: number;
+  visible: boolean;
 }) {
-  const material = useMemo(
-    () =>
-      new MeshBasicNodeMaterial({
-        color,
-        depthWrite: false,
-        opacity: 0,
-        transparent: true,
-      }),
-    [color],
-  );
-  useLayoutEffect(() => {
-    material.opacity = opacity;
-  }, [material, opacity]);
+  const material = useMemo(() => {
+    const next = new MeshBasicNodeMaterial({
+      colorWrite: false,
+      depthTest: false,
+      depthWrite: false,
+      side: DoubleSide,
+    });
+    next.stencilWrite = true;
+    next.stencilRef = 1;
+    next.stencilFunc = AlwaysStencilFunc;
+    next.stencilFail = ReplaceStencilOp;
+    next.stencilZFail = ReplaceStencilOp;
+    next.stencilZPass = ReplaceStencilOp;
+    return next;
+  }, []);
   useEffect(() => () => material.dispose(), [material]);
   return (
-    <mesh material={material} name={name} scale={scale} visible={scale > 0}>
-      <sphereGeometry args={[radius, 112, 64]} />
-    </mesh>
+    <mesh
+      geometry={geometry}
+      material={material}
+      name={name}
+      renderOrder={-4}
+      visible={visible}
+    />
+  );
+}
+
+function ProjectedAtmosphereLayer({
+  color,
+  geometry,
+  name,
+  opacity,
+  shellOffset,
+}: {
+  color: number;
+  geometry: BufferGeometry;
+  name: string;
+  opacity: number;
+  shellOffset: number;
+}) {
+  const materialState = useMemo(() => {
+    const shellOffsetNode = uniform(0);
+    const material = new MeshBasicNodeMaterial({
+      color,
+      depthWrite: false,
+      opacity: 0,
+      side: BackSide,
+      transparent: true,
+    });
+    material.positionNode = positionLocal.add(
+      attribute<"vec3">("reySphereNormal", "vec3").mul(shellOffsetNode),
+    );
+    material.stencilWrite = true;
+    material.stencilRef = 1;
+    material.stencilFunc = NotEqualStencilFunc;
+    material.stencilFail = KeepStencilOp;
+    material.stencilZFail = KeepStencilOp;
+    material.stencilZPass = KeepStencilOp;
+    return { material, shellOffsetNode };
+  }, [color]);
+  const material = materialState.material;
+  useLayoutEffect(() => {
+    material.opacity = opacity;
+    materialState.shellOffsetNode.value = shellOffset;
+  }, [material, materialState, opacity, shellOffset]);
+  useEffect(() => () => material.dispose(), [material]);
+  return (
+    <mesh
+      frustumCulled={false}
+      geometry={geometry}
+      material={material}
+      name={name}
+      visible={opacity > 0 && shellOffset > 0}
+    />
   );
 }
 
@@ -1019,52 +1126,69 @@ function GlobeSector({
 }
 
 function ProjectedMeshGeometry({ data }: { data: ProjectedGlobeMesh }) {
-  const geometryRef = useRef<BufferGeometry>(null);
-  const positionAttributeRef = useRef<BufferAttribute>(null);
-  const normalAttributeRef = useRef<BufferAttribute>(null);
-  const indexAttributeRef = useRef<BufferAttribute>(null);
-  const positions = useMemo(
-    () => new Float32Array(data.positions.length),
-    [data.positions.length],
-  );
-  const normals = useMemo(
-    () => new Float32Array(data.normals.length),
-    [data.normals.length],
-  );
-  const indices = useMemo(
-    () => new Uint32Array(data.indices.length),
-    [data.indices.length],
-  );
+  const geometry = useProjectedMeshGeometry(data);
+  return <primitive attach="geometry" object={geometry} />;
+}
+
+function useProjectedMeshGeometry(
+  data: ProjectedGlobeMesh,
+  sphereNormals?: Float32Array,
+) {
+  const resources = useMemo(() => {
+    const positions = new Float32Array(data.positions.length);
+    const normals = new Float32Array(data.normals.length);
+    const indices = new Uint32Array(data.indices.length);
+    const positionAttribute = new BufferAttribute(positions, 3);
+    const normalAttribute = new BufferAttribute(normals, 3);
+    const indexAttribute = new BufferAttribute(indices, 1);
+    const retainedSphereNormals = sphereNormals
+      ? new Float32Array(sphereNormals.length)
+      : null;
+    const sphereNormalAttribute = retainedSphereNormals
+      ? new BufferAttribute(retainedSphereNormals, 3)
+      : null;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", positionAttribute);
+    geometry.setAttribute("normal", normalAttribute);
+    if (sphereNormalAttribute)
+      geometry.setAttribute("reySphereNormal", sphereNormalAttribute);
+    geometry.setIndex(indexAttribute);
+    return {
+      geometry,
+      indexAttribute,
+      indices,
+      normalAttribute,
+      normals,
+      positionAttribute,
+      positions,
+      retainedSphereNormals,
+      sphereNormalAttribute,
+    };
+  }, [
+    data.indices.length,
+    data.normals.length,
+    data.positions.length,
+    sphereNormals?.length,
+  ]);
   useLayoutEffect(() => {
-    positions.set(data.positions);
-    normals.set(data.normals);
-    indices.set(data.indices);
-    if (positionAttributeRef.current)
-      positionAttributeRef.current.needsUpdate = true;
-    if (normalAttributeRef.current)
-      normalAttributeRef.current.needsUpdate = true;
-    if (indexAttributeRef.current) indexAttributeRef.current.needsUpdate = true;
-    geometryRef.current?.computeBoundingSphere();
-  }, [data, indices, normals, positions]);
-  return (
-    <bufferGeometry ref={geometryRef}>
-      <bufferAttribute
-        args={[positions, 3]}
-        attach="attributes-position"
-        ref={positionAttributeRef}
-      />
-      <bufferAttribute
-        args={[normals, 3]}
-        attach="attributes-normal"
-        ref={normalAttributeRef}
-      />
-      <bufferAttribute
-        args={[indices, 1]}
-        attach="index"
-        ref={indexAttributeRef}
-      />
-    </bufferGeometry>
-  );
+    resources.positions.set(data.positions);
+    resources.normals.set(data.normals);
+    resources.indices.set(data.indices);
+    resources.positionAttribute.needsUpdate = true;
+    resources.normalAttribute.needsUpdate = true;
+    resources.indexAttribute.needsUpdate = true;
+    if (
+      sphereNormals &&
+      resources.retainedSphereNormals &&
+      resources.sphereNormalAttribute
+    ) {
+      resources.retainedSphereNormals.set(sphereNormals);
+      resources.sphereNormalAttribute.needsUpdate = true;
+    }
+    resources.geometry.computeBoundingSphere();
+  }, [data, resources, sphereNormals]);
+  useEffect(() => () => resources.geometry.dispose(), [resources]);
+  return resources.geometry;
 }
 
 function ReyOrthographicCamera({
