@@ -780,6 +780,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-active-band-ids={terrainRenderer.active_band_ids.join(
             ",",
           )}
+          data-renderer-active-tile-count={terrainRenderer.active_tile_count}
+          data-renderer-active-tile-levels={terrainRenderer.active_tile_levels.join(
+            ",",
+          )}
           data-renderer-active-render-passes={terrainRenderer.active_render_passes.join(
             ",",
           )}
@@ -805,9 +809,34 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-parity-revision={terrainRenderer.parity_revision}
           data-renderer-preference={terrainRenderer.preference}
           data-renderer-program-count={terrainRenderer.program_count}
+          data-renderer-resident-cpu-budget-bytes={
+            terrainRenderer.resident_cpu_budget_bytes
+          }
+          data-renderer-resident-cpu-bytes={terrainRenderer.resident_cpu_bytes}
+          data-renderer-resident-evictions={terrainRenderer.resident_evictions}
+          data-renderer-resident-gpu-budget-bytes={
+            terrainRenderer.resident_gpu_budget_bytes
+          }
+          data-renderer-resident-gpu-bytes={terrainRenderer.resident_gpu_bytes}
+          data-renderer-resident-hits={terrainRenderer.resident_hits}
+          data-renderer-resident-misses={terrainRenderer.resident_misses}
+          data-renderer-resident-tile-count={
+            terrainRenderer.resident_tile_count
+          }
           data-renderer-render-graph-id={terrainRenderer.render_graph_id}
           data-renderer-revision={terrainRenderer.status.renderer_revision}
           data-renderer-submission-ms={terrainRenderer.render_submission_ms}
+          data-renderer-terrain-decode-ms={terrainRenderer.terrain_decode_ms}
+          data-renderer-terrain-tile-projection-ms={
+            terrainRenderer.terrain_tile_projection_ms
+          }
+          data-renderer-terrain-update-ms={terrainRenderer.terrain_update_ms}
+          data-renderer-terrain-worker-execution={
+            terrainRenderer.terrain_worker_execution
+          }
+          data-renderer-terrain-worker-revision={
+            terrainRenderer.terrain_worker_revision
+          }
           data-renderer-triangles={terrainRenderer.triangles}
           data-renderer-working-set-limit-bytes={
             terrainRenderer.working_set_limit_bytes

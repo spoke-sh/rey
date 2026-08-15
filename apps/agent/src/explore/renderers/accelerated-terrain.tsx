@@ -1,13 +1,12 @@
 import {
   compileContextGlobe,
-  compileContinuousRelief,
   ExplorerCanvas,
   type ExplorerCanvasContent,
   type ExplorerCanvasReport,
   type RendererPreference,
   type RendererStatus,
 } from "@rey/explorer";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GlobeCameraView } from "../engine/camera";
 import {
   activeExplorerRenderPasses,
@@ -18,7 +17,14 @@ import {
   terrainPatchRequestsForView,
   type TerrainCameraView,
 } from "../terrain/compile";
-import { TerrainPatchCache } from "../terrain/patch-cache";
+import {
+  MAX_TERRAIN_TILE_CPU_BYTES,
+  MAX_TERRAIN_TILE_GPU_BYTES,
+  TerrainTileResidency,
+  type TerrainTileResidencyStats,
+} from "../terrain/residency";
+import { TerrainCompilationWorkerClient } from "../terrain/worker-client";
+import type { TerrainCompilationResult } from "../terrain/worker";
 import { exploreStyles as styles } from "../../stylex/explore.stylex";
 import { className as sx } from "../../stylex/shared.stylex";
 import type { TopologyGlobe } from "../../topology";
@@ -46,6 +52,24 @@ export interface AcceleratedTerrainReport {
   field_evaluation_ms: number;
   geometry_compilation_ms: number;
   render_submission_ms: number;
+  terrain_update_ms: number;
+  terrain_decode_ms: number;
+  terrain_tile_projection_ms: number;
+  terrain_worker_execution:
+    "dedicated_worker" | "main_thread_fallback" | "none";
+  terrain_worker_revision: string;
+  active_tile_count: number;
+  active_tile_levels: readonly number[];
+  resident_tile_count: number;
+  resident_cpu_bytes: number;
+  resident_cpu_budget_bytes: number;
+  resident_gpu_bytes: number;
+  resident_gpu_budget_bytes: number;
+  resident_hits: number;
+  resident_misses: number;
+  resident_evictions: number;
+  gpu_timing_ms: null;
+  gpu_timing_authority: "unavailable_without_capable_gpu_timer";
   measurement_authority: "transient_cpu_unretained";
 }
 
@@ -77,9 +101,35 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     field_evaluation_ms: 0,
     geometry_compilation_ms: 0,
     render_submission_ms: 0,
+    terrain_update_ms: 0,
+    terrain_decode_ms: 0,
+    terrain_tile_projection_ms: 0,
+    terrain_worker_execution: "none",
+    terrain_worker_revision: "unbound",
+    active_tile_count: 0,
+    active_tile_levels: Object.freeze([]),
+    resident_tile_count: 0,
+    resident_cpu_bytes: 0,
+    resident_cpu_budget_bytes: MAX_TERRAIN_TILE_CPU_BYTES,
+    resident_gpu_bytes: 0,
+    resident_gpu_budget_bytes: MAX_TERRAIN_TILE_GPU_BYTES,
+    resident_hits: 0,
+    resident_misses: 0,
+    resident_evictions: 0,
+    gpu_timing_ms: null,
+    gpu_timing_authority: "unavailable_without_capable_gpu_timer",
     measurement_authority: "transient_cpu_unretained",
   } satisfies AcceleratedTerrainReport,
 );
+
+interface ResolvedTerrainCompilation {
+  job_id: string;
+  snapshot_id: string;
+  result: TerrainCompilationResult;
+  fields: TerrainCompilationResult["fields"];
+  compiled: TerrainCompilationResult["compiled"];
+  residency: TerrainTileResidencyStats;
+}
 
 export function rendererPreference(search: string): RendererPreference {
   const requested = new URLSearchParams(search).get("renderer");
@@ -109,13 +159,11 @@ export function AcceleratedTerrainSurface({
   globeView?: GlobeCameraView;
   projectionMorphProgress?: number;
 }) {
-  const patchCacheRef = useRef<
-    | {
-        limits: string;
-        cache: TerrainPatchCache;
-      }
-    | undefined
-  >(undefined);
+  const workerClientRef = useRef<TerrainCompilationWorkerClient | null>(null);
+  const residencyRef = useRef<TerrainTileResidency | null>(null);
+  if (!workerClientRef.current)
+    workerClientRef.current = new TerrainCompilationWorkerClient();
+  if (!residencyRef.current) residencyRef.current = new TerrainTileResidency();
   const retainedTransitionGlobeRef = useRef<
     | {
         atlas_revision: string;
@@ -210,13 +258,8 @@ export function AcceleratedTerrainSurface({
       }),
       dynamic,
     );
-    return {
-      ...total,
-      dynamic_cells: dynamic.cells,
-      dynamic_bytes: dynamic.bytes,
-    };
+    return total;
   }, [snapshot.snapshot_id]);
-  const limitsRevision = `${programTotals.dynamic_cells}:${programTotals.dynamic_bytes}`;
   const workingSetRequests = useMemo(
     () =>
       semanticGlobe
@@ -237,33 +280,116 @@ export function AcceleratedTerrainSurface({
   const workingSetRevision = workingSetRequests
     .flatMap((requests) => requests.map((request) => request.working_set_id))
     .join("|");
-  const fieldProjection = useMemo(() => {
-    const evaluationStarted = measurementNow();
+  const terrainCompilationView = useMemo(
+    () => ({
+      ...view,
+      rendered_scale: 2 ** (Math.round(Math.log2(view.rendered_scale) * 8) / 8),
+      pan_x: Math.round(view.pan_x / 32) * 32,
+      pan_y: Math.round(view.pan_y / 32) * 32,
+    }),
+    [
+      view.pan_x,
+      view.pan_y,
+      view.rendered_scale,
+      view.viewport_height,
+      view.viewport_width,
+      view.world_height,
+      view.world_width,
+    ],
+  );
+  const terrainJobId = [
+    snapshot.snapshot_id,
+    workingSetRevision,
+    `${terrainCompilationView.viewport_width}x${terrainCompilationView.viewport_height}`,
+    terrainCompilationView.rendered_scale,
+    terrainCompilationView.pan_x,
+    terrainCompilationView.pan_y,
+  ].join("|");
+  const [resolvedTerrain, setResolvedTerrain] =
+    useState<ResolvedTerrainCompilation | null>(null);
+  const [terrainFailure, setTerrainFailure] = useState<Error | null>(null);
+  useEffect(() => {
     if (
-      !semanticGlobe &&
-      snapshot.scene.terrain_programs.length > 0 &&
-      patchCacheRef.current?.limits !== limitsRevision
-    )
-      patchCacheRef.current = {
-        limits: limitsRevision,
-        cache: new TerrainPatchCache(
-          programTotals.dynamic_cells,
-          programTotals.dynamic_bytes,
-        ),
-      };
-    const fields = semanticGlobe
-      ? []
-      : [
-          ...snapshot.scene.terrain_fields,
-          ...snapshot.scene.terrain_programs.flatMap((program, index) =>
-            workingSetRequests[index]!.map((request) =>
-              patchCacheRef.current!.cache.materialize(program, request),
-            ),
+      semanticGlobe ||
+      (snapshot.scene.terrain_fields.length === 0 &&
+        snapshot.scene.terrain_programs.length === 0)
+    ) {
+      setTerrainFailure(null);
+      return;
+    }
+    const abort = new AbortController();
+    setTerrainFailure(null);
+    const client = workerClientRef.current!;
+    void client
+      .compile(
+        {
+          job_id: terrainJobId,
+          workload_id: "explorer-landscape-interaction-v1",
+          fields: snapshot.scene.terrain_fields,
+          programs: snapshot.scene.terrain_programs.map((program, index) => ({
+            program,
+            requests: workingSetRequests[index]!,
+          })),
+          view: terrainCompilationView,
+          maximum_cpu_bytes: MAX_TERRAIN_TILE_CPU_BYTES,
+          maximum_gpu_bytes: MAX_TERRAIN_TILE_GPU_BYTES,
+        },
+        abort.signal,
+      )
+      .then((result) => {
+        if (abort.signal.aborted) return;
+        const activeTiles = residencyRef.current!.admit(
+          result.compiled_tiles,
+          result.active_tile_ids,
+        );
+        const residentById = new Map(
+          activeTiles.map((tile) => [tile.descriptor.tile_id, tile]),
+        );
+        const fields = Object.freeze(
+          result.fields.map(
+            (field) => residentById.get(field.field_set_id)?.fields ?? field,
           ),
-        ];
+        );
+        const compiled = Object.freeze({
+          ...result.compiled,
+          meshes: Object.freeze(
+            result.compiled.meshes.map((mesh) => {
+              const resident = residentById.get(mesh.field_set_id);
+              return resident
+                ? Object.freeze({
+                    field_set_id: resident.fields.field_set_id,
+                    data: resident.mesh,
+                  })
+                : mesh;
+            }),
+          ),
+        });
+        setResolvedTerrain({
+          job_id: terrainJobId,
+          snapshot_id: snapshot.snapshot_id,
+          result,
+          fields,
+          compiled,
+          residency: residencyRef.current!.stats(),
+        });
+      })
+      .catch((error: unknown) => {
+        if (abort.signal.aborted) return;
+        setTerrainFailure(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      });
+    return () => abort.abort();
+  }, [semanticGlobe, snapshot.snapshot_id, terrainJobId, workingSetRevision]);
+  const activeTerrain =
+    !semanticGlobe && resolvedTerrain?.snapshot_id === snapshot.snapshot_id
+      ? resolvedTerrain
+      : null;
+  const fieldProjection = useMemo(() => {
+    const fields = activeTerrain?.fields ?? [];
     return Object.freeze({
-      fields: Object.freeze(fields),
-      evaluation_ms: measurementNow() - evaluationStarted,
+      fields,
+      evaluation_ms: activeTerrain?.result.metrics.field_evaluation_ms ?? 0,
       cells: fields.reduce((total, field) => total + field.field_cells, 0),
       bytes: fields.reduce((total, field) => total + field.field_bytes, 0),
       active_band_ids: Object.freeze(
@@ -275,17 +401,21 @@ export function AcceleratedTerrainSurface({
         ].sort((left, right) => left.localeCompare(right)),
       ),
     });
-  }, [limitsRevision, semanticGlobe, snapshot.snapshot_id, workingSetRevision]);
+  }, [activeTerrain, semanticGlobe]);
   const globeCompilation = useMemo(
     () => (projectionGlobe ? compileContextGlobe(projectionGlobe) : null),
     [projectionGlobe],
   );
-  const terrainCompilation = useMemo(
-    () =>
-      semanticGlobe || fieldProjection.fields.length === 0
-        ? null
-        : compileContinuousRelief(fieldProjection.fields),
-    [fieldProjection.fields, semanticGlobe],
+  const terrainCompilation = semanticGlobe ? null : activeTerrain?.compiled;
+  const terrainMetrics = activeTerrain?.result.metrics;
+  const residency = activeTerrain?.residency;
+  const activeTileLevels = Object.freeze(
+    [
+      ...new Set(
+        activeTerrain?.result.selections.map((selection) => selection.level) ??
+          [],
+      ),
+    ].sort((left, right) => left - right),
   );
   const statistics = globeCompilation?.statistics ??
     terrainCompilation?.statistics ?? {
@@ -370,20 +500,51 @@ export function AcceleratedTerrainSurface({
       field_evaluation_ms: fieldProjection.evaluation_ms,
       geometry_compilation_ms: statistics.geometry_compilation_ms,
       render_submission_ms: canvasReport.render_submission_ms,
+      terrain_update_ms: terrainMetrics?.update_ms ?? 0,
+      terrain_decode_ms: terrainMetrics?.decode_ms ?? 0,
+      terrain_tile_projection_ms: terrainMetrics?.tile_projection_ms ?? 0,
+      terrain_worker_execution:
+        activeTerrain?.result.execution ?? (semanticGlobe ? "none" : "none"),
+      terrain_worker_revision:
+        activeTerrain?.result.worker_revision ?? "unbound",
+      active_tile_count: activeTerrain?.result.active_tile_ids.length ?? 0,
+      active_tile_levels: activeTileLevels,
+      resident_tile_count: residency?.entries ?? 0,
+      resident_cpu_bytes: residency?.cpu_bytes ?? 0,
+      resident_cpu_budget_bytes:
+        residency?.cpu_budget_bytes ?? MAX_TERRAIN_TILE_CPU_BYTES,
+      resident_gpu_bytes: residency?.gpu_bytes ?? 0,
+      resident_gpu_budget_bytes:
+        residency?.gpu_budget_bytes ?? MAX_TERRAIN_TILE_GPU_BYTES,
+      resident_hits: residency?.hits ?? 0,
+      resident_misses: residency?.misses ?? 0,
+      resident_evictions: residency?.evictions ?? 0,
+      gpu_timing_ms: terrainMetrics?.gpu_timing_ms ?? null,
+      gpu_timing_authority:
+        terrainMetrics?.gpu_timing_authority ??
+        "unavailable_without_capable_gpu_timer",
       measurement_authority: "transient_cpu_unretained",
     });
 
   useEffect(() => {
     if (content) return;
     completeReport({
-      status: {
-        ...REFERENCE_TERRAIN_REPORT.status,
-        lifecycle: "ready",
-      },
+      status: terrainFailure
+        ? {
+            lifecycle: "failed",
+            backend: "reference",
+            renderer_revision: "rey.reference-renderer@1",
+            degraded: true,
+            detail: `terrain worker failed; reference terrain retained: ${terrainFailure.message}`,
+          }
+        : {
+            ...REFERENCE_TERRAIN_REPORT.status,
+            lifecycle: "ready",
+          },
       draw_calls: 0,
       render_submission_ms: 0,
     });
-  }, [content, snapshot.snapshot_id]);
+  }, [content, snapshot.snapshot_id, terrainFailure]);
 
   return content ? (
     <ExplorerCanvas
@@ -396,8 +557,4 @@ export function AcceleratedTerrainSurface({
       visible={visible}
     />
   ) : null;
-}
-
-function measurementNow(): number {
-  return globalThis.performance?.now() ?? Date.now();
 }

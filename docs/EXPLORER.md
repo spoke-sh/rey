@@ -249,6 +249,15 @@ grid. Its no-data vertices carry no height or material, and a triangle may
 exist only when all three of its source vertices are valid. Reference,
 WebGL2, and WebGPU paths consume that same rule.
 
+Acceleration is a bounded projection of that reference dataset. Stable tiles
+retain source revision, parentage, shared edge samples, conservative validity,
+geometric error, and byte cost. A camera may select and retain tiles under
+explicit budgets, but coarse detail can only remove valid support; it cannot
+bridge a hole. Tile evaluation and mesh preparation belong in cancellable
+workers so interaction does not turn React reconciliation into a terrain
+compute loop. Worker loss or budget failure reveals the deterministic
+reference surface.
+
 Terrain fidelity then grows in this order:
 
 ```text

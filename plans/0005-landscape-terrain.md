@@ -44,11 +44,22 @@ Neighborhood suppress individual grid-vertex markers as level-of-detail
 presentation, while Object and Evidence can still expose their exact source
 identities.
 
-This proves admission and renderer parity, not the final fidelity bar. The
-current regional grid is a bounded in-memory field, its accelerated camera is
-overhead orthographic, evaluation remains on the main thread, and geographic
-imagery, water, vectors, labels, tile streaming, retained residency, and the
-Atlas-to-Landscape transition are not yet accelerated passes.
+The accelerated path now projects that reference field into a conservative
+quadtree with stable source-bound tile identities, shared samples and validity
+borders, exact parent/child links, measured geometric error, and explicit CPU
+and GPU sizes. Camera selection uses one uniform error-qualified level so
+adjacent active tiles cannot form mixed-level cracks. Coarse validity may
+remove support but cannot gain it. A cancellable dedicated worker owns tile
+projection, resampling, relief derivation, procedural field evaluation, parity
+checking, and mesh preparation; environments without workers disclose a
+main-thread fallback. Deterministic residency retains compiled tiles under
+separate 48 MiB CPU and 64 MiB GPU budgets.
+
+This proves admission, renderer parity, and bounded tiled execution, not the
+final fidelity bar. The current source dataset remains one bounded in-memory
+field, its accelerated camera is overhead orthographic, and geographic
+imagery, water, vectors, labels, and the Atlas-to-Landscape transition are not
+yet accelerated passes.
 
 ## Delivery Sequence
 
@@ -78,14 +89,16 @@ Atlas-to-Landscape transition are not yet accelerated passes.
 
 ### 3. Add tiled evaluation, residency, and bounded work
 
-- [ ] Define an admitted dataset-to-tile projection with stable tile identity,
+- [x] Define an admitted dataset-to-tile projection with stable tile identity,
       geometric error, validity borders, parent/child relationships, and explicit
       CPU/GPU byte budgets.
-- [ ] Move terrain decode, resampling, normal/curvature derivation, and mesh
-      preparation off the React render path into cancellable bounded workers.
-- [ ] Retain a camera-driven resident tile set with deterministic eviction,
+- [x] Move available terrain decoding, resampling, normal/curvature derivation,
+      procedural evaluation, and mesh preparation off the React render path into
+      a cancellable bounded worker. The current typed grid requires no native-byte
+      decode; that cost remains explicitly zero rather than fabricated.
+- [x] Retain a camera-driven resident tile set with deterministic eviction,
       shared borders, crack prevention, and no validity expansion across levels.
-- [ ] Measure update, decode, upload, residency, draw, and interaction costs on
+- [x] Measure update, decode, submission, residency, draw, and interaction costs on
       named workloads; keep GPU execution claims absent without a capable timer.
 
 ### 4. Deliver a bounded 3D Landscape camera and transition

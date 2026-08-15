@@ -8,6 +8,7 @@ geometry, or application cards into terrain.
 
 ```text
 TerrainFieldSetInput[]
+  → camera-qualified tiles + bounded worker
   → buildTerrainMeshData
   → verifyTerrainMeshParity
   → enforce GPU byte budget
@@ -38,7 +39,8 @@ Each `TerrainFieldSetInput` supplies one bounded regular grid:
   source-declared per-vertex validity/no-data.
 
 Field generation, dataset interpretation, hydrology, validity classification,
-LOD selection, halo evaluation, and patch caching remain outside this package.
+LOD selection, halo evaluation, worker orchestration, and tile residency remain
+outside this package.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
@@ -76,12 +78,33 @@ warm and cool directional lights plus ambient fill. The accelerated camera is
 currently bounded, orthographic, and overhead. A unified bounded
 County-isometric 3D camera remains engine direction, not current package fact.
 
+## Tiling, Workers, And Residency
+
+`@rey/agent` projects admitted regional grids into
+`rey.terrain-tile-pyramid.v1`. Tile identities bind the source field and
+revision, level, row, and column. Every level shares exact edge samples and
+validity borders. Coarse validity is conservative: a no-data source sample may
+remove coarse support but cannot become a valid coarse vertex. Camera
+selection chooses a uniform level from measured geometric error, preventing
+mixed-level edge cracks while retaining screen-space control.
+
+`rey.terrain.compilation-worker@1` runs tile projection, resampling, relief
+derivation, procedural field evaluation, parity checking, and mesh preparation
+in a cancellable dedicated worker. The deterministic reference field remains
+visible while work is pending or after failure. A disclosed main-thread
+fallback exists where `Worker` is unavailable. `rey.terrain.tile-residency@1`
+retains compiled tiles under independent 48 MiB CPU and 64 MiB GPU budgets and
+evicts the oldest unrequested identity first.
+
 ## Bounds And Accounting
 
 The compiler measures exact typed-array byte length before rendering and
 rejects output above `MAX_ACCELERATED_TERRAIN_GPU_BYTES`, currently 64 MiB.
-Statistics retain field-set, vertex, triangle, source-byte, GPU-byte, budget,
-parity-sample, and geometry-compilation counts.
+Statistics retain field-set, tile, level, vertex, triangle, source-byte,
+resident CPU/GPU byte, budget, hit, miss, eviction, parity-sample, update,
+projection, evaluation, geometry-compilation, draw, and submission counts or
+timings. GPU execution time remains explicitly unavailable without a capable
+GPU timer.
 
 ## Current Boundary
 
@@ -97,8 +120,8 @@ after the application has verified its row-major source bindings and explicit
 valid/no-data cells, then compiled it into this field contract. Terrain-control
 geometry never becomes observed elevation.
 
-The regional field is currently one bounded in-memory grid rendered by the
-overhead orthographic terrain camera. Dataset tiling, worker evaluation,
-resident geometric LOD, the bounded 3D County camera, and the reversible
+The source regional field is currently one bounded in-memory grid rendered by
+an overhead orthographic terrain camera through a tiled accelerated working
+set. Native raster streaming, the bounded 3D County camera, and the reversible
 Atlas-to-Landscape transition remain application/engine work tracked by
 [Plan 0005](../../../plans/0005-landscape-terrain.md).

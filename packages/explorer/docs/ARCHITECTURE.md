@@ -9,7 +9,7 @@ This document defines the technical ownership and runtime flow of
 ```text
 @rey/agent
   evidence adapters · semantic projection · immutable scenes · fields
-  camera controls · render graph · picking · labels · reference renderer
+  tile LOD · workers/residency · camera · picking · reference renderer
                               │
                               │ typed compiled inputs
                               ▼
@@ -105,7 +105,8 @@ frozen native terrain source
   → @rey/agent regional field compiler
   → TerrainFieldSetInput
        ├─ @rey/agent reference triangles
-       └─ @rey/explorer bounded GPU mesh
+       └─ @rey/agent conservative tile pyramid + worker/residency
+            └─ @rey/explorer bounded GPU meshes
 ```
 
 The application owns what a row, column, height, material, and validity value
