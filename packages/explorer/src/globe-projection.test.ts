@@ -561,4 +561,87 @@ describe("declarative globe-to-Mercator projection", () => {
       }
     }
   });
+
+  it("feeds the atmosphere sweep the seam weight's complement, so it peaks at the outer edge instead of the seam", () => {
+    // Unlike sectors/samples/markers, the atmosphere glow deliberately
+    // inverts which edge is brightest: dim at the connected seam, brightest
+    // at the copy's outer edge, as a directional cue toward more content if
+    // the operator keeps unfurling. This mirrors globe-surface.tsx's exact
+    // two ternaries verbatim — seamWeightRaw is what ProjectedAtmosphereLayer
+    // used before this fix; outerEdgeWeightRaw is what it uses now — so a
+    // future accidental revert of one but not the other, or a copy/paste of
+    // the wrong ternary, changes these numbers and fails this test.
+    const seamWeightRaw = (normalizedChartX: number, wrapIndex: number) =>
+      wrapIndex < 0 ? normalizedChartX : 1 - normalizedChartX;
+    const outerEdgeWeightRaw = (normalizedChartX: number, wrapIndex: number) =>
+      wrapIndex < 0 ? 1 - normalizedChartX : normalizedChartX;
+    const smoothstepFn = (value: number) => value * value * (3 - 2 * value);
+    const smoothstepEdges = (edge0: number, edge1: number, x: number) => {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return smoothstepFn(t);
+    };
+    const tslSpatialSweep = (repeatOpacity: number, weight: number) => {
+      const eps = 0.000_001;
+      const edge0 = 1 - Math.max(repeatOpacity, eps);
+      return smoothstepEdges(edge0, 1, weight) * (repeatOpacity >= eps ? 1 : 0);
+    };
+
+    for (const wrapIndex of [1, -1]) {
+      // Exact numeric endpoints anchor the direction unambiguously: for
+      // wrapIndex > 0, outerEdgeWeightRaw is 0 at chartX=0 and 1 at chartX=1
+      // (increasing); for wrapIndex < 0 it's the mirror image (decreasing).
+      // seamWeightRaw always runs the opposite direction from
+      // outerEdgeWeightRaw at every chartX, by construction (complements).
+      expect(outerEdgeWeightRaw(0, wrapIndex)).toBeCloseTo(
+        wrapIndex < 0 ? 1 : 0,
+        10,
+      );
+      expect(outerEdgeWeightRaw(1, wrapIndex)).toBeCloseTo(
+        wrapIndex < 0 ? 0 : 1,
+        10,
+      );
+
+      for (
+        let normalizedChartX = 0;
+        normalizedChartX <= 1;
+        normalizedChartX += 0.05
+      ) {
+        const seamWeight = seamWeightRaw(normalizedChartX, wrapIndex);
+        const outerEdgeWeight = outerEdgeWeightRaw(normalizedChartX, wrapIndex);
+        expect(outerEdgeWeight).toBeCloseTo(1 - seamWeight, 10);
+      }
+    }
+
+    // At a representative mid-dissolve progress, the position that used to
+    // be fully bright (seam) is now fully dark, and the position that used
+    // to be fully dark (outer edge) is now fully bright — for both wrapIndex
+    // signs, using each one's own concrete chartX endpoints rather than a
+    // shared literal value.
+    const progress = 0.79;
+    const repeatOpacity = globeAtlasRepeatOpacity(progress);
+    for (const wrapIndex of [1, -1]) {
+      const seamChartX = wrapIndex < 0 ? 1 : 0;
+      const outerEdgeChartX = wrapIndex < 0 ? 0 : 1;
+      const oldBrightnessAtSeam = tslSpatialSweep(
+        repeatOpacity,
+        seamWeightRaw(seamChartX, wrapIndex),
+      );
+      const newBrightnessAtSeam = tslSpatialSweep(
+        repeatOpacity,
+        outerEdgeWeightRaw(seamChartX, wrapIndex),
+      );
+      const oldBrightnessAtOuterEdge = tslSpatialSweep(
+        repeatOpacity,
+        seamWeightRaw(outerEdgeChartX, wrapIndex),
+      );
+      const newBrightnessAtOuterEdge = tslSpatialSweep(
+        repeatOpacity,
+        outerEdgeWeightRaw(outerEdgeChartX, wrapIndex),
+      );
+      expect(oldBrightnessAtSeam).toBeCloseTo(1, 6);
+      expect(newBrightnessAtSeam).toBeCloseTo(0, 6);
+      expect(oldBrightnessAtOuterEdge).toBeCloseTo(0, 6);
+      expect(newBrightnessAtOuterEdge).toBeCloseTo(1, 6);
+    }
+  });
 });

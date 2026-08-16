@@ -503,7 +503,7 @@ describe("globe scene", () => {
     await renderer.unmount();
   });
 
-  it("sweeps a repeated wrap copy's atmosphere glow from the seam outward, matching sector/sample/marker reveal", async () => {
+  it("gives a repeated wrap copy's atmosphere glow its own spatial sweep across the shared geometry", async () => {
     const world = { width: 1200, height: 720 };
     const view = {
       yaw_degrees: 24,
@@ -528,8 +528,10 @@ describe("globe scene", () => {
     // The shared surface/atmosphere geometry now carries one normalizedChartX
     // scalar per vertex — the same quantity globeAtlasRepeatSeamWeight and
     // globeAtlasRepeatVisibility consume in globe-projection.ts — so the
-    // shader can sweep the wrap copy's glow spatially instead of applying
-    // one flat opacity across the whole shell.
+    // shader can sweep the wrap copy's glow spatially (brightest at the
+    // outer edge, dimmest at the seam — see globe-projection.test.ts for the
+    // exact direction this is verified against) instead of applying one
+    // flat opacity across the whole shell.
     expect(repeatedAtmosphere.geometry).toBe(surface.geometry);
     const chartXAttribute = surface.geometry.getAttribute(
       "reyNormalizedChartX",

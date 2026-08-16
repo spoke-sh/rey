@@ -225,10 +225,17 @@ function ProjectedAtmosphereLayer({
       falloffLimitNode,
       sphereNormal.z.abs(),
     );
-    // A repeated wrap copy sweeps its glow in from the connected seam
-    // outward, matching the sectors/samples/markers (globeAtlasRepeatVisibility
-    // in globe-projection.ts, mirrored here in TSL — see the exact-match
-    // check against that function in globe-surface.test.tsx). The canonical
+    // Unlike sectors/samples/markers, which reveal expanding outward FROM
+    // the connected seam (globeAtlasRepeatVisibility in globe-projection.ts),
+    // the glow is deliberately inverted: dim at the seam, brightest at the
+    // copy's outer edge, so it reads as a directional cue toward the
+    // content still ahead if the operator keeps unfurling — rather than
+    // mirroring the seam-outward reveal everything else uses. Built from
+    // the same expanding-smoothstep shape (see the exact-match check
+    // against globeAtlasRepeatVisibility in globe-projection.test.ts), just
+    // driven by the seam weight's complement instead of the seam weight
+    // itself, so the "expands as repeatOpacity grows" region grows from the
+    // outer edge inward rather than from the seam outward. The canonical
     // copy (wrapIndex 0) skips this term entirely, unchanged from before.
     if (wrapIndex !== 0) {
       const normalizedChartXAttribute = attribute<"float">(
@@ -240,14 +247,14 @@ function ProjectedAtmosphereLayer({
         float(0),
         float(1),
       );
-      const seamWeightNode =
-        wrapIndex < 0 ? boundedChartX : sub(float(1), boundedChartX);
+      const outerEdgeWeightNode =
+        wrapIndex < 0 ? sub(float(1), boundedChartX) : boundedChartX;
       const repeatOpacityNode = uniform(0);
       const spatialSweepNode = mul(
         smoothstep(
           sub(float(1), max(repeatOpacityNode, float(0.000_001))),
           float(1),
-          seamWeightNode,
+          outerEdgeWeightNode,
         ),
         step(float(0.000_001), repeatOpacityNode),
       );

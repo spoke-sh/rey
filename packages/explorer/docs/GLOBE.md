@@ -112,10 +112,12 @@ repeated copy's overall envelope is the bounded product of the repeat
 dissolve and its complement, so it therefore follows the same path in either
 direction, peaks only while charts are actively dissolving, and is
 transparent at both World and Atlas endpoints. Within that envelope, the
-glow additionally sweeps in from the copy's connected seam outward using the
-same per-vertex weight that governs occupied sectors, stipple, and markers,
-so all four layers reveal in visual lockstep instead of the glow reading as
-one flat wash disconnected from everything else's coordinated reveal.
+glow additionally sweeps using the same per-vertex chart-position weight
+that governs occupied sectors, stipple, and markers, but in the opposite
+direction from those layers: dim at the copy's connected seam, brightest at
+its outer edge, so the glow reads as a directional cue toward the content
+still ahead if the operator keeps unfurling rather than mirroring the
+seam-outward reveal everything else on that copy uses.
 
 The accelerated renderer is the sole atmosphere owner. Its transparent SVG
 reference scaffold does not render the fallback radial-gradient circle, so a
