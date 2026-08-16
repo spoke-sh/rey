@@ -448,12 +448,20 @@ pub fn render_scene_admission_result(result: &SceneAdmissionResult) -> String {
         format!("DETAIL {}", result.detail),
     ];
     if let Some(scene) = &result.scene {
+        let compact_terrain_objects = scene
+            .projection
+            .terrain
+            .as_ref()
+            .and_then(|terrain| terrain.grid.as_ref())
+            .filter(|grid| grid.compact.is_some())
+            .and_then(|grid| grid.columns.checked_mul(grid.rows))
+            .unwrap_or(0);
         lines.extend([
             format!(
                 "SCENE {} · SCENE@{} · {} native objects · {} layers · {} validity records",
                 scene.region_id,
                 scene.admission.editor_sequence,
-                scene.projection.objects.len(),
+                scene.projection.objects.len() as u64 + compact_terrain_objects,
                 scene.projection.layers.len(),
                 scene.projection.validity.len()
             ),
@@ -504,8 +512,8 @@ pub fn render_scene_admission_result(result: &SceneAdmissionResult) -> String {
                             "{}x{} admitted terrain grid · {} valid / {} no-data vertices · interpolation bounded to supported source triangles",
                             grid.columns,
                             grid.rows,
-                            grid.cells.iter().filter(|cell| cell.validity == RegionalValidityClass::Valid).count(),
-                            grid.cells.iter().filter(|cell| cell.validity == RegionalValidityClass::NoData).count(),
+                            grid.expanded_cells().map_or(0, |cells| cells.iter().filter(|cell| cell.validity == RegionalValidityClass::Valid).count()),
+                            grid.expanded_cells().map_or(0, |cells| cells.iter().filter(|cell| cell.validity == RegionalValidityClass::NoData).count()),
                         ),
                     ),
                 )
@@ -1100,6 +1108,9 @@ fn build_scene(
     let gridded_terrain = terrain
         .as_ref()
         .is_some_and(|terrain| terrain.grid.is_some());
+    if gridded_terrain {
+        objects.retain(|object| object.layer != RegionalLayerKind::Terrain);
+    }
     let mut grouped = BTreeMap::<RegionalLayerKind, Vec<String>>::new();
     for object in &objects {
         grouped
@@ -1142,6 +1153,24 @@ fn build_scene(
             }
         })
         .collect::<Vec<_>>();
+    if gridded_terrain
+        && !layers
+            .iter()
+            .any(|layer| layer.kind == RegionalLayerKind::Terrain)
+    {
+        layers.push(RegionalLayer {
+            layer_id: format!(
+                "{}.{}",
+                candidate.project_id,
+                layer_label(RegionalLayerKind::Terrain)
+            ),
+            kind: RegionalLayerKind::Terrain,
+            object_ids: Vec::new(),
+            authority: "qualified rectilinear height/material grid; validity ends at supported source triangles".to_owned(),
+            semantics: "exact row-major Point vertices with explicit valid/no-data support; piecewise-linear triangles cannot cross no-data".to_owned(),
+            source_revision: candidate.package_snapshot_revision.clone(),
+        });
+    }
     layers.sort_by(|left, right| left.layer_id.cmp(&right.layer_id));
     let mut validity = objects
         .iter()
@@ -1442,6 +1471,15 @@ fn build_regional_terrain_grid(
         .first()
         .map(|(feature, _)| feature.source_id.as_str())
         .ok_or(SceneAdmissionError::TerrainSample)?;
+    let first_source_path = terrain_features
+        .first()
+        .and_then(|(feature, _)| {
+            objects
+                .iter()
+                .find(|object| object.object_id == feature.feature_id)
+        })
+        .map(|object| object.source_path.clone())
+        .ok_or(SceneAdmissionError::TerrainSample)?;
     let expected_cells = first
         .columns
         .checked_mul(first.rows)
@@ -1546,6 +1584,7 @@ fn build_regional_terrain_grid(
             crosses_antimeridian: false,
         },
         cells,
+        compact: None,
         validity_semantics:
             "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
                 .to_owned(),
@@ -1556,7 +1595,7 @@ fn build_regional_terrain_grid(
             "qualified rectilinear height/material grid; validity ends at supported source triangles"
                 .to_owned(),
     }
-    .finalize()?;
+    .finalize_compact(first_source_id, &first_source_path)?;
     RegionalTerrainProgram {
         schema: REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA.to_owned(),
         program_id: placeholder_digest(),
@@ -2696,11 +2735,15 @@ mod tests {
         assert!(terrain.samples.is_empty());
         let grid = terrain.grid.as_ref().expect("terrain grid");
         assert_eq!((grid.columns, grid.rows), (3, 3));
-        assert_eq!(grid.cells.len(), 9);
-        assert_eq!(grid.cells[4].grid_position, [1, 1]);
-        assert_eq!(grid.cells[4].validity, RegionalValidityClass::NoData);
-        assert_eq!(grid.cells[4].elevation_micrometers, None);
-        assert_eq!(grid.cells[4].material, None);
+        assert_eq!(grid.schema, "rey.regional-terrain-grid.v2");
+        assert!(grid.cells.is_empty());
+        assert!(grid.compact.is_some());
+        let cells = grid.expanded_cells().expect("expand retained grid");
+        assert_eq!(cells.len(), 9);
+        assert_eq!(cells[4].grid_position, [1, 1]);
+        assert_eq!(cells[4].validity, RegionalValidityClass::NoData);
+        assert_eq!(cells[4].elevation_micrometers, None);
+        assert_eq!(cells[4].material, None);
         assert_eq!(
             terrain.interpolation,
             "piecewise linear only within triangles whose three admitted source vertices are valid"
@@ -2711,9 +2754,23 @@ mod tests {
                 .projection
                 .objects
                 .iter()
-                .filter(|object| object.layer == RegionalLayerKind::Terrain)
-                .all(|object| object.native_geometry.is_none())
+                .all(|object| object.layer != RegionalLayerKind::Terrain)
         );
+        let round_trip: AdmittedRegionalScene =
+            serde_json::from_slice(&serde_json::to_vec(&scene).unwrap()).unwrap();
+        round_trip.verify().expect("verify compact scene replay");
+        assert_eq!(round_trip, scene);
+        let mut corrupted = scene.clone();
+        corrupted
+            .projection
+            .terrain
+            .as_mut()
+            .and_then(|terrain| terrain.grid.as_mut())
+            .and_then(|grid| grid.compact.as_mut())
+            .unwrap()
+            .validity_hex
+            .replace_range(..2, "02");
+        assert!(corrupted.verify().is_err());
 
         let mut tampered = candidate;
         let sample = tampered

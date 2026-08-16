@@ -22,7 +22,8 @@ export function validRegionalTerrainGridTransport(
     return grid.cells.length === regionalTerrainGridCellCount(grid);
   const cells = regionalTerrainGridCellCount(grid);
   if (
-    grid.source_schema !== "rey.regional-terrain-grid.v1" ||
+    (grid.source_schema !== "rey.regional-terrain-grid.v1" &&
+      grid.source_schema !== "rey.regional-terrain-grid.v2") ||
     !grid.transport_id ||
     !grid.source_id ||
     !grid.source_path ||

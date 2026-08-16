@@ -46,10 +46,13 @@ The first vertical slice is implemented. A `terrain` GeoJSON source may bind a
 complete rectilinear grid through exact row/column, dimension, dataset, and
 `valid`/`no_data` properties. Editor staging freezes those values and native
 bytes. Scene admission independently re-inspects the bytes, rejects mixed or
-incomplete grids, and emits `rey.regional-terrain-grid.v1` only when every
-row-major vertex, source object, artifact revision, coordinate, and validity
-class agrees. The grid is carried by `rey.regional-terrain-program.v2`; v1
-retains its original point-only, no-interpolation meaning.
+incomplete grids, proves every expanded row-major vertex against its source
+object, then retains the lossless compact result as
+`rey.regional-terrain-grid.v2`. Bounds and dimensions derive positions while
+parallel channels retain exact cell/source identities, artifact and object
+revisions, validity, elevation, and material. The grid is carried by
+`rey.regional-terrain-program.v2`; terrain-program v1 retains its original
+point-only, no-interpolation meaning.
 
 The grid authorizes piecewise-linear interpolation only inside triangles whose
 three source vertices are valid. `no_data` carries neither height nor material.
@@ -172,10 +175,13 @@ validates the compact representation before projection and reconstructs only
 the field or exact selected evidence cell it needs. On the same Rey County
 state, decoded transport fell from 10,658,308 to 1,447,459 bytes and gzip wire
 size fell from roughly 1.71 MB to 564,722 bytes. Warm local delivery measured
-about 15–20 milliseconds. The server still derives and verifies the full
-retained scene on a cold projection, so cold compute and compact retained-state
-storage remain open even though the browser contract is no longer dominated by
-semantic repetition.
+about 15–20 milliseconds. New scene admissions now remove the same per-vertex
+repetition from retained workload state through
+`rey.regional-terrain-grid.v2`; verification reconstructs the exact cells and
+fails closed on channel tampering. Legacy v1 grids remain verifiable. Cold
+compute at substantially higher source density remains open even though
+neither retained state nor the browser contract now requires a duplicate
+projection object per terrain vertex.
 
 Client-side source validation now builds one unique native-object identity map
 before checking terrain cells. The 81×81 field therefore validates in linear
@@ -450,6 +456,9 @@ density remain subsequent slices of the same boundary.
       row-major field representation while retaining exact dataset, artifact,
       cell, source-object, revision, validity, elevation, material, and lazy
       evidence bindings.
+- [x] Retain qualified regular grids in the same lossless compact form so
+      higher source density does not duplicate terrain objects, validity rows,
+      layer membership, and grid cells in workload state.
 - [x] Add explicit water surfaces/areas and scale-aware contour styling before
       treating roads, railways, structures, or label density as fidelity
       completion.

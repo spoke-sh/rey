@@ -2139,6 +2139,9 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
     else {
         return Ok(());
     };
+    if grid.get("schema").and_then(Value::as_str) == Some("rey.regional-terrain-grid.v2") {
+        return compact_retained_regional_projection_packet(packet, &grid);
+    }
     if grid.get("schema").and_then(Value::as_str) != Some("rey.regional-terrain-grid.v1") {
         return Err("regional terrain transport encountered an unsupported grid".to_owned());
     }
@@ -2336,6 +2339,129 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
             "schema": "rey.regional-projection-packet.transport.v1",
             "source_packet_id": packet.get("packet_id").cloned().unwrap_or(Value::Null),
             "omitted_terrain_objects": original_object_count.saturating_sub(packet.get("objects").and_then(Value::as_array).map_or(0, Vec::len)),
+            "authority": "terrain object, layer-membership, and per-object validity repetition is encoded once in the exact compact grid; semantic content is unchanged",
+        }),
+    );
+    Ok(())
+}
+
+fn compact_retained_regional_projection_packet(
+    packet: &mut serde_json::Map<String, Value>,
+    grid: &Value,
+) -> Result<(), String> {
+    let grid = grid
+        .as_object()
+        .ok_or_else(|| "retained regional terrain grid is not an object".to_owned())?;
+    let compact = grid
+        .get("compact")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "retained regional terrain grid has no compact cells".to_owned())?;
+    let columns = grid
+        .get("columns")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "retained regional terrain grid has no columns".to_owned())?;
+    let rows = grid
+        .get("rows")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| "retained regional terrain grid has no rows".to_owned())?;
+    let cell_count = columns
+        .checked_mul(rows)
+        .ok_or_else(|| "retained regional terrain grid size overflowed".to_owned())?;
+    for field in [
+        "source_id",
+        "source_path",
+        "source_artifact_id",
+        "cell_ids",
+        "source_object_ids",
+        "source_object_revisions",
+        "validity_hex",
+        "elevation_micrometers",
+        "material_palette",
+        "material_indices_hex",
+    ] {
+        if !compact.contains_key(field) {
+            return Err(format!(
+                "retained regional terrain grid has no compact {field}"
+            ));
+        }
+    }
+    if packet
+        .get("objects")
+        .and_then(Value::as_array)
+        .is_none_or(|objects| {
+            objects
+                .iter()
+                .any(|object| object.get("layer").and_then(Value::as_str) == Some("terrain"))
+        })
+    {
+        return Err("retained compact terrain repeats native terrain objects".to_owned());
+    }
+
+    let mut transport = grid.clone();
+    transport.remove("compact");
+    transport.remove("cells");
+    transport.insert(
+        "schema".to_owned(),
+        Value::String("rey.regional-terrain-grid.transport.v1".to_owned()),
+    );
+    transport.insert(
+        "source_schema".to_owned(),
+        Value::String("rey.regional-terrain-grid.v2".to_owned()),
+    );
+    for field in [
+        "source_id",
+        "source_path",
+        "source_artifact_id",
+        "cell_ids",
+        "source_object_ids",
+        "source_object_revisions",
+        "validity_hex",
+        "elevation_micrometers",
+        "material_palette",
+        "material_indices_hex",
+    ] {
+        transport.insert(
+            field.to_owned(),
+            compact
+                .get(field)
+                .cloned()
+                .ok_or_else(|| format!("retained regional terrain grid lost {field}"))?,
+        );
+    }
+    transport.insert(
+        "transport_authority".to_owned(),
+        Value::String("lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions".to_owned()),
+    );
+    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v1");
+    hasher.add_bytes(&serde_json::to_vec(&transport).map_err(|error| error.to_string())?);
+    transport.insert(
+        "transport_id".to_owned(),
+        Value::String(hasher.finish().to_string()),
+    );
+
+    packet
+        .get_mut("terrain")
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| "retained regional terrain program is not an object".to_owned())?
+        .insert("grid".to_owned(), Value::Object(transport));
+    for layer in packet
+        .get_mut("layers")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "retained regional projection layers changed during transport".to_owned())?
+    {
+        if layer.get("kind").and_then(Value::as_str) == Some("terrain") {
+            layer
+                .as_object_mut()
+                .ok_or_else(|| "retained regional terrain layer is not an object".to_owned())?
+                .insert("object_ids".to_owned(), Value::Array(Vec::new()));
+        }
+    }
+    packet.insert(
+        "transport".to_owned(),
+        json!({
+            "schema": "rey.regional-projection-packet.transport.v1",
+            "source_packet_id": packet.get("packet_id").cloned().unwrap_or(Value::Null),
+            "omitted_terrain_objects": cell_count,
             "authority": "terrain object, layer-membership, and per-object validity repetition is encoded once in the exact compact grid; semantic content is unchanged",
         }),
     );

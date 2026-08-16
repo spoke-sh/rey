@@ -328,6 +328,13 @@ elevation, material, bounds, and dimensions. Exact evidence is reconstructed
 for the selected cell on demand; compaction cannot turn a retained omission
 into an unavailable evidence route or weaken the validity mask.
 
+The same rule begins at retention. A regular admitted grid is stored once as
+row-major value and identity channels, with coordinates derived only from its
+exact bounds and dimensions. It must round-trip to the original admitted cells
+and fail closed on any channel, palette, validity, or identity tampering.
+Renderer transport may project that compact contract; it must not be the first
+place semantic repetition is removed.
+
 Acceleration is a bounded projection of that reference dataset. Stable tiles
 retain source revision, parentage, shared edge samples, conservative validity,
 geometric error, and byte cost. A camera may select and retain tiles under

@@ -332,14 +332,15 @@ fn member(
         .clone()
         .ok_or(RegionalGeographyCompositionError::AtlasBinding)?;
     let grid = terrain_grid(scene);
-    let terrain_valid_vertices = grid.map_or(0, |grid| {
-        grid.cells
+    let cells = grid.map(RegionalTerrainGrid::expanded_cells).transpose()?;
+    let terrain_valid_vertices = cells.as_ref().map_or(0, |cells| {
+        cells
             .iter()
             .filter(|cell| cell.validity == RegionalValidityClass::Valid)
             .count() as u64
     });
-    let terrain_no_data_vertices = grid.map_or(0, |grid| {
-        grid.cells
+    let terrain_no_data_vertices = cells.as_ref().map_or(0, |cells| {
+        cells
             .iter()
             .filter(|cell| cell.validity == RegionalValidityClass::NoData)
             .count() as u64
@@ -478,8 +479,8 @@ fn assess_terrain_boundary(
         ));
         return Ok(());
     };
-    let left = boundary_cells(left, boundary);
-    let right = boundary_cells(right, boundary);
+    let left = boundary_cells(left, boundary)?;
+    let right = boundary_cells(right, boundary)?;
     if left.is_empty() || left.keys().ne(right.keys()) {
         seam.terrain_status = RegionalGeographyTerrainStatus::Unsupported;
         conflicts.push(conflict(
@@ -577,11 +578,12 @@ fn terrain_grid(scene: &AdmittedRegionalScene) -> Option<&RegionalTerrainGrid> {
         .and_then(|terrain| terrain.grid.as_ref())
 }
 
-fn boundary_cells<'a>(
-    grid: &'a RegionalTerrainGrid,
+fn boundary_cells(
+    grid: &RegionalTerrainGrid,
     boundary: &RegionalGeographySharedBoundary,
-) -> BTreeMap<i64, &'a RegionalTerrainGridCell> {
-    grid.cells
+) -> Result<BTreeMap<i64, RegionalTerrainGridCell>, RegionalGeographyCompositionError> {
+    Ok(grid
+        .expanded_cells()?
         .iter()
         .filter_map(|cell| {
             let (fixed, varying) = match boundary.axis {
@@ -595,9 +597,9 @@ fn boundary_cells<'a>(
             (fixed == boundary.coordinate_microdegrees
                 && varying >= boundary.start_microdegrees
                 && varying <= boundary.end_microdegrees)
-                .then_some((varying, cell))
+                .then_some((varying, cell.clone()))
         })
-        .collect()
+        .collect())
 }
 
 fn shared_boundary(

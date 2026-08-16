@@ -222,13 +222,16 @@ its native object, pick target, evidence route, and validity unchanged.
 
 Regional packets without a terrain program do not enter this pipeline. Exact
 isolated regional samples remain source points because they authorize no
-surface interpolation. A qualified `rey.regional-terrain-grid.v1` enters only
-after the application has built one unique native-object identity index,
-verified every row-major source binding and explicit valid/no-data cell against
-that index, and compiled it into this field contract. Grid validation is linear
-in objects plus cells; increasing terrain density must not reintroduce a
-per-cell scan of every native object. Terrain-control geometry never becomes
-observed elevation.
+surface interpolation. Scene admission first verifies the expanded
+`rey.regional-terrain-grid.v1` against one unique native-object identity index,
+then retains the same cells as `rey.regional-terrain-grid.v2`: bounds and
+dimensions carry regular positions, hexadecimal bytes carry validity and
+material indices, and parallel row-major arrays carry every cell/source
+identity, source revision, elevation, and material. The retained projection no
+longer repeats one native Point, validity row, and layer membership per terrain
+vertex. Re-expansion is exact and verification remains linear in objects plus
+cells; increasing terrain density must not reintroduce a per-cell scan of every
+native object. Terrain-control geometry never becomes observed elevation.
 
 The browser receives dense admitted grids through
 `rey.regional-terrain-grid.transport.v1`. This is a lossless transport view,
@@ -237,10 +240,11 @@ retains canonical row-major cell and source-object identities/revisions, packs
 validity and material indices, and keeps exact elevations. Native coordinates
 and grid positions are reconstructed only from admitted bounds and dimensions.
 Repeated terrain Point objects, per-object validity rows, and terrain-layer
-membership are omitted from the workload payload. Field compilation expands
-only the row-major values it consumes; an exact evidence route reconstructs
-only its selected cell. The retained CLI scene remains the full admission
-artifact.
+membership are absent from both compact retention and the workload payload.
+Field compilation expands only the row-major values it consumes; an exact
+evidence route reconstructs only its selected cell. The CLI remains the full
+human verification surface and reports the semantic terrain-vertex count even
+though those vertices are not stored as duplicate projection objects.
 
 Each admitted regional field remains one bounded in-memory grid rendered by a
 bounded 3D orthographic terrain camera through a tiled accelerated working set.

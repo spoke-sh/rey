@@ -7404,17 +7404,18 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let scene = admission.scene.as_ref().unwrap();
     assert_eq!(scene.admission.editor_sequence, 1);
     assert_eq!(scene.projection.coordinate_bindings.len(), 5);
-    assert_eq!(scene.projection.objects.len(), 11);
+    assert_eq!(scene.projection.objects.len(), 2);
     assert!(scene.projection.footprint.is_none());
     let terrain = scene.projection.terrain.as_ref().unwrap();
     assert!(terrain.samples.is_empty());
     let grid = terrain.grid.as_ref().expect("terrain grid");
     assert_eq!((grid.columns, grid.rows), (3, 3));
-    assert_eq!(
-        grid.cells[4].validity,
-        rey_mining::RegionalValidityClass::NoData
-    );
-    assert_eq!(grid.cells[4].elevation_micrometers, None);
+    assert_eq!(grid.schema, "rey.regional-terrain-grid.v2");
+    assert!(grid.cells.is_empty());
+    assert!(grid.compact.is_some());
+    let cells = grid.expanded_cells().expect("expand retained grid");
+    assert_eq!(cells[4].validity, rey_mining::RegionalValidityClass::NoData);
+    assert_eq!(cells[4].elevation_micrometers, None);
     assert_eq!(
         scene.artifacts.terrain_program_id.as_ref(),
         Some(&terrain.program_id)
@@ -7569,7 +7570,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(!response.contains("\"latest_scene_admission\""));
     assert!(response.contains("\"schema\":\"rey.ui-workload-transport.v1\""));
     assert!(response.contains("\"schema\":\"rey.regional-terrain-grid.transport.v1\""));
-    assert!(response.contains("\"source_schema\":\"rey.regional-terrain-grid.v1\""));
+    assert!(response.contains("\"source_schema\":\"rey.regional-terrain-grid.v2\""));
     assert!(response.contains("\"validity_hex\":\""));
     assert!(response.contains("\"material_indices_hex\":\""));
     assert!(

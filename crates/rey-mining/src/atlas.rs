@@ -209,6 +209,21 @@ impl SemanticAtlasRegionalSource {
                 .filter(|object| object.layer == kind)
                 .count() as u64
         };
+        let terrain_objects = scene.projection.terrain.as_ref().map_or(Ok(0), |terrain| {
+            terrain
+                .grid
+                .as_ref()
+                .map_or(Ok(terrain.samples.len() as u64), |grid| {
+                    grid.expanded_cells().map(|cells| cells.len() as u64)
+                })
+        })?;
+        let native_objects = scene
+            .projection
+            .objects
+            .iter()
+            .filter(|object| object.layer != RegionalLayerKind::Terrain)
+            .count() as u64
+            + terrain_objects;
         Ok(Self {
             region_id: hasher.finish(),
             workload_id: workload_id.to_owned(),
@@ -221,9 +236,9 @@ impl SemanticAtlasRegionalSource {
             semantic_longitude_microdegrees: placement.target_origin[0],
             semantic_latitude_microdegrees: placement.target_origin[1],
             complete: scene.complete,
-            native_objects: scene.projection.objects.len() as u64,
+            native_objects,
             native_feature_objects: count(RegionalLayerKind::NativeFeature),
-            terrain_objects: count(RegionalLayerKind::Terrain),
+            terrain_objects,
             terrain_control_objects: count(RegionalLayerKind::TerrainControl),
             hydrology_objects: count(RegionalLayerKind::Hydrology),
             boundary_objects: count(RegionalLayerKind::Boundary),
