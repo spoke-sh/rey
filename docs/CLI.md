@@ -634,7 +634,7 @@ default human startup output is one
 line—`INFO:     Listening on http://127.0.0.1:5714 (Press CTRL+C to quit)`—and
 stderr first identifies the exact Rey version and build commit, then logs
 process, agent-startup, worker, shutdown, and failure lifecycle events.
-`--format json` exposes the complete `rey.agent-process.v1` document
+`--format json` exposes the complete `rey.agent-process.v2` document
 with its nested `rey.process.v1` and `rey.agent-topology.v1`; the same exact
 topology remains human-visible on `/agents`. SIGINT and SIGTERM stop both
 workers cooperatively; an unexpected exit fails the process closed. V1 never restarts
@@ -645,7 +645,10 @@ The operator worker projects the same workload, environment, cadence, Journal,
 and Explorer evidence. The separate inbox worker polls only exact Channel- and
 environment-HEAD GitHub applications through `rey channels poll`; it neither
 invokes a discovered application directly nor marks notifications read.
-Its human entry route is `/explore`. A fresh workload state opens on an
+The HTTP root opens the Swagger-guided API at `/api`; the generated OpenAPI
+3.1 document is `/api/openapi.json`. Its human entry route remains `/explore`.
+See [Agent HTTP API](API.md) for routes, transport, and exposure. A fresh
+workload state opens on an
 unmapped orientation globe whose beacons are exact file-backed workload
 candidates; inspection and consent descend into the exact workload review and
 approval surface. Feed projects the resulting retained commit only after that

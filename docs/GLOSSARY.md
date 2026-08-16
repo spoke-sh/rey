@@ -127,6 +127,15 @@ lifecycle, state, restart policy, endpoints, authority, and limits. A topology
 node is not an assigned or invoked agent runtime unless a separate exact
 admission contract establishes that fact.
 
+### API
+
+The versioned local HTTP projection hosted by `rey agent`. `/api` is its
+discovery root, `/api/docs/` serves embedded Swagger, and
+`/api/openapi.json` exposes the generated OpenAPI 3.1 document. The API
+transports bounded typed reads and explicitly declared local admissions; it is
+not a second runtime, assessment plane, or source of authority. See
+[Agent HTTP API](API.md).
+
 ### Application inventory
 
 The exact desired set of applications Rey intends to search for, including the
@@ -1831,10 +1840,10 @@ observations or establish order across channel sequences.
 ### Supervision
 
 The orchestrator's bounded ownership of background-work start, observation,
-cancellation, and terminal failure. Current supervision binds one operator
-worker to the Rey process, uses no restart, and treats unexpected exit, error,
-or panic as a process failure. It is lifecycle mechanism, not sandboxing,
-semantic success, or proof.
+cancellation, and terminal failure. Current supervision binds the operator
+HTTP worker and exact admitted GitHub inbox poller to the Rey process, uses no
+restart, and treats unexpected exit, error, or panic as a process failure. It
+is lifecycle mechanism, not sandboxing, semantic success, or proof.
 
 ### Survey
 
@@ -2097,4 +2106,7 @@ claims remote durability, query, fencing, or lineage semantics.
 - [Journal](JOURNAL.md) — retained collaboration documents and authority.
 - [Locators](LOCATORS.md) — survey anchors and resolution.
 - [CLI](CLI.md) — command philosophy, revision loops, output, and exit behavior.
-- [Interfaces](INTERFACES.md) — policy, provider, persistence, HTTP, and operator surfaces.
+- [Interfaces](INTERFACES.md) — cross-surface identity, authority, provider,
+  policy, and persistence map.
+- [Agent HTTP API](API.md) — Axum, Swagger/OpenAPI, routes, transport, errors,
+  and exposure.

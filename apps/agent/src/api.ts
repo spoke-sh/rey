@@ -34,6 +34,11 @@ import type {
 } from "./workload-evidence";
 
 export interface UiServerIdentity {
+  schema: "rey.ui-server.v2";
+  http_framework: "axum";
+  api_root: "/api";
+  openapi_document: "/api/openapi.json";
+  swagger_ui: "/api/docs/";
   source_repository: string | null;
   implementation_revision: string;
   journal_write_enabled: boolean;
@@ -97,7 +102,7 @@ export interface AgentTopologyDescriptor {
 }
 
 export interface AgentProcessDescriptor {
-  schema: "rey.agent-process.v1";
+  schema: "rey.agent-process.v2";
   state: string;
   process: ReyProcessDescriptor;
   topology: AgentTopologyDescriptor;

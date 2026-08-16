@@ -50,7 +50,8 @@ is which.
 
 | Document | Purpose |
 | --- | --- |
-| [Interfaces](INTERFACES.md) | Cross-surface data formats, provider and policy contracts, persistence, exact evidence HTTP/UI routes, and error/limit semantics. |
+| [Interfaces](INTERFACES.md) | High-level ownership map across CLI, API, browser, evidence projections, provider/policy authority, identity, errors, and persistence. |
+| [Agent HTTP API](API.md) | Axum server model, API-root discovery, Swagger/OpenAPI, versioned routes, transport, writes, exposure, and typed errors. |
 | [`@rey/explorer` technical guide](../packages/explorer/README.md) | React Three Fiber package boundary, shared projection contract, globe and terrain pipelines, renderer lifecycle, limits, APIs, and tests. |
 | [Development](DEVELOPMENT.md) | Pinned Nix/Rust/TypeScript environment, root `just` tasks, build outputs, dependency updates, and qualification commands. |
 | [Releases](RELEASES.md) | GitHub Actions quality gates, cargo-dist artifact planning, version tags, release permissions, and operator procedure. |
@@ -60,9 +61,10 @@ is which.
 
 ## How The Documents Relate
 
-Use [Architecture](ARCHITECTURE.md) to decide ownership, [CLI](CLI.md) and
-[Interfaces](INTERFACES.md) to define the human/machine boundary, and the
-subject document to define semantic behavior. The current
+Use [Architecture](ARCHITECTURE.md) to decide ownership,
+[Interfaces](INTERFACES.md) to find the responsible surface, [CLI](CLI.md) for
+the agent contract, [API](API.md) for HTTP, and the subject document to define
+semantic behavior. The current
 [decision plane](decisions/README.md) summarizes accepted structure;
 [plans](../plans/README.md) track only bounded current and logically queued
 work. Superseded rationale and completed delivery history remain in Git. When a

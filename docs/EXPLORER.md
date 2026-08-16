@@ -457,6 +457,7 @@ one-way: `@rey/agent → @rey/explorer`.
 - [Architecture](ARCHITECTURE.md) — system planes and ownership.
 - [Locators](LOCATORS.md) — semantic coordinates and bounded resolution.
 - [Mining](MINING.md) — evidence projection and visualization authority.
-- [Interfaces](INTERFACES.md) — browser and structured-data contracts.
+- [Agent HTTP API](API.md) — browser routes and structured-data transport.
+- [Interfaces](INTERFACES.md) — cross-surface identity and authority map.
 - [Plan 0003](../plans/0003-scene-to-explorer.md) — current implementation
   proof and remaining work.

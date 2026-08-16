@@ -60,7 +60,7 @@ Rey separates ten responsibilities:
 These are responsibility boundaries, not requirements for separate processes.
 The first topology is the foreground local Rey process started by `rey agent`.
 Its root role is an orchestrator that owns all in-process background-work
-lifecycle. The registered workers are the embedded operator HTTP server and
+lifecycle. The registered workers are the embedded Axum operator HTTP server and
 the exact admitted GitHub Channel inbox poller;
 the startup log binds that process to its package version and build commit,
 while the startup document and `GET /api/v1/agent` expose the exact process,
@@ -70,7 +70,14 @@ shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a f
 bound and no restart, daemonization, multi-process fencing, or crash-durability
 claim.
 
-The operator projection attaches to that process. Its explicit browser writes are bounded
+The operator projection attaches to that process. `/` enters the formal
+`/api` discovery root, `/api/docs/` serves vendored Swagger, and
+`/api/openapi.json` projects the registered OpenAPI 3.1 document. API routes
+and documentation derive from one declarative catalog. Synchronous evidence
+projections execute outside the HTTP event loop, so a cold portfolio request
+does not prevent health, documentation, assets, or other pages from being
+accepted. This concurrency is transport mechanism, not workload scheduling.
+Its explicit browser writes are bounded
 unauthenticated Journal admission, conditional Channel WORKING replacement,
 and exact workload file qualification/admission on any explicitly configured
 listener. It is not a separate runtime or scheduler; none of those writes
@@ -213,9 +220,10 @@ requirements demand it.
 
 ## Operator Projection
 
-The operator worker started by `rey agent` embeds a TanStack Router
+The Axum operator worker started by `rey agent` embeds a TanStack Router
 single-page application and serves the live bounded workload-list document
-used by the CLI. The human operator lands on
+used by the CLI. The server root lands on Swagger-guided API discovery; the
+human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. Before any workload HEAD or admitted topography
 exists, Explorer projects exact request/WORKING/INDEX workload file state as
@@ -973,11 +981,12 @@ implements canonical frontier, progress, and bounded selection contracts; and
 projection.
 The `rey` CLI now hard-cuts the former `ui` command to `agent`. That command
 starts one foreground `rey.process.v1` orchestrator, supervises the embedded
-operator HTTP worker under `rey.agent-topology.v1`, exposes the topology in
-JSON, browser, and HTTP health projections, logs lifecycle transitions, emits
-only the listening URL in default human startup output, and cooperatively closes
-the worker on SIGINT/SIGTERM. No autonomous workload or discovered agent
-runtime starts with it.
+Axum operator HTTP worker and exact admitted GitHub inbox poller under
+`rey.agent-topology.v1`, exposes the topology in JSON, browser, and HTTP health
+projections, logs lifecycle transitions, emits only the listening URL in
+default human startup output, and cooperatively closes both workers on
+SIGINT/SIGTERM. No autonomous workload or discovered agent runtime starts with
+it.
 The workload slice implements a bounded workspace package catalog, typed DAG
 execution, scenario deltas, exact qualification, verified local result state,
 and the `list`, `status`, `test`, and `run` commands. The prior compiled

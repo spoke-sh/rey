@@ -25,13 +25,16 @@ rey agent
 
 The former `rey ui` command has been removed by a hard cutover. `rey agent`
 starts one foreground OS process whose root role is the orchestrator. The
-orchestrator registers the embedded operator HTTP server and GitHub Channel
+orchestrator registers the embedded Axum operator HTTP server and GitHub Channel
 inbox poller as its two workers, owns cooperative SIGINT/SIGTERM shutdown, and
 fails the process closed on an unexpected worker error, exit, or panic. The
 inbox worker remains idle until Channel HEAD admits a `github_inbox`
 application whose exact `gh` capability is also present in environment HEAD.
 It polls immediately and then at the admitted cadence through the same bounded
-`rey channels poll` path exposed to humans. `rey.agent-process.v1`,
+`rey channels poll` path exposed to humans. One declarative API catalog owns
+Axum registration and the OpenAPI 3.1 document; `/api` enters vendored Swagger
+while synchronous evidence projections run outside the HTTP event loop.
+`rey.agent-process.v2`,
 `rey.process.v1`, and `rey.agent-topology.v1` expose the live PID, roles,
 parent/child edge, placement, state, restart policy, endpoint, authority,
 two-worker bound, and omissions through `--format json`,
@@ -63,6 +66,11 @@ work.
 ### 2. Supervise current background work
 
 - [x] Register the operator HTTP server as orchestrator-owned background work.
+- [x] Hard-cut the operator transport to Axum, generate OpenAPI from the
+  registered route catalog, and make `/api` a vendored Swagger discovery root.
+- [x] Keep slow synchronous evidence projections off the HTTP event loop and
+  prove API discovery plus browser deep-link reachability through live-server
+  tests.
 - [x] Register exact admitted GitHub inbox polling as the first resident
   orchestrator-owned task.
 - [x] Make SIGINT/SIGTERM cancellation cooperative and bind worker lifetime to

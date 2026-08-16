@@ -18,7 +18,7 @@ use crate::ui::{UiError, UiServer, UiServerDescriptor};
 use crate::version;
 use rey::channels::{ChannelGraphError, LocalChannelStore};
 
-pub const AGENT_PROCESS_SCHEMA: &str = "rey.agent-process.v1";
+pub const AGENT_PROCESS_SCHEMA: &str = "rey.agent-process.v2";
 pub const REY_PROCESS_SCHEMA: &str = "rey.process.v1";
 pub const AGENT_TOPOLOGY_SCHEMA: &str = "rey.agent-topology.v1";
 const ORCHESTRATOR_NODE_ID: &str = "rey.orchestrator";
@@ -566,6 +566,6 @@ mod tests {
             descriptor.topology.nodes[2].node_id,
             "rey.channel-github-inbox"
         );
-        assert_eq!(descriptor.operator.schema, "rey.ui-server.v1");
+        assert_eq!(descriptor.operator.schema, "rey.ui-server.v2");
     }
 }

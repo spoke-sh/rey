@@ -202,7 +202,7 @@ function emptyJournal(): JournalProjection {
 
 function agentProcess(): AgentProcessDescriptor {
   return {
-    schema: "rey.agent-process.v1",
+    schema: "rey.agent-process.v2",
     state: "running",
     process: {
       schema: "rey.process.v1",
@@ -256,6 +256,11 @@ function agentProcess(): AgentProcessDescriptor {
         "none; discovery, assignment, and execution authority remain separate",
     },
     operator: {
+      schema: "rey.ui-server.v2",
+      http_framework: "axum",
+      api_root: "/api",
+      openapi_document: "/api/openapi.json",
+      swagger_ui: "/api/docs/",
       source_repository: null,
       implementation_revision: "git:agent",
       journal_write_enabled: true,

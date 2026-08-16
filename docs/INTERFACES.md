@@ -1,1646 +1,257 @@
-# Rey Interfaces
-
-This document defines Rey's typed provider, policy, persistence, and HTTP/UI
-boundaries. [Rey Command-Line Interface](CLI.md) is the canonical command
-philosophy and command-level reference; CLI details retained here explain the
-typed contracts projected by those commands.
-
-The implemented local surface includes Git-shaped environment, workload,
-editor, and Channel topology histories; file-backed workload qualification;
-deterministic workload/mining/portfolio execution; immutable Channel messages,
-explicit admitted-`gh` inbox polls, and explicit relay attempts; bounded local conversation transcripts; bounded
-Journal admission; and a foreground `rey agent` process whose orchestrator
-supervises the embedded operator UI over the same evidence. Lower-level proof and
-local-bundle contracts remain library/runtime capabilities rather than manual
-commands. Automatic graph-proposal policy, recurring activation, scene
-admission, general provider execution, and remote conversation transports remain
-incomplete. The [current decision plane](decisions/README.md) summarizes the
-accepted structure; subject documents own its exact semantics.
-
-## Interface Principles
-
-- Machine output is stable, typed, bounded, and separate from diagnostics.
-- DataFrame-shaped output preserves one logical schema across terminal, Arrow,
-  and explicit JSON representations.
-- Raw and native artifacts remain byte streams rather than acquiring a table
-  wrapper for uniformity.
-- Relational and source mining operations expose one bounded request/result
-  discipline while preserving their distinct artifact semantics.
-- Visualizations cite authoritative mined artifacts and expose grouping,
-  elision, completeness, and deep links; they never redefine assessment.
-- Every result exposes exact source revisions, format versions, completeness,
-  and effective limits needed to interpret it.
-- Read-only observation and effectful action are visibly different operations.
-- Policy proposals carry no authority until admitted by the runtime.
-- Environment discovery is bounded and returns an inspectable capability
-  relation before policy selects work.
-- Providers expose only their proven capabilities and never gain action
-  authority through discovery alone.
-
-## CLI Contract Projection
-
-This document no longer owns command UX. See [Rey Command-Line
-Interface](CLI.md) for the canonical implemented command map, read/mutation
-posture, `HEAD → INDEX → WORKING` model, formats, streams, colors, and exit
-behavior. The command and schema detail below is retained where it explains
-the typed workload, environment, and provider contracts consumed by other
-interfaces.
-
-Rey's product surface is intentionally small:
-
-```text
-rey channels [--workspace PATH] [--state-dir PATH] list
-rey channels [--workspace PATH] [--state-dir PATH] status
-rey channels [--workspace PATH] [--state-dir PATH] diff
-rey channels [--workspace PATH] [--state-dir PATH] apply <channel-graph.yaml>
-rey channels [--workspace PATH] [--state-dir PATH] add
-rey channels [--workspace PATH] [--state-dir PATH] diff --staged
-rey channels [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
-rey channels [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
-rey channels [--workspace PATH] [--state-dir PATH] message add <message.yaml>
-rey channels [--workspace PATH] [--state-dir PATH] message list
-rey channels [--workspace PATH] [--state-dir PATH] relay <message-id> --relay <relay-id>
-rey channels [--workspace PATH] [--state-dir PATH] beacon <beacon-id>
-rey channels [--workspace PATH] [--state-dir PATH] poll <application-id>
-rey conversations [--workspace PATH] [--state-dir PATH] status [--session ID] [-n COUNT]
-rey conversations [--workspace PATH] [--state-dir PATH] session add <session.yaml>
-rey conversations [--workspace PATH] [--state-dir PATH] session list
-rey conversations [--workspace PATH] [--state-dir PATH] message add <message.yaml>
-rey env [--workspace PATH] [--state-dir PATH] status [--map PATH]
-rey env [--workspace PATH] [--state-dir PATH] add (-A|PATH...|-p [PATH...]) [--map PATH]
-rey env [--workspace PATH] [--state-dir PATH] reset [HEAD|EMPTY|ENV@n|COMMIT_ID] [--map PATH]
-rey env [--workspace PATH] [--state-dir PATH] diff [--staged] [--map PATH]
-rey env [--workspace PATH] [--state-dir PATH] commit -m MESSAGE
-rey env [--workspace PATH] [--state-dir PATH] log [-p] [-n COUNT]
-rey workloads [--workspace PATH] [--catalog-dir PATH] create <workload-id> [--title TITLE] [--intent INTENT]
-rey workloads [--workspace PATH] [--catalog-dir PATH] list
-rey workloads [--workspace PATH] [--catalog-dir PATH] status
-rey workloads [--workspace PATH] [--catalog-dir PATH] diff [--staged]
-rey workloads [--workspace PATH] [--catalog-dir PATH] add
-rey workloads [--workspace PATH] [--catalog-dir PATH] test --staged [<workload-id>] [-v|-vv]
-rey workloads [--workspace PATH] [--catalog-dir PATH] commit -m MESSAGE
-rey workloads [--workspace PATH] [--catalog-dir PATH] log [-p] [-n COUNT]
-rey workloads [--workspace PATH] [--catalog-dir PATH] run <workload-id> --input <utf8>
-rey workloads --catalog conformance list|test|run|status ...
-rey journal [--workspace PATH] [--state-dir PATH] add <proposal.yaml>
-rey journal [--workspace PATH] [--state-dir PATH] list
-rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] seed <observation-id>... --author <agent-id>
-rey journal [--workspace PATH] [--state-dir PATH] opportunities [-n COUNT]
-rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query admit <entry-id> <block-id>
-rey journal [--workspace PATH] [--state-dir PATH] [--observation-state-dir PATH] query execute <admission-id> --author <agent-id> --proposal-out <result.json>
-rey journal [--workspace PATH] [--state-dir PATH] query list
-rey version [--format table|json]
-rey agent [--workspace PATH] [--state-dir PATH] [--journal-state-dir PATH] [--channel-state-dir PATH] [--conversation-state-dir PATH] [--catalog-dir PATH] [--host IP] [--port PORT]
-```
-
-`channels` exposes bounded collaboration topology through a complete local
-revision loop, admits immutable file-backed messages, gates explicit relay and
-polling-beacon effects on exact Channel and environment HEAD identities, and
-provides one read-only admitted-`gh` inbox poll with explicit CLI and
-supervised admitted-cadence invocation.
-`conversations` admits separate workspace-local sessions and messages through a
-declared-writer append-only transcript contract; it performs no delivery,
-agent invocation, relay, scheduling, action, or proof effect. `env`
-inventories and revisions the available compute boundary. `workloads` is the
-public unit for composing and using runtime concepts. `journal` is the
-agent-facing admission and retrieval surface for typed collaboration entries;
-it does not execute their blocks. Spaces, lenses,
-frames, deltas, frontiers, traces, and proofs remain typed evidence and may
-gain focused diagnostic projections, but they are not peer top-level resources
-that users must manually orchestrate.
-
-Mining follows the same rule. Search, parse, index, group, traverse, diff, and
-visualize are discoverable operation contracts composed inside workloads and
-reasoning surfaces, not an accepted `rey mining` resource hierarchy.
-
-`agent` starts the foreground Rey process. Its root orchestrator owns every
-in-process background worker and registers the operator HTTP server plus the
-exact admitted GitHub Channel inbox poller. The operator is primarily a
-presentation resource, not a peer runtime
-or scheduler. It starts on `127.0.0.1:5714` unless configured otherwise,
-reports exact exposure and provenance, `/explore` human entry, and passive
-revalidation interval. It serves read-only workload, environment, cadence, and
-Explorer projections and admits bounded human Journal documents and
-conversation messages, conditionally replaces Channel WORKING, and approves
-exact workload files without authentication. An explicit non-loopback bind
-exposes those narrow writes to reachable clients; the typed health and topology
-projections retain that exposure boundary.
-
-The implemented slice behaves as follows:
-
-- `create` writes one immutable bounded request for an external coding harness,
-  prints the exact instructions/next action, refuses overwrite, and invents no
-  graph, scenario, oracle, or admission claim;
-- `status` observes the complete workload HEAD, INDEX, and WORKING portfolio;
-  `diff` projects INDEX-to-WORKING or HEAD-to-INDEX changes;
-- `add` freezes verified package bytes as one exact INDEX; it performs no test
-  or admission;
-- `test --staged` executes a bounded deterministic graph/scenario pass,
-  retains `EXPECTED` to `ACTUAL` typed deltas plus mining evidence, and binds
-  complete all-passing qualification to the exact INDEX snapshot;
-- `commit` verifies the frozen INDEX and qualification and advances HEAD
-  without re-observing WORKING; `log` verifies and renders that history;
-- `list` reads admitted HEAD and result indexes while carrying drafts and
-  revision posture separately; it executes no graph or probe;
-- `run` executes the current fresh qualified graph admitted in HEAD against one
-  admitted UTF-8 input and, for the mining workload, repeatable explicit
-  `--source` paths under the workspace. The portfolio workload instead binds
-  retained catalog/workload/environment inputs and rejects `--input`;
-- the explicit conformance catalog preserves detailed fixture inspection
-  without participating in workspace admission history.
-
-The default catalog resolves request-only drafts from
-`sys/*/request.yaml` and WORKING proposals from
-`sys/*/workload.yaml`. Creation requests bind a semantic request id,
-bounded intent, target, requirements, and limits; they remain ineligible for
-qualification/run. V1 packages support only UTF-8 ports and exact
-`trim`/`uppercase` operation contracts; each package carries proposal kind,
-producer revision and inputs, generated graph/suite roles, and a frozen
-scenario oracle. Exact package bytes and path participate in the workload
-proposal identity, INDEX qualification, and admission commit.
-
-`--catalog conformance` instead selects compiled `rey.portfolio.attention`,
-`rey.fixture.source-search`, passing `rey.fixture.text-normalize`, and failing
-`rey.fixture.text-mismatch` diagnostics. The CLI labels this catalog and each
-workload's origin so compiled fixtures cannot be mistaken for product work.
-
-See [Workloads, Compute Graphs, and Scenarios](WORKLOADS.md) and
-[Mining Context Into Evidence](MINING.md).
-
-## Implemented Workload CLI
-
-Every workload subcommand accepts `--format auto|table|json`. `auto` chooses a
-table on a terminal and JSON when redirected. `--workspace` defaults to `.`;
-relative `--state-dir` values resolve below the canonical workspace and an
-absolute value selects an explicit separate local boundary. `--catalog`
-defaults to `workspace`; `--catalog-dir` defaults to the workspace-relative
-`sys` directory.
-
-The `create` table identifies the local mutation plane, request revision,
-created file, `AWAITING CODING HARNESS` admission state, absent graph/oracle,
-complete harness instructions, and next action. Its structured result is
-`rey.workload-create-result.v1`; the retained request is
-`rey.workload-creation-request.v1`. Both are provider-neutral. Rey does not
-launch an LLM or coding harness inside deterministic runtime mechanism.
-
-The `list` table is a portfolio document rather than a flattened relation. Its
-portfolio header derives qualification, scenario, run, inventory, mining,
-attention, and mapped-surface coverage totals. It then renders the canonical
-attention frontier;
-each workload card exposes purpose, journey, passing and evaluated scenario
-coverage, evaluation counts, qualification, exact graph and operation
-identities, retained test/mining evidence and freshness, and last-run state.
-ANSI styling is enabled only for an interactive terminal and is never the sole
-carrier of meaning. Forced table output through a pipe remains ANSI-free.
-Environment and workload admission status share one positional color contract:
-green means a change retained in INDEX and awaiting commit, while red means
-WORKING drift that has not been staged. Inserted, deleted, and modified labels
-remain the authoritative change direction; color never overrides those labels.
-Portfolio aggregates are derived from authoritative per-workload counts.
-
-The `test` table is a diff-native assertion runner. It declares the selected
-read-only execution boundary, `EXPECTED → ACTUAL` direction, graph path, and
-workload scope before executing scenarios, then renders each result as soon as
-the deterministic runtime completes it. Plain output folds passing assertions
-but always opens failing or inconclusive comparisons. `-v` renders every
-compact expected and actual assertion, including typed-row counts,
-completeness, coverage, and structural patch summaries. `-vv` keeps that view
-and additionally exposes exact workload, graph, suite, evaluator, scenario,
-execution, result, delta, operation/provider/capability,
-corpus/request/result, native artifact, frontier, scheduling, limit,
-projection, and reasoning-surface identities. A final test summary keeps
-workload qualification, required-scenario conformance, evaluation coverage,
-output-delta assessment, and qualification counts separate. These verbosity
-flags affect only the human projection; redirected `auto` and explicit JSON
-retain the same `rey.workload-test-batch.v1` document and its existing
-`observed` field names.
-
-Portfolio-attention scenarios retain `rey.workload-attention.v1` beside the
-ordered UTF-8 output delta. `-v` exposes action/reason/readiness rows; `-vv`
-adds exact row, relation, source-snapshot, derivation, evidence, and dependency
-identities. A qualified `run rey.portfolio.attention` emits the same typed
-relation over current retained inputs. `list` and `status` derive their view
-without fresh ambient discovery.
-
-The structured schemas are `rey.workload-list.v1`,
-`rey.workload-status-batch.v1`, `rey.workload-test-batch.v1`, and
-`rey.workload-run-view.v1`. Their `rey.workload-catalog.v1` descriptor
-separates total, admitted, and draft counts. The run view contains the unchanged verified
-`rey.workload-run-result.v1` plus exact catalog and proposal provenance. Test results contain verified
-`rey.scenario-output-delta.v1` documents embedding `rey.text-delta.v1`, and
-mining scenarios contain `rey.source-match-delta.v1`. Topography scenarios
-also retain `rey.topography-patch.v1` and its directed patch delta; `-v`
-projects anchors, classified edges, regions, and frontier, while `-vv` adds
-exact operation, provider, implementation, capability, limit, and lineage
-bindings. Passing tests alone
-contain a `rey.workload-qualification.v1` binding the exact workload, graph,
-scenario suite, evaluator, and test result.
-
-`rey.workload-list.v1` additionally carries an optional
-`rey.semantic-atlas.v1` whenever verified production survey or accepted
-regional-scene evidence is retained. Qualification fixtures count as test
-evidence but cannot become atlas or Explorer fabric. The atlas keeps survey
-patches and admitted regional scenes as separate source and region types. A
-regional member binds the exact scene, admission, package revision, projection
-packet, and unchanged integer synthetic semantic longitude/latitude; the atlas
-declares no Earth CRS. The retained regional scene records the resulting atlas
-revision as a non-owning back-reference. That field is deliberately excluded
-from `scene_id` to prevent a recursive digest, but it changes the admission
-result and run identities; state verification resolves it to the exact retained
-atlas and member before publication. Workload state retains at most 64 atlas revisions and an
-equal linear sequence of `rey.semantic-atlas-delta.v1` documents. Each delta is
-content identified, binds exact source and target revisions, and keeps inserted,
-removed, moved, interest-changed, merged, and split changes distinct. The first
-delta starts at the typed empty atlas revision. `workloads list` exposes the
-current atlas, history, exact deltas, compiler, survey/regional region, cluster,
-and occupied-sector counts, boundedness, admission-revision recluster rule, and
-the fact that zoom cannot recluster it. The v1 sector grid uses stable occupied
-30-degree synthetic cells with explicit members. Its polygons cannot claim
-surveyed coverage or native County footprint authority. List and UI reads do
-not advance history.
-
-## Implemented Environment CLI
-
-The executable currently exposes:
-
-```text
-rey env [--workspace <path>] [--state-dir <path>] status [--map <path>]
-  [--format table|json] [--max-changes <n>]
-  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
-  [--max-capture-bytes <n>]
-
-rey env [--workspace <path>] [--state-dir <path>]
-  add (-A|<environment-path>...|-p [<environment-path>...]) [--map <path>]
-  [--format table|json] [--max-changes <n>]
-  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
-  [--max-capture-bytes <n>]
-
-rey env [--workspace <path>] [--state-dir <path>]
-  reset [HEAD|EMPTY|ENV@n|COMMIT_ID] [--map <path>]
-  [--format table|json] [--max-changes <n>]
-  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
-  [--max-capture-bytes <n>]
-
-rey env [--workspace <path>] [--state-dir <path>] diff [--staged] [--map <path>]
-  [--format table|json] [--max-changes <n>]
-  [--total-timeout-ms <n>] [--probe-timeout-ms <n>]
-  [--max-capture-bytes <n>]
-
-rey env [--workspace <path>] [--state-dir <path>] commit -m <message>
-  [--format table|json] [--max-changes <n>]
-
-rey env [--workspace <path>] [--state-dir <path>] log [-p]
-  [-n <count>] [--format table|json] [--max-changes <n>]
-
-```
-
-`status` is the single environment inventory and revision view. It performs a
-fresh observation, retains the complete working snapshot in
-`rey.environment-status.v2`, and derives one typed variable, application,
-input, and reference projection over `HEAD → INDEX → WORKING`. Human output is
-a compact working-tree view: current `ENV@n`, then environment-native staged
-and unstaged groups when present. Clean status contains only the coordinate and
-clean result. Workspace, health, inventory, and mapping summaries remain in
-the structured status evidence. Exact variable and application review is
-delegated to `diff`; complete search records and topology remain in structured
-evidence;
-unprojected authoritative capability changes receive a human semantic label and
-retain their exact capability id.
-
-Bare `add` is rejected before discovery or mutation. `add .` and `add -A`
-select the complete fresh working delta. Other operands select canonical
-environment object paths or exact mapped-input paths; directory prefixes match
-bounded descendants, every pathspec must match an unstaged change, and no
-match failure changes INDEX. `add -p` walks all unstaged hunks; optional paths
-narrow the canonical capability changes presented as confirmable `diff --rey`
-environment hunks;
-its interactive mode requires table output. Generic hunks omit raw structured provenance and point to the
-structured diff. `diff` selects `INDEX → WORKING` by
-default and `HEAD → INDEX` with `--staged`. Its table projection uses two
-un-numbered environment-native sections: environment variables and applications.
-Inputs and references remain in the structured snapshots and typed capability
-delta rather than appearing as a third human plane. Bounded search renders one
-flattened row per found application regardless of group count. It uses the same
-neutral context and red `-` / green `+` before-and-after form as environment
-variables, while preserving the executable name, resolved path, and comma-separated
-groups. Unsuccessful searches remain structured evidence. The complete search
-outcomes and declaration coordinate (`rey.environment-application-inventory.v2`)
-remain in JSON. The table begins directly with the environment-variable section;
-the source-to-target coordinate, authoritative capability assessment, and total
-change count remain in JSON. JSON is `rey.environment-diff.v1`
-and does not replace the typed capability delta with the human projection.
-`reset` clears the admission index and moves the linear
-retained history to `HEAD` by default, `EMPTY`, an exact `ENV@n`, or an exact
-full environment commit id. Moving backward removes later commits;
-abbreviations, ancestry operators, ranges, and pathspecs are rejected. It
-performs the shared bounded environment observation before publishing the
-transition and derives the post-reset status with no retained index. Clean
-table output is silent; changed output is Git-shaped `A`, `M`, and `D` rows
-under `Unstaged changes after reset:`. Its
-`rey.environment-reset-result.v1` JSON receipt exposes the source and target
-coordinates, cleared index identity, removed commit ids, and complete observed
-status. `commit` performs no discovery and appends only the verified retained index to the linear history at
-`${workspace}/.rey/env/state.json` by default. Successful table-mode commits
-are silent on stdout and stderr; explicit JSON returns the structured receipt,
-`log -n 1` supplies human readback, and failures remain nonzero stderr
-diagnostics. Every v1 commit binds an integer
-Unix commit time as explicit retention metadata. `log` is newest-first; `-n`
-bounds selection, every entry shows `ENV@n`, semantic parent, date, and
-message, and `-p` expands each exact parent-to-commit transition through the
-three environment-native planes. Documents without the complete v1 fields are
-rejected.
-The index is a separate HEAD-bound `rey.environment-admission-index.v1` at
-`${workspace}/.rey/env/index.json` by default. Plain human history is a compact
-revision/evidence/environment/change/mapping/message chronology; patch mode
-adds directed variables, application search, inputs, and topology. Explicit
-JSON uses `rey.environment-status.v2`,
-`rey.environment-reset-result.v1`, `rey.environment-commit-result.v1`, and
-`rey.environment-log.v1`.
-
-Discovery always records the process-owned `HOME`, `PWD`, and `PATH` seeds and
-the compiled desired-adapter inventory. It loads no project configuration by
-convention. `--map` explicitly selects an agent-generated workspace-relative
-regular YAML resource. `rey.env-map.v2` is a closed, bounded
-graph of variable, file, and desired executable nodes plus declared reference
-edges. Every desired executable records why it belongs in the inventory and
-may carry multiple normalized group identifiers.
-Mapped file bytes are not retained. Sensitive variables are presence-only.
-Non-sensitive variables may opt into presence, a value digest, or an exact
-bounded UTF-8 value; files retain bounded identities; executable candidates
-retain the bounded search-path count and are resolved and hashed but never
-invoked by the mapping provider. Declared potential capabilities remain
-unadmitted. One graph row and exact node/edge rows make the mapping and its
-observed drift visible in every environment revision surface.
-
-The desired inventory includes the `git` executable, but environment snapshots
-exclude repository HEAD, ref, semantic-index, and reachability observations.
-Those remain first-class through `rey-git`, cadence, and exact workload
-activation evidence; Git movement alone is not an environment delta.
-
-Environment snapshots also exclude `frame.arrow-stream`,
-`source.search.literal-utf8`, and synthetic workspace metadata. The first two
-belong to the automatic intrinsic runtime snapshot; the workspace root is
-bound directly in requests and source lineage. None requires environment
-admission.
-
-Admission accepts evidence into history; it does not admit executable action or
-turn potential capabilities into provider contracts. Other than the exact
-mixed reset over the index and linear history, there is no pathspec, restore,
-branch, merge, general rewrite, or revision expression in this slice. An
-environment commit records an observation; neither commit nor reset mutates
-the environment. The bounded local state
-claims no `fsync`, locking, authenticated writer, multi-process transaction,
-remote retention, or remote durability.
-
-Manual `prove`, `verify`, and `verify-bundle` commands are not part of the
-accepted CLI persona. Their proof, certificate, and local-retention contracts
-remain usable behind workload evaluation and in focused lower-level tests.
-Help must not imply that a planned provider capability is available.
-
-## Formats
-
-DataFrame-shaped commands support or are expected to support:
-
-```text
---format auto|table|arrow|json
-```
-
-- `auto` renders a bounded human view on a terminal and emits Arrow IPC stream
-  when redirected.
-- `table` forces the complete documented terminal relation within output
-  bounds.
-- `arrow` writes Arrow IPC stream bytes without diagnostic text or a trailing
-  newline.
-- `json` emits an explicit bounded envelope retaining schema, identity,
-  revisions, completeness, and cursor metadata.
-
-Workload campaign, status, and run results are structured envelopes rather
-than one relation. Their accepted `auto` behavior is a human document on a
-terminal and JSON when redirected. Explicit Arrow is appropriate for catalog,
-scenario, frame, or delta relations, not for forcing a graph, campaign, native
-output, or mixed artifact set into a synthetic table.
-
-Environment status, add, reset, diff, commit, and log are mixed structured
-envelopes. They default to human output, like Git commands, even when
-redirected; automation must request `--format json` explicitly. `status` carries the full structured
-inventory while keeping its human view navigable. Default `diff` opens the
-unstaged two-section human environment projection, `diff --staged` opens the
-staged projection, and `log -p` controls the same two-section expansion of
-retained parent-to-commit transitions.
-The JSON log retains authoritative typed deltas regardless of whether the
-human patch was requested.
-
-The implemented capability change Arrow relation is
-`rey.capability-changes.v1`; its frame attributes bind source and target
-snapshot ids and labels, comparator identity, and delta id. Tabular Diff uses
-`text/csv; charset=utf-8; profile=tabular-diff-0.8`, is portable and ANSI-free,
-and is not authoritative input for proof or replay. Generic frame-delta media
-types and schemas remain future diff work.
-
-## Mining Operation Contract
-
-The target provider-neutral mining interface has three semantic documents:
-
-```text
-mining operation contract
-  id/revision/implementation · family/kind · input/output contracts
-  parameters · capabilities/effects · limits · completeness · invalidation
-
-mining request
-  workload/graph/scenario/transition · frontier rationale
-  exact source or artifact inputs · operation · canonical parameters
-  capability snapshot/provider · requested/effective limits
-
-mining result
-  request/result identities · realized provider/tool/parser/query lineage
-  native/frame/tree/graph/metric/delta/visual artifact references
-  schemas/media types/lengths · completeness · omissions · consumption
-  dependency and staleness edges
-```
-
-Relational and source operations share this envelope but not one artificial
-payload type. Typed collections use frames and Arrow. Ordered source, patches,
-trees, graphs, and binary artifacts may remain native while exposing bounded
-typed index relations for navigation.
-
-An exact immutable read can be a safe retrieval during orientation. Pure
-projection over frozen evidence is deterministic graph/lens work. A mutable
-read or external `rg`, parser, compiler-service, language-server, or index
-invocation is a probe and requires ordinary admission and execution lineage.
-
-Visualization is a mining result with a versioned projection contract. A
-machine view exposes stable typed data or a bounded structured specification;
-a human view may render a table, patch, tree, graph, timeline, or metric panel.
-Both record source artifact identities, selection, grouping, ordering,
-aggregation, context, elision, sampling, limits, and omissions.
-
-### Explorer projection packet
-
-The projection-engine boundary is not a second top-level resource. The
-implemented `rey.projection-packet.v1` carries:
-
-```text
-packet identity + source evidence identities
-coordinate/embedding basis + implementation revision + parameters
-bounded source scene objects + scalar/vector/mask channel descriptors
-typed procedural terrain program + surveyed-validity rules + world bounds
-frequency bands + transient working-set sampling/cell/byte limits
-scene/field/simulation/material revisions
-effective object/band/working-set/resource limits
-completeness + degradation + omissions + lineage
-```
-
-The packet is deterministic pure projection input. It does not contain camera
-center, transient selection, measured frame time, browser graphics handles, or
-pixels. An immutable scene snapshot compiled from it retains stable object and
-evidence identities; camera and renderer backends consume that snapshot without
-receiving authority to reinterpret source evidence.
-
-`rey workloads test --staged context-anchor-survey -vv` exposes the implemented packet
-identity, exact patch binding, synthetic anchor-orientation basis, scene
-compiler, extent, terrain evaluator and seed, macro/meso/micro band parameters,
-absolute-coordinate and validity rules, 255×255 / 65,025-cell / 3,576,375-byte
-maximum transient working set, field descriptors, validity regions, layers,
-effective limits, degradation, omissions, and lineage.
-`rey.workload-list.v1` carries the same packet beside its exact patch, and
-Explorer fails closed to the portfolio fallback unless both identities match.
-When a semantic atlas is present, Explorer also binds the atlas and layout
-compiler revisions into its immutable World scene. This adds a spherical
-layout authority; it does not change the native coordinate or evidence
-authority inside any regional packet. Explorer binds the latest retained atlas
-delta into the scene snapshot and bearing only when its target and last retained
-revision both equal the current atlas; mismatched history remains unprojected.
-The implemented `rey.explore-grammar.v1` additionally binds the renderer-independent
-World-globe, semantic-Mercator, and local-isometric posture bands; hysteresis;
-geometry-morph and inverse-picking policy; polar/antimeridian behavior; and
-semantic/geometric LOD budgets. It is presentation mechanism and therefore
-does not contain admission authority or camera instances. The implemented
-`rey.admitted-regional-scene.v1` result contract separately binds its exact
-editor commit/package/snapshot/request, qualifying workload/graph/suite and
-capability input, native OGC CRS84 bounds and object revisions,
-exact retained Point, LineString, and Polygon coordinates for non-terrain
-objects, native-to-semantic and County-local transforms, typed layers, and at most one
-content-identified County footprint whose closed native rings bind one exact
-boundary object/artifact/revision. An envelope is never substituted when that
-unique boundary Polygon is absent or ambiguous. The contract also retains
-validity/no-data, limits, omissions, and lineage. Its embedded
-`rey.regional-projection-packet.v1` carries explicit native CRS84, synthetic
-semantic, semantic-Mercator, County-local, and view-only camera coordinate
-records. Separate nullable bindings prevent a candidate package or qualification
-fixture from counterfeiting a topography patch, retained atlas revision, or
-terrain program; accepted production retention fills and cross-verifies the
-atlas binding.
-The source declaration admits only the explicit `features`, `markers`,
-`terrain`, `terrain_control`, `hydrology`, `boundary`, `highway`, `road`, `district`,
-`lot`, `structure`, `utility`, `label`, `beacon`, `construction`, and
-`connector` roles. The projection packet preserves these as independent
-native-feature, POI, terrain, terrain-control, hydrology, boundary, highway, road,
-district, lot, structure, utility, label, beacon, construction, and connector
-layer kinds. No path, geometry, style, or visual proximity can infer or change
-the kind. Terrain-control authority explicitly excludes observed height,
-material, and terrain validity.
-The file-backed workload and CLI produce the contract from an exact current
-editor transfer envelope. `rey.workload-list.v1` exposes only the last
-production admission result for the exact current workload and graph. Explorer
-then requires accepted status, no scenario identity, a current retained atlas
-delta, and matching workload, graph, capability, package, snapshot, packet,
-terrain, coordinate-plane, regional-member, and synthetic-placement bindings.
-It projects the atlas member's exact accepted synthetic point through
-World and the revisioned `rey.semantic-mercator-projection@2`, then exact native
-Point, LineString, and Polygon geometry inside a bounded County reference frame
-only when the selected scene has an admitted footprint. Independently verified
-object bounds remain a disclosed fallback for other GeoJSON geometry families;
-the envelope does not reconstruct their source shape. The primitive provides
-the declared horizontal wrap, polar cutoff/disclosure, view-relative
-shared-identity fragments, analytic chart inverse, and stable World/Atlas
-endpoints. The coordinate facing a rotated globe remains centered while the
-surface seam moves behind the view; its compiler revision and renderer-neutral
-transition manifest enter the immutable scene snapshot. The reference renderer
-presents the exact region/focus and sector identities continuously through the
-declared morph band. The browser consumes retained footprint rings without
-reconstructing source geometry and does not invent footprint scale or regional
-terrain.
-Settled Atlas renders three bounded chart copies;
-duplicates are pointer-only and accessibility-hidden, inverse selection returns
-the canonical coordinate plus unchanged identity, and pan recenters modulo the
-rendered chart width. `rey.semantic-label-layout@1` applies the grammar's 70/96
-World/Atlas budgets after projection with selected focus first and stable
-depth/copy/identity ordering. Collision or limit removes presentation labels,
-not markers, pick targets, focus, or identity; the layout revision enters scene
-compiler lineage. Closer zoom without a `regional:*` focus stops at Atlas.
-With an explicit regional selection, Explorer additionally verifies one exact
-native-to-County-local transform whose origin is the antimeridian-aware center
-of the admitted native envelope, then projects that local plane through
-`rey.county-frame-projection@1` at a fixed `35.26439°` pitch and `45°` yaw.
-The transform identity, source/target origins, envelope, disclosure, and
-compiler revision enter the immutable scene. Forward/inverse plane projection
-does not turn the envelope into admitted footprint geometry or physical
-distance. `rey.county-footprint-projection@1` separately verifies the exact
-source object/artifact/revision, closed native rings, bounds, and coordinate
-limit before those rings become the County fabric and even-odd validity
-boundary. A missing or invalid footprint keeps the selected scene at Atlas.
-At regional Object and Evidence lenses, an exact native object links to
-`GET /workloads/{workload_id}/scenes/{scene_id}/objects/{object_revision}`.
-This is a browser route over the already loaded, passively revalidated
-`rey.workload-list.v1`, not a new provider read. Resolution requires exactly
-one accepted non-scenario projection, object revision, matching typed layer,
-and `native_geometry:{object_id}` validity row bound to that revision. The
-read-only page exposes the native source path/artifact, object and package
-revisions, admission result, native bounds, current directed atlas delta,
-validity, admission/projection limits, separate scene/projection omissions,
-and separate scene/projection lineage. It explicitly marks the object-local
-delta absent because that change set is not retained in the workload document;
-the atlas delta remains labeled as an atlas revision delta. Unknown, stale,
-ambiguous, or structurally inconsistent identities return the normal not-found
-boundary. Workspace-relative source paths are not hyperlinks without an
-admitted source-reader provider.
-See
-[Explorer](EXPLORER.md) and [Plan 0003](../plans/0003-scene-to-explorer.md).
-The browser rejects a working set whose shape, channels, cells, or byte
-allocation diverges from that packet. It snaps the visible envelope to
-absolute scene coordinates and selects only frequency bands supported by the
-current sample spacing while retaining one exact source extent. Clipmap reuse,
-smooth LOD blending, retained
-renderer/fallback captures, viewport evidence, and performance evidence remain
-incomplete [Plan 0003](../plans/0003-scene-to-explorer.md) work. Structured
-output preserves typed values rather than serializing GPU state.
-
-The implemented schemas are `rey.source-corpus.v1`,
-`rey.source-search.literal-utf8@1`, `rey.source-matches` version `1`,
-`rey.source-match-delta.v1`, and `rey.text-delta.v1`. They have no peer
-top-level CLI resource; `rey.fixture.source-search` composes them. Fixtures
-prove canonical identity, native source binding, typed empty matches, complete
-and truncated comparison, bounds, Arrow/JSON replay, source drift, and
-delta-directed reasoning. Regex, case folding, directory/glob selection,
-external `rg`, parser/index operations, and general visualization contracts
-remain later workload slices.
-
-The portfolio schemas are `rey.portfolio-snapshot.v1` and
-`rey.workload-attention.v1`; the operation contracts are
-`rey.portfolio.attention.derive@1` and
-`rey.portfolio.attention.render-lines@1`. The attention relation has a Polars
-frame projection keyed by semantic row id and preserves action, subject,
-reason, readiness, priority, and cost.
-
-## Standard Streams
-
-- Selected machine data and raw artifacts go to stdout.
-- Diagnostics, progress, action rationale, and remediation go to stderr.
-- Interactive progress is disabled when stdout carries Arrow, CSV, JSON, or
-  raw bytes.
-- The human `workloads test` document streams retained scenario results to
-  stdout in declaration order. Machine output emits only the final structured
-  result, without transient progress; diagnostics remain on stderr.
-- Policy subprocess protocols, if selected, use dedicated framed channels or
-  files rather than mixing control messages with artifact stdout.
-
-Command tests verify stdout, stderr separation, bounded input, and categorized
-exit behavior. Environment inspection, status, diff, commit, and log return
-`0` on successful command execution; semantic differences shown by status or
-diff are normal output. Invalid input and runtime failure return `1`; Clap
-retains its own argument-parsing exit behavior.
-
-Implemented `workloads create`, `status`, `diff`, `add`, `commit`, `log`, and
-`list` return `0` whenever the requested mutation or inspection succeeds.
-Semantic differences and an unready INDEX are status, not command failure.
-`workloads test` uses `0` for qualified, `2` for conclusive semantic failure,
-`3` for inconclusive, and `1` for invalid input or runtime failure. `run` uses
-`0` for passed, `3` for blocked, and `1` for invalid input or runtime failure.
-Staleness remains typed state; the current executable does not assign it a
-separate exit code.
-
-## Identities
-
-User-facing references may be stable ids, credential-free Rey URIs, or explicit
-artifact paths. A mutable display name never substitutes for the exact identity
-stored in evidence.
-
-A future URI grammar may cover:
-
-```text
-rey+workload:<workload-id>@<revision>
-rey+graph:<graph-id>@<revision>
-rey+scenario:<scenario-id>@<revision>
-rey+campaign:<campaign-id>
-rey+space:<space-id>@<revision>
-rey+lens:<lens-id>@<revision>
-rey+frame:<frame-id>
-rey+delta:<delta-id>
-rey+trace:<trace-id>
-rey+proof:<proof-id>
-```
-
-This grammar is illustrative, not accepted. It must be decided alongside
-percent-encoding, canonicalization, and tenancy.
-
-## Workload Declaration
-
-A workload declaration needs stable workload identity and revision; typed
-external inputs/outputs; admitted graph operations and effects; provider and
-capability requirements; exact scenario suite; claim/comparator/evaluator
-revisions; graph-proposal policy; graph/campaign/scenario/run limits;
-qualification; and catalog/result retention requirements.
-
-Admitted graph operations include exact mining operation contracts. A workload
-declares which relational/source inputs, output artifact kinds, parser/index or
-tool semantics, completeness, and mining limits its scenarios require.
-
-Each immutable graph revision binds typed nodes, ports, dependency edges,
-operation contracts, capabilities, effects, limits, and generator provenance.
-Each scenario binds fixtures, test providers, selected outputs, expected
-observations or claims, comparison rules, completeness, and bounds. The first
-graph contract is a finite typed DAG. Exact serialization remains open. See
-[Workloads, Compute Graphs, and Scenarios](WORKLOADS.md).
-
-## Space Declaration
-
-A space declaration needs, independent of final YAML/JSON/TOML syntax:
-
-- id, revision, description, and owners;
-- allowed environment providers;
-- required capabilities and guarantee levels;
-- source bindings or binding rules;
-- lens, action, policy, and claim revisions;
-- Git watched refs, index/worktree surfaces, poll limits, and trigger revisions
-  where applicable;
-- dependency and invalidation declarations;
-- allowed mutation targets and effect classes;
-- runtime, frame, delta, trace, and evidence limits; and
-- artifact retention policy.
-
-Configuration stores environment-variable or secret-handle names, never secret
-values. Selecting a serialization format and merge/override behavior is an open
-decision.
-
-## Environment Discovery
-
-Environment discovery produces a bounded typed capability relation before a run
-admits actions. Provider configuration defines allowed workspace roots,
-executable search paths, known tool probes, network endpoints, timeouts, output
-bounds, and trust assumptions.
-
-A capability row needs to expose at least:
-
-```text
-provider_id · provider_revision · capability_id · kind
-resolved_location · version · digest/provenance · availability
-trust_class · operations · enforcement · observed_at · error
-```
-
-`resolved_location` is provider-specific evidence. A provider URI is never
-handed to a host process as a path.
-
-Known executable discovery may resolve configured paths or `PATH`, inspect
-metadata, and invoke a bounded read-only identity command such as `--version`.
-It does not run unknown files, shell startup hooks, project scripts, or package
-installers. An action must separately name and be admitted against the frozen
-capability row.
-
-Mining capability discovery additionally records operation revision, accepted
-source/artifact kinds, output schemas/media types, encoding/language support,
-determinism, completeness semantics, and enforceable file, match, node, edge,
-depth, row, byte, and time limits. Discovering `rg` by version does not itself
-prove an admitted source-search operation.
-
-The runtime supports these provisional selection attitudes:
-
-```text
---environment auto|standalone
---require-capability <capability-id>[,...]
-```
-
-`standalone` selects the implemented local providers. A required capability
-fails closed if unavailable. Exact flag and configuration names remain
-provisional.
-
-## Git Polling And Activation
-
-The Git interface inspects one explicitly selected repository/worktree and
-returns typed repository, ref, commit, parent, index, and declared status
-relations. It does not run repository hooks or modify refs, index, or worktree.
-
-A poll request names:
-
-- repository/worktree identity;
-- watched refs and whether HEAD, semantic index, or bounded worktree status are
-  included;
-- prior cursor or initial-baseline behavior;
-- commit/path traversal limits;
-- trigger declarations and target workload/graph/scenario selections;
-- activation concurrency and budgets; and
-- cursor/evidence retention profile.
-
-The poll result contains source and target snapshot ids, ref/index/worktree
-deltas, history completeness, matched triggers, activation ids, transition
-outcomes, and the next cursor. The next cursor is publishable only after the
-required activation evidence reaches its declared retention boundary.
-
-The implemented `rey git init --watch-ref refs/...` freezes canonical exact ref
-names and current targets or explicit absence into the cursor. The implemented
-`rey git watch` is the bounded local recurrence surface over that exact
-watched-ref scope, HEAD, and the complete supported semantic-index poll. It
-derives bounded added/removed reachability sets for each changed ref over the
-raw object graph and bounded exact tree-to-tree path changes without rename
-inference. It accepts explicit reachable-commit, path-change, iteration,
-interval, elapsed cadence, and retry bounds and the same bounded trigger
-documents as a single poll. It retains each `rey.git-cadence-tick.v2` before
-continuing, including typed failed attempts with no observed snapshot, and
-atomically retains a changed transition with its terminal tick. Every terminal
-invocation retains a compact `rey.git-watch-receipt.v2` referencing its tick
-sequence and exact `rey.git-watch-outcome.v2` identity. Recovered failures,
-retry exhaustion, and non-retryable failures remain partial; SIGINT/SIGTERM
-cancellation retains its boundary and exits distinctly. Hard process loss may
-still leave retained unreceipted ticks, which human status reports as an
-evidence gap. No watch acknowledges a transition, executes an activation, or
-claims convergence.
-
-The implemented trigger declaration includes a stable id/revision,
-repository/worktree identity, source event classes, optional exact `HEAD` or
-watched-ref names, optional reversible raw-byte path prefixes for path events,
-required completeness, target workload/graph/scenario selection, and budgets.
-Its activation proposal retains exact matched events, ref names, and matched
-path identity/direction before passing normal runtime admission. Stage
-predicates, graph-entry activation, and cross-poll coalescing remain future
-extensions.
-
-Initial event vocabulary may include:
-
-```text
-ref.created|deleted|fast_forward|rewound|rewritten|unknown
-head.ref_changed
-commit.reachable_added|reachable_removed
-path.added|deleted|modified|type_changed
-index.changed|conflicted
-worktree.changed
-```
-
-Exact configuration and output schemas remain provisional. See [Git Context
-and Activation](GIT.md).
-
-## Frontier And Scheduling Contracts
-
-The generic contracts have no peer top-level CLI resource. The source-search
-workload now projects one failure-derived frontier, scheduling decision, and
-reasoning surface through `test -vv` and `status`.
-`rey.frontier.v1` binds exact workload, graph, scenario-suite, campaign,
-space, trace, committed-record, capability, derivation, prioritization,
-coverage, and limit inputs. Its canonical `rey.frontier-rows` version `2`
-relation is keyed by stable `work_id` and
-retains a derived row identity, delta/claim/lens/action citations, readiness,
-blockers, priority, and estimated cost.
-
-`rey.frontier-progress.v1` compares compatible source and target frontiers in
-that direction while preserving source and target graph identities. Its
-`rey.frontier-progress-changes` version `2` relation
-reports resolved, introduced, or updated work with source/target row ids;
-unchanged work remains a summary count.
-
-`rey.scheduling-decision.v1` rejects stale expected record, frontier, and
-capability identities and selects ready work by declared priority descending,
-cost ascending, then stable work id. The `rey.scheduled-work` version `2`
-relation retains selection rank and exact frontier row identity. These are
-deterministic selection contracts, not provider reads, action proposals, an
-execution queue, or a recurring scheduler. See
-[Frontier, Progress, and Scheduling](FRONTIER.md).
-
-## Reasoning Surface Contract
-
-Before requesting a policy proposal, the runtime constructs a bounded
-delta-directed reasoning surface. The implemented
-`rey.reasoning-surface.v1` envelope contains:
-
-- surface schema, identity, and projection-contract revision;
-- workload, graph, scenario-suite, campaign, space, and trace identities;
-- committed and active transitions, scheduling decision, frontier frame, cited
-  frontier rows, and applicable transition/residual delta identities;
-- exact retrieved evidence addresses, source bindings, and provider revisions;
-- exact mining request/result, operation, artifact, derivation, completeness,
-  and visualization references;
-- a bounded typed projection of changed and unresolved entities;
-- exact versioned admissible action contract references;
-- capability snapshot identity;
-- effective row, delta-reference, evidence-reference, action-reference,
-  omission, evidence-byte, string-byte, and retrieval-iteration bounds;
-- the actual retrieval-iteration count; and
-- complete, partial, or truncated status with explicit omissions.
-
-Its canonical `rey.reasoning-surface-rows` version `3` DataFrame contains:
-
-```text
-frontier_row_id · entity_kind · entity_id
-transition_delta_ids · residual_delta_ids · claim_ids
-evidence_ids · admissible_action_ids
-```
-
-The semantic document retains exact versioned evidence providers, source ids
-and revisions, evidence digests/media types/lengths, and action contracts.
-Array-valued row fields use canonical compact JSON strings in the initial Arrow
-relation.
-
-Retrieval in this phase resolves only declared read-only evidence. A mutable
-observation, tool invocation, or new lens evaluation is a probe and passes
-normal proposal and admission. Surface construction does not turn a local path
-into a provider resource, give a cited capability execution authority, or make the
-surface the sole copy of native source content.
-
-The reasoning-surface schema is a verified v1 library contract. It is not an
-implemented top-level CLI format; workload `-vv` output projects its retained
-identity and evidence. The policy-proposal schema remains a target contract.
-
-## Policy Contract
-
-A policy request is a bounded snapshot containing:
-
-- reasoning-surface identity and projection-contract revision;
-- workload, graph, scenario-suite, and test-campaign identities when invoked by
-  the workload surface;
-- space, trace, frontier, and cited delta identities;
-- the bounded surface projection and its completeness/omission metadata;
-- admissible graph-operation and action definitions and schemas;
-- exact precondition frame and source ids;
-- remaining time, iteration, action, and evidence budgets;
-- prior rejection or failure facts relevant to the next choice; and
-- a correlation id.
-
-A proposal contains:
-
-- proposal kind and exact target, including graph-revision proposal or
-  admissible action;
-- cited reasoning-surface, frontier row, delta, and evidence ids;
-- expected information gain or residual/frontier change;
-- requested sub-budgets; and
-- the request correlation id and precondition identities.
-
-An action proposal additionally supplies the selected action id/revision and
-typed arguments. The runtime rejects unknown actions, stale preconditions,
-malformed arguments, unauthorized effects, unsupported limits, or exhausted
-budgets before an effect. Free-form rationale is optional evidence and is never
-executable input.
-
-Provider-specific chat, prompt, or tool-call envelopes stay behind policy
-adapters and do not become Rey's durable action contract.
-
-A graph-revision proposal additionally supplies the immutable typed graph,
-parent graph revision when present, cited failing scenario/delta facts, and
-requested graph/execution sub-budgets. Runtime graph validation occurs before
-the proposal can become a campaign candidate.
-
-## Effect Paths
-
-Effects use the operation owned by the selected provider: an explicitly
-authorized admitted action.
-`QUERY` never carries a Rey mutation.
-
-A local tool-backed action freezes:
-
-- capability snapshot and provider identity;
-- resolved executable path plus version and digest/provenance when available;
-- exact argv, cwd boundary, and declared input artifacts;
-- effect and trust class;
-- allowed environment names;
-- limits and supported/unsupported enforcement; and
-- idempotency identity where the effect permits it.
-
-The local executor is not a sandbox unless a future backend proves that claim.
-It records only the process and capture lineage it can establish.
-
-A compute-backed action freezes:
-
-- registered tool and toolset resolution;
-- exact argv and declared input artifacts;
-- source/frame preconditions;
-- effect and egress class;
-- environment-name and secret-handle sets;
-- limits and backend enforcement requirements; and
-- idempotency identity.
-
-Rey observes terminal state, validates capture completeness and media type,
-materializes post-action lenses, and then decides the semantic transition
-outcome.
-
-## Persistence Paths
-
-The workload surface introduces two abstract provider roles before selecting a
-physical persistence design. A catalog provider resolves workload declarations,
-immutable graph/scenario assets, and mutable selectors to exact identities. A
-result provider retains graph proposals, campaigns, attempts, outputs, typed
-deltas, qualification records, runs, and indexes read by `workloads list` and
-`status`.
-
-The first standalone implementation uses a bounded workspace package catalog
-at `${workspace}/sys`, with the compiled catalog available only by
-explicit conformance selection. It uses a bounded
-`rey.local-workload-state.v1` result index at
-`${workspace}/.rey/workloads/state.json`, overridable by explicit
-`--state-dir`. Reads reject symlinked state files and verify every retained
-semantic result. The complete serialized state is bounded to 64 MiB so one
-production scene may retain its exact native-object and terrain-cell bindings;
-an aggregate that exceeds that bound fails before publication and leaves the
-prior state authoritative. Writes use a same-directory temporary file and
-rename. This single-process provider claims no `fsync`, lock, or remote
-durability. A graph selected for future runs cannot exist solely in a
-disposable cache. A stronger publication protocol requires a separate
-accepted contract; the current workload and mining contracts do not select an
-engine.
+# Interfaces
+
+Rey's interfaces are different views and admission boundaries over one typed
+runtime. This document is the high-level map: it explains which surface owns
+which job, how identities and authority survive transitions between them, and
+where each detailed contract lives.
+
+It intentionally does not repeat command grammars, HTTP routes, workload
+schemas, or renderer internals. Follow the linked contract for those details.
+
+## First Principles
+
+1. **One semantic state, several projections.** CLI, HTTP, browser, frames,
+   deltas, and visualizations may render the same evidence differently. They
+   cannot disagree about identity, revision, direction, completeness,
+   omissions, limits, or authority.
+2. **The CLI is the agent's primary runtime interface.** It is the
+   high-fidelity path for inspecting and invoking implemented behavior. A
+   feature is not complete when only an internal API or browser control can
+   exercise it.
+3. **The browser is the human's primary collaboration surface.** It begins at
+   the foreground `rey agent` process and projects the same typed evidence.
+   Polish, spatial continuity, and live updates cannot mint truth.
+4. **HTTP is a transport boundary, not an alternate assessment.** The API
+   exposes bounded reads and a small explicit set of local admissions. Route
+   reachability never grants general query, mutation, scheduling, execution,
+   assignment, provider, or proof authority.
+5. **Provider ownership remains visible.** Rey freezes what it observed and
+   the guarantees attached to that observation. It does not counterfeit a
+   database transaction, remote cursor, authenticated identity, or delivery
+   guarantee that the provider did not supply.
+6. **Presentation is downstream of evidence.** Explorer, tables, diffs, Feed,
+   Journal, and conversation views retain source links and boundaries. A
+   lens, renderer, or layout can improve perception only.
+
+## Contract Map
+
+| Surface or domain | Detailed contract | Owns |
+| --- | --- | --- |
+| Agent CLI | [CLI](CLI.md) | Command grammar, human and structured output, exit behavior, `HEAD → INDEX → WORKING`, and the agent verification path. |
+| Agent HTTP | [API](API.md) | Axum server model, API root, Swagger/OpenAPI, routes, transport, exposure, errors, and HTTP authority. |
+| Browser application | [API](API.md#browser-routes), [Architecture](ARCHITECTURE.md#operator-projection) | Same-origin human routes and their relationship to typed API evidence. |
+| Explorer | [Explorer](EXPLORER.md), [`@rey/explorer` guide](../packages/explorer/README.md) | Spatial semantics, coordinate/view separation, validity-safe terrain, projection transitions, renderer lifecycle, and fidelity. |
+| Environment | [Environment](ENVIRONMENT.md) | Bootstrap seeds, bounded discovery, capability snapshots, application admission, trust, and provider guarantees. |
+| Locators | [Locators](LOCATORS.md) | Canonical resource addressing, dimensions, exact resolution, and unsupported or ambiguous outcomes. |
+| Mining | [Mining](MINING.md) | Relational and source operation families, frozen requests/results, lineage, limits, and native artifacts. |
+| Workloads | [Workloads](WORKLOADS.md) | Versioned graph, scenarios, policy, qualification, total budget, results, and admission. |
+| Runtime | [Runtime](RUNTIME.md) | Deterministic transitions, probes and effects, cancellation, retries, budgets, and process versus semantic outcomes. |
+| Frontier | [Frontier](FRONTIER.md) | Typed attention, dependencies, invalidation, prioritization inputs, progress, and convergence. |
+| Diff | [Diff](DIFF.md) | Directed typed comparison, alignment, schema change, text/structural direction, and renderings. |
+| Proof | [Proof](PROOF.md) | Claims, evidence manifests, assessment, certificates, staleness, and missing evidence. |
+| Git | [Git](GIT.md) | Repository snapshots, semantic index state, ref movement, polling, activation, and exact revision links. |
+| Observations | [Observations](OBSERVATIONS.md) | Immutable human/agent statements, evidence bindings, Channel admissions, partial outcomes, and resolution. |
+| Journal | [Journal](JOURNAL.md) | Retained authored synthesis, stable routes, typed blocks, seeds, queries, opportunities, and non-execution boundary. |
+| Conversations | [Conversations](CONVERSATIONS.md) | Local sessions, transcript ordering, writers, browser composer availability, retention, and delivery boundary. |
+| Architecture | [Architecture](ARCHITECTURE.md) | Ownership map, process topology, planes, data flow, and security boundaries. |
+| Accepted choices | [Decision Plane](decisions/README.md) | Current cross-contract decisions and implemented posture. |
+| Delivery slices | [Plans](../plans/README.md) | Active executable plans, sequencing, completion checks, and verification paths. |
+
+## Surface Responsibilities
+
+### CLI
+
+The `rey` CLI is the public unit of agent interaction. Human output must show
+the relevant inputs, progress, results, directed deltas, evidence, omissions,
+limits, and revision lineage without requiring implementation knowledge.
+Structured output preserves the same contract for automation.
+
+The CLI distinguishes observation from admission and admission from action.
+Status commands observe; `add` freezes an exact INDEX; `commit` consumes the
+verified INDEX without rereading ambient WORKING; explicit run or action
+commands invoke only their named authority.
+
+### API
+
+`rey agent` hosts the local HTTP projection. `/api` is the discovery root,
+`/api/docs/` is embedded Swagger, and `/api/openapi.json` is the generated
+OpenAPI 3.1 document. Read operations are `GET|HEAD`; the documented `POST`
+operations are explicit bounded local admissions.
+
+The API and registered server routes derive from one route catalog. The exact
+transport and endpoint contract lives only in [API](API.md).
+
+### Browser
+
+The browser is a high-fidelity projection of the API's typed evidence, not a
+parallel store or assessment engine. It remains live through passive
+revalidation and future retained event transport. A quiet footer means no
+operator attention is requested; the UI must not invent activity.
+
+Browser controls are allowed only when their write authority is separately
+declared. Loading a route, panning Explorer, opening a detail, or selecting an
+object is read-only navigation.
+
+### Evidence projections
+
+Frames, deltas, tables, graphs, maps, and terrain are projections. Each must
+retain exact source and implementation revisions, direction, scope,
+completeness, omissions, and limits. Derived visual continuity is never a
+substitute for observed coverage.
+
+## Identity Across Interfaces
+
+Identity is semantic and typed. Display labels, browser routes, camera state,
+table positions, and timestamps are not substitutes for content or provider
+identity.
+
+- A Git commit identity is an exact commit SHA on a bound repository. The
+  browser links a known SHA to that exact commit; it does not guess the
+  repository or label semantic digests as commits.
+- A Journal entry has a stable human-readable route carrying exact content
+  identity. Typed blocks expose fragment permalinks.
+- An Explorer resource coordinate remains separate from camera center, scale,
+  viewport, selection, and level of detail. Zoom may replace a visual
+  aggregate but cannot change source truth.
+- An exact workload scenario or delta route resolves only that retained
+  content identity. It never falls back to the newest result.
+- Environment applications bind provider, path, version, digest/provenance,
+  trust, supported operations, and effective limits before action.
+
+Semantic digests, provider revisions, Git commits, implementation revisions,
+and schema versions remain distinct even when a UI presents them together.
+
+## Authority Across Interfaces
+
+The following axes do not imply one another:
+
+| Axis | What it permits | What it does not imply |
+| --- | --- | --- |
+| Discovery | Observe a potential provider or application. | Invocation, trust, assignment, or persistence. |
+| Read admission | Query an exact bounded source. | Mutation, scheduling, or proof. |
+| Document admission | Retain a validated proposal or authored statement. | Execution of its blocks or recommendations. |
+| Workload admission | Commit an exact fully qualified INDEX to workload HEAD. | Autonomous future execution outside declared activation. |
+| Action admission | Perform one explicit provider effect with fresh preconditions. | General provider authority or semantic success. |
+| Assignment | Bind an admitted task to an eligible runtime. | Process execution or proof authority. |
+| Execution | Run bounded compute or an admitted effect. | Convergence, correctness, or proof. |
+| Assessment | Evaluate a claim against exact evidence. | Provider truth beyond that evidence. |
+
+An agent, deterministic rule, and human may propose through the same validated
+contract. None may declare its own proof successful.
+
+## Shared Document Conventions
+
+Rey-owned documents carry a schema discriminator such as
+`rey.workload-list.v1`. A schema version defines the document contract, not
+the HTTP route, binary package, provider protocol, or underlying source
+revision. During pre-alpha, incompatible changes are hard cutovers unless an
+active plan explicitly defines migration behavior.
+
+Typed documents should expose, where relevant:
+
+- exact input and source identities;
+- operation and implementation revisions;
+- effective limits and the capability snapshot;
+- completeness and explicit omissions;
+- derivation lineage;
+- authority and supported operations;
+- directed source and target labels for comparisons;
+- staleness derived from changed inputs.
+
+Human renderings may abbreviate but must provide a path to the exact evidence.
+
+## Errors, Limits, And Partial Outcomes
+
+Errors are typed by layer. CLI commands use documented stdout, stderr, and
+exit-code behavior. HTTP uses `rey.api-error.v1`. Provider, mining, workload,
+runtime, and proof documents retain their own outcome classifications rather
+than collapsing all failure into a transport status.
+
+Bounds apply before optimization or presentation work is accepted. A partial
+result names what completed, what failed, what was omitted, and whether replay
+is deterministic. Process success and semantic convergence are separate.
+
+Unsupported, unexplored, missing, ignored, stale, and truncated are distinct
+states. An interface must not present any of them as empty observed evidence.
+
+## Provider And Policy Boundary
+
+Providers retain ownership of storage, query, document, stream, table, tool,
+run, capture, authentication, and transaction guarantees. Rey records the
+guarantees actually admitted for an exact capability snapshot.
+
+Policy selects or proposes within validated options. It cannot:
+
+- add provider guarantees;
+- widen a locator or evidence scope;
+- suppress blockers or policy exclusions;
+- let a proposer mark its own frontier row resolved;
+- transform similarity or confidence into coverage or proof;
+- bypass total workload budgets or action preconditions.
+
+## Persistence Boundary
+
+Authored content and provider-owned source artifacts cannot exist only as a
+cache, DataFrame, queue, visual projection, or delta rendering. Retained state
+uses the subject contract's exact content identity and lineage. A projection
+cache may accelerate replay but never becomes the authority it projects.
+
+Workspace-local histories for environment, workloads, editor packages,
+Channels, Observations, Journal, conversations, Git polling, and qualified
+results remain separate because their admission and mutation authorities are
+different.
 
 ## Workspace Ignore Surface
 
-`.reyignore` is an optional regular, non-symlinked UTF-8 file at the canonical
-workspace root. It is bounded to 64 KiB, 256 rules, and 4096 bytes per line.
-Blank lines and `#` comments are ignored. Every other line is:
+An optional workspace-root `.reyignore` narrows fresh WORKING observations
+using typed, case-sensitive patterns. It does not delete files, rewrite HEAD
+or INDEX, bypass validation, or grant authority. Relevant rules, the exact
+ignore-file digest, source lines, match counts, and omitted counts enter the
+affected WORKING identity and structured output. The command grammar and
+examples live in [CLI](CLI.md#ignore-policy).
 
-```text
-<typed kind>: <case-sensitive wildcard pattern>
-```
+## Security And Exposure
 
-V1 kinds are `workload`, `environment variable`, `application`, `input`, and
-`reference`. `*` matches zero or more bytes and `?` one byte; kinds are
-literal. Unknown kinds remain parseable but have no effect on a surface that
-does not own them or enter that surface's identity. Invalid UTF-8, malformed lines, unsafe file
-types, and exceeded bounds fail status/add/diff/UI reads closed.
+Local does not mean trusted. Rey defaults the agent listener to loopback and
+reports whether the effective bind is loopback-only. The current HTTP surface
+is unauthenticated. An explicit non-loopback bind exposes its documented
+writes to reachable clients; the surrounding deployment must supply any
+required network isolation, authentication, and TLS.
 
-Rey validates candidate objects before applying rules. Relevant rules, the
-exact `.reyignore` digest, source line, and match count are part of the filtered
-WORKING identity and are exposed in structured and human status. This is an
-explicit omission policy, not deletion: it does not mutate source files,
-retroactively alter HEAD or INDEX, bypass validation, or grant execution
-authority.
+Finding an executable, agent application, credential-shaped value, or remote
+locator grants no permission to use it. Bootstrap begins only from the
+process-owned `HOME`, `PWD`, and `PATH` seed set, compiled adapters, and
+explicitly supplied maps under the Environment contract.
 
-For the implemented capability claim, standalone Rey writes the local proof
-bundle manifest, snapshots, typed
-delta JSON and Arrow, Tabular Diff, and certificate to an explicit local
-content-addressed bundle through the lower-level proof API. Publication accepts
-an identical verified replay, and verification bounds and recomputes the bundle
-without following symlinked evidence. Workloads and runtime composition are
-the intended user-facing
-consumers. The final directory name is not exposed until a same-parent staging
-directory contains all objects and the manifest. The manifest, rather than the
-retention-neutral certificate, states the filesystem-only guarantees and
-explicit non-guarantees.
+Secrets, private provider state, and private source snapshots do not enter
+versioned project artifacts or generated proof merely because an interface
+could serialize them.
 
-Git poll cursors are part of this publication boundary. Local mode retains a
-local cursor with local-file guarantees. A cursor never advances merely
-because a Git poll returned successfully. Any stronger publication boundary
-must coordinate with [Proofs and Evidence](PROOFS.md) and a future accepted
-persistence contract.
+## Adding Or Changing An Interface
 
-## Errors And Limits
+A change is complete only when it:
 
-Structured errors need a stable category, human detail, correlation id, and
-actionable remediation. Important categories include invalid declaration,
-provider unavailable, capability unavailable, capability drift, source drift,
-mining operation unsupported, mining result incomplete, parser/index partial,
-visualization truncated, invalid graph, graph cycle, missing graph policy,
-scenario mismatch, scenario
-inconclusive, unqualified graph, stale qualification, Git history incomplete,
-Git ref rewritten, Git index conflicted, cursor replay, stale proposal,
-incompatible frame, duplicate key, action rejected, run failed/lost,
-observation incomplete, budget exhausted, evidence missing, proof failed,
-proof inconclusive, and proof stale.
+1. has one semantic owner and does not duplicate another plane's authority;
+2. defines typed inputs, outputs, revisions, limits, omissions, and error or
+   partial-outcome behavior;
+3. preserves exact identity across CLI, API, browser, and evidence links;
+4. exposes a high-fidelity CLI verification path for implemented behavior;
+5. updates the subject contract, API or CLI contract when applicable, current
+   decision plane, and active plan in the same logical change;
+6. includes focused tests for malformed input, exact preconditions, limits,
+   deterministic replay, and human/structured rendering as appropriate.
 
-Errors must report which state changed and which did not. Retrying a read,
-proposal, compute submission, artifact publication, or mutation follows that
-operation's idempotency contract rather than one generic retry rule.
+Do not add a route, flag, browser control, or stored field as a drive-by
+shortcut around an unresolved ownership decision.
 
-## Rey Agent Process And Supervision
+## Current Boundary
 
-`rey agent` is the hard-cut replacement for `rey ui`; the old command has no
-alias. The invocation starts one foreground OS process described by
-`rey.process.v1` with role `orchestrator`. The process projects its bounded
-runtime graph as `rey.agent-topology.v1`:
+Rey currently implements a local foreground agent process, bounded CLI,
+embedded Axum API/browser worker, admitted GitHub Channel inbox poller, local
+revision stores, workload qualification/runtime slices, evidence projections,
+and the Explorer rendering engine described by the linked contracts.
 
-```text
-rey.orchestrator (OS process)
-  ├─ supervises → rey.operator-http (bound background worker)
-  └─ supervises → rey.channel-github-inbox (admitted-cadence worker)
-```
-
-The topology records node kind, parent, execution placement, lifecycle, live
-state, restart policy, authority, endpoint, the supervision edges, and the
-fixed two-worker bound. `rey.agent-process.v1` combines that topology with the
-nested `rey.ui-server.v1` operator descriptor. `--format json` emits that exact
-document; the default human startup output emits only the listening URL while
-stderr reports the exact semantic version and build commit before process and
-worker lifecycle transitions. `rey version` exposes the same immutable build
-identity as human text or `rey.version.v1` JSON without reading a workspace.
-`GET|HEAD /api/v1/agent` returns the process document, while
-`GET|HEAD /api/v1/health`
-returns `rey.agent-health.v1` with both agent and operator identity.
-
-The operator's `/agents` route projects that same health-bound topology after
-the Journal's current-bearing recommendations and before the work ledger. It
-does not infer agent activity: discovered agent runtimes remain absent, and the
-page renders that omission and the process's bounded lifecycle authority
-explicitly.
-
-The orchestrator installs cooperative SIGINT/SIGTERM cancellation before it
-starts either worker, polls worker state at a bounded 50 ms interval, joins
-both at bounded request or poll-command boundaries, and fails the Rey process
-closed if either worker errors, panics, or exits without cancellation. The
-inbox worker scans admitted Channel HEAD at a bounded 250 ms interval, polls a
-new exact GitHub application immediately, schedules its next tick only after
-the retained outcome, and performs no immediate retry. V1 has no worker restart,
-daemonization, multi-process fencing, process-crash durability, or retained
-process history. The runtime-only OS PID is not a semantic evidence identity.
-
-This is lifecycle authority plus the narrow admitted GitHub read contract.
-Starting the agent process does not discover more applications, invoke or
-assign a discovered agent runtime, schedule a workload, execute a Git
-activation, relay a Channel message, or expand the operator listener's
-declared authority. Browser passive refresh remains browser-owned work rather
-than a supervised server worker.
-
-## Local Operator UI, Not A Public Rey Service
-
-The operator worker under `rey agent` is the implemented exception to a
-CLI-only interface: a bounded HTTP projection started explicitly with the Rey
-process. It serves the embedded TanStack Router application plus
-`GET|HEAD /api/v1/health`, `GET|HEAD /api/v1/agent`,
-`GET|HEAD /api/v1/revalidation`,
-`GET|HEAD /api/v1/workloads`, `GET|HEAD /api/v1/channels`, `GET|HEAD /api/v1/environment`,
-`GET|HEAD /api/v1/cadence`, `GET|HEAD /api/v1/feed/admissions`,
-`GET|HEAD /api/v1/journal`, bounded read-only
-`GET|HEAD /api/v1/journal/seed?observations=id[,id]`, and
-`GET|HEAD /api/v1/observations`. Workload evidence additionally exposes
-`GET|HEAD /api/v1/workloads/admissions`,
-`GET|HEAD /api/v1/workloads/evidence`, exact
-`GET|HEAD /api/v1/workloads/{workload-id}/scenarios/{execution-id}`, and exact
-`GET|HEAD /api/v1/workloads/{workload-id}/deltas/{delta-id}`. Its explicit writes
-are `POST /api/v1/journal`, which accepts bounded human JSON proposals,
-`POST /api/v1/observations`, which admits one bounded partial self-asserted
-human Observation and broadcasts to the effective graph's default local
-Channels, and
-`POST /api/v1/workloads/admit`, which freezes and qualifies an exact WORKING
-file snapshot before committing it with expected HEAD/WORKING preconditions,
-plus `POST /api/v1/channels/working`, which validates a complete graph and
-replaces only Channel WORKING under exact expected HEAD/WORKING snapshot ids.
-None is authenticated or origin-gated on
-an explicitly configured listener. Other methods are rejected. Deep browser
-routes receive the embedded application shell; `GET|HEAD /` redirects to
-`/explore`. The application routes are `/feed`, coordinate-bound `/explore`
-query views, `/cadence`, `/agents`, `/journal/new`, `/journal/{slug}`,
-`/environment`, `/workloads`, `/workloads/$workloadId`,
-`/workloads/$workloadId/scenarios/$executionId`, and
-`/workloads/$workloadId/deltas/$deltaId`. The embedded shell binds its static
-assets to root-relative `/assets/...` paths so exact nested routes resolve the
-same-origin JavaScript and CSS rather than route-relative HTML fallbacks. The workload endpoint is
-derived anew from the selected workspace catalog and retained local result
-index, just like `workloads list`, while decoding the retained workload state
-only once per projection. The lightweight `rey.ui-revalidation.v1` cursor
-hashes the exact bytes of the bounded workload, catalog, environment, Git,
-Channel/Observation, and conversation roots. It grants change-detection
-authority only: an unchanged cursor suppresses redundant browser reads, while
-a changed cursor causes the browser to reload and validate typed projections.
-Each heavyweight projection owns a narrower dependency revision. The workload
-list and workload-evidence responses are cached against exact workload state,
-catalog, `.reyignore`, environment, and Git bytes; Channel or conversation
-activity may wake the browser but cannot invalidate and repeatedly rebuild an
-unchanged workload projection. A changed workload dependency still invalidates
-those cached bytes. Clients advertising `Accept-Encoding: gzip` receive the
-same cached workload JSON with `Content-Encoding: gzip` and
-`Vary: Accept-Encoding`; content negotiation changes wire representation, not
-the typed document or its revision. The environment endpoint is derived anew
-from the selected workspace map and local environment history through the same
-function as `env status`; it does not create UI-owned evidence.
-
-`/workloads` renders incoming INDEX/WORKING candidates, admitted HEAD, and
-request-only drafts as three native Hifi `KineticDenseTable` relations. The admitted relation keeps
-revision, journey, qualification, freshness, scenario conformance, exact graph
-and test identities, mining output, and attention aligned. The request relation
-keeps intent, admission boundary, target package, request source, and exact
-detail location aligned. Narrow viewports scroll the complete bounded relation;
-they do not collapse those dimensions into cards. `/workloads/$workloadId`
-continues the same grammar: admitted packages expose runtime posture, scenario
-outcomes, exact workload/graph/package/test bindings, and mining output as
-three relations; candidate revisions expose their plane, exact package and
-snapshot identity, qualification posture, and approval boundary; creation
-requests expose request posture and exact coding-harness bindings as two
-relations. An exact candidate workload record owns the whole-WORKING-snapshot
-approval control. That control advances HEAD through the same local commit
-contract as the CLI; it never edits WORKING or bypasses qualification. Feed
-does not expose that control or turn a candidate into an Admission post.
-
-The workload-admissions endpoint returns `rey.workload-log.v1`, the same
-verified local commit history exposed by `rey workloads log -n 64`, bounded to
-the 64 newest commits. Feed reads `rey.ui-feed-admissions.v1` from
-`/api/v1/feed/admissions` instead. That projection merges the retained
-environment history exposed by `rey env log` with retained workload commits,
-orders at most 64 rows by commit wall time with a stable identity tie-break,
-and carries exact changed application names and availability for each
-environment transition. It does not synthesize entries from WORKING, INDEX,
-attention, repository posture, qualification posture, or browser state. An
-empty Admission stream therefore means both retained commit histories are
-empty.
-
-The exact evidence index is `rey.ui-workload-evidence-catalog.v1`. It is loaded
-only for an exact workload detail route rather than being attached to every
-Explorer or portfolio read. An admitted workload detail adds its bounded
-scenario relation only when a retained result exists. Scenario references carry the declared scenario contract, required or
-optional role, stored evaluation, exact execution identity, and every retained
-output-text, source-match, and topography delta identity. Scenario pages render
-plain outcome and unresolved assertions, the complete compact `-v`
-EXPECTED-to-ACTUAL layer, and the `-vv` result, campaign, workload, graph,
-suite, evaluator, source, execution, provider, capability, corpus, request,
-limit, omission, native context, frontier, and lineage bindings. Delta pages
-retain the same three layers while opening exactly one stored directed delta.
-`rey-local-source://...#bytes=...` context references remain exact links.
-Semantic revisions are not presented as Git commits; any contractually Git
-commit value still follows the repository-bound commit-link invariant.
-
-These endpoints load the admitted HEAD catalog and verified local result state.
-They perform no scenario execution, assessment, qualification, mutation,
-admission, scheduling, action, or proof. A stale result remains available by
-its retained identities with `current_source_not_bound_to_retained_result`;
-unknown workload, execution, or delta identities return `404` and never fall
-back to a mutable latest record. Output is bounded by the workload, scenario,
-mining, topography, and retained-state limits already verified by the result
-provider.
-
-`/explore` is the initial human bearing. With no admitted topography it renders
-an abstract orientation globe rather than the legacy portfolio-card graph.
-Exact request, WORKING, INDEX, and admitted-but-unrun workload revisions appear
-as workload beacons sourced from `rey.workload-list.v1`. Each beacon exposes
-its file, digest, producer, admission plane, and next consent step. Beacon
-coordinates are stable presentation geometry only; the orientation document is
-not `rey.semantic-atlas.v1`, supplies no semantic-distance claim, and cannot
-execute or admit a workload. The review action enters the exact workload
-record, where the existing combined qualification and human approval gate
-remains authoritative. Only the resulting retained workload commit can later
-appear in Feed Admission; an environment candidate likewise appears there only
-after `rey env commit` retains it as `ENV@n`.
-
-The cadence endpoint returns `rey.ui-cadence.v1`. It retains newest-first Git
-reachable history and Rey environment sequence as separate clocks, with exact
-limits, parents, revisions, completeness, and omissions. Its nullable
-`repository_state` separately reports working-tree counts and the exact
-`HEAD`-to-local-upstream publication relation. Git ticks carry `pushed`,
-`local`, or `unknown` reachability against that retained upstream revision.
-The endpoint performs no network fetch; local upstream state is not a live
-remote-host claim. It also describes the existing mounted-browser revalidation
-schedules. That schedule description is not runtime scheduler state, and the
-endpoint does not poll refs, activate a workload, or retain browser reads.
-`/agents` combines two sources without conflating them. Its current
-system-authored rows derive from creation requests and non-excluded attention
-in the workload-list document. Its authored entries come from the ordered
-`rey.journal-log.v2` returned by the Journal endpoint. `/journal/new` and exact
-`/journal/{slug}` routes use one live 12-column broadsheet editor for prose,
-exact Explorer, read-only query, directed diff, and proposed-action cells.
-Recording a retained edit appends a human-authored superseding entry and enters
-its new exact route. Journal blocks expose stable `#block-{block-id}`
-permalinks. Agent YAML admitted by `rey journal add` may additionally carry
-bounded frame cells. Admission is
-content-identified and idempotent; it retains no arbitrary HTML and executes
-no block. The same canonical-coordinate, revision-consistency, block, and byte
-layout, canonical-coordinate, revision-consistency, block, and byte limits
-govern both paths. Its work ledger
-projects only exact current revisions, qualification/run summaries, scenario
-coverage, mining and delta counts, attention, and retained evidence identities.
-It does not load the environment inventory, schedule work, infer an assigned
-agent, or claim live process telemetry.
-
-`/feed` composes those existing workload, observation-frontier, Cadence, and
-Journal reads into a high-cadence inspection projection. It occupies the remaining application
-viewport as independently scrolling vertical streams plus a Firehose control
-rail. The default composition is Signals, Admission, and Flow, but the Firehose
-can add, tune, reorder, repeat, or remove streams up to an eight-lane display
-bound. Signals filters are `all|observation|journal|git|environment`; Admission filters are
-`all`; Flow filters are
-`all|attention|failing|qualified`. The ordered composition uses the query
-grammar `?streams=[{stable-id}=]{plane}.{filter}[~{percent-encoded-name}],...`,
-for example
-`?streams=review=signals.journal~Review,admission=admission.all,flow=flow.failing`.
-Legacy coordinates without an id acquire a bounded stable preview identity. A
-stream title is an inline editor: blur or Enter normalizes and saves at most 48
-Unicode scalar values into the detached URL preview; Escape cancels, and an
-empty or derived-default name removes the suffix. Invalid, duplicate-id, and
-over-limit entries are reported as omissions and prevent adoption. The URL is
-browser projection state and a deep-link boundary, not retained runtime
-configuration. Explicit adoption conditionally replaces Channel WORKING
-against exact HEAD and WORKING snapshot ids through the existing Channel API.
-With no URL preview, resolution selects an explicit Channel WORKING graph, then
-Channel HEAD, then the canonical built-in graph. The TanStack route owns this
-search state rather than writing around the router with the raw browser History
-API. Resolved built-in, HEAD, and WORKING layouts do not occupy the Feed with a
-passive layout-metadata strip. Layout feedback appears only when a detached
-preview needs adoption, a bound omission exists, or a WORKING write returns a
-result or rejection.
-
-Each resolved Channel stream retains its graph identity and revision. Pointer
-drag, the move buttons, and `Alt+ArrowLeft`/`Alt+ArrowRight` move those identities
-rather than display indexes. Movement over a Channel-backed layout increments
-the layout revision and conditionally replaces WORKING; the returned typed
-semantic delta is visible in Feed. A rejected or stale write restores the last
-exact resolved layout and exposes the failure. Tuning, renaming, adding, or
-removing first creates a detached URL preview so none of those view changes is
-silently admitted.
-
-Signals renders rich observation, Git, environment, and Journal posts,
-including exact observation source/evidence/limit bindings, bounded Journal
-block previews, and exact Git lineage. Observation records remain order-only
-within their own `O@sequence` clock and expose no effect authority. Evidence
-bodies are collapsed by default and expand in place. The clean compact
-`Share an observation` button opens a modal Markdown editor with formatting
-controls and a 500-character limit. Posting admits
-`rey.ui-observation-write.v1` directly to
-the Observation log with a fixed `finding` kind, returns the updated frontier,
-and never creates a Journal entry. The server supplies the workspace-root
-subject, self-asserted human author, partial posture, missing-evidence omission,
-and default local Channel broadcast targets; advanced kind and exact bindings
-remain available through `rey observations add`. Admission renders only the
-bounded verified local environment and workload commit histories. Environment
-posts retain `ENV@n`, commit and snapshot identities, message, changed object
-counts, and exact changed application availability; workload posts retain the
-equivalent commit and snapshot lineage, package count, and qualification
-count. Neither ranks mutable attention, mirrors repository/request posture, or
-exposes an effect control. Flow renders admitted workload
-qualification, scenario, run, mining, delta, and reasoning-surface posture; it
-does not claim live execution telemetry. Signal wall time, including exact
-Observation admission time, is display ordering only. Newest records render at
-the top, equal-time Observations use descending local sequence, and order-only
-records follow the timestamped window. The recent Signals window renders at
-most 64 records without injecting a synthetic source-boundary post; exact
-source completeness, limits, and omissions remain in the typed endpoints.
-Admission renders at most 64 newest commits and reports older folded commits.
-Feed has no read cursor,
-unread count, drag-to-admit behavior, pagination, durable stream retention,
-or causal-order claim. Its Observation mutation endpoint grants no assignment,
-action, relay, execution, or proof authority.
-
-The implemented Channel interface provides
-`rey channels list|status|diff|apply|add|commit|log|message|relay|beacon|poll`. It
-derives one
-built-in workspace-local channel, one bounded subscription, and stable Signals,
-Admission, and Flow stream identities without writing local state. `apply`
-accepts a workspace-contained regular non-symlinked
-`rey.channel-graph.v1` YAML document, canonicalizes bounded definitions,
-rejects duplicate or dangling references and semantic revision reuse, and
-atomically retains a tamper-detecting `.rey/channels/working.json` proposal.
-Human diff output names `added`, `removed`, `modified`, `renamed`, `retargeted`,
-and `moved` operations rather than serialized state; JSON returns exact graph,
-source, limit, identity, and delta envelopes. `status` and `list` remain
-read-only and leave an untouched workspace untouched.
-
-The separate `CHANNEL HEAD → CHANNEL INDEX → CHANNEL WORKING` revision loop is
-complete for full-graph staging. Immutable file-backed messages can be admitted
-only against Channel HEAD, and explicit `relay` or one-shot `beacon` commands
-require an exact environment-HEAD application plus admitted graph declarations.
-Channel status and conditional WORKING APIs remain non-navigable substrate
-behind Feed, mailbox, and conversation; the operator exposes no `/channels`
-route or navigation item. Feed layout resolution, deliberate adoption, and
-stable pointer/keyboard reorder persistence use the same graph validator/store,
-reject stale expected HEAD or WORKING snapshots, and can write WORKING only;
-INDEX, HEAD, relay, and execution remain CLI/runtime boundaries.
-The provider-specific `poll` command requires a Channel-HEAD application with
-one `github_inbox` declaration and an exact matching environment-HEAD
-`comms.application.github.identity` capability. The declaration binds the
-absolute `gh` executable, executable digest and optional version, `github.com`,
-target Channel, names-only credential environment allowlist, poll cadence,
-process timeout,
-capture bound, and notification, pull-request, and comment limits. Rey invokes
-only fixed authenticated `gh api` GET requests against GitHub REST API
-`2026-03-10`: current unread notifications first, then issue-level and
-review-thread comments for bounded `PullRequest` subjects, ordered by newest
-provider update and narrowed by provider `last_read_at` when present. It passes no
-provider-derived argv, invokes no shell, and never calls a mark-read endpoint.
-The command retains raw-response digests and byte counts, exact provider
-external identities/revisions/links, partial omissions, immutable Channel
-messages, and a content-identified `rey.github-channel-poll-receipt.v1`.
-Identical source revisions replay existing message identities. The newest
-receipt for each exact application revision on the current Channel HEAD defines
-`rey.channel-mailbox.v1`; complete absence in a later poll removes an item from
-the current mailbox without rewriting or immediately evicting its immutable
-evidence. Local retention
-keeps at most 256 newest poll receipts and 1,024 Channel messages; admitting a
-later poll first evicts oldest receipts and then GitHub messages no longer
-referenced by any retained receipt. It never evicts locally authored Channel
-messages to make room for provider ingress. `GET|HEAD
-/api/v1/channels` returns that mailbox projection beside Channel status, and
-the root operator state passively revalidates it every five seconds. The
-explicit command is the human-verifiable tick. The separately supervised
-`rey.channel-github-inbox` worker polls immediately after an exact application
-becomes current and then at its committed cadence, with no immediate retry.
-
-General remote inbound providers, durable provider cursors, and resident work
-beyond this exact GitHub path remain incomplete. The richer
-`rey observations add|list|show|resolve` now provides human and typed JSON
-rendering over the observation store. It retains immutable content-derived
-observations separately from Channel topology and Journal, exact
-locator/revision/digest evidence plus source-file bindings, self-asserted author
-labels, completeness/omissions/limits, one supersession or resolution closure,
-and a bounded oldest-open-first frontier. Its local broadcast associates one
-observation identity with a canonical explicit target set and retains exact
-graph/HEAD bindings plus typed partial outcomes without copying content or
-granting relay authority. The read-only observation endpoint returns that same
-default bounded frontier for Feed projection. `rey journal seed`
-and `/journal/new?observations=...` use the same deterministic bounded
-projection from exact unresolved identities to an unretained valid broadsheet
-proposal. The CLI supplies a self-asserted agent author, while the browser seed
-supplies its self-asserted human `operator` author before opening the ordinary
-live editor. Only normal Journal admission creates an entry. `rey journal
-opportunities` and `GET|HEAD /api/v1/journal/opportunities` derive one bounded,
-content-identified `rey.journal-opportunity-surface.v1` over action cells on
-unsuperseded Journal leaves. `/agents` passively projects the same authored-only
-rows with exact document fragments, source-log identity, completeness,
-omissions, and limits. They have no readiness, assignment, execution, or proof
-authority; crossing into runtime work still requires a separately verified,
-selected, ready `CREATE` attention row and ordinary workload creation and
-admission. The separate `journal query admit|execute|list` subcommands implement
-one exact `rey.observations/rey frontier` read-only provider. Admission binds a
-current Journal leaf and exact observation frontier without execution.
-Execution rejects input drift, retains a bounded nine-column/100-row frame and
-directed empty-to-observed delta, and writes only a create-new unretained
-superseding proposal. Normal `journal add` remains the sole Journal-retention
-step. `GET|HEAD /api/v1/journal/queries` exposes retained query admission and
-execution evidence; no browser query write or execution endpoint exists.
-Relay declarations do not enable transport until a provider contract is
-separately admitted.
-
-The implemented `rey conversations status|session add|session list|message
-add` surface owns the narrow `rey.local-transcript/v1` conversation provider.
-An immutable session binds its exact provider revision, participants, declared
-writers, optional human browser writer, source, identity, admission sequence,
-and limits. An immutable message binds one exact session, one declared writer,
-canonical body, optional prior same-session reply, source, identity, admission
-time, and contiguous per-session sequence. Admission is idempotent and always
-retains `delivery: not_attempted`.
-
-`rey.conversation-transcript.v1` reports transport availability, exact log and
-session identity, ordering, local retention, read/CLI/browser write authority,
-effect authority, failure behavior, selected rows, completeness, omissions,
-and effective bounds. Missing state is a read-only unavailable projection.
-The default `.rey/conversations/conversations.json` log is bounded, locked,
-atomically replaced, and verified after restart; tamper or append failure
-leaves prior state authoritative. `GET|HEAD /api/v1/conversations` projects the
-same default transcript. `POST /api/v1/conversations/messages` conditionally
-appends through the same store against exact expected log/session identities
-and derives its author only from the declared human browser writer. Missing
-transport or writer leaves the composer disabled; a stale append is rejected
-before publication. See [Conversations](CONVERSATIONS.md).
-
-The default human startup line exposes the exact listening URL without
-repeating the complete process document. A preceding INFO log binds the binary
-to its semantic package version and build commit; subsequent lifecycle logs
-expose process and worker startup, cooperative shutdown, and failure transitions. The
-`rey.agent-process.v1` JSON, `/api/v1/agent`, and `/agents` expose the running
-process id and PID, orchestrator role, bounded supervised topology, worker
-lifecycle, restart/agent-runtime omissions, and the nested `rey.ui-server.v1`
-exact address, URL, loopback status, unauthenticated Journal/conversation-write authority,
-workspace, catalog, Channel, and conversation roots, application,
-Kinetic grammar, Precision theme, pinned grammar revision, `/explore` entry,
-5000 ms passive revalidation interval, canonical Rey source repository, and
-implementation Git revision. Static assets are embedded into the binary from a
-generated manifest, including every route-level dynamic import emitted by the
-Vite/Rolldown production build. Unknown asset paths fail closed instead of
-falling through to the application shell. Authored presentation is extracted
-from StyleX modules into a layered atomic stylesheet, and browser responses
-carry restrictive security headers.
-
-The fixed footer is the live operator communications channel. Its mailbox
-count and bottom sheet derive from the current retained Channel mailbox,
-typed portfolio-attention rows, and passive revalidation failures; an empty
-sheet states that no operator attention is requested. Authored
-Observation-frontier rows remain on Feed and never enter the mailbox merely
-because local Channel admission was retained. A discovered environment
-application likewise remains inventory evidence: only the explicit exact
-Channel/environment HEAD `gh` poll may create current Channel mail. Provider
-`unread` is retained as source evidence; Rey does not invent its own unread
-state, heartbeat messages, or transport activity. The mailbox button selects the
-history axis; the center chevrons select a separate traditional conversation
-axis for operator ↔ Rey ↔ agent communication. Selecting the active axis
-closes the plane, selecting the other switches axes, and either Escape or a
-click on the background closes it.
-The history axis identifies itself as a mounted projection over separately
-retained source records, not a new mailbox event store. The conversation axis
-exposes the separate bounded local transcript and composer. It renders exact
-session participants, writers, message order, delivery posture, source,
-coverage, limits, retention, authority, and failure contract. The composer
-enables only for the exact declared human browser writer and remains disabled
-when unavailable; no UI-only messages are retained. The footer shortens the implementation revision only for
-presentation, and its GitHub link uses the complete 40- or 64-hex Git object
-id. The same invariant applies everywhere in the browser: a contractually Git
-commit SHA is the exact GitHub commit link, never inert text. When no exact
-repository binding exists, the UI exposes that boundary instead of displaying
-or mislinking the SHA. BLAKE3 identities and non-Git revisions are not linked
-as commits.
-
-The Refresh control does not exist. Mounted application state checks the
-bounded portfolio revalidation cursor five seconds after the preceding check
-completes and reloads the heavyweight read-only portfolio only when its exact
-source revision changes. Mounted Feed sources and environment deltas retain
-their route-scoped passive reads. No passive read overlaps or immediately
-restarts after a slow response. A failed background request keeps the last
-good document and reports delayed revalidation; it does not reset the viewport.
-`ContextCanvas` projects the portfolio document through landscape,
-neighborhood, and object regimes with bounded
-omission disclosures; full screen, pan, focus, and zoom do not widen the data
-or action authority. Implemented local semantic coordinates have the shape
-`rey+local://{kind}/{identity}?revision={revision}` with a required trailing
-`role` query dimension for agents. Exact browser views use
-`/explore?coordinate={percent-encoded-coordinate}&scale={canonical-number}`.
-Canonical coordinates order `revision`, `role`; stale bindings remain visible.
-The matrix path and parser are absent from the v1 implementation. Journal v2
-retains semantic coordinate and numeric scale separately; documents outside
-the complete v1 contract are rejected.
-
-Explorer consumes admitted `rey.topography-patch.v1` evidence produced through
-the workloads interface.
-One continuous camera projects World, Atlas, Landscape, Neighborhood, Object,
-and Evidence levels while retaining the selected provider-qualified coordinate.
-Camera state never becomes resource identity. Surveyed-empty, unexplored,
-omitted, stale, unsupported, truncated, and frontier regions remain distinct,
-and navigation does not execute locators or workloads. The CLI must expose each patch's seed
-coverage, resolution outcomes, anchors, relationships, world and atmospheric
-conditions, natural-feature projection limits, excluded edge provenance,
-probe prerequisites, directed delta, bounds, and lineage. [Plan
-0003](../plans/0003-scene-to-explorer.md) additionally requires projection
-basis, immutable scene, field channels, validity masks, material/LOD
-revisions, degradation, render limits, and omissions before the high-fidelity
-browser projection is considered complete. See [Context Topology
-Explorer](EXPLORER.md).
-
-The agent-facing scene authoring surface is separate:
-
-```text
-rey editor source add <input.geojson> --id <source> --role <role> \
-  [--scene-id <project>]
-rey editor generate terrain <output.geojson> --id <source> --seed <seed> \
-  [--scene-id <project>] \
-  --west <lon> --south <lat> --east <lon> --north <lat> [hyperparameters]
-rey editor status
-rey editor add
-rey editor commit -m <message>
-rey editor log [-p] [-n <count>]
-rey editor diff [--staged]
-```
-
-All editor commands accept `--format table|json` (and terminal-sensitive
-`auto`). The selected editor state store owns the project declaration at
-`project.json` (`.rey/editor/project.json` by default); the CLI never reads or
-writes a workspace `rey.scene.json` and exposes no project-path override.
-Declared native inputs remain bounded, regular, non-symlinked, and contained
-by the workspace. `source add` verifies and registers an existing RFC 7946
-GeoJSON path in WORKING under one explicit feature, marker/POI, terrain,
-terrain-control, hydrology, boundary, highway, road, railway, district, lot, structure,
-utility, label, beacon, construction, or connector role. It rejects path/role
-rebinding and writes only the canonical internal project declaration; it does
-not rewrite native bytes or touch INDEX. `source add` and `generate` create the
-internal project when it is absent; `--scene-id` sets that initial identity and
-otherwise defaults to the source ID. Before initialization, `status` returns `rey.editor-status.v2` with
-`initialized=false` and no WORKING snapshot without creating local state.
-The agent may then author or fine-tune the native source directly in WORKING.
-`status` and `diff` compare `HEAD → INDEX → WORKING`. `add` is the only
-staging operation and freezes the exact agent-edited native bytes. `commit`
-reads and validates only INDEX, advances `SCENE@n`, writes
-`rey.scene-package.v1` plus
-`rey.scene-admission-request.v1`, and reports `candidate_only`,
-`requires_workload`, and `admitted=false`. It never changes the workload store
-or UI. `log` exposes retained commit messages, parents, packages, snapshots,
-and optional exact patches. Human `status` uses the concise Git-shaped
-environment-status grammar: current scene commit, changes staged for commit,
-changes not staged, and an actionable final state. Successful `commit` renders
-the validation receipt for the frozen snapshot; validation failure prevents
-HEAD from advancing. Use `log` for immutable history/package evidence and JSON
-`status` for the complete typed state.
-
-`rey workloads run scene-admission --scene SCENE@n` is the implemented bridge
-from that candidate store into runtime evidence. It accepts only a canonical
-scene label, resolves the exact package/request/native objects from the
-selected editor store, and submits a content-identified transfer envelope to a
-fresh qualified file-backed workload. The retained accepted or rejected result
-binds workload, graph, suite, campaign, capability snapshot, editor commit,
-package, request, limits, and authority. Human rendering makes native CRS84,
-synthetic semantic, semantic-Mercator, County-local, and camera coordinates
-separate; structured output retains the full regional scene and projection
-packet. This command does not rewrite candidate or browser state. The workload
-read model exposes the retained production result separately from qualification
-evidence. `/explore` consumes that result only after its acceptance and exact
-bindings pass the browser evidence adapter; candidate state, staged
-qualification results, and rejected runs remain non-projectable.
-
-Marker and label Point features retain their exact `title`, optional `category`
-and `symbol`, `min_zoom`, `max_zoom`, and `collision_priority` properties
-through the editor index, independent scene-admission reinspection, and the
-regional native object. These values are cartographic metadata, not evidence
-authority. Explorer may deterministically cull overlapping text or suppress it
-outside the admitted zoom interval, but it cannot rename the feature or use a
-presentation label to alter selection, identity, geometry, validity, or
-coverage.
-
-`rey.editor-source-add-result.v1` is the human/machine verification receipt for
-registration. It binds changed/idempotent state, project bootstrap, exact
-source declaration and role, source content revision/bytes, parsed feature and
-coordinate counts, native bounds, and candidate-only authority. The semantic
-`status`/`diff` path exposes the resulting source and feature insertions before
-`add` freezes them. `generate terrain` writes a deterministic terrain-control GeoJSON source into
-WORKING and registers it in the project. It binds the complete effective recipe
-in `rey.scene-generation.v1`: seed, CRS84 bounds, feature and vertex counts,
-scale interval, uplift ratio, strength, roughness, anisotropy, orientation,
-edge jitter, and falloff. Same recipe means same bytes; parameter changes are
-ordinary WORKING changes. The recipe reproduces the generated base; exact
-post-generation agent edits are retained by the source digest and scene delta,
-not folded back into an invented recipe. Generated effect values are candidate
-hints and gain no admission authority. See [Context Topology
-Explorer](EXPLORER.md).
-
-A `terrain` source is deliberately narrower than `terrain_control`. An
-isolated terrain feature is a Point with
-`[longitude, latitude, elevation_meters]` and a bounded ASCII `material`
-property. Its successful `rey.regional-terrain-program.v1` sample binds the
-object, artifact, revision, exact three-dimensional position, material,
-evaluator, units, and authority; interpolation is `none` and validity ends at
-the sample coordinate.
-
-A terrain source may instead declare one complete rectilinear dataset. Every
-Point carries the same `terrain_grid_id`, `terrain_grid_columns`, and
-`terrain_grid_rows`, a unique zero-based `terrain_grid_column` and
-`terrain_grid_row`, and `terrain_grid_validity` equal to `valid` or `no_data`.
-Row zero is north and column zero is west. Valid vertices require elevation
-and material. No-data vertices may omit altitude and must omit material.
-Editor INDEX retains that metadata beside the feature/source revisions;
-admission re-parses the frozen bytes and rejects mixed, incomplete,
-non-rectilinear, duplicate, or divergent bindings. The resulting
-`rey.regional-terrain-grid.v1` retains one content identity and row-major exact
-source binding. It authorizes piecewise-linear triangles only where all three
-vertices are valid through `rey.regional-terrain-program.v2`. Candidate
-terrain controls never enter either terrain form.
-
-`/environment` has no dashboard hero or metric strip. Its entire route body is
-two full-width stacked evidence sections: directed variable text and bounded
-application search. Inputs and topology remain in structured environment
-evidence rather than becoming a browser section or a third `rey env diff`
-table plane.
-The application plane renders
-the complete flattened application search from the shared environment operator
-projection, including unresolved and error outcomes, and names each row's
-application, resolved path or unresolved state, and declared group memberships.
-The plane splits those rows into `FOUND` and `NOT FOUND` groups. Found rows use
-the same directed added/deleted styling and admission-state treatment as
-environment variables; modifications render exact before/after rows. Not-found
-rows use a neutral warning treatment, `?` marker, and explicit `NOT FOUND`
-outcome rather than the green insertion or admission styling. Observation errors
-remain in the not-found group with a distinct error treatment.
-PATH search counts and redundant resolved/change labels stay out of the browser
-projection. The typed document retains the separate application-inventory
-identity and declaration evidence without duplicating it as a browser section.
-Section headers show only concise support/found accounting;
-environment state, mapping, completeness, and admission details remain in the
-typed document and exact CLI evidence rather than becoming browser metadata
-cards.
-
-The agent-hosted route and `rey env status` both derive that typed document
-through `current_environment_status`; neither owns an independent discovery or
-environment-diff path. Their final presentation policies intentionally differ:
-the browser shows unresolved application searches for operator awareness, while
-the compact human CLI status suppresses unsuccessful searches. Structured CLI
-JSON retains the same complete application evidence as the browser endpoint.
-
-The coordinate rail directly beneath the application header remains sticky on
-scrolling routes. Major operator sections declare exact rail coordinates; as a
-section crosses the application chrome, its numbered heading replaces the
-route-level coordinate in the rail's single context slot. The rail observes
-navigation state only and does not mutate route or runtime state.
-
-This listener does not establish a public API, long-running daemon contract,
-multi-user scheduler, remote policy gateway, authentication system, or durable
-service. Those capabilities still require explicit identity, authorization,
-durability, and topology decisions.
+This map does not imply a general remote service, authenticated multi-user
+collaboration, autonomous agent invocation, universal provider adapters,
+durable distributed scheduling, or broader proof than the retained evidence
+supports.

@@ -6380,11 +6380,11 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     let address = url.strip_prefix("http://").unwrap();
     let response = http_request(address, "GET /api/v1/health HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
-    assert!(response.contains("\"schema\":\"rey.agent-health.v1\""));
+    assert!(response.contains("\"schema\":\"rey.agent-health.v2\""));
     assert!(response.contains("\"theme\":\"precision\""));
     let agent = http_request(address, "GET /api/v1/agent HTTP/1.1");
     assert!(agent.starts_with("HTTP/1.1 200"));
-    assert!(agent.contains("\"schema\":\"rey.agent-process.v1\""));
+    assert!(agent.contains("\"schema\":\"rey.agent-process.v2\""));
     assert!(agent.contains("\"role\":\"orchestrator\""));
     assert!(agent.contains("\"relationship\":\"supervises\""));
     let environment = http_request(address, "GET /api/v1/environment HTTP/1.1");
@@ -6413,6 +6413,22 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     assert!(channels.contains("\"schema\":\"rey.ui-channels.v1\""));
     assert!(channels.contains("\"state\":\"clean\""));
     assert!(channels.contains("\"loopback_only\":true"));
+    let root = http_request(address, "GET / HTTP/1.1");
+    assert!(root.starts_with("HTTP/1.1 307"));
+    assert!(root.contains("location: /api"));
+    let api_root = http_request(address, "GET /api HTTP/1.1");
+    assert!(api_root.starts_with("HTTP/1.1 307"));
+    assert!(api_root.contains("location: /api/docs/"));
+    let swagger = http_request(address, "GET /api/docs/ HTTP/1.1");
+    assert!(swagger.starts_with("HTTP/1.1 200"));
+    assert!(swagger.contains("<title>Swagger UI</title>"));
+    let openapi = http_request(address, "GET /api/openapi.json HTTP/1.1");
+    assert!(openapi.starts_with("HTTP/1.1 200"));
+    assert!(openapi.contains("\"openapi\":\"3.1.0\""));
+    assert!(openapi.contains("\"title\":\"Rey Agent API\""));
+    let explore = http_request(address, "GET /explore HTTP/1.1");
+    assert!(explore.starts_with("HTTP/1.1 200"));
+    assert!(explore.contains("<title>Rey / Explore</title>"));
     table_child.kill().unwrap();
     let table_output = table_child.wait_with_output().unwrap();
     let lifecycle = String::from_utf8_lossy(&table_output.stderr);
@@ -6446,7 +6462,7 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
     let mut descriptor_line = String::new();
     network_stdout.read_line(&mut descriptor_line).unwrap();
     let descriptor: Value = serde_json::from_str(&descriptor_line).unwrap();
-    assert_eq!(descriptor["schema"], "rey.agent-process.v1");
+    assert_eq!(descriptor["schema"], "rey.agent-process.v2");
     assert_eq!(descriptor["process"]["role"], "orchestrator");
     assert_eq!(descriptor["topology"]["schema"], "rey.agent-topology.v1");
     assert_eq!(descriptor["topology"]["nodes"].as_array().unwrap().len(), 3);
@@ -6459,7 +6475,14 @@ fn agent_cli_supervises_the_embedded_precision_operator_surface_with_explicit_ex
         descriptor["topology"]["nodes"][2]["node_id"],
         "rey.channel-github-inbox"
     );
-    assert_eq!(descriptor["operator"]["schema"], "rey.ui-server.v1");
+    assert_eq!(descriptor["operator"]["schema"], "rey.ui-server.v2");
+    assert_eq!(descriptor["operator"]["http_framework"], "axum");
+    assert_eq!(descriptor["operator"]["api_root"], "/api");
+    assert_eq!(
+        descriptor["operator"]["openapi_document"],
+        "/api/openapi.json"
+    );
+    assert_eq!(descriptor["operator"]["swagger_ui"], "/api/docs/");
     assert_eq!(descriptor["operator"]["host"], "0.0.0.0");
     assert_eq!(descriptor["operator"]["loopback_only"], false);
     assert_eq!(descriptor["operator"]["read_only"], false);

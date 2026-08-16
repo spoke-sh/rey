@@ -19,6 +19,7 @@ name = "rey"
 path = "src/main.rs"
 
 [dependencies]
+axum.workspace = true
 base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
@@ -35,7 +36,8 @@ serde_json.workspace = true
 serde-saphyr.workspace = true
 signal-hook.workspace = true
 thiserror.workspace = true
-tiny_http.workspace = true
+tokio.workspace = true
+utoipa-swagger-ui.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

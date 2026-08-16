@@ -70,8 +70,10 @@ operator HTTP server and owns the lifecycle of every in-process background
 worker. Startup prints one framework-style listening URL while stderr records
 the exact `rey version` identity and lifecycle events as the process and
 workers start and stop. Rey listens on
-`127.0.0.1:5714` by default and enters `/explore`; exact live topology remains
-available through `/agents`, `/api/v1/agent`, and `--format json`. Incoming
+`127.0.0.1:5714` by default. The server root opens the Swagger-guided API at
+`/api`, while the human operator enters the spatial surface at `/explore`;
+exact live topology remains available through `/agents`, `/api/v1/agent`, and
+`--format json`. Incoming
 file-backed workload proposals appear as beacons without being treated as
 admitted knowledge. Select a beacon to inspect its exact source and revision,
 then use the admission surface when you are ready to consent.
@@ -303,13 +305,15 @@ active implementation plans. The key bearings are:
   fidelity standard for the evidence-bound spatial engine.
 - [CLI](docs/CLI.md) — the agent-facing interface and
   `HEAD → INDEX → WORKING` philosophy.
+- [API](docs/API.md) — the Axum HTTP surface, Swagger/OpenAPI discovery,
+  transport contract, routes, exposure, and authority.
 - [Mining](docs/MINING.md) — bounded relational and source evidence.
 - [Workloads](docs/WORKLOADS.md) — graphs, scenarios, qualification,
   admission, and execution.
 - [Runtime](docs/RUNTIME.md) and [Frontier](docs/FRONTIER.md) — deterministic
   transitions, attention, progress, scheduling, and convergence.
-- [Interfaces](docs/INTERFACES.md) — typed cross-surface contracts and error,
-  limit, HTTP, and persistence semantics.
+- [Interfaces](docs/INTERFACES.md) — the high-level map between CLI, API,
+  browser, evidence, provider, policy, and persistence boundaries.
 
 Contributors should also read [Contributor Instructions](INSTRUCTIONS.md).
 Accepted architectural choices are projected in the

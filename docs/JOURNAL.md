@@ -352,5 +352,5 @@ blocks:
 ```
 
 See [Context Topology Explorer](EXPLORER.md) for coordinate resolution,
-[Interfaces](INTERFACES.md) for HTTP authority, and the
+[Agent HTTP API](API.md) for HTTP authority, and the
 [current decision plane](decisions/README.md) for the collaboration boundary.

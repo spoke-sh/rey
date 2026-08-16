@@ -2,15 +2,27 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
     io::{Cursor, Read, Write},
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, SocketAddr, TcpListener},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
+use axum::{
+    Router,
+    body::{Body, Bytes},
+    extract::{DefaultBodyLimit, State, rejection::BytesRejection},
+    http::{
+        HeaderMap, HeaderName, HeaderValue, Method as AxumMethod, Request as AxumRequest,
+        StatusCode as AxumStatusCode, Uri,
+    },
+    middleware::{self, Next},
+    response::Response as AxumResponse,
+    routing::{get, post},
+};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use flate2::{Compression, write::GzEncoder};
 use rey::{
@@ -52,11 +64,13 @@ use rey_mining::RegionalTerrainGrid;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use thiserror::Error;
-use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
+use utoipa_swagger_ui::SwaggerUi;
 
-const UI_SERVER_SCHEMA: &str = "rey.ui-server.v1";
-const AGENT_HEALTH_SCHEMA: &str = "rey.agent-health.v1";
-const UI_ERROR_SCHEMA: &str = "rey.ui-error.v1";
+use crate::api::{API_ROOT_PATH, API_ROUTES, ApiMethod, OPENAPI_PATH, SWAGGER_PATH, openapi};
+
+const UI_SERVER_SCHEMA: &str = "rey.ui-server.v2";
+const AGENT_HEALTH_SCHEMA: &str = "rey.agent-health.v2";
+const UI_ERROR_SCHEMA: &str = "rey.api-error.v1";
 const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
 const UI_CHANNELS_SCHEMA: &str = "rey.ui-channels.v1";
@@ -79,8 +93,123 @@ const FEED_ADMISSION_HISTORY_SCAN_LIMIT: usize = 256;
 const HIFI_GRAMMAR_REVISION: &str = "git:058c6504fc10740360717e97e687fd77bef6a5c5";
 const REY_IMPLEMENTATION_REVISION: &str = env!("REY_BUILD_REVISION");
 const REQUEST_RECEIVE_POLL_INTERVAL_MS: u64 = 50;
+const MAX_OPERATOR_REQUEST_BODY_BYTES: usize = MAX_JOURNAL_PROPOSAL_BYTES as usize;
 
 include!(concat!(env!("OUT_DIR"), "/rey_ui_assets.rs"));
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Method {
+    Get,
+    Head,
+    Post,
+    Other,
+}
+
+impl From<AxumMethod> for Method {
+    fn from(method: AxumMethod) -> Self {
+        if method == AxumMethod::GET {
+            Self::Get
+        } else if method == AxumMethod::HEAD {
+            Self::Head
+        } else if method == AxumMethod::POST {
+            Self::Post
+        } else {
+            Self::Other
+        }
+    }
+}
+
+struct Request {
+    method: Method,
+    target: String,
+    headers: HeaderMap,
+    body: Cursor<Vec<u8>>,
+}
+
+impl Request {
+    fn new(method: AxumMethod, uri: Uri, headers: HeaderMap, body: Bytes) -> Self {
+        Self {
+            method: method.into(),
+            target: uri
+                .path_and_query()
+                .map_or_else(|| uri.path().to_owned(), ToString::to_string),
+            headers,
+            body: Cursor::new(body.to_vec()),
+        }
+    }
+
+    fn url(&self) -> &str {
+        &self.target
+    }
+
+    const fn method(&self) -> &Method {
+        &self.method
+    }
+
+    fn body_length(&self) -> Option<usize> {
+        Some(self.body.get_ref().len())
+    }
+
+    fn as_reader(&mut self) -> &mut Cursor<Vec<u8>> {
+        &mut self.body
+    }
+}
+
+#[derive(Clone, Copy)]
+struct StatusCode(u16);
+
+struct Header {
+    name: HeaderName,
+    value: HeaderValue,
+}
+
+impl Header {
+    fn from_bytes(name: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<Self, ()> {
+        Ok(Self {
+            name: HeaderName::from_bytes(name.as_ref()).map_err(|_| ())?,
+            value: HeaderValue::from_bytes(value.as_ref()).map_err(|_| ())?,
+        })
+    }
+}
+
+struct Response<R> {
+    status: StatusCode,
+    headers: HeaderMap,
+    data: R,
+}
+
+impl Response<Cursor<Vec<u8>>> {
+    fn from_data(data: Vec<u8>) -> Self {
+        Self {
+            status: StatusCode(200),
+            headers: HeaderMap::new(),
+            data: Cursor::new(data),
+        }
+    }
+
+    const fn with_status_code(mut self, status: StatusCode) -> Self {
+        self.status = status;
+        self
+    }
+
+    fn with_header(mut self, header: Header) -> Self {
+        self.headers.insert(header.name, header.value);
+        self
+    }
+
+    fn with_data(mut self, data: Cursor<Vec<u8>>, _length: Option<usize>) -> Self {
+        self.data = data;
+        self
+    }
+
+    fn into_axum(self) -> AxumResponse {
+        let mut response = AxumResponse::new(Body::from(self.data.into_inner()));
+        *response.status_mut() = AxumStatusCode::from_u16(self.status.0)
+            .expect("internal HTTP response status is valid");
+        *response.headers_mut() = self.headers;
+        response
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct UiServerConfig {
@@ -108,6 +237,10 @@ pub struct UiServerDescriptor {
     pub workload_admission_enabled: bool,
     pub channel_write_enabled: bool,
     pub conversation_write_enabled: bool,
+    pub http_framework: String,
+    pub api_root: String,
+    pub openapi_document: String,
+    pub swagger_ui: String,
     pub workspace: String,
     pub catalog_root: String,
     pub channel_root: String,
@@ -362,7 +495,7 @@ struct UiRevalidationCursor {
 }
 
 pub struct UiServer {
-    server: Server,
+    listener: TcpListener,
     config: UiServerConfig,
     descriptor: UiServerDescriptor,
     projection_cache: Mutex<UiProjectionCache>,
@@ -380,14 +513,138 @@ struct CachedJsonProjection {
     gzip_bytes: Vec<u8>,
 }
 
+#[derive(Clone)]
+struct ServeControl {
+    cancelled: Arc<AtomicBool>,
+    served: Arc<AtomicUsize>,
+    max_requests: Option<usize>,
+}
+
+impl ServeControl {
+    async fn wait_for_shutdown(self) {
+        loop {
+            if self.cancelled.load(Ordering::Relaxed)
+                || self
+                    .max_requests
+                    .is_some_and(|limit| self.served.load(Ordering::Relaxed) >= limit)
+            {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(REQUEST_RECEIVE_POLL_INTERVAL_MS)).await;
+        }
+    }
+}
+
+fn operator_router(server: Arc<UiServer>, control: ServeControl) -> Router {
+    let mut router = Router::<Arc<UiServer>>::new();
+    for route in API_ROUTES {
+        let method_router = match route.method {
+            ApiMethod::Read => get(dispatch_request),
+            ApiMethod::Write => post(dispatch_request),
+        };
+        router = router.route(route.path, method_router);
+    }
+    router
+        .route("/", get(dispatch_request))
+        .merge(SwaggerUi::new(SWAGGER_PATH).external_url_unchecked(OPENAPI_PATH, openapi()))
+        .method_not_allowed_fallback(method_not_allowed)
+        .fallback(dispatch_request)
+        .layer(DefaultBodyLimit::max(MAX_OPERATOR_REQUEST_BODY_BYTES))
+        .layer(middleware::from_fn_with_state(control, count_request))
+        .with_state(server)
+}
+
+async fn method_not_allowed(uri: Uri) -> AxumResponse {
+    let mut read = false;
+    let mut write = false;
+    for route in API_ROUTES
+        .iter()
+        .filter(|route| api_path_matches(route.path, uri.path()))
+    {
+        match route.method {
+            ApiMethod::Read => read = true,
+            ApiMethod::Write => write = true,
+        }
+    }
+    let allowed = match (read, write) {
+        (true, true) => "GET, HEAD, POST",
+        (false, true) => "POST",
+        _ => "GET, HEAD",
+    };
+    with_header(
+        json_error(
+            StatusCode(405),
+            "method_not_allowed",
+            &format!("this route accepts {allowed}"),
+        ),
+        "Allow",
+        allowed,
+    )
+    .into_axum()
+}
+
+fn api_path_matches(pattern: &str, path: &str) -> bool {
+    let pattern_segments = pattern.trim_matches('/').split('/').collect::<Vec<_>>();
+    let path_segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    pattern_segments.len() == path_segments.len()
+        && pattern_segments
+            .iter()
+            .zip(path_segments)
+            .all(|(pattern, path)| {
+                (!path.is_empty() && pattern.starts_with('{') && pattern.ends_with('}'))
+                    || pattern == &path
+            })
+}
+
+async fn dispatch_request(
+    State(server): State<Arc<UiServer>>,
+    method: AxumMethod,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> AxumResponse {
+    let body = match body {
+        Ok(body) => body,
+        Err(_) => {
+            return json_error(
+                StatusCode(413),
+                "request_body_limit",
+                "request body exceeds the 1048576-byte operator limit",
+            )
+            .into_axum();
+        }
+    };
+    let mut request = Request::new(method, uri, headers, body);
+    match tokio::task::spawn_blocking(move || server.route(&mut request)).await {
+        Ok(response) => response.into_axum(),
+        Err(error) => json_error(
+            StatusCode(500),
+            "request_handler_failed",
+            &format!("operator request handler failed: {error}"),
+        )
+        .into_axum(),
+    }
+}
+
+async fn count_request(
+    State(control): State<ServeControl>,
+    request: AxumRequest<Body>,
+    next: Next,
+) -> AxumResponse {
+    let response = next.run(request).await;
+    control.served.fetch_add(1, Ordering::Relaxed);
+    response
+}
+
 impl UiServer {
     pub fn bind(config: UiServerConfig) -> Result<Self, UiError> {
         let requested = SocketAddr::new(config.host, config.port);
-        let server = Server::http(requested).map_err(|source| UiError::Bind {
+        let listener = TcpListener::bind(requested).map_err(|source| UiError::Bind {
             address: requested,
             detail: source.to_string(),
         })?;
-        let bound = server.server_addr().to_ip().ok_or(UiError::NonIpListener)?;
+        listener.set_nonblocking(true).map_err(UiError::Listener)?;
+        let bound = listener.local_addr().map_err(UiError::Listener)?;
         let descriptor = UiServerDescriptor {
             schema: UI_SERVER_SCHEMA.to_owned(),
             address: bound.to_string(),
@@ -401,6 +658,10 @@ impl UiServer {
             workload_admission_enabled: true,
             channel_write_enabled: true,
             conversation_write_enabled: true,
+            http_framework: "axum".to_owned(),
+            api_root: API_ROOT_PATH.to_owned(),
+            openapi_document: OPENAPI_PATH.to_owned(),
+            swagger_ui: "/api/docs/".to_owned(),
             workspace: config.workspace.display().to_string(),
             catalog_root: config.catalog_directory.display().to_string(),
             channel_root: config.channel_directory.display().to_string(),
@@ -415,7 +676,7 @@ impl UiServer {
             implementation_revision: REY_IMPLEMENTATION_REVISION.to_owned(),
         };
         Ok(Self {
-            server,
+            listener,
             config,
             descriptor,
             projection_cache: Mutex::new(UiProjectionCache::default()),
@@ -428,32 +689,35 @@ impl UiServer {
     }
 
     pub fn serve_until(self, cancelled: Arc<AtomicBool>) -> Result<(), UiError> {
-        while !cancelled.load(Ordering::Relaxed) {
-            let Some(mut request) = self
-                .server
-                .recv_timeout(Duration::from_millis(REQUEST_RECEIVE_POLL_INTERVAL_MS))
-                .map_err(UiError::Receive)?
-            else {
-                continue;
-            };
-            let response = self.route(&mut request);
-            request.respond(response).map_err(UiError::Respond)?;
-        }
-        Ok(())
+        self.serve(cancelled, None)
     }
 
     #[cfg(test)]
     fn serve_bounded(self, max_requests: Option<usize>) -> Result<(), UiError> {
-        let mut served = 0_usize;
-        loop {
-            if max_requests.is_some_and(|limit| served >= limit) {
-                return Ok(());
-            }
-            let mut request = self.server.recv().map_err(UiError::Receive)?;
-            let response = self.route(&mut request);
-            request.respond(response).map_err(UiError::Respond)?;
-            served = served.saturating_add(1);
-        }
+        self.serve(Arc::new(AtomicBool::new(false)), max_requests)
+    }
+
+    fn serve(self, cancelled: Arc<AtomicBool>, max_requests: Option<usize>) -> Result<(), UiError> {
+        let listener = self.listener.try_clone().map_err(UiError::Listener)?;
+        let server = Arc::new(self);
+        let control = ServeControl {
+            cancelled,
+            served: Arc::new(AtomicUsize::new(0)),
+            max_requests,
+        };
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(UiError::Runtime)?;
+        runtime.block_on(async move {
+            let listener =
+                tokio::net::TcpListener::from_std(listener).map_err(UiError::Listener)?;
+            let application = operator_router(server, control.clone());
+            axum::serve(listener, application)
+                .with_graceful_shutdown(control.wait_for_shutdown())
+                .await
+                .map_err(UiError::Serve)
+        })
     }
 
     fn route(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
@@ -498,7 +762,8 @@ impl UiServer {
         }
 
         let response = match path {
-            "/" => redirect_response("/explore"),
+            "/" => redirect_response(API_ROOT_PATH),
+            "/api" => redirect_response("/api/docs/"),
             "/api/v1/health" => self.health(),
             "/api/v1/agent" => self.agent(),
             "/api/v1/revalidation" => self.revalidation(),
@@ -2754,10 +3019,9 @@ fn query_hex(value: u8) -> Result<u8, String> {
 
 fn request_header<'a>(request: &'a Request, name: &'static str) -> Option<&'a str> {
     request
-        .headers()
-        .iter()
-        .find(|header| header.field.equiv(name))
-        .map(|header| header.value.as_str())
+        .headers
+        .get(name)
+        .and_then(|header| header.to_str().ok())
 }
 
 fn accepts_content_encoding(request: &Request, expected: &str) -> bool {
@@ -2785,7 +3049,7 @@ fn json_error(status: StatusCode, category: &str, detail: &str) -> Response<Curs
         "detail": detail,
     }))
     .unwrap_or_else(|_| {
-        b"{\"schema\":\"rey.ui-error.v1\",\"category\":\"encoding_failed\"}".to_vec()
+        b"{\"schema\":\"rey.api-error.v1\",\"category\":\"encoding_failed\"}".to_vec()
     });
     let response = Response::from_data(body).with_status_code(status);
     let response = with_header(response, "Content-Type", "application/json; charset=utf-8");
@@ -2814,12 +3078,12 @@ fn with_header(
 pub enum UiError {
     #[error("operator server could not bind {address}: {detail}")]
     Bind { address: SocketAddr, detail: String },
-    #[error("operator listener did not resolve to an IP socket")]
-    NonIpListener,
-    #[error("operator request receive failed: {0}")]
-    Receive(std::io::Error),
-    #[error("operator response failed: {0}")]
-    Respond(std::io::Error),
+    #[error("operator listener failed: {0}")]
+    Listener(std::io::Error),
+    #[error("operator Axum runtime failed: {0}")]
+    Runtime(std::io::Error),
+    #[error("operator Axum server failed: {0}")]
+    Serve(std::io::Error),
 }
 
 #[cfg(test)]
@@ -2992,7 +3256,11 @@ mod tests {
         })
         .unwrap();
         let descriptor = server.descriptor();
-        assert_eq!(descriptor.schema, "rey.ui-server.v1");
+        assert_eq!(descriptor.schema, "rey.ui-server.v2");
+        assert_eq!(descriptor.http_framework, "axum");
+        assert_eq!(descriptor.api_root, "/api");
+        assert_eq!(descriptor.openapi_document, "/api/openapi.json");
+        assert_eq!(descriptor.swagger_ui, "/api/docs/");
         assert!(descriptor.loopback_only);
         assert!(!descriptor.read_only);
         assert!(descriptor.journal_write_enabled);
@@ -3012,14 +3280,14 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(50 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(55 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
         let health = request(&address, "GET /api/v1/health HTTP/1.1");
         assert!(health.starts_with("HTTP/1.1 200"));
-        assert!(health.contains("\"schema\":\"rey.agent-health.v1\""));
-        assert!(health.contains("\"schema\":\"rey.agent-process.v1\""));
+        assert!(health.contains("\"schema\":\"rey.agent-health.v2\""));
+        assert!(health.contains("\"schema\":\"rey.agent-process.v2\""));
         assert!(health.contains("\"loopback_only\":true"));
 
         let revalidation = request(&address, "GET /api/v1/revalidation HTTP/1.1");
@@ -3083,8 +3351,8 @@ mod tests {
             &[("Accept-Encoding", "br, gzip, deflate")],
         );
         assert!(compressed_workloads.starts_with("HTTP/1.1 200"));
-        assert!(compressed_workloads.contains("Content-Encoding: gzip"));
-        assert!(compressed_workloads.contains("Vary: Accept-Encoding"));
+        assert!(compressed_workloads.contains("content-encoding: gzip"));
+        assert!(compressed_workloads.contains("vary: Accept-Encoding"));
 
         let global_before = request(&address, "GET /api/v1/revalidation HTTP/1.1");
         let global_before: serde_json::Value =
@@ -3414,7 +3682,7 @@ mod tests {
 
         let opportunities = request(&address, "HEAD /api/v1/journal/opportunities HTTP/1.1");
         assert!(opportunities.starts_with("HTTP/1.1 200"));
-        assert!(opportunities.contains("Content-Length:"));
+        assert!(opportunities.contains("content-length:"));
         assert!(!opportunities.contains("next-bearing"));
         let opportunities = request(&address, "GET /api/v1/journal/opportunities HTTP/1.1");
         assert!(opportunities.contains("\"block_id\":\"next-bearing\""));
@@ -3558,11 +3826,28 @@ mod tests {
 
         let root = request(&address, "GET / HTTP/1.1");
         assert!(root.starts_with("HTTP/1.1 307"));
-        assert!(root.contains("Location: /explore"));
+        assert!(root.contains("location: /api"));
+
+        let api_root = request(&address, "GET /api HTTP/1.1");
+        assert!(api_root.starts_with("HTTP/1.1 307"));
+        assert!(api_root.contains("location: /api/docs/"));
+
+        let swagger = request(&address, "GET /api/docs/ HTTP/1.1");
+        assert!(swagger.starts_with("HTTP/1.1 200"));
+        assert!(swagger.contains("<title>Swagger UI</title>"));
+
+        let swagger_stylesheet = request(&address, "GET /api/docs/swagger-ui.css HTTP/1.1");
+        assert!(swagger_stylesheet.starts_with("HTTP/1.1 200"));
+        assert!(swagger_stylesheet.contains("text/css"));
+
+        let openapi = request(&address, "GET /api/openapi.json HTTP/1.1");
+        assert!(openapi.starts_with("HTTP/1.1 200"));
+        assert!(openapi.contains("\"openapi\":\"3.1.0\""));
+        assert!(openapi.contains("\"title\":\"Rey Agent API\""));
 
         let explore = request(&address, "GET /explore HTTP/1.1");
         assert!(explore.starts_with("HTTP/1.1 200"));
-        assert!(explore.contains("Content-Security-Policy"));
+        assert!(explore.contains("content-security-policy"));
         assert!(explore.contains("<title>Rey / Explore</title>"));
 
         let feed = request(&address, "GET /feed HTTP/1.1");
@@ -3602,6 +3887,10 @@ mod tests {
         let rejected = request(&address, "POST /api/v1/workloads HTTP/1.1");
         assert!(rejected.starts_with("HTTP/1.1 405"));
         assert!(rejected.contains("\"category\":\"method_not_allowed\""));
+
+        let unknown_api = request(&address, "GET /api/v1/not-real HTTP/1.1");
+        assert!(unknown_api.starts_with("HTTP/1.1 404"));
+        assert!(unknown_api.contains("\"category\":\"api_route_not_found\""));
         handle.join().unwrap();
     }
 

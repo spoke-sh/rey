@@ -217,12 +217,16 @@ unless an active plan explicitly accepts them. External protocol versions such
 as Git porcelain v2 and renderer backend capability names are not Rey document
 versions.
 
-The composition binary uses `tiny_http` 0.12 for a narrow synchronous local
-operator listener. Its bounded Journal POST, expected-snapshot Channel WORKING
-POST, and exact workload-admission POST are intentionally unauthenticated and
-have no origin check on every explicitly configured listener. This adds no
-async runtime, TLS, authenticated identity, background scheduler, or general
-persistence/service topology.
+The composition binary uses Axum 0.8 over Tokio for the supervised local
+operator listener. One declarative route catalog registers the versioned API
+and generates the OpenAPI 3.1 document consumed by the embedded vendored
+Swagger UI. Existing synchronous evidence projections run through Tokio's
+blocking pool so an expensive cold projection cannot occupy the HTTP event
+loop. The bounded Journal, Observation, conversation, Channel WORKING, and
+exact workload-admission POST routes remain intentionally unauthenticated on
+every explicitly configured listener. This adds no TLS, authenticated
+identity, background scheduler, or general persistence/service topology. See
+[Agent HTTP API](API.md).
 The TypeScript application uses locked React, React Three Fiber 9.7, TanStack
 Router, TypeScript, Vite, Vitest, StyleX 0.19, and the official StyleX
 unplugin. Authored UI rules
