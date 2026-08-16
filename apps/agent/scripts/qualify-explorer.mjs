@@ -1217,6 +1217,7 @@ async function runVoyage(options) {
       "/api/v1/health",
       "/api/v1/channels",
       "/api/v1/observations",
+      "/api/v1/revalidation",
       "/api/v1/workloads/evidence",
       "/api/v1/conversations",
     ];
