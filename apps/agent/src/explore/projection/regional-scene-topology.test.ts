@@ -1061,6 +1061,35 @@ describe("regional scene topology projection", () => {
       },
     });
 
+    const packedPortfolio = structuredClone(compactPortfolio);
+    const packedScene =
+      packedPortfolio.workloads[0]!.latest_scene_admission!.scene!;
+    const packedTerrain = packedScene.projection.terrain!;
+    const packedGrid = packedTerrain.grid!;
+    if (packedGrid.schema !== "rey.regional-terrain-grid.transport.v1")
+      throw new Error("test fixture must use compact terrain transport");
+    packedGrid.source_schema = "rey.regional-terrain-grid.v3";
+    packedGrid.cell_source_encoding = "geojson_packed_grid_v1";
+    packedGrid.authority =
+      "qualified packed rectilinear height/material grid; validity ends at supported source triangles";
+    packedTerrain.evaluator.revision = 2;
+    packedTerrain.authority = packedGrid.authority;
+    packedScene.artifacts.terrain_authority = packedGrid.authority;
+    packedScene.projection.layers = packedScene.projection.layers.map((layer) =>
+      layer.kind === "terrain"
+        ? { ...layer, authority: packedGrid.authority }
+        : layer,
+    );
+    const packedCounty = buildTopologyScene(
+      packedPortfolio,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(packedCounty.terrain_fields).toHaveLength(1);
+    expect(packedCounty.terrain_fields[0]?.validity.values).toEqual(
+      county.terrain_fields[0]?.validity.values,
+    );
+
     const grid = scene.projection.terrain.grid!;
     if (grid.schema !== "rey.regional-terrain-grid.v1")
       throw new Error("test fixture must use the retained grid representation");

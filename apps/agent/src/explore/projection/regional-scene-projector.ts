@@ -201,18 +201,24 @@ function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
     );
   });
   if (!samplesValid) return false;
-  if (terrain.grid)
+  if (terrain.grid) {
+    const packed =
+      terrain.grid.schema !== "rey.regional-terrain-grid.v1" &&
+      terrain.grid.cell_source_encoding === "geojson_packed_grid_v1";
     return (
       terrain.samples.length === 0 &&
       terrain.schema === "rey.regional-terrain-program.v2" &&
       terrain.evaluator.id === "rey.regional-terrain.rectilinear-grid" &&
-      terrain.evaluator.revision === 1 &&
+      terrain.evaluator.revision === (packed ? 2 : 1) &&
       terrain.interpolation ===
         "piecewise linear only within triangles whose three admitted source vertices are valid" &&
       terrain.authority ===
-        "qualified rectilinear height/material grid; validity ends at supported source triangles" &&
+        (packed
+          ? "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+          : "qualified rectilinear height/material grid; validity ends at supported source triangles") &&
       validRegionalTerrainGrid(terrain.grid, objectsById)
     );
+  }
   return (
     terrain.samples.length > 0 &&
     terrain.schema === "rey.regional-terrain-program.v1" &&
@@ -233,6 +239,9 @@ function validRegionalTerrainGrid(
 ): boolean {
   if (!grid) return false;
   const expectedCells = grid.columns * grid.rows;
+  const packed =
+    grid.schema !== "rey.regional-terrain-grid.v1" &&
+    grid.cell_source_encoding === "geojson_packed_grid_v1";
   if (
     !validRegionalTerrainGridTransport(grid) ||
     !Number.isSafeInteger(grid.columns) ||
@@ -251,7 +260,9 @@ function validRegionalTerrainGrid(
     grid.interpolation !==
       "piecewise linear only within triangles whose three admitted source vertices are valid" ||
     grid.authority !==
-      "qualified rectilinear height/material grid; validity ends at supported source triangles"
+      (packed
+        ? "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+        : "qualified rectilinear height/material grid; validity ends at supported source triangles")
   )
     return false;
   const longitudeStep =
@@ -306,12 +317,16 @@ function validRegionalTerrainGrid(
           typeof cell.material === "string" &&
           /^[A-Za-z0-9._-]{1,64}$/.test(cell.material) &&
           cell.authority ===
-            "exact admitted Point altitude and material at one valid grid vertex"
+            (packed
+              ? "exact packed source altitude and material at one valid grid vertex"
+              : "exact admitted Point altitude and material at one valid grid vertex")
         : cell.validity === "no_data" &&
           cell.elevation_micrometers === null &&
           cell.material === null &&
           cell.authority ===
-            "explicit source no-data vertex; geometry locates the hole but supplies no height or material";
+            (packed
+              ? "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+              : "explicit source no-data vertex; geometry locates the hole but supplies no height or material");
     const sourceValid =
       grid.schema === "rey.regional-terrain-grid.transport.v1"
         ? cell.source_artifact_id === grid.source_artifact_id &&
