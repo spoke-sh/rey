@@ -226,6 +226,8 @@ export interface TopologyNode {
     geometry_kind: string;
     layer: RegionalLayerKind;
     envelope_path: string;
+    geometry_path: string;
+    geometry_representation: "exact_native" | "bounds_envelope";
     authority: string;
   };
 }
@@ -1057,14 +1059,23 @@ function buildRegionalCounty(
         )
       : projectCountyFootprint(countyFrame, countyFootprint, frameView)
     : null;
-  const terrainGridObjectIds = new Set(
-    scene.projection.terrain?.grid?.cells.map(
-      (cell) => cell.source_object_id,
-    ) ?? [],
+  const terrainSamplesByObjectId = new Map(
+    scene.projection.terrain?.samples.map((sample) => [
+      sample.source_object_id,
+      sample,
+    ]) ?? [],
+  );
+  const terrainGridCellsByObjectId = new Map(
+    scene.projection.terrain?.grid?.cells.map((cell) => [
+      cell.source_object_id,
+      cell,
+    ]) ?? [],
   );
   const visibleObjects =
     terrainField && (regime === "landscape" || regime === "neighborhoods")
-      ? objects.filter((object) => !terrainGridObjectIds.has(object.object_id))
+      ? objects.filter(
+          (object) => !terrainGridCellsByObjectId.has(object.object_id),
+        )
       : objects;
   const nodes = visibleObjects.map((object) => {
     const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
@@ -1088,12 +1099,18 @@ function buildRegionalCounty(
       frameView,
       terrainField ? { scene_bounds: scene.native_bounds, world } : undefined,
     );
-    const terrainSample = scene.projection.terrain?.samples.find(
-      (sample) => sample.source_object_id === object.object_id,
-    );
-    const terrainGridCell = scene.projection.terrain?.grid?.cells.find(
-      (cell) => cell.source_object_id === object.object_id,
-    );
+    const geometryPath = object.native_geometry
+      ? projectRegionalObjectGeometry(
+          countyFrame,
+          object.native_geometry,
+          frameView,
+          terrainField
+            ? { scene_bounds: scene.native_bounds, world }
+            : undefined,
+        )
+      : null;
+    const terrainSample = terrainSamplesByObjectId.get(object.object_id);
+    const terrainGridCell = terrainGridCellsByObjectId.get(object.object_id);
     const terrainDetail = terrainSample
       ? ` · ${terrainSample.position[2]}µm · ${terrainSample.material}`
       : terrainGridCell?.validity === "valid"
@@ -1126,6 +1143,10 @@ function buildRegionalCounty(
         geometry_kind: object.geometry_kind,
         layer: object.layer,
         envelope_path: envelopePath,
+        geometry_path: geometryPath ?? envelopePath,
+        geometry_representation: geometryPath
+          ? ("exact_native" as const)
+          : ("bounds_envelope" as const),
         authority: object.authority,
       },
     };
@@ -1195,6 +1216,44 @@ function buildRegionalCounty(
     county_frame: countyFrame,
     county_footprint: projectedFootprint,
   };
+}
+
+function projectRegionalObjectGeometry(
+  frame: CountyFrame,
+  geometry: NonNullable<
+    AdmittedRegionalProjection["scene"]["projection"]["objects"][number]["native_geometry"]
+  >,
+  view: ReturnType<typeof countyFrameView>,
+  terrain?: {
+    scene_bounds: AdmittedRegionalProjection["scene"]["native_bounds"];
+    world: { width: number; height: number };
+  },
+) {
+  const project = (position: readonly [number, number]) =>
+    terrain
+      ? projectRegionalTerrainPosition(
+          terrain.scene_bounds,
+          position,
+          terrain.world,
+        )
+      : projectCountyLocal(
+          frame,
+          nativePositionToCountyLocal(frame, position),
+          view,
+        );
+  const path = (
+    positions: ReadonlyArray<readonly [number, number]>,
+    close: boolean,
+  ) =>
+    positions
+      .map((position, index) => {
+        const point = project(position);
+        return `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+      })
+      .join(" ") + (close ? " Z" : "");
+  if (geometry.kind === "point") return path([geometry.position], false);
+  if (geometry.kind === "line_string") return path(geometry.positions, false);
+  return geometry.rings.map((ring) => path(ring, true)).join(" ");
 }
 
 function projectRegionalObjectEnvelope(

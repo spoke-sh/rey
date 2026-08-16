@@ -142,6 +142,10 @@ export interface RegionalProjectionPacket {
     object_revision: string;
     geometry_kind: string;
     native_bounds: RegionalBounds;
+    native_geometry?:
+      | { kind: "point"; position: [number, number] }
+      | { kind: "line_string"; positions: Array<[number, number]> }
+      | { kind: "polygon"; rings: Array<Array<[number, number]>> };
     layer: RegionalLayerKind;
     authority: string;
   }>;

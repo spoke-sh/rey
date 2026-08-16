@@ -162,7 +162,7 @@ export function compileExplorerRenderGraph(
         scene.focus_id,
         ...scene.nodes.map(
           ({ id, x, y, spatial_feature }) =>
-            `${id}:${x},${y}:${spatial_feature?.geometry_kind ?? "semantic"}:${spatial_feature?.layer ?? "semantic"}:${spatial_feature?.envelope_path ?? "point"}:${spatial_feature?.authority ?? "interface"}`,
+            `${id}:${x},${y}:${spatial_feature?.geometry_kind ?? "semantic"}:${spatial_feature?.layer ?? "semantic"}:${spatial_feature?.geometry_path ?? "point"}:${spatial_feature?.geometry_representation ?? "interface"}:${spatial_feature?.authority ?? "interface"}`,
         ),
         ...scene.points.map(
           ({ id, kind, x, y, prominence }) =>

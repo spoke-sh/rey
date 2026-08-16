@@ -518,7 +518,8 @@ does not contain admission authority or camera instances. The implemented
 `rey.admitted-regional-scene.v1` result contract separately binds its exact
 editor commit/package/snapshot/request, qualifying workload/graph/suite and
 capability input, native OGC CRS84 bounds and object revisions,
-native-to-semantic and County-local transforms, typed layers, and at most one
+exact retained Point, LineString, and Polygon coordinates for non-terrain
+objects, native-to-semantic and County-local transforms, typed layers, and at most one
 content-identified County footprint whose closed native rings bind one exact
 boundary object/artifact/revision. An envelope is never substituted when that
 unique boundary Polygon is absent or ambiguous. The contract also retains
@@ -546,8 +547,10 @@ delta, and matching workload, graph, capability, package, snapshot, packet,
 terrain, coordinate-plane, regional-member, and synthetic-placement bindings.
 It projects the atlas member's exact accepted synthetic point through
 World and the revisioned `rey.semantic-mercator-projection@2`, then exact native
-object bounds inside a bounded County reference frame only when the selected
-scene has an admitted footprint. The primitive provides
+Point, LineString, and Polygon geometry inside a bounded County reference frame
+only when the selected scene has an admitted footprint. Independently verified
+object bounds remain a disclosed fallback for other GeoJSON geometry families;
+the envelope does not reconstruct their source shape. The primitive provides
 the declared horizontal wrap, polar cutoff/disclosure, view-relative
 shared-identity fragments, analytic chart inverse, and stable World/Atlas
 endpoints. The coordinate facing a rotated globe remains centered while the

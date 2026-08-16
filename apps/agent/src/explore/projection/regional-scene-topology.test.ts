@@ -311,6 +311,18 @@ const regionalPortfolio = {
                 source_artifact_id: "artifact:1",
                 object_revision: "object:1",
                 geometry_kind: "Polygon",
+                native_geometry: {
+                  kind: "polygon",
+                  rings: [
+                    [
+                      [-122_800_000, 37_500_000],
+                      [-122_500_000, 37_200_000],
+                      [-122_200_000, 37_500_000],
+                      [-122_500_000, 37_800_000],
+                      [-122_800_000, 37_500_000],
+                    ],
+                  ],
+                },
                 layer: "terrain_control",
                 authority: "exact admitted native geometry",
                 native_bounds: {
@@ -559,6 +571,12 @@ describe("regional scene topology projection", () => {
         "/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1",
     });
     expect(ridgeNode?.spatial_feature?.envelope_path).toMatch(/^M.+ Z$/);
+    expect(ridgeNode?.spatial_feature?.geometry_representation).toBe(
+      "exact_native",
+    );
+    expect(ridgeNode?.spatial_feature?.geometry_path).not.toBe(
+      ridgeNode?.spatial_feature?.envelope_path,
+    );
     expect(county.omissions).toContain("no qualified terrain height");
     expect(county.omissions).toContain(
       "unsupported: terrain_height · no qualified terrain-height adapter",
@@ -598,7 +616,7 @@ describe("regional scene topology projection", () => {
     );
     expect(objectMarkup).toContain('data-feature-layer="terrain_control"');
     expect(objectMarkup).toContain(
-      "Feature marks use exact admitted native bounds",
+      "Exact retained native vector geometry is drawn when available",
     );
     expect(objectMarkup).toContain("terrain.geojson");
     expect(objectMarkup).toContain('data-feature-label-visible="true"');

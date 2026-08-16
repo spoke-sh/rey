@@ -342,6 +342,46 @@ impl RegionalTerrainProgram {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum RegionalNativeGeometry {
+    Point { position: [i64; 2] },
+    LineString { positions: Vec<[i64; 2]> },
+    Polygon { rings: Vec<Vec<[i64; 2]>> },
+}
+
+impl RegionalNativeGeometry {
+    fn verify(
+        &self,
+        geometry_kind: &str,
+        native_bounds: &RegionalBounds,
+    ) -> Result<(), RegionalSceneError> {
+        let positions = match self {
+            Self::Point { position } if geometry_kind == "Point" => vec![*position],
+            Self::LineString { positions }
+                if geometry_kind == "LineString" && positions.len() >= 2 =>
+            {
+                positions.clone()
+            }
+            Self::Polygon { rings }
+                if geometry_kind == "Polygon"
+                    && !rings.is_empty()
+                    && rings
+                        .iter()
+                        .all(|ring| ring.len() >= 4 && ring.first() == ring.last()) =>
+            {
+                rings.iter().flatten().copied().collect()
+            }
+            _ => return Err(RegionalSceneError::ObjectAuthority),
+        };
+        if regional_positions_bounds(&positions).as_ref() != Some(native_bounds) {
+            return Err(RegionalSceneError::ObjectAuthority);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegionalNativeObject {
     pub object_id: String,
     pub source_id: String,
@@ -350,6 +390,8 @@ pub struct RegionalNativeObject {
     pub object_revision: SemanticDigest,
     pub geometry_kind: String,
     pub native_bounds: RegionalBounds,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_geometry: Option<RegionalNativeGeometry>,
     pub layer: RegionalLayerKind,
     pub authority: String,
 }
@@ -755,6 +797,11 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
         validate_bounds(&object.native_bounds)?;
         if object.authority
             != "exact admitted native geometry; appearance grants no relationship, activity, or action authority"
+            || object.native_geometry.as_ref().is_some_and(|geometry| {
+                geometry
+                    .verify(&object.geometry_kind, &object.native_bounds)
+                    .is_err()
+            })
         {
             return Err(RegionalSceneError::ObjectAuthority);
         }
@@ -1127,6 +1174,15 @@ mod tests {
             object_revision: digest("fixture.object", region),
             geometry_kind: "Polygon".to_owned(),
             native_bounds: native_bounds.clone(),
+            native_geometry: Some(RegionalNativeGeometry::Polygon {
+                rings: vec![vec![
+                    [west, south],
+                    [east, south],
+                    [east, north],
+                    [west, north],
+                    [west, south],
+                ]],
+            }),
             layer: RegionalLayerKind::Boundary,
             authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
         };

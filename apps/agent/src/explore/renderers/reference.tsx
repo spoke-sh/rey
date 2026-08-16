@@ -535,15 +535,16 @@ function CountyFeatureLayer({
   if (features.length === 0) return null;
   return (
     <svg
-      aria-label={`${features.length} admitted County feature envelopes`}
+      aria-label={`${features.length} admitted County features`}
       className={sx(styles.worldGeometryLayer, styles.countyFeatureLayer)}
       data-county-feature-layer={scene.county_frame.frame_id}
       role="group"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <desc>
-        Feature marks use exact admitted native bounds. An envelope does not
-        reconstruct source geometry or terrain between admitted samples.
+        Exact retained native vector geometry is drawn when available. Legacy
+        bounds envelopes remain disclosed and do not reconstruct source geometry
+        or terrain between admitted samples.
       </desc>
       {features.map((node) => {
         const feature = node.spatial_feature!;
@@ -562,6 +563,9 @@ function CountyFeatureLayer({
             )}
             data-county-feature={node.id}
             data-feature-geometry={feature.geometry_kind}
+            data-feature-geometry-representation={
+              feature.geometry_representation
+            }
             data-feature-layer={feature.layer}
             data-feature-source-authority={feature.authority}
             onClick={
@@ -618,7 +622,7 @@ function CountyFeatureLayer({
                   feature.layer === "terrain_control" &&
                     styles.countyTerrainControl,
                 )}
-                d={feature.envelope_path}
+                d={feature.geometry_path}
               />
             )}
             {showLabel ? (

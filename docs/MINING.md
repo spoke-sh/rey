@@ -330,7 +330,13 @@ workload lineage, native objects, five distinct coordinate planes, transforms,
 independently typed native-feature, terrain, terrain-control, hydrology, boundary,
 highway, road, district, lot, structure, utility, POI, label, beacon,
 construction, and connector layers, validity/no-data, and an optional content-identified County
-footprint. A footprint exists only when one admitted boundary Polygon matches
+footprint. Non-terrain Point, LineString, and Polygon objects additionally
+retain their exact native coordinates; their bounds remain an independently
+verified index and fallback rather than substitute geometry. Multi-geometries
+and geometry collections remain admissible with that fallback until their
+exact retained representation exists. Terrain-grid Points avoid duplicating
+coordinates because their qualified row-major grid is canonical. A footprint
+exists only when one admitted boundary Polygon matches
 the exact scene envelope; it retains the source object/artifact/revision and
 bounded closed native rings. Missing or ambiguous boundary geometry remains an
 explicit omission rather than an inferred envelope polygon. This evidence is

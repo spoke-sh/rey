@@ -88,16 +88,16 @@ interaction and the semantic projection curve.
 subset into `rey.terrain-render-pass-set.v1`. The package accepts only typed,
 already bounded inputs:
 
-| Pass                      | Accelerated result                                                        | Authority retained                  |
-| ------------------------- | ------------------------------------------------------------------------- | ----------------------------------- |
-| Validity/background       | Canvas treatment visible through missing triangles; never a terrain slab. | Evidence support boundary.          |
-| Base terrain              | Source/derived material tint on valid triangles.                          | Derived from admitted material.     |
-| Height/normals/hillshade  | Multidirectional normal response.                                         | Derived presentation of height.     |
-| Ambient/valley occlusion  | Curvature and occlusion response.                                         | Presentation only.                  |
-| Contours                  | Conservative terrain-draped line segments.                                | Derived contour revision.           |
-| Water/weather/boundary    | Draped native or derived line segments.                                   | Per-feature authority and source.   |
-| Features/labels/selection | Draped envelopes and point/selection anchors.                             | Interface over retained identity.   |
-| Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.            | Exact links and accessible meaning. |
+| Pass                      | Accelerated result                                                             | Authority retained                  |
+| ------------------------- | ------------------------------------------------------------------------------ | ----------------------------------- |
+| Validity/background       | Canvas treatment visible through missing triangles; never a terrain slab.      | Evidence support boundary.          |
+| Base terrain              | Source/derived material tint on valid triangles.                               | Derived from admitted material.     |
+| Height/normals/hillshade  | Multidirectional normal response.                                              | Derived presentation of height.     |
+| Ambient/valley occlusion  | Curvature and occlusion response.                                              | Presentation only.                  |
+| Contours                  | Conservative terrain-draped line segments.                                     | Derived contour revision.           |
+| Water/weather/boundary    | Draped native or derived line segments.                                        | Per-feature authority and source.   |
+| Features/labels/selection | Draped exact vectors, disclosed bounds fallbacks, and point/selection anchors. | Interface over retained identity.   |
+| Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.                 | Exact links and accessible meaning. |
 
 Every pass binds an implementation revision, input revision, and dependency.
 The material and scene identity include the compiled pass-set identity. A
@@ -153,9 +153,11 @@ explicitly unavailable without a capable GPU timer.
 The package owns the accelerated continuous-relief material and typed
 geographic line/point presentation. The application still owns native geometry
 interpretation, pass compilation, label layout, picking, evidence links, and
-the accessible reference renderer. Structure polygons currently enter as
-their admitted envelopes; a later qualified mesh adapter may add volumetric
-geometry without changing their authority.
+the accessible reference renderer. The application projects exact retained
+Point, LineString, and Polygon coordinates; wider GeoJSON families use a
+disclosed bounds fallback. Structure footprints remain two-dimensional; a
+later qualified mesh adapter may add volumetric geometry without changing
+their authority.
 
 Regional packets without a terrain program do not enter this pipeline. Exact
 isolated regional samples remain source points because they authorize no

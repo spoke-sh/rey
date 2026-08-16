@@ -245,7 +245,12 @@ source roles remain separate County layers for native features, qualified
 terrain sources, terrain controls, hydrology, boundaries, highways, roads, districts, lots, structures,
 utilities, POIs, labels, beacons, construction, and connectors. The role is
 source-declared and admission-bound; shape, path, or styling never reclassifies
-an object. Isolated `terrain` Points with exact altitude and bounded material
+an object. Admitted non-terrain Point, LineString, and Polygon objects retain
+their exact native coordinates as well as independently verified bounds. Wider
+GeoJSON geometry families remain admissible with an explicit bounds fallback
+until an exact retained representation exists. Terrain-grid Points do not
+duplicate coordinates in every native object because the qualified row-major
+grid is their canonical representation. Isolated `terrain` Points with exact altitude and bounded material
 remain point-valid with no interpolation or coverage expansion. A complete
 rectilinear Point source may instead retain one content-identified terrain
 dataset with row-major source identity and explicit valid/no-data vertices;
@@ -1023,7 +1028,9 @@ the reference and accelerated paths. A conservative source-bound tile pyramid,
 cancellable worker, bounded residency, 3D County camera, and reversible
 Atlas-to-Landscape projector now consume that field. Revisioned material,
 hillshade, occlusion, contour, hydrology/weather/boundary, feature, and
-selection passes execute in the accelerated terrain group. Drape compilation
+selection passes execute in the accelerated terrain group. Supported admitted
+vectors use exact retained geometry rather than rectangular object envelopes.
+Drape compilation
 checks every crossed grid cell and splits at no-data; labels, evidence, and
 accessibility remain in the mounted deterministic reference overlay. The first
 in-memory grid and absent imagery provider remain explicit boundaries; Plan

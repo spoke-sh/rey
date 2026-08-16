@@ -142,9 +142,9 @@ export function compileTerrainRenderPasses(
               ? "water_weather_boundary"
               : "features_labels_selection",
           kind: feature.layer,
-          source_revision: `${node.id}:${feature.layer}:${feature.envelope_path}:${node.focus_id === scene.focus_id ? "selected" : "unselected"}`,
+          source_revision: `${node.id}:${feature.layer}:${feature.geometry_path}:${feature.geometry_representation}:${node.focus_id === scene.focus_id ? "selected" : "unselected"}`,
           authority: feature.authority,
-          path: feature.envelope_path,
+          path: feature.geometry_path,
           color: featureColor(feature.layer, node.focus_id === scene.focus_id),
           opacity: node.focus_id === scene.focus_id ? 0.82 : 0.32,
         });

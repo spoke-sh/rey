@@ -6,11 +6,11 @@ use rey_mining::{
     REGIONAL_PROJECTION_PACKET_SCHEMA, REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA,
     REGIONAL_TERRAIN_GRID_SCHEMA, REGIONAL_TERRAIN_PROGRAM_SCHEMA, RegionalArtifactBindings,
     RegionalBounds, RegionalCoordinateBinding, RegionalCoordinateSpace, RegionalCoordinateStatus,
-    RegionalFootprint, RegionalLayer, RegionalLayerKind, RegionalNativeObject,
-    RegionalProjectionPacket, RegionalSceneLimits, RegionalSceneLineage, RegionalSceneOmission,
-    RegionalTerrainGrid, RegionalTerrainGridCell, RegionalTerrainProgram, RegionalTerrainSample,
-    RegionalTransform, RegionalValidity, RegionalValidityClass, SceneAdmissionBinding,
-    finalize_regional_terrain_sample,
+    RegionalFootprint, RegionalLayer, RegionalLayerKind, RegionalNativeGeometry,
+    RegionalNativeObject, RegionalProjectionPacket, RegionalSceneLimits, RegionalSceneLineage,
+    RegionalSceneOmission, RegionalTerrainGrid, RegionalTerrainGridCell, RegionalTerrainProgram,
+    RegionalTerrainSample, RegionalTransform, RegionalValidity, RegionalValidityClass,
+    SceneAdmissionBinding, finalize_regional_terrain_sample,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -989,6 +989,7 @@ fn build_scene(
         max_native_bytes: context.input.limits.max_total_bytes,
     };
     let admission_id = admission_digest(context);
+    let native_geometries = regional_native_geometries(candidate)?;
     let mut objects = candidate
         .features
         .iter()
@@ -1006,6 +1007,7 @@ fn build_scene(
                 object_revision: feature.feature_revision.clone(),
                 geometry_kind: feature.geometry_kind.clone(),
                 native_bounds: feature.native_bounds.clone(),
+                native_geometry: native_geometries.get(&feature.feature_id).cloned(),
                 layer: layer_kind(&feature.role)?,
                 authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
             })
@@ -1229,8 +1231,8 @@ fn build_scene(
             operation: scene_admission_operation_contract(),
             implementation: ContractIdentity::new(
                 "rey.scene-admission.builtin",
-                1,
-                "deterministic bounded validation of the exact editor transfer envelope and native GeoJSON objects",
+                2,
+                "deterministic bounded validation of the exact editor transfer envelope, native GeoJSON objects, and retained Point, LineString, or Polygon geometry",
             ),
             workload: context.workload.clone(),
             graph: context.graph.clone(),
@@ -1583,48 +1585,13 @@ fn build_regional_footprint(
     let [object] = eligible.as_slice() else {
         return Ok(None);
     };
-    let declared = candidate
-        .features
-        .iter()
-        .find(|feature| feature.feature_id == object.object_id)
-        .ok_or(SceneAdmissionError::FeatureIndex)?;
-    let source = candidate
-        .sources
-        .iter()
-        .find(|source| source.source_id == object.source_id)
-        .ok_or(SceneAdmissionError::FeatureIndex)?;
-    let bytes = source
-        .native_bytes
+    let RegionalNativeGeometry::Polygon { rings } = object
+        .native_geometry
         .as_ref()
-        .ok_or(SceneAdmissionError::FeatureIndex)?;
-    let document: Value = serde_json::from_slice(bytes)?;
-    let root = document.as_object().ok_or(SceneAdmissionError::GeoJson)?;
-    let features = match root.get("type").and_then(Value::as_str) {
-        Some("FeatureCollection") => root
-            .get("features")
-            .and_then(Value::as_array)
-            .ok_or(SceneAdmissionError::GeoJson)?
-            .iter()
-            .collect::<Vec<_>>(),
-        Some("Feature") => vec![&document],
-        _ => return Err(SceneAdmissionError::GeoJson),
+        .ok_or(SceneAdmissionError::FeatureIndex)?
+    else {
+        return Err(SceneAdmissionError::GeoJson);
     };
-    let feature = features
-        .into_iter()
-        .find(|feature| {
-            feature
-                .as_object()
-                .and_then(|feature| feature_id(feature.get("id")).ok())
-                .as_deref()
-                == Some(declared.source_feature_id.as_str())
-        })
-        .ok_or(SceneAdmissionError::FeatureIndex)?;
-    let geometry = feature
-        .as_object()
-        .and_then(|feature| feature.get("geometry"))
-        .and_then(Value::as_object)
-        .ok_or(SceneAdmissionError::GeoJson)?;
-    let rings = regional_polygon_rings(geometry)?;
     let coordinate_count = rings.iter().map(Vec::len).sum::<usize>() as u64;
     RegionalFootprint {
         footprint_id: placeholder_digest(),
@@ -1633,7 +1600,7 @@ fn build_regional_footprint(
         source_object_revision: object.object_revision.clone(),
         geometry_kind: object.geometry_kind.clone(),
         native_bounds: object.native_bounds.clone(),
-        rings,
+        rings: rings.clone(),
         coordinate_count,
         authority: "exact admitted native boundary polygon; footprint validity ends at its rings"
             .to_owned(),
@@ -1641,6 +1608,111 @@ fn build_regional_footprint(
     .finalize()
     .map(Some)
     .map_err(SceneAdmissionError::from)
+}
+
+fn regional_native_geometries(
+    candidate: &SceneAdmissionCandidate,
+) -> Result<BTreeMap<String, RegionalNativeGeometry>, SceneAdmissionError> {
+    let mut geometries = BTreeMap::new();
+    for source in &candidate.sources {
+        // Terrain grid cells already retain their exact row-major positions in
+        // the qualified terrain program. Repeating every Point here would add
+        // no geometry and would materially inflate the browser projection.
+        if source.role == "terrain" {
+            continue;
+        }
+        let bytes = source
+            .native_bytes
+            .as_ref()
+            .ok_or(SceneAdmissionError::FeatureIndex)?;
+        let document: Value = serde_json::from_slice(bytes)?;
+        let root = document.as_object().ok_or(SceneAdmissionError::GeoJson)?;
+        let features = match root.get("type").and_then(Value::as_str) {
+            Some("FeatureCollection") => root
+                .get("features")
+                .and_then(Value::as_array)
+                .ok_or(SceneAdmissionError::GeoJson)?
+                .iter()
+                .collect::<Vec<_>>(),
+            Some("Feature") => vec![&document],
+            _ => return Err(SceneAdmissionError::GeoJson),
+        };
+        for feature in features {
+            let object = feature.as_object().ok_or(SceneAdmissionError::GeoJson)?;
+            let source_feature_id = feature_id(object.get("id"))?;
+            let geometry = object
+                .get("geometry")
+                .and_then(Value::as_object)
+                .ok_or(SceneAdmissionError::GeoJson)?;
+            let object_id = format!("{}/{}", source.source_id, source_feature_id);
+            if let Some(geometry) = regional_native_geometry(geometry)? {
+                if geometries.insert(object_id, geometry).is_some() {
+                    return Err(SceneAdmissionError::FeatureIndex);
+                }
+            }
+        }
+    }
+    Ok(geometries)
+}
+
+fn regional_native_geometry(
+    geometry: &serde_json::Map<String, Value>,
+) -> Result<Option<RegionalNativeGeometry>, SceneAdmissionError> {
+    match geometry.get("type").and_then(Value::as_str) {
+        Some("Point") => Ok(Some(RegionalNativeGeometry::Point {
+            position: regional_position(
+                geometry
+                    .get("coordinates")
+                    .ok_or(SceneAdmissionError::GeoJson)?,
+            )?,
+        })),
+        Some("LineString") => Ok(Some(RegionalNativeGeometry::LineString {
+            positions: regional_line_positions(
+                geometry
+                    .get("coordinates")
+                    .ok_or(SceneAdmissionError::GeoJson)?,
+            )?,
+        })),
+        Some("Polygon") => Ok(Some(RegionalNativeGeometry::Polygon {
+            rings: regional_polygon_rings(geometry)?,
+        })),
+        // The editor already admits the wider RFC 7946 geometry family. Keep
+        // those objects admissible until their exact retained representation
+        // is added; the browser discloses and renders their bounds envelope.
+        Some("MultiPoint" | "MultiLineString" | "MultiPolygon" | "GeometryCollection") => Ok(None),
+        _ => Err(SceneAdmissionError::GeoJson),
+    }
+}
+
+fn regional_line_positions(value: &Value) -> Result<Vec<[i64; 2]>, SceneAdmissionError> {
+    let positions = value
+        .as_array()
+        .ok_or(SceneAdmissionError::GeoJson)?
+        .iter()
+        .map(regional_position)
+        .collect::<Result<Vec<_>, _>>()?;
+    if positions.len() < 2 {
+        return Err(SceneAdmissionError::GeoJson);
+    }
+    Ok(positions)
+}
+
+fn regional_position(value: &Value) -> Result<[i64; 2], SceneAdmissionError> {
+    let coordinates = value.as_array().ok_or(SceneAdmissionError::GeoJson)?;
+    let longitude = coordinates
+        .first()
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .ok_or(SceneAdmissionError::GeoJson)?;
+    let latitude = coordinates
+        .get(1)
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .ok_or(SceneAdmissionError::GeoJson)?;
+    if !(-180.0..=180.0).contains(&longitude) || !(-90.0..=90.0).contains(&latitude) {
+        return Err(SceneAdmissionError::CoordinateBounds);
+    }
+    Ok([to_microdegrees(longitude), to_microdegrees(latitude)])
 }
 
 fn regional_polygon_rings(
@@ -1658,24 +1730,7 @@ fn regional_polygon_rings(
             ring.as_array()
                 .ok_or(SceneAdmissionError::GeoJson)?
                 .iter()
-                .map(|position| {
-                    let coordinates = position.as_array().ok_or(SceneAdmissionError::GeoJson)?;
-                    let longitude = coordinates
-                        .first()
-                        .and_then(Value::as_f64)
-                        .filter(|value| value.is_finite())
-                        .ok_or(SceneAdmissionError::GeoJson)?;
-                    let latitude = coordinates
-                        .get(1)
-                        .and_then(Value::as_f64)
-                        .filter(|value| value.is_finite())
-                        .ok_or(SceneAdmissionError::GeoJson)?;
-                    if !(-180.0..=180.0).contains(&longitude) || !(-90.0..=90.0).contains(&latitude)
-                    {
-                        return Err(SceneAdmissionError::CoordinateBounds);
-                    }
-                    Ok([to_microdegrees(longitude), to_microdegrees(latitude)])
-                })
+                .map(regional_position)
                 .collect()
         })
         .collect()
@@ -2308,6 +2363,40 @@ mod tests {
     }
 
     #[test]
+    fn retains_supported_native_geometry_without_rejecting_wider_geojson() {
+        let point = serde_json::json!({
+            "type": "Point",
+            "coordinates": [-122.5, 37.25]
+        });
+        assert!(matches!(
+            regional_native_geometry(point.as_object().unwrap()).unwrap(),
+            Some(RegionalNativeGeometry::Point {
+                position: [-122_500_000, 37_250_000]
+            })
+        ));
+
+        let line = serde_json::json!({
+            "type": "LineString",
+            "coordinates": [[-122.5, 37.25], [-122.25, 37.5]]
+        });
+        assert!(matches!(
+            regional_native_geometry(line.as_object().unwrap()).unwrap(),
+            Some(RegionalNativeGeometry::LineString { positions })
+                if positions == vec![[-122_500_000, 37_250_000], [-122_250_000, 37_500_000]]
+        ));
+
+        let multi_line = serde_json::json!({
+            "type": "MultiLineString",
+            "coordinates": [[[-122.5, 37.25], [-122.25, 37.5]]]
+        });
+        assert!(
+            regional_native_geometry(multi_line.as_object().unwrap())
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn accepted_scene_keeps_all_coordinate_planes_and_excludes_terrain_hints() {
         let candidate = scene_admission_fixture(SceneAdmissionFixture::Accepted).unwrap();
         let input = SceneAdmissionInput {
@@ -2326,7 +2415,12 @@ mod tests {
             result.detail
         );
         let scene = result.scene.unwrap();
+        assert_eq!(scene.admission.implementation.revision, 2);
         assert_eq!(scene.projection.coordinate_bindings.len(), 5);
+        assert!(matches!(
+            scene.projection.objects[0].native_geometry,
+            Some(RegionalNativeGeometry::Polygon { ref rings }) if rings.len() == 1
+        ));
         let footprint = scene.projection.footprint.as_ref().expect("footprint");
         assert_eq!(footprint.source_object_id, "fixture-county/county-boundary");
         assert_eq!(footprint.rings.len(), 1);
@@ -2457,6 +2551,14 @@ mod tests {
             "piecewise linear only within triangles whose three admitted source vertices are valid"
         );
         assert_eq!(scene.artifacts.terrain_authority, terrain.authority);
+        assert!(
+            scene
+                .projection
+                .objects
+                .iter()
+                .filter(|object| object.layer == RegionalLayerKind::Terrain)
+                .all(|object| object.native_geometry.is_none())
+        );
 
         let mut tampered = candidate;
         let sample = tampered

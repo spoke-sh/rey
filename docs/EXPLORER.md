@@ -284,7 +284,9 @@ relief, water, land cover, and contours must already make the region feel like
 one place. Roads, railways, boundaries, structures, labels, selections, and
 evidence then clarify that place. An outlined feature envelope may retain an
 exact source boundary, but it cannot become the dominant Landscape visual
-grammar.
+grammar. Admitted Point, LineString, and Polygon coordinates remain exact
+vector paths through projection. A disclosed bounds fallback for another
+geometry family does not reconstruct its source shape.
 
 ```text
 validity / background

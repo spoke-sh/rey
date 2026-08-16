@@ -87,7 +87,7 @@ The render graph now binds every pass to a separate implementation revision,
 exact input revision, authority, and dependency set. The accelerated material
 executes base terrain, normal-driven hillshade, and ambient/valley occlusion as
 independently gated stages. Contours, derived hydrology/weather, exact County
-boundaries, admitted feature envelopes, points, and selection compile into
+boundaries, admitted native vectors, disclosed bounds fallbacks, points, and selection compile into
 terrain-draped R3F inputs. Drape sampling visits every crossed terrain cell and
 splits at no-data; it cannot bridge an unsupported interval. The same bounded
 terrain transform carries surface and overlays through Atlas-to-Landscape.
@@ -166,6 +166,15 @@ That voyage is a traversal baseline, not a named Landscape-fidelity row. Its
 Landscape capture still shows dominant outlined semantic envelopes, blurred
 coarse relief, no explicit water surfaces, and no scale-aware contours, so the
 side-by-side acceptance item remains open.
+
+Scene-admission implementation revision 2 now retains exact native coordinates
+for admitted non-terrain Point, LineString, and Polygon objects. The browser
+projects and drapes those paths directly, eliminating the rectangular bounds
+substitution that caused the dominant hydrology envelopes in that capture.
+Other RFC 7946 geometry families remain admissible with an explicit bounds
+fallback, and terrain-grid Points remain canonical in the qualified row-major
+grid rather than duplicating 6,561 coordinate payloads. This repairs vector
+shape fidelity but does not by itself close water-surface or contour fidelity.
 
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores
