@@ -7,14 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SCENE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
-// Two hundred intervals preserve exact integer-microdegree coordinates and
-// give the worker a six-level source pyramid before bounded presentation
-// refinement. GeoJSON remains an interchange slice; raster-native pyramids are
-// still required for substantially finer fields.
-const COLUMNS = 201;
-const ROWS = 201;
-const DATASET_ID = "rey-county-semantic-terrain-v6";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@6";
+// Five hundred intervals preserve exact integer-microdegree coordinates while
+// the packed source keeps 251,001 explicit cells under the admission and
+// renderer working-set limits. This is the first source-native density step;
+// a tiled raster adapter remains the long-term path beyond the bounded grid.
+const COLUMNS = 501;
+const ROWS = 501;
+const DATASET_ID = "rey-county-semantic-terrain-v7";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@7";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -50,7 +50,7 @@ const CONTROL_POSTURE = Object.freeze({
   "terrain-frontier-saddle": { rotation: 0, width: 0.2, height: 0.2 },
 });
 
-export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
+export function buildReyCountyTerrainSource(sceneDirectory = SCENE_DIRECTORY) {
   const inputs = Object.fromEntries(
     INPUT_FILES.map((name) => {
       const bytes = readFileSync(resolve(sceneDirectory, name));
@@ -132,16 +132,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
   }
 
   const drainage = applyDrainageIncision(cells);
-  const features = cells.map((cell) => {
-    const properties = {
-      terrain_grid_id: DATASET_ID,
-      terrain_grid_column: cell.column,
-      terrain_grid_row: cell.row,
-      terrain_grid_columns: COLUMNS,
-      terrain_grid_rows: ROWS,
-      terrain_grid_validity: cell.valid ? "valid" : "no_data",
-    };
-    const coordinates = [cell.longitude, cell.latitude];
+  for (const cell of cells) {
     if (cell.valid) {
       const sample = cell.sample;
       sample.elevation = roundElevation(Math.max(32, sample.elevation));
@@ -149,9 +140,6 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
         sample.elevation,
         sample.material_context,
       );
-      coordinates.push(sample.elevation);
-      properties.material = sample.material;
-      properties.landform = sample.landform;
       summary.valid_vertices += 1;
       summary.minimum_elevation_meters = Math.min(
         summary.minimum_elevation_meters,
@@ -168,13 +156,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
       if (!cell.insideFootprint) summary.outside_footprint_vertices += 1;
       if (cell.unexplored) summary.unexplored_vertices += 1;
     }
-    return {
-      type: "Feature",
-      id: `terrain-r${String(cell.row).padStart(2, "0")}-c${String(cell.column).padStart(2, "0")}`,
-      properties,
-      geometry: { type: "Point", coordinates },
-    };
-  });
+  }
 
   summary.minimum_elevation_meters = roundElevation(
     summary.minimum_elevation_meters,
@@ -183,11 +165,26 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
     summary.maximum_elevation_meters,
   );
 
-  return {
+  const materialPalette = Object.keys(summary.materials).sort();
+  const materialIndices = new Map(
+    materialPalette.map((material, index) => [material, index]),
+  );
+  const validity = Buffer.alloc(cells.length);
+  const elevations = Buffer.alloc(cells.length * 4);
+  const materials = Buffer.alloc(cells.length, 255);
+  for (let index = 0; index < cells.length; index += 1) {
+    const cell = cells[index];
+    if (!cell.valid) continue;
+    validity[index] = 1;
+    elevations.writeInt32LE(Math.round(cell.sample.elevation * 100), index * 4);
+    materials[index] = materialIndices.get(cell.sample.material);
+  }
+
+  const document = {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v6",
+      schema: "rey.county-terrain-source.v7",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -250,8 +247,51 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
       })),
       summary,
     },
-    features,
+    features: [
+      {
+        type: "Feature",
+        id: "rey-county-packed-terrain-v7",
+        properties: {
+          title: "Rey County packed authored terrain",
+          source_kind: "packed_rectilinear_terrain",
+        },
+        terrain_grid: {
+          schema: "rey.packed-terrain-grid.v1",
+          dataset_id: DATASET_ID,
+          compiler_revision: GEOGRAPHY_COMPILER_REVISION,
+          columns: COLUMNS,
+          rows: ROWS,
+          native_bounds_microdegrees: [
+            Math.round(bounds.west * 1_000_000),
+            Math.round(bounds.south * 1_000_000),
+            Math.round(bounds.east * 1_000_000),
+            Math.round(bounds.north * 1_000_000),
+          ],
+          validity_hex: validity.toString("hex"),
+          elevation_centimeters_le_hex: elevations.toString("hex"),
+          material_palette: materialPalette,
+          material_indices_hex: materials.toString("hex"),
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [bounds.west, bounds.north],
+              [bounds.east, bounds.north],
+              [bounds.east, bounds.south],
+              [bounds.west, bounds.south],
+              [bounds.west, bounds.north],
+            ],
+          ],
+        },
+      },
+    ],
   };
+  return { document, cells };
+}
+
+export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
+  return buildReyCountyTerrainSource(sceneDirectory).document;
 }
 
 export function serializeReyCountyTerrain(document) {
@@ -327,9 +367,10 @@ function terrainSample(
   const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 38;
   const ridgeTexture =
     ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 72;
-  const fineTexture = fractalNoise(warpedX, warpedY, 401, [13, 27, 51]) * 24;
+  const fineTexture =
+    fractalNoise(warpedX, warpedY, 401, [17, 37, 79, 157]) * 22;
   const fineRidges =
-    ridgedFractalNoise(warpedX, warpedY, 457, [11, 23, 43, 71]) * 34;
+    ridgedFractalNoise(warpedX, warpedY, 457, [19, 41, 83, 167, 223]) * 28;
   elevation +=
     (macroTexture + mesoTexture + ridgeTexture + fineTexture + fineRidges) *
     reliefWeight;

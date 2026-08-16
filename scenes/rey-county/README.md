@@ -62,7 +62,7 @@ the renderer.
 | File                       | Editor role       | Meaning                                                             |
 | -------------------------- | ----------------- | ------------------------------------------------------------------- |
 | `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                        |
-| `terrain.geojson`          | `terrain`         | 201×201 row-major elevation/material dataset with explicit validity |
+| `terrain.geojson`          | `terrain`         | Packed 501×501 elevation/material grid with explicit validity        |
 | `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height     |
 | `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry              |
 | `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region                |
@@ -73,25 +73,26 @@ the renderer.
 | `railways.geojson`         | `railway`         | Regional and industrial rail candidates                             |
 | `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy               |
 
-The terrain grid contains 40,401 vertices at exact integer-microdegree spacing:
+The terrain grid contains 251,001 cells at exact integer-microdegree spacing:
 
-- 28,862 valid vertices;
-- 10,825 no-data vertices outside the County footprint;
-- 863 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
-  predicates, producing 11,539 unique no-data vertices);
-- 32–1,774.91 meters of authored relief; and
+- 180,279 valid cells;
+- 66,265 no-data cells outside the County footprint;
+- 5,379 no-data cells in Unexplored Scrub (some exterior cells satisfy both
+  predicates, producing 70,722 unique no-data cells);
+- 32–1,784.12 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
-Two hundred intervals per axis preserve the County's exact bounds at
-approximately 417–461-meter sample spacing and exercise six bounded source-tile
-levels before presentation refinement. The complete source remains within the
-explicit 32 MiB source, 50,000-feature, 64 MiB editor-state, and 1,000,000-
-coordinate admission limits. This is a material improvement over the coarse
-source, not the final resolution target; a raster-native pyramid is required
-for substantially finer authored fields without turning GeoJSON points into a
-bulk terrain format.
+Five hundred intervals per axis preserve the County's exact bounds at
+approximately 167–185-meter sample spacing. One
+`rey.packed-terrain-grid.v1` GeoJSON feature carries byte-exact validity,
+little-endian centimeter elevation, and palette-indexed material channels
+beside its exact Polygon grid envelope. The 2.9 MiB artifact replaces 251,001
+counterfeit Point features and remains under the one-million-cell packed-grid
+admission limit. This is a source-native density improvement, not the final
+resolution target; a tiled raster adapter is still required beyond the bounded
+in-memory regional grid.
 
-The embedded `rey.agent-geography.rey-county@6` compiler record states the
+The embedded `rey.agent-geography.rey-county@7` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
@@ -101,8 +102,8 @@ orographic backbone, branching ridge network, and incised ravines before exact
 authored waterways carve the preliminary source height. A second bounded pass
 priority-floods only from exact validity boundaries, derives source drainage,
 selects steepest descent over the depression-safe surface, and incises at most
-30.5 meters without crossing no-data. The retained derivation reports 1,271
-channel vertices and a maximum contributing area of 18,290 valid vertices. The
+31.04 meters without crossing no-data. The retained derivation reports 6,088
+channel cells and a maximum contributing area of 121,105 valid cells. The
 shallower incision is deliberately spread across adjacent valid cells so the
 source reads as valley relief rather than a visible D8 drainage tree. The main
 river and wetland are exact admitted areas;
@@ -129,8 +130,9 @@ pnpm --filter @rey/agent exec vitest run \
 ```
 
 The Vitest contract verifies row-major coordinates, exact bounds, footprint
-and internal no-data, distinct landforms, relief, bounded materials, and
-byte-for-byte agreement with the checked-in artifact.
+and internal no-data, distinct landforms, relief, bounded materials, packed
+channel shape and encoding, and byte-for-byte agreement with the checked-in
+artifact.
 
 ## Editor And Admission
 
@@ -168,6 +170,7 @@ rey workloads run scene-admission --scene SCENE@n
 
 `SCENE@n` is the exact scene label printed by the editor commit. The final run
 re-inspects frozen native bytes, rejects divergent grid metadata or validity,
-and retains `rey.regional-terrain-grid.v1`. `/explore` consumes only that latest
+and retains `rey.regional-terrain-grid.v3` with derivable, cell-addressable
+packed-source lineage. `/explore` consumes only that latest
 accepted production result; a checkout containing these files but no local
 editor/workload history correctly remains unadmitted.

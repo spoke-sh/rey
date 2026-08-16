@@ -217,7 +217,7 @@ describe("regional terrain projection", () => {
       expect(withHole.validity.values[index]).toBe(1);
   });
 
-  it("selects fourfold refinement for the admitted Rey County grid", () => {
+  it("selects refinement from source density instead of a fixed multiplier", () => {
     const source = compileRegionalTerrainField(regionalTerrainScene(false), {
       width: 1200,
       height: 720,
@@ -227,6 +227,12 @@ describe("regional terrain projection", () => {
       grid: { ...source.grid, columns: 81, rows: 81 },
     };
     expect(regionalTerrainRefinementFactor(representative)).toBe(4);
+    expect(
+      regionalTerrainRefinementFactor({
+        ...source,
+        grid: { ...source.grid, columns: 501, rows: 501 },
+      }),
+    ).toBe(1);
   });
 
   it("derives scale-aware contours without crossing no-data cells", () => {

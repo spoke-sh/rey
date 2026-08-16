@@ -44,18 +44,18 @@ outside this package.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
-The current Rey County working field refines each admitted source interval two
-times, producing a 401×401 renderer-neutral field from the qualified 201×201
-dataset before `@rey/explorer` receives it. The refinement policy targets at
-least 320 intervals per axis, so source density—not a fixed multiplier—controls
-the exact working shape. Fully supported cell interiors use
-bilinear sampling; a cell touching no-data uses only fully supported source
-triangles. Every refined point carries an independent validity value.
-Band-limited deterministic microrelief is constrained to zero at admitted
-source vertices and remains explicitly presentation-only; diagnostics continue
-to report the original admitted vertex counts and elevation range. The
-reference renderer selects conservative root tiles instead of mounting
-hundreds of thousands of fallback polygons.
+The current Rey County working field uses the qualified 501×501 source without
+renderer refinement. The density policy targets at least 320 intervals per
+axis, so lower-density admitted fields may refine by a bounded integer factor
+while this source stays exact. In a refined field, fully supported cell
+interiors use bilinear sampling; a cell touching no-data uses only fully
+supported source triangles. Every refined point carries an independent
+validity value. Band-limited deterministic microrelief exists only on those
+presentation refinements, is constrained to zero at admitted source vertices,
+and remains explicitly presentation-only. Diagnostics always report the
+original admitted cell counts and elevation range. The reference renderer
+selects conservative root tiles instead of mounting hundreds of thousands of
+fallback polygons.
 
 That dense working field is then treated as a causal geography graph, not a
 bag of independent visual channels. A priority-flood pass resolves local
