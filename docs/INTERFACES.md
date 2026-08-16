@@ -1557,6 +1557,15 @@ evidence. `/explore` consumes that result only after its acceptance and exact
 bindings pass the browser evidence adapter; candidate state, staged
 qualification results, and rejected runs remain non-projectable.
 
+Marker and label Point features retain their exact `title`, optional `category`
+and `symbol`, `min_zoom`, `max_zoom`, and `collision_priority` properties
+through the editor index, independent scene-admission reinspection, and the
+regional native object. These values are cartographic metadata, not evidence
+authority. Explorer may deterministically cull overlapping text or suppress it
+outside the admitted zoom interval, but it cannot rename the feature or use a
+presentation label to alter selection, identity, geometry, validity, or
+coverage.
+
 `rey.editor-source-add-result.v1` is the human/machine verification receipt for
 registration. It binds changed/idempotent state, project bootstrap, exact
 source declaration and role, source content revision/bytes, parsed feature and

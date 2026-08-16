@@ -5,12 +5,12 @@ use rey_mining::{
     ADMITTED_REGIONAL_SCENE_SCHEMA, AdmittedRegionalScene, ExplorerGrammar,
     REGIONAL_PROJECTION_PACKET_SCHEMA, REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA,
     REGIONAL_TERRAIN_GRID_SCHEMA, REGIONAL_TERRAIN_PROGRAM_SCHEMA, RegionalArtifactBindings,
-    RegionalBounds, RegionalCoordinateBinding, RegionalCoordinateSpace, RegionalCoordinateStatus,
-    RegionalFootprint, RegionalLayer, RegionalLayerKind, RegionalNativeGeometry,
-    RegionalNativeObject, RegionalProjectionPacket, RegionalSceneLimits, RegionalSceneLineage,
-    RegionalSceneOmission, RegionalTerrainGrid, RegionalTerrainGridCell, RegionalTerrainProgram,
-    RegionalTerrainSample, RegionalTransform, RegionalValidity, RegionalValidityClass,
-    SceneAdmissionBinding, finalize_regional_terrain_sample,
+    RegionalBounds, RegionalCartographicLabel, RegionalCoordinateBinding, RegionalCoordinateSpace,
+    RegionalCoordinateStatus, RegionalFootprint, RegionalLayer, RegionalLayerKind,
+    RegionalNativeGeometry, RegionalNativeObject, RegionalProjectionPacket, RegionalSceneLimits,
+    RegionalSceneLineage, RegionalSceneOmission, RegionalTerrainGrid, RegionalTerrainGridCell,
+    RegionalTerrainProgram, RegionalTerrainSample, RegionalTransform, RegionalValidity,
+    RegionalValidityClass, SceneAdmissionBinding, finalize_regional_terrain_sample,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -61,7 +61,20 @@ pub struct SceneAdmissionFeature {
     pub properties_digest: SemanticDigest,
     pub feature_revision: SemanticDigest,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cartographic_label: Option<SceneAdmissionCartographicLabel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terrain_sample: Option<SceneAdmissionTerrainSample>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionCartographicLabel {
+    pub title: String,
+    pub category: Option<String>,
+    pub symbol: Option<String>,
+    pub min_zoom: u64,
+    pub max_zoom: u64,
+    pub collision_priority: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -179,6 +192,12 @@ impl SceneAdmissionCandidate {
             .any(|feature| (feature.role == "terrain") != feature.terrain_sample.is_some())
         {
             return Err(SceneAdmissionError::TerrainSample);
+        }
+        if self.features.iter().any(|feature| {
+            matches!(feature.role.as_str(), "markers" | "label")
+                != feature.cartographic_label.is_some()
+        }) {
+            return Err(SceneAdmissionError::CartographicLabel);
         }
         if !self.complete || !self.omissions.is_empty() {
             return Err(SceneAdmissionError::CandidateIncomplete);
@@ -575,6 +594,7 @@ pub fn scene_admission_fixture(
         properties_digest: properties_digest(&properties),
         feature_revision: feature_digest("fixture-county", "boundary", &feature_value)?,
         terrain_sample: None,
+        cartographic_label: None,
     };
     let package_id = semantic_digest("rey.fixture.scene-package.v1", "fixture-current");
     let mut candidate = SceneAdmissionCandidate {
@@ -844,6 +864,8 @@ fn inspect_geojson_source(
             geometry_kind,
             properties,
         )?;
+        let cartographic_label =
+            inspect_cartographic_label(&source.role, geometry_kind, properties)?;
         inspected.push(SceneAdmissionFeature {
             feature_id: format!("{}/{}", source.source_id, source_feature_id),
             source_id: source.source_id.clone(),
@@ -854,6 +876,7 @@ fn inspect_geojson_source(
             coordinate_count: positions.len() as u64,
             properties_digest: properties_digest(&properties_bytes),
             feature_revision,
+            cartographic_label,
             terrain_sample,
         });
     }
@@ -863,6 +886,54 @@ fn inspect_geojson_source(
         coordinate_count: all_positions.len() as u64,
         bounds: bounds_from_positions(&all_positions)?,
     })
+}
+
+fn inspect_cartographic_label(
+    role: &str,
+    geometry_kind: &str,
+    properties: &serde_json::Map<String, Value>,
+) -> Result<Option<SceneAdmissionCartographicLabel>, SceneAdmissionError> {
+    if !matches!(role, "markers" | "label") {
+        return Ok(None);
+    }
+    if geometry_kind != "Point" {
+        return Err(SceneAdmissionError::CartographicLabel);
+    }
+    let string = |name: &str| {
+        properties
+            .get(name)
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(ToOwned::to_owned)
+                    .ok_or(SceneAdmissionError::CartographicLabel)
+            })
+            .transpose()
+    };
+    let integer = |name: &str| {
+        properties
+            .get(name)
+            .map(|value| value.as_u64().ok_or(SceneAdmissionError::CartographicLabel))
+            .transpose()
+    };
+    let title = string("title")?
+        .or(string("name")?)
+        .filter(|title| !title.is_empty() && title.len() <= 256)
+        .ok_or(SceneAdmissionError::CartographicLabel)?;
+    let min_zoom = integer("min_zoom")?.unwrap_or(0);
+    let max_zoom = integer("max_zoom")?.unwrap_or(24);
+    let collision_priority = integer("collision_priority")?.unwrap_or(0);
+    if min_zoom > max_zoom || max_zoom > 24 || collision_priority > 1_000 {
+        return Err(SceneAdmissionError::CartographicLabel);
+    }
+    Ok(Some(SceneAdmissionCartographicLabel {
+        title,
+        category: string("category")?,
+        symbol: string("symbol")?,
+        min_zoom,
+        max_zoom,
+        collision_priority,
+    }))
 }
 
 fn inspect_terrain_sample(
@@ -1008,6 +1079,16 @@ fn build_scene(
                 geometry_kind: feature.geometry_kind.clone(),
                 native_bounds: feature.native_bounds.clone(),
                 native_geometry: native_geometries.get(&feature.feature_id).cloned(),
+                cartographic_label: feature.cartographic_label.as_ref().map(|label| {
+                    RegionalCartographicLabel {
+                        title: label.title.clone(),
+                        category: label.category.clone(),
+                        symbol: label.symbol.clone(),
+                        min_zoom: label.min_zoom,
+                        max_zoom: label.max_zoom,
+                        collision_priority: label.collision_priority,
+                    }
+                }),
                 layer: layer_kind(&feature.role)?,
                 authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
             })
@@ -2151,6 +2232,8 @@ pub enum SceneAdmissionError {
     FeatureIndex,
     #[error("scene-admission qualified terrain sample is malformed or unbound")]
     TerrainSample,
+    #[error("scene-admission cartographic label is malformed or unbound")]
+    CartographicLabel,
     #[error("scene-admission source role is unsupported: {0}")]
     UnsupportedRole(String),
     #[error("scene-admission result has an invalid status/evidence shape")]
@@ -2214,6 +2297,7 @@ mod tests {
             coordinate_count: 1,
             properties_digest: properties_digest(&properties),
             feature_revision: feature_digest("fixture-terrain", "terrain", &feature_value).unwrap(),
+            cartographic_label: None,
             terrain_sample: Some(SceneAdmissionTerrainSample {
                 longitude_microdegrees: -122_500_000,
                 latitude_microdegrees: 37_500_000,
@@ -2285,6 +2369,7 @@ mod tests {
                         &feature_value,
                     )
                     .unwrap(),
+                    cartographic_label: None,
                     terrain_sample: Some(SceneAdmissionTerrainSample {
                         longitude_microdegrees: to_microdegrees(longitude),
                         latitude_microdegrees: to_microdegrees(latitude),
@@ -2396,6 +2481,73 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn retains_exact_cartographic_label_metadata() {
+        let mut candidate = scene_admission_fixture(SceneAdmissionFixture::Accepted).unwrap();
+        let native = serde_json::to_vec(&serde_json::json!({
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "id": "county-seat",
+                "properties": {
+                    "title": "Fixture County",
+                    "category": "county_seat",
+                    "symbol": "star",
+                    "min_zoom": 3,
+                    "max_zoom": 18,
+                    "collision_priority": 100
+                },
+                "geometry": {"type": "Point", "coordinates": [-122.5, 37.5]}
+            }]
+        }))
+        .unwrap();
+        let source = SceneAdmissionSource {
+            source_id: "fixture-markers".to_owned(),
+            worktree_path: "fixtures/markers.geojson".to_owned(),
+            format: "geo_json".to_owned(),
+            role: "markers".to_owned(),
+            media_type: "application/geo+json".to_owned(),
+            artifact_id: native_artifact_digest(&native),
+            artifact_path: "objects/fixture-markers.geojson".to_owned(),
+            declared_bytes: native.len() as u64,
+            native_bytes: Some(native),
+            feature_count: 1,
+            coordinate_count: 1,
+        };
+        let inspected = inspect_geojson_source(&source, source.native_bytes.as_ref().unwrap())
+            .expect("exact marker source");
+        candidate.sources.push(source);
+        candidate.features.extend(inspected.features);
+        candidate
+            .sources
+            .sort_by(|left, right| left.source_id.cmp(&right.source_id));
+        candidate
+            .features
+            .sort_by(|left, right| left.feature_id.cmp(&right.feature_id));
+        candidate.candidate_id = candidate_digest(&candidate).unwrap();
+        let input = SceneAdmissionInput {
+            candidate,
+            limits: SceneAdmissionLimits::default(),
+            capability_snapshot_id: semantic_digest("fixture.capabilities", "labels"),
+        };
+        let contracts = contracts();
+        let campaign = semantic_digest("fixture.campaign", "labels");
+        let result = execute_scene_admission(context(&input, &contracts, &campaign)).unwrap();
+        let label = result
+            .scene
+            .expect("accepted scene")
+            .projection
+            .objects
+            .into_iter()
+            .find(|object| object.object_id == "fixture-markers/county-seat")
+            .and_then(|object| object.cartographic_label)
+            .expect("retained cartographic label");
+        assert_eq!(label.title, "Fixture County");
+        assert_eq!(label.min_zoom, 3);
+        assert_eq!(label.max_zoom, 18);
+        assert_eq!(label.collision_priority, 100);
     }
 
     #[test]

@@ -546,6 +546,28 @@ function CountyFeatureLayer({
       ),
   );
   if (features.length === 0) return null;
+  const labelPlacements = new Map(
+    layoutSemanticLabels(
+      features.flatMap((node) => {
+        const label = node.spatial_feature?.cartographic_label;
+        if (!label) return [];
+        return [
+          {
+            fragment_id: `county:${node.id}`,
+            semantic_identity: node.semantic_identity ?? node.id,
+            focus_id: node.focus_id,
+            x: node.x + 10,
+            y: node.y - 20,
+            width: Math.max(44, node.label.length * 6.2),
+            height: 18,
+            priority: label.collision_priority,
+            selected: node.focus_id === scene.focus_id,
+          },
+        ];
+      }),
+      32,
+    ).map((placement) => [placement.fragment_id, placement]),
+  );
   return (
     <svg
       aria-label={`${features.length} admitted County features`}
@@ -568,7 +590,8 @@ function CountyFeatureLayer({
             feature.layer,
           );
         const selected = node.focus_id === scene.focus_id;
-        const showLabel = selected;
+        const labelPlacement = labelPlacements.get(`county:${node.id}`);
+        const showLabel = selected || labelPlacement?.visible === true;
         const content = (
           <g
             aria-label={`${node.family}: ${node.label}. ${node.detail}`}
@@ -637,6 +660,9 @@ function CountyFeatureLayer({
                   feature.layer === "hydrology" &&
                     !linear &&
                     styles.countyFeatureWaterArea,
+                  feature.layer === "highway" && styles.countyFeatureHighway,
+                  feature.layer === "road" && styles.countyFeatureRoad,
+                  feature.layer === "railway" && styles.countyFeatureRailway,
                   feature.layer === "boundary" && styles.countyFeatureBoundary,
                   feature.layer === "terrain_control" &&
                     styles.countyTerrainControl,
@@ -648,6 +674,10 @@ function CountyFeatureLayer({
               <text
                 className={sx(styles.countyFeatureLabel)}
                 data-feature-label-visible="true"
+                data-label-disposition={labelPlacement?.disposition}
+                data-label-layout={
+                  labelPlacement ? SEMANTIC_LABEL_LAYOUT_REVISION : undefined
+                }
                 x={node.x + 12}
                 y={node.y - 12}
               >

@@ -230,6 +230,11 @@ export interface TopologyNode {
     geometry_path: string;
     geometry_representation: "exact_native" | "bounds_envelope";
     authority: string;
+    cartographic_label?: {
+      min_zoom: number;
+      max_zoom: number;
+      collision_priority: number;
+    };
   };
 }
 
@@ -1141,7 +1146,7 @@ function buildRegionalCounty(
         `regional-object:${object.object_id}`,
         `regional-object:${object.object_id}`,
         object.layer.replaceAll("_", " ").toUpperCase(),
-        object.object_id,
+        object.cartographic_label?.title ?? object.object_id,
         regime === "evidence"
           ? `${exactDetail} · source artifact ${shortCoordinate(object.source_artifact_id)}`
           : exactDetail,
@@ -1165,6 +1170,13 @@ function buildRegionalCounty(
           ? ("exact_native" as const)
           : ("bounds_envelope" as const),
         authority: object.authority,
+        cartographic_label: object.cartographic_label
+          ? {
+              min_zoom: object.cartographic_label.min_zoom,
+              max_zoom: object.cartographic_label.max_zoom,
+              collision_priority: object.cartographic_label.collision_priority,
+            }
+          : undefined,
       },
     };
   });

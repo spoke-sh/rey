@@ -211,6 +211,11 @@ disclosed bounds fallback. Structure footprints remain two-dimensional; a
 later qualified mesh adapter may add volumetric geometry without changing
 their authority.
 
+Cartographic text is a separate presentation pass. The application consumes
+only exact scene-admitted label metadata, applies its admitted zoom interval,
+and uses deterministic selected-first collision culling. A hidden label leaves
+its native object, pick target, evidence route, and validity unchanged.
+
 Regional packets without a terrain program do not enter this pipeline. Exact
 isolated regional samples remain source points because they authorize no
 surface interpolation. A qualified `rey.regional-terrain-grid.v1` enters only

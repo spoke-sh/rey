@@ -42,4 +42,20 @@ describe("Landscape cartographic hierarchy", () => {
     expect(featureVisibleAtLens(control, "objects", false)).toBe(true);
     expect(featureVisibleAtLens(control, "evidence", false)).toBe(true);
   });
+
+  it("uses exact admitted label zoom bounds for point visibility", () => {
+    const seat = {
+      geometry_kind: "Point",
+      layer: "poi",
+      cartographic_label: { min_zoom: 3, max_zoom: 8 },
+    };
+    const detail = {
+      geometry_kind: "Point",
+      layer: "label",
+      cartographic_label: { min_zoom: 7, max_zoom: 24 },
+    };
+    expect(featureVisibleAtLens(seat, "landscape", false)).toBe(true);
+    expect(featureVisibleAtLens(detail, "landscape", false)).toBe(false);
+    expect(featureVisibleAtLens(detail, "neighborhoods", false)).toBe(true);
+  });
 });

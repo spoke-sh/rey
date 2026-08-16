@@ -146,6 +146,14 @@ export interface RegionalProjectionPacket {
       | { kind: "point"; position: [number, number] }
       | { kind: "line_string"; positions: Array<[number, number]> }
       | { kind: "polygon"; rings: Array<Array<[number, number]>> };
+    cartographic_label?: {
+      title: string;
+      category: string | null;
+      symbol: string | null;
+      min_zoom: number;
+      max_zoom: number;
+      collision_priority: number;
+    };
     layer: RegionalLayerKind;
     authority: string;
   }>;

@@ -270,6 +270,19 @@ export const exploreStyles = stylex.create({
     stroke: "color-mix(in srgb, #72a6ae 80%, var(--rey-foreground))",
     strokeWidth: 1.4,
   },
+  countyFeatureHighway: {
+    stroke: "#eee6d5",
+    strokeWidth: 2.8,
+  },
+  countyFeatureRoad: {
+    stroke: "#d7d0c2",
+    strokeWidth: 1.45,
+  },
+  countyFeatureRailway: {
+    stroke: "#5e5b56",
+    strokeDasharray: "5 3",
+    strokeWidth: 1.25,
+  },
   countyFeatureWaterArea: {
     fill: "color-mix(in srgb, #4f93a0 48%, transparent)",
     opacity: 0.74,

@@ -313,6 +313,8 @@ pub struct SceneFeatureIndex {
     pub feature_revision: SemanticDigest,
     pub marker: Option<SceneMarkerIndex>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cartographic_label: Option<SceneMarkerIndex>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terrain_sample: Option<SceneTerrainSample>,
 }
 
@@ -433,6 +435,7 @@ impl SceneCandidateSnapshot {
                     != format!("{}/{}", feature.source_id, feature.source_feature_id)
                 || feature.coordinate_count == 0
                 || (feature.marker.is_some() && feature.role != SceneSourceRole::Markers)
+                || (feature.cartographic_label.is_some() && feature.role != SceneSourceRole::Label)
         }) {
             return Err(EditorError::SnapshotFeature);
         }
@@ -1331,6 +1334,18 @@ impl LocalEditorStore {
                 coordinate_count: feature.coordinate_count,
                 properties_digest: feature.properties_digest.clone(),
                 feature_revision: feature.feature_revision.clone(),
+                cartographic_label: feature
+                    .marker
+                    .as_ref()
+                    .or(feature.cartographic_label.as_ref())
+                    .map(|label| rey_runtime::SceneAdmissionCartographicLabel {
+                        title: label.title.clone(),
+                        category: label.category.clone(),
+                        symbol: label.symbol.clone(),
+                        min_zoom: label.min_zoom,
+                        max_zoom: label.max_zoom,
+                        collision_priority: label.collision_priority,
+                    }),
                 terrain_sample: feature.terrain_sample.as_ref().map(|sample| {
                     rey_runtime::SceneAdmissionTerrainSample {
                         longitude_microdegrees: sample.longitude_microdegrees,
@@ -2057,7 +2072,7 @@ fn parse_geojson(
             .ok_or_else(|| EditorError::MissingGeometry(source_feature_id.clone()))?;
         let mut geometry_summary = GeometrySummary::default();
         validate_geometry(geometry, &mut geometry_summary)?;
-        if role == SceneSourceRole::Markers
+        if matches!(role, SceneSourceRole::Markers | SceneSourceRole::Label)
             && !matches!(geometry_summary.kind.as_str(), "Point" | "MultiPoint")
         {
             return Err(EditorError::MarkerGeometry(source_feature_id));
@@ -2094,6 +2109,11 @@ fn parse_geojson(
         } else {
             None
         };
+        let cartographic_label = if role == SceneSourceRole::Label {
+            Some(marker_index(&source_feature_id, properties)?)
+        } else {
+            None
+        };
         let terrain_sample = terrain_sample(
             role,
             &source_feature_id,
@@ -2122,6 +2142,7 @@ fn parse_geojson(
             properties_digest,
             feature_revision,
             marker,
+            cartographic_label,
             terrain_sample,
         });
     }
@@ -3487,6 +3508,34 @@ mod tests {
             log.entries[1].package.snapshot.features[0].bounds.west,
             -122.4
         );
+    }
+
+    #[test]
+    fn indexes_exact_cartographic_label_metadata() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        store.init_project("atlas".to_owned()).unwrap();
+        fs::write(
+            workspace.path().join("labels.geojson"),
+            r#"{"type":"FeatureCollection","features":[{"type":"Feature","id":"county-seat","geometry":{"type":"Point","coordinates":[-122.4,37.8]},"properties":{"title":"Fixture County","category":"county_seat","min_zoom":3,"max_zoom":18,"collision_priority":100}}]}"#,
+        )
+        .unwrap();
+        declare_geojson_source(
+            &store,
+            "labels.geojson",
+            "county-labels",
+            SceneSourceRole::Label,
+        );
+
+        let snapshot = store.add().unwrap().snapshot;
+        let label = snapshot.features[0]
+            .cartographic_label
+            .as_ref()
+            .expect("cartographic label index");
+        assert_eq!(label.title, "Fixture County");
+        assert_eq!(label.min_zoom, 3);
+        assert_eq!(label.max_zoom, 18);
+        assert_eq!(snapshot.coverage.markers, 0);
     }
 
     #[test]

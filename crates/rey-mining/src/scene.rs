@@ -383,6 +383,17 @@ impl RegionalNativeGeometry {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct RegionalCartographicLabel {
+    pub title: String,
+    pub category: Option<String>,
+    pub symbol: Option<String>,
+    pub min_zoom: u64,
+    pub max_zoom: u64,
+    pub collision_priority: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct RegionalNativeObject {
     pub object_id: String,
     pub source_id: String,
@@ -393,6 +404,8 @@ pub struct RegionalNativeObject {
     pub native_bounds: RegionalBounds,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_geometry: Option<RegionalNativeGeometry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cartographic_label: Option<RegionalCartographicLabel>,
     pub layer: RegionalLayerKind,
     pub authority: String,
 }
@@ -803,6 +816,18 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
                     .verify(&object.geometry_kind, &object.native_bounds)
                     .is_err()
             })
+            || object.cartographic_label.as_ref().is_some_and(|label| {
+                object.geometry_kind != "Point"
+                    || !matches!(
+                        object.layer,
+                        RegionalLayerKind::Poi | RegionalLayerKind::Label
+                    )
+                    || label.title.is_empty()
+                    || label.title.len() > 256
+                    || label.min_zoom > label.max_zoom
+                    || label.max_zoom > 24
+                    || label.collision_priority > 1_000
+            })
         {
             return Err(RegionalSceneError::ObjectAuthority);
         }
@@ -1184,6 +1209,7 @@ mod tests {
                     [west, south],
                 ]],
             }),
+            cartographic_label: None,
             layer: RegionalLayerKind::Boundary,
             authority: "exact admitted native geometry; appearance grants no relationship, activity, or action authority".to_owned(),
         };
