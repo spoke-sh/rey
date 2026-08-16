@@ -137,6 +137,16 @@ regional scene. This makes the implemented Landscape path visible in the
 default project bearing without treating terrain controls as observed height or
 closing the still-open named fidelity matrix.
 
+Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
+retains bounded orbit inspection from 28 to 88 degrees, while reset restores
+the cartographic entry. The rectangular validity mesh has been removed;
+no-data is communicated by absent triangles over the terrain canvas. Landscape
+feature LOD retains water and transport vectors plus the exact selection while
+hiding terrain-control, district, lot, and unselected point envelopes until a
+closer semantic lens. Contours and the County boundary are subordinate to the
+relief rather than bright framing lines. This corrects composition and layer
+hierarchy, but the 41x41 source still leaves the relief-fidelity item open.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -251,13 +261,13 @@ hierarchy remain subsequent slices of the same boundary.
 
 ### 7. Rebaseline Landscape as a geographic map
 
-- [ ] Make the Landscape entry camera near north-up and mostly overhead while
+- [x] Make the Landscape entry camera near north-up and mostly overhead while
       preserving reversible Atlas attachment, analytic pan/pick behavior, and
       an explicit bounded orbit gesture.
-- [ ] Remove the stage-like validity slab. Unsupported cells must remain holes,
+- [x] Remove the stage-like validity slab. Unsupported cells must remain holes,
       while canvas/background treatment communicates absence without drawing a
       rectangular world object.
-- [ ] Establish a cartographic layer hierarchy in which relief, water, land
+- [x] Establish a cartographic layer hierarchy in which relief, water, land
       cover, and contours form the base read and semantic envelopes, markers,
       and selection cannot dominate at Landscape LOD.
 - [ ] Revise the Rey County geography compiler and admitted dataset to carry

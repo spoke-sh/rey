@@ -573,11 +573,9 @@ describe("regional scene topology projection", () => {
     expect(markup).toContain('data-county-footprint="footprint:1"');
     expect(markup).toContain('data-source-object="county-boundary"');
     expect(markup).toContain('fill-rule="evenodd"');
-    expect(markup).toContain('data-county-feature="regional-object:ridge"');
-    expect(markup).toContain('data-feature-layer="terrain_control"');
-    expect(markup).toContain("Feature marks use exact admitted native bounds");
+    expect(markup).not.toContain('data-county-feature="regional-object:ridge"');
+    expect(markup).not.toContain('data-feature-layer="terrain_control"');
     expect(markup).toContain("ridge");
-    expect(markup).toContain("terrain.geojson");
     expect(markup).not.toContain('data-feature-label-visible="true"');
     expect(markup).not.toContain("topology-terrain-field");
     const objectCounty = buildTopologyScene(
@@ -595,6 +593,14 @@ describe("regional scene topology projection", () => {
     expect(objectMarkup).toContain(
       'data-object-evidence="/workloads/scene-admission/scenes/scene%3A1/objects/object%3A1"',
     );
+    expect(objectMarkup).toContain(
+      'data-county-feature="regional-object:ridge"',
+    );
+    expect(objectMarkup).toContain('data-feature-layer="terrain_control"');
+    expect(objectMarkup).toContain(
+      "Feature marks use exact admitted native bounds",
+    );
+    expect(objectMarkup).toContain("terrain.geojson");
     expect(objectMarkup).toContain('data-feature-label-visible="true"');
     expect(objectMarkup).toContain("RIDGE");
     expect(objectMarkup).toContain("OPEN EXACT EVIDENCE");

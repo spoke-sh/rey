@@ -53,6 +53,7 @@ import {
   type ScenePickingIndex,
 } from "../engine/picking";
 import type { AtlasLandscapePresentation } from "../projection/atlas-landscape";
+import { featureVisibleAtLens } from "../engine/cartography";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -202,7 +203,7 @@ export function ReferenceRenderer({
             </div>
           )),
         )}
-      <CountyFootprintLayer scene={scene} />
+      <CountyFootprintLayer accelerated={accelerated} scene={scene} />
       {!accelerated && scene.terrain ? (
         <AdmittedTerrainFieldLayer scene={scene} />
       ) : null}
@@ -523,7 +524,13 @@ function CountyFeatureLayer({
   const features = scene.nodes.filter(
     (node) =>
       node.spatial_feature &&
-      node.id !== `regional-object:${scene.county_footprint?.source_object_id}`,
+      node.id !==
+        `regional-object:${scene.county_footprint?.source_object_id}` &&
+      featureVisibleAtLens(
+        node.spatial_feature,
+        scene.regime,
+        node.focus_id === scene.focus_id,
+      ),
   );
   if (features.length === 0) return null;
   return (
@@ -658,7 +665,13 @@ function countyFeatureLabel(label: string) {
   return concise.replaceAll("-", " ").toUpperCase();
 }
 
-function CountyFootprintLayer({ scene }: { scene: TopologyScene }) {
+function CountyFootprintLayer({
+  accelerated,
+  scene,
+}: {
+  accelerated: boolean;
+  scene: TopologyScene;
+}) {
   const footprint = scene.county_footprint;
   if (!footprint) return null;
   return (
@@ -673,7 +686,10 @@ function CountyFootprintLayer({ scene }: { scene: TopologyScene }) {
     >
       <desc>{`${footprint.source_object_id} / ${footprint.coordinate_count} exact native coordinates / ${footprint.authority}`}</desc>
       <path
-        className={sx(styles.countyFootprint)}
+        className={sx(
+          styles.countyFootprint,
+          accelerated && styles.countyFootprintAccelerated,
+        )}
         d={footprint.path}
         fillRule="evenodd"
       />

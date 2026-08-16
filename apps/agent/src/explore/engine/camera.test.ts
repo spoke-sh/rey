@@ -156,13 +156,13 @@ describe("Explorer camera engine", () => {
         { yaw_degrees: 170, pitch_degrees: 35 },
         { x: 100, y: -400 },
       ),
-    ).toEqual({ yaw_degrees: -172, pitch_degrees: 72 });
+    ).toEqual({ yaw_degrees: -172, pitch_degrees: 88 });
     expect(
       draggedTerrainOrbit(
         { yaw_degrees: -170, pitch_degrees: 35 },
         { x: -100, y: 400 },
       ),
-    ).toEqual({ yaw_degrees: 172, pitch_degrees: 22 });
+    ).toEqual({ yaw_degrees: 172, pitch_degrees: 28 });
   });
 
   it("solves the bounded terrain target in camera screen axes", () => {

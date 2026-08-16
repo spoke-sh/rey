@@ -231,6 +231,11 @@ export const exploreStyles = stylex.create({
     strokeWidth: 2,
     vectorEffect: "non-scaling-stroke",
   },
+  countyFootprintAccelerated: {
+    fill: "transparent",
+    opacity: 0.42,
+    strokeWidth: 1.2,
+  },
   countyFeatureLayer: {
     pointerEvents: "auto",
     zIndex: 3,

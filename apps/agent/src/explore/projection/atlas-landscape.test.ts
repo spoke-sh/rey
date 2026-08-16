@@ -9,7 +9,7 @@ const binding = {
   source_frame: { x: 120, y: 160, width: 180, height: 90 },
   target_frame: { x: 96, y: 72, width: 1008, height: 576 },
 };
-const orbit = { pitch_degrees: 35.26439, yaw_degrees: 45 };
+const orbit = { pitch_degrees: 82, yaw_degrees: 0 };
 const world = { width: 1200, height: 720 };
 
 describe("Atlas-to-Landscape projector", () => {

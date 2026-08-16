@@ -75,11 +75,12 @@ TSL. Its separately revisioned pass inputs gate:
 
 `ContinuousReliefScene` shares the material across compiled meshes and adds
 warm and cool directional lights plus ambient fill. Its orthographic camera is
-a bounded target/orbit view: application-supplied pitch and yaw are clamped,
-screen-axis pan resolves to one ground target, and an optional model transform
-keeps the terrain attached during projection changes. R3F owns the declarative
-camera and terrain-group lifecycle; `@rey/agent` owns orbit interaction and the
-semantic projection curve.
+a bounded target/orbit view: the application supplies a near-north-up,
+mostly-overhead cartographic entry, pitch and yaw are clamped, screen-axis pan
+resolves to one ground target, and an optional model transform keeps the
+terrain attached during projection changes. R3F owns the declarative camera and
+terrain-group lifecycle; `@rey/agent` owns the explicit Shift-drag orbit
+interaction and the semantic projection curve.
 
 ## Executable Geographic Passes
 

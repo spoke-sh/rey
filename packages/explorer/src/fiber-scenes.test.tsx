@@ -149,6 +149,10 @@ describe("declarative React Three Fiber scenes", () => {
       terrain.instance.getObjectByName("terrain-pass:validity_background"),
     ).toBeDefined();
     expect(
+      terrain.instance.getObjectByName("terrain-pass:validity_background")
+        ?.type,
+    ).toBe("Group");
+    expect(
       terrain.instance.getObjectByName("terrain-pass:contours:contour:fixture"),
     ).toBeDefined();
     expect(

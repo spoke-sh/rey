@@ -26,8 +26,8 @@ export const DEFAULT_GLOBE_VIEW: GlobeCameraView = Object.freeze({
   pitch_degrees: 0,
 });
 export const DEFAULT_TERRAIN_ORBIT: TerrainOrbitView = Object.freeze({
-  yaw_degrees: 45,
-  pitch_degrees: 35.26439,
+  yaw_degrees: 0,
+  pitch_degrees: 82,
 });
 
 export function draggedGlobeView(
@@ -60,8 +60,8 @@ export function draggedTerrainOrbit(
   return Object.freeze({
     yaw_degrees: yaw,
     pitch_degrees: Math.min(
-      72,
-      Math.max(22, origin.pitch_degrees - delta.y * 0.14),
+      88,
+      Math.max(28, origin.pitch_degrees - delta.y * 0.14),
     ),
   });
 }

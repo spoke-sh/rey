@@ -21,7 +21,6 @@ import {
   MeshStandardNodeMaterial,
   NotEqualStencilFunc,
   OrthographicCamera,
-  PlaneGeometry,
   Quaternion,
   ReplaceStencilOp,
   RingGeometry,
@@ -88,7 +87,6 @@ extend({
   LineBasicNodeMaterial,
   Mesh,
   OrthographicCamera,
-  PlaneGeometry,
   RingGeometry,
 });
 
@@ -194,7 +192,7 @@ function TerrainExecutablePasses({
   );
   return (
     <group name={`terrain-passes:${passes.pass_set_id}`}>
-      {validity ? <TerrainValidityBackground bounds={passes.bounds} /> : null}
+      {validity ? <group name="terrain-pass:validity_background" /> : null}
       {passes.lines.map((line) => (
         <TerrainPassLine key={line.id} line={line} />
       ))}
@@ -203,36 +201,6 @@ function TerrainExecutablePasses({
       ))}
     </group>
   );
-}
-
-function TerrainValidityBackground({
-  bounds,
-}: {
-  bounds: NonNullable<CompiledContinuousRelief["render_passes"]>["bounds"];
-}) {
-  const object = useMemo(() => {
-    const geometry = new PlaneGeometry(bounds.width, bounds.height);
-    geometry.rotateX(-Math.PI / 2);
-    const mesh = new Mesh(
-      geometry,
-      new MeshBasicNodeMaterial({ color: 0x171814 }),
-    );
-    mesh.name = "terrain-pass:validity_background";
-    mesh.position.set(
-      bounds.x + bounds.width / 2,
-      -0.35,
-      bounds.y + bounds.height / 2,
-    );
-    return mesh;
-  }, [bounds.height, bounds.width, bounds.x, bounds.y]);
-  useEffect(
-    () => () => {
-      object.geometry.dispose();
-      object.material.dispose();
-    },
-    [object],
-  );
-  return <primitive object={object} />;
 }
 
 function TerrainPassPoint({

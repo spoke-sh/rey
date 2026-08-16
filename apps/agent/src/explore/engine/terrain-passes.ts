@@ -5,6 +5,7 @@ import type {
 } from "@rey/explorer";
 import type { TopologyScene } from "../../topology";
 import type { TerrainFieldSet } from "../terrain/compile";
+import { featureVisibleAtLens } from "./cartography";
 import {
   activeExplorerRenderPasses,
   type ExplorerRenderGraph,
@@ -83,8 +84,8 @@ export function compileTerrainRenderPasses(
         source_revision: `${contour.id}:${contour.threshold}:${contour.path}`,
         authority: "derived contour over the same admitted validity field",
         path: contour.path,
-        color: 0xd8c99a,
-        opacity: 0.46,
+        color: 0x756d54,
+        opacity: 0.28,
       });
 
   if (activeIds.has("water_weather_boundary")) {
@@ -116,8 +117,8 @@ export function compileTerrainRenderPasses(
         source_revision: scene.county_footprint.source_object_revision,
         authority: scene.county_footprint.authority,
         path: scene.county_footprint.path,
-        color: 0xf0d17c,
-        opacity: 0.7,
+        color: 0x615f4d,
+        opacity: 0.34,
       });
   }
 
@@ -126,6 +127,11 @@ export function compileTerrainRenderPasses(
       const feature = node.spatial_feature;
       if (
         feature &&
+        featureVisibleAtLens(
+          feature,
+          scene.regime,
+          node.focus_id === scene.focus_id,
+        ) &&
         feature.geometry_kind.toLowerCase() !== "point" &&
         (feature.layer !== "hydrology" || visibility.water)
       )
@@ -140,9 +146,16 @@ export function compileTerrainRenderPasses(
           authority: feature.authority,
           path: feature.envelope_path,
           color: featureColor(feature.layer, node.focus_id === scene.focus_id),
-          opacity: node.focus_id === scene.focus_id ? 1 : 0.74,
+          opacity: node.focus_id === scene.focus_id ? 0.82 : 0.32,
         });
-      else {
+      else if (
+        !feature ||
+        featureVisibleAtLens(
+          feature,
+          scene.regime,
+          node.focus_id === scene.focus_id,
+        )
+      ) {
         const height = terrainHeightAtPoint(
           scene.terrain_fields,
           node.x,
@@ -162,7 +175,7 @@ export function compileTerrainRenderPasses(
                 feature?.layer ?? "native_feature",
                 node.focus_id === scene.focus_id,
               ),
-              node.focus_id === scene.focus_id ? 7 : 4,
+              node.focus_id === scene.focus_id ? 4.5 : 2.5,
             ),
           );
       }
