@@ -266,6 +266,11 @@ source-object IDs travel as one common prefix plus exact row-major suffixes.
 This removes large JSON hash columns without weakening exact evidence routes.
 Repeated terrain Point objects, per-object validity rows, and terrain-layer
 membership are absent from both compact retention and the workload payload.
+Packed-source retention uses `rey.regional-terrain-grid.v3`: one exact source
+feature identity plus row/column is the derivation basis for every cell and
+source revision, so the retained state does not repeat three identity columns.
+The server reconstructs those identities while producing the compatible v2
+browser transport.
 Field compilation decodes only its typed value columns. It does not allocate a
 full identity-rich object for every vertex; an exact evidence route reconstructs
 only its selected cell. The browser still accepts v1 transport for retained
@@ -281,12 +286,14 @@ and palette-indexed material channels. Editor indexing validates every channel,
 requires an exact supported triangle, freezes the native bytes, and exposes the
 same source through `rey editor`. Scene admission independently reparses those
 bytes and derives a unique cell locator and revision from the packed feature
-revision plus row/column. The retained result is still
-`rey.regional-terrain-grid.v2`, but its `geojson_packed_grid_v1` source encoding
-prevents any Point-feature authority claim. Lazy browser evidence reconstructs
-an exact packed source cell, not a fictitious native Point object. The adapter
-is bounded to one million cells and cannot mix packed and point-grid bindings in
-one terrain source.
+revision plus row/column. The retained result is
+`rey.regional-terrain-grid.v3`; its derivation inputs reproduce the exact cell
+identity without storing per-cell hash and locator arrays, and its
+`geojson_packed_grid_v1` browser source encoding prevents any Point-feature
+authority claim. Legacy point-grid v1/v2 identities remain byte-compatible.
+Lazy browser evidence reconstructs an exact packed source cell, not a
+fictitious native Point object. The adapter is bounded to one million cells and
+cannot mix packed and point-grid bindings in one terrain source.
 
 Each admitted regional field remains one bounded in-memory grid rendered by a
 bounded 3D orthographic terrain camera through a tiled accelerated working set.

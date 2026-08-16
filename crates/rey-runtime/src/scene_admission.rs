@@ -11,6 +11,7 @@ use rey_mining::{
     RegionalSceneLineage, RegionalSceneOmission, RegionalTerrainGrid, RegionalTerrainGridCell,
     RegionalTerrainProgram, RegionalTerrainSample, RegionalTransform, RegionalValidity,
     RegionalValidityClass, SceneAdmissionBinding, finalize_regional_terrain_sample,
+    regional_packed_terrain_cell_source_object_id, regional_packed_terrain_cell_source_revision,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1142,7 +1143,7 @@ fn inspect_packed_terrain_grid(
 }
 
 fn decode_packed_terrain_hex(encoded: &str) -> Result<Vec<u8>, SceneAdmissionError> {
-    if encoded.len() % 2 != 0 {
+    if !encoded.len().is_multiple_of(2) {
         return Err(SceneAdmissionError::TerrainSample);
     }
     encoded
@@ -1693,18 +1694,19 @@ fn build_regional_packed_terrain_grid(
                 .try_into()
                 .map_err(|_| SceneAdmissionError::TerrainSample)?,
         );
-        let mut source_revision = SemanticHasher::new("rey.packed-terrain-grid-cell-source.v1");
-        source_revision.add_str(object.object_revision.as_str());
-        source_revision.add_u64(row);
-        source_revision.add_u64(column);
         cells.push(RegionalTerrainGridCell {
             cell_id: placeholder_digest(),
-            source_object_id: format!(
-                "{}/cell-r{}-c{}",
-                feature.feature_id, row, column
+            source_object_id: regional_packed_terrain_cell_source_object_id(
+                &feature.feature_id,
+                row,
+                column,
             ),
             source_artifact_id: object.source_artifact_id.clone(),
-            source_object_revision: source_revision.finish(),
+            source_object_revision: regional_packed_terrain_cell_source_revision(
+                &object.object_revision,
+                row,
+                column,
+            ),
             grid_position: [column, row],
             native_position: [
                 west + column as i64 * longitude_step,
@@ -1743,6 +1745,7 @@ fn build_regional_packed_terrain_grid(
         },
         cells,
         compact: None,
+        packed_compact: None,
         validity_semantics:
             "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
                 .to_owned(),
@@ -1753,7 +1756,12 @@ fn build_regional_packed_terrain_grid(
             "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
                 .to_owned(),
     }
-    .finalize_compact(&feature.source_id, &object.source_path)?;
+    .finalize_packed_compact(
+        &feature.source_id,
+        &object.source_path,
+        &feature.feature_id,
+        &object.object_revision,
+    )?;
     RegionalTerrainProgram {
         schema: REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA.to_owned(),
         program_id: placeholder_digest(),
@@ -1904,6 +1912,7 @@ fn build_regional_terrain_grid(
         },
         cells,
         compact: None,
+        packed_compact: None,
         validity_semantics:
             "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
                 .to_owned(),
@@ -2084,10 +2093,10 @@ fn regional_native_geometries(
                 .and_then(Value::as_object)
                 .ok_or(SceneAdmissionError::GeoJson)?;
             let object_id = format!("{}/{}", source.source_id, source_feature_id);
-            if let Some(geometry) = regional_native_geometry(geometry)? {
-                if geometries.insert(object_id, geometry).is_some() {
-                    return Err(SceneAdmissionError::FeatureIndex);
-                }
+            if let Some(geometry) = regional_native_geometry(geometry)?
+                && geometries.insert(object_id, geometry).is_some()
+            {
+                return Err(SceneAdmissionError::FeatureIndex);
             }
         }
     }
@@ -3198,16 +3207,38 @@ mod tests {
         assert_eq!(terrain.evaluator.revision, 2);
         let grid = terrain.grid.as_ref().unwrap();
         assert_eq!((grid.columns, grid.rows), (3, 3));
-        assert_eq!(grid.schema, "rey.regional-terrain-grid.v2");
-        assert!(grid.compact.is_some());
+        assert_eq!(grid.schema, "rey.regional-terrain-grid.v3");
+        assert!(grid.compact.is_none());
+        assert!(grid.packed_compact.is_some());
         assert_eq!(
             grid.authority,
             "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
         );
         let cells = grid.expanded_cells().unwrap();
         assert_eq!(cells.len(), 9);
+        assert!(cells[0].source_object_id.ends_with("/cell-r0-c0"));
+        assert_eq!(
+            cells[0].source_object_revision,
+            regional_packed_terrain_cell_source_revision(
+                &grid
+                    .packed_compact
+                    .as_ref()
+                    .unwrap()
+                    .source_feature_revision,
+                0,
+                0,
+            )
+        );
         assert_eq!(cells[4].validity, RegionalValidityClass::NoData);
         assert_eq!(cells[4].elevation_micrometers, None);
+        let mut tampered = grid.clone();
+        tampered
+            .packed_compact
+            .as_mut()
+            .unwrap()
+            .material_indices_hex
+            .replace_range(..2, "01");
+        assert!(tampered.verify().is_err());
         assert_eq!(cells[0].elevation_micrometers, Some(100_000_000));
         assert!(
             cells

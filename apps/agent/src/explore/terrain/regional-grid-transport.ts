@@ -43,7 +43,8 @@ export function validRegionalTerrainGridTransport(
   const cells = regionalTerrainGridCellCount(grid);
   const commonValid =
     (grid.source_schema === "rey.regional-terrain-grid.v1" ||
-      grid.source_schema === "rey.regional-terrain-grid.v2") &&
+      grid.source_schema === "rey.regional-terrain-grid.v2" ||
+      grid.source_schema === "rey.regional-terrain-grid.v3") &&
     Boolean(grid.transport_id) &&
     Boolean(grid.source_id) &&
     Boolean(grid.source_path) &&

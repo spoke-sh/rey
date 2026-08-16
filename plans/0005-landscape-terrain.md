@@ -181,13 +181,16 @@ and grid positions derive only from admitted dimensions and bounds. The browser
 validates the compact representation before projection, compiles directly from
 typed value columns, and reconstructs a complete identity-rich cell only for an
 exact evidence route. Browser compatibility retains v1 decoding while the
-server emits v2. New scene admissions remove the same per-vertex repetition
-from retained workload state through `rey.regional-terrain-grid.v2`;
-verification reconstructs the exact cells and fails closed on channel
-tampering. Legacy retained v1 grids remain verifiable. Cold workload projection
-at substantially higher source density remains open even though neither
-retained state nor the browser contract requires duplicate geometry or JSON
-hash strings per terrain vertex.
+server emits v2. Point-feature scene admissions remove the same per-vertex
+repetition from retained workload state through `rey.regional-terrain-grid.v2`.
+Packed-source admissions use `rey.regional-terrain-grid.v3` to retain one exact
+source-feature identity and derive the cell locator, source revision, and cell
+identity from row/column instead of storing three repeated identity columns.
+Verification reconstructs exact cells and fails closed on channel or
+derivation tampering. Legacy retained v1/v2 grids remain verifiable. Cold
+workload projection at substantially higher source density remains open even
+though neither retained state nor the browser contract requires duplicate
+geometry or JSON hash strings per terrain vertex.
 
 The source side now has a matching compact admission path. A single GeoJSON
 feature may carry `rey.packed-terrain-grid.v1` beside its exact Polygon grid
@@ -195,13 +198,13 @@ envelope. Editor and scene admission independently validate the declared shape,
 integer-microdegree spacing, sorted material palette, byte-exact validity,
 little-endian centimeter elevation, material indices, and at least one fully
 supported triangle. Admission derives stable row/column cell locators and
-revisions from the frozen packed feature, retains the same compact v2 grid, and
-marks the source encoding as `geojson_packed_grid_v1` through browser transport
-and exact evidence. The existing one-million native-coordinate limit bounds
-packed cells independently from the native-object limit because those cells
-are not counterfeit GeoJSON Point features. This is the required high-density
-source adapter; generated artifacts remain incomplete until separately
-reviewed and admitted.
+revisions from the frozen packed feature, retains the derivation-compact v3
+grid, and marks the source encoding as `geojson_packed_grid_v1` through browser
+transport and exact evidence. The existing one-million native-coordinate limit
+bounds packed cells independently from the native-object limit because those
+cells are not counterfeit GeoJSON Point features. This is the required
+high-density source adapter; generated artifacts remain incomplete until
+separately reviewed and admitted.
 
 Client-side source validation now builds one unique native-object identity map
 before checking terrain cells. The 81×81 field therefore validates in linear

@@ -2391,7 +2391,7 @@ fn packed_terrain_grid(
 }
 
 fn decode_terrain_hex(feature_id: &str, encoded: &str) -> Result<Vec<u8>, EditorError> {
-    if encoded.len() % 2 != 0 {
+    if !encoded.len().is_multiple_of(2) {
         return Err(EditorError::TerrainSample(format!(
             "{feature_id} packed terrain channel is not canonical hexadecimal"
         )));

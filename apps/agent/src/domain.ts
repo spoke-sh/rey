@@ -142,7 +142,9 @@ export type RegionalTerrainGrid =
   | (RegionalTerrainGridBase & {
       schema: "rey.regional-terrain-grid.transport.v1";
       source_schema:
-        "rey.regional-terrain-grid.v1" | "rey.regional-terrain-grid.v2";
+        | "rey.regional-terrain-grid.v1"
+        | "rey.regional-terrain-grid.v2"
+        | "rey.regional-terrain-grid.v3";
       transport_id: string;
       source_id: string;
       source_path: string;
@@ -162,7 +164,9 @@ export type RegionalTerrainGrid =
   | (RegionalTerrainGridBase & {
       schema: "rey.regional-terrain-grid.transport.v2";
       source_schema:
-        "rey.regional-terrain-grid.v1" | "rey.regional-terrain-grid.v2";
+        | "rey.regional-terrain-grid.v1"
+        | "rey.regional-terrain-grid.v2"
+        | "rey.regional-terrain-grid.v3";
       transport_id: string;
       source_id: string;
       source_path: string;

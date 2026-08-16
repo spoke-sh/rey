@@ -48,6 +48,7 @@ use rey::{
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_environment::{DiscoveryLimits, resolve_executable};
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
+use rey_mining::RegionalTerrainGrid;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -2140,7 +2141,10 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
     else {
         return Ok(());
     };
-    if grid.get("schema").and_then(Value::as_str) == Some("rey.regional-terrain-grid.v2") {
+    if matches!(
+        grid.get("schema").and_then(Value::as_str),
+        Some("rey.regional-terrain-grid.v2" | "rey.regional-terrain-grid.v3")
+    ) {
         return compact_retained_regional_projection_packet(packet, &grid);
     }
     if grid.get("schema").and_then(Value::as_str) != Some("rey.regional-terrain-grid.v1") {
@@ -2357,8 +2361,17 @@ fn compact_retained_regional_projection_packet(
     let grid = grid
         .as_object()
         .ok_or_else(|| "retained regional terrain grid is not an object".to_owned())?;
+    let source_schema = grid
+        .get("schema")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "retained regional terrain grid has no schema".to_owned())?;
+    let compact_field = match source_schema {
+        "rey.regional-terrain-grid.v2" => "compact",
+        "rey.regional-terrain-grid.v3" => "packed_compact",
+        _ => return Err("retained regional terrain grid has unsupported compact cells".to_owned()),
+    };
     let compact = grid
-        .get("compact")
+        .get(compact_field)
         .and_then(Value::as_object)
         .ok_or_else(|| "retained regional terrain grid has no compact cells".to_owned())?;
     let columns = grid
@@ -2385,9 +2398,6 @@ fn compact_retained_regional_projection_packet(
         "source_id",
         "source_path",
         "source_artifact_id",
-        "cell_ids",
-        "source_object_ids",
-        "source_object_revisions",
         "validity_hex",
         "elevation_micrometers",
         "material_palette",
@@ -2413,6 +2423,7 @@ fn compact_retained_regional_projection_packet(
 
     let mut transport = grid.clone();
     transport.remove("compact");
+    transport.remove("packed_compact");
     transport.remove("cells");
     transport.insert(
         "schema".to_owned(),
@@ -2420,7 +2431,7 @@ fn compact_retained_regional_projection_packet(
     );
     transport.insert(
         "source_schema".to_owned(),
-        Value::String("rey.regional-terrain-grid.v2".to_owned()),
+        Value::String(source_schema.to_owned()),
     );
     for field in [
         "source_id",
@@ -2443,9 +2454,32 @@ fn compact_retained_regional_projection_packet(
         "cell_source_encoding".to_owned(),
         Value::String(cell_source_encoding.to_owned()),
     );
-    let cell_ids = required_string_array(compact, "cell_ids")?;
-    let source_object_ids = required_string_array(compact, "source_object_ids")?;
-    let source_object_revisions = required_string_array(compact, "source_object_revisions")?;
+    let (cell_ids, source_object_ids, source_object_revisions) =
+        if source_schema == "rey.regional-terrain-grid.v2" {
+            (
+                required_string_array(compact, "cell_ids")?,
+                required_string_array(compact, "source_object_ids")?,
+                required_string_array(compact, "source_object_revisions")?,
+            )
+        } else {
+            let retained =
+                serde_json::from_value::<RegionalTerrainGrid>(Value::Object(grid.clone()))
+                    .map_err(|error| format!("retained packed terrain grid is invalid: {error}"))?;
+            let cells = retained
+                .expanded_cells()
+                .map_err(|error| format!("retained packed terrain cells are invalid: {error}"))?;
+            (
+                cells.iter().map(|cell| cell.cell_id.to_string()).collect(),
+                cells
+                    .iter()
+                    .map(|cell| cell.source_object_id.clone())
+                    .collect(),
+                cells
+                    .iter()
+                    .map(|cell| cell.source_object_revision.to_string())
+                    .collect(),
+            )
+        };
     if cell_ids.len() as u64 != cell_count
         || source_object_ids.len() as u64 != cell_count
         || source_object_revisions.len() as u64 != cell_count
