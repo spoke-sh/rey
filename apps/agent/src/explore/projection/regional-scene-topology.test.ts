@@ -545,8 +545,8 @@ describe("regional scene topology projection", () => {
       source_origin: [-122_500_000, 37_500_000],
       target_origin: [0, 0, 0],
       transform_digest: "county-transform:1",
-      pitch_degrees: 35.26439,
-      yaw_degrees: 45,
+      pitch_degrees: 88,
+      yaw_degrees: 0,
     });
     expect(county.regions).toEqual([]);
     expect(county.county_footprint).toMatchObject({

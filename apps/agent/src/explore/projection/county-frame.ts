@@ -7,8 +7,8 @@ import type {
 export const COUNTY_FRAME_PROJECTION_REVISION = "rey.county-frame-projection@1";
 export const COUNTY_FOOTPRINT_PROJECTION_REVISION =
   "rey.county-footprint-projection@1";
-export const COUNTY_CAMERA_PITCH_DEGREES = 35.26439;
-export const COUNTY_CAMERA_YAW_DEGREES = 45;
+export const COUNTY_CAMERA_PITCH_DEGREES = 88;
+export const COUNTY_CAMERA_YAW_DEGREES = 0;
 
 export interface CountyLocalPoint {
   east: number;

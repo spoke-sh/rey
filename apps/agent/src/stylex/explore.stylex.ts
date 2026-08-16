@@ -236,6 +236,11 @@ export const exploreStyles = stylex.create({
     opacity: 0.42,
     strokeWidth: 1.2,
   },
+  countyFootprintSubordinate: {
+    fill: "transparent",
+    opacity: 0.1,
+    strokeWidth: 0.7,
+  },
   countyFeatureLayer: {
     pointerEvents: "auto",
     zIndex: 3,
@@ -1004,6 +1009,12 @@ export const exploreStyles = stylex.create({
     top: 14,
     zIndex: 5,
   },
+  landscapeLensLegend: {
+    backgroundColor:
+      "color-mix(in srgb, var(--rey-background) 66%, transparent)",
+    borderColor: "color-mix(in srgb, var(--line) 58%, transparent)",
+    opacity: 0.7,
+  },
   lensStep: {
     alignItems: "center",
     color: "var(--muted)",
@@ -1041,6 +1052,10 @@ export const exploreStyles = stylex.create({
     position: "absolute",
     right: 14,
     zIndex: 6,
+  },
+  landscapeMapReading: {
+    maxWidth: 280,
+    opacity: 0.68,
   },
   bearingCard: {
     backgroundColor:

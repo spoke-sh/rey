@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LENS_ZOOM,
+  DEFAULT_TERRAIN_ORBIT,
   EVIDENCE_LENS_ZOOM,
   LANDSCAPE_LENS_ZOOM,
   MAX_LENS_ZOOM,
@@ -151,6 +152,10 @@ describe("Explorer camera engine", () => {
   });
 
   it("keeps terrain orbit inside its declared pitch and yaw bounds", () => {
+    expect(DEFAULT_TERRAIN_ORBIT).toEqual({
+      yaw_degrees: 0,
+      pitch_degrees: 88,
+    });
     expect(
       draggedTerrainOrbit(
         { yaw_degrees: 170, pitch_degrees: 35 },

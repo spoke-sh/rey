@@ -231,16 +231,21 @@ retains blurred kilometer-scale relief, and its first Landscape submission
 took about 2.07 seconds under SwiftShader; both remain material acceptance
 gaps.
 
-Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
+Landscape now enters through a north-up 88-degree map camera. The reversible
+Atlas transition also eases into a 1.38x interior composition scale so valid
+geography fills the canvas without detaching the selected sector. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores
 the cartographic entry. The rectangular validity mesh has been removed;
 no-data is communicated by absent triangles over the terrain canvas. Landscape
 feature LOD retains water and transport vectors plus the exact selection while
 hiding terrain-control, district, lot, and unselected point envelopes until a
-closer semantic lens. Contours and the County boundary are subordinate to the
-relief rather than bright framing lines. This corrects composition and layer
-hierarchy, but the roughly one-kilometer 81x81 source still leaves the retained
-relief-fidelity comparison open.
+closer semantic lens. The exact County footprint remains mounted and
+accessible but becomes a faint support boundary, while the detailed bearing
+and evidence key collapse to one compact map-status line at Landscape.
+Contours and the County boundary are subordinate to the relief rather than
+bright framing lines. This corrects composition and layer hierarchy, but the
+roughly one-kilometer 81x81 source still leaves the retained relief-fidelity
+comparison open.
 
 ### Perceptual rebaseline — 2026-08-15
 

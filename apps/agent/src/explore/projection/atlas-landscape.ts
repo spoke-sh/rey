@@ -21,6 +21,7 @@ export interface TerrainModelTransform {
 export interface AtlasLandscapePresentation {
   progress: number;
   camera_progress: number;
+  composition_scale: number;
   terrain_opacity: number;
   atlas_opacity: number;
   pitch_degrees: number;
@@ -77,6 +78,7 @@ export function atlasLandscapePresentation(
   return Object.freeze({
     progress: boundedProgress,
     camera_progress: cameraProgress,
+    composition_scale: interpolate(1, 1.38, cameraProgress),
     terrain_opacity: smootherstep(boundedProgress / 0.22),
     atlas_opacity: 1 - smootherstep((boundedProgress - 0.42) / 0.46),
     pitch_degrees: pitchDegrees,

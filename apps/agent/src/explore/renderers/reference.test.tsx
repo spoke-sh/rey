@@ -83,6 +83,69 @@ const terrainScene = {
 } satisfies TopologyScene;
 
 describe("reference renderer", () => {
+  it("subordinates the County support boundary and evidence chrome at Landscape", () => {
+    const scene = {
+      ...terrainScene,
+      regime: "landscape",
+      county_frame: {
+        schema: "rey.county-frame.v1",
+        frame_id: "county-frame:1",
+        scene_id: "scene:1",
+        source_bounds: {
+          west_microdegrees: -123_000_000,
+          south_microdegrees: 37_000_000,
+          east_microdegrees: -122_000_000,
+          north_microdegrees: 38_000_000,
+          crosses_antimeridian: false,
+        },
+        source_origin: [-122_500_000, 37_500_000],
+        target_origin: [0, 0, 0],
+        transform_id: "county-local",
+        transform_revision: 1,
+        transform_digest: "transform:1",
+        pitch_degrees: 88,
+        yaw_degrees: 0,
+        authority: "bounded test frame",
+      },
+      county_footprint: {
+        footprint_id: "footprint:1",
+        scene_id: "scene:1",
+        source_object_id: "boundary/county",
+        source_artifact_id: "artifact:boundary",
+        source_object_revision: "object:boundary",
+        native_bounds: {
+          west_microdegrees: -123_000_000,
+          south_microdegrees: 37_000_000,
+          east_microdegrees: -122_000_000,
+          north_microdegrees: 38_000_000,
+          crosses_antimeridian: false,
+        },
+        rings: [[[-123_000_000, 38_000_000]]],
+        coordinate_count: 1,
+        authority: "exact admitted test footprint",
+        path: "M96 72 L1104 72 L1104 648 L96 648 Z",
+        screen_rings: [[]],
+      },
+    } satisfies TopologyScene;
+    const markup = renderToStaticMarkup(
+      <>
+        <ReferenceRenderer
+          accelerated
+          layers={{ relief: true, water: true, weather: true, probes: true }}
+          onFocus={() => undefined}
+          scene={scene}
+        />
+        <ReferenceMapReading scene={scene} />
+      </>,
+    );
+
+    expect(markup).toContain('data-footprint-visual-weight="subordinate"');
+    expect(markup).toContain('data-map-reading="compact"');
+    expect(markup).not.toContain("BEARING /");
+    expect(markup).not.toContain("VALIDITY / CONTOURS");
+    expect(markup).toContain("LOD LANDSCAPE");
+  });
+
   it("preserves the bounded terrain manifest without source-edge geography", () => {
     const markup = renderToStaticMarkup(
       <ReferenceRenderer

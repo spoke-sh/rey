@@ -80,7 +80,10 @@ mostly-overhead cartographic entry, pitch and yaw are clamped, screen-axis pan
 resolves to one ground target, and an optional model transform keeps the
 terrain attached during projection changes. R3F owns the declarative camera and
 terrain-group lifecycle; `@rey/agent` owns the explicit Shift-drag orbit
-interaction and the semantic projection curve.
+interaction, the semantic projection curve, and the reversible interior
+composition scale used to make Landscape fill the viewport. Evidence and
+validity boundaries remain mounted while their visual weight is independently
+controlled by the application lens.
 
 ## Executable Geographic Passes
 

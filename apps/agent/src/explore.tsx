@@ -312,12 +312,13 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     scene.regime === "atlas" &&
     scene.world_atlas_transition !== null &&
     projectionMorphProgress >= 1;
-  const renderedScale = renderedSceneScale(
-    scene.terrain || scene.county_frame !== null,
-    fitScale,
-    zoom,
-    scene.regime,
-  );
+  const renderedScale =
+    renderedSceneScale(
+      scene.terrain || scene.county_frame !== null,
+      fitScale,
+      zoom,
+      scene.regime,
+    ) * landscapePresentation.composition_scale;
   const acceleratedReady =
     terrainRenderer.status.lifecycle === "ready" &&
     (terrainRenderer.status.backend === "webgpu" ||
@@ -1025,6 +1026,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         <div
           className={sx(
             styles.lensLegend,
+            scene.terrain &&
+              scene.regime === "landscape" &&
+              styles.landscapeLensLegend,
             scene.globe?.posture === "orientation" &&
               styles.orientationLensLegend,
           )}

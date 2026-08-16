@@ -682,6 +682,8 @@ function CountyFootprintLayer({
 }) {
   const footprint = scene.county_footprint;
   if (!footprint) return null;
+  const subordinate =
+    scene.regime === "landscape" || scene.regime === "neighborhoods";
   return (
     <svg
       aria-label={`Exact admitted County footprint ${footprint.footprint_id}`}
@@ -689,6 +691,7 @@ function CountyFootprintLayer({
       data-county-footprint={footprint.footprint_id}
       data-source-object={footprint.source_object_id}
       data-source-revision={footprint.source_object_revision}
+      data-footprint-visual-weight={subordinate ? "subordinate" : "exact"}
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
@@ -697,6 +700,7 @@ function CountyFootprintLayer({
         className={sx(
           styles.countyFootprint,
           accelerated && styles.countyFootprintAccelerated,
+          subordinate && styles.countyFootprintSubordinate,
         )}
         d={footprint.path}
         fillRule="evenodd"
@@ -1734,6 +1738,7 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
     (feature) => feature.kind === "weather_front",
   );
   const probes = scene.points.filter((point) => point.kind === "frontier");
+  const landscape = scene.regime === "landscape";
   if (orientation) {
     return (
       <aside
@@ -1785,51 +1790,59 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
     );
   }
   return (
-    <aside className={sx(styles.mapReading)} aria-label="Map evidence legend">
-      <div className={sx(styles.bearingCard)}>
-        <span className={sx(styles.bearingEyebrow)}>
-          BEARING / {scene.bearing.status.replaceAll("_", " ")}
-        </span>
-        <strong className={sx(styles.bearingTitle)}>
-          {scene.bearing.label}
-        </strong>
-        <small className={sx(styles.bearingDetail)}>
-          {scene.bearing.detail}
-        </small>
-      </div>
-      <div className={sx(styles.mapKey)} aria-hidden="true">
-        {admittedWater.length > 0 ? (
-          <>
-            <span>
-              <i className={sx(styles.keyContour)} /> VALIDITY / CONTOURS
-            </span>
-            <span>
-              <i className={sx(styles.keyStream)} /> ADMITTED / CHANNEL
-            </span>
-            <span>
-              <i className={sx(styles.keyRiver)} /> ADMITTED / WATER AREA
-            </span>
-            <span>
-              <i className={sx(styles.keyWeather)} /> NO-DATA / BOUNDARY
-            </span>
-          </>
-        ) : (
-          <>
-            <span>
-              <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
-            </span>
-            <span>
-              <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
-            </span>
-            <span>
-              <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
-            </span>
-            <span>
-              <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
-            </span>
-          </>
-        )}
-      </div>
+    <aside
+      className={sx(styles.mapReading, landscape && styles.landscapeMapReading)}
+      aria-label="Map evidence legend"
+      data-map-reading={landscape ? "compact" : "detailed"}
+    >
+      {!landscape ? (
+        <div className={sx(styles.bearingCard)}>
+          <span className={sx(styles.bearingEyebrow)}>
+            BEARING / {scene.bearing.status.replaceAll("_", " ")}
+          </span>
+          <strong className={sx(styles.bearingTitle)}>
+            {scene.bearing.label}
+          </strong>
+          <small className={sx(styles.bearingDetail)}>
+            {scene.bearing.detail}
+          </small>
+        </div>
+      ) : null}
+      {!landscape ? (
+        <div className={sx(styles.mapKey)} aria-hidden="true">
+          {admittedWater.length > 0 ? (
+            <>
+              <span>
+                <i className={sx(styles.keyContour)} /> VALIDITY / CONTOURS
+              </span>
+              <span>
+                <i className={sx(styles.keyStream)} /> ADMITTED / CHANNEL
+              </span>
+              <span>
+                <i className={sx(styles.keyRiver)} /> ADMITTED / WATER AREA
+              </span>
+              <span>
+                <i className={sx(styles.keyWeather)} /> NO-DATA / BOUNDARY
+              </span>
+            </>
+          ) : (
+            <>
+              <span>
+                <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
+              </span>
+              <span>
+                <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
+              </span>
+              <span>
+                <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
+              </span>
+              <span>
+                <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
+              </span>
+            </>
+          )}
+        </div>
+      ) : null}
       <div className={sx(styles.mapScale)} aria-hidden="true">
         <i className={sx(styles.mapScaleBar)} />
         <span>
