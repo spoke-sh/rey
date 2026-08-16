@@ -7,6 +7,7 @@ import {
   type Group,
   type InstancedBufferAttribute,
   type InstancedMesh,
+  type LineSegments,
   Matrix4,
   type Mesh,
   type MeshBasicNodeMaterial,
@@ -641,6 +642,66 @@ describe("globe scene", () => {
       -1,
       0.83,
     );
+
+    await renderer.unmount();
+  });
+
+  it("draws a closed border loop around each sector matching its fill mesh", async () => {
+    const world = { width: 1200, height: 720 };
+    const view = {
+      yaw_degrees: 24,
+      pitch_degrees: -8,
+      projection_morph_progress: 0.35,
+    };
+    const compiled = compileContextGlobe(globeFixture());
+    const renderer = await create(
+      <ContextGlobeScene compiled={compiled} view={view} world={world} />,
+    );
+
+    const fill = renderer.scene.findByProps({
+      name: "context-globe-sector:sector:fixture:0",
+    }).instance as Mesh;
+    const border = renderer.scene.findByProps({
+      name: "context-globe-sector:sector:fixture:0:border",
+    }).instance as LineSegments;
+
+    // A 16x10 grid's outer ring has 2*(16+10) = 52 points, walked as 52
+    // closed-loop segments (each sharing an endpoint with its neighbor).
+    const borderPositions = border.geometry.getAttribute("position");
+    expect(borderPositions.count).toBe(52 * 2);
+    // The loop closes: the last segment's second point is the first
+    // segment's first point.
+    const first = [
+      borderPositions.getX(0),
+      borderPositions.getY(0),
+      borderPositions.getZ(0),
+    ];
+    const last = [
+      borderPositions.getX(borderPositions.count - 1),
+      borderPositions.getY(borderPositions.count - 1),
+      borderPositions.getZ(borderPositions.count - 1),
+    ];
+    expect(last[0]).toBeCloseTo(first[0]!, 5);
+    expect(last[1]).toBeCloseTo(first[1]!, 5);
+    expect(last[2]).toBeCloseTo(first[2]!, 5);
+
+    // Every border vertex sits a small fixed distance from the fill mesh's
+    // nearest surface — the depth bias that keeps it from z-fighting the
+    // coplanar fill — rather than exactly on top of it or drifting away.
+    const fillPositions = fill.geometry.getAttribute("position");
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (let fillIndex = 0; fillIndex < fillPositions.count; fillIndex += 1) {
+      const dx = fillPositions.getX(fillIndex) - first[0]!;
+      const dy = fillPositions.getY(fillIndex) - first[1]!;
+      const dz = fillPositions.getZ(fillIndex) - first[2]!;
+      const distance = Math.hypot(dx, dy, dz);
+      if (distance < closestDistance) closestDistance = distance;
+    }
+    expect(closestDistance).toBeGreaterThan(0);
+    expect(closestDistance).toBeLessThan(0.01);
+
+    const borderMaterial = border.material as MeshBasicNodeMaterial;
+    expect(borderMaterial.color.getHex()).toBe(0xd57824);
 
     await renderer.unmount();
   });

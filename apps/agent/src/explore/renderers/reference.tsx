@@ -218,6 +218,7 @@ export function ReferenceRenderer({
       />
       {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer
+          accelerated={accelerated}
           globeView={globeView}
           labelPlacements={atlasLabelPlacements}
           onFocus={onFocus}
@@ -376,6 +377,7 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
 }
 
 function AtlasFeatureLayer({
+  accelerated,
   globeView,
   labelPlacements,
   onFocus,
@@ -384,6 +386,7 @@ function AtlasFeatureLayer({
   wrapOffset,
   wrapIndexes,
 }: {
+  accelerated: boolean;
   globeView: GlobeCameraView;
   labelPlacements: ReadonlyMap<string, SemanticLabelPlacement>;
   onFocus: (node: FocusableTopologyObject) => void;
@@ -412,38 +415,40 @@ function AtlasFeatureLayer({
         data-atlas-view-offset={`${offset.x},${offset.y}`}
         transform={`translate(${offset.x} ${offset.y})`}
       >
-        {wrapIndexes.flatMap((wrapIndex) =>
-          scene.regions.map((region) => {
-            const seamWeight = globeAtlasRepeatSeamWeight(
-              (region.x + region.width / 2) / scene.world.width,
-              wrapIndex,
-            );
-            const opacity =
-              wrapIndex === 0
-                ? 1
-                : globeAtlasRepeatVisibility(
-                    projectionMorphProgress,
-                    seamWeight,
-                  );
-            return (
-              <rect
-                aria-hidden="true"
-                className={sx(styles.atlasSector)}
-                data-chart-wrap-index={wrapIndex}
-                data-repeat-seam-weight={seamWeight.toFixed(3)}
-                data-semantic-identity={region.id}
-                height={region.height}
-                key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
-                opacity={opacity}
-                width={region.width}
-                x={region.x + wrapIndex * wrapOffset}
-                y={region.y}
-              >
-                <desc>{`${region.label} / ${region.detail}`}</desc>
-              </rect>
-            );
-          }),
-        )}
+        {!accelerated
+          ? wrapIndexes.flatMap((wrapIndex) =>
+              scene.regions.map((region) => {
+                const seamWeight = globeAtlasRepeatSeamWeight(
+                  (region.x + region.width / 2) / scene.world.width,
+                  wrapIndex,
+                );
+                const opacity =
+                  wrapIndex === 0
+                    ? 1
+                    : globeAtlasRepeatVisibility(
+                        projectionMorphProgress,
+                        seamWeight,
+                      );
+                return (
+                  <rect
+                    aria-hidden="true"
+                    className={sx(styles.atlasSector)}
+                    data-chart-wrap-index={wrapIndex}
+                    data-repeat-seam-weight={seamWeight.toFixed(3)}
+                    data-semantic-identity={region.id}
+                    height={region.height}
+                    key={`${wrapIndex}:${region.fragment_id ?? region.id}`}
+                    opacity={opacity}
+                    width={region.width}
+                    x={region.x + wrapIndex * wrapOffset}
+                    y={region.y}
+                  >
+                    <desc>{`${region.label} / ${region.detail}`}</desc>
+                  </rect>
+                );
+              }),
+            )
+          : null}
         {wrapIndexes.flatMap((wrapIndex) =>
           scene.nodes.map((node) => {
             const placement = labelPlacements.get(`${wrapIndex}:${node.id}`)!;

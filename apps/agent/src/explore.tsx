@@ -765,12 +765,16 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   };
 
   const sceneStyle = {
+    // Keeps fixed-px label text a constant on-screen size regardless of zoom
+    // or regime: renderedScale already carries every regime's own zoom curve
+    // (including World's deliberately near-flat magnification), so dividing
+    // it out of the reference fitScale target cancels exactly, continuously,
+    // everywhere — rather than reconstructing a second approximation of that
+    // curve per regime, which is what previously pinned this to a flat `1`
+    // (no counter-scaling at all) throughout World/globe posture and made
+    // globe labels jump to whatever size renderedScale happened to be.
     "--rey-terrain-counter-scale":
-      scene.terrain || scene.county_frame
-        ? (scene.regime === "world"
-            ? WORLD_LENS_ZOOM
-            : WORLD_ATLAS_MORPH_END_ZOOM) / zoom
-        : 1,
+      renderedScale > 0 ? fitScale / renderedScale : 1,
     height: scene.world.height,
     transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${renderedScale})`,
     width: scene.world.width,

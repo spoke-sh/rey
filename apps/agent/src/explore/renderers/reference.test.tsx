@@ -343,6 +343,92 @@ describe("reference renderer", () => {
     );
   });
 
+  it("hides its own bordered Atlas sector once acceleration is healthy", () => {
+    const atlasScene: TopologyScene = {
+      ...terrainScene,
+      regime: "atlas",
+      terrain: false,
+      globe: null,
+      regions: [
+        {
+          id: "region:1",
+          fragment_id: "region:1",
+          label: "region one",
+          detail: "settled Atlas region",
+          x: 100,
+          y: 100,
+          width: 80,
+          height: 60,
+          tone: "healthy",
+        },
+      ],
+      nodes: [
+        {
+          id: "node:1",
+          focus_id: "regional:1",
+          family: "region",
+          label: "region one",
+          detail: "settled Atlas region",
+          x: 140,
+          y: 130,
+          width: 80,
+          tone: "healthy",
+          semantic_identity: "region:1",
+        },
+      ],
+      world_atlas_transition: {
+        schema: "rey.world-atlas-transition.v1",
+        atlas_revision: "atlas:1",
+        globe_source_revision: "atlas:1",
+        projection_revision: "rey.semantic-mercator-projection@2",
+        atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        points: [],
+        sectors: [],
+        authority: "test fixture",
+      },
+    };
+    const extractAtlasFeatureLayer = (markup: string) => {
+      const start = markup.indexOf('data-atlas-feature-layer="atlas:1"');
+      expect(start).toBeGreaterThan(-1);
+      const end = markup.indexOf("</svg>", start);
+      return markup.slice(start, end);
+    };
+
+    // Same pattern WorldAtlasTransitionLayer already applies to its own
+    // sector paths: the bordered sector rect stays in the deterministic
+    // reference overlay for keyboard/screen-reader users when unaccelerated,
+    // but must not draw a second, borderless-looking box once the
+    // accelerated globe's own bordered GlobeSector is already on screen.
+    const referenceMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={1}
+        scene={atlasScene}
+      />,
+    );
+    expect(extractAtlasFeatureLayer(referenceMarkup)).toContain(
+      'data-semantic-identity="region:1"',
+    );
+    expect(extractAtlasFeatureLayer(referenceMarkup)).toContain("<rect");
+
+    const acceleratedMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        accelerated
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={1}
+        scene={atlasScene}
+      />,
+    );
+    expect(extractAtlasFeatureLayer(acceleratedMarkup)).not.toContain("<rect");
+    // The node label/pick-target layer stays present either way — only the
+    // duplicated sector geometry is renderer-gated.
+    expect(extractAtlasFeatureLayer(acceleratedMarkup)).toContain(
+      'data-focus-id="regional:1"',
+    );
+  });
+
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {
     const orientationScene: TopologyScene = {
       ...terrainScene,
