@@ -224,9 +224,9 @@ impl Default for SceneAdmissionLimits {
     fn default() -> Self {
         Self {
             max_sources: 64,
-            max_features: 10_000,
+            max_features: 50_000,
             max_coordinates: 1_000_000,
-            max_source_bytes: 16 * 1_024 * 1_024,
+            max_source_bytes: 32 * 1_024 * 1_024,
             max_total_bytes: 64 * 1_024 * 1_024,
             max_omissions: 1_024,
         }

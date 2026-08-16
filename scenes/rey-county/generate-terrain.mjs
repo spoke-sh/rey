@@ -7,14 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SCENE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
-// Eighty intervals preserve exact integer-microdegree coordinates, yield a
-// three-by-three 32-interval leaf working set, and keep the GeoJSON authoring
-// artifact within the current bounded editor/admission contract. This remains
-// an interchange slice; raster-native pyramids are required for finer fields.
-const COLUMNS = 81;
-const ROWS = 81;
-const DATASET_ID = "rey-county-semantic-terrain-v3";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@3";
+// Two hundred intervals preserve exact integer-microdegree coordinates and
+// give the worker a six-level source pyramid before bounded presentation
+// refinement. GeoJSON remains an interchange slice; raster-native pyramids are
+// still required for substantially finer fields.
+const COLUMNS = 201;
+const ROWS = 201;
+const DATASET_ID = "rey-county-semantic-terrain-v4";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@4";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -168,7 +168,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v3",
+      schema: "rey.county-terrain-source.v4",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -192,7 +192,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic low-frequency domain-warped macro, ridge, and meso relief kept below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped macro, ridge, meso, and fine relief kept below the source-grid Nyquist limit",
         hydrology:
           "smooth authored drainage constraints carve the height field; the renderer derives bounded flow accumulation inside exact validity while wetland remains an authored area",
         land_cover:
@@ -318,9 +318,12 @@ function terrainSample(
   const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 12]) * 22;
   const ridgeTexture =
     ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8]) * 42;
-  const microTexture = fractalNoise(warpedX, warpedY, 401, [8, 13, 21]) * 3.5;
+  const fineTexture = fractalNoise(warpedX, warpedY, 401, [13, 27, 51]) * 8;
+  const fineRidges =
+    ridgedFractalNoise(warpedX, warpedY, 457, [11, 23, 43]) * 11;
   elevation +=
-    (macroTexture + mesoTexture + ridgeTexture + microTexture) * reliefWeight;
+    (macroTexture + mesoTexture + ridgeTexture + fineTexture + fineRidges) *
+    reliefWeight;
 
   const terraceInfluence = influenceById["terrain-explorer-terraces"] ?? 0;
   const terracedElevation = Math.round(elevation / 12) * 12;
@@ -333,8 +336,8 @@ function terrainSample(
   elevation = roundElevation(Math.max(32, elevation));
 
   const insideMeadow = pointInRing([longitude, latitude], meadow);
-  const moisture = fractalNoise(warpedX, warpedY, 503, [2.6, 5.2, 10.4]);
-  const exposure = fractalNoise(warpedX, warpedY, 601, [3.1, 6.2, 12.4]);
+  const moisture = fractalNoise(warpedX, warpedY, 503, [3, 7, 17]);
+  const exposure = fractalNoise(warpedX, warpedY, 601, [4, 11, 29]);
   let material;
   if (insideWetland || nearestWaterway.distance < 0.009) material = "sand";
   else if (insideMeadow) material = "vegetation";

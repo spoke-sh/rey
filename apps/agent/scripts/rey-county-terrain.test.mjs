@@ -20,16 +20,16 @@ describe("Rey County terrain source", () => {
 
   it("retains one exact row-major grid over the County bounds", () => {
     expect(terrain.terrain_derivation.grid).toMatchObject({
-      columns: 81,
-      rows: 81,
-      longitude_step_degrees: 0.011,
-      latitude_step_degrees: 0.009375,
-      nominal_longitude_spacing_meters: 1153.39,
-      nominal_latitude_spacing_meters: 1041.86,
+      columns: 201,
+      rows: 201,
+      longitude_step_degrees: 0.0044,
+      latitude_step_degrees: 0.00375,
+      nominal_longitude_spacing_meters: 461.36,
+      nominal_latitude_spacing_meters: 416.75,
     });
-    expect(cells).toHaveLength(6_561);
+    expect(cells).toHaveLength(40_401);
     expect(at(0, 0).geometry.coordinates).toEqual([-160, -19.25]);
-    expect(at(80, 80).geometry.coordinates).toEqual([-159.12, -20]);
+    expect(at(200, 200).geometry.coordinates).toEqual([-159.12, -20]);
     expect(
       cells.map(({ properties }) => [
         properties.terrain_grid_column,
@@ -44,9 +44,9 @@ describe("Rey County terrain source", () => {
 
   it("keeps the footprint exterior and Unexplored Scrub as explicit no-data", () => {
     expect(at(0, 0).properties.terrain_grid_validity).toBe("no_data");
-    expect(at(80, 80).properties.terrain_grid_validity).toBe("no_data");
-    expect(at(16, 70).properties.terrain_grid_validity).toBe("no_data");
-    expect(at(16, 70).geometry.coordinates).toHaveLength(2);
+    expect(at(200, 200).properties.terrain_grid_validity).toBe("no_data");
+    expect(at(40, 175).properties.terrain_grid_validity).toBe("no_data");
+    expect(at(40, 175).geometry.coordinates).toHaveLength(2);
     expect(terrain.terrain_derivation.summary).toMatchObject({
       valid_vertices: expect.any(Number),
       no_data_vertices: expect.any(Number),
@@ -54,19 +54,19 @@ describe("Rey County terrain source", () => {
       unexplored_vertices: expect.any(Number),
     });
     expect(terrain.terrain_derivation.summary.valid_vertices).toBeGreaterThan(
-      4_500,
+      28_000,
     );
     expect(
       terrain.terrain_derivation.summary.outside_footprint_vertices,
-    ).toBeGreaterThan(1_800);
+    ).toBeGreaterThan(10_500);
     expect(
       terrain.terrain_derivation.summary.unexplored_vertices,
-    ).toBeGreaterThan(100);
+    ).toBeGreaterThan(600);
   });
 
   it("expresses distinct project landforms, relief, and bounded materials", () => {
-    const anchorSummit = at(20, 16);
-    const runtimeBasin = at(44, 50);
+    const anchorSummit = at(50, 40);
+    const runtimeBasin = at(110, 125);
     expect(anchorSummit.properties.landform).toBe("anchor-summit");
     expect(anchorSummit.geometry.coordinates[2]).toBeGreaterThan(
       runtimeBasin.geometry.coordinates[2] + 350,
@@ -82,9 +82,9 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v3",
-      dataset_id: "rey-county-semantic-terrain-v3",
-      compiler_revision: "rey.agent-geography.rey-county@3",
+      schema: "rey.county-terrain-source.v4",
+      dataset_id: "rey-county-semantic-terrain-v4",
+      compiler_revision: "rey.agent-geography.rey-county@4",
       synthesis: {
         elevation: expect.stringContaining("domain-warped"),
         hydrology: expect.stringContaining("drainage constraints"),
@@ -128,13 +128,13 @@ describe("Rey County terrain source", () => {
         const residual = Math.abs(
           neighborhood[0].geometry.coordinates[2] - predicted,
         );
-        if (residual > 2) detailedCenters += 1;
+        if (residual > 1) detailedCenters += 1;
         maximumResidual = Math.max(maximumResidual, residual);
       }
     }
-    expect(supportedCenters).toBeGreaterThan(1_000);
-    expect(detailedCenters).toBeGreaterThan(250);
-    expect(maximumResidual).toBeGreaterThan(25);
+    expect(supportedCenters).toBeGreaterThan(6_500);
+    expect(detailedCenters).toBeGreaterThan(1_000);
+    expect(maximumResidual).toBeGreaterThan(20);
   });
 
   it("matches the checked-in native artifact byte for byte", () => {

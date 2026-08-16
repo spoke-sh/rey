@@ -44,9 +44,11 @@ outside this package.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
-The current Rey County working field refines each admitted source interval four
-times, producing a 321×321 renderer-neutral field from the qualified 81×81
-dataset before `@rey/explorer` receives it. Fully supported cell interiors use
+The current Rey County working field refines each admitted source interval two
+times, producing a 401×401 renderer-neutral field from the qualified 201×201
+dataset before `@rey/explorer` receives it. The refinement policy targets at
+least 320 intervals per axis, so source density—not a fixed multiplier—controls
+the exact working shape. Fully supported cell interiors use
 bilinear sampling; a cell touching no-data uses only fully supported source
 triangles. Every refined point carries an independent validity value.
 Band-limited deterministic microrelief is constrained to zero at admitted

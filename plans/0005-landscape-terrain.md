@@ -112,9 +112,9 @@ deterministic reference overlay, which stays mounted across backend loss.
 This proves admission, renderer parity, bounded tiled execution, transition
 continuity, and executable geographic passes, not the final fidelity bar. The
 original 41x41 source was a correctness and residency fixture presented
-through a tilted object-view composition. The current 81x81 geography-compiler
+through a tilted object-view composition. The current 201x201 geography-compiler
 output and map-first composition materially improve the base read, but roughly
-one-kilometer source spacing remains too coarse to close the required
+420–461-meter source spacing remains too coarse to close the required
 multi-scale fidelity gap. No imagery provider or license authority is
 admitted, so the engine renders admitted material and discloses the absence
 instead of fabricating familiar map imagery.
@@ -143,12 +143,12 @@ workload/backend/viewport rows only; fulfilled transport exercises the
 disclosed main-thread fallback and cannot close direct networking or
 dedicated-worker coverage.
 
-The normal Rey County fixture now carries a deterministic 81×81 authored
-regional grid. Its exact County footprint and Unexplored Scrub become 1,938
-explicit no-data vertices; 4,623 valid vertices retain five bounded materials
-and 70.28–1,721.89 meters of authored semantic relief. Revision
-`rey.agent-geography.rey-county@3` records band-limited domain-warped macro,
-meso, ridge, and micro relief, authored-hydrology carving, coherent land-cover
+The normal Rey County fixture now carries a deterministic 201×201 authored
+regional grid. Its exact County footprint and Unexplored Scrub become 11,539
+explicit no-data vertices; 28,862 valid vertices retain five bounded materials
+and 62.65–1,728.72 meters of authored semantic relief. Revision
+`rey.agent-geography.rey-county@4` records band-limited domain-warped macro,
+meso, ridge, and fine relief, authored-hydrology carving, coherent land-cover
 inputs, a district/transport/label hierarchy, and the explicit absence of
 cross-package stitching. The source is generated reproducibly from checked-in
 boundary, district, feature, highway, hydrology, label, railway, road, and
@@ -261,17 +261,17 @@ accessible but becomes a faint support boundary, while the detailed bearing
 and evidence key collapse to one compact map-status line at Landscape.
 Contours and the County boundary are subordinate to the relief rather than
 bright framing lines. This corrects composition and layer hierarchy, but the
-roughly one-kilometer 81x81 source still leaves the retained relief-fidelity
+roughly 420–461-meter 201x201 source still leaves the retained relief-fidelity
 comparison open.
 
-The browser now compiles that admitted 81×81 source into a 321×321
+The browser now compiles that admitted 201×201 source into a 401×401
 renderer-neutral presentation field before tile selection. Fully supported
 cell interiors use smooth bilinear refinement; cells touching explicit no-data
 fall back to validity-safe triangles and reject unsupported samples. An
 independent validity mask survives the complete pipeline, and band-limited
 deterministic microrelief is constrained to zero at all admitted source
-vertices. The resulting 103,041-cell field yields a deeper bounded tile
-pyramid while diagnostics continue to report the 6,561 source vertices. Its
+vertices. The resulting 160,801-cell field yields a deeper bounded tile
+pyramid while diagnostics continue to report the 40,401 source vertices. Its
 microrelief authority is presentation-only and does not close the still-open
 compact source payload or authored high-resolution geography requirements.
 
@@ -287,22 +287,25 @@ elevation intervals in meters—100 m at Landscape, 50 m at Neighborhoods, and
 25 m at Objects/Evidence—with a hard level bound. Landscape omits supplemental
 synthetic drainage linework so exact admitted waterways own its water read.
 
-### Perceptual rebaseline — 2026-08-15
+### Perceptual rebaseline — 2026-08-16
 
-The operator-supplied 3022×1926 terrain reference and Rey's retained 1920×1080
+The operator-supplied 3022×1926 terrain reference and Rey's current 1920×1080
 WebGL2 Landscape capture were inspected side by side. The reference is an
 acceptance target, not admitted scene evidence and not a source asset. The Rey
 capture is bound to voyage manifest
-`sha256:d242976085c5632c65d65cc9c6230bac6fe37223dc26e6c1024d6dccc65d1e21`.
+`sha256:e5a6e59640fc50b458d99a9ff510d77a077aa6e4139b4ed4c9808406af51d496`.
+The voyage reached every semantic and exact-evidence stage without browser
+exceptions; it remains incomplete because the footer-layout assertion did not
+converge, so it is evidence for this rebaseline rather than a closed matrix row.
 
 | Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
 | -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
 | Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
-| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Smooth broad landforms remain limited by kilometer sampling.           | Major |
-| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Grid artifacts are removed; fine source form is still absent.          | Major |
-| Land cover     | Coherent local classes with terrain-following boundaries.    | Five broad tints read as washes rather than geography.                 | Major |
-| Water          | Continuous areas and terrain-following river hierarchy.      | One wetland and smoother exact waterways remain sparse.                | Major |
-| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are coherent but inherit coarse source form.           | Major |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Fine authored texture now survives, but regional form is still sparse. | Major |
+| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Continuous shading reads clearly; high-frequency contrast remains low. | Major |
+| Land cover     | Coherent local classes with terrain-following boundaries.    | Five terrain-following classes still read as broad muted washes.       | Major |
+| Water          | Continuous areas and terrain-following river hierarchy.      | Six exact water features read coherently but remain too sparse.        | Major |
+| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.     | Major |
 | Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Districts, roads, rail, water, and labels now form a sparse hierarchy. | Major |
 
 This matrix keeps the side-by-side delivery item open. Repeated object-per-cell
@@ -312,7 +315,7 @@ palette, validity, and lazy exact-cell evidence. The next source-fidelity slice
 may therefore increase authored field density and deepen the
 water/transport/label hierarchy, but must do so against named retained-state,
 cold-compile, wire, resident, and submission budgets. Interpolating or shading
-the current 81×81 field more aggressively is not an acceptable substitute for
+the current 201×201 field more aggressively is not an acceptable substitute for
 admitted source detail.
 
 ## Geographic Synthesis Boundary
@@ -341,8 +344,8 @@ This separates three responsibilities:
    independent level of detail, labels, and transitions without minting
    geographic evidence.
 
-The source-controlled generator is the first geography compiler. Its third
-revision produces the 81×81 field with deterministic multi-scale relief,
+The source-controlled generator is the first geography compiler. Its fourth
+revision produces the 201×201 field with deterministic multi-scale relief,
 hydrology response, coherent base materials, exact no-data, districts,
 transport, cartographic labels, and explicit synthesis metadata. Multi-package
 admission now retains a canonical bounded active scene set instead of replacing
