@@ -161,6 +161,7 @@ pub struct SemanticAtlasRegionalSource {
     pub poi_objects: u64,
     pub highway_objects: u64,
     pub road_objects: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub railway_objects: u64,
     pub district_objects: u64,
     pub lot_objects: u64,
@@ -172,6 +173,10 @@ pub struct SemanticAtlasRegionalSource {
     pub connector_objects: u64,
     pub validity_boundaries: u64,
     pub omissions: u64,
+}
+
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 impl SemanticAtlasRegionalSource {
@@ -1970,6 +1975,28 @@ mod tests {
             validity_boundaries: 1,
             omissions: 2,
         }
+    }
+
+    #[test]
+    fn zero_railway_counts_preserve_pre_railway_atlas_identity() {
+        let atlas = SemanticAtlas::from_evidence_sources(
+            vec![source("survey", 3, 1)],
+            vec![regional_source("scene-admission", -42_000_000, 18_000_000)],
+        )
+        .expect("combined atlas");
+        let bytes = serde_json::to_vec(&atlas).expect("serialized atlas");
+        assert!(!String::from_utf8_lossy(&bytes).contains("railway_objects"));
+        let replay: SemanticAtlas = serde_json::from_slice(&bytes).expect("legacy atlas replay");
+        assert_eq!(replay.regional_sources[0].railway_objects, 0);
+        replay.verify().expect("stable legacy identity");
+
+        let mut railway = atlas.regional_sources[0].clone();
+        railway.railway_objects = 2;
+        assert!(
+            serde_json::to_string(&railway)
+                .expect("railway source")
+                .contains("\"railway_objects\":2")
+        );
     }
 
     #[test]
