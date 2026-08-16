@@ -173,6 +173,105 @@ const portfolio = {
 } as unknown as WorkloadList;
 
 describe("regional scene evidence adapter", () => {
+  it("projects every active package through its exact historical atlas binding", () => {
+    const workload = portfolio.workloads[0]!;
+    const first = workload.latest_scene_admission!;
+    const firstScene = first.scene!;
+    const secondScene = {
+      ...firstScene,
+      scene_id: "scene:2",
+      region_id: "regional-east",
+      native_bounds: {
+        west_microdegrees: -121_900_000,
+        south_microdegrees: 37_000_000,
+        east_microdegrees: -120_900_000,
+        north_microdegrees: 38_000_000,
+        crosses_antimeridian: false,
+      },
+      admission: {
+        ...firstScene.admission,
+        admission_id: "admission:2",
+        package_id: "package:2",
+        package_snapshot_revision: "snapshot:2",
+      },
+      artifacts: {
+        ...firstScene.artifacts,
+        admitted_atlas_revision: "atlas:2",
+        projection_packet_id: "packet:2",
+      },
+      projection: {
+        ...firstScene.projection,
+        packet_id: "packet:2",
+        source_package_id: "package:2",
+        source_snapshot_revision: "snapshot:2",
+        transforms: firstScene.projection.transforms.map((transform) =>
+          transform.target_space === "synthetic_semantic"
+            ? { ...transform, target_origin: [-39_000_000, 18_000_000] }
+            : transform.target_space === "county_local"
+              ? { ...transform, source_origin: [-121_400_000, 37_500_000] }
+              : transform,
+        ),
+      },
+    };
+    const second = { ...first, scene: secondScene };
+    const secondSource = {
+      ...regionalAtlas.regional_sources[0]!,
+      region_id: "atlas-region:2",
+      scene_region_id: "regional-east",
+      source_scene_id: "scene:2",
+      source_admission_id: "admission:2",
+      source_package_id: "package:2",
+      source_package_revision: "snapshot:2",
+      projection_packet_id: "packet:2",
+      semantic_longitude_microdegrees: -39_000_000,
+    };
+    const secondRegion = {
+      ...regionalAtlas.regional_regions[0]!,
+      region_id: "atlas-region:2",
+      scene_region_id: "regional-east",
+      source_scene_id: "scene:2",
+      source_admission_id: "admission:2",
+      source_package_id: "package:2",
+      source_package_revision: "snapshot:2",
+      projection_packet_id: "packet:2",
+      semantic_longitude_microdegrees: -39_000_000,
+    };
+    const currentAtlas = {
+      ...regionalAtlas,
+      atlas_revision: "atlas:2",
+      regional_sources: [regionalAtlas.regional_sources[0]!, secondSource],
+      regional_regions: [regionalAtlas.regional_regions[0]!, secondRegion],
+      sectors: [
+        {
+          ...regionalAtlas.sectors[0]!,
+          member_region_ids: ["atlas-region:1", "atlas-region:2"],
+        },
+      ],
+    };
+
+    const projected = admittedRegionalScenes({
+      ...portfolio,
+      semantic_atlas: currentAtlas,
+      semantic_atlas_history: [regionalAtlas, currentAtlas],
+      semantic_atlas_deltas: [
+        { delta_id: "delta:1", target_revision: "atlas:1" },
+        { delta_id: "delta:2", target_revision: "atlas:2" },
+      ],
+      workloads: [
+        {
+          ...workload,
+          scene_admissions: [first, second],
+          latest_scene_admission: second,
+        },
+      ],
+    } as unknown as WorkloadList);
+
+    expect(projected.map(({ scene }) => scene.region_id)).toEqual([
+      "regional-demo",
+      "regional-east",
+    ]);
+  });
+
   it("admits only a production accepted result with exact scene bindings", () => {
     expect(admittedRegionalScenes(portfolio)).toMatchObject([
       { county_footprint: null },

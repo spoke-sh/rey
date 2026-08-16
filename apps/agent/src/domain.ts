@@ -64,6 +64,7 @@ export interface WorkloadSummary {
   topography_patch: TopographyPatch | null;
   topography_projection: ProjectionPacket | null;
   scene_admission_results: number;
+  scene_admissions?: SceneAdmissionResult[];
   latest_scene_admission: SceneAdmissionResult | null;
   last_run_status: "passed" | "blocked" | null;
   last_test_result_id: string | null;

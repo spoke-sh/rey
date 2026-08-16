@@ -461,6 +461,7 @@ mod tests {
             LocalWorkloadRecord {
                 last_test: Some(result),
                 last_run: None,
+                prior_scene_admissions: Vec::new(),
             },
         );
         (catalog, state)
@@ -523,6 +524,7 @@ mod tests {
             LocalWorkloadRecord {
                 last_test: stale_result,
                 last_run: None,
+                prior_scene_admissions: Vec::new(),
             },
         );
 
@@ -570,6 +572,7 @@ mod tests {
             LocalWorkloadRecord {
                 last_test: Some(result),
                 last_run: None,
+                prior_scene_admissions: Vec::new(),
             },
         );
         let index = workload_evidence_catalog(&catalog, &state)

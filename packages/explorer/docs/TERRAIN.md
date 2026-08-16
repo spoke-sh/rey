@@ -230,10 +230,14 @@ in objects plus cells; increasing terrain density must not reintroduce a
 per-cell scan of every native object. Terrain-control geometry never becomes
 observed elevation.
 
-The source regional field is currently one bounded in-memory grid rendered by
-a bounded 3D orthographic terrain camera through a tiled accelerated working
-set. The application binds one selected synthetic Atlas sector to the exact
-regional field and drives the same reversible model transform through surface,
-passes, and reference paths. Native raster/imagery streaming and retained
-Landscape fidelity voyages remain work tracked by [Plan
+Each admitted regional field remains one bounded in-memory grid rendered by a
+bounded 3D orthographic terrain camera through a tiled accelerated working set.
+The application may now retain and validate multiple active editor packages,
+including each scene's historical admission-atlas binding and its membership
+in the current atlas. Selection still binds one synthetic Atlas member to one
+exact regional field; no seam policy or merged field is implied by simultaneous
+retention. The application drives the same reversible model transform through
+surface, passes, and reference paths. Native raster/imagery streaming,
+cross-package composition, and retained Landscape fidelity voyages remain work
+tracked by [Plan
 0005](../../../plans/0005-landscape-terrain.md).

@@ -63,6 +63,7 @@ const LOCK_FILE_NAME: &str = "workloads.lock";
 const MAX_STATE_BYTES: u64 = 64 * 1_024 * 1_024;
 const MAX_STATE_RECORDS: usize = 64;
 const MAX_RETAINED_SEMANTIC_ATLASES: usize = 64;
+const MAX_RETAINED_REGIONAL_SCENES_PER_WORKLOAD: usize = 128;
 const WORKLOAD_PACKAGE_FILE_NAME: &str = "workload.yaml";
 const WORKLOAD_CREATION_REQUEST_FILE_NAME: &str = "request.yaml";
 const MAX_WORKLOAD_PACKAGES: usize = 128;
@@ -2344,6 +2345,8 @@ pub enum WorkloadCatalogError {
 pub struct LocalWorkloadRecord {
     pub last_test: Option<WorkloadTestResult>,
     pub last_run: Option<WorkloadRunResult>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prior_scene_admissions: Vec<SceneAdmissionResult>,
 }
 
 impl LocalWorkloadRecord {
@@ -2352,6 +2355,7 @@ impl LocalWorkloadRecord {
         Self {
             last_test: None,
             last_run: None,
+            prior_scene_admissions: Vec::new(),
         }
     }
 }
@@ -2494,6 +2498,54 @@ impl LocalWorkloadState {
                     atlas.verify_regional_scene_binding(workload_id, scene)?;
                 }
             }
+            if record.prior_scene_admissions.len() > MAX_RETAINED_REGIONAL_SCENES_PER_WORKLOAD {
+                return Err(LocalWorkloadStateError::RegionalSceneHistory(
+                    workload_id.clone(),
+                ));
+            }
+            let current_regions = record
+                .last_run
+                .as_ref()
+                .into_iter()
+                .flat_map(|run| &run.scene_admissions)
+                .filter(|admission| admission.scenario.is_none())
+                .filter_map(|admission| admission.scene.as_ref())
+                .map(|scene| scene.region_id.as_str())
+                .collect::<BTreeSet<_>>();
+            let mut prior_region = None;
+            for admission in &record.prior_scene_admissions {
+                admission.verify().map_err(|_| {
+                    LocalWorkloadStateError::RegionalSceneHistory(workload_id.clone())
+                })?;
+                let scene = admission.scene.as_ref().ok_or_else(|| {
+                    LocalWorkloadStateError::RegionalSceneHistory(workload_id.clone())
+                })?;
+                if admission.scenario.is_some()
+                    || admission.workload.id != *workload_id
+                    || current_regions.contains(scene.region_id.as_str())
+                    || prior_region.is_some_and(|prior| prior >= scene.region_id.as_str())
+                {
+                    return Err(LocalWorkloadStateError::RegionalSceneHistory(
+                        workload_id.clone(),
+                    ));
+                }
+                let atlas_revision = scene
+                    .artifacts
+                    .admitted_atlas_revision
+                    .as_ref()
+                    .ok_or_else(|| {
+                        LocalWorkloadStateError::RegionalSceneAtlasBinding(workload_id.clone())
+                    })?;
+                let atlas = self
+                    .semantic_atlas_history
+                    .iter()
+                    .find(|atlas| &atlas.atlas_revision == atlas_revision)
+                    .ok_or_else(|| {
+                        LocalWorkloadStateError::RegionalSceneAtlasBinding(workload_id.clone())
+                    })?;
+                atlas.verify_regional_scene_binding(workload_id, scene)?;
+                prior_region = Some(scene.region_id.as_str());
+            }
         }
         let mut previous_admission = None;
         let mut activation_ids = BTreeSet::new();
@@ -2596,10 +2648,49 @@ impl LocalWorkloadState {
 
     pub fn retain_run(&mut self, result: WorkloadRunResult) {
         let workload_id = result.workload.id.clone();
-        self.records
+        let record = self
+            .records
             .entry(workload_id)
-            .or_insert_with(LocalWorkloadRecord::empty)
-            .last_run = Some(result);
+            .or_insert_with(LocalWorkloadRecord::empty);
+        let incoming_regions = result
+            .scene_admissions
+            .iter()
+            .filter(|admission| admission.scenario.is_none())
+            .filter_map(|admission| admission.scene.as_ref())
+            .map(|scene| scene.region_id.as_str())
+            .collect::<BTreeSet<_>>();
+        record.prior_scene_admissions.retain(|admission| {
+            admission
+                .scene
+                .as_ref()
+                .is_some_and(|scene| !incoming_regions.contains(scene.region_id.as_str()))
+        });
+        if let Some(previous) = &record.last_run {
+            for admission in &previous.scene_admissions {
+                let Some(scene) = admission.scene.as_ref() else {
+                    continue;
+                };
+                if admission.scenario.is_some()
+                    || incoming_regions.contains(scene.region_id.as_str())
+                {
+                    continue;
+                }
+                record.prior_scene_admissions.retain(|existing| {
+                    existing
+                        .scene
+                        .as_ref()
+                        .is_none_or(|existing| existing.region_id != scene.region_id)
+                });
+                record.prior_scene_admissions.push(admission.clone());
+            }
+        }
+        record.prior_scene_admissions.sort_by(|left, right| {
+            left.scene
+                .as_ref()
+                .map(|scene| scene.region_id.as_str())
+                .cmp(&right.scene.as_ref().map(|scene| scene.region_id.as_str()))
+        });
+        record.last_run = Some(result);
     }
 
     pub fn retain_semantic_atlas_transition(
@@ -3556,6 +3647,7 @@ pub struct WorkloadSummary {
     pub topography_patch: Option<TopographyPatch>,
     pub topography_projection: Option<ProjectionPacket>,
     pub scene_admission_results: u64,
+    pub scene_admissions: Vec<SceneAdmissionResult>,
     pub latest_scene_admission: Option<SceneAdmissionResult>,
 }
 
@@ -3675,12 +3767,29 @@ impl WorkloadSummary {
             ProjectionPacket::from_topography_patch(patch)
                 .expect("retained verified topography must produce a projection packet")
         });
-        let production_scene_admissions = record
+        let current_scene_admissions = record
             .and_then(|record| record.last_run.as_ref())
             .filter(|run| run.workload == workload.workload && run.graph == workload.graph.graph)
             .map(|run| run.scene_admissions.as_slice())
             .unwrap_or_default();
-        let latest_scene_admission = production_scene_admissions.last().cloned();
+        let latest_scene_admission = current_scene_admissions.last().cloned();
+        let mut scene_admissions = record
+            .into_iter()
+            .flat_map(|record| &record.prior_scene_admissions)
+            .cloned()
+            .chain(
+                current_scene_admissions
+                    .iter()
+                    .filter(|admission| admission.scenario.is_none() && admission.scene.is_some())
+                    .cloned(),
+            )
+            .collect::<Vec<_>>();
+        scene_admissions.sort_by(|left, right| {
+            left.scene
+                .as_ref()
+                .map(|scene| scene.region_id.as_str())
+                .cmp(&right.scene.as_ref().map(|scene| scene.region_id.as_str()))
+        });
         Self {
             provenance: None,
             workload: workload.workload.clone(),
@@ -3720,7 +3829,8 @@ impl WorkloadSummary {
             topography_frontier_rows: last_patch.map_or(0, |patch| patch.frontier.len() as u64),
             topography_patch: last_patch.cloned(),
             topography_projection,
-            scene_admission_results: production_scene_admissions.len() as u64,
+            scene_admission_results: scene_admissions.len() as u64,
+            scene_admissions,
             latest_scene_admission,
         }
     }
@@ -3836,12 +3946,13 @@ fn semantic_atlas_from_summaries(
                 .as_ref()
                 .map(|patch| (workload.workload.id.as_str(), patch))
         }),
-        workloads.iter().filter_map(|workload| {
-            workload
-                .latest_scene_admission
-                .as_ref()
-                .and_then(|result| result.scene.as_ref())
-                .map(|scene| (workload.workload.id.as_str(), scene))
+        workloads.iter().flat_map(|workload| {
+            workload.scene_admissions.iter().filter_map(|result| {
+                result
+                    .scene
+                    .as_ref()
+                    .map(|scene| (workload.workload.id.as_str(), scene))
+            })
         }),
     )
 }
@@ -4458,6 +4569,8 @@ pub enum LocalWorkloadStateError {
     SemanticAtlasHistory,
     #[error("retained regional scene for workload {0} does not bind an exact retained atlas")]
     RegionalSceneAtlasBinding(String),
+    #[error("retained regional scene history for workload {0} is invalid or exceeds its bound")]
+    RegionalSceneHistory(String),
     #[error("local workload state record {0} has no retained artifact")]
     EmptyRecord(String),
     #[error("workload activation admission is invalid or has been tampered with")]

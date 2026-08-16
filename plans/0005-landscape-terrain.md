@@ -328,7 +328,13 @@ The source-controlled generator is the first geography compiler. Its third
 revision produces the 81×81 field with deterministic multi-scale relief,
 hydrology response, coherent base materials, exact no-data, districts,
 transport, cartographic labels, and explicit synthesis metadata. Multi-package
-ingestion, explicit cross-package seam resolution, raster-native field
+admission now retains a canonical bounded active scene set instead of replacing
+the preceding editor package whenever `scene-admission` runs. Every scene keeps
+its exact original atlas back-reference while the current atlas inventories all
+active scene/package/packet memberships, and the browser validates both the
+historical admission binding and current membership before projecting it.
+This is ingestion and lineage enabling work only: explicit cross-package seam
+resolution, a conflict artifact, stitched field output, raster-native field
 storage, and deeper vector density remain subsequent slices of the same
 boundary.
 

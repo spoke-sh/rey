@@ -7551,6 +7551,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     );
     let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
+    assert!(response.contains("\"scene_admissions\""));
     assert!(response.contains("\"latest_scene_admission\""));
     assert!(response.contains("\"status\":\"accepted\""));
     assert!(response.contains("\"scenario\":null"));
@@ -7567,6 +7568,152 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(response.contains("\"space\":\"camera\""));
     ui.kill().unwrap();
     ui.wait().unwrap();
+
+    let generated = run_rey_workspace(&[
+        "editor",
+        "--workspace",
+        workspace_path,
+        "--state-dir",
+        ".rey/editor-east",
+        "generate",
+        "terrain",
+        "terrain-east.geojson",
+        "--id",
+        "regional-east-controls",
+        "--scene-id",
+        "regional-east",
+        "--seed",
+        "23",
+        "--west",
+        "-121.9",
+        "--south",
+        "37",
+        "--east",
+        "-120.9",
+        "--north",
+        "38",
+        "--features",
+        "2",
+        "--vertices",
+        "5",
+    ]);
+    assert!(generated.status.success());
+    assert!(
+        run_rey_workspace(&[
+            "editor",
+            "--workspace",
+            workspace_path,
+            "--state-dir",
+            ".rey/editor-east",
+            "add",
+        ])
+        .status
+        .success()
+    );
+    assert!(
+        run_rey_workspace(&[
+            "editor",
+            "--workspace",
+            workspace_path,
+            "--state-dir",
+            ".rey/editor-east",
+            "commit",
+            "-m",
+            "Freeze neighboring regional candidate",
+        ])
+        .status
+        .success()
+    );
+    let second_run = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "run",
+        "scene-admission",
+        "--scene",
+        "SCENE@1",
+        "--editor-state-dir",
+        ".rey/editor-east",
+    ]);
+    assert!(
+        second_run.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&second_run.stdout),
+        String::from_utf8_lossy(&second_run.stderr),
+    );
+
+    let listed = run_rey_workspace(&["workloads", "--workspace", workspace_path, "list"]);
+    assert!(listed.status.success());
+    let listed: WorkloadList = serde_json::from_slice(&listed.stdout).unwrap();
+    let summary = listed
+        .workloads
+        .iter()
+        .find(|summary| summary.workload.id == "scene-admission")
+        .unwrap();
+    assert_eq!(summary.scene_admission_results, 2);
+    assert_eq!(summary.scene_admissions.len(), 2);
+    assert_eq!(
+        summary
+            .latest_scene_admission
+            .as_ref()
+            .and_then(|result| result.scene.as_ref())
+            .map(|scene| scene.region_id.as_str()),
+        Some("regional-east")
+    );
+    let retained_first = summary
+        .scene_admissions
+        .iter()
+        .find_map(|result| {
+            result
+                .scene
+                .as_ref()
+                .filter(|scene| scene.region_id == "regional-demo")
+        })
+        .unwrap();
+    let retained_second = summary
+        .scene_admissions
+        .iter()
+        .find_map(|result| {
+            result
+                .scene
+                .as_ref()
+                .filter(|scene| scene.region_id == "regional-east")
+        })
+        .unwrap();
+    assert_eq!(listed.semantic_atlas_history.len(), 2);
+    assert_ne!(
+        retained_first.artifacts.admitted_atlas_revision,
+        retained_second.artifacts.admitted_atlas_revision
+    );
+    let current_atlas = listed.semantic_atlas.as_ref().unwrap();
+    assert_eq!(current_atlas.regional_sources.len(), 2);
+    assert_eq!(current_atlas.regional_regions.len(), 2);
+    assert!(current_atlas.regional_sources.iter().any(|source| {
+        source.scene_region_id == retained_first.region_id
+            && source.source_scene_id == retained_first.scene_id
+    }));
+    assert!(current_atlas.regional_sources.iter().any(|source| {
+        source.scene_region_id == retained_second.region_id
+            && source.source_scene_id == retained_second.scene_id
+    }));
+    LocalWorkloadStore::default_for_workspace(workspace.path())
+        .load()
+        .unwrap()
+        .verify()
+        .unwrap();
+
+    let listed_table = run_rey_workspace(&[
+        "workloads",
+        "--workspace",
+        workspace_path,
+        "list",
+        "--format",
+        "table",
+    ]);
+    assert!(listed_table.status.success());
+    let listed_table = String::from_utf8(listed_table.stdout).unwrap();
+    assert!(listed_table.contains("0 survey + 2 admitted regional regions"));
+    assert!(listed_table.contains("2 exact scene/package/packet memberships"));
 }
 
 #[test]
