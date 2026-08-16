@@ -151,6 +151,8 @@ export function compileRegionalTerrainField(
     detail_authority: dataset.authority,
     source_revision: dataset.dataset_id,
     source_summary: Object.freeze({
+      columns: dataset.columns,
+      rows: dataset.rows,
       valid_vertices: validElevations.length,
       no_data_vertices: cells - validElevations.length,
       elevation_minimum: minimumElevation,

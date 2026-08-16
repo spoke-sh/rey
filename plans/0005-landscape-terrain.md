@@ -257,6 +257,16 @@ pyramid while diagnostics continue to report the 6,561 source vertices. Its
 microrelief authority is presentation-only and does not close the still-open
 compact source payload or authored high-resolution geography requirements.
 
+The refined field now feeds one deterministic geography chain:
+`elevation → depression-safe receivers → basin accumulation → bounded channel
+incision → normals/curvature → land cover`. The priority-flood topology never
+crosses no-data, source vertices retain their admitted elevation, and derived
+stream/river linework is disclosed separately from exact admitted hydrology.
+Contours now use elevation intervals in meters—100 m at Landscape, 50 m at
+Neighborhoods, and 25 m at Objects/Evidence—with a hard level bound. This
+closes the former zero-filled drainage-channel gap for regional presentation;
+it does not promote synthetic drainage or land cover into evidence.
+
 ### Perceptual rebaseline — 2026-08-15
 
 The operator-supplied 3022×1926 terrain reference and Rey's retained 1920×1080

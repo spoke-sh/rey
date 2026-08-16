@@ -15,7 +15,7 @@ export const REGIONAL_TERRAIN_REFINEMENT_REVISION =
   "rey.terrain.validity-safe-refinement@1" as const;
 export const REGIONAL_TERRAIN_PRESENTATION_INTERVALS = 320;
 const MAXIMUM_REFINEMENT_FACTOR = 4;
-const MICRO_RELIEF_AMPLITUDE = 0.045;
+const MICRO_RELIEF_AMPLITUDE = 0.022;
 
 interface SampledTerrain {
   elevation: number;

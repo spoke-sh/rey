@@ -2,7 +2,9 @@ import {
   compileContinuousRelief,
   terrainNoDataLeakTriangleCount,
   type CompiledContinuousRelief,
+  type TerrainLineFeatureInput,
 } from "@rey/explorer";
+import type { LensRegime } from "../engine/camera";
 import {
   materializeTerrainWorkingSet,
   type TerrainCameraView,
@@ -11,8 +13,11 @@ import {
   type TerrainWorkingSetRequest,
 } from "./compile";
 import type { CompiledTerrainTile } from "./residency";
-import { deriveTerrainNormals } from "./normals";
 import { refineRegionalTerrainField } from "./refinement";
+import {
+  deriveRegionalTerrainGeography,
+  deriveRegionalTerrainPresentationLines,
+} from "./regional-geography";
 import {
   materializeTerrainTile,
   projectTerrainTilePyramid,
@@ -24,8 +29,6 @@ import {
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
   "rey.terrain.compilation-worker@1" as const;
-export const TERRAIN_WORKER_RELIEF_REVISION =
-  "rey.terrain.worker-relief@1" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;
@@ -35,6 +38,7 @@ export interface TerrainProgramWorkerRequest {
 export interface TerrainCompilationJob {
   job_id: string;
   workload_id: string;
+  regime: LensRegime;
   fields: readonly TerrainFieldSet[];
   programs: readonly TerrainProgramWorkerRequest[];
   view: TerrainCameraView;
@@ -66,6 +70,7 @@ export interface TerrainCompilationResult {
   compiled_tiles: readonly CompiledTerrainTile[];
   fields: readonly TerrainFieldSet[];
   compiled: CompiledContinuousRelief;
+  derived_lines: readonly TerrainLineFeatureInput[];
   metrics: TerrainCompilationMetrics;
 }
 
@@ -88,7 +93,7 @@ export function executeTerrainCompilationJob(
   const admittedFields = job.fields
     .filter((field) => field.active_band_ids.includes("admitted_dem"))
     .map((field) => refineRegionalTerrainField(field))
-    .map(deriveWorkerRelief);
+    .map(deriveRegionalTerrainGeography);
   const passthroughFields = job.fields.filter(
     (field) => !field.active_band_ids.includes("admitted_dem"),
   );
@@ -97,6 +102,9 @@ export function executeTerrainCompilationJob(
   );
   const selections = pyramids.map((pyramid) =>
     selectTerrainTilesForView(pyramid, job.view),
+  );
+  const derivedLines = admittedFields.flatMap((field) =>
+    deriveRegionalTerrainPresentationLines(field, job.regime),
   );
   const fieldById = new Map(
     admittedFields.map((field) => [field.field_set_id, field]),
@@ -165,6 +173,7 @@ export function executeTerrainCompilationJob(
     compiled_tiles: Object.freeze(tiles),
     fields: Object.freeze(fields),
     compiled,
+    derived_lines: Object.freeze(derivedLines),
     metrics: Object.freeze({
       workload_id: job.workload_id,
       update_ms: measurementNow() - updateStarted,
@@ -191,21 +200,4 @@ export function executeTerrainCompilationJob(
 
 function measurementNow(): number {
   return globalThis.performance?.now() ?? Date.now();
-}
-
-function deriveWorkerRelief(field: TerrainFieldSet): TerrainFieldSet {
-  const relief = deriveTerrainNormals(
-    field.elevation,
-    field.validity,
-    field.elevation_scale,
-    {
-      normal: `${TERRAIN_WORKER_RELIEF_REVISION}:normal:${field.source_revision}`,
-      curvature: `${TERRAIN_WORKER_RELIEF_REVISION}:curvature:${field.source_revision}`,
-    },
-  );
-  return Object.freeze({
-    ...field,
-    normal: relief.normal,
-    curvature: relief.curvature,
-  });
 }

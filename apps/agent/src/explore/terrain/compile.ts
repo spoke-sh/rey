@@ -51,6 +51,8 @@ export interface TerrainFieldSet {
   detail_authority: string;
   source_revision: string;
   source_summary?: {
+    columns: number;
+    rows: number;
     valid_vertices: number;
     no_data_vertices: number;
     elevation_minimum: number;

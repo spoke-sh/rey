@@ -8,6 +8,7 @@ describe("terrain tile residency", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:residency",
       workload_id: "landscape-residency-fixture",
+      regime: "landscape",
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),
@@ -48,6 +49,7 @@ describe("terrain tile residency", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:residency-overflow",
       workload_id: "landscape-residency-overflow-fixture",
+      regime: "landscape",
       fields: [admittedField()],
       programs: [],
       view: terrainTileView(4),

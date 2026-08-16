@@ -10,7 +10,7 @@ import type { TerrainFieldSet } from "./compile";
 export const TERRAIN_CONTOUR_COMPILER_REVISION =
   "rey.terrain.contours@1" as const;
 
-const REGIONAL_CONTOUR_COUNTS: Record<LensRegime, number> = {
+const REGIONAL_CONTOUR_FALLBACK_COUNTS: Record<LensRegime, number> = {
   world: 0,
   atlas: 0,
   landscape: 7,
@@ -19,31 +19,87 @@ const REGIONAL_CONTOUR_COUNTS: Record<LensRegime, number> = {
   evidence: 13,
 };
 
+const REGIONAL_CONTOUR_INTERVAL_METERS: Record<LensRegime, number> = {
+  world: Number.POSITIVE_INFINITY,
+  atlas: Number.POSITIVE_INFINITY,
+  landscape: 100,
+  neighborhoods: 50,
+  objects: 25,
+  evidence: 25,
+};
+
+const MAXIMUM_CONTOUR_LEVELS = 48;
+
+export function regionalTerrainContourThresholds(
+  field: TerrainFieldSet,
+  regime: LensRegime,
+): readonly number[] {
+  const fallbackCount = REGIONAL_CONTOUR_FALLBACK_COUNTS[regime];
+  if (fallbackCount === 0) return Object.freeze([]);
+  const normalizedSpan = field.elevation.maximum - field.elevation.minimum;
+  if (!(normalizedSpan > 0)) return Object.freeze([]);
+  const summary = field.source_summary;
+  const sourceSpan = summary
+    ? summary.elevation_maximum - summary.elevation_minimum
+    : 0;
+  if (summary && sourceSpan > 0) {
+    let interval = REGIONAL_CONTOUR_INTERVAL_METERS[regime];
+    while (sourceSpan / interval > MAXIMUM_CONTOUR_LEVELS) interval *= 2;
+    const first =
+      (Math.floor(summary.elevation_minimum / interval) + 1) * interval;
+    const thresholds: number[] = [];
+    for (
+      let elevation = first;
+      elevation < summary.elevation_maximum;
+      elevation += interval
+    )
+      thresholds.push(
+        field.elevation.minimum +
+          ((elevation - summary.elevation_minimum) / sourceSpan) *
+            normalizedSpan,
+      );
+    if (thresholds.length > 0) return Object.freeze(thresholds);
+  }
+  return Object.freeze(
+    Array.from(
+      { length: fallbackCount },
+      (_, index) =>
+        field.elevation.minimum +
+        normalizedSpan * ((index + 1) / (fallbackCount + 1)),
+    ),
+  );
+}
+
 export function deriveRegionalTerrainContours(
   field: TerrainFieldSet,
   regime: LensRegime,
 ): TopologyContour[] {
-  const count = REGIONAL_CONTOUR_COUNTS[regime];
-  if (count === 0) return [];
+  const thresholds = regionalTerrainContourThresholds(field, regime);
+  if (thresholds.length === 0) return [];
   const span = field.elevation.maximum - field.elevation.minimum;
   if (!(span > 0)) return [];
   const anchorCount = field.validity.values.reduce(
     (total, value) => total + (value === 0 ? 0 : 1),
     0,
   );
-  return Array.from({ length: count }, (_, index) => {
-    const ratio = (index + 1) / (count + 1);
-    const threshold = field.elevation.minimum + span * ratio;
-    const path = terrainContourPath(field.elevation, field.validity, threshold);
-    if (!path) return null;
-    return {
-      id: `${TERRAIN_CONTOUR_COMPILER_REVISION}:${field.field_set_id}:${regime}:${index}`,
-      path,
-      level: Math.max(1, Math.min(7, Math.round(ratio * 7))),
-      threshold,
-      anchor_count: anchorCount,
-    };
-  }).filter((contour): contour is TopologyContour => contour !== null);
+  return thresholds
+    .map((threshold, index) => {
+      const ratio = (threshold - field.elevation.minimum) / span;
+      const path = terrainContourPath(
+        field.elevation,
+        field.validity,
+        threshold,
+      );
+      if (!path) return null;
+      return {
+        id: `${TERRAIN_CONTOUR_COMPILER_REVISION}:${field.field_set_id}:${regime}:${index}`,
+        path,
+        level: Math.max(1, Math.min(7, Math.round(ratio * 7))),
+        threshold,
+        anchor_count: anchorCount,
+      };
+    })
+    .filter((contour): contour is TopologyContour => contour !== null);
 }
 
 export function terrainContourPath(

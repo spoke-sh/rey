@@ -54,6 +54,17 @@ report the original admitted vertex counts and elevation range. The reference
 renderer selects conservative root tiles instead of mounting hundreds of
 thousands of fallback polygons.
 
+That dense working field is then treated as a causal geography graph, not a
+bag of independent visual channels. A priority-flood pass resolves local
+depressions without crossing no-data, every valid cell receives one bounded
+downstream receiver, and a height-ordered accumulation pass carries rainfall
+through the complete admitted basin. Presentation-only channel incision is
+zero at every admitted source vertex. Normals and curvature are recomputed
+from that conditioned elevation; moisture, slope, height, exposure, and
+accumulation then derive a coherent land-cover material. Metric contour
+intervals tighten by semantic lens, while smoothed synthetic stream and river
+linework remains distinctly qualified from exact admitted hydrology.
+
 ## Validity-Safe Mesh Compilation
 
 Grid X/Y becomes mesh X/Z; admitted elevation becomes mesh Y. For each quad,

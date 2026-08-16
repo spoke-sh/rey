@@ -426,6 +426,7 @@ export function AcceleratedTerrainSurface({
         {
           job_id: terrainJobId,
           workload_id: "explorer-landscape-interaction-v1",
+          regime: snapshot.scene.regime,
           fields: snapshot.scene.terrain_fields,
           programs: snapshot.scene.terrain_programs.map((program, index) => ({
             program,
@@ -514,12 +515,14 @@ export function AcceleratedTerrainSurface({
         snapshot.scene,
         snapshot.render_graph,
         renderVisibility,
+        activeTerrain?.result.derived_lines,
       ),
     [
       renderVisibility.contours,
       renderVisibility.probes,
       renderVisibility.water,
       renderVisibility.weather,
+      activeTerrain?.job_id,
       snapshot.snapshot_id,
     ],
   );

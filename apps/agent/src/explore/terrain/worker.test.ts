@@ -10,6 +10,7 @@ describe("bounded terrain compilation worker", () => {
     const result = executeTerrainCompilationJob({
       job_id: "terrain-job:one",
       workload_id: "landscape-seam-fixture",
+      regime: "landscape",
       fields: [source],
       programs: [],
       view: terrainTileView(4),
@@ -33,7 +34,7 @@ describe("bounded terrain compilation worker", () => {
     );
     for (const tile of result.compiled_tiles) {
       expect(tile.fields.normal.implementation_revision).toContain(
-        "rey.terrain.worker-relief@1",
+        "rey.terrain.regional-geography@1",
       );
       for (const index of tile.mesh.indices)
         expect(tile.fields.validity.values[index]).toBe(1);
@@ -45,6 +46,7 @@ describe("bounded terrain compilation worker", () => {
       executeTerrainCompilationJob({
         job_id: "terrain-job:overflow",
         workload_id: "landscape-budget-fixture",
+        regime: "landscape",
         fields: [admittedField()],
         programs: [],
         view: terrainTileView(4),
@@ -60,6 +62,7 @@ describe("bounded terrain compilation worker", () => {
         {
           job_id: "terrain-job:cancelled",
           workload_id: "landscape-cancellation-fixture",
+          regime: "landscape",
           fields: [admittedField()],
           programs: [],
           view: terrainTileView(4),

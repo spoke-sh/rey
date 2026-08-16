@@ -24,6 +24,7 @@ export function compileTerrainRenderPasses(
   scene: TopologyScene,
   graph: ExplorerRenderGraph,
   visibility: ExplorerRenderVisibility,
+  derivedLines: readonly TerrainLineFeatureInput[] = Object.freeze([]),
 ): TerrainRenderPassSetInput | null {
   if (scene.terrain_fields.length === 0) return null;
   const active = activeExplorerRenderPasses(graph, visibility);
@@ -92,20 +93,31 @@ export function compileTerrainRenderPasses(
       );
   };
 
-  if (activeIds.has("contours"))
-    for (const contour of scene.contours)
-      appendPath({
-        id: contour.id,
-        pass_id: "contours",
-        kind: "contour",
-        source_revision: `${contour.id}:${contour.threshold}`,
-        authority: "derived contour over the same admitted validity field",
-        path: contour.path,
-        color: 0x756d54,
-        opacity: 0.28,
-      });
+  if (activeIds.has("contours")) {
+    const derivedContours = derivedLines.filter(
+      ({ pass_id }) => pass_id === "contours",
+    );
+    if (derivedContours.length > 0) lines.push(...derivedContours);
+    else
+      for (const contour of scene.contours)
+        appendPath({
+          id: contour.id,
+          pass_id: "contours",
+          kind: "contour",
+          source_revision: `${contour.id}:${contour.threshold}`,
+          authority: "derived contour over the same admitted validity field",
+          path: contour.path,
+          color: 0x756d54,
+          opacity: 0.28,
+        });
+  }
 
   if (activeIds.has("water_weather_boundary")) {
+    lines.push(
+      ...derivedLines.filter(
+        ({ pass_id }) => pass_id === "water_weather_boundary",
+      ),
+    );
     for (const feature of scene.natural_features)
       if (
         (feature.kind === "weather_front" && visibility.weather) ||
