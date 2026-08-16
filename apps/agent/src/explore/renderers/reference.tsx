@@ -506,18 +506,22 @@ function AtlasFeatureLayer({
                 style={{ opacity }}
                 tabIndex={wrapIndex === 0 ? 0 : -1}
               >
-                <circle
-                  className={sx(styles.atlasFeatureHalo)}
-                  cx={x}
-                  cy={node.y}
-                  r={15}
-                />
-                <circle
-                  className={sx(styles.atlasFeaturePoint)}
-                  cx={x}
-                  cy={node.y}
-                  r={7}
-                />
+                {!accelerated ? (
+                  <>
+                    <circle
+                      className={sx(styles.atlasFeatureHalo)}
+                      cx={x}
+                      cy={node.y}
+                      r={15}
+                    />
+                    <circle
+                      className={sx(styles.atlasFeaturePoint)}
+                      cx={x}
+                      cy={node.y}
+                      r={7}
+                    />
+                  </>
+                ) : null}
                 {placement.visible ? (
                   <text
                     className={sx(styles.atlasFeatureLabel)}
@@ -1335,12 +1339,14 @@ function WorldAtlasTransitionLayer({
               role="button"
               tabIndex={0}
             >
-              <circle
-                className={sx(styles.worldAtlasMorphMarker)}
-                cx={projected.x}
-                cy={projected.y}
-                r={8}
-              />
+              {!accelerated ? (
+                <circle
+                  className={sx(styles.worldAtlasMorphMarker)}
+                  cx={projected.x}
+                  cy={projected.y}
+                  r={8}
+                />
+              ) : null}
               {label.visible ? (
                 <text
                   className={sx(styles.worldAtlasMorphLabel)}

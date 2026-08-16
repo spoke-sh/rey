@@ -431,6 +431,7 @@ describe("reference renderer", () => {
       'data-semantic-identity="region:1"',
     );
     expect(extractAtlasFeatureLayer(referenceMarkup)).toContain("<rect");
+    expect(extractAtlasFeatureLayer(referenceMarkup)).toContain("<circle");
 
     const acceleratedMarkup = renderToStaticMarkup(
       <ReferenceRenderer
@@ -447,6 +448,84 @@ describe("reference renderer", () => {
     expect(extractAtlasFeatureLayer(acceleratedMarkup)).toContain(
       'data-focus-id="regional:1"',
     );
+    // Before this fix, AtlasFeatureLayer's own node marker (a halo + point
+    // circle, projected through the atlas Mercator math) rendered
+    // unconditionally alongside the accelerated globe's own GlobeSurfaceMarker
+    // for the same node — a second independent projection that need not
+    // agree pixel-for-pixel, especially as it and the accelerated marker
+    // respond differently to continuous zoom. The <g> pick target and its
+    // label survive; only the two duplicated marker <circle>s are removed.
+    expect(extractAtlasFeatureLayer(acceleratedMarkup)).not.toContain(
+      "<circle",
+    );
+  });
+
+  it("hides its own morph-transition marker once acceleration is healthy", () => {
+    const morphScene: TopologyScene = {
+      ...terrainScene,
+      regime: "world",
+      terrain: false,
+      globe: null,
+      world_atlas_transition: {
+        schema: "rey.world-atlas-transition.v1",
+        atlas_revision: "atlas:1",
+        globe_source_revision: "atlas:1",
+        projection_revision: "rey.semantic-mercator-projection@2",
+        atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        points: [
+          {
+            identity: "region:1",
+            focus_id: "regional:1",
+            label: "region one",
+            longitude_microdegrees: 10_000_000,
+            latitude_microdegrees: 5_000_000,
+            tone: "healthy",
+          },
+        ],
+        sectors: [],
+        authority: "test fixture",
+      },
+    };
+    const extractMorphLayer = (markup: string) => {
+      const start = markup.indexOf('data-atlas-revision="atlas:1"');
+      expect(start).toBeGreaterThan(-1);
+      const end = markup.indexOf("</svg>", start);
+      return markup.slice(start, end);
+    };
+
+    // Mid-morph (0 < progress < 1): the accelerated globe already renders
+    // this same point through GlobeSurfaceMarker, continuously reprojected
+    // with morph progress. Before this fix, WorldAtlasTransitionLayer's own
+    // marker circle — projected through a second, independent morph
+    // implementation (projectWorldAtlasMorph) — rendered unconditionally
+    // alongside it, and the two need not agree as progress/zoom changes
+    // continuously, reading as a marker sliding around while zooming.
+    const referenceMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.5}
+        scene={morphScene}
+      />,
+    );
+    expect(extractMorphLayer(referenceMarkup)).toContain(
+      'data-focus-id="regional:1"',
+    );
+    expect(extractMorphLayer(referenceMarkup)).toContain("<circle");
+
+    const acceleratedMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        accelerated
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.5}
+        scene={morphScene}
+      />,
+    );
+    expect(extractMorphLayer(acceleratedMarkup)).toContain(
+      'data-focus-id="regional:1"',
+    );
+    expect(extractMorphLayer(acceleratedMarkup)).not.toContain("<circle");
   });
 
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {
