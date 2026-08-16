@@ -393,4 +393,58 @@ describe("declarative globe-to-Mercator projection", () => {
       ),
     ).toThrow("globe mesh interpolation endpoints must have equal shape");
   });
+
+  it("writes into a retained output buffer instead of allocating fresh arrays", () => {
+    const sphere = buildProjectedGlobeMesh(view, world, 0, 12, 8);
+    const atlas = buildProjectedGlobeMesh(view, world, 1, 12, 8);
+    const output = {
+      positions: new Float32Array(sphere.positions.length),
+      normals: new Float32Array(sphere.normals.length),
+    };
+    const first = interpolateProjectedGlobeMeshes(sphere, atlas, 0.5, output);
+    expect(first.positions).toBe(output.positions);
+    expect(first.normals).toBe(output.normals);
+    const direct = buildProjectedGlobeMesh(view, world, 0.5, 12, 8);
+    for (let index = 0; index < first.positions.length; index += 1)
+      expect(first.positions[index]).toBeCloseTo(direct.positions[index]!, 6);
+
+    // A later frame at a different progress reuses the same buffer identity
+    // and overwrites its contents rather than aliasing stale values.
+    const rawProgress = 0.2;
+    const easedProgress = 1 - globeProjectionMorphRemaining(rawProgress);
+    const second = interpolateProjectedGlobeMeshes(
+      sphere,
+      atlas,
+      easedProgress,
+      output,
+    );
+    expect(second.positions).toBe(output.positions);
+    const directSecond = buildProjectedGlobeMesh(
+      view,
+      world,
+      rawProgress,
+      12,
+      8,
+    );
+    for (let index = 0; index < second.positions.length; index += 1)
+      expect(second.positions[index]).toBeCloseTo(
+        directSecond.positions[index]!,
+        6,
+      );
+
+    // A mismatched buffer (wrong length) is ignored rather than corrupting
+    // or throwing, so callers can pass a stale buffer safely.
+    const mismatched = {
+      positions: new Float32Array(1),
+      normals: new Float32Array(1),
+    };
+    const fallback = interpolateProjectedGlobeMeshes(
+      sphere,
+      atlas,
+      0.5,
+      mismatched,
+    );
+    expect(fallback.positions).not.toBe(mismatched.positions);
+    expect(fallback.positions.length).toBe(sphere.positions.length);
+  });
 });

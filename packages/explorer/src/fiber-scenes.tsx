@@ -63,6 +63,7 @@ import {
   projectGlobeAtlasRepeatCoordinate,
   projectGlobeCoordinate,
   type ProjectedGlobeMesh,
+  type ProjectedGlobeMeshInterpolationBuffer,
 } from "./globe-projection";
 import {
   GLOBE_RADIUS,
@@ -368,15 +369,31 @@ export function ContextGlobeScene({
     }),
     [view.pitch_degrees, view.yaw_degrees, world.height, world.width],
   );
-  const projectedMesh = useMemo(
-    () =>
-      interpolateProjectedGlobeMeshes(
-        endpointMeshes.sphere,
-        endpointMeshes.atlas,
-        1 - morphRemaining,
-      ),
-    [endpointMeshes, morphRemaining],
-  );
+  // Runs every animation frame while the globe morphs. Reuse one retained
+  // buffer across frames instead of letting interpolateProjectedGlobeMeshes
+  // allocate two fresh ~47k-float arrays per frame.
+  const interpolationBufferRef =
+    useRef<ProjectedGlobeMeshInterpolationBuffer | null>(null);
+  const projectedMesh = useMemo(() => {
+    const positionsLength = endpointMeshes.sphere.positions.length;
+    const normalsLength = endpointMeshes.sphere.normals.length;
+    const retained = interpolationBufferRef.current;
+    const buffer =
+      retained &&
+      retained.positions.length === positionsLength &&
+      retained.normals.length === normalsLength
+        ? retained
+        : (interpolationBufferRef.current = {
+            positions: new Float32Array(positionsLength),
+            normals: new Float32Array(normalsLength),
+          });
+    return interpolateProjectedGlobeMeshes(
+      endpointMeshes.sphere,
+      endpointMeshes.atlas,
+      1 - morphRemaining,
+      buffer,
+    );
+  }, [endpointMeshes, morphRemaining]);
   const projectedGeometry = useProjectedMeshGeometry(
     projectedMesh,
     endpointMeshes.sphere.normals,

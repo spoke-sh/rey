@@ -438,11 +438,22 @@ export function buildProjectedGlobeMesh(
   return Object.freeze({ positions, normals, indices });
 }
 
-/** Interpolates precompiled sphere/Mercator endpoint buffers for one frame. */
+export interface ProjectedGlobeMeshInterpolationBuffer {
+  positions: Float32Array;
+  normals: Float32Array;
+}
+
+/**
+ * Interpolates precompiled sphere/Mercator endpoint buffers for one frame.
+ * Called every animation frame while the globe morphs; pass a retained
+ * `output` buffer (sized to match `source`) to write into it in place
+ * instead of allocating two fresh Float32Arrays each call.
+ */
 export function interpolateProjectedGlobeMeshes(
   source: ProjectedGlobeMesh,
   target: ProjectedGlobeMesh,
   progress: number,
+  output?: ProjectedGlobeMeshInterpolationBuffer,
 ): ProjectedGlobeMesh {
   if (!Number.isFinite(progress))
     throw new Error("globe mesh interpolation progress must be finite");
@@ -455,8 +466,16 @@ export function interpolateProjectedGlobeMeshes(
   const boundedProgress = Math.max(0, Math.min(1, progress));
   if (boundedProgress === 0) return source;
   if (boundedProgress === 1) return target;
-  const positions = new Float32Array(source.positions.length);
-  const normals = new Float32Array(source.normals.length);
+  const reuseOutput =
+    output !== undefined &&
+    output.positions.length === source.positions.length &&
+    output.normals.length === source.normals.length;
+  const positions = reuseOutput
+    ? output.positions
+    : new Float32Array(source.positions.length);
+  const normals = reuseOutput
+    ? output.normals
+    : new Float32Array(source.normals.length);
   for (let index = 0; index < positions.length; index += 1)
     positions[index] =
       source.positions[index]! +
