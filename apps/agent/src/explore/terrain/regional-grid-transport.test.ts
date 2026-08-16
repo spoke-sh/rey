@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RegionalTerrainGrid } from "../../domain";
 import {
   regionalTerrainGridCellAt,
@@ -141,11 +141,13 @@ describe("regional terrain grid transport", () => {
   });
 
   it("decodes packed identity columns only for exact cell evidence", () => {
+    const decodeBase64 = vi.spyOn(globalThis, "atob");
     expect(validRegionalTerrainGridTransport(packed)).toBe(true);
     expect(regionalTerrainGridValueColumns(packed)).toMatchObject({
       elevation_micrometers: compact.elevation_micrometers,
       material_palette: compact.material_palette,
     });
+    expect(decodeBase64).not.toHaveBeenCalled();
     expect(regionalTerrainGridCellAt(packed, 2)).toMatchObject({
       cell_id: packedDigest(2),
       source_object_id: "point:2",
@@ -159,6 +161,8 @@ describe("regional terrain grid transport", () => {
     expect(
       regionalTerrainGridCellIndexForRevision(packed, packedDigest(31)),
     ).toBeUndefined();
+    expect(decodeBase64).toHaveBeenCalledTimes(2);
+    decodeBase64.mockRestore();
   });
 
   it("fails closed when a packed identity column changes length", () => {

@@ -512,19 +512,22 @@ export function AcceleratedTerrainSurface({
     [projectionGlobe],
   );
   const terrainRenderPasses = useMemo(
-    () =>
-      compileTerrainRenderPasses(
+    () => {
+      if (semanticGlobe) return null;
+      return compileTerrainRenderPasses(
         snapshot.scene,
         snapshot.render_graph,
         renderVisibility,
         activeTerrain?.result.derived_lines,
-      ),
+      );
+    },
     [
       renderVisibility.contours,
       renderVisibility.probes,
       renderVisibility.water,
       renderVisibility.weather,
       activeTerrain?.job_id,
+      semanticGlobe,
       snapshot.snapshot_id,
     ],
   );

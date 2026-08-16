@@ -22,13 +22,23 @@ interface RegionalTerrainGridValueColumns {
 interface TransportBytes {
   validity: Uint8Array;
   materials: Uint8Array;
-  cellDigests?: Uint8Array;
-  sourceObjectRevisionDigests?: Uint8Array;
+}
+
+interface TransportIdentityBytes {
+  cellDigests: Uint8Array;
+  sourceObjectRevisionDigests: Uint8Array;
 }
 
 const compactBytes = new WeakMap<
   TransportedRegionalTerrainGrid,
   TransportBytes
+>();
+const compactIdentityBytes = new WeakMap<
+  Extract<
+    RegionalTerrainGrid,
+    { schema: "rey.regional-terrain-grid.transport.v2" }
+  >,
+  TransportIdentityBytes
 >();
 
 export function regionalTerrainGridCellCount(grid: RegionalTerrainGrid) {
@@ -78,14 +88,16 @@ export function validRegionalTerrainGridTransport(
   )
     return false;
   try {
-    const { validity, materials, cellDigests, sourceObjectRevisionDigests } =
-      transportBytes(grid);
+    const { validity, materials } = transportBytes(grid);
     if (
       validity.length !== cells ||
       materials.length !== cells ||
       (grid.schema === "rey.regional-terrain-grid.transport.v2" &&
-        (cellDigests?.length !== cells * 32 ||
-          sourceObjectRevisionDigests?.length !== cells * 32))
+        (!validBase64Bytes(grid.cell_digests_base64, cells * 32) ||
+          !validBase64Bytes(
+            grid.source_object_revision_digests_base64,
+            cells * 32,
+          )))
     )
       return false;
     for (let index = 0; index < cells; index += 1) {
@@ -151,8 +163,7 @@ export function regionalTerrainGridCellAt(
   const cells = regionalTerrainGridCellCount(grid);
   if (!Number.isInteger(index) || index < 0 || index >= cells) return undefined;
   if (grid.schema === "rey.regional-terrain-grid.v1") return grid.cells[index];
-  const { validity, materials, cellDigests, sourceObjectRevisionDigests } =
-    transportBytes(grid);
+  const { validity, materials } = transportBytes(grid);
   const column = index % grid.columns;
   const row = Math.floor(index / grid.columns);
   const longitudeStep =
@@ -166,14 +177,17 @@ export function regionalTerrainGridCellAt(
   const valid = validity[index] === 1;
   const materialIndex = materials[index]!;
   const packed = grid.schema === "rey.regional-terrain-grid.transport.v2";
+  const identities = packed ? transportIdentityBytes(grid) : undefined;
   return {
-    cell_id: packed ? digestAt(cellDigests!, index) : grid.cell_ids[index]!,
+    cell_id: packed
+      ? digestAt(identities!.cellDigests, index)
+      : grid.cell_ids[index]!,
     source_object_id: packed
       ? `${grid.source_object_id_prefix}${grid.source_object_id_suffixes[index]}`
       : grid.source_object_ids[index]!,
     source_artifact_id: grid.source_artifact_id,
     source_object_revision: packed
-      ? digestAt(sourceObjectRevisionDigests!, index)
+      ? digestAt(identities!.sourceObjectRevisionDigests, index)
       : grid.source_object_revisions[index]!,
     grid_position: [column, row],
     native_position: [
@@ -227,7 +241,7 @@ export function regionalTerrainGridCellIndexForRevision(
   }
   const wanted = decodeBlake3Digest(revision);
   if (!wanted) return undefined;
-  const revisions = transportBytes(grid).sourceObjectRevisionDigests!;
+  const revisions = transportIdentityBytes(grid).sourceObjectRevisionDigests;
   let matched: number | undefined;
   for (let index = 0; index < regionalTerrainGridCellCount(grid); index += 1) {
     const offset = index * 32;
@@ -252,13 +266,25 @@ function transportBytes(grid: TransportedRegionalTerrainGrid): TransportBytes {
     validity: decodeHex(grid.validity_hex),
     materials: decodeHex(grid.material_indices_hex),
   };
-  if (grid.schema === "rey.regional-terrain-grid.transport.v2") {
-    decoded.cellDigests = decodeBase64(grid.cell_digests_base64);
-    decoded.sourceObjectRevisionDigests = decodeBase64(
-      grid.source_object_revision_digests_base64,
-    );
-  }
   compactBytes.set(grid, decoded);
+  return decoded;
+}
+
+function transportIdentityBytes(
+  grid: Extract<
+    RegionalTerrainGrid,
+    { schema: "rey.regional-terrain-grid.transport.v2" }
+  >,
+): TransportIdentityBytes {
+  const retained = compactIdentityBytes.get(grid);
+  if (retained) return retained;
+  const decoded = {
+    cellDigests: decodeBase64(grid.cell_digests_base64),
+    sourceObjectRevisionDigests: decodeBase64(
+      grid.source_object_revision_digests_base64,
+    ),
+  };
+  compactIdentityBytes.set(grid, decoded);
   return decoded;
 }
 
@@ -276,15 +302,36 @@ function decodeBlake3Digest(value: string): Uint8Array | undefined {
 }
 
 function decodeBase64(value: string): Uint8Array {
-  if (
-    value.length % 4 !== 0 ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
-      value,
-    )
-  )
+  if (!validBase64Bytes(value))
     throw new Error("regional terrain transport contains invalid base64 bytes");
   const decoded = atob(value);
-  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+  const bytes = new Uint8Array(decoded.length);
+  for (let index = 0; index < decoded.length; index += 1)
+    bytes[index] = decoded.charCodeAt(index);
+  return bytes;
+}
+
+function validBase64Bytes(value: string, expectedBytes?: number): boolean {
+  if (value.length % 4 !== 0) return false;
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const contentLength = value.length - padding;
+  for (let index = 0; index < contentLength; index += 1) {
+    const character = value.charCodeAt(index);
+    if (
+      !(
+        (character >= 65 && character <= 90) ||
+        (character >= 97 && character <= 122) ||
+        (character >= 48 && character <= 57) ||
+        character === 43 ||
+        character === 47
+      )
+    )
+      return false;
+  }
+  for (let index = contentLength; index < value.length; index += 1)
+    if (value.charCodeAt(index) !== 61) return false;
+  const bytes = (value.length / 4) * 3 - padding;
+  return expectedBytes === undefined || bytes === expectedBytes;
 }
 
 function decodeHex(value: string): Uint8Array {
