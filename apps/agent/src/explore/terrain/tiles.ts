@@ -359,6 +359,7 @@ export function materializeTerrainTile(
     active_band_ids: source.active_band_ids,
     detail_authority: `${source.detail_authority}; conservative tile ${tile.level}/${tile.column}/${tile.row}`,
     source_revision: source.source_revision,
+    source_summary: source.source_summary,
     grid,
     elevation_scale: source.elevation_scale,
     validity,

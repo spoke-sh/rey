@@ -150,6 +150,12 @@ export function compileRegionalTerrainField(
     active_band_ids: Object.freeze(["admitted_dem"]),
     detail_authority: dataset.authority,
     source_revision: dataset.dataset_id,
+    source_summary: Object.freeze({
+      valid_vertices: validElevations.length,
+      no_data_vertices: cells - validElevations.length,
+      elevation_minimum: minimumElevation,
+      elevation_maximum: maximumElevation,
+    }),
     grid,
     elevation_scale: elevationScale,
     validity,

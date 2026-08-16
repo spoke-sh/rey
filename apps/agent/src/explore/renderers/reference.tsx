@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import {
   OBJECT_LENS_ZOOM,
   WORLD_GLOBE_ATMOSPHERE_SCALE,
@@ -54,6 +54,10 @@ import {
 } from "../engine/picking";
 import type { AtlasLandscapePresentation } from "../projection/atlas-landscape";
 import { featureVisibleAtLens } from "../engine/cartography";
+import {
+  materializeTerrainTile,
+  projectTerrainTilePyramid,
+} from "../terrain/tiles";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -293,8 +297,17 @@ export function ReferenceRenderer({
 }
 
 function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
-  const fields = scene.terrain_fields.filter((field) =>
-    field.active_band_ids.includes("admitted_dem"),
+  const fields = useMemo(
+    () =>
+      scene.terrain_fields
+        .filter((field) => field.active_band_ids.includes("admitted_dem"))
+        .flatMap((field) => {
+          const pyramid = projectTerrainTilePyramid(field);
+          return pyramid.tiles
+            .filter(({ level }) => level === 0)
+            .map((tile) => materializeTerrainTile(field, tile));
+        }),
+    [scene.terrain_fields],
   );
   if (fields.length === 0) return null;
   return (

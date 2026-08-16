@@ -44,6 +44,16 @@ outside this package.
 `@rey/explorer` sees the same structural field contract in both cases and
 cannot upgrade either source's authority.
 
+The current Rey County working field refines each admitted source interval four
+times, producing a 321×321 renderer-neutral field from the qualified 81×81
+dataset before `@rey/explorer` receives it. Every refined point is evaluated
+inside the same supported source triangle and carries an independent validity
+value. Deterministic microrelief is constrained to zero at admitted source
+vertices and remains explicitly presentation-only; diagnostics continue to
+report the original admitted vertex counts and elevation range. The reference
+renderer selects conservative root tiles instead of mounting hundreds of
+thousands of fallback polygons.
+
 ## Validity-Safe Mesh Compilation
 
 Grid X/Y becomes mesh X/Z; admitted elevation becomes mesh Y. For each quad,

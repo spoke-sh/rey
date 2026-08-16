@@ -8,6 +8,11 @@ import {
   projectRegionalTerrainPosition,
 } from "./regional-terrain";
 import {
+  REGIONAL_TERRAIN_REFINEMENT_REVISION,
+  refineRegionalTerrainField,
+  regionalTerrainRefinementFactor,
+} from "../terrain/refinement";
+import {
   deriveRegionalTerrainContours,
   TERRAIN_CONTOUR_COMPILER_REVISION,
 } from "../terrain/contours";
@@ -137,6 +142,74 @@ describe("regional terrain projection", () => {
         },
       ),
     ).toEqual([-122_500_000, 37_500_000]);
+  });
+
+  it("builds a deterministic high-resolution field without expanding admitted support", () => {
+    const source = compileRegionalTerrainField(regionalTerrainScene(false), {
+      width: 1200,
+      height: 720,
+    })!;
+    const refined = refineRegionalTerrainField(source, 4);
+    const replay = refineRegionalTerrainField(source, 4);
+
+    expect(refined.grid).toMatchObject({ columns: 9, rows: 9 });
+    expect(refined.field_cells).toBe(81);
+    expect(refined.field_set_id).toContain(
+      REGIONAL_TERRAIN_REFINEMENT_REVISION,
+    );
+    expect(refined.active_band_ids).toContain("presentation_microrelief");
+    expect(refined.detail_authority).toContain(
+      "not observed or authored elevation",
+    );
+    expect(refined.elevation.values).toEqual(replay.elevation.values);
+    expect(refined.validity.values).toEqual(replay.validity.values);
+
+    for (let sourceRow = 0; sourceRow < source.grid.rows; sourceRow += 1) {
+      for (
+        let sourceColumn = 0;
+        sourceColumn < source.grid.columns;
+        sourceColumn += 1
+      ) {
+        const sourceIndex = sourceRow * source.grid.columns + sourceColumn;
+        const refinedIndex =
+          sourceRow * 4 * refined.grid.columns + sourceColumn * 4;
+        expect(refined.validity.values[refinedIndex]).toBe(
+          source.validity.values[sourceIndex],
+        );
+        expect(refined.elevation.values[refinedIndex]).toBeCloseTo(
+          source.elevation.values[sourceIndex]!,
+          6,
+        );
+      }
+    }
+    expect(refined.elevation.values[1]).not.toBeCloseTo(
+      (source.elevation.values[0]! * 3 + source.elevation.values[1]!) / 4,
+      6,
+    );
+
+    const withHole = refineRegionalTerrainField(
+      compileRegionalTerrainField(regionalTerrainScene(), {
+        width: 1200,
+        height: 720,
+      })!,
+      4,
+    );
+    const center = 4 * withHole.grid.columns + 4;
+    expect(withHole.validity.values[center]).toBe(0);
+    for (const index of terrainTriangleIndices(withHole))
+      expect(withHole.validity.values[index]).toBe(1);
+  });
+
+  it("selects fourfold refinement for the admitted Rey County grid", () => {
+    const source = compileRegionalTerrainField(regionalTerrainScene(false), {
+      width: 1200,
+      height: 720,
+    })!;
+    const representative = {
+      ...source,
+      grid: { ...source.grid, columns: 81, rows: 81 },
+    };
+    expect(regionalTerrainRefinementFactor(representative)).toBe(4);
   });
 
   it("derives scale-aware contours without crossing no-data cells", () => {

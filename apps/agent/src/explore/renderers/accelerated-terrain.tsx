@@ -310,6 +310,13 @@ export function AcceleratedTerrainSurface({
     let minimum = Number.POSITIVE_INFINITY;
     let maximum = Number.NEGATIVE_INFINITY;
     for (const field of snapshot.scene.terrain_fields) {
+      if (field.source_summary) {
+        validVertices += field.source_summary.valid_vertices;
+        noDataVertices += field.source_summary.no_data_vertices;
+        minimum = Math.min(minimum, field.source_summary.elevation_minimum);
+        maximum = Math.max(maximum, field.source_summary.elevation_maximum);
+        continue;
+      }
       for (let index = 0; index < field.field_cells; index += 1) {
         if (field.validity.values[index] === 0) {
           noDataVertices += 1;

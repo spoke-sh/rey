@@ -12,6 +12,7 @@ import {
 } from "./compile";
 import type { CompiledTerrainTile } from "./residency";
 import { deriveTerrainNormals } from "./normals";
+import { refineRegionalTerrainField } from "./refinement";
 import {
   materializeTerrainTile,
   projectTerrainTilePyramid,
@@ -86,6 +87,7 @@ export function executeTerrainCompilationJob(
   const projectionStarted = measurementNow();
   const admittedFields = job.fields
     .filter((field) => field.active_band_ids.includes("admitted_dem"))
+    .map((field) => refineRegionalTerrainField(field))
     .map(deriveWorkerRelief);
   const passthroughFields = job.fields.filter(
     (field) => !field.active_band_ids.includes("admitted_dem"),

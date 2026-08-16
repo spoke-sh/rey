@@ -50,6 +50,12 @@ export interface TerrainFieldSet {
   active_band_ids: readonly string[];
   detail_authority: string;
   source_revision: string;
+  source_summary?: {
+    valid_vertices: number;
+    no_data_vertices: number;
+    elevation_minimum: number;
+    elevation_maximum: number;
+  };
   grid: FieldGrid;
   elevation_scale: number;
   validity: MaskField2D;

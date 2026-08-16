@@ -247,6 +247,16 @@ bright framing lines. This corrects composition and layer hierarchy, but the
 roughly one-kilometer 81x81 source still leaves the retained relief-fidelity
 comparison open.
 
+The browser now compiles that admitted 81×81 source into a 321×321
+renderer-neutral presentation field before tile selection. Refinement uses the
+same deterministic triangle diagonal as the admitted mesh, rejects every
+sample outside a fully valid source triangle, retains an independent validity
+mask, and constrains deterministic microrelief to zero at all admitted source
+vertices. The resulting 103,041-cell field yields a deeper bounded tile
+pyramid while diagnostics continue to report the 6,561 source vertices. Its
+microrelief authority is presentation-only and does not close the still-open
+compact source payload or authored high-resolution geography requirements.
+
 ### Perceptual rebaseline — 2026-08-15
 
 The operator-supplied 3022×1926 terrain reference and Rey's retained 1920×1080
