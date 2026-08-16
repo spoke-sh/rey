@@ -135,7 +135,10 @@ export function compileExplorerRenderGraph(
       50,
       scene.natural_features.length > 0 ||
         scene.regions.length > 0 ||
-        scene.county_footprint != null,
+        scene.county_footprint != null ||
+        scene.nodes.some(
+          ({ spatial_feature }) => spatial_feature?.layer === "hydrology",
+        ),
       "derived",
       terrain ? ["base_terrain"] : ["validity_background"],
       revisionOf([
@@ -144,6 +147,13 @@ export function compileExplorerRenderGraph(
         ),
         ...scene.regions.map(
           ({ id, fragment_id }) => `${id}:${fragment_id ?? "whole"}`,
+        ),
+        ...scene.nodes.flatMap(({ id, spatial_feature }) =>
+          spatial_feature?.layer === "hydrology"
+            ? [
+                `${id}:${spatial_feature.geometry_kind}:${spatial_feature.geometry_path}:${spatial_feature.geometry_representation}:${spatial_feature.authority}`,
+              ]
+            : [],
         ),
         ...(scene.county_footprint
           ? [

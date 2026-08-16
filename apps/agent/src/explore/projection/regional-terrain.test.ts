@@ -7,12 +7,16 @@ import {
   invertRegionalTerrainPosition,
   projectRegionalTerrainPosition,
 } from "./regional-terrain";
+import {
+  deriveRegionalTerrainContours,
+  TERRAIN_CONTOUR_COMPILER_REVISION,
+} from "../terrain/contours";
 
-function regionalTerrainScene(): AdmittedRegionalScene {
+function regionalTerrainScene(withHole = true): AdmittedRegionalScene {
   const cells = Array.from({ length: 9 }, (_, index) => {
     const column = index % 3;
     const row = Math.floor(index / 3);
-    const valid = index !== 4;
+    const valid = !withHole || index !== 4;
     return {
       cell_id: `cell:${index}`,
       source_object_id: `terrain/cell-${row}-${column}`,
@@ -133,5 +137,26 @@ describe("regional terrain projection", () => {
         },
       ),
     ).toEqual([-122_500_000, 37_500_000]);
+  });
+
+  it("derives scale-aware contours without crossing no-data cells", () => {
+    const supported = compileRegionalTerrainField(regionalTerrainScene(false), {
+      width: 1200,
+      height: 720,
+    })!;
+    const landscape = deriveRegionalTerrainContours(supported, "landscape");
+    const objects = deriveRegionalTerrainContours(supported, "objects");
+    expect(landscape.length).toBeGreaterThan(0);
+    expect(objects.length).toBeGreaterThan(landscape.length);
+    expect(landscape.every(({ path }) => path.length > 0)).toBe(true);
+    expect(landscape[0]?.id).toContain(TERRAIN_CONTOUR_COMPILER_REVISION);
+
+    const explicitHole = compileRegionalTerrainField(regionalTerrainScene(), {
+      width: 1200,
+      height: 720,
+    })!;
+    expect(deriveRegionalTerrainContours(explicitHole, "landscape")).toEqual(
+      [],
+    );
   });
 });

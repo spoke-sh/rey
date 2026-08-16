@@ -1,10 +1,13 @@
-import type {
-  TerrainLineFeatureInput,
-  TerrainPointFeatureInput,
-  TerrainRenderPassSetInput,
+import {
+  terrainTriangleIndices,
+  type TerrainAreaFeatureInput,
+  type TerrainLineFeatureInput,
+  type TerrainPointFeatureInput,
+  type TerrainRenderPassSetInput,
 } from "@rey/explorer";
 import type { TopologyScene } from "../../topology";
 import type { TerrainFieldSet } from "../terrain/compile";
+import { fieldPoint } from "./fields";
 import { featureVisibleAtLens } from "./cartography";
 import {
   activeExplorerRenderPasses,
@@ -41,6 +44,7 @@ export function compileTerrainRenderPasses(
       }),
     );
   const lines: TerrainLineFeatureInput[] = [];
+  const areas: TerrainAreaFeatureInput[] = [];
   const points: TerrainPointFeatureInput[] = [];
   const omissions: string[] = [];
   const appendPath = (
@@ -120,6 +124,58 @@ export function compileTerrainRenderPasses(
         color: 0x615f4d,
         opacity: 0.34,
       });
+    for (const node of scene.nodes) {
+      const feature = node.spatial_feature;
+      if (
+        !feature ||
+        feature.layer !== "hydrology" ||
+        !visibility.water ||
+        !featureVisibleAtLens(
+          feature,
+          scene.regime,
+          node.focus_id === scene.focus_id,
+        ) ||
+        feature.geometry_kind.toLowerCase() === "point"
+      )
+        continue;
+      if (
+        feature.geometry_kind.toLowerCase() === "polygon" &&
+        feature.geometry_representation === "exact_native"
+      ) {
+        const positions = drapeTerrainArea(
+          feature.geometry_path,
+          scene.terrain_fields,
+          1.05,
+        );
+        if (positions.length > 0)
+          areas.push(
+            Object.freeze({
+              id: `${node.id}:surface`,
+              pass_id: "water_weather_boundary",
+              kind: "water_area",
+              source_revision: `${node.id}:${feature.geometry_path}:${feature.geometry_representation}`,
+              authority: `${feature.authority}; surface is conservatively quantized to fully valid terrain triangles`,
+              positions,
+              color: 0x4f93a0,
+              opacity: 0.48,
+            }),
+          );
+        else
+          omissions.push(
+            `${node.id} has no fully valid terrain-supported water surface; exact reference outline retained`,
+          );
+      }
+      appendPath({
+        id: node.id,
+        pass_id: "water_weather_boundary",
+        kind: feature.layer,
+        source_revision: `${node.id}:${feature.layer}:${feature.geometry_path}:${feature.geometry_representation}:${node.focus_id === scene.focus_id ? "selected" : "unselected"}`,
+        authority: feature.authority,
+        path: feature.geometry_path,
+        color: featureColor(feature.layer, node.focus_id === scene.focus_id),
+        opacity: node.focus_id === scene.focus_id ? 0.82 : 0.58,
+      });
+    }
   }
 
   if (activeIds.has("features_labels_selection")) {
@@ -132,15 +188,12 @@ export function compileTerrainRenderPasses(
           scene.regime,
           node.focus_id === scene.focus_id,
         ) &&
-        feature.geometry_kind.toLowerCase() !== "point" &&
-        (feature.layer !== "hydrology" || visibility.water)
-      )
+        feature.layer !== "hydrology" &&
+        feature.geometry_kind.toLowerCase() !== "point"
+      ) {
         appendPath({
           id: node.id,
-          pass_id:
-            feature.layer === "hydrology"
-              ? "water_weather_boundary"
-              : "features_labels_selection",
+          pass_id: "features_labels_selection",
           kind: feature.layer,
           source_revision: `${node.id}:${feature.layer}:${feature.geometry_path}:${feature.geometry_representation}:${node.focus_id === scene.focus_id ? "selected" : "unselected"}`,
           authority: feature.authority,
@@ -148,13 +201,14 @@ export function compileTerrainRenderPasses(
           color: featureColor(feature.layer, node.focus_id === scene.focus_id),
           opacity: node.focus_id === scene.focus_id ? 0.82 : 0.32,
         });
-      else if (
+      } else if (
         !feature ||
-        featureVisibleAtLens(
-          feature,
-          scene.regime,
-          node.focus_id === scene.focus_id,
-        )
+        (feature.geometry_kind.toLowerCase() === "point" &&
+          featureVisibleAtLens(
+            feature,
+            scene.regime,
+            node.focus_id === scene.focus_id,
+          ))
       ) {
         const height = terrainHeightAtPoint(
           scene.terrain_fields,
@@ -213,6 +267,7 @@ export function compileTerrainRenderPasses(
       (pass) =>
         `${pass.id}:${pass.implementation_revision}:${pass.input_revision}`,
     ),
+    ...areas.map(({ id, source_revision }) => `${id}:${source_revision}`),
     ...lines.map(({ id, source_revision }) => `${id}:${source_revision}`),
     ...points.map(({ id, source_revision }) => `${id}:${source_revision}`),
     ...omissions,
@@ -222,10 +277,74 @@ export function compileTerrainRenderPasses(
     pass_set_id: passSetId,
     bounds,
     passes: Object.freeze(passes),
+    areas: Object.freeze(areas),
     lines: Object.freeze(lines),
     points: Object.freeze(points),
     omissions: Object.freeze(omissions),
   });
+}
+
+export function drapeTerrainArea(
+  path: string,
+  fields: readonly TerrainFieldSet[],
+  offset: number,
+): Float32Array {
+  const rings = parseSvgPolylines(path);
+  if (rings.length === 0) return new Float32Array();
+  const positions: number[] = [];
+  for (const field of fields) {
+    const indices = terrainTriangleIndices(field);
+    const pointForIndex = (index: number) => {
+      const column = index % field.grid.columns;
+      const row = Math.floor(index / field.grid.columns);
+      const point = fieldPoint(field.grid, column, row);
+      return {
+        x: point.x,
+        y: point.y,
+        height: field.elevation.values[index]! * field.elevation_scale + offset,
+      };
+    };
+    for (let index = 0; index < indices.length; index += 3) {
+      const triangle = [
+        pointForIndex(indices[index]!),
+        pointForIndex(indices[index + 1]!),
+        pointForIndex(indices[index + 2]!),
+      ] as const;
+      const center = {
+        x: (triangle[0].x + triangle[1].x + triangle[2].x) / 3,
+        y: (triangle[0].y + triangle[1].y + triangle[2].y) / 3,
+      };
+      if (!pointInPolygon(center, rings)) continue;
+      for (const point of triangle)
+        positions.push(point.x, point.height, point.y);
+    }
+  }
+  return Float32Array.from(positions);
+}
+
+function pointInPolygon(
+  point: { x: number; y: number },
+  rings: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
+): boolean {
+  let inside = false;
+  for (const ring of rings) {
+    for (
+      let index = 0, previous = ring.length - 1;
+      index < ring.length;
+      previous = index++
+    ) {
+      const first = ring[index]!;
+      const second = ring[previous]!;
+      if (
+        first.y > point.y !== second.y > point.y &&
+        point.x <
+          ((second.x - first.x) * (point.y - first.y)) / (second.y - first.y) +
+            first.x
+      )
+        inside = !inside;
+    }
+  }
+  return inside;
 }
 
 export function parseSvgPolylines(

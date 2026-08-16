@@ -192,6 +192,14 @@ function summarizeVoyage(document, path) {
         ),
       ),
     ),
+    render_pass_areas: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.render_pass_area_count,
+          `${path} render-pass areas`,
+        ),
+      ),
+    ),
     terrain_screen_error_pixels: maximum(
       captures.map((capture) =>
         finiteNumber(

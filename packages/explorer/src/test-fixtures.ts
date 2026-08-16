@@ -138,6 +138,18 @@ export function terrainRenderPassFixture(): TerrainRenderPassSetInput {
         authority: "interface",
       },
     ],
+    areas: [
+      {
+        id: "water:fixture",
+        pass_id: "water_weather_boundary",
+        kind: "water_area",
+        source_revision: "water-source:fixture",
+        authority: "exact admitted water area over supported terrain",
+        positions: Float32Array.from([240, 5, 240, 300, 6, 240, 300, 5, 300]),
+        color: 0x5b9eae,
+        opacity: 0.42,
+      },
+    ],
     lines: [
       {
         id: "contour:fixture",

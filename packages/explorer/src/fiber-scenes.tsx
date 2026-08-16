@@ -193,6 +193,9 @@ function TerrainExecutablePasses({
   return (
     <group name={`terrain-passes:${passes.pass_set_id}`}>
       {validity ? <group name="terrain-pass:validity_background" /> : null}
+      {passes.areas.map((area) => (
+        <TerrainPassArea area={area} key={area.id} />
+      ))}
       {passes.lines.map((line) => (
         <TerrainPassLine key={line.id} line={line} />
       ))}
@@ -201,6 +204,39 @@ function TerrainExecutablePasses({
       ))}
     </group>
   );
+}
+
+function TerrainPassArea({
+  area,
+}: {
+  area: NonNullable<CompiledContinuousRelief["render_passes"]>["areas"][number];
+}) {
+  const object = useMemo(() => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(area.positions, 3));
+    geometry.computeVertexNormals();
+    const material = new MeshBasicNodeMaterial({
+      color: area.color,
+      depthWrite: false,
+      opacity: area.opacity,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+      side: DoubleSide,
+      transparent: area.opacity < 1,
+    });
+    const mesh = new Mesh(geometry, material);
+    mesh.name = `terrain-pass:${area.pass_id}:${area.id}`;
+    return mesh;
+  }, [area.color, area.id, area.opacity, area.pass_id, area.positions]);
+  useEffect(
+    () => () => {
+      object.geometry.dispose();
+      object.material.dispose();
+    },
+    [object],
+  );
+  return <primitive object={object} />;
 }
 
 function TerrainPassPoint({

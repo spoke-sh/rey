@@ -40,6 +40,7 @@ import {
   type TerrainFieldSet,
   type TerrainProgram,
 } from "./explore/terrain/compile";
+import { deriveRegionalTerrainContours } from "./explore/terrain/contours";
 import { buildSurveyScene } from "./explore/projection/survey-scene";
 import {
   buildPortfolioEvidence,
@@ -1188,6 +1189,9 @@ function buildRegionalCounty(
     detail: copy[1],
     focus_id: focusId,
     regions: [],
+    contours: terrainField
+      ? deriveRegionalTerrainContours(terrainField, regime)
+      : [],
     nodes,
     edges: [],
     omissions: [

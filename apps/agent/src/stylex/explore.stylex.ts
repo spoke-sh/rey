@@ -264,6 +264,12 @@ export const exploreStyles = stylex.create({
     stroke: "color-mix(in srgb, #477d86 76%, var(--rey-foreground))",
     strokeWidth: 2.4,
   },
+  countyFeatureWaterArea: {
+    fill: "color-mix(in srgb, #4f93a0 48%, transparent)",
+    opacity: 0.74,
+    stroke: "color-mix(in srgb, #356f7a 72%, var(--rey-foreground))",
+    strokeWidth: 1.4,
+  },
   countyFeatureBoundary: {
     fill: "none",
     stroke: "color-mix(in srgb, #314941 64%, var(--rey-foreground))",

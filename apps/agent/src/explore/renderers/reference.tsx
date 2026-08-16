@@ -617,7 +617,11 @@ function CountyFeatureLayer({
                   styles.countyFeatureEnvelope,
                   linear && styles.countyFeatureLinear,
                   feature.layer === "hydrology" &&
+                    linear &&
                     styles.countyFeatureHydrology,
+                  feature.layer === "hydrology" &&
+                    !linear &&
+                    styles.countyFeatureWaterArea,
                   feature.layer === "boundary" && styles.countyFeatureBoundary,
                   feature.layer === "terrain_control" &&
                     styles.countyTerrainControl,
@@ -1381,15 +1385,15 @@ function ReliefLayer({ scene }: { scene: TopologyScene }) {
   if (scene.contours.length === 0) return null;
   return (
     <svg
-      aria-label={`${scene.contours.length} anchor-derived terrain contour levels`}
+      aria-label={`${scene.contours.length} validity-bounded terrain contour levels`}
       className={sx(styles.reliefLayer)}
       role="img"
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <desc>
-        Relief height is derived only from admitted anchor samples, then eroded
-        by the deterministic runoff projection. It does not assert semantic
-        similarity or a discovered path.
+        Contours are derived from the same terrain elevation shown by the
+        surface and stop at every unsupported cell. They do not assert a source
+        relationship or extend geographic validity.
       </desc>
       {scene.contours.map((contour) => (
         <path

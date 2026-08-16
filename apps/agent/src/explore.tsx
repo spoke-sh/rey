@@ -909,6 +909,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             terrainRenderer.resident_tile_count
           }
           data-renderer-render-graph-id={terrainRenderer.render_graph_id}
+          data-renderer-render-pass-area-count={
+            terrainRenderer.render_pass_area_count
+          }
           data-renderer-render-pass-line-count={
             terrainRenderer.render_pass_line_count
           }

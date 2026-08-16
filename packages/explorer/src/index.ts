@@ -75,6 +75,7 @@ export type {
   TerrainCameraView,
   TerrainExecutablePass,
   TerrainExecutablePassId,
+  TerrainAreaFeatureInput,
   TerrainFieldSetInput,
   TerrainLineFeatureInput,
   TerrainPointFeatureInput,

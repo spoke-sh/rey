@@ -47,6 +47,7 @@ export interface AcceleratedTerrainReport {
   render_graph_id: string;
   active_render_passes: readonly string[];
   render_pass_set_id: string;
+  render_pass_area_count: number;
   render_pass_line_count: number;
   render_pass_point_count: number;
   render_pass_kinds: readonly string[];
@@ -109,6 +110,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     render_graph_id: "unbound",
     active_render_passes: Object.freeze([]),
     render_pass_set_id: "unbound",
+    render_pass_area_count: 0,
     render_pass_line_count: 0,
     render_pass_point_count: 0,
     render_pass_kinds: Object.freeze([]),
@@ -607,6 +609,8 @@ export function AcceleratedTerrainSurface({
       active_render_passes: activeRenderPassIds,
       render_pass_set_id:
         terrainCompilation?.render_passes?.pass_set_id ?? "unbound",
+      render_pass_area_count:
+        terrainCompilation?.render_passes?.areas.length ?? 0,
       render_pass_line_count:
         terrainCompilation?.render_passes?.lines.length ?? 0,
       render_pass_point_count:
@@ -614,6 +618,9 @@ export function AcceleratedTerrainSurface({
       render_pass_kinds: Object.freeze(
         [
           ...new Set([
+            ...(terrainCompilation?.render_passes?.areas.map(
+              ({ kind }) => kind,
+            ) ?? []),
             ...(terrainCompilation?.render_passes?.lines.map(
               ({ kind }) => kind,
             ) ?? []),

@@ -67,7 +67,16 @@ describe("executable terrain render passes", () => {
       compiled?.lines.find(({ id }) => id.startsWith("county:fixture:"))
         ?.source_revision,
     ).toBe("county-source:one");
+    const water = compiled?.areas.find(({ kind }) => kind === "water_area");
+    expect(water?.positions).toHaveLength(18);
+    expect(
+      Array.from(water?.positions ?? []).filter(
+        (_, component) => component % 3 === 1,
+      ),
+    ).toEqual(expect.arrayContaining([expect.any(Number)]));
+    expect(water?.authority).toContain("fully valid terrain triangles");
     expect(compiled?.pass_set_id).toContain(graph.graph_id);
+    expect(Object.isFrozen(compiled?.areas)).toBe(true);
     expect(Object.isFrozen(compiled?.lines)).toBe(true);
   });
 
@@ -85,6 +94,7 @@ describe("executable terrain render passes", () => {
     expect(quiet.pass_set_id).not.toBe(all.pass_set_id);
     expect(quiet.lines.some(({ kind }) => kind === "contour")).toBe(false);
     expect(quiet.lines.some(({ kind }) => kind === "stream")).toBe(false);
+    expect(quiet.areas).toHaveLength(0);
     expect(quiet.lines.some(({ kind }) => kind === "weather_front")).toBe(
       false,
     );
@@ -219,6 +229,25 @@ function sceneFixture(): TopologyScene {
           geometry_path: "M15,7 L20,7",
           geometry_representation: "exact_native",
           authority: "exact admitted hydrology envelope",
+        },
+      },
+      {
+        id: "node:wetland",
+        focus_id: "node:wetland",
+        family: "hydrology",
+        label: "WETLAND",
+        detail: "admitted fixture wetland",
+        x: 17.5,
+        y: 2.5,
+        width: 8,
+        tone: "neutral",
+        spatial_feature: {
+          geometry_kind: "Polygon",
+          layer: "hydrology",
+          envelope_path: "M15,0 L20,0 20,5 15,5 Z",
+          geometry_path: "M15,0 L20,0 20,5 15,5 Z",
+          geometry_representation: "exact_native",
+          authority: "exact admitted wetland polygon",
         },
       },
     ],

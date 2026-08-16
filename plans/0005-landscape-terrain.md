@@ -105,7 +105,7 @@ admitted, so the engine renders admitted material and discloses the absence
 instead of fabricating familiar map imagery.
 
 Fidelity qualification is now executable but has not yet been retained for the
-complete matrix. `rey.explorer.landscape-fidelity@1` names steep relief, low
+complete matrix. `rey.explorer.landscape-fidelity@2` names steep relief, low
 relief, coastline/water, dense vectors, explicit holes, stale data, and backend
 loss at 1920×1080 and 3840×2160. Browser captures retain source terrain counts
 and relief span, pass-set identity and kinds, maximum screen-space error, seam
@@ -175,6 +175,15 @@ Other RFC 7946 geometry families remain admissible with an explicit bounds
 fallback, and terrain-grid Points remain canonical in the qualified row-major
 grid rather than duplicating 6,561 coordinate payloads. This repairs vector
 shape fidelity but does not by itself close water-surface or contour fidelity.
+
+The next implementation slice derives regional contours from the admitted
+elevation field at lens-dependent density and skips every cell touching
+no-data. It also projects exact admitted hydrology Polygons as terrain-following
+water areas made only from fully valid source triangles, retaining the exact
+outline and disclosing the filled edge's terrain-grid quantization. Reference
+fallback, accelerated rendering, diagnostics, and fidelity-suite revision 2
+all retain the new area contract. A fresh admitted-scene voyage is still
+required before the delivery item can close.
 
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores

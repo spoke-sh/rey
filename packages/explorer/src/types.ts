@@ -125,6 +125,18 @@ export interface TerrainLineFeatureInput {
   opacity: number;
 }
 
+export interface TerrainAreaFeatureInput {
+  id: string;
+  pass_id: "water_weather_boundary";
+  kind: string;
+  source_revision: string;
+  authority: string;
+  /** Non-indexed terrain-draped triangle positions in x/up/y order. */
+  positions: Float32Array;
+  color: number;
+  opacity: number;
+}
+
 export interface TerrainPointFeatureInput {
   id: string;
   pass_id: "features_labels_selection";
@@ -141,6 +153,7 @@ export interface TerrainRenderPassSetInput {
   pass_set_id: string;
   bounds: { x: number; y: number; width: number; height: number };
   passes: readonly TerrainExecutablePass[];
+  areas: readonly TerrainAreaFeatureInput[];
   lines: readonly TerrainLineFeatureInput[];
   points: readonly TerrainPointFeatureInput[];
   omissions: readonly string[];

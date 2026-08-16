@@ -157,6 +157,11 @@ describe("declarative React Three Fiber scenes", () => {
     ).toBeDefined();
     expect(
       terrain.instance.getObjectByName(
+        "terrain-pass:water_weather_boundary:water:fixture",
+      ),
+    ).toBeDefined();
+    expect(
+      terrain.instance.getObjectByName(
         "terrain-pass:features_labels_selection:selection:fixture",
       ),
     ).toBeDefined();

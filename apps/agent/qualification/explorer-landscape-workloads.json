@@ -1,6 +1,6 @@
 {
   "schema": "rey.explorer-landscape-workloads.v1",
-  "suite_id": "rey.explorer.landscape-fidelity@1",
+  "suite_id": "rey.explorer.landscape-fidelity@2",
   "authority": "source-controlled browser qualification requirements for separately admitted named fixtures; not terrain evidence, permission to synthesize inputs, or proof authority",
   "target_viewports": ["1920x1080", "3840x2160"],
   "workloads": [
@@ -34,9 +34,14 @@
       "purpose": "retain water and admitted boundary geometry against explicit land/water support",
       "requirements": {
         "minimum_source_no_data_vertices": 1,
+        "minimum_render_pass_areas": 1,
         "minimum_render_pass_lines": 2,
         "required_render_passes": ["water_weather_boundary"],
-        "required_render_pass_kinds": ["admitted_boundary", "river"],
+        "required_render_pass_kinds": [
+          "admitted_boundary",
+          "river",
+          "water_area"
+        ],
         "maximum_screen_error_pixels": 1.5,
         "maximum_tile_seam_mismatches": 0,
         "maximum_no_data_leak_triangles": 0

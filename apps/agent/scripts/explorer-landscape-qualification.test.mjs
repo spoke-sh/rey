@@ -16,6 +16,7 @@ const suite = {
       purpose: "retain holes",
       requirements: {
         minimum_source_no_data_vertices: 1,
+        minimum_render_pass_areas: 1,
         maximum_no_data_leak_triangles: 0,
         maximum_tile_seam_mismatches: 0,
         required_render_passes: ["validity_background", "base_terrain"],
@@ -36,6 +37,7 @@ const capture = {
     backend: "webgpu",
     render_pass_set_id: "passes:fixture",
     render_pass_kinds: "admitted_boundary,river",
+    render_pass_area_count: "1",
     render_pass_line_count: "2",
     resident_cpu_bytes: "1024",
     resident_cpu_budget_bytes: "2048",

@@ -95,7 +95,7 @@ already bounded inputs:
 | Height/normals/hillshade  | Multidirectional normal response.                                              | Derived presentation of height.     |
 | Ambient/valley occlusion  | Curvature and occlusion response.                                              | Presentation only.                  |
 | Contours                  | Conservative terrain-draped line segments.                                     | Derived contour revision.           |
-| Water/weather/boundary    | Draped native or derived line segments.                                        | Per-feature authority and source.   |
+| Water/weather/boundary    | Draped lines plus validity-clipped water-area triangles.                       | Per-feature authority and source.   |
 | Features/labels/selection | Draped exact vectors, disclosed bounds fallbacks, and point/selection anchors. | Interface over retained identity.   |
 | Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.                 | Exact links and accessible meaning. |
 
@@ -107,7 +107,12 @@ Line draping is conservative. The compiler adds probes at every crossed field
 grid boundary and within every crossed cell, evaluates only fully valid source
 support, and splits a line when support is absent. A native vector therefore
 cannot bridge a no-data hole merely because its endpoints are valid. The
-surface, lines, and point anchors share one R3F terrain group and one
+application also projects an exact admitted hydrology Polygon into a
+terrain-following water surface by selecting only supported terrain triangles
+whose centroids fall inside its even-odd rings. Its exact vector outline stays
+visible, while the filled edge is explicitly quantized to terrain resolution;
+no triangle touching a no-data vertex can enter the surface. The surface,
+areas, lines, and point anchors share one R3F terrain group and one
 Atlas-to-Landscape model transform. Validity is represented by missing
 triangles over the canvas background, not by a rectangular mesh that can read
 as geographic support.
@@ -151,7 +156,7 @@ explicitly unavailable without a capable GPU timer.
 ## Current Boundary
 
 The package owns the accelerated continuous-relief material and typed
-geographic line/point presentation. The application still owns native geometry
+geographic area/line/point presentation. The application still owns native geometry
 interpretation, pass compilation, label layout, picking, evidence links, and
 the accessible reference renderer. The application projects exact retained
 Point, LineString, and Polygon coordinates; wider GeoJSON families use a

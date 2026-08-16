@@ -94,6 +94,7 @@ function stableEvidence(capture) {
     terrain: {
       no_data_leak_triangles: capture.renderer?.terrain_no_data_leak_triangles,
       render_pass_kinds: capture.renderer?.render_pass_kinds,
+      render_pass_area_count: capture.renderer?.render_pass_area_count,
       render_pass_line_count: capture.renderer?.render_pass_line_count,
       render_pass_point_count: capture.renderer?.render_pass_point_count,
       render_pass_set_id: capture.renderer?.render_pass_set_id,

@@ -105,6 +105,10 @@ export function evaluateLandscapeCapture(
       requirements.minimum_render_pass_lines === undefined ||
       number("render_pass_line_count") >=
         requirements.minimum_render_pass_lines,
+    minimum_render_pass_areas:
+      requirements.minimum_render_pass_areas === undefined ||
+      number("render_pass_area_count") >=
+        requirements.minimum_render_pass_areas,
     minimum_label_candidates:
       requirements.minimum_label_candidates === undefined ||
       Number(capture?.labels?.total) >= requirements.minimum_label_candidates,
@@ -138,6 +142,7 @@ export function evaluateLandscapeCapture(
       no_data_leak_triangles: number("terrain_no_data_leak_triangles"),
       no_data_vertices: number("source_no_data_vertices"),
       render_pass_kinds: [...renderPassKinds],
+      render_pass_areas: number("render_pass_area_count"),
       render_pass_lines: number("render_pass_line_count"),
       screen_error_pixels: number("terrain_maximum_screen_error_pixels"),
       tile_seam_mismatches: number("terrain_tile_seam_mismatches"),
