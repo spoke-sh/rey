@@ -30,7 +30,9 @@ import {
   attribute,
   float,
   max,
+  mix,
   mul,
+  positionGeometry,
   positionLocal,
   smoothstep,
   step,
@@ -108,8 +110,8 @@ interface GlobeRepeatProjectionCache {
 }
 
 interface GlobeCanonicalProjectionCache {
+  readonly atlasPositions: Float32Array;
   readonly matrices: Float32Array;
-  readonly morphDeltas: Float32Array;
   readonly projectionRevision: string;
   readonly sourceBucket: CompiledContextGlobe["sample_buckets"][number];
 }
@@ -738,16 +740,26 @@ function GlobeSampleField({
   const meshRefs = useRef(new Map<number, InstancedMesh>());
   const postureOpacity =
     bucket.opacity * (1 - progress * (1 - MERCATOR_STIPPLE_OPACITY_SCALE));
-  const canonicalMaterial = useMemo(
-    () =>
-      new MeshBasicNodeMaterial({
-        color: bucket.color,
-        opacity: bucket.opacity,
-        transparent: true,
-      }),
-    [bucket.color, bucket.opacity],
-  );
+  const morphRemaining = globeProjectionMorphRemaining(progress);
+  const canonicalMaterialState = useMemo(() => {
+    const morphProgressNode = uniform(0);
+    const atlasPosition = attribute<"vec3">("reyAtlasPosition", "vec3");
+    const material = new MeshBasicNodeMaterial({
+      color: bucket.color,
+      opacity: bucket.opacity,
+      transparent: true,
+    });
+    material.positionNode = mix(
+      positionLocal,
+      positionGeometry.add(atlasPosition),
+      morphProgressNode,
+    );
+    return { material, morphProgressNode };
+  }, [bucket.color, bucket.opacity]);
+  const canonicalMaterial = canonicalMaterialState.material;
   const repeatedMaterialState = useMemo(() => {
+    const morphRemainingNode = uniform(0);
+    const morphOffset = attribute<"vec3">("reyRepeatMorphOffset", "vec3");
     const repeatOpacityNode = uniform(0);
     const postureOpacityNode = uniform(bucket.opacity);
     const material = new MeshBasicNodeMaterial({
@@ -767,16 +779,28 @@ function GlobeSampleField({
       ),
       postureOpacityNode,
     );
-    return { material, postureOpacityNode, repeatOpacityNode };
+    material.positionNode = positionLocal.add(
+      morphOffset.mul(morphRemainingNode),
+    );
+    return {
+      material,
+      morphRemainingNode,
+      postureOpacityNode,
+      repeatOpacityNode,
+    };
   }, [bucket.color, bucket.opacity]);
   const repeatedMaterial = repeatedMaterialState.material;
   useLayoutEffect(() => {
     canonicalMaterial.opacity = postureOpacity;
     repeatedMaterial.opacity = postureOpacity;
+    canonicalMaterialState.morphProgressNode.value = 1 - morphRemaining;
+    repeatedMaterialState.morphRemainingNode.value = morphRemaining;
     repeatedMaterialState.postureOpacityNode.value = postureOpacity;
     repeatedMaterialState.repeatOpacityNode.value = repeatOpacity;
   }, [
     canonicalMaterial,
+    canonicalMaterialState,
+    morphRemaining,
     postureOpacity,
     repeatOpacity,
     repeatedMaterial,
@@ -803,6 +827,7 @@ function GlobeSampleField({
         attribute: InstancedBufferAttribute;
         cache: GlobeRepeatProjectionCache | null;
         mesh: InstancedMesh;
+        morphAttribute: InstancedBufferAttribute;
       }
     >();
     const projectionRevision = [
@@ -827,6 +852,22 @@ function GlobeSampleField({
             );
       if (attribute !== existing)
         wrappedMesh.geometry.setAttribute("reyRepeatSeamWeight", attribute);
+      const existingMorph = wrappedMesh.geometry.getAttribute(
+        "reyRepeatMorphOffset",
+      );
+      const morphAttribute =
+        existingMorph instanceof InstancedBufferAttribute &&
+        existingMorph.count === bucket.samples.length
+          ? existingMorph
+          : new InstancedBufferAttribute(
+              new Float32Array(bucket.samples.length * 3),
+              3,
+            );
+      if (morphAttribute !== existingMorph)
+        wrappedMesh.geometry.setAttribute(
+          "reyRepeatMorphOffset",
+          morphAttribute,
+        );
       const cache = wrappedMesh.userData
         .reyRepeatProjectionCache as GlobeRepeatProjectionCache | null;
       repeatMeshes.set(wrapIndex, {
@@ -837,6 +878,7 @@ function GlobeSampleField({
             ? cache
             : null,
         mesh: wrappedMesh,
+        morphAttribute,
       });
     }
     const atlasWidth = globeAtlasWidth(world);
@@ -853,8 +895,8 @@ function GlobeSampleField({
     ) {
       const atlasCenter = globeAtlasViewCenter(view);
       canonicalCache = {
+        atlasPositions: new Float32Array(bucket.samples.length * 3),
         matrices: new Float32Array(bucket.samples.length * 16),
-        morphDeltas: new Float32Array(bucket.samples.length * 16),
         projectionRevision,
         sourceBucket: bucket,
       };
@@ -898,11 +940,8 @@ function GlobeSampleField({
         canonicalCache.matrices.set(matrix.elements, matrixOffset);
         matrix.makeTranslation(...planar.position);
         planarMatrices.set(matrix.elements, matrixOffset);
-        for (let element = 0; element < 16; element += 1)
-          canonicalCache.morphDeltas[matrixOffset + element] =
-            matrix.elements[element]! -
-            canonicalCache.matrices[matrixOffset + element]!;
         const morphOffset = index * 3;
+        canonicalCache.atlasPositions.set(planar.position, morphOffset);
         planarPositions.set(planar.position, morphOffset);
         closedSeamPositions.set(closedSeam.position, morphOffset);
         normalizedChartXs[index] = planar.atlas_position[0] / atlasWidth + 0.5;
@@ -962,22 +1001,25 @@ function GlobeSampleField({
         caches.set(wrapIndex, cache);
       }
       canonicalMesh.userData.reyCanonicalProjectionCache = canonicalCache;
+      canonicalMesh.geometry.setAttribute(
+        "reyAtlasPosition",
+        new InstancedBufferAttribute(canonicalCache.atlasPositions, 3),
+      );
+      canonicalMesh.instanceMatrix.array.set(canonicalCache.matrices);
+      canonicalMesh.instanceMatrix.needsUpdate = true;
+      canonicalMesh.userData.reyStippleMorphExecution = "gpu_uniform";
       for (const [wrapIndex, repeat] of repeatMeshes) {
         const cache = caches.get(wrapIndex)!;
         repeat.cache = cache;
         repeat.mesh.userData.reyRepeatProjectionCache = cache;
         repeat.attribute.needsUpdate = true;
+        repeat.morphAttribute.array.set(cache.morphOffsets);
+        repeat.morphAttribute.needsUpdate = true;
+        repeat.mesh.instanceMatrix.array.set(cache.matrices);
+        repeat.mesh.instanceMatrix.needsUpdate = true;
+        repeat.mesh.userData.reyStippleMorphExecution = "gpu_uniform";
       }
     }
-    const morphRemaining = globeProjectionMorphRemaining(progress);
-    const morphProgress = 1 - morphRemaining;
-    const canonicalMatrices = canonicalMesh.instanceMatrix.array;
-    canonicalMatrices.set(canonicalCache.matrices);
-    for (let element = 0; element < canonicalMatrices.length; element += 1)
-      canonicalMatrices[element] =
-        canonicalCache.matrices[element]! +
-        canonicalCache.morphDeltas[element]! * morphProgress;
-    canonicalMesh.instanceMatrix.needsUpdate = true;
     for (const repeat of repeatMeshes.values()) {
       const cache = repeat.cache!;
       if (repeatOpacity <= 0) repeat.mesh.count = 0;
@@ -991,22 +1033,6 @@ function GlobeSampleField({
           visibleCount += 1;
         repeat.mesh.count = visibleCount;
       }
-      const matrices = repeat.mesh.instanceMatrix.array;
-      matrices.set(cache.matrices);
-      for (let index = 0; index < repeat.mesh.count; index += 1) {
-        const matrixOffset = index * 16;
-        const morphOffset = index * 3;
-        matrices[matrixOffset + 12] =
-          (matrices[matrixOffset + 12] ?? 0) +
-          cache.morphOffsets[morphOffset]! * morphRemaining;
-        matrices[matrixOffset + 13] =
-          (matrices[matrixOffset + 13] ?? 0) +
-          cache.morphOffsets[morphOffset + 1]! * morphRemaining;
-        matrices[matrixOffset + 14] =
-          (matrices[matrixOffset + 14] ?? 0) +
-          cache.morphOffsets[morphOffset + 2]! * morphRemaining;
-      }
-      repeat.mesh.instanceMatrix.needsUpdate = true;
     }
   }, [bucket, progress, view, world, wrapIndexes]);
   return wrapIndexes.map((wrapIndex) => (

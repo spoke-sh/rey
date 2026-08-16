@@ -19,6 +19,7 @@ import {
   globeAtlasRepeatOffset,
   globeAtlasWidth,
   globeAtmosphereRepeatOpacity,
+  globeProjectionMorphRemaining,
   projectGlobeAtlasRepeatCoordinate,
 } from "./globe-projection";
 import {
@@ -350,6 +351,22 @@ describe("declarative React Three Fiber scenes", () => {
     const leftGradient = repeatedLeft.geometry.getAttribute(
       "reyRepeatSeamWeight",
     ) as InstancedBufferAttribute;
+    const canonicalAtlasPositions = canonical.geometry.getAttribute(
+      "reyAtlasPosition",
+    ) as InstancedBufferAttribute;
+    const rightMorphOffsets = repeated.geometry.getAttribute(
+      "reyRepeatMorphOffset",
+    ) as InstancedBufferAttribute;
+    expect(canonicalAtlasPositions.count).toBe(canonical.instanceMatrix.count);
+    expect(rightMorphOffsets.count).toBe(repeated.instanceMatrix.count);
+    expect(
+      (canonical.material as MeshBasicNodeMaterial).positionNode,
+    ).not.toBeNull();
+    expect(
+      (repeated.material as MeshBasicNodeMaterial).positionNode,
+    ).not.toBeNull();
+    expect(canonical.userData.reyStippleMorphExecution).toBe("gpu_uniform");
+    expect(repeated.userData.reyStippleMorphExecution).toBe("gpu_uniform");
     expect(rightGradient.count).toBe(repeated.instanceMatrix.count);
     expect(leftGradient.count).toBe(repeatedLeft.instanceMatrix.count);
     expect(repeated.count).toBeGreaterThan(0);
@@ -375,7 +392,19 @@ describe("declarative React Three Fiber scenes", () => {
     const seamIndex = 0;
     const outerIndex = repeated.count - 1;
     const repeatedMatrix = new Matrix4();
-    repeated.getMatrixAt(outerIndex, repeatedMatrix);
+    const effectivePosition = (index: number) => {
+      repeated.getMatrixAt(index, repeatedMatrix);
+      const remaining = globeProjectionMorphRemaining(progress);
+      return [
+        repeatedMatrix.elements[12]! +
+          rightMorphOffsets.getX(index) * remaining,
+        repeatedMatrix.elements[13]! +
+          rightMorphOffsets.getY(index) * remaining,
+        repeatedMatrix.elements[14]! +
+          rightMorphOffsets.getZ(index) * remaining,
+      ];
+    };
+    const outerPosition = effectivePosition(outerIndex);
     const outerSample =
       compiled.sample_buckets[0]!.samples[
         repeatedProjectionCache.sourceIndexes[outerIndex]!
@@ -390,19 +419,10 @@ describe("declarative React Three Fiber scenes", () => {
       GLOBE_RADIUS * 1.005,
       0.008,
     );
-    expect(repeatedMatrix.elements[12]).toBeCloseTo(
-      expectedOuter.position[0],
-      5,
-    );
-    expect(repeatedMatrix.elements[13]).toBeCloseTo(
-      expectedOuter.position[1],
-      5,
-    );
-    expect(repeatedMatrix.elements[14]).toBeCloseTo(
-      expectedOuter.position[2],
-      5,
-    );
-    repeated.getMatrixAt(seamIndex, repeatedMatrix);
+    expect(outerPosition[0]).toBeCloseTo(expectedOuter.position[0], 5);
+    expect(outerPosition[1]).toBeCloseTo(expectedOuter.position[1], 5);
+    expect(outerPosition[2]).toBeCloseTo(expectedOuter.position[2], 5);
+    const seamPosition = effectivePosition(seamIndex);
     const seamSample =
       compiled.sample_buckets[0]!.samples[
         repeatedProjectionCache.sourceIndexes[seamIndex]!
@@ -417,18 +437,9 @@ describe("declarative React Three Fiber scenes", () => {
       GLOBE_RADIUS * 1.005,
       0.008,
     );
-    expect(repeatedMatrix.elements[12]).toBeCloseTo(
-      expectedSeam.position[0],
-      5,
-    );
-    expect(repeatedMatrix.elements[13]).toBeCloseTo(
-      expectedSeam.position[1],
-      5,
-    );
-    expect(repeatedMatrix.elements[14]).toBeCloseTo(
-      expectedSeam.position[2],
-      5,
-    );
+    expect(seamPosition[0]).toBeCloseTo(expectedSeam.position[0], 5);
+    expect(seamPosition[1]).toBeCloseTo(expectedSeam.position[1], 5);
+    expect(seamPosition[2]).toBeCloseTo(expectedSeam.position[2], 5);
     const surface = renderer.scene.findByProps({
       name: "context-globe-surface",
     }).instance as Mesh;
@@ -455,6 +466,9 @@ describe("declarative React Three Fiber scenes", () => {
 
     const repeatedMaterial = repeated.material;
     const repeatedCount = repeated.count;
+    const retainedInstanceMatrices = Float32Array.from(
+      repeated.instanceMatrix.array,
+    );
     await renderer.update(
       <ContextGlobeScene
         compiled={compiled}
@@ -470,6 +484,9 @@ describe("declarative React Three Fiber scenes", () => {
       repeatedProjectionCache,
     );
     expect(updatedRepeat.count).toBeGreaterThan(repeatedCount);
+    expect(updatedRepeat.instanceMatrix.array).toEqual(
+      retainedInstanceMatrices,
+    );
 
     await renderer.unmount();
   });

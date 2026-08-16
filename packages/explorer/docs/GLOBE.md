@@ -155,15 +155,18 @@ continue writing depth while fully transparent; color opacity and overlap
 occlusion are intentionally separate mechanisms.
 
 The canvas establishes all three chart extents and prewarms transparent side
-copies while the globe is still spherical. Their planar instance matrices and
-closed-seam morph offsets are cached against exact orientation, viewport, and
-source-bucket identity. A morph frame updates those bounded offsets and stable
-material uniforms; it cannot reproject every repeated sample, rebuild node
-materials, or recreate atmosphere geometry. Repeat instances are ordered from
-the joined seam toward the outer edge, and each frame submits only the prefix
-that the dissolve can make visible. Transparent cached dots are not draw work.
-Entry and exit therefore require no compilation hitch, GPU canvas resize,
-scale jump, or framing jump.
+copies while the globe is still spherical. Spherical and planar instance
+matrices, Atlas positions, and closed-seam morph offsets are cached against
+exact orientation, viewport, and source-bucket identity. TSL interpolates the
+stable instance attributes from one scalar projection uniform; a morph frame
+does not rewrite thousands of instance matrices, reproject every repeated
+sample, rebuild node materials, or recreate atmosphere geometry. Repeat
+instances are ordered from the joined seam toward the outer edge, and each
+frame submits only the prefix that the dissolve can make visible. Transparent
+cached dots are not draw work.
+Entry and exit therefore add no per-frame instance reprojection, material
+rebuild, GPU canvas resize, scale jump, or framing jump. Raster and submission
+cost for the visible repeated fabric remains measurable and bounded separately.
 The agent retains that compiled globe across the World-to-Atlas regime handoff
 only when the next scene binds the same exact atlas transition revision; a
 different revision or direct Atlas entry compiles its own declared surface.
