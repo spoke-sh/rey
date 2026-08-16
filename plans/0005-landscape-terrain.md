@@ -333,10 +333,14 @@ the preceding editor package whenever `scene-admission` runs. Every scene keeps
 its exact original atlas back-reference while the current atlas inventories all
 active scene/package/packet memberships, and the browser validates both the
 historical admission binding and current membership before projecting it.
-This is ingestion and lineage enabling work only: explicit cross-package seam
-resolution, a conflict artifact, stitched field output, raster-native field
-storage, and deeper vector density remain subsequent slices of the same
-boundary.
+`rey.regional-geography-composition.v1` now evaluates every bounded native
+package pair and retains gaps, corner contact, shared edges, overlaps, terrain
+sample alignment, validity, elevation, and material conflicts under one exact
+atlas revision. The human workload list exposes its package, pair, qualified
+seam, conflict, and stitch-readiness counts. This is an input assessment only:
+it grants no merge authority and produces no stitched field. Qualified
+geography-compiler output, raster-native field storage, and deeper vector
+density remain subsequent slices of the same boundary.
 
 ## Delivery Sequence
 
@@ -438,9 +442,12 @@ boundary.
 - [ ] Retain 1920x1080 side-by-side captures and record perceptual gaps for
       composition, relief, hillshade, land cover, water, contours, and vector
       hierarchy. Do not mark this slice complete while a major gap remains.
-- [ ] Extend the compiler from one source-controlled County into admitted
-      multi-package constraints with explicit cross-package seam and conflict
-      artifacts; do not let package ingestion silently become geography.
+- [x] Retain multiple admitted editor packages and derive a bounded,
+      content-identified native-boundary seam/conflict assessment without
+      treating package ingestion as geography.
+- [ ] Feed only a connected conflict-free set of terrain-qualified seams into a
+      revisioned geography compiler, retain every explicit resolution, and
+      admit its stitched multi-resolution output before rendering it.
 
 ## Open Choices
 

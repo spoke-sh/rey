@@ -7269,7 +7269,12 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
         "--role",
         "terrain",
     ]);
-    assert!(registered.status.success());
+    assert!(
+        registered.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&registered.stdout),
+        String::from_utf8_lossy(&registered.stderr),
+    );
     assert!(
         run_rey_workspace(&["editor", "--workspace", workspace_path, "add",])
             .status
@@ -7446,6 +7451,14 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert_eq!(atlas.regional_sources.len(), 1);
     assert_eq!(atlas.regional_regions.len(), 1);
     assert_eq!(atlas.sectors.len(), 1);
+    let composition = listed.regional_geography.as_ref().unwrap();
+    composition.verify().unwrap();
+    assert_eq!(composition.members.len(), 1);
+    assert!(composition.seams.is_empty());
+    assert_eq!(
+        composition.stitch_status,
+        rey_mining::RegionalGeographyStitchStatus::SinglePackage
+    );
     let atlas_source = &atlas.regional_sources[0];
     let atlas_region = &atlas.regional_regions[0];
     assert_eq!(atlas_source.workload_id, "scene-admission");
@@ -7521,6 +7534,7 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(listed_table.contains("Sector grid"));
     assert!(listed_table.contains("not surveyed coverage or native County footprints"));
     assert!(listed_table.contains("1 exact scene/package/packet memberships"));
+    assert!(listed_table.contains("SINGLE PACKAGE · 1 package · 0 pairs evaluated"));
     assert!(listed_table.contains("admitted synthetic placements retained"));
     assert!(listed_table.contains("sectors absent"));
     assert!(listed_table.contains("1 retained revisions · 1 directed deltas"));
@@ -7559,6 +7573,8 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     assert!(response.contains(scene.projection.packet_id.as_str()));
     assert!(response.contains("\"regional_sources\""));
     assert!(response.contains("\"regional_regions\""));
+    assert!(response.contains("\"regional_geography\""));
+    assert!(response.contains("\"stitch_status\":\"single_package\""));
     assert!(response.contains(atlas.atlas_revision.as_str()));
     assert!(response.contains(atlas_region.region_id.as_str()));
     assert!(response.contains("\"space\":\"native_crs84\""));
@@ -7569,35 +7585,49 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     ui.kill().unwrap();
     ui.wait().unwrap();
 
-    let generated = run_rey_workspace(&[
+    let west = scene.native_bounds.east_microdegrees as f64 / 1_000_000.0;
+    let east = west + 1.0;
+    let south = scene.native_bounds.south_microdegrees as f64 / 1_000_000.0;
+    let north = scene.native_bounds.north_microdegrees as f64 / 1_000_000.0;
+    fs::write(
+        workspace.path().join("terrain-east.geojson"),
+        serde_json::to_vec(&serde_json::json!({
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "id": "east-control",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+                },
+            }],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let registered = run_rey_workspace(&[
         "editor",
         "--workspace",
         workspace_path,
         "--state-dir",
         ".rey/editor-east",
-        "generate",
-        "terrain",
+        "source",
+        "add",
         "terrain-east.geojson",
         "--id",
         "regional-east-controls",
+        "--role",
+        "terrain_control",
         "--scene-id",
         "regional-east",
-        "--seed",
-        "23",
-        "--west",
-        "-121.9",
-        "--south",
-        "37",
-        "--east",
-        "-120.9",
-        "--north",
-        "38",
-        "--features",
-        "2",
-        "--vertices",
-        "5",
     ]);
-    assert!(generated.status.success());
+    assert!(
+        registered.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&registered.stdout),
+        String::from_utf8_lossy(&registered.stderr),
+    );
     assert!(
         run_rey_workspace(&[
             "editor",
@@ -7688,6 +7718,27 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let current_atlas = listed.semantic_atlas.as_ref().unwrap();
     assert_eq!(current_atlas.regional_sources.len(), 2);
     assert_eq!(current_atlas.regional_regions.len(), 2);
+    let composition = listed.regional_geography.as_ref().unwrap();
+    composition.verify().unwrap();
+    assert_eq!(composition.members.len(), 2);
+    assert_eq!(composition.seams.len(), 1);
+    assert_eq!(
+        composition.seams[0].relationship,
+        rey_mining::RegionalGeographyRelationship::EdgeAdjacent
+    );
+    assert_eq!(
+        composition.seams[0].terrain_status,
+        rey_mining::RegionalGeographyTerrainStatus::Unsupported
+    );
+    assert_eq!(composition.conflicts.len(), 1);
+    assert_eq!(
+        composition.conflicts[0].kind,
+        rey_mining::RegionalGeographyConflictKind::SeamTerrainUnsupported
+    );
+    assert_eq!(
+        composition.stitch_status,
+        rey_mining::RegionalGeographyStitchStatus::Blocked
+    );
     assert!(current_atlas.regional_sources.iter().any(|source| {
         source.scene_region_id == retained_first.region_id
             && source.source_scene_id == retained_first.scene_id
@@ -7714,6 +7765,9 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let listed_table = String::from_utf8(listed_table.stdout).unwrap();
     assert!(listed_table.contains("0 survey + 2 admitted regional regions"));
     assert!(listed_table.contains("2 exact scene/package/packet memberships"));
+    assert!(listed_table.contains("BLOCKED · 2 packages · 1 pair evaluated"));
+    assert!(listed_table.contains("1 edge-adjacent · 0 terrain-qualified"));
+    assert!(listed_table.contains("0 disjoint · 1 explicit conflicts"));
 }
 
 #[test]

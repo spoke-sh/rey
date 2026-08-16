@@ -192,6 +192,14 @@ Explorer. Presentation-only microdetail may improve perception inside valid
 support when it is identified as presentation; it cannot be reported as
 authored elevation or used to extend coverage.
 
+Package admission and package composition are separate gates. The composition
+gate first evaluates every bounded package pair in native CRS84: disjoint
+envelopes, corner contact, shared edges, overlaps, sample alignment, validity,
+elevation, and material disagreements become a content-identified report. A
+touching edge is not a stitch. Only a connected set of exact, conflict-free,
+terrain-qualified seams may become an input to a later geography-compiler
+output, and even that output must return through editor review and admission.
+
 ## One Continuous Spatial Journey
 
 ```text

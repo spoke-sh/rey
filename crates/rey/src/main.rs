@@ -8029,6 +8029,69 @@ fn write_workload_list(
                 ),
             )?;
         }
+        if let Some(composition) = &list.regional_geography {
+            let status = match composition.stitch_status {
+                rey_mining::RegionalGeographyStitchStatus::SinglePackage => "SINGLE PACKAGE",
+                rey_mining::RegionalGeographyStitchStatus::Ready => "READY",
+                rey_mining::RegionalGeographyStitchStatus::Blocked => "BLOCKED",
+            };
+            let adjacent = composition
+                .seams
+                .iter()
+                .filter(|seam| {
+                    seam.relationship == rey_mining::RegionalGeographyRelationship::EdgeAdjacent
+                })
+                .count();
+            let qualified = composition
+                .seams
+                .iter()
+                .filter(|seam| {
+                    seam.terrain_status == rey_mining::RegionalGeographyTerrainStatus::Qualified
+                })
+                .count();
+            let overlaps = composition
+                .seams
+                .iter()
+                .filter(|seam| {
+                    seam.relationship == rey_mining::RegionalGeographyRelationship::Overlap
+                })
+                .count();
+            let disjoint = composition
+                .seams
+                .iter()
+                .filter(|seam| {
+                    seam.relationship == rey_mining::RegionalGeographyRelationship::Disjoint
+                })
+                .count();
+            write_portfolio_field(
+                output,
+                "Regional composition",
+                &format!(
+                    "{} · {status} · {} package{} · {} pair{} evaluated · exact native boundaries",
+                    composition.composition_id,
+                    composition.members.len(),
+                    if composition.members.len() == 1 {
+                        ""
+                    } else {
+                        "s"
+                    },
+                    composition.seams.len(),
+                    if composition.seams.len() == 1 {
+                        ""
+                    } else {
+                        "s"
+                    },
+                ),
+            )?;
+            write_portfolio_field(
+                output,
+                "Regional seams",
+                &format!(
+                    "{adjacent} edge-adjacent · {qualified} terrain-qualified · {overlaps} overlapping · {disjoint} disjoint · {} explicit conflicts · no implicit merge",
+                    composition.conflicts.len(),
+                ),
+            )?;
+        }
         write_portfolio_field(
             output,
             "World coordinates",

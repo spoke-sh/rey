@@ -607,6 +607,75 @@ export interface SemanticAtlas {
   lineage: Array<{ kind: string; identity: string; revision: string }>;
 }
 
+export interface RegionalGeographyComposition {
+  schema: "rey.regional-geography-composition.v1";
+  composition_id: string;
+  compiler: ContractIdentity;
+  atlas_revision: string;
+  members: Array<{
+    member_id: string;
+    workload_id: string;
+    region_id: string;
+    scene_id: string;
+    atlas_region_id: string;
+    admitted_atlas_revision: string;
+    admission_id: string;
+    package_id: string;
+    package_revision: string;
+    projection_packet_id: string;
+    terrain_program_id: string | null;
+    terrain_dataset_id: string | null;
+    native_bounds: RegionalBounds;
+    terrain_valid_vertices: number;
+    terrain_no_data_vertices: number;
+  }>;
+  seams: Array<{
+    seam_id: string;
+    member_ids: [string, string];
+    relationship:
+      "edge_adjacent" | "corner_touch" | "overlap" | "disjoint" | "unsupported";
+    shared_boundary: {
+      axis: "longitude" | "latitude";
+      coordinate_microdegrees: number;
+      start_microdegrees: number;
+      end_microdegrees: number;
+    } | null;
+    longitude_gap_microdegrees: number;
+    latitude_gap_microdegrees: number;
+    terrain_status: "qualified" | "conflict" | "unsupported" | "not_applicable";
+    compared_vertices: number;
+    valid_vertices: number;
+    no_data_vertices: number;
+    validity_conflicts: number;
+    elevation_conflicts: number;
+    material_conflicts: number;
+    max_elevation_delta_micrometers: number | null;
+  }>;
+  conflicts: Array<{
+    conflict_id: string;
+    seam_id: string;
+    member_ids: [string, string];
+    kind:
+      | "native_overlap"
+      | "antimeridian_unsupported"
+      | "seam_sample_alignment"
+      | "seam_validity"
+      | "seam_elevation"
+      | "seam_material"
+      | "seam_terrain_unsupported";
+    count: number;
+    detail: string;
+  }>;
+  stitch_status: "single_package" | "ready" | "blocked";
+  limits: {
+    max_members: number;
+    max_pairs: number;
+    max_conflicts: number;
+  };
+  complete: boolean;
+  authority: string;
+}
+
 export type SemanticAtlasRegionChangeKind =
   "inserted" | "removed" | "moved" | "interest_changed";
 
@@ -853,6 +922,7 @@ export interface WorkloadList {
   workloads: WorkloadSummary[];
   drafts: WorkloadDraft[];
   semantic_atlas: SemanticAtlas | null;
+  regional_geography?: RegionalGeographyComposition;
   semantic_atlas_history: SemanticAtlas[];
   semantic_atlas_deltas: SemanticAtlasDelta[];
   revision?: WorkloadRevisionStatus;

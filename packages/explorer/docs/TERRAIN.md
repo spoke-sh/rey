@@ -234,10 +234,17 @@ Each admitted regional field remains one bounded in-memory grid rendered by a
 bounded 3D orthographic terrain camera through a tiled accelerated working set.
 The application may now retain and validate multiple active editor packages,
 including each scene's historical admission-atlas binding and its membership
-in the current atlas. Selection still binds one synthetic Atlas member to one
-exact regional field; no seam policy or merged field is implied by simultaneous
-retention. The application drives the same reversible model transform through
-surface, passes, and reference paths. Native raster/imagery streaming,
-cross-package composition, and retained Landscape fidelity voyages remain work
-tracked by [Plan
+in the current atlas. The runtime derives an exact
+`rey.regional-geography-composition.v1` assessment over every bounded package
+pair. It distinguishes gaps, corner contact, shared edges, overlaps, missing
+terrain support, sample misalignment, and validity/elevation/material
+conflicts. `ready` requires a connected conflict-free graph of
+terrain-qualified edges; the assessment itself grants no merge or synthesis
+authority.
+
+Selection still binds one synthetic Atlas member to one exact regional field;
+the renderer does not yet consume a merged field. The application drives the
+same reversible model transform through surface, passes, and reference paths.
+Native raster/imagery streaming, qualified geography-compiler stitching, and
+retained Landscape fidelity voyages remain work tracked by [Plan
 0005](../../../plans/0005-landscape-terrain.md).

@@ -11,7 +11,8 @@ use rey_diff::DeltaAssessment;
 use rey_environment::{Availability, CapabilitySnapshot, ENVIRONMENT_MAP_PROVIDER_ID};
 use rey_git::{GitActivationBudget, GitActivationProposal, GitSnapshot};
 use rey_mining::{
-    ProjectionPacket, SemanticAtlas, SemanticAtlasDelta, TopographyCoverage, TopographyPatch,
+    ProjectionPacket, RegionalGeographyComposition, SemanticAtlas, SemanticAtlasDelta,
+    TopographyCoverage, TopographyPatch,
 };
 use rey_runtime::{
     AttentionPolicy, BUILT_IN_MISMATCH_WORKLOAD_ID, BUILT_IN_PORTFOLIO_ATTENTION_WORKLOAD_ID,
@@ -3862,6 +3863,8 @@ pub struct WorkloadList {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<PortfolioReasoningEvidence>,
     pub semantic_atlas: Option<SemanticAtlas>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub regional_geography: Option<RegionalGeographyComposition>,
     pub semantic_atlas_history: Vec<SemanticAtlas>,
     pub semantic_atlas_deltas: Vec<SemanticAtlasDelta>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3881,6 +3884,10 @@ impl WorkloadList {
     ) -> Self {
         let semantic_atlas = semantic_atlas_from_summaries(&workloads)
             .expect("retained verified evidence must produce a semantic atlas");
+        let regional_geography =
+            regional_geography_from_summaries(semantic_atlas.as_ref(), &workloads).expect(
+                "retained verified regional evidence must produce a composition assessment",
+            );
         Self {
             schema: WORKLOAD_LIST_SCHEMA.to_owned(),
             catalog,
@@ -3892,6 +3899,7 @@ impl WorkloadList {
             attention,
             runtime,
             semantic_atlas,
+            regional_geography,
             semantic_atlas_history: Vec::new(),
             semantic_atlas_deltas: Vec::new(),
             revision: None,
@@ -3946,6 +3954,26 @@ fn semantic_atlas_from_summaries(
                 .as_ref()
                 .map(|patch| (workload.workload.id.as_str(), patch))
         }),
+        workloads.iter().flat_map(|workload| {
+            workload.scene_admissions.iter().filter_map(|result| {
+                result
+                    .scene
+                    .as_ref()
+                    .map(|scene| (workload.workload.id.as_str(), scene))
+            })
+        }),
+    )
+}
+
+fn regional_geography_from_summaries(
+    atlas: Option<&SemanticAtlas>,
+    workloads: &[WorkloadSummary],
+) -> Result<Option<RegionalGeographyComposition>, rey_mining::RegionalGeographyCompositionError> {
+    let Some(atlas) = atlas else {
+        return Ok(None);
+    };
+    RegionalGeographyComposition::from_admitted_scenes(
+        atlas,
         workloads.iter().flat_map(|workload| {
             workload.scene_admissions.iter().filter_map(|result| {
                 result
