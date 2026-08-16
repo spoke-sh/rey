@@ -310,6 +310,8 @@ export interface TopologyAtlasLandscapeTransition {
 }
 
 export const TOPOLOGY_WORLD = { width: 1200, height: 720 } as const;
+export const ATLAS_TERRAIN_PREWARM_REVISION =
+  "rey.explorer.atlas-terrain-prewarm@1" as const;
 
 export function buildTopologyScene(
   portfolio: WorkloadList,
@@ -373,6 +375,10 @@ export function buildTopologyScene(
     (regime === "atlas" || regime === "landscape")
       ? buildAtlasLandscapeTransition(regionalScenes, focusId)
       : null;
+  const atlasTerrainPrewarm =
+    regime === "atlas" && atlasLandscape === null
+      ? compileSingleRegionalTerrainField(regionalScenes)
+      : null;
   return {
     ...projection,
     landforms: projection.landforms ?? [],
@@ -391,7 +397,9 @@ export function buildTopologyScene(
       projection.terrain_fields ??
       (regime === "atlas" && atlasLandscape
         ? [atlasLandscape.terrain_field]
-        : []),
+        : regime === "atlas" && atlasTerrainPrewarm
+          ? [atlasTerrainPrewarm]
+          : []),
     terrain_programs: projection.terrain_programs ?? [],
     globe: projection.globe ?? null,
     world_atlas_transition:
@@ -409,6 +417,13 @@ export function buildTopologyScene(
     fit_world:
       projection.fit_world ?? projection.world ?? topologyWorld(projection),
   };
+}
+
+function compileSingleRegionalTerrainField(
+  regionalScenes: AdmittedRegionalProjection[],
+): TerrainFieldSet | null {
+  if (regionalScenes.length !== 1) return null;
+  return compileRegionalTerrainField(regionalScenes[0]!.scene, TOPOLOGY_WORLD);
 }
 
 function isFreshProjectOrientation(portfolio: WorkloadList): boolean {

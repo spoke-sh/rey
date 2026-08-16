@@ -72,6 +72,7 @@ import {
 } from "./three-globe";
 import {
   createContinuousReliefMaterial,
+  continuousReliefMaterialRevision,
   terrainCameraProjection,
   type CompiledContinuousRelief,
   type TerrainMeshData,
@@ -125,9 +126,12 @@ export function ContinuousReliefScene({
   view: TerrainCameraView;
   world: { width: number; height: number };
 }) {
+  const materialRevision = continuousReliefMaterialRevision(
+    compiled.render_passes,
+  );
   const material = useMemo(
     () => createContinuousReliefMaterial(compiled.render_passes),
-    [compiled.material_revision, compiled.render_passes],
+    [materialRevision],
   );
   useEffect(() => () => material.dispose(), [material]);
   const camera = terrainCameraProjection(world, view);

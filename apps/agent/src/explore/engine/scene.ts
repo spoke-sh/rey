@@ -1,5 +1,6 @@
 import type { WorkloadList } from "../../domain";
 import {
+  ATLAS_TERRAIN_PREWARM_REVISION,
   buildTopologyScene,
   type LensRegime,
   type TopologyScene,
@@ -171,6 +172,8 @@ export function compileSceneSnapshot(
     compilerRevisions.push(REGIONAL_TERRAIN_SCENE_COMPILER_REVISION);
   if (scene.atlas_landscape_transition)
     compilerRevisions.push(ATLAS_LANDSCAPE_PROJECTION_REVISION);
+  else if (scene.regime === "atlas" && scene.terrain_fields.length > 0)
+    compilerRevisions.push(ATLAS_TERRAIN_PREWARM_REVISION);
   if (portfolio.semantic_atlas)
     compilerRevisions.push(portfolio.semantic_atlas.compiler.semantic_digest);
   if (

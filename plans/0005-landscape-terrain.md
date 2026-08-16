@@ -84,14 +84,25 @@ direction-independent curve. Terrain pan remains the camera target, focus is
 solved analytically in camera axes, Shift-drag orbits within declared bounds,
 and the native coordinate readout inverts the same target.
 
+An Atlas with exactly one admitted regional terrain field now prewarms that
+field through `rey.explorer.atlas-terrain-prewarm@1` after 600 milliseconds of
+camera stability and before selection. Camera movement cancels the idle start.
+The canvas stays invisible and cannot change focus, coverage, or evidence; its
+resident compilation is reused when the operator begins Landscape traversal.
+The UI and voyage harness retain its `scheduled`, `mounted`, and `submitted`
+states, so a warm-entry measurement must prove a real hidden render submission.
+
 The render graph now binds every pass to a separate implementation revision,
 exact input revision, authority, and dependency set. The accelerated material
 executes base terrain, normal-driven hillshade, and ambient/valley occlusion as
-independently gated stages. Contours, derived hydrology/weather, exact County
-boundaries, admitted native vectors, disclosed bounds fallbacks, points, and selection compile into
-terrain-draped R3F inputs. Drape sampling visits every crossed terrain cell and
-splits at no-data; it cannot bridge an unsupported interval. The same bounded
-terrain transform carries surface and overlays through Atlas-to-Landscape.
+independently gated stages. Its material identity depends only on those
+shader-affecting stages, so a changed contour, water, or feature pass does not
+discard an otherwise identical prewarmed shader. Contours, derived
+hydrology/weather, exact County boundaries, admitted native vectors, disclosed
+bounds fallbacks, points, and selection compile into terrain-draped R3F inputs.
+Drape sampling visits every crossed terrain cell and splits at no-data; it
+cannot bridge an unsupported interval. The same bounded terrain transform
+carries surface and overlays through Atlas-to-Landscape.
 Labels, interaction, evidence links, and accessible descriptions remain in the
 deterministic reference overlay, which stays mounted across backend loss.
 
@@ -196,6 +207,18 @@ leaks, and zero tile-seam mismatches. Object and Evidence no longer mount all
 6,561 exact terrain vertices; the complete WebGL2 manifest is 105,311 bytes,
 down from the prior 6.3 MiB traversal artifact, while an exact selected terrain
 vertex remains addressable.
+
+The bounded Atlas prewarm and submitted-frame handshake passed a subsequent
+1920×1080 fulfilled-transport WebGL2 voyage in manifest
+`sha256:d242976085c5632c65d65cc9c6230bac6fe37223dc26e6c1024d6dccc65d1e21`.
+The Atlas capture retained prewarm state `submitted`; every World, Atlas,
+Landscape, Object, and Evidence capture bound its displayed scene snapshot to
+the exact submitted renderer snapshot. Landscape still retained twelve line
+batches, 2,481 segments, one water area, zero no-data leaks, and zero seam
+mismatches. Its measured SwiftShader submission was 1.55 seconds versus the
+earlier 2.07-second local baseline. That single-machine comparison demonstrates
+that work moved off the visible entry path, but it is not a stable hardware
+performance claim and the remaining stall stays open.
 
 Those voyages close the executable base-layer item, not the named fidelity
 matrix. The named `coastline-water` row still requires an admitted `river`

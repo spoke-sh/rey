@@ -2,15 +2,54 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
+  atlasTerrainPrewarmStatus,
   CanvasFooter,
   CanvasToolbar,
   explorerFooterReducer,
   explorerGeographicCoordinate,
   initialExplorerFooterState,
+  shouldMountTerrainSurface,
 } from "./explore";
 import type { TopologyScene } from "./topology";
 
 describe("Explorer canvas toolbar", () => {
+  it("reports the bounded Atlas terrain prewarm lifecycle", () => {
+    expect(atlasTerrainPrewarmStatus(false, false, false)).toBe("unavailable");
+    expect(atlasTerrainPrewarmStatus(true, false, false)).toBe("scheduled");
+    expect(atlasTerrainPrewarmStatus(true, true, false)).toBe("mounted");
+    expect(atlasTerrainPrewarmStatus(true, true, true)).toBe("submitted");
+  });
+
+  it("prewarms admitted Atlas terrain without presenting it as a globe", () => {
+    expect(
+      shouldMountTerrainSurface({
+        atlas_landscape_transition: null,
+        globe: null,
+        terrain: false,
+        terrain_fields: [{ field_set_id: "terrain:admitted" }],
+      } as unknown as TopologyScene),
+    ).toBe(false);
+    expect(
+      shouldMountTerrainSurface(
+        {
+          atlas_landscape_transition: null,
+          globe: null,
+          terrain: false,
+          terrain_fields: [{ field_set_id: "terrain:admitted" }],
+        } as unknown as TopologyScene,
+        true,
+      ),
+    ).toBe(true);
+    expect(
+      shouldMountTerrainSurface({
+        atlas_landscape_transition: null,
+        globe: { posture: "regional_scenes" },
+        terrain: false,
+        terrain_fields: [],
+      } as unknown as TopologyScene),
+    ).toBe(false);
+  });
+
   it("keeps view controls without exposing projection layer buttons", () => {
     const markup = renderToStaticMarkup(
       createElement(CanvasToolbar, {

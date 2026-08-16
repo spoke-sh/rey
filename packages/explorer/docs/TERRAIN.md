@@ -100,12 +100,15 @@ already bounded inputs:
 | Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.                 | Exact links and accessible meaning. |
 
 Every pass binds an implementation revision, input revision, and dependency.
-The material and scene identity include the compiled pass-set identity. A
-missing dependency prevents its children from executing. Presentation graph
-and pass-set identifiers compact their sorted exact inputs into a bounded
-64-bit invalidation hash plus input count and character count. The compact
-identifier is cache/invalidation mechanism, not source evidence; exact source
-revisions and geometry remain on the scene and individual pass inputs.
+The scene identity includes the compiled pass-set identity, while the shared
+continuous-relief material identity includes only shader-affecting base-stage
+membership. Contours, water, and other vector-overlay revisions can therefore
+change without recompiling an identical base-terrain shader. A missing
+dependency prevents its children from executing. Presentation graph and
+pass-set identifiers compact their sorted exact inputs into a bounded 64-bit
+invalidation hash plus input count and character count. The compact identifier
+is cache/invalidation mechanism, not source evidence; exact source revisions
+and geometry remain on the scene and individual pass inputs.
 
 Line draping is conservative. The compiler adds probes at every crossed field
 grid boundary and within every crossed cell, evaluates only fully valid source
@@ -147,6 +150,19 @@ visible while work is pending or after failure. A disclosed main-thread
 fallback exists where `Worker` is unavailable. `rey.terrain.tile-residency@1`
 retains compiled tiles under independent 48 MiB CPU and 64 MiB GPU budgets and
 evicts the oldest unrequested identity first.
+
+When an Atlas contains exactly one admitted regional terrain field, the
+application may mount an invisible `rey.explorer.atlas-terrain-prewarm@1`
+terrain canvas after the Atlas camera has remained stable for 600 milliseconds
+and before selection. Any camera movement cancels and reschedules that idle
+work. It compiles only that already admitted field; it does not select the
+County, change the camera, render coverage, execute a locator, or widen
+evidence. The same field identity and resident compilation remain available
+when Atlas-to-Landscape traversal begins, avoiding an avoidable
+first-visible-frame setup stall without racing an active projection morph. The
+application exposes `scheduled`, `mounted`, and `submitted` states so
+qualification can require actual renderer submission instead of inferring
+warmth from elapsed time.
 
 ## Bounds And Accounting
 

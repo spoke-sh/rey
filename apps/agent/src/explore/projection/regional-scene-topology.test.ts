@@ -883,6 +883,19 @@ describe("regional scene topology projection", () => {
     scene.projection.omissions = [];
     scene.projection.footprint = null;
 
+    const prewarmedAtlas = compileSceneSnapshot(
+      terrainPortfolio,
+      0.26,
+      "cluster:portfolio",
+      "atlas",
+    );
+    expect(prewarmedAtlas.scene.terrain).toBe(false);
+    expect(prewarmedAtlas.scene.atlas_landscape_transition).toBeNull();
+    expect(prewarmedAtlas.scene.terrain_fields).toHaveLength(1);
+    expect(prewarmedAtlas.compiler_revisions).toContain(
+      "rey.explorer.atlas-terrain-prewarm@1",
+    );
+
     const county = buildTopologyScene(
       terrainPortfolio,
       0.58,

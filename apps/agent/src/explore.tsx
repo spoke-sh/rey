@@ -228,6 +228,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [terrainRenderer, setTerrainRenderer] =
     useState<AcceleratedTerrainReport>(REFERENCE_TERRAIN_REPORT);
+  const [atlasTerrainPrewarmReady, setAtlasTerrainPrewarmReady] =
+    useState(false);
+  const [atlasTerrainPrewarmSubmitted, setAtlasTerrainPrewarmSubmitted] =
+    useState(false);
   const [footerState, dispatchFooter] = useReducer(
     explorerFooterReducer,
     undefined,
@@ -257,6 +261,26 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const sceneProjection = measuredSceneProjection.projection;
   const snapshot = sceneProjection.snapshot;
   const scene = snapshot.scene;
+  const atlasTerrainPrewarmKey = scene.terrain_fields
+    .map(({ field_set_id }) => field_set_id)
+    .join("|");
+  const atlasTerrainPrewarmEligible =
+    scene.regime === "atlas" &&
+    scene.atlas_landscape_transition === null &&
+    atlasTerrainPrewarmKey.length > 0;
+  useEffect(() => {
+    setAtlasTerrainPrewarmSubmitted(false);
+    if (!atlasTerrainPrewarmEligible) {
+      setAtlasTerrainPrewarmReady(false);
+      return;
+    }
+    setAtlasTerrainPrewarmReady(false);
+    const timeout = window.setTimeout(
+      () => setAtlasTerrainPrewarmReady(true),
+      600,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [atlasTerrainPrewarmEligible, atlasTerrainPrewarmKey, zoom]);
   const atlasLandscapeProgress = scene.atlas_landscape_transition
     ? atlasLandscapeMorphProgress(zoom)
     : scene.terrain
@@ -727,6 +751,11 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       data-scene-omissions={JSON.stringify(scene.omissions)}
       data-scene-snapshot={snapshot.snapshot_id}
       data-scene-sources={snapshot.source_revisions.join(",")}
+      data-atlas-terrain-prewarm={atlasTerrainPrewarmStatus(
+        atlasTerrainPrewarmEligible,
+        atlasTerrainPrewarmReady,
+        atlasTerrainPrewarmSubmitted,
+      )}
       ref={shellRef}
     >
       {sceneProjection.retained_last_good ? (
@@ -785,14 +814,22 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
             : undefined
         }
       >
-        {(scene.terrain ||
-          (scene.atlas_landscape_transition &&
-            landscapePresentation.terrain_opacity > 0)) &&
-        scene.globe === null ? (
+        {shouldMountTerrainSurface(scene, atlasTerrainPrewarmReady) ? (
           <AcceleratedTerrainSurface
             canvasOpacity={landscapePresentation.terrain_opacity}
             contentMode="terrain"
-            onReport={setTerrainRenderer}
+            onReport={
+              landscapePresentation.terrain_opacity > 0
+                ? setTerrainRenderer
+                : (report) => {
+                    if (
+                      report.status.lifecycle === "ready" &&
+                      report.submitted_frame?.snapshot_id ===
+                        snapshot.snapshot_id
+                    )
+                      setAtlasTerrainPrewarmSubmitted(true);
+                  }
+            }
             renderVisibility={renderVisibility}
             snapshot={snapshot}
             view={{
@@ -807,7 +844,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
               yaw_degrees: landscapePresentation.yaw_degrees,
               model_transform: landscapePresentation.model_transform,
             }}
-            visible={!projectionMorphActive}
+            visible={
+              landscapePresentation.terrain_opacity > 0 &&
+              !projectionMorphActive
+            }
           />
         ) : null}
         <div
@@ -944,6 +984,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-source-valid-vertices={
             terrainRenderer.source_valid_vertices
           }
+          data-renderer-submitted-snapshot-id={
+            terrainRenderer.submitted_frame?.snapshot_id
+          }
           data-renderer-submission-ms={terrainRenderer.render_submission_ms}
           data-renderer-terrain-decode-ms={terrainRenderer.terrain_decode_ms}
           data-renderer-terrain-maximum-screen-error-pixels={
@@ -1010,6 +1053,28 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       />
     </section>
   );
+}
+
+export function shouldMountTerrainSurface(
+  scene: TopologyScene,
+  atlasPrewarmReady = false,
+): boolean {
+  return (
+    scene.globe === null &&
+    (scene.terrain ||
+      scene.atlas_landscape_transition !== null ||
+      (atlasPrewarmReady && scene.terrain_fields.length > 0))
+  );
+}
+
+export function atlasTerrainPrewarmStatus(
+  eligible: boolean,
+  mounted: boolean,
+  submitted: boolean,
+): "unavailable" | "scheduled" | "mounted" | "submitted" {
+  if (!eligible) return "unavailable";
+  if (submitted) return "submitted";
+  return mounted ? "mounted" : "scheduled";
 }
 
 function focusNoticeLabel(scene: TopologyScene, focusId: string): string {

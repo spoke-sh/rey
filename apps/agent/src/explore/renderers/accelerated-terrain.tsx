@@ -34,6 +34,7 @@ export type { RendererPreference } from "@rey/explorer";
 
 export interface AcceleratedTerrainReport {
   status: RendererStatus;
+  submitted_frame: ExplorerCanvasReport["submitted_frame"];
   preference: RendererPreference;
   active_band_ids: readonly string[];
   field_sets: number;
@@ -98,6 +99,7 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
       degraded: false,
       detail: "the deterministic reference terrain is active",
     },
+    submitted_frame: null,
     preference: "auto",
     active_band_ids: Object.freeze([]),
     field_sets: 0,
@@ -519,7 +521,6 @@ export function AcceleratedTerrainSurface({
     if (!terrainRenderPasses) return activeTerrain.compiled;
     return Object.freeze({
       ...activeTerrain.compiled,
-      material_revision: `${activeTerrain.compiled.material_revision}:${terrainRenderPasses.pass_set_id}`,
       render_passes: terrainRenderPasses,
     });
   }, [activeTerrain, semanticGlobe, terrainRenderPasses]);
@@ -594,6 +595,7 @@ export function AcceleratedTerrainSurface({
   const completeReport = (canvasReport: ExplorerCanvasReport) =>
     onReport({
       status: canvasReport.status as RendererStatus,
+      submitted_frame: canvasReport.submitted_frame,
       preference,
       active_band_ids: fieldProjection.active_band_ids,
       field_sets: statistics.field_sets,
@@ -699,6 +701,7 @@ export function AcceleratedTerrainSurface({
           },
       draw_calls: 0,
       render_submission_ms: 0,
+      submitted_frame: null,
     });
   }, [content, snapshot.snapshot_id, terrainFailure]);
 

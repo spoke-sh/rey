@@ -989,6 +989,33 @@ function regimeExpression(regime) {
   return `document.querySelector('[data-lens-regime="${regime}"]')?.dataset.lensRegime === "${regime}"`;
 }
 
+async function waitForSubmittedTerrainFrame(connection, timeoutMs) {
+  await waitFor(
+    connection,
+    `(() => {
+      const snapshot = document.querySelector('[data-scene-snapshot]')?.getAttribute('data-scene-snapshot');
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      return snapshot !== null && snapshot !== undefined &&
+        diagnostics?.getAttribute('data-renderer-submitted-snapshot-id') === snapshot;
+    })()`,
+    "terrain renderer submission for the current semantic scene",
+    timeoutMs,
+  );
+}
+
+async function waitForAtlasTerrainPrewarm(connection, timeoutMs) {
+  await waitFor(
+    connection,
+    `(() => {
+      const state = document.querySelector('[data-atlas-terrain-prewarm]')
+        ?.getAttribute('data-atlas-terrain-prewarm');
+      return state === 'submitted' || state === 'unavailable';
+    })()`,
+    "idle Atlas terrain prewarm submission",
+    timeoutMs,
+  );
+}
+
 async function captureStage(connection, voyageDirectory, stage, startedAt) {
   const evidence = await connection.evaluate(`(() => {
     const shell = document.querySelector("[data-scene-snapshot]");
@@ -1035,6 +1062,7 @@ async function captureStage(connection, voyageDirectory, stage, startedAt) {
     }));
     return {
       captured_at_unix_ms: Date.now(),
+      atlas_terrain_prewarm: shell?.getAttribute("data-atlas-terrain-prewarm") ?? null,
       compilers: shell?.getAttribute("data-scene-compilers") ?? null,
       focus_id: shell?.getAttribute("data-scene-focus") ?? null,
       projection: projection ? {
@@ -1464,6 +1492,8 @@ async function runVoyage(options) {
       throw new Error(
         "the Explorer onboarding notice survived map interaction",
       );
+    if (options.backend !== "reference")
+      await waitForAtlasTerrainPrewarm(connection, options.timeoutMs);
     captures.push(
       await captureStage(connection, voyageDirectory, "atlas", startedAt),
     );
@@ -1482,7 +1512,6 @@ async function runVoyage(options) {
         options.timeoutMs,
       );
     });
-    process.stdout.write("READY landscape\n");
     mapNoticeObserved = await connection.evaluate(`(() => {
       const footer = document.querySelector('[data-explorer-footer]');
       return footer?.dataset.visible === "true" &&
@@ -1491,6 +1520,9 @@ async function runVoyage(options) {
     })()`);
     if (!mapNoticeObserved)
       throw new Error("the Explorer focus notice did not resurface");
+    if (options.backend !== "reference")
+      await waitForSubmittedTerrainFrame(connection, options.timeoutMs);
+    process.stdout.write("READY landscape\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "landscape", startedAt),
     );
@@ -1532,6 +1564,8 @@ async function runVoyage(options) {
         );
       },
     );
+    if (options.backend !== "reference")
+      await waitForSubmittedTerrainFrame(connection, options.timeoutMs);
     process.stdout.write("READY objects\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "objects", startedAt),
@@ -1557,6 +1591,8 @@ async function runVoyage(options) {
         options.timeoutMs,
       );
     });
+    if (options.backend !== "reference")
+      await waitForSubmittedTerrainFrame(connection, options.timeoutMs);
     process.stdout.write("READY evidence\n");
     captures.push(
       await captureStage(connection, voyageDirectory, "evidence", startedAt),
@@ -1698,15 +1734,17 @@ async function runVoyage(options) {
   const hiddenWorldLayout = captures.find(
     (capture) => capture.stage === "world",
   )?.communication_layout;
-  const visibleLandscapeLayout = captures.find(
-    (capture) => capture.stage === "landscape",
+  const visibleMapNoticeLayout = captures.find(
+    (capture) =>
+      ["landscape", "objects", "evidence"].includes(capture.stage) &&
+      capture.communication_layout.footer_visible,
   )?.communication_layout;
   const diagnosticsFollowFooter =
     hiddenWorldLayout?.footer_visible === false &&
-    visibleLandscapeLayout?.footer_visible === true &&
+    visibleMapNoticeLayout?.footer_visible === true &&
     Number.isFinite(hiddenWorldLayout.diagnostics_bottom_gap_px) &&
-    Number.isFinite(visibleLandscapeLayout.diagnostics_bottom_gap_px) &&
-    visibleLandscapeLayout.diagnostics_bottom_gap_px >
+    Number.isFinite(visibleMapNoticeLayout.diagnostics_bottom_gap_px) &&
+    visibleMapNoticeLayout.diagnostics_bottom_gap_px >
       hiddenWorldLayout.diagnostics_bottom_gap_px + 24;
   const expectedLossConsoleEntries = consoleEntries.filter((entry) =>
     expectedLossConsoleEntry(entry, options.loss),

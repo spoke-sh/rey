@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTerrainMeshData,
   compileContinuousRelief,
+  continuousReliefMaterialRevision,
   createContinuousReliefMaterial,
   terrainCameraProjection,
   terrainMeshByteLength,
@@ -90,15 +91,32 @@ describe("accelerated continuous terrain compiler", () => {
     expect(orbit.target).toEqual([orbit.center_x, 0, orbit.center_y]);
   });
 
-  it("binds executable material stages to the compiled pass-set revision", () => {
+  it("separates the base material graph from independently changing overlays", () => {
     const fieldSet = terrainFieldFixture();
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
-    expect(material.name).toBe(
-      "rey.terrain.tsl-continuous-relief@1:terrain-passes:fixture",
-    );
+    expect(material.name).toBe("rey.terrain.tsl-continuous-relief@1");
     expect(material.colorNode).not.toBeNull();
     material.dispose();
+
+    const changedOverlays = {
+      ...passes,
+      pass_set_id: "terrain-passes:changed-overlays",
+      lines: [],
+      points: [],
+    };
+    expect(continuousReliefMaterialRevision(changedOverlays)).toBe(
+      continuousReliefMaterialRevision(passes),
+    );
+    const withoutHillshade = {
+      ...passes,
+      passes: passes.passes.filter(
+        ({ id }) => id !== "height_normals_hillshade",
+      ),
+    };
+    expect(continuousReliefMaterialRevision(withoutHillshade)).toContain(
+      "without=height_normals_hillshade",
+    );
 
     const compiled = compileContinuousRelief(
       [fieldSet],
@@ -106,7 +124,7 @@ describe("accelerated continuous terrain compiler", () => {
       passes,
     );
     expect(compiled.render_passes).toBe(passes);
-    expect(compiled.material_revision).toContain(passes.pass_set_id);
+    expect(compiled.material_revision).toBe(material.name);
   });
 
   it("chooses the supported cell diagonal around explicit no-data", () => {

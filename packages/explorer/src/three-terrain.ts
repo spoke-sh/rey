@@ -19,6 +19,11 @@ import type {
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
   "rey.terrain.tsl-continuous-relief@1";
+const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
+  "base_terrain",
+  "height_normals_hillshade",
+  "ambient_valley_occlusion",
+] as const);
 export const MAX_ACCELERATED_TERRAIN_GPU_BYTES = 64 * 1024 * 1024;
 export const TERRAIN_MESH_PARITY_REVISION =
   "rey.terrain.cpu-mesh-upload-parity@1";
@@ -265,9 +270,7 @@ export function compileContinuousRelief(
   }
 
   return {
-    material_revision: renderPasses
-      ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${renderPasses.pass_set_id}`
-      : CONTINUOUS_RELIEF_MATERIAL_REVISION,
+    material_revision: continuousReliefMaterialRevision(renderPasses),
     render_passes: renderPasses,
     meshes: Object.freeze(
       fields.map((fieldSet, index) =>
@@ -358,9 +361,7 @@ export function createContinuousReliefMaterial(
   renderPasses?: TerrainRenderPassSetInput,
 ): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
-  material.name = renderPasses
-    ? `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:${renderPasses.pass_set_id}`
-    : CONTINUOUS_RELIEF_MATERIAL_REVISION;
+  material.name = continuousReliefMaterialRevision(renderPasses);
   material.metalness = 0;
   const tint = attribute<"vec3">("reyTint", "vec3");
   const occlusion = attribute<"float">("reyOcclusion", "float");
@@ -402,4 +403,16 @@ export function createContinuousReliefMaterial(
   );
   material.roughnessNode = clamp(roughness, 0.62, 1);
   return material;
+}
+
+export function continuousReliefMaterialRevision(
+  renderPasses?: TerrainRenderPassSetInput,
+): string {
+  if (!renderPasses) return CONTINUOUS_RELIEF_MATERIAL_REVISION;
+  const disabled = CONTINUOUS_RELIEF_MATERIAL_STAGES.filter(
+    (id) => !renderPasses.passes.some((pass) => pass.id === id),
+  );
+  return disabled.length === 0
+    ? CONTINUOUS_RELIEF_MATERIAL_REVISION
+    : `${CONTINUOUS_RELIEF_MATERIAL_REVISION}:without=${disabled.join(",")}`;
 }

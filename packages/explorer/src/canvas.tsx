@@ -43,6 +43,7 @@ export type ExplorerCanvasContent =
 
 export interface ExplorerCanvasReport {
   status: Readonly<RendererStatus>;
+  submitted_frame: Readonly<RenderFrameIdentity> | null;
   draw_calls: number;
   render_submission_ms: number;
 }
@@ -84,6 +85,7 @@ export function ExplorerCanvas({
   const lastFrameRef = useRef<RenderFrameIdentity | undefined>(undefined);
   const [rootGeneration, setRootGeneration] = useState(0);
   const [ready, setReady] = useState(false);
+  const [submittedFrame, setSubmittedFrame] = useState<RenderFrameIdentity>();
   const horizontalWrapIndexes = globeHorizontalWrapIndexes(content);
   const horizontalWrapDepth = globeHorizontalWrapDepth(content);
   const horizontalWrapOpacity = globeHorizontalWrapOpacity(content);
@@ -104,10 +106,14 @@ export function ExplorerCanvas({
       : { opacity };
   const onReportRef = useRef(onReport);
   onReportRef.current = onReport;
-  const report = (status: Readonly<RendererStatus>) => {
+  const report = (
+    status: Readonly<RendererStatus>,
+    submittedFrame: Readonly<RenderFrameIdentity> | null = null,
+  ) => {
     const adapter = adapterRef.current;
     onReportRef.current({
       status,
+      submitted_frame: submittedFrame,
       draw_calls: adapter?.lastDrawCalls ?? 0,
       render_submission_ms: adapter?.lastSubmissionMs ?? 0,
     });
@@ -151,6 +157,7 @@ export function ExplorerCanvas({
     let root: ReturnType<typeof createRoot> | undefined;
     const adapter = new ReactThreeFiberRendererAdapter();
     adapterRef.current = adapter;
+    setSubmittedFrame(undefined);
     setReady(false);
     reportRef.current({
       lifecycle: "initializing",
@@ -164,19 +171,23 @@ export function ExplorerCanvas({
       rootRef.current?.unmount();
       rootRef.current = undefined;
       lastFrameRef.current = undefined;
+      setSubmittedFrame(undefined);
       setReady(false);
       reportRef.current(status);
     });
     const unsubscribeFrame = adapter.onFrameSubmitted(() => {
       if (cancelled) return;
+      const submitted = lastFrameRef.current;
+      if (submitted) setSubmittedFrame(Object.freeze({ ...submitted }));
       setReady(true);
-      reportRef.current(adapter.status);
+      reportRef.current(adapter.status, submitted ?? null);
     });
     const handleContextLoss = (event: Event) => {
       event.preventDefault();
       rootRef.current?.unmount();
       rootRef.current = undefined;
       lastFrameRef.current = undefined;
+      setSubmittedFrame(undefined);
       setReady(false);
       reportRef.current({
         lifecycle: "failed",
@@ -254,6 +265,7 @@ export function ExplorerCanvas({
       if (rootRef.current === root) rootRef.current = undefined;
       if (adapterRef.current === adapter) adapterRef.current = undefined;
       lastFrameRef.current = undefined;
+      setSubmittedFrame(undefined);
     };
   }, [preference]);
 
@@ -278,11 +290,8 @@ export function ExplorerCanvas({
   useEffect(() => {
     const root = rootRef.current;
     if (!root || rootGeneration === 0) return;
-    if (renderFrameInvalidation(lastFrameRef.current, frame).length === 0) {
-      const status = adapterRef.current?.status;
-      if (ready && status) reportRef.current(status);
+    if (renderFrameInvalidation(lastFrameRef.current, frame).length === 0)
       return;
-    }
     lastFrameRef.current = Object.freeze({ ...frame });
     root.render(sceneElement);
   }, [
@@ -290,7 +299,6 @@ export function ExplorerCanvas({
     frame.material_revision,
     frame.render_graph_id,
     frame.snapshot_id,
-    ready,
     rootGeneration,
     sceneElement,
   ]);
@@ -305,6 +313,8 @@ export function ExplorerCanvas({
       data-globe-horizontal-wrap-indexes={
         content.kind === "globe" ? horizontalWrapIndexes.join(",") : undefined
       }
+      data-render-kind={content.kind}
+      data-rendered-snapshot={submittedFrame?.snapshot_id}
       data-globe-horizontal-wrap-depth={
         content.kind === "globe" ? horizontalWrapDepth.toFixed(3) : undefined
       }
