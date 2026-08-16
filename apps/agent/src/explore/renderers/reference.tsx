@@ -960,7 +960,7 @@ function SemanticGlobeLayer({
       ...projectGlobe(cluster, center, radius, globeView),
     }))
     .filter(({ visible }) => visible);
-  const projectedBeacons = globe.beacons
+  const projectedBeacons = (suppressSemanticObjects ? [] : globe.beacons)
     .map((beacon) => ({
       beacon,
       ...projectGlobe(beacon, center, radius, globeView),
@@ -1083,119 +1083,123 @@ function SemanticGlobeLayer({
           </circle>
         ))}
       </g>
-      <g aria-label={`${projectedRegions.length} visible semantic regions`}>
-        {projectedRegions.map(({ region, x, y, depth }) => {
-          const label = regionLabels.get(`world:${region.id}`)!;
-          return (
+      {!accelerated ? (
+        <g aria-label={`${projectedRegions.length} visible semantic regions`}>
+          {projectedRegions.map(({ region, x, y, depth }) => {
+            const label = regionLabels.get(`world:${region.id}`)!;
+            return (
+              <g
+                aria-label={`${region.label}: ${region.detail}`}
+                className={sx(
+                  styles.semanticGlobeRegion,
+                  toneStyle(region.tone, "node"),
+                )}
+                data-semantic-region={region.id}
+                data-label-disposition={label.disposition}
+                data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
+                key={region.id}
+                onClick={() => focus(region.focus_id, x, y)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    focus(region.focus_id, x, y);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <circle
+                  className={sx(styles.semanticGlobeRegionPoint)}
+                  cx={x}
+                  cy={y}
+                  r={7 + depth * 7}
+                />
+                {label.visible ? (
+                  <>
+                    <line
+                      className={sx(styles.semanticGlobeBeaconLeader)}
+                      x1={x + 6}
+                      x2={x + 16}
+                      y1={y - 6}
+                      y2={y - 15}
+                    />
+                    <text
+                      className={sx(styles.semanticGlobeRegionLabel)}
+                      x={x + 14}
+                      y={y - 10}
+                    >
+                      {region.label}
+                    </text>
+                  </>
+                ) : null}
+                <desc>{region.detail}</desc>
+              </g>
+            );
+          })}
+        </g>
+      ) : null}
+      {!accelerated ? (
+        <g aria-label={`${projectedBeacons.length} visible workload beacons`}>
+          {projectedBeacons.map(({ beacon, x, y, depth }) => (
             <g
-              aria-label={`${region.label}: ${region.detail}`}
+              aria-label={`${beacon.mapping_role === "survey" ? "Survey" : "Workload"} beacon: ${beacon.label}. ${beacon.next_step}`}
               className={sx(
-                styles.semanticGlobeRegion,
-                toneStyle(region.tone, "node"),
+                styles.semanticGlobeBeacon,
+                beacon.mapping_role === "survey" &&
+                  styles.semanticGlobeSurveyBeacon,
+                toneStyle(beacon.tone, "node"),
               )}
-              data-semantic-region={region.id}
-              data-label-disposition={label.disposition}
-              data-label-layout={SEMANTIC_LABEL_LAYOUT_REVISION}
-              key={region.id}
-              onClick={() => focus(region.focus_id, x, y)}
+              data-beacon-state={beacon.state}
+              data-workload-beacon={beacon.workload_id}
+              key={beacon.id}
+              onClick={() => focus(beacon.focus_id, x, y)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  focus(region.focus_id, x, y);
+                  focus(beacon.focus_id, x, y);
                 }
               }}
               role="button"
               tabIndex={0}
             >
               <circle
-                className={sx(styles.semanticGlobeRegionPoint)}
+                className={sx(styles.semanticGlobeBeaconHalo)}
                 cx={x}
                 cy={y}
-                r={7 + depth * 7}
+                r={18 + depth * 8}
               />
-              {label.visible ? (
-                <>
-                  <line
-                    className={sx(styles.semanticGlobeBeaconLeader)}
-                    x1={x + 6}
-                    x2={x + 16}
-                    y1={y - 6}
-                    y2={y - 15}
-                  />
-                  <text
-                    className={sx(styles.semanticGlobeRegionLabel)}
-                    x={x + 14}
-                    y={y - 10}
-                  >
-                    {region.label}
-                  </text>
-                </>
-              ) : null}
-              <desc>{region.detail}</desc>
+              <circle
+                className={sx(styles.semanticGlobeBeaconPoint)}
+                cx={x}
+                cy={y}
+                r={beacon.mapping_role === "survey" ? 10 : 7}
+              />
+              <line
+                className={sx(styles.semanticGlobeBeaconLeader)}
+                x1={x + 6}
+                x2={x + 16}
+                y1={y - 6}
+                y2={y - 15}
+              />
+              <text
+                className={sx(styles.semanticGlobeBeaconLabel)}
+                x={x + 17}
+                y={y - 13}
+              >
+                {globeBeaconLabel(beacon.workload_id, beacon.mapping_role)}
+              </text>
+              <text
+                className={sx(styles.semanticGlobeBeaconState)}
+                x={x + 17}
+                y={y + 3}
+              >
+                {beacon.state.toUpperCase()} · SELECT TO REVIEW
+              </text>
+              <desc>{`${beacon.label} / ${beacon.detail} / ${beacon.next_step}`}</desc>
             </g>
-          );
-        })}
-      </g>
-      <g aria-label={`${projectedBeacons.length} visible workload beacons`}>
-        {projectedBeacons.map(({ beacon, x, y, depth }) => (
-          <g
-            aria-label={`${beacon.mapping_role === "survey" ? "Survey" : "Workload"} beacon: ${beacon.label}. ${beacon.next_step}`}
-            className={sx(
-              styles.semanticGlobeBeacon,
-              beacon.mapping_role === "survey" &&
-                styles.semanticGlobeSurveyBeacon,
-              toneStyle(beacon.tone, "node"),
-            )}
-            data-beacon-state={beacon.state}
-            data-workload-beacon={beacon.workload_id}
-            key={beacon.id}
-            onClick={() => focus(beacon.focus_id, x, y)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                focus(beacon.focus_id, x, y);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <circle
-              className={sx(styles.semanticGlobeBeaconHalo)}
-              cx={x}
-              cy={y}
-              r={18 + depth * 8}
-            />
-            <circle
-              className={sx(styles.semanticGlobeBeaconPoint)}
-              cx={x}
-              cy={y}
-              r={beacon.mapping_role === "survey" ? 10 : 7}
-            />
-            <line
-              className={sx(styles.semanticGlobeBeaconLeader)}
-              x1={x + 6}
-              x2={x + 16}
-              y1={y - 6}
-              y2={y - 15}
-            />
-            <text
-              className={sx(styles.semanticGlobeBeaconLabel)}
-              x={x + 17}
-              y={y - 13}
-            >
-              {globeBeaconLabel(beacon.workload_id, beacon.mapping_role)}
-            </text>
-            <text
-              className={sx(styles.semanticGlobeBeaconState)}
-              x={x + 17}
-              y={y + 3}
-            >
-              {beacon.state.toUpperCase()} · SELECT TO REVIEW
-            </text>
-            <desc>{`${beacon.label} / ${beacon.detail} / ${beacon.next_step}`}</desc>
-          </g>
-        ))}
-      </g>
+          ))}
+        </g>
+      ) : null}
       <text
         className={sx(styles.semanticGlobeCaption)}
         data-globe-caption=""

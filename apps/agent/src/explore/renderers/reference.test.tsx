@@ -341,6 +341,26 @@ describe("reference renderer", () => {
     expect(acceleratedMarkup).toContain(
       'data-globe-sphere="" data-globe-surface-opacity="0.25" fill="transparent" opacity="0.25" r="400"',
     );
+
+    // Before this fix, region/beacon markers rendered unconditionally here —
+    // the only element in this layer that didn't already suppress itself
+    // once the accelerated globe took over (unlike the atmosphere, sphere
+    // fill, and stipple checked above). At progress 0 (deep in World,
+    // before any morph) that reference copy — projected through a
+    // completely separate, non-progress-aware implementation — sat a few
+    // pixels from the accelerated marker's own progress-aware position;
+    // the instant morph began and this reference copy vanished, the visible
+    // marker jumped to where the accelerated one had been the whole time,
+    // reading as a marker sliding during the crossing.
+    const acceleratedRestMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        accelerated
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        scene={globeScene}
+      />,
+    );
+    expect(acceleratedRestMarkup).not.toContain("data-semantic-region=");
   });
 
   it("hides its own bordered Atlas sector once acceleration is healthy", () => {
