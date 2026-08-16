@@ -2372,11 +2372,19 @@ fn compact_retained_regional_projection_packet(
     let cell_count = columns
         .checked_mul(rows)
         .ok_or_else(|| "retained regional terrain grid size overflowed".to_owned())?;
+    let cell_source_encoding = match grid.get("authority").and_then(Value::as_str) {
+        Some(
+            "qualified rectilinear height/material grid; validity ends at supported source triangles",
+        ) => "geojson_point_features_v1",
+        Some(
+            "qualified packed rectilinear height/material grid; validity ends at supported source triangles",
+        ) => "geojson_packed_grid_v1",
+        _ => return Err("retained regional terrain grid has invalid authority".to_owned()),
+    };
     for field in [
         "source_id",
         "source_path",
         "source_artifact_id",
-        "cell_source_encoding",
         "cell_ids",
         "source_object_ids",
         "source_object_revisions",
@@ -2418,7 +2426,6 @@ fn compact_retained_regional_projection_packet(
         "source_id",
         "source_path",
         "source_artifact_id",
-        "cell_source_encoding",
         "validity_hex",
         "elevation_micrometers",
         "material_palette",
@@ -2432,6 +2439,10 @@ fn compact_retained_regional_projection_packet(
                 .ok_or_else(|| format!("retained regional terrain grid lost {field}"))?,
         );
     }
+    transport.insert(
+        "cell_source_encoding".to_owned(),
+        Value::String(cell_source_encoding.to_owned()),
+    );
     let cell_ids = required_string_array(compact, "cell_ids")?;
     let source_object_ids = required_string_array(compact, "source_object_ids")?;
     let source_object_revisions = required_string_array(compact, "source_object_revisions")?;

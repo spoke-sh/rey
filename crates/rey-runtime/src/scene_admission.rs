@@ -1049,7 +1049,7 @@ fn inspect_packed_terrain_grid(
     value: &Value,
 ) -> Result<SceneAdmissionTerrainPackedGrid, SceneAdmissionError> {
     const SCHEMA: &str = "rey.packed-terrain-grid.v1";
-    const MAX_CELLS: u64 = 1_100_000;
+    const MAX_CELLS: u64 = 1_000_000;
     let grid = serde_json::from_value::<SceneAdmissionTerrainPackedGrid>(value.clone())
         .map_err(|_| SceneAdmissionError::TerrainSample)?;
     validate_identifier(&grid.dataset_id)?;
@@ -1218,7 +1218,6 @@ fn build_scene(
     let limits = RegionalSceneLimits {
         max_sources: context.input.limits.max_sources,
         max_native_objects: context.input.limits.max_features,
-        max_terrain_cells: 1_100_000,
         max_native_coordinates: context.input.limits.max_coordinates,
         max_layers: 16,
         max_validity_records: context.input.limits.max_features.saturating_add(2),
@@ -1271,8 +1270,10 @@ fn build_scene(
         terrain
             .grid
             .as_ref()
-            .and_then(|grid| grid.compact.as_ref())
-            .is_some_and(|compact| compact.cell_source_encoding == "geojson_packed_grid_v1")
+            .is_some_and(|grid| {
+                grid.authority
+                    == "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+            })
     });
     if gridded_terrain {
         objects.retain(|object| object.layer != RegionalLayerKind::Terrain);
@@ -1294,7 +1295,11 @@ fn build_scene(
                 ),
                 RegionalLayerKind::Terrain => (
                     if gridded_terrain {
-                        "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                        if packed_terrain {
+                            "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+                        } else {
+                            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                        }
                     } else {
                         "qualified exact height/material samples; no interpolated terrain coverage"
                     },
@@ -1336,7 +1341,12 @@ fn build_scene(
             ),
             kind: RegionalLayerKind::Terrain,
             object_ids: Vec::new(),
-            authority: "qualified rectilinear height/material grid; validity ends at supported source triangles".to_owned(),
+            authority: if packed_terrain {
+                "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+            } else {
+                "qualified rectilinear height/material grid; validity ends at supported source triangles"
+            }
+            .to_owned(),
             semantics: if packed_terrain {
                 "exact packed row-major source cells with explicit valid/no-data support and cell-addressable lineage; piecewise-linear triangles cannot cross no-data"
             } else {
@@ -1740,7 +1750,7 @@ fn build_regional_packed_terrain_grid(
             "piecewise linear only within triangles whose three admitted source vertices are valid"
                 .to_owned(),
         authority:
-            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+            "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
                 .to_owned(),
     }
     .finalize_compact(&feature.source_id, &object.source_path)?;
@@ -1761,7 +1771,7 @@ fn build_regional_packed_terrain_grid(
         material_semantics:
             "source-declared bounded material identifier; no inferred physical properties".to_owned(),
         authority:
-            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+            "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
                 .to_owned(),
     }
     .finalize()
@@ -3189,8 +3199,11 @@ mod tests {
         let grid = terrain.grid.as_ref().unwrap();
         assert_eq!((grid.columns, grid.rows), (3, 3));
         assert_eq!(grid.schema, "rey.regional-terrain-grid.v2");
-        let compact = grid.compact.as_ref().unwrap();
-        assert_eq!(compact.cell_source_encoding, "geojson_packed_grid_v1");
+        assert!(grid.compact.is_some());
+        assert_eq!(
+            grid.authority,
+            "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+        );
         let cells = grid.expanded_cells().unwrap();
         assert_eq!(cells.len(), 9);
         assert_eq!(cells[4].validity, RegionalValidityClass::NoData);

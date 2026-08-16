@@ -285,7 +285,7 @@ revision plus row/column. The retained result is still
 `rey.regional-terrain-grid.v2`, but its `geojson_packed_grid_v1` source encoding
 prevents any Point-feature authority claim. Lazy browser evidence reconstructs
 an exact packed source cell, not a fictitious native Point object. The adapter
-is bounded to 1.1 million cells and cannot mix packed and point-grid bindings in
+is bounded to one million cells and cannot mix packed and point-grid bindings in
 one terrain source.
 
 Each admitted regional field remains one bounded in-memory grid rendered by a

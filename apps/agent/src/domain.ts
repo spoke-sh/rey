@@ -270,7 +270,6 @@ export interface RegionalProjectionPacket {
   limits: {
     max_sources: number;
     max_native_objects: number;
-    max_terrain_cells: number;
     max_native_coordinates: number;
     max_layers: number;
     max_validity_records: number;

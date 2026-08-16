@@ -197,10 +197,11 @@ little-endian centimeter elevation, material indices, and at least one fully
 supported triangle. Admission derives stable row/column cell locators and
 revisions from the frozen packed feature, retains the same compact v2 grid, and
 marks the source encoding as `geojson_packed_grid_v1` through browser transport
-and exact evidence. A 1.1-million-cell limit is distinct from the native-object
-limit because packed cells are not counterfeit GeoJSON Point features. This is
-the required high-density source adapter; Rey County still uses the 201×201
-point fixture until a separately reviewed generated artifact is admitted.
+and exact evidence. The existing one-million native-coordinate limit bounds
+packed cells independently from the native-object limit because those cells
+are not counterfeit GeoJSON Point features. This is the required high-density
+source adapter; generated artifacts remain incomplete until separately
+reviewed and admitted.
 
 Client-side source validation now builds one unique native-object identity map
 before checking terrain cells. The 81×81 field therefore validates in linear

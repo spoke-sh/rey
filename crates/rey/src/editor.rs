@@ -2280,7 +2280,7 @@ fn packed_terrain_grid(
     value: &Value,
 ) -> Result<SceneTerrainPackedGrid, EditorError> {
     const SCHEMA: &str = "rey.packed-terrain-grid.v1";
-    const MAX_CELLS: u64 = 1_100_000;
+    const MAX_CELLS: u64 = 1_000_000;
     let grid = serde_json::from_value::<SceneTerrainPackedGrid>(value.clone()).map_err(|_| {
         EditorError::TerrainSample(format!("{feature_id} has an invalid packed terrain grid"))
     })?;
