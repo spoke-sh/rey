@@ -45,17 +45,12 @@ export function compileRegionalTerrainField(
   if (datasetValues.validity.length !== cells)
     throw new Error("regional terrain dataset shape changed after admission");
   const validityValues = datasetValues.validity.slice();
-  const validElevations: number[] = [];
-  for (let index = 0; index < cells; index += 1) {
-    if (validityValues[index] === 1)
-      validElevations.push(
-        datasetValues.elevation_micrometers[index]! / 1_000_000,
-      );
-  }
-  if (validElevations.length < 3)
-    throw new Error("regional terrain dataset has no supported triangle");
-  const minimumElevation = Math.min(...validElevations);
-  const maximumElevation = Math.max(...validElevations);
+  const elevationSummary = regionalTerrainElevationSummary(
+    validityValues,
+    datasetValues.elevation_micrometers,
+  );
+  const minimumElevation = elevationSummary.minimum;
+  const maximumElevation = elevationSummary.maximum;
   const elevationRange = Math.max(1, maximumElevation - minimumElevation);
   const elevationValues = new Float32Array(cells);
   for (let index = 0; index < cells; index += 1) {
@@ -157,8 +152,8 @@ export function compileRegionalTerrainField(
     source_summary: Object.freeze({
       columns: dataset.columns,
       rows: dataset.rows,
-      valid_vertices: validElevations.length,
-      no_data_vertices: cells - validElevations.length,
+      valid_vertices: elevationSummary.valid_count,
+      no_data_vertices: cells - elevationSummary.valid_count,
       elevation_minimum: minimumElevation,
       elevation_maximum: maximumElevation,
     }),
@@ -178,6 +173,31 @@ export function compileRegionalTerrainField(
       (total, field) => total + fieldByteLength(field),
       0,
     ),
+  });
+}
+
+export function regionalTerrainElevationSummary(
+  validity: Uint8Array,
+  elevationMicrometers: readonly number[],
+): { valid_count: number; minimum: number; maximum: number } {
+  if (validity.length !== elevationMicrometers.length)
+    throw new Error("regional terrain elevation channels changed shape");
+  let validCount = 0;
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < validity.length; index += 1) {
+    if (validity[index] !== 1) continue;
+    const elevation = elevationMicrometers[index]! / 1_000_000;
+    validCount += 1;
+    minimum = Math.min(minimum, elevation);
+    maximum = Math.max(maximum, elevation);
+  }
+  if (validCount < 3)
+    throw new Error("regional terrain dataset has no supported triangle");
+  return Object.freeze({
+    valid_count: validCount,
+    minimum,
+    maximum,
   });
 }
 

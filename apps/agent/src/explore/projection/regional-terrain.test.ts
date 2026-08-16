@@ -6,6 +6,7 @@ import {
   compileRegionalTerrainField,
   invertRegionalTerrainPosition,
   projectRegionalTerrainPosition,
+  regionalTerrainElevationSummary,
 } from "./regional-terrain";
 import {
   REGIONAL_TERRAIN_REFINEMENT_REVISION,
@@ -233,6 +234,21 @@ describe("regional terrain projection", () => {
         grid: { ...source.grid, columns: 501, rows: 501 },
       }),
     ).toBe(1);
+  });
+
+  it("summarizes high-density elevation without variadic call limits", () => {
+    const cells = 251_001;
+    const valid = 180_279;
+    const validity = new Uint8Array(cells);
+    validity.fill(1, 0, valid);
+    const elevations = new Array<number>(cells).fill(0);
+    elevations.fill(32_000_000, 0, valid);
+    elevations[valid - 1] = 1_784_120_000;
+    expect(regionalTerrainElevationSummary(validity, elevations)).toEqual({
+      valid_count: valid,
+      minimum: 32,
+      maximum: 1_784.12,
+    });
   });
 
   it("derives scale-aware contours without crossing no-data cells", () => {
