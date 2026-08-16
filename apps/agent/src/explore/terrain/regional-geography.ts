@@ -13,7 +13,7 @@ import { regionalTerrainContourThresholds } from "./contours";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
-  "rey.terrain.regional-geography@3" as const;
+  "rey.terrain.regional-geography@4" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
   "rey.terrain.regional-linework@2" as const;
 
@@ -200,9 +200,10 @@ export function deriveRegionalTerrainGeography(
         ...source.active_band_ids,
         "derived_drainage",
         "derived_land_cover",
+        "derived_multiscale_relief",
       ]),
     ]),
-    detail_authority: `${source.detail_authority}; depression-safe drainage, non-displacing erosion potential, and validity-bounded land cover are deterministic presentation derivations within admitted support; admitted elevation remains unchanged and the result is not observed hydrology or new geographic evidence`,
+    detail_authority: `${source.detail_authority}; depression-safe drainage, non-displacing erosion potential, validity-bounded land cover, and support-conservative multiscale topographic tone are deterministic presentation derivations within admitted support; admitted elevation remains unchanged and the result is not observed hydrology or new geographic evidence`,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -366,6 +367,7 @@ function deriveRegionalLandCover(
   const tint = new Float32Array(cells * 3);
   const occlusion = new Float32Array(cells);
   const roughness = new Float32Array(cells);
+  const topographicTone = deriveMultiscaleTopographicTone(source, elevation);
   const palette = {
     dry: [0.61, 0.55, 0.38] as const,
     grass: [0.4, 0.56, 0.33] as const,
@@ -413,7 +415,7 @@ function deriveRegionalLandCover(
       const vegetated = mixColor(lowCover, palette.forest, forest);
       const upland = mixColor(vegetated, palette.alpine, alpine);
       const color = mixColor(upland, palette.rock, exposedRock);
-      const localTone = 0.96 + fineCoverNoise * 0.08;
+      const localTone = 0.96 + fineCoverNoise * 0.08 + topographicTone[index]!;
       for (let component = 0; component < 3; component += 1) {
         const sourceColor = source.material.tint[index * 3 + component]!;
         tint[index * 3 + component] =
@@ -421,8 +423,12 @@ function deriveRegionalLandCover(
       }
       const valley = Math.max(0, curvature.values[index]!);
       occlusion[index] = clamp(
-        0.94 - valley * 6.4 - accumulation.values[index]! * 0.1 - slope * 0.12,
-        0.44,
+        0.94 -
+          valley * 6.4 -
+          accumulation.values[index]! * 0.1 -
+          slope * 0.12 +
+          topographicTone[index]! * 0.72,
+        0.38,
         0.98,
       );
       roughness[index] = clamp(
@@ -440,6 +446,95 @@ function deriveRegionalLandCover(
     occlusion,
     roughness,
   );
+}
+
+/**
+ * Produces presentation-only relief contrast at several spatial scales. A
+ * scale contributes only when its complete square is supported, so neither a
+ * no-data boundary nor an internal hole can cast invented relief into valid
+ * terrain. The admitted elevation and validity channels remain unchanged.
+ */
+function deriveMultiscaleTopographicTone(
+  source: TerrainFieldSet,
+  elevation: TerrainFieldSet["elevation"],
+): Float32Array {
+  const { columns, rows } = source.grid;
+  const stride = columns + 1;
+  const sums = new Float64Array((columns + 1) * (rows + 1));
+  const support = new Uint32Array((columns + 1) * (rows + 1));
+  for (let row = 0; row < rows; row += 1) {
+    let rowSum = 0;
+    let rowSupport = 0;
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column;
+      if (source.validity.values[index] !== 0) {
+        rowSum += elevation.values[index]!;
+        rowSupport += 1;
+      }
+      const prefix = (row + 1) * stride + column + 1;
+      sums[prefix] = sums[row * stride + column + 1]! + rowSum;
+      support[prefix] = support[row * stride + column + 1]! + rowSupport;
+    }
+  }
+  const rectangle = (
+    values: Float64Array | Uint32Array,
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+  ) =>
+    values[bottom * stride + right]! -
+    values[top * stride + right]! -
+    values[bottom * stride + left]! +
+    values[top * stride + left]!;
+  const radii = [2, 6, 14] as const;
+  const weights = [0.5, 0.31, 0.19] as const;
+  const tone = new Float32Array(columns * rows);
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const index = row * columns + column;
+      if (source.validity.values[index] === 0) continue;
+      let accumulated = 0;
+      let accumulatedWeight = 0;
+      for (let scale = 0; scale < radii.length; scale += 1) {
+        const radius = radii[scale]!;
+        const left = column - radius;
+        const top = row - radius;
+        const right = column + radius + 1;
+        const bottom = row + radius + 1;
+        if (left < 0 || top < 0 || right > columns || bottom > rows) continue;
+        const area = (right - left) * (bottom - top);
+        if (rectangle(support, left, top, right, bottom) !== area) continue;
+        const average = rectangle(sums, left, top, right, bottom) / area;
+        const northwestArea = (column - left + 1) * (row - top + 1);
+        const southeastArea = (right - column) * (bottom - row);
+        const northwest =
+          rectangle(sums, left, top, column + 1, row + 1) / northwestArea;
+        const southeast =
+          rectangle(sums, column, row, right, bottom) / southeastArea;
+        const range = 0.018 + radius * 0.0025;
+        const position = clamp(
+          (elevation.values[index]! - average) / range,
+          -1,
+          1,
+        );
+        const directional = clamp(
+          (northwest - southeast) / (range * 1.7),
+          -1,
+          1,
+        );
+        const weight = weights[scale]!;
+        accumulated += (position * 0.115 + directional * 0.052) * weight;
+        accumulatedWeight += weight;
+      }
+      tone[index] = clamp(
+        accumulatedWeight === 0 ? 0 : accumulated / accumulatedWeight,
+        -0.16,
+        0.14,
+      );
+    }
+  }
+  return tone;
 }
 
 function contourSegments(

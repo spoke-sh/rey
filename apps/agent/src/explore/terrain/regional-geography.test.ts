@@ -33,9 +33,16 @@ describe("regional terrain geography", () => {
       REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
     );
     expect(geography.active_band_ids).toEqual(
-      expect.arrayContaining(["derived_drainage", "derived_land_cover"]),
+      expect.arrayContaining([
+        "derived_drainage",
+        "derived_land_cover",
+        "derived_multiscale_relief",
+      ]),
     );
     expect(geography.detail_authority).toContain("not observed hydrology");
+    expect(geography.detail_authority).toContain(
+      "support-conservative multiscale topographic tone",
+    );
     expect(geography.validity.values).toEqual(refined.validity.values);
     expect(geography.elevation.values).toEqual(replay.elevation.values);
     expect(geography.elevation.values).toEqual(refined.elevation.values);
@@ -59,6 +66,9 @@ describe("regional terrain geography", () => {
     );
     expect(Math.min(...supportedOcclusion)).toBeLessThan(0.8);
     expect(Math.max(...supportedOcclusion)).toBeGreaterThan(0.9);
+    expect(
+      Math.max(...supportedOcclusion) - Math.min(...supportedOcclusion),
+    ).toBeGreaterThan(0.18);
 
     for (let row = 0; row < source.grid.rows; row += 1) {
       for (let column = 0; column < source.grid.columns; column += 1) {

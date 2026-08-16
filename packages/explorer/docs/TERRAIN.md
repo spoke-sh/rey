@@ -135,6 +135,15 @@ already bounded inputs:
 | Features/labels/selection | Draped exact vectors, disclosed bounds fallbacks, and point/selection anchors. | Interface over retained identity.   |
 | Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.                 | Exact links and accessible meaning. |
 
+Before tile projection, regional geography derives a local, midslope, and
+regional topographic tone from the admitted elevation. A scale contributes
+only when its complete sampling window is valid, so an internal hole or
+no-data edge cannot cast presentation relief into supported terrain. The tone
+modulates land-cover tint and ambient occlusion; it never changes elevation,
+validity, source material identity, or geographic authority. The accelerated
+material preserves stronger northwest/southeast directional separation so
+fine admitted form remains legible at map posture.
+
 Every pass binds an implementation revision, input revision, and dependency.
 The scene identity includes the compiled pass-set identity, while the shared
 continuous-relief material identity includes only shader-affecting base-stage

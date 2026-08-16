@@ -95,7 +95,7 @@ describe("accelerated continuous terrain compiler", () => {
     const fieldSet = terrainFieldFixture();
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
-    expect(material.name).toBe("rey.terrain.tsl-continuous-relief@2");
+    expect(material.name).toBe("rey.terrain.tsl-continuous-relief@3");
     expect(material.colorNode).not.toBeNull();
     material.dispose();
 
