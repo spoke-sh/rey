@@ -52,15 +52,21 @@ describe("executable terrain render passes", () => {
       compiled?.passes.find(({ id }) => id === "base_terrain")?.input_revision,
     ).toMatch(/^input:presentation-hash64:/);
     const contours = compiled?.lines.filter(({ kind }) => kind === "contour");
-    expect(contours).toHaveLength(2);
+    expect(contours).toHaveLength(1);
     for (const contour of contours ?? []) {
-      const xCoordinates = Array.from(contour.positions).filter(
-        (_, component) => component % 3 === 0,
-      );
-      expect(xCoordinates).not.toContain(10);
-      expect(
-        Math.min(...xCoordinates) < 10 && Math.max(...xCoordinates) > 10,
-      ).toBe(false);
+      expect(contour.positions.length % 6).toBe(0);
+      for (
+        let component = 0;
+        component < contour.positions.length;
+        component += 6
+      ) {
+        const firstX = contour.positions[component]!;
+        const secondX = contour.positions[component + 3]!;
+        expect(firstX).not.toBe(10);
+        expect(secondX).not.toBe(10);
+        expect(firstX < 10 && secondX > 10).toBe(false);
+        expect(firstX > 10 && secondX < 10).toBe(false);
+      }
     }
     expect(
       compiled?.lines.find(({ id }) => id.startsWith("stream:"))?.authority,
@@ -72,10 +78,10 @@ describe("executable terrain render passes", () => {
     const water = compiled?.areas.find(({ kind }) => kind === "water_area");
     expect(water?.positions).toHaveLength(18);
     expect(
-      Array.from(water?.positions ?? []).filter(
-        (_, component) => component % 3 === 1,
-      ),
-    ).toEqual(expect.arrayContaining([expect.any(Number)]));
+      Array.from(water?.positions ?? [])
+        .filter((_, component) => component % 3 === 1)
+        .every((height) => Number.isFinite(height) && height > 1),
+    ).toBe(true);
     expect(water?.authority).toContain("fully valid terrain triangles");
     expect(compiled?.pass_set_id).toMatch(
       /^rey\.terrain-render-pass-set\.v1:presentation-hash64:/,

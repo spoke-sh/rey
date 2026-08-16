@@ -119,7 +119,10 @@ no triangle touching a no-data vertex can enter the surface. The surface,
 areas, lines, and point anchors share one R3F terrain group and one
 Atlas-to-Landscape model transform. Validity is represented by missing
 triangles over the canvas background, not by a rectangular mesh that can read
-as geographic support.
+as geographic support. Disconnected valid line intervals remain independent
+endpoint pairs but batch once per source feature into an R3F `LineSegments`
+object. Batching changes draw mechanism, never the validity cuts or source
+identity.
 
 Text labels, evidence links, descriptions, and pointer semantics deliberately
 remain in `@rey/agent`'s deterministic reference overlay. It stays mounted

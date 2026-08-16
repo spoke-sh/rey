@@ -56,24 +56,36 @@ export function compileTerrainRenderPasses(
   ) => {
     const polylines = parseSvgPolylines(feature.path);
     let admitted = 0;
-    polylines.forEach((polyline, polylineIndex) => {
+    const positions: number[] = [];
+    polylines.forEach((polyline) => {
       const segments = drapePolyline(polyline, scene.terrain_fields, 1.4);
-      segments.forEach((positions, segmentIndex) => {
-        admitted += 1;
-        lines.push(
-          Object.freeze({
-            id: `${feature.id}:${polylineIndex}:${segmentIndex}`,
-            pass_id: feature.pass_id,
-            kind: feature.kind,
-            source_revision: feature.source_revision,
-            authority: feature.authority,
-            positions,
-            color: feature.color,
-            opacity: feature.opacity,
-          }),
-        );
+      segments.forEach((strip) => {
+        for (let component = 3; component < strip.length; component += 3) {
+          positions.push(
+            strip[component - 3]!,
+            strip[component - 2]!,
+            strip[component - 1]!,
+            strip[component]!,
+            strip[component + 1]!,
+            strip[component + 2]!,
+          );
+          admitted += 1;
+        }
       });
     });
+    if (admitted > 0)
+      lines.push(
+        Object.freeze({
+          id: `${feature.id}:batch`,
+          pass_id: feature.pass_id,
+          kind: feature.kind,
+          source_revision: feature.source_revision,
+          authority: feature.authority,
+          positions: Float32Array.from(positions),
+          color: feature.color,
+          opacity: feature.opacity,
+        }),
+      );
     if (admitted === 0 && polylines.length > 0)
       omissions.push(
         `${feature.id} has no fully valid terrain-supported accelerated segment; reference geometry retained`,

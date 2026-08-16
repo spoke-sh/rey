@@ -58,8 +58,9 @@ same admitted grid into one renderer-neutral field; the reference SVG and
 `@rey/explorer` accelerated mesh share validity-safe triangle selection. The
 dataset and compiler revisions enter immutable scene lineage. Landscape and
 Neighborhood suppress individual grid-vertex markers as level-of-detail
-presentation, while Object and Evidence can still expose their exact source
-identities.
+presentation. Object and Evidence keep those vertices in the qualified dataset
+instead of mounting every source row as a browser object; an explicitly
+selected or deep-linked terrain vertex still exposes its exact source identity.
 
 The accelerated path now projects that reference field into a conservative
 quadtree with stable source-bound tile identities, shared samples and validity

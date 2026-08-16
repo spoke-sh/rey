@@ -120,6 +120,7 @@ export interface TerrainLineFeatureInput {
   kind: string;
   source_revision: string;
   authority: string;
+  /** Non-indexed independent segment endpoint pairs in x/up/y order. */
   positions: Float32Array;
   color: number;
   opacity: number;

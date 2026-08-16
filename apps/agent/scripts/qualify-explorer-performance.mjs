@@ -200,6 +200,14 @@ function summarizeVoyage(document, path) {
         ),
       ),
     ),
+    render_pass_line_batches: maximum(
+      captures.map((capture) =>
+        finiteNumber(
+          capture.renderer?.render_pass_line_batch_count,
+          `${path} render-pass line batches`,
+        ),
+      ),
+    ),
     terrain_screen_error_pixels: maximum(
       captures.map((capture) =>
         finiteNumber(

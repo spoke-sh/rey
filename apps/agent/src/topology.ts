@@ -1072,12 +1072,13 @@ function buildRegionalCounty(
       cell,
     ]) ?? [],
   );
-  const visibleObjects =
-    terrainField && (regime === "landscape" || regime === "neighborhoods")
-      ? objects.filter(
-          (object) => !terrainGridCellsByObjectId.has(object.object_id),
-        )
-      : objects;
+  const visibleObjects = terrainField
+    ? objects.filter(
+        (object) =>
+          !terrainGridCellsByObjectId.has(object.object_id) ||
+          `regional-object:${object.object_id}` === focusId,
+      )
+    : objects;
   const nodes = visibleObjects.map((object) => {
     const local = nativeBoundsToCountyLocal(countyFrame, object.native_bounds);
     const nativeCenter = [

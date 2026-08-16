@@ -922,6 +922,26 @@ describe("regional scene topology projection", () => {
         id.startsWith("regional-object:terrain-grid"),
       ),
     ).toBe(false);
+    const objectScene = buildTopologyScene(
+      terrainPortfolio,
+      2.05,
+      "regional:scene:1",
+    );
+    expect(
+      objectScene.nodes.some(({ id }) =>
+        id.startsWith("regional-object:terrain-grid"),
+      ),
+    ).toBe(false);
+    const selectedTerrain = buildTopologyScene(
+      terrainPortfolio,
+      2.05,
+      `regional-object:${objectIds[0]}`,
+    );
+    expect(
+      selectedTerrain.nodes.filter(({ id }) =>
+        id.startsWith("regional-object:terrain-grid"),
+      ),
+    ).toHaveLength(1);
     const snapshot = compileSceneSnapshot(
       terrainPortfolio,
       0.58,

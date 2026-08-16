@@ -912,6 +912,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-render-pass-area-count={
             terrainRenderer.render_pass_area_count
           }
+          data-renderer-render-pass-line-batch-count={
+            terrainRenderer.render_pass_line_batch_count
+          }
           data-renderer-render-pass-line-count={
             terrainRenderer.render_pass_line_count
           }

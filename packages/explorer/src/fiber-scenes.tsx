@@ -13,7 +13,7 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   KeepStencilOp,
-  Line,
+  LineSegments,
   LineBasicNodeMaterial,
   Matrix4,
   Mesh,
@@ -83,7 +83,7 @@ extend({
   DirectionalLight,
   Group,
   InstancedMesh,
-  Line,
+  LineSegments,
   LineBasicNodeMaterial,
   Mesh,
   OrthographicCamera,
@@ -284,7 +284,7 @@ function TerrainPassLine({
   const object = useMemo(() => {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(line.positions, 3));
-    const object = new Line(geometry, material);
+    const object = new LineSegments(geometry, material);
     object.name = `terrain-pass:${line.pass_id}:${line.id}`;
     return object;
   }, [line.id, line.pass_id, line.positions, material]);
