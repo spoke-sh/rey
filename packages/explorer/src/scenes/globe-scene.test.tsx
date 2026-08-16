@@ -491,9 +491,70 @@ describe("globe scene", () => {
       name: "context-globe-atmosphere:0:wrap:1",
     }).instance as Mesh;
     expect(closingRepeatedAtmosphere.geometry).toBe(atmosphereGeometry);
+    // The overall envelope amplitude (material.opacity, still the transient
+    // bump curve that's 0 at both the World and Atlas endpoints) is
+    // unchanged by the new spatial sweep — the sweep multiplies into
+    // opacityNode as an additional, independent shader term rather than
+    // replacing this scalar.
     expect(
       (closingRepeatedAtmosphere.material as MeshBasicNodeMaterial).opacity,
     ).toBeCloseTo(0.17 * globeAtmosphereRepeatOpacity(0.79));
+
+    await renderer.unmount();
+  });
+
+  it("sweeps a repeated wrap copy's atmosphere glow from the seam outward, matching sector/sample/marker reveal", async () => {
+    const world = { width: 1200, height: 720 };
+    const view = {
+      yaw_degrees: 24,
+      pitch_degrees: -8,
+      projection_morph_progress: 0.79,
+    };
+    const compiled = compileContextGlobe(globeFixture());
+    const renderer = await create(
+      <ContextGlobeScene compiled={compiled} view={view} world={world} />,
+    );
+
+    const surface = renderer.scene.findByProps({
+      name: "context-globe-surface",
+    }).instance as Mesh;
+    const canonicalAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0",
+    }).instance as Mesh;
+    const repeatedAtmosphere = renderer.scene.findByProps({
+      name: "context-globe-atmosphere:0:wrap:1",
+    }).instance as Mesh;
+
+    // The shared surface/atmosphere geometry now carries one normalizedChartX
+    // scalar per vertex — the same quantity globeAtlasRepeatSeamWeight and
+    // globeAtlasRepeatVisibility consume in globe-projection.ts — so the
+    // shader can sweep the wrap copy's glow spatially instead of applying
+    // one flat opacity across the whole shell.
+    expect(repeatedAtmosphere.geometry).toBe(surface.geometry);
+    const chartXAttribute = surface.geometry.getAttribute(
+      "reyNormalizedChartX",
+    );
+    expect(chartXAttribute.count).toBe(
+      surface.geometry.getAttribute("position").count,
+    );
+    for (let index = 0; index < chartXAttribute.count; index += 1) {
+      const value = chartXAttribute.getX(index);
+      expect(Number.isFinite(value)).toBe(true);
+    }
+
+    // Both the canonical and repeated layers build a real, non-null shader
+    // opacity graph — the repeated layer's is an independently constructed
+    // node object (built under the wrapIndex !== 0 branch), not a shared
+    // reference reused from the canonical layer.
+    const canonicalOpacityNode = (
+      canonicalAtmosphere.material as MeshBasicNodeMaterial
+    ).opacityNode;
+    const repeatedOpacityNode = (
+      repeatedAtmosphere.material as MeshBasicNodeMaterial
+    ).opacityNode;
+    expect(canonicalOpacityNode).not.toBeNull();
+    expect(repeatedOpacityNode).not.toBeNull();
+    expect(repeatedOpacityNode).not.toBe(canonicalOpacityNode);
 
     await renderer.unmount();
   });

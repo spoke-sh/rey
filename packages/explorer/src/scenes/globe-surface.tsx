@@ -12,16 +12,21 @@ import {
 } from "three/src/Three.WebGPU.js";
 import {
   attribute,
+  clamp,
   float,
+  max,
   mul,
   positionLocal,
   smoothstep,
+  step,
+  sub,
   uniform,
 } from "three/src/nodes/TSL.js";
 import { useEffect, useLayoutEffect, useMemo } from "react";
 import {
   GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES,
   globeAtlasRepeatOffset,
+  globeAtlasRepeatOpacity,
   globeAtmosphereOpacity,
   globeAtmosphereRepeatOpacity,
   globeAtmosphereShellScale,
@@ -87,6 +92,17 @@ export function GlobeAtmosphere({
   const opacity = globeAtmosphereOpacity(progress);
   const repeatGlowOpacity = globeAtmosphereRepeatOpacity(progress);
   const shellScale = globeAtmosphereShellScale(progress);
+  // Sectors, samples, and markers all reveal a repeated wrap copy with the
+  // same expanding-from-the-seam spatial sweep (globeAtlasRepeatOpacity used
+  // as the reach parameter into globeAtlasRepeatVisibility). The atmosphere
+  // glow previously applied one flat scalar (repeatGlowOpacity) across the
+  // whole copy regardless of position, so it read as a uniform wash
+  // disconnected from everything else's coordinated reveal. repeatSpatialReach
+  // drives that same per-vertex sweep in ProjectedAtmosphereLayer's shader;
+  // repeatGlowOpacity is kept as the overall envelope (still 0 at both the
+  // World and Atlas endpoints, per the documented transient-glow design) so
+  // the two compose as reach × envelope rather than replacing one another.
+  const repeatSpatialReach = globeAtlasRepeatOpacity(progress);
   return (
     <>
       <AtmosphereStencilMask
@@ -124,7 +140,9 @@ export function GlobeAtmosphere({
               key={index}
               name={`context-globe-atmosphere:${index}:wrap:${wrapIndex}`}
               opacity={layer.opacity * repeatGlowOpacity}
+              repeatSpatialReach={repeatSpatialReach}
               shellOffset={(layer.radius - GLOBE_RADIUS) * shellScale}
+              wrapIndex={wrapIndex}
             />
           ))}
         </group>
@@ -174,13 +192,17 @@ function ProjectedAtmosphereLayer({
   geometry,
   name,
   opacity,
+  repeatSpatialReach,
   shellOffset,
+  wrapIndex = 0,
 }: {
   color: number;
   geometry: BufferGeometry;
   name: string;
   opacity: number;
+  repeatSpatialReach?: number;
   shellOffset: number;
+  wrapIndex?: number;
 }) {
   const materialState = useMemo(() => {
     const shellOffsetNode = uniform(0);
@@ -198,29 +220,83 @@ function ProjectedAtmosphereLayer({
     material.positionNode = positionLocal.add(
       sphereNormal.mul(shellOffsetNode),
     );
-    material.opacityNode = mul(
-      opacityNode,
-      smoothstep(float(0), falloffLimitNode, sphereNormal.z.abs()),
+    const rimFalloffNode = smoothstep(
+      float(0),
+      falloffLimitNode,
+      sphereNormal.z.abs(),
     );
+    // A repeated wrap copy sweeps its glow in from the connected seam
+    // outward, matching the sectors/samples/markers (globeAtlasRepeatVisibility
+    // in globe-projection.ts, mirrored here in TSL — see the exact-match
+    // check against that function in globe-surface.test.tsx). The canonical
+    // copy (wrapIndex 0) skips this term entirely, unchanged from before.
+    if (wrapIndex !== 0) {
+      const normalizedChartXAttribute = attribute<"float">(
+        "reyNormalizedChartX",
+        "float",
+      );
+      const boundedChartX = clamp(
+        normalizedChartXAttribute,
+        float(0),
+        float(1),
+      );
+      const seamWeightNode =
+        wrapIndex < 0 ? boundedChartX : sub(float(1), boundedChartX);
+      const repeatOpacityNode = uniform(0);
+      const spatialSweepNode = mul(
+        smoothstep(
+          sub(float(1), max(repeatOpacityNode, float(0.000_001))),
+          float(1),
+          seamWeightNode,
+        ),
+        step(float(0.000_001), repeatOpacityNode),
+      );
+      material.opacityNode = mul(
+        mul(opacityNode, rimFalloffNode),
+        spatialSweepNode,
+      );
+      material.stencilWrite = true;
+      material.stencilRef = 1;
+      material.stencilFunc = NotEqualStencilFunc;
+      material.stencilFail = KeepStencilOp;
+      material.stencilZFail = KeepStencilOp;
+      material.stencilZPass = KeepStencilOp;
+      return {
+        falloffLimitNode,
+        material,
+        opacityNode,
+        repeatOpacityNode,
+        shellOffsetNode,
+      };
+    }
+    material.opacityNode = mul(opacityNode, rimFalloffNode);
     material.stencilWrite = true;
     material.stencilRef = 1;
     material.stencilFunc = NotEqualStencilFunc;
     material.stencilFail = KeepStencilOp;
     material.stencilZFail = KeepStencilOp;
     material.stencilZPass = KeepStencilOp;
-    return { falloffLimitNode, material, opacityNode, shellOffsetNode };
-  }, [color]);
+    return {
+      falloffLimitNode,
+      material,
+      opacityNode,
+      repeatOpacityNode: undefined,
+      shellOffsetNode,
+    };
+  }, [color, wrapIndex]);
   const material = materialState.material;
   useLayoutEffect(() => {
     material.opacity = opacity;
     materialState.opacityNode.value = opacity;
     materialState.shellOffsetNode.value = shellOffset;
+    if (materialState.repeatOpacityNode)
+      materialState.repeatOpacityNode.value = repeatSpatialReach ?? 0;
     const shellRadius = GLOBE_RADIUS + shellOffset;
     materialState.falloffLimitNode.value = Math.max(
       0.0001,
       Math.sqrt(Math.max(0, 1 - (GLOBE_RADIUS / shellRadius) ** 2)),
     );
-  }, [material, materialState, opacity, shellOffset]);
+  }, [material, materialState, opacity, repeatSpatialReach, shellOffset]);
   useEffect(() => () => material.dispose(), [material]);
   return (
     <mesh

@@ -29,6 +29,15 @@ export interface ProjectedGlobeMesh {
   positions: Float32Array;
   normals: Float32Array;
   indices: Uint32Array;
+  /**
+   * One scalar per vertex: the same west-to-east normalized chart position
+   * `globeAtlasRepeatSeamWeight` expects, so a repeated wrap copy's shader
+   * can compute its own per-vertex seam weight instead of applying one flat
+   * scalar to the whole shell. Independent of progress — sphere and atlas
+   * endpoints share identical values per vertex index — so it never needs
+   * interpolation.
+   */
+  normalizedChartX: Float32Array;
 }
 
 export interface GlobeProjectionBounds {
@@ -400,8 +409,10 @@ export function buildProjectedGlobeMesh(
   const vertexCount = (longitudeSegments + 1) * (latitudeSegments + 1);
   const positions = new Float32Array(vertexCount * 3);
   const normals = new Float32Array(vertexCount * 3);
+  const normalizedChartX = new Float32Array(vertexCount);
   const atlasCenter = globeAtlasViewCenter(view);
   const west = atlasCenter.longitude_degrees - 180;
+  const atlasWidth = globeAtlasWidth(world);
   for (let row = 0; row <= latitudeSegments; row += 1) {
     const latitude = -90 + (row / latitudeSegments) * 180;
     for (let column = 0; column <= longitudeSegments; column += 1) {
@@ -415,9 +426,12 @@ export function buildProjectedGlobeMesh(
         radius,
         planeDepth,
       );
-      const index = (row * (longitudeSegments + 1) + column) * 3;
+      const vertexIndex = row * (longitudeSegments + 1) + column;
+      const index = vertexIndex * 3;
       positions.set(point.position, index);
       normals.set(point.normal, index);
+      normalizedChartX[vertexIndex] =
+        point.atlas_position[0] / atlasWidth + 0.5;
     }
   }
   const indices = new Uint32Array(longitudeSegments * latitudeSegments * 6);
@@ -435,7 +449,7 @@ export function buildProjectedGlobeMesh(
       offset += 6;
     }
   }
-  return Object.freeze({ positions, normals, indices });
+  return Object.freeze({ positions, normals, indices, normalizedChartX });
 }
 
 export interface ProjectedGlobeMeshInterpolationBuffer {
@@ -460,7 +474,8 @@ export function interpolateProjectedGlobeMeshes(
   if (
     source.positions.length !== target.positions.length ||
     source.normals.length !== target.normals.length ||
-    source.indices.length !== target.indices.length
+    source.indices.length !== target.indices.length ||
+    source.normalizedChartX.length !== target.normalizedChartX.length
   )
     throw new Error("globe mesh interpolation endpoints must have equal shape");
   const boundedProgress = Math.max(0, Math.min(1, progress));
@@ -497,7 +512,16 @@ export function interpolateProjectedGlobeMeshes(
     normals[index + 1] = y / length;
     normals[index + 2] = z / length;
   }
-  return Object.freeze({ positions, normals, indices: source.indices });
+  // atlas_position (and therefore normalizedChartX) doesn't depend on
+  // progress — sphere and atlas endpoints compute bit-identical values per
+  // vertex index — so this is exact, not an approximation, and needs no
+  // interpolation or retained scratch buffer.
+  return Object.freeze({
+    positions,
+    normals,
+    indices: source.indices,
+    normalizedChartX: source.normalizedChartX,
+  });
 }
 
 export function buildProjectedBoundsMeshes(
@@ -573,10 +597,11 @@ function buildProjectionPatch(
   latitudeSegments: number,
   wrapIndex: number,
 ) {
-  const positions = new Float32Array(
-    (longitudeSegments + 1) * (latitudeSegments + 1) * 3,
-  );
+  const vertexCount = (longitudeSegments + 1) * (latitudeSegments + 1);
+  const positions = new Float32Array(vertexCount * 3);
   const normals = new Float32Array(positions.length);
+  const normalizedChartX = new Float32Array(vertexCount);
+  const atlasWidth = globeAtlasWidth(world);
   for (let row = 0; row <= latitudeSegments; row += 1) {
     const latitude = south + (row / latitudeSegments) * (north - south);
     for (let column = 0; column <= longitudeSegments; column += 1) {
@@ -602,9 +627,12 @@ function buildProjectionPatch(
               GLOBE_RADIUS * 1.008,
               0.016,
             );
-      const index = (row * (longitudeSegments + 1) + column) * 3;
+      const vertexIndex = row * (longitudeSegments + 1) + column;
+      const index = vertexIndex * 3;
       positions.set(point.position, index);
       normals.set(point.normal, index);
+      normalizedChartX[vertexIndex] =
+        point.atlas_position[0] / atlasWidth + 0.5;
     }
   }
   const indices = new Uint32Array(longitudeSegments * latitudeSegments * 6);
@@ -622,7 +650,7 @@ function buildProjectionPatch(
       offset += 6;
     }
   }
-  return Object.freeze({ positions, normals, indices });
+  return Object.freeze({ positions, normals, indices, normalizedChartX });
 }
 
 function smoothstep(value: number) {

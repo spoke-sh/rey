@@ -447,4 +447,118 @@ describe("declarative globe-to-Mercator projection", () => {
     expect(fallback.positions).not.toBe(mismatched.positions);
     expect(fallback.positions.length).toBe(sphere.positions.length);
   });
+
+  it("carries one normalized chart-X scalar per vertex, matching globeAtlasRepeatSeamWeight's expected input", () => {
+    const mesh = buildProjectedGlobeMesh(view, world, 0, 12, 8);
+    const vertexCount = 13 * 9;
+    expect(mesh.normalizedChartX.length).toBe(vertexCount);
+    expect([...mesh.normalizedChartX].every(Number.isFinite)).toBe(true);
+
+    // Spans a west-to-east column at a fixed row; normalizedChartX must
+    // increase monotonically west to east, matching how projectGlobeCoordinate
+    // itself lays out the same grid.
+    const row = 4;
+    const columns = 12;
+    let previous = -Infinity;
+    for (let column = 0; column <= columns; column += 1) {
+      const value = mesh.normalizedChartX[row * (columns + 1) + column]!;
+      expect(value).toBeGreaterThanOrEqual(previous);
+      previous = value;
+    }
+
+    // Recomputing one representative vertex directly through
+    // projectGlobeCoordinate must reproduce the same value the mesh builder
+    // stored — this is the exact quantity globeAtlasRepeatSeamWeight and
+    // globeAtlasRepeatVisibility consume.
+    const sampleColumn = 3;
+    const sampleLongitude = -180 + (sampleColumn / columns) * 360;
+    const sampleLatitude = -90 + (row / 8) * 180;
+    const point = projectGlobeCoordinate(
+      sampleLongitude,
+      sampleLatitude,
+      view,
+      world,
+      0,
+    );
+    const expectedChartX =
+      point.atlas_position[0] / globeAtlasWidth(world) + 0.5;
+    expect(
+      mesh.normalizedChartX[row * (columns + 1) + sampleColumn],
+    ).toBeCloseTo(expectedChartX, 6);
+  });
+
+  it("keeps normalizedChartX identical and progress-independent across sphere and atlas endpoints", () => {
+    const sphere = buildProjectedGlobeMesh(view, world, 0, 12, 8);
+    const atlas = buildProjectedGlobeMesh(view, world, 1, 12, 8);
+    // atlas_position doesn't depend on progress, so the same vertex index
+    // must produce bit-identical normalizedChartX at both endpoints.
+    expect([...sphere.normalizedChartX]).toEqual([...atlas.normalizedChartX]);
+
+    // interpolateProjectedGlobeMeshes must carry it through unchanged (no
+    // per-frame recomputation or scratch-buffer churn needed for a value
+    // that never varies with progress).
+    const interpolated = interpolateProjectedGlobeMeshes(sphere, atlas, 0.5);
+    expect(interpolated.normalizedChartX).toBe(sphere.normalizedChartX);
+    expect(
+      interpolateProjectedGlobeMeshes(sphere, atlas, 0).normalizedChartX,
+    ).toBe(sphere.normalizedChartX);
+    expect(
+      interpolateProjectedGlobeMeshes(sphere, atlas, 1).normalizedChartX,
+    ).toBe(atlas.normalizedChartX);
+  });
+
+  it("also carries normalizedChartX on sector patch meshes", () => {
+    const bounds = {
+      west_degrees: -60,
+      south_degrees: 10,
+      east_degrees: -30,
+      north_degrees: 30,
+      crosses_antimeridian: false,
+    };
+    for (const wrapIndex of [0, 1, -1]) {
+      const [mesh] = buildProjectedBoundsMeshes(
+        bounds,
+        view,
+        world,
+        0.5,
+        16,
+        10,
+        wrapIndex,
+      );
+      const vertexCount = 17 * 11;
+      expect(mesh!.normalizedChartX.length).toBe(vertexCount);
+      expect([...mesh!.normalizedChartX].every(Number.isFinite)).toBe(true);
+    }
+  });
+
+  it("reproduces globeAtlasRepeatVisibility exactly via the TSL-equivalent formula the atmosphere shader uses", () => {
+    // ProjectedAtmosphereLayer (fiber-scenes atmosphere shader) computes a
+    // repeated wrap copy's spatial sweep in TSL as:
+    //   mul(smoothstep(sub(1, max(repeatOpacity, eps)), 1, seamWeight),
+    //       step(eps, repeatOpacity))
+    // This locks that formula's algebraic equivalence to
+    // globeAtlasRepeatVisibility(progress, seamWeight) so a refactor of
+    // either side can be checked against the other.
+    const smoothstepFn = (value: number) => value * value * (3 - 2 * value);
+    const smoothstepEdges = (edge0: number, edge1: number, x: number) => {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return smoothstepFn(t);
+    };
+    const tslSpatialSweep = (repeatOpacity: number, seamWeight: number) => {
+      const eps = 0.000_001;
+      const edge0 = 1 - Math.max(repeatOpacity, eps);
+      const smoothed = smoothstepEdges(edge0, 1, seamWeight);
+      const gate = repeatOpacity >= eps ? 1 : 0;
+      return smoothed * gate;
+    };
+    for (let progress = 0; progress <= 1; progress += 0.05) {
+      const repeatOpacity = globeAtlasRepeatOpacity(progress);
+      for (let seamWeight = 0; seamWeight <= 1; seamWeight += 0.05) {
+        expect(tslSpatialSweep(repeatOpacity, seamWeight)).toBeCloseTo(
+          globeAtlasRepeatVisibility(progress, seamWeight),
+          9,
+        );
+      }
+    }
+  });
 });

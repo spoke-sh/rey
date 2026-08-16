@@ -107,10 +107,15 @@ recolor the projected interior yellow and be mistaken for a bright halo.
 During the interval where horizontal Atlas copies still exist, the same
 projected rear-face shells repeat at chart offsets `-1` and `1`. They share the
 canonical projected geometry and radial band falloff, so no glow can fill a
-chart interior: it exists only beyond the current globe silhouette. Repeat
-opacity is the bounded product of the repeat dissolve and its complement. It
-therefore follows the same path in either direction, peaks only while charts
-are actively dissolving, and is transparent at both World and Atlas endpoints.
+chart interior: it exists only beyond the current globe silhouette. A
+repeated copy's overall envelope is the bounded product of the repeat
+dissolve and its complement, so it therefore follows the same path in either
+direction, peaks only while charts are actively dissolving, and is
+transparent at both World and Atlas endpoints. Within that envelope, the
+glow additionally sweeps in from the copy's connected seam outward using the
+same per-vertex weight that governs occupied sectors, stipple, and markers,
+so all four layers reveal in visual lockstep instead of the glow reading as
+one flat wash disconnected from everything else's coordinated reveal.
 
 The accelerated renderer is the sole atmosphere owner. Its transparent SVG
 reference scaffold does not render the fallback radial-gradient circle, so a

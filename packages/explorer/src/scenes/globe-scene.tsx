@@ -73,6 +73,7 @@ export function ContextGlobeScene({
   const projectedGeometry = useProjectedMeshGeometry(
     projectedMesh,
     endpointMeshes.sphere.normals,
+    endpointMeshes.sphere.normalizedChartX,
   );
   return (
     <>

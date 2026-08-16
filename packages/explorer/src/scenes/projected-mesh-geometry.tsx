@@ -10,6 +10,7 @@ export function ProjectedMeshGeometry({ data }: { data: ProjectedGlobeMesh }) {
 export function useProjectedMeshGeometry(
   data: ProjectedGlobeMesh,
   sphereNormals?: Float32Array,
+  normalizedChartX?: Float32Array,
 ) {
   const resources = useMemo(() => {
     const positions = new Float32Array(data.positions.length);
@@ -24,20 +25,30 @@ export function useProjectedMeshGeometry(
     const sphereNormalAttribute = retainedSphereNormals
       ? new BufferAttribute(retainedSphereNormals, 3)
       : null;
+    const retainedNormalizedChartX = normalizedChartX
+      ? new Float32Array(normalizedChartX.length)
+      : null;
+    const normalizedChartXAttribute = retainedNormalizedChartX
+      ? new BufferAttribute(retainedNormalizedChartX, 1)
+      : null;
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", positionAttribute);
     geometry.setAttribute("normal", normalAttribute);
     if (sphereNormalAttribute)
       geometry.setAttribute("reySphereNormal", sphereNormalAttribute);
+    if (normalizedChartXAttribute)
+      geometry.setAttribute("reyNormalizedChartX", normalizedChartXAttribute);
     geometry.setIndex(indexAttribute);
     return {
       geometry,
       indexAttribute,
       indices,
       normalAttribute,
+      normalizedChartXAttribute,
       normals,
       positionAttribute,
       positions,
+      retainedNormalizedChartX,
       retainedSphereNormals,
       sphereNormalAttribute,
     };
@@ -45,6 +56,7 @@ export function useProjectedMeshGeometry(
     data.indices.length,
     data.normals.length,
     data.positions.length,
+    normalizedChartX?.length,
     sphereNormals?.length,
   ]);
   useLayoutEffect(() => {
@@ -62,8 +74,16 @@ export function useProjectedMeshGeometry(
       resources.retainedSphereNormals.set(sphereNormals);
       resources.sphereNormalAttribute.needsUpdate = true;
     }
+    if (
+      normalizedChartX &&
+      resources.retainedNormalizedChartX &&
+      resources.normalizedChartXAttribute
+    ) {
+      resources.retainedNormalizedChartX.set(normalizedChartX);
+      resources.normalizedChartXAttribute.needsUpdate = true;
+    }
     resources.geometry.computeBoundingSphere();
-  }, [data, resources, sphereNormals]);
+  }, [data, normalizedChartX, resources, sphereNormals]);
   useEffect(() => () => resources.geometry.dispose(), [resources]);
   return resources.geometry;
 }
