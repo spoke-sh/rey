@@ -155,6 +155,18 @@ an 8.13-second cold projection, and a 36-millisecond warm projection over
 `127.0.0.1`. This closes the repeated-send regression, not the cold-compute or
 semantic-duplication gap.
 
+Client-side source validation now builds one unique native-object identity map
+before checking terrain cells. The 81×81 field therefore validates in linear
+time rather than performing roughly 43 million object comparisons. Repeating
+the 1920×1080 fulfilled-transport WebGL2 voyage reduced measured scene
+compilation from 490.2 ms to 6.6 ms and passed the complete World → rotated
+Atlas → Landscape → Objects → Evidence traversal in local manifest
+`sha256:fa5e0d3245f32c572da4bcb273ddfd2236ac34ebde929b6dc9df7310575a0df8`.
+That voyage is a traversal baseline, not a named Landscape-fidelity row. Its
+Landscape capture still shows dominant outlined semantic envelopes, blurred
+coarse relief, no explicit water surfaces, and no scale-aware contours, so the
+side-by-side acceptance item remains open.
+
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores
 the cartographic entry. The rectangular validity mesh has been removed;

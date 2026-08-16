@@ -156,10 +156,12 @@ function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
       "source-declared bounded material identifier; no inferred physical properties"
   )
     return false;
+  const objectsById = new Map(
+    scene.projection.objects.map((object) => [object.object_id, object]),
+  );
+  if (objectsById.size !== scene.projection.objects.length) return false;
   const samplesValid = terrain.samples.every((sample) => {
-    const object = scene.projection.objects.find(
-      (candidate) => candidate.object_id === sample.source_object_id,
-    );
+    const object = objectsById.get(sample.source_object_id);
     return (
       object?.layer === "terrain" &&
       object.geometry_kind === "Point" &&
@@ -182,7 +184,7 @@ function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
         "piecewise linear only within triangles whose three admitted source vertices are valid" &&
       terrain.authority ===
         "qualified rectilinear height/material grid; validity ends at supported source triangles" &&
-      validRegionalTerrainGrid(scene, terrain.grid)
+      validRegionalTerrainGrid(terrain.grid, objectsById)
     );
   return (
     terrain.samples.length > 0 &&
@@ -196,8 +198,11 @@ function validRegionalTerrain(scene: AdmittedRegionalScene): boolean {
 }
 
 function validRegionalTerrainGrid(
-  scene: AdmittedRegionalScene,
   grid: NonNullable<AdmittedRegionalScene["projection"]["terrain"]>["grid"],
+  objectsById: ReadonlyMap<
+    string,
+    AdmittedRegionalScene["projection"]["objects"][number]
+  >,
 ): boolean {
   if (!grid) return false;
   const expectedCells = grid.columns * grid.rows;
@@ -238,9 +243,7 @@ function validRegionalTerrainGrid(
   const cellsValid = grid.cells.every((cell, index) => {
     const column = index % grid.columns;
     const row = Math.floor(index / grid.columns);
-    const object = scene.projection.objects.find(
-      (candidate) => candidate.object_id === cell.source_object_id,
-    );
+    const object = objectsById.get(cell.source_object_id);
     const validValue =
       cell.validity === "valid"
         ? Number.isSafeInteger(cell.elevation_micrometers) &&

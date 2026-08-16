@@ -160,9 +160,12 @@ geometry without changing their authority.
 Regional packets without a terrain program do not enter this pipeline. Exact
 isolated regional samples remain source points because they authorize no
 surface interpolation. A qualified `rey.regional-terrain-grid.v1` enters only
-after the application has verified its row-major source bindings and explicit
-valid/no-data cells, then compiled it into this field contract. Terrain-control
-geometry never becomes observed elevation.
+after the application has built one unique native-object identity index,
+verified every row-major source binding and explicit valid/no-data cell against
+that index, and compiled it into this field contract. Grid validation is linear
+in objects plus cells; increasing terrain density must not reintroduce a
+per-cell scan of every native object. Terrain-control geometry never becomes
+observed elevation.
 
 The source regional field is currently one bounded in-memory grid rendered by
 a bounded 3D orthographic terrain camera through a tiled accelerated working
