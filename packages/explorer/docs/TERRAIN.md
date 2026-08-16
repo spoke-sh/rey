@@ -278,6 +278,16 @@ compatibility, while the server emits v2. The CLI remains the full human
 verification surface and reports the semantic terrain-vertex count even though
 those vertices are not stored as duplicate projection objects.
 
+For the 501×501 Rey County field, derivation-compact v3 keeps the complete
+retained workload state at 9,955,778 bytes. Compatible browser transport v2 is
+still 27,294,879 uncompressed bytes because it carries the packed cell and
+source-revision digests required by its existing identity contract. Large
+Base64 columns are validated in one bounded linear pass, while their bytes are
+decoded only when field compilation or exact Evidence needs them. A future
+derivation-aware browser transport may reproduce those identities from the
+source feature and row/column, as retention v3 does; until then, cold server
+projection and wire size remain explicit costs rather than renderer work.
+
 Source admission also accepts one bounded GeoJSON foreign member with schema
 `rey.packed-terrain-grid.v1`. Its Polygon geometry is the exact CRS84 grid
 envelope; the foreign member binds dimensions, integer-microdegree bounds,

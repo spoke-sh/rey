@@ -112,12 +112,12 @@ deterministic reference overlay, which stays mounted across backend loss.
 This proves admission, renderer parity, bounded tiled execution, transition
 continuity, and executable geographic passes, not the final fidelity bar. The
 original 41x41 source was a correctness and residency fixture presented
-through a tilted object-view composition. The current 201x201 geography-compiler
-output and map-first composition materially improve the base read, but roughly
-420–461-meter source spacing remains too coarse to close the required
-multi-scale fidelity gap. No imagery provider or license authority is
-admitted, so the engine renders admitted material and discloses the absence
-instead of fabricating familiar map imagery.
+through a tilted object-view composition. The current packed 501×501 geography-
+compiler output and map-first composition materially improve the base read at
+roughly 167–185-meter spacing without renderer interpolation. Local geographic
+form remains visibly below the required multi-scale fidelity bar. No imagery
+provider or license authority is admitted, so the engine renders admitted
+material and discloses the absence instead of fabricating familiar map imagery.
 
 Fidelity qualification is now executable but has not yet been retained for the
 complete matrix. `rey.explorer.landscape-fidelity@2` names steep relief, low
@@ -143,11 +143,11 @@ workload/backend/viewport rows only; fulfilled transport exercises the
 disclosed main-thread fallback and cannot close direct networking or
 dedicated-worker coverage.
 
-The normal Rey County fixture now carries a deterministic 201×201 authored
-regional grid. Its exact County footprint and Unexplored Scrub become 11,539
-explicit no-data vertices; 28,862 valid vertices retain five bounded materials
-and 32–1,774.91 meters of authored semantic relief. Revision
-`rey.agent-geography.rey-county@6` resolves the named landform controls into
+The normal Rey County fixture now carries a deterministic packed 501×501
+authored regional grid. Its exact County footprint and Unexplored Scrub become
+70,722 explicit no-data cells; 180,279 valid cells retain five bounded
+materials and 32–1,784.12 meters of authored semantic relief. Revision
+`rey.agent-geography.rey-county@7` resolves the named landform controls into
 bounded orographic backbones, branching ridge networks, and incised ravines
 before exact authored hydrology carves a preliminary field. A second
 validity-contained pass priority-floods the surface, selects steepest-descent
@@ -155,20 +155,25 @@ receivers, accumulates drainage, and applies a broad, bounded incision without
 exposing the D8 receiver tree as visible trenches. It also records
 band-limited domain-warped macro, meso, ridge, and fine relief, coherent
 land-cover inputs, a district/transport/label hierarchy, and the explicit
-absence of cross-package stitching. The source is generated reproducibly from checked-in
-boundary, district, feature, highway, hydrology, label, railway, road, and
-terrain-control inputs. It has traveled through editor admission as `SCENE@10` and passed the
-`scene-admission` workload before `/explore` consumption. This improves the
-default project bearing without treating terrain controls as observed height
-or closing the still-open named fidelity matrix.
+absence of cross-package stitching. The source is generated reproducibly from
+checked-in boundary, district, feature, highway, hydrology, label, railway,
+road, and terrain-control inputs. It traveled through editor admission as
+`SCENE@11` and passed `scene-admission` run
+`blake3:db4409678341ea7a5c407056172d58c4be139a64f4c970b2a403847b75dd7f60`
+before `/explore` consumption. This improves the default project bearing
+without treating terrain controls as observed height or closing the still-open
+named fidelity matrix.
 
-That admission exposed a transport boundary. The original workload-list JSON
-was about 10.6 MB because it repeated thousands of terrain objects, validity
-rows, layer memberships, and grid cells; one cold local projection took about
-eight seconds on the development machine. The UI caches this heavyweight
-derivation against its exact workload, catalog, ignore, environment, and Git
-dependencies, so an unrelated Channel or conversation revalidation tick
-cannot trigger a rebuild loop.
+That admission exposed a transport boundary. Retaining three 251,001-element
+identity arrays in the v2 result exceeded the 64 MiB workload-state limit and
+was rejected before state mutation. The derivation-compact v3 result reduced
+the complete retained workload state to 9,955,778 bytes. The compatible
+browser projection is still 27,294,879 uncompressed bytes because transport
+v2 carries packed cell and source-revision digests. On the qualification
+machine, an optimized cold server projection took about 18.2 seconds while an
+exact cache hit took about 65 ms. The UI binds that cache to the exact workload,
+catalog, ignore, environment, and Git dependencies, so an unrelated Channel or
+conversation revalidation tick cannot trigger a rebuild loop.
 
 `rey.ui-workload-transport.v1` removes the duplicated latest accepted scene
 when the canonical active-scene set is present and encodes a gridded terrain
@@ -188,9 +193,11 @@ source-feature identity and derive the cell locator, source revision, and cell
 identity from row/column instead of storing three repeated identity columns.
 Verification reconstructs exact cells and fails closed on channel or
 derivation tampering. Legacy retained v1/v2 grids remain verifiable. Cold
-workload projection at substantially higher source density remains open even
-though neither retained state nor the browser contract requires duplicate
-geometry or JSON hash strings per terrain vertex.
+workload projection at substantially higher source density remains open. The
+browser validates large Base64 columns in one bounded linear pass, defers byte
+decoding until exact Evidence, and validated the actual SCENE@11 transport in
+about 200 ms under Node. A derivation-aware browser transport remains open to
+remove the remaining wire repetition.
 
 The source side now has a matching compact admission path. A single GeoJSON
 feature may carry `rey.packed-terrain-grid.v1` beside its exact Polygon grid
@@ -282,20 +289,14 @@ closer semantic lens. The exact County footprint remains mounted and
 accessible but becomes a faint support boundary, while the detailed bearing
 and evidence key collapse to one compact map-status line at Landscape.
 Contours and the County boundary are subordinate to the relief rather than
-bright framing lines. This corrects composition and layer hierarchy, but the
-roughly 420–461-meter 201x201 source still leaves the retained relief-fidelity
+bright framing lines. The current 501×501 source enters the renderer-neutral
+field without presentation refinement; fully supported source triangles remain
+exact and cells touching explicit no-data remain absent. An independent
+validity mask survives the complete pipeline. Lower-density admitted sources
+may still receive bounded validity-safe refinement and presentation-only
+microrelief, but this source does not. This corrects composition, layer
+hierarchy, and source density while leaving the retained relief-fidelity
 comparison open.
-
-The browser now compiles that admitted 201×201 source into a 401×401
-renderer-neutral presentation field before tile selection. Fully supported
-cell interiors use smooth bilinear refinement; cells touching explicit no-data
-fall back to validity-safe triangles and reject unsupported samples. An
-independent validity mask survives the complete pipeline, and band-limited
-deterministic microrelief is constrained to zero at all admitted source
-vertices. The resulting 160,801-cell field yields a deeper bounded tile
-pyramid while diagnostics continue to report the 40,401 source vertices. Its
-microrelief authority is presentation-only and does not close the still-open
-compact source payload or authored high-resolution geography requirements.
 
 The refined field now feeds one deterministic geography chain:
 `admitted elevation → depression-safe receivers → basin accumulation →
@@ -315,13 +316,13 @@ The operator-supplied 3022×1926 terrain reference and Rey's current 1920×1080
 WebGL2 Landscape capture were inspected side by side. The reference is an
 acceptance target, not admitted scene evidence and not a source asset. The Rey
 capture is bound to voyage manifest
-`sha256:9fef3a89283f9096382c45958024168b65e3574cd2066e54e194a4a437991acb`.
+`sha256:36e556070f169bd0658b0a3166463e4577390d2000e1815dab26cd8c256eb023`.
 The fulfilled-transport WebGL2 voyage passed World → rotated Atlas → Landscape
 → Objects → exact Evidence without browser exceptions, no-data triangle leaks,
 or tile-seam mismatches. It is a traversal baseline rather than a named
 Landscape-fidelity matrix row.
 
-That capture binds source compiler `rey.agent-geography.rey-county@6`,
+That capture binds source compiler `rey.agent-geography.rey-county@7`,
 renderer geography `rey.terrain.regional-geography@4`, and material
 `rey.terrain.tsl-continuous-relief@3`. Render-pass compiler
 `rey.explorer.terrain-render-passes@3` clips water boundary triangles to the
@@ -331,19 +332,21 @@ topographic tone contributes only where each complete sampling window is
 valid, and the material retains stronger directional separation. The healthy
 accelerated posture also leaves duplicate SVG vectors as invisible focus
 surfaces, keeping labels and evidence semantics without drawing each road,
-rail, district, and water edge twice. The Landscape frame selected 80
-finest-level tiles containing 87,120 tiled field cells, 6.1 MB of GPU input,
-zero support leaks, and zero seam mismatches. Its fulfilled-transport
-SwiftShader submission took about 3.70 seconds; that transient value is not a
-hardware performance claim and the visual result remains subordinate to the
-admitted source-resolution gap.
+rail, district, and water edge twice. The Landscape frame selected 88
+finest-level tiles containing 95,832 tiled field cells and 6,762,624 bytes of
+active GPU input, with zero support leaks and zero seam mismatches. Residency
+held 16,241,616 CPU bytes and 17,087,076 GPU bytes beneath the 48 MiB and 64 MiB
+budgets. Its fulfilled-transport worker update took about 1.26 seconds and its
+reported submission took 4 ms under SwiftShader; those transient values are
+not hardware performance claims. The visual result remains subordinate to the
+open fidelity gap.
 
 | Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
 | -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
 | Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
-| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Orographic backbones, broad source-derived valleys, and branches now read, but local form stays soft. | Major |
-| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Multiscale tone separates form, but the source still reads too softly. | Major |
-| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.        | Major |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Denser local ridges and valleys read, but long soft tonal bands remain. | Major |
+| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Higher-density normals separate form, but the image stays soft and locally banded. | Major |
+| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes remain coherent but read as a broad low-frequency wash. | Major |
 | Water          | Continuous areas and terrain-following river hierarchy.      | Exact clipped river/wetland areas and tributaries retain shorelines.   | Major |
 | Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.      | Major |
 | Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Accelerated vectors no longer receive a duplicate SVG drawing.         | Major |
@@ -355,8 +358,8 @@ palette, validity, and lazy exact-cell evidence. The next source-fidelity slice
 may therefore increase authored field density and deepen the
 water/transport/label hierarchy, but must do so against named retained-state,
 cold-compile, wire, resident, and submission budgets. Interpolating or shading
-the current 201×201 field more aggressively is not an acceptable substitute for
-admitted source detail.
+the current 501×501 field more aggressively is not an acceptable substitute for
+the next admitted multi-resolution source.
 
 ## Geographic Synthesis Boundary
 
@@ -384,8 +387,8 @@ This separates three responsibilities:
    independent level of detail, labels, and transitions without minting
    geographic evidence.
 
-The source-controlled generator is the first geography compiler. Its sixth
-revision produces the 201×201 field with deterministic multi-scale relief,
+The source-controlled generator is the first geography compiler. Its seventh
+revision produces the packed 501×501 field with deterministic multi-scale relief,
 orographic branching, exact hydrology-conditioned height, validity-contained
 source drainage, coherent base materials, exact no-data, districts, transport,
 cartographic labels, and explicit synthesis metadata. Multi-package
