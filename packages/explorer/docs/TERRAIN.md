@@ -87,16 +87,16 @@ semantic projection curve.
 subset into `rey.terrain-render-pass-set.v1`. The package accepts only typed,
 already bounded inputs:
 
-| Pass                      | Accelerated result                                             | Authority retained                  |
-| ------------------------- | -------------------------------------------------------------- | ----------------------------------- |
-| Validity/background       | A dark plane behind, never in place of, valid terrain.         | Evidence support boundary.          |
-| Base terrain              | Source/derived material tint on valid triangles.               | Derived from admitted material.     |
-| Height/normals/hillshade  | Multidirectional normal response.                              | Derived presentation of height.     |
-| Ambient/valley occlusion  | Curvature and occlusion response.                              | Presentation only.                  |
-| Contours                  | Conservative terrain-draped line segments.                     | Derived contour revision.           |
-| Water/weather/boundary    | Draped native or derived line segments.                        | Per-feature authority and source.   |
-| Features/labels/selection | Draped envelopes and point/selection anchors.                  | Interface over retained identity.   |
-| Evidence/accessibility    | Mounted application reference overlay; no accelerated replica. | Exact links and accessible meaning. |
+| Pass                      | Accelerated result                                                        | Authority retained                  |
+| ------------------------- | ------------------------------------------------------------------------- | ----------------------------------- |
+| Validity/background       | Canvas treatment visible through missing triangles; never a terrain slab. | Evidence support boundary.          |
+| Base terrain              | Source/derived material tint on valid triangles.                          | Derived from admitted material.     |
+| Height/normals/hillshade  | Multidirectional normal response.                                         | Derived presentation of height.     |
+| Ambient/valley occlusion  | Curvature and occlusion response.                                         | Presentation only.                  |
+| Contours                  | Conservative terrain-draped line segments.                                | Derived contour revision.           |
+| Water/weather/boundary    | Draped native or derived line segments.                                   | Per-feature authority and source.   |
+| Features/labels/selection | Draped envelopes and point/selection anchors.                             | Interface over retained identity.   |
+| Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.            | Exact links and accessible meaning. |
 
 Every pass binds an implementation revision, input revision, and dependency.
 The material and scene identity include the compiled pass-set identity. A
@@ -106,8 +106,10 @@ Line draping is conservative. The compiler adds probes at every crossed field
 grid boundary and within every crossed cell, evaluates only fully valid source
 support, and splits a line when support is absent. A native vector therefore
 cannot bridge a no-data hole merely because its endpoints are valid. The
-surface, validity background, lines, and point anchors share one R3F terrain
-group and one Atlas-to-Landscape model transform.
+surface, lines, and point anchors share one R3F terrain group and one
+Atlas-to-Landscape model transform. Validity is represented by missing
+triangles over the canvas background, not by a rectangular mesh that can read
+as geographic support.
 
 Text labels, evidence links, descriptions, and pointer semantics deliberately
 remain in `@rey/agent`'s deterministic reference overlay. It stays mounted

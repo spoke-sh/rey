@@ -23,6 +23,23 @@ native regional elevation + explicit no-data
   → vectors, water, materials, labels, and exact evidence
 ```
 
+Landscape is accepted as a geographic map, not merely as a correct mesh. Its
+default composition is near north-up, mostly overhead, and canvas-filling. The
+base visual hierarchy is relief, water, land cover, and contours; roads,
+railways, boundaries, structures, labels, selection, and evidence are later
+cartographic layers. A floating slab, visible source grid, collection of
+outlined polygons, or abstract semantic diagram fails this outcome even when
+its projection and validity math are correct.
+
+At 1920x1080, a side-by-side review against a high-fidelity consumer terrain
+map is a hard qualitative acceptance check. Rey need not copy imagery or match
+pixels, but the review may identify no major perceptual gap in composition,
+multi-scale relief, hillshade continuity, land-cover coherence, terrain-bound
+hydrology, contour hierarchy, or vector density appropriate to the admitted
+source. Source resolution or absent authority that prevents the target must be
+reported as an open qualification gap, not hidden with renderer-generated
+geography.
+
 ## Current Boundary
 
 The first vertical slice is implemented. A `terrain` GeoJSON source may bind a
@@ -79,9 +96,12 @@ deterministic reference overlay, which stays mounted across backend loss.
 
 This proves admission, renderer parity, bounded tiled execution, transition
 continuity, and executable geographic passes, not the final fidelity bar. The
-current source dataset remains one bounded in-memory field. No imagery provider
-or license authority is admitted, so the engine renders admitted material and
-discloses the absence instead of fabricating familiar map imagery.
+current 41x41 source is a correctness and residency fixture presented through
+a tilted object-view composition. It is too coarse to support the required
+multi-scale terrain read, and its validity plane and outlined semantic
+envelopes currently make the region resemble a floating slab. No imagery
+provider or license authority is admitted, so the engine renders admitted
+material and discloses the absence instead of fabricating familiar map imagery.
 
 Fidelity qualification is now executable but has not yet been retained for the
 complete matrix. `rey.explorer.landscape-fidelity@1` names steep relief, low
@@ -116,6 +136,38 @@ inputs, retained through the ordinary editor path, and admitted as a production
 regional scene. This makes the implemented Landscape path visible in the
 default project bearing without treating terrain controls as observed height or
 closing the still-open named fidelity matrix.
+
+## Geographic Synthesis Boundary
+
+Rey County is fictional semantic geography that an agent may generate and
+refine. Fictional does not mean implicit: the renderer cannot derive claimed
+landforms from labels at draw time. The durable flow is:
+
+```text
+admitted editor packages
+  -> evidence topology and authoring constraints
+  -> revisioned agent geography compiler
+  -> deterministic seam/conflict report
+  -> explicit elevation, validity, water, land-cover, contour, and vector data
+  -> editor review and scene admission
+  -> renderer-neutral fields, tiles, and cartographic passes
+```
+
+This separates three responsibilities:
+
+1. Evidence topology retains package identity, relationships, authority,
+   omissions, and unknowns.
+2. Geographic synthesis authors a coherent multi-resolution world and exposes
+   every input, output, seam decision, conflict, limit, and algorithm revision.
+3. Cartographic rendering controls projection, camera, materials, lighting,
+   independent level of detail, labels, and transitions without minting
+   geographic evidence.
+
+The existing source-controlled generator is the first geography compiler. Its
+next revision must demonstrate denser multi-scale relief and coherent base
+materials while keeping exact no-data. Multi-package ingestion, explicit
+cross-package seam resolution, raster-native field storage, and deeper vector
+hierarchy remain subsequent slices of the same boundary.
 
 ## Delivery Sequence
 
@@ -196,6 +248,30 @@ closing the still-open named fidelity matrix.
 - [ ] Repeat World → Atlas → Landscape → Object → Evidence through direct
       browser transport and retain exact source, dataset, compiler, backend,
       omissions, limits, and performance lineage.
+
+### 7. Rebaseline Landscape as a geographic map
+
+- [ ] Make the Landscape entry camera near north-up and mostly overhead while
+      preserving reversible Atlas attachment, analytic pan/pick behavior, and
+      an explicit bounded orbit gesture.
+- [ ] Remove the stage-like validity slab. Unsupported cells must remain holes,
+      while canvas/background treatment communicates absence without drawing a
+      rectangular world object.
+- [ ] Establish a cartographic layer hierarchy in which relief, water, land
+      cover, and contours form the base read and semantic envelopes, markers,
+      and selection cannot dominate at Landscape LOD.
+- [ ] Revise the Rey County geography compiler and admitted dataset to carry
+      denser multi-scale landforms, drainage response, and coherent land-cover
+      fields under exact deterministic lineage and validity.
+- [ ] Add explicit water surfaces/areas and scale-aware contour styling before
+      treating roads, railways, structures, or label density as fidelity
+      completion.
+- [ ] Retain 1920x1080 side-by-side captures and record perceptual gaps for
+      composition, relief, hillshade, land cover, water, contours, and vector
+      hierarchy. Do not mark this slice complete while a major gap remains.
+- [ ] Extend the compiler from one source-controlled County into admitted
+      multi-package constraints with explicit cross-package seam and conflict
+      artifacts; do not let package ingestion silently become geography.
 
 ## Open Choices
 

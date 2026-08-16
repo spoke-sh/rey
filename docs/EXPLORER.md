@@ -137,6 +137,61 @@ floating sector or end in a collection of cards.
 These are not ornamental polish requirements. Each one tells the operator
 whether the engine is preserving a coherent world.
 
+## The Fidelity Standard: Landscape
+
+Landscape is a map-first geographic posture, not a model viewer. Its entry
+camera is near north-up and mostly overhead, the admitted region fills the
+available canvas, and relief remains legible without exposing a floating slab,
+mesh grid, or stage beneath the world. Orbit is an intentional inspection
+gesture after that stable cartographic entry; it is not the default
+composition.
+
+A high-fidelity consumer terrain map is the minimum qualitative reference for
+the posture. This is a hard visual acceptance target rather than permission to
+copy imagery or fabricate detail. At 1920x1080, a side-by-side review must find
+no major perceptual gap in:
+
+| Dimension   | Landscape acceptance                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| Composition | Near north-up, mostly overhead, continuous geography fills the canvas.                                   |
+| Relief      | Fine multi-scale ridges, valleys, drainage, and broad landforms read at once through smooth hillshade.   |
+| Surface     | Land-cover materials form coherent fields; individual source cells and polygon outlines do not dominate. |
+| Water       | Water bodies and channels follow the terrain and remain visually distinct from routes or boundaries.     |
+| Contours    | Scale-aware contours reinforce relief without becoming the primary texture.                              |
+| Vectors     | Roads, railways, boundaries, structures, and labels enter as a later cartographic hierarchy.             |
+| Validity    | Unsupported space remains an unmistakable absence without turning the valid region into a floating tile. |
+
+Fictional geography still has source discipline. Rey County is authored and
+refined by an agent, but the renderer does not invent it while drawing. The
+authoring path is explicit:
+
+```text
+editor packages
+  -> admitted semantic and geographic constraints
+  -> agent geography compiler
+  -> explicit seam and conflict resolution
+  -> admitted multi-resolution field pyramid
+  -> relief + water + land cover + contours
+  -> roads + railways + structures + labels
+  -> evidence and accessible interaction
+```
+
+The engine therefore keeps three planes separate:
+
+- **Evidence topology** says which packages, objects, relationships, bounds,
+  unknowns, and authorities exist.
+- **Geographic synthesis** turns admitted authoring constraints into explicit,
+  reviewable fictional elevation, hydrology, land cover, and vector artifacts.
+- **Cartographic rendering** projects those artifacts with camera, lighting,
+  materials, level of detail, labels, and transitions.
+
+Agent synthesis may stitch multiple admitted packages into one coherent world,
+but its inputs, algorithm revision, seams, conflicts, omissions, output
+identity, and validity must be inspectable before the result can enter
+Explorer. Presentation-only microdetail may improve perception inside valid
+support when it is identified as presentation; it cannot be reported as
+authored elevation or used to extend coverage.
+
 ## One Continuous Spatial Journey
 
 ```text
@@ -223,6 +278,13 @@ Terrain should read as a continuous 3D world before contours, labels, or
 points of interest are added. The product bar is relief and material response
 that surpass conventional consumer maps whenever admitted source resolution
 supports it—not colored polygons, abstract cards, or fabricated detail.
+
+The base geographic read is mandatory and precedes semantic annotation:
+relief, water, land cover, and contours must already make the region feel like
+one place. Roads, railways, boundaries, structures, labels, selections, and
+evidence then clarify that place. An outlined feature envelope may retain an
+exact source boundary, but it cannot become the dominant Landscape visual
+grammar.
 
 ```text
 validity / background
