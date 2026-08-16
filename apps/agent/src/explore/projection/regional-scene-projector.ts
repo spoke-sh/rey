@@ -15,6 +15,7 @@ import {
 } from "./county-frame";
 import {
   regionalTerrainGridCellAt,
+  regionalTerrainGridValueColumns,
   validRegionalTerrainGridTransport,
 } from "../terrain/regional-grid-transport";
 
@@ -263,6 +264,31 @@ function validRegionalTerrainGrid(
     (grid.rows - 1);
   if (!Number.isInteger(longitudeStep) || !Number.isInteger(latitudeStep))
     return false;
+  if (grid.schema === "rey.regional-terrain-grid.transport.v2") {
+    const values = regionalTerrainGridValueColumns(grid);
+    for (let index = 0; index < expectedCells; index += 1) {
+      const valid = values.validity[index] === 1;
+      const elevation = values.elevation_micrometers[index];
+      const material = values.material_indices[index]!;
+      if (
+        !Number.isSafeInteger(elevation) ||
+        (valid &&
+          (elevation! < -12_000_000_000 ||
+            elevation! > 100_000_000_000 ||
+            material >= values.material_palette.length ||
+            !/^[A-Za-z0-9._-]{1,64}$/.test(
+              values.material_palette[material]!,
+            ))) ||
+        (!valid && material !== 255)
+      )
+        return false;
+    }
+    return hasSupportedTerrainTriangle(
+      grid.columns,
+      grid.rows,
+      values.validity,
+    );
+  }
   const identities = new Set<string>();
   const objects = new Set<string>();
   let cellsValid = true;
@@ -324,6 +350,30 @@ function validRegionalTerrainGrid(
       const bottomRight = bottomLeft + 1;
       const valid = (index: number) =>
         regionalTerrainGridCellAt(grid, index)?.validity === "valid";
+      if (
+        (valid(topLeft) && valid(bottomLeft) && valid(bottomRight)) ||
+        (valid(topLeft) && valid(bottomRight) && valid(topRight)) ||
+        (valid(topLeft) && valid(bottomLeft) && valid(topRight)) ||
+        (valid(topRight) && valid(bottomLeft) && valid(bottomRight))
+      )
+        return true;
+    }
+  }
+  return false;
+}
+
+function hasSupportedTerrainTriangle(
+  columns: number,
+  rows: number,
+  validity: Uint8Array,
+): boolean {
+  const valid = (index: number) => validity[index] === 1;
+  for (let row = 0; row < rows - 1; row += 1) {
+    for (let column = 0; column < columns - 1; column += 1) {
+      const topLeft = row * columns + column;
+      const topRight = topLeft + 1;
+      const bottomLeft = topLeft + columns;
+      const bottomRight = bottomLeft + 1;
       if (
         (valid(topLeft) && valid(bottomLeft) && valid(bottomRight)) ||
         (valid(topLeft) && valid(bottomRight) && valid(topRight)) ||

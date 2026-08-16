@@ -142,8 +142,7 @@ export type RegionalTerrainGrid =
   | (RegionalTerrainGridBase & {
       schema: "rey.regional-terrain-grid.transport.v1";
       source_schema:
-        | "rey.regional-terrain-grid.v1"
-        | "rey.regional-terrain-grid.v2";
+        "rey.regional-terrain-grid.v1" | "rey.regional-terrain-grid.v2";
       transport_id: string;
       source_id: string;
       source_path: string;
@@ -152,6 +151,25 @@ export type RegionalTerrainGrid =
       cell_ids: string[];
       source_object_ids: string[];
       source_object_revisions: string[];
+      validity_hex: string;
+      elevation_micrometers: number[];
+      material_palette: string[];
+      material_indices_hex: string;
+    })
+  | (RegionalTerrainGridBase & {
+      schema: "rey.regional-terrain-grid.transport.v2";
+      source_schema:
+        "rey.regional-terrain-grid.v1" | "rey.regional-terrain-grid.v2";
+      transport_id: string;
+      source_id: string;
+      source_path: string;
+      source_artifact_id: string;
+      transport_authority: string;
+      digest_encoding: "base64-concatenated-blake3-256";
+      cell_digests_base64: string;
+      source_object_id_prefix: string;
+      source_object_id_suffixes: string[];
+      source_object_revision_digests_base64: string;
       validity_hex: string;
       elevation_micrometers: number[];
       material_palette: string[];
@@ -959,7 +977,9 @@ export interface WorkloadList {
   semantic_atlas_deltas: SemanticAtlasDelta[];
   transport?: {
     schema: "rey.ui-workload-transport.v1";
-    terrain_grid_encoding: "rey.regional-terrain-grid.transport.v1";
+    terrain_grid_encoding:
+      | "rey.regional-terrain-grid.transport.v1"
+      | "rey.regional-terrain-grid.transport.v2";
     latest_scene_policy: string;
     authority: string;
   };

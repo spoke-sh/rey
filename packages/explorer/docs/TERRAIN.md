@@ -234,17 +234,22 @@ cells; increasing terrain density must not reintroduce a per-cell scan of every
 native object. Terrain-control geometry never becomes observed elevation.
 
 The browser receives dense admitted grids through
-`rey.regional-terrain-grid.transport.v1`. This is a lossless transport view,
+`rey.regional-terrain-grid.transport.v2`. This is a lossless transport view,
 not a new terrain authority: it binds the original dataset and source artifact,
 retains canonical row-major cell and source-object identities/revisions, packs
 validity and material indices, and keeps exact elevations. Native coordinates
 and grid positions are reconstructed only from admitted bounds and dimensions.
+BLAKE3 cell and source-revision identities travel as fixed-width packed bytes;
+source-object IDs travel as one common prefix plus exact row-major suffixes.
+This removes large JSON hash columns without weakening exact evidence routes.
 Repeated terrain Point objects, per-object validity rows, and terrain-layer
 membership are absent from both compact retention and the workload payload.
-Field compilation expands only the row-major values it consumes; an exact
-evidence route reconstructs only its selected cell. The CLI remains the full
-human verification surface and reports the semantic terrain-vertex count even
-though those vertices are not stored as duplicate projection objects.
+Field compilation decodes only its typed value columns. It does not allocate a
+full identity-rich object for every vertex; an exact evidence route reconstructs
+only its selected cell. The browser still accepts v1 transport for retained
+compatibility, while the server emits v2. The CLI remains the full human
+verification surface and reports the semantic terrain-vertex count even though
+those vertices are not stored as duplicate projection objects.
 
 Each admitted regional field remains one bounded in-memory grid rendered by a
 bounded 3D orthographic terrain camera through a tiled accelerated working set.

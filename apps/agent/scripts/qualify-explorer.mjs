@@ -1622,6 +1622,12 @@ async function runVoyage(options) {
         connection.evaluate(`({
           body_text: document.body?.textContent?.replace(/\\s+/g, " ").trim().slice(0, 2_000) ?? null,
           document_ready_state: document.readyState,
+          renderer: (() => {
+            const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+            return diagnostics ? Object.fromEntries([...diagnostics.attributes]
+              .filter((attribute) => attribute.name.startsWith('data-renderer-'))
+              .map((attribute) => [attribute.name, attribute.value])) : null;
+          })(),
           title: document.title,
           url: window.location.href,
         })`),

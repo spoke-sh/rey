@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { RegionalTerrainGrid } from "../../domain";
 import {
   regionalTerrainGridCellAt,
+  regionalTerrainGridCellIndexForRevision,
   regionalTerrainGridCells,
+  regionalTerrainGridValueColumns,
   validRegionalTerrainGridTransport,
 } from "./regional-grid-transport";
 
@@ -44,6 +46,43 @@ const compact = {
     "piecewise linear only within triangles whose three admitted source vertices are valid",
   authority:
     "qualified rectilinear height/material grid; validity ends at supported source triangles",
+} satisfies RegionalTerrainGrid;
+
+const packedDigest = (byte: number) =>
+  `blake3:${byte.toString(16).padStart(2, "0").repeat(32)}`;
+
+const packedDigestColumn = (bytes: number[]) =>
+  btoa(
+    String.fromCharCode(
+      ...bytes.flatMap((byte) => Array.from({ length: 32 }, () => byte)),
+    ),
+  );
+
+const packed = {
+  schema: "rey.regional-terrain-grid.transport.v2",
+  source_schema: "rey.regional-terrain-grid.v2",
+  transport_id: "transport:2",
+  dataset_id: compact.dataset_id,
+  source_dataset_id: compact.source_dataset_id,
+  columns: compact.columns,
+  rows: compact.rows,
+  native_bounds: compact.native_bounds,
+  source_id: compact.source_id,
+  source_path: compact.source_path,
+  source_artifact_id: compact.source_artifact_id,
+  transport_authority: compact.transport_authority,
+  digest_encoding: "base64-concatenated-blake3-256",
+  cell_digests_base64: packedDigestColumn([0, 1, 2, 3]),
+  source_object_id_prefix: "point:",
+  source_object_id_suffixes: ["0", "1", "2", "3"],
+  source_object_revision_digests_base64: packedDigestColumn([16, 17, 18, 19]),
+  validity_hex: compact.validity_hex,
+  elevation_micrometers: compact.elevation_micrometers,
+  material_palette: compact.material_palette,
+  material_indices_hex: compact.material_indices_hex,
+  validity_semantics: compact.validity_semantics,
+  interpolation: compact.interpolation,
+  authority: compact.authority,
 } satisfies RegionalTerrainGrid;
 
 describe("regional terrain grid transport", () => {
@@ -97,5 +136,35 @@ describe("regional terrain grid transport", () => {
     expect(
       regionalTerrainGridCellAt(compact, compact.columns * compact.rows),
     ).toBeUndefined();
+  });
+
+  it("decodes packed identity columns only for exact cell evidence", () => {
+    expect(validRegionalTerrainGridTransport(packed)).toBe(true);
+    expect(regionalTerrainGridValueColumns(packed)).toMatchObject({
+      elevation_micrometers: compact.elevation_micrometers,
+      material_palette: compact.material_palette,
+    });
+    expect(regionalTerrainGridCellAt(packed, 2)).toMatchObject({
+      cell_id: packedDigest(2),
+      source_object_id: "point:2",
+      source_object_revision: packedDigest(18),
+      native_position: [-2, 4],
+      validity: "no_data",
+    });
+    expect(
+      regionalTerrainGridCellIndexForRevision(packed, packedDigest(18)),
+    ).toBe(2);
+    expect(
+      regionalTerrainGridCellIndexForRevision(packed, packedDigest(31)),
+    ).toBeUndefined();
+  });
+
+  it("fails closed when a packed identity column changes length", () => {
+    expect(
+      validRegionalTerrainGridTransport({
+        ...packed,
+        cell_digests_base64: packedDigestColumn([0, 1, 2]),
+      }),
+    ).toBe(false);
   });
 });

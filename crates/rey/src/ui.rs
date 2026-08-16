@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use flate2::{Compression, write::GzEncoder};
 use rey::{
     channels::{
@@ -2095,7 +2096,7 @@ fn compact_workload_transport(list: &WorkloadList) -> Result<Value, String> {
         "transport".to_owned(),
         json!({
             "schema": "rey.ui-workload-transport.v1",
-            "terrain_grid_encoding": "rey.regional-terrain-grid.transport.v1",
+            "terrain_grid_encoding": "rey.regional-terrain-grid.transport.v2",
             "latest_scene_policy": "scene_admissions is canonical; duplicated latest_scene_admission is omitted when active scene admissions are present",
             "authority": "lossless renderer transport over exact retained scene identities; omitted repeated rows remain available through CLI and exact evidence routes",
         }),
@@ -2250,7 +2251,7 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
     compact.remove("cells");
     compact.insert(
         "schema".to_owned(),
-        Value::String("rey.regional-terrain-grid.transport.v1".to_owned()),
+        Value::String("rey.regional-terrain-grid.transport.v2".to_owned()),
     );
     compact.insert(
         "source_schema".to_owned(),
@@ -2265,12 +2266,12 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
         "source_artifact_id".to_owned(),
         Value::String(source_artifact_id.unwrap()),
     );
-    compact.insert("cell_ids".to_owned(), json!(cell_ids));
-    compact.insert("source_object_ids".to_owned(), json!(source_object_ids));
-    compact.insert(
-        "source_object_revisions".to_owned(),
-        json!(source_object_revisions),
-    );
+    insert_packed_terrain_identities(
+        &mut compact,
+        &cell_ids,
+        &source_object_ids,
+        &source_object_revisions,
+    )?;
     compact.insert(
         "validity_hex".to_owned(),
         Value::String(hex_bytes(&validity)),
@@ -2288,7 +2289,7 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
         "transport_authority".to_owned(),
         Value::String("lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions".to_owned()),
     );
-    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v1");
+    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v2");
     hasher.add_bytes(&serde_json::to_vec(&compact).map_err(|error| error.to_string())?);
     compact.insert(
         "transport_id".to_owned(),
@@ -2402,7 +2403,7 @@ fn compact_retained_regional_projection_packet(
     transport.remove("cells");
     transport.insert(
         "schema".to_owned(),
-        Value::String("rey.regional-terrain-grid.transport.v1".to_owned()),
+        Value::String("rey.regional-terrain-grid.transport.v2".to_owned()),
     );
     transport.insert(
         "source_schema".to_owned(),
@@ -2412,9 +2413,6 @@ fn compact_retained_regional_projection_packet(
         "source_id",
         "source_path",
         "source_artifact_id",
-        "cell_ids",
-        "source_object_ids",
-        "source_object_revisions",
         "validity_hex",
         "elevation_micrometers",
         "material_palette",
@@ -2428,11 +2426,26 @@ fn compact_retained_regional_projection_packet(
                 .ok_or_else(|| format!("retained regional terrain grid lost {field}"))?,
         );
     }
+    let cell_ids = required_string_array(compact, "cell_ids")?;
+    let source_object_ids = required_string_array(compact, "source_object_ids")?;
+    let source_object_revisions = required_string_array(compact, "source_object_revisions")?;
+    if cell_ids.len() as u64 != cell_count
+        || source_object_ids.len() as u64 != cell_count
+        || source_object_revisions.len() as u64 != cell_count
+    {
+        return Err("retained regional terrain identity count changed".to_owned());
+    }
+    insert_packed_terrain_identities(
+        &mut transport,
+        &cell_ids,
+        &source_object_ids,
+        &source_object_revisions,
+    )?;
     transport.insert(
         "transport_authority".to_owned(),
         Value::String("lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions".to_owned()),
     );
-    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v1");
+    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v2");
     hasher.add_bytes(&serde_json::to_vec(&transport).map_err(|error| error.to_string())?);
     transport.insert(
         "transport_id".to_owned(),
@@ -2474,6 +2487,112 @@ fn required_string(value: &Value, field: &str) -> Result<String, String> {
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
         .ok_or_else(|| format!("regional terrain transport has no {field}"))
+}
+
+fn required_string_array(
+    value: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Result<Vec<String>, String> {
+    value
+        .get(field)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("regional terrain transport has no {field}"))?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| format!("regional terrain transport has a non-string {field}"))
+        })
+        .collect()
+}
+
+fn insert_packed_terrain_identities(
+    transport: &mut serde_json::Map<String, Value>,
+    cell_ids: &[String],
+    source_object_ids: &[String],
+    source_object_revisions: &[String],
+) -> Result<(), String> {
+    if cell_ids.len() != source_object_ids.len() || cell_ids.len() != source_object_revisions.len()
+    {
+        return Err("regional terrain transport identity columns changed length".to_owned());
+    }
+    let source_object_id_prefix = common_string_prefix(source_object_ids);
+    let source_object_id_suffixes = source_object_ids
+        .iter()
+        .map(|identity| identity[source_object_id_prefix.len()..].to_owned())
+        .collect::<Vec<_>>();
+    transport.insert(
+        "digest_encoding".to_owned(),
+        Value::String("base64-concatenated-blake3-256".to_owned()),
+    );
+    transport.insert(
+        "cell_digests_base64".to_owned(),
+        Value::String(pack_blake3_digests(cell_ids)?),
+    );
+    transport.insert(
+        "source_object_id_prefix".to_owned(),
+        Value::String(source_object_id_prefix),
+    );
+    transport.insert(
+        "source_object_id_suffixes".to_owned(),
+        json!(source_object_id_suffixes),
+    );
+    transport.insert(
+        "source_object_revision_digests_base64".to_owned(),
+        Value::String(pack_blake3_digests(source_object_revisions)?),
+    );
+    Ok(())
+}
+
+fn pack_blake3_digests(values: &[String]) -> Result<String, String> {
+    let mut packed = Vec::with_capacity(values.len().saturating_mul(32));
+    for value in values {
+        let digest = value
+            .strip_prefix("blake3:")
+            .filter(|digest| digest.len() == 64)
+            .ok_or_else(|| {
+                "regional terrain transport encountered a non-BLAKE3 identity".to_owned()
+            })?;
+        if !digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(
+                "regional terrain transport encountered a non-canonical BLAKE3 identity".to_owned(),
+            );
+        }
+        for pair in digest.as_bytes().chunks_exact(2) {
+            let high = hex_digit(pair[0]).ok_or_else(|| {
+                "regional terrain transport encountered an invalid BLAKE3 identity".to_owned()
+            })?;
+            let low = hex_digit(pair[1]).ok_or_else(|| {
+                "regional terrain transport encountered an invalid BLAKE3 identity".to_owned()
+            })?;
+            packed.push((high << 4) | low);
+        }
+    }
+    Ok(BASE64_STANDARD.encode(packed))
+}
+
+fn common_string_prefix(values: &[String]) -> String {
+    let Some(first) = values.first() else {
+        return String::new();
+    };
+    let mut length = first.len();
+    for value in values.iter().skip(1) {
+        length = first
+            .as_bytes()
+            .iter()
+            .zip(value.as_bytes())
+            .take(length)
+            .take_while(|(left, right)| left == right)
+            .count();
+    }
+    while !first.is_char_boundary(length) {
+        length -= 1;
+    }
+    first[..length].to_owned()
 }
 
 fn bind_common(target: &mut Option<String>, value: String, label: &str) -> Result<(), String> {

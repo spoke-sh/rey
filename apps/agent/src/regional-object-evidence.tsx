@@ -8,7 +8,10 @@ import type {
   WorkloadSummary,
 } from "./domain";
 import { admittedRegionalScenes } from "./explore/projection/regional-scene-projector";
-import { regionalTerrainGridCellAt } from "./explore/terrain/regional-grid-transport";
+import {
+  regionalTerrainGridCellAt,
+  regionalTerrainGridCellIndexForRevision,
+} from "./explore/terrain/regional-grid-transport";
 import { regionalObjectEvidenceRoute } from "./regional-object-route";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -112,17 +115,14 @@ function transportedTerrainObject(
 ): { object: RegionalObject; validity: RegionalValidity } | null {
   const grid = scene.projection.terrain?.grid;
   if (
-    grid?.schema !== "rey.regional-terrain-grid.transport.v1" ||
+    (grid?.schema !== "rey.regional-terrain-grid.transport.v1" &&
+      grid?.schema !== "rey.regional-terrain-grid.transport.v2") ||
     scene.projection.transport?.schema !==
       "rey.regional-projection-packet.transport.v1"
   )
     return null;
-  const index = grid.source_object_revisions.indexOf(objectRevision);
-  if (
-    index < 0 ||
-    grid.source_object_revisions.lastIndexOf(objectRevision) !== index
-  )
-    return null;
+  const index = regionalTerrainGridCellIndexForRevision(grid, objectRevision);
+  if (index === undefined) return null;
   const cell = regionalTerrainGridCellAt(grid, index);
   if (!cell) return null;
   const nativeBounds = {

@@ -165,23 +165,24 @@ derivation against its exact workload, catalog, ignore, environment, and Git
 dependencies, so an unrelated Channel or conversation revalidation tick
 cannot trigger a rebuild loop.
 
-`rey.ui-workload-transport.v1` now removes the duplicated latest accepted scene
+`rey.ui-workload-transport.v1` removes the duplicated latest accepted scene
 when the canonical active-scene set is present and encodes a gridded terrain
-source once as `rey.regional-terrain-grid.transport.v1`. Row-major cell IDs,
-source object IDs and revisions, one exact source artifact, validity bytes,
-elevations, and palette-indexed materials remain lossless; coordinates and
-grid positions derive only from admitted dimensions and bounds. The browser
-validates the compact representation before projection and reconstructs only
-the field or exact selected evidence cell it needs. On the same Rey County
-state, decoded transport fell from 10,658,308 to 1,447,459 bytes and gzip wire
-size fell from roughly 1.71 MB to 564,722 bytes. Warm local delivery measured
-about 15–20 milliseconds. New scene admissions now remove the same per-vertex
-repetition from retained workload state through
-`rey.regional-terrain-grid.v2`; verification reconstructs the exact cells and
-fails closed on channel tampering. Legacy v1 grids remain verifiable. Cold
-compute at substantially higher source density remains open even though
-neither retained state nor the browser contract now requires a duplicate
-projection object per terrain vertex.
+source once. Its first `rey.regional-terrain-grid.transport.v1` representation
+removed geometry repetition; `transport.v2` also packs canonical BLAKE3 cell
+and source-revision identities as concatenated fixed-width bytes and
+prefix-compresses exact source-object IDs. One exact source artifact, validity
+bytes, elevations, and palette-indexed materials remain lossless; coordinates
+and grid positions derive only from admitted dimensions and bounds. The browser
+validates the compact representation before projection, compiles directly from
+typed value columns, and reconstructs a complete identity-rich cell only for an
+exact evidence route. Browser compatibility retains v1 decoding while the
+server emits v2. New scene admissions remove the same per-vertex repetition
+from retained workload state through `rey.regional-terrain-grid.v2`;
+verification reconstructs the exact cells and fails closed on channel
+tampering. Legacy retained v1 grids remain verifiable. Cold workload projection
+at substantially higher source density remains open even though neither
+retained state nor the browser contract requires duplicate geometry or JSON
+hash strings per terrain vertex.
 
 Client-side source validation now builds one unique native-object identity map
 before checking terrain cells. The 81×81 field therefore validates in linear

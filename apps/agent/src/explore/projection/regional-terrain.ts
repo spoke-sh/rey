@@ -12,7 +12,7 @@ import {
 } from "../engine/fields";
 import type { TerrainFieldSet } from "../terrain/compile";
 import { deriveTerrainNormals } from "../terrain/normals";
-import { regionalTerrainGridCells } from "../terrain/regional-grid-transport";
+import { regionalTerrainGridValueColumns } from "../terrain/regional-grid-transport";
 import type {
   CountyFrame,
   CountyFootprint,
@@ -34,7 +34,7 @@ export function compileRegionalTerrainField(
   const program = scene.projection.terrain;
   const dataset = program?.grid;
   if (!program || !dataset) return null;
-  const datasetCells = regionalTerrainGridCells(dataset);
+  const datasetValues = regionalTerrainGridValueColumns(dataset);
   const bounds = projectRegionalTerrainBounds(
     scene.native_bounds,
     dataset.native_bounds,
@@ -42,29 +42,29 @@ export function compileRegionalTerrainField(
   );
   const grid = createFieldGrid(dataset.columns, dataset.rows, bounds);
   const cells = fieldCellCount(grid);
-  if (datasetCells.length !== cells)
+  if (datasetValues.validity.length !== cells)
     throw new Error("regional terrain dataset shape changed after admission");
-  const validityValues = Uint8Array.from(
-    datasetCells.map((cell) => (cell.validity === "valid" ? 1 : 0)),
-  );
-  const validElevations = datasetCells.flatMap((cell) =>
-    cell.validity === "valid" && cell.elevation_micrometers !== null
-      ? [cell.elevation_micrometers / 1_000_000]
-      : [],
-  );
+  const validityValues = datasetValues.validity.slice();
+  const validElevations: number[] = [];
+  for (let index = 0; index < cells; index += 1) {
+    if (validityValues[index] === 1)
+      validElevations.push(
+        datasetValues.elevation_micrometers[index]! / 1_000_000,
+      );
+  }
   if (validElevations.length < 3)
     throw new Error("regional terrain dataset has no supported triangle");
   const minimumElevation = Math.min(...validElevations);
   const maximumElevation = Math.max(...validElevations);
   const elevationRange = Math.max(1, maximumElevation - minimumElevation);
-  const elevationValues = Float32Array.from(
-    datasetCells.map((cell) =>
-      cell.validity === "valid" && cell.elevation_micrometers !== null
-        ? (cell.elevation_micrometers / 1_000_000 - minimumElevation) /
-          elevationRange
-        : 0,
-    ),
-  );
+  const elevationValues = new Float32Array(cells);
+  for (let index = 0; index < cells; index += 1) {
+    if (validityValues[index] === 1)
+      elevationValues[index] =
+        (datasetValues.elevation_micrometers[index]! / 1_000_000 -
+          minimumElevation) /
+        elevationRange;
+  }
   const validity = maskField(
     "validity",
     `${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}:validity:${dataset.dataset_id}`,
@@ -112,19 +112,21 @@ export function compileRegionalTerrainField(
   const tint = new Float32Array(cells * 3);
   const occlusion = new Float32Array(cells);
   const roughness = new Float32Array(cells);
-  datasetCells.forEach((cell, index) => {
+  for (let index = 0; index < cells; index += 1) {
     const offset = index * 3;
+    const valid = validityValues[index] === 1;
+    const materialIndex = datasetValues.material_indices[index]!;
     const color = terrainMaterialTint(
-      cell.material,
+      valid ? datasetValues.material_palette[materialIndex]! : null,
       elevationValues[index] ?? 0,
-      cell.validity === "valid",
+      valid,
     );
     tint[offset] = color[0];
     tint[offset + 1] = color[1];
     tint[offset + 2] = color[2];
-    occlusion[index] = cell.validity === "valid" ? 0.92 : 0;
-    roughness[index] = cell.validity === "valid" ? 0.88 : 1;
-  });
+    occlusion[index] = valid ? 0.92 : 0;
+    roughness[index] = valid ? 0.88 : 1;
+  }
   const material = materialField(
     "material",
     `${REGIONAL_TERRAIN_SCENE_COMPILER_REVISION}:material:${dataset.dataset_id}`,

@@ -19,6 +19,7 @@ name = "rey"
 path = "src/main.rs"
 
 [dependencies]
+base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 flate2.workspace = true
