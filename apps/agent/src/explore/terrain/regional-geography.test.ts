@@ -44,6 +44,21 @@ describe("regional terrain geography", () => {
     );
     expect(Math.max(...geography.flow_accumulation.values)).toBeCloseTo(1, 6);
     expect(geography.erosion.values.some((value) => value > 0)).toBe(true);
+    const luminance = Array.from(
+      { length: geography.field_cells },
+      (_, index) =>
+        geography.material.tint[index * 3]! * 0.2126 +
+        geography.material.tint[index * 3 + 1]! * 0.7152 +
+        geography.material.tint[index * 3 + 2]! * 0.0722,
+    ).filter((_, index) => geography.validity.values[index] !== 0);
+    expect(Math.max(...luminance) - Math.min(...luminance)).toBeGreaterThan(
+      0.12,
+    );
+    const supportedOcclusion = [...geography.material.occlusion].filter(
+      (_, index) => geography.validity.values[index] !== 0,
+    );
+    expect(Math.min(...supportedOcclusion)).toBeLessThan(0.8);
+    expect(Math.max(...supportedOcclusion)).toBeGreaterThan(0.9);
 
     for (let row = 0; row < source.grid.rows; row += 1) {
       for (let column = 0; column < source.grid.columns; column += 1) {

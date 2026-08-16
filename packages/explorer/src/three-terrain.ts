@@ -18,7 +18,7 @@ import type {
 } from "./types";
 
 export const CONTINUOUS_RELIEF_MATERIAL_REVISION =
-  "rey.terrain.tsl-continuous-relief@1";
+  "rey.terrain.tsl-continuous-relief@2";
 const CONTINUOUS_RELIEF_MATERIAL_STAGES = Object.freeze([
   "base_terrain",
   "height_normals_hillshade",
@@ -375,16 +375,16 @@ export function createContinuousReliefMaterial(
     renderPasses?.passes.some((pass) => pass.id === id) ?? true;
   const multidirectionalHillshade = enabled("height_normals_hillshade")
     ? northwest
-        .mul(0.62)
-        .add(southeast.mul(0.2))
-        .add(float(0.3))
-        .clamp(0.32, 1.08)
+        .mul(0.76)
+        .add(southeast.mul(0.14))
+        .add(float(0.24))
+        .clamp(0.24, 1.12)
     : float(1);
   const ridge = enabled("ambient_valley_occlusion")
-    ? mul(max(negate(curvature), 0), 0.18)
+    ? mul(max(negate(curvature), 0), 0.24)
     : float(0);
   const valley = enabled("ambient_valley_occlusion")
-    ? mul(max(curvature, 0), 0.12)
+    ? mul(max(curvature, 0), 0.18)
     : float(0);
   const baseTint = enabled("base_terrain") ? tint : vec3(0.32, 0.33, 0.31);
   const ambientOcclusion = enabled("ambient_valley_occlusion")

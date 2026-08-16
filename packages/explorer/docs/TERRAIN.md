@@ -101,8 +101,14 @@ TSL. Its separately revisioned pass inputs gate:
 - bounded roughness.
 
 `ContinuousReliefScene` shares the material across compiled meshes and adds
-warm and cool directional lights plus ambient fill. Its orthographic camera is
-a bounded target/orbit view: the application supplies a near-north-up,
+warm and cool directional lights plus ambient fill. Material revision 2 keeps
+that fill subordinate to the normal response so broad illumination cannot wash
+out admitted fine relief. Regional geography blends the admitted material
+class with deterministic moisture, elevation, slope, exposure, and
+validity-bounded drainage fields; a bounded fine land-cover modulation breaks
+up flat color washes without changing elevation or source support. Its
+orthographic camera is a bounded target/orbit view: the application supplies a
+near-north-up,
 mostly-overhead cartographic entry, pitch and yaw are clamped, screen-axis pan
 resolves to one ground target, and an optional model transform keeps the
 terrain attached during projection changes. R3F owns the declarative camera and

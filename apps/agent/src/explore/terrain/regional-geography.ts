@@ -13,7 +13,7 @@ import { regionalTerrainContourThresholds } from "./contours";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
-  "rey.terrain.regional-geography@2" as const;
+  "rey.terrain.regional-geography@3" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
   "rey.terrain.regional-linework@2" as const;
 
@@ -367,11 +367,11 @@ function deriveRegionalLandCover(
   const occlusion = new Float32Array(cells);
   const roughness = new Float32Array(cells);
   const palette = {
-    dry: [0.39, 0.37, 0.24] as const,
-    grass: [0.3, 0.39, 0.23] as const,
-    forest: [0.17, 0.29, 0.19] as const,
-    alpine: [0.43, 0.43, 0.35] as const,
-    rock: [0.39, 0.39, 0.35] as const,
+    dry: [0.61, 0.55, 0.38] as const,
+    grass: [0.4, 0.56, 0.33] as const,
+    forest: [0.16, 0.36, 0.21] as const,
+    alpine: [0.63, 0.61, 0.53] as const,
+    rock: [0.5, 0.49, 0.44] as const,
   };
   for (let row = 0; row < source.grid.rows; row += 1) {
     for (let column = 0; column < source.grid.columns; column += 1) {
@@ -389,6 +389,11 @@ function deriveRegionalLandCover(
         column / Math.max(8, source.grid.columns / 18),
         row / Math.max(8, source.grid.rows / 18),
         seed + 1301,
+      );
+      const fineCoverNoise = valueNoise(
+        column / Math.max(3, source.grid.columns / 64),
+        row / Math.max(3, source.grid.rows / 64),
+        seed + 1601,
       );
       const treeLine = smootherstep((0.76 - height) / 0.2);
       const forest = clamp(
@@ -408,16 +413,17 @@ function deriveRegionalLandCover(
       const vegetated = mixColor(lowCover, palette.forest, forest);
       const upland = mixColor(vegetated, palette.alpine, alpine);
       const color = mixColor(upland, palette.rock, exposedRock);
+      const localTone = 0.96 + fineCoverNoise * 0.08;
       for (let component = 0; component < 3; component += 1) {
         const sourceColor = source.material.tint[index * 3 + component]!;
         tint[index * 3 + component] =
-          color[component]! * 0.88 + sourceColor * 0.12;
+          (color[component]! * 0.58 + sourceColor * 0.42) * localTone;
       }
       const valley = Math.max(0, curvature.values[index]!);
       occlusion[index] = clamp(
-        0.9 - valley * 5.2 - accumulation.values[index]! * 0.08 - slope * 0.08,
-        0.5,
-        0.96,
+        0.94 - valley * 6.4 - accumulation.values[index]! * 0.1 - slope * 0.12,
+        0.44,
+        0.98,
       );
       roughness[index] = clamp(
         0.78 + forest * 0.14 + exposedRock * 0.08 + wetness * 0.04,

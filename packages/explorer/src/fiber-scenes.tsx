@@ -148,15 +148,15 @@ export function ContinuousReliefScene({
         target={camera.target}
         top={camera.top}
       />
-      <ambientLight color={0xdde4da} intensity={1.32} />
+      <ambientLight color={0xdde4da} intensity={0.78} />
       <directionalLight
         color={0xfff4d4}
-        intensity={2.25}
+        intensity={1.35}
         position={[-world.width * 0.42, world.width, -world.height * 0.36]}
       />
       <directionalLight
         color={0xbad3df}
-        intensity={0.72}
+        intensity={0.34}
         position={[world.width * 0.5, world.width * 0.7, world.height * 0.48]}
       />
       <group

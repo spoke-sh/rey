@@ -318,14 +318,14 @@ function terrainMaterialTint(
 ): readonly [number, number, number] {
   if (!valid) return [0, 0, 0];
   const palettes: Record<string, readonly [number, number, number]> = {
-    granite: [0.48, 0.5, 0.46],
-    rock: [0.44, 0.46, 0.43],
-    sand: [0.58, 0.54, 0.42],
-    soil: [0.4, 0.43, 0.35],
-    vegetation: [0.31, 0.42, 0.32],
+    granite: [0.56, 0.55, 0.5],
+    rock: [0.49, 0.5, 0.46],
+    sand: [0.68, 0.63, 0.46],
+    soil: [0.5, 0.46, 0.34],
+    vegetation: [0.28, 0.49, 0.31],
   };
-  const base = palettes[material ?? ""] ?? [0.41, 0.46, 0.39];
-  const lift = elevation * 0.16;
+  const base = palettes[material ?? ""] ?? [0.42, 0.49, 0.38];
+  const lift = elevation * 0.11;
   return [
     Math.min(1, base[0] + lift),
     Math.min(1, base[1] + lift),

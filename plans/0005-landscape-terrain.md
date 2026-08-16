@@ -302,8 +302,8 @@ converge, so it is evidence for this rebaseline rather than a closed matrix row.
 | -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
 | Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
 | Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Fine authored texture now survives, but regional form is still sparse. | Major |
-| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Continuous shading reads clearly; high-frequency contrast remains low. | Major |
-| Land cover     | Coherent local classes with terrain-following boundaries.    | Five terrain-following classes still read as broad muted washes.       | Major |
+| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Revision 2 preserves fine normal contrast; source structure is sparse. | Major |
+| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.        | Major |
 | Water          | Continuous areas and terrain-following river hierarchy.      | Six exact water features read coherently but remain too sparse.        | Major |
 | Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.     | Major |
 | Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Districts, roads, rail, water, and labels now form a sparse hierarchy. | Major |
