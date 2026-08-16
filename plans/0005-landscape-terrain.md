@@ -146,15 +146,18 @@ dedicated-worker coverage.
 The normal Rey County fixture now carries a deterministic 201×201 authored
 regional grid. Its exact County footprint and Unexplored Scrub become 11,539
 explicit no-data vertices; 28,862 valid vertices retain five bounded materials
-and 49.31–1,774.91 meters of authored semantic relief. Revision
-`rey.agent-geography.rey-county@5` resolves the named landform controls into
+and 32–1,774.91 meters of authored semantic relief. Revision
+`rey.agent-geography.rey-county@6` resolves the named landform controls into
 bounded orographic backbones, branching ridge networks, and incised ravines
-before exact authored hydrology carves the final source field. It also records
+before exact authored hydrology carves a preliminary field. A second
+validity-contained pass priority-floods the surface, selects steepest-descent
+receivers, accumulates drainage, and applies a broad, bounded incision without
+exposing the D8 receiver tree as visible trenches. It also records
 band-limited domain-warped macro, meso, ridge, and fine relief, coherent
 land-cover inputs, a district/transport/label hierarchy, and the explicit
 absence of cross-package stitching. The source is generated reproducibly from checked-in
 boundary, district, feature, highway, hydrology, label, railway, road, and
-terrain-control inputs. It has traveled through editor admission as `SCENE@8` and passed the
+terrain-control inputs. It has traveled through editor admission as `SCENE@10` and passed the
 `scene-admission` workload before `/explore` consumption. This improves the
 default project bearing without treating terrain controls as observed height
 or closing the still-open named fidelity matrix.
@@ -295,13 +298,13 @@ The operator-supplied 3022×1926 terrain reference and Rey's current 1920×1080
 WebGL2 Landscape capture were inspected side by side. The reference is an
 acceptance target, not admitted scene evidence and not a source asset. The Rey
 capture is bound to voyage manifest
-`sha256:b541431325d4f690540b2e583e0be823b0a2ef5af232f52101ca17e919a0e2f8`.
+`sha256:9fef3a89283f9096382c45958024168b65e3574cd2066e54e194a4a437991acb`.
 The fulfilled-transport WebGL2 voyage passed World → rotated Atlas → Landscape
 → Objects → exact Evidence without browser exceptions, no-data triangle leaks,
 or tile-seam mismatches. It is a traversal baseline rather than a named
 Landscape-fidelity matrix row.
 
-That capture binds source compiler `rey.agent-geography.rey-county@5`,
+That capture binds source compiler `rey.agent-geography.rey-county@6`,
 renderer geography `rey.terrain.regional-geography@4`, and material
 `rey.terrain.tsl-continuous-relief@3`. Render-pass compiler
 `rey.explorer.terrain-render-passes@3` clips water boundary triangles to the
@@ -314,14 +317,14 @@ surfaces, keeping labels and evidence semantics without drawing each road,
 rail, district, and water edge twice. The Landscape frame selected 80
 finest-level tiles containing 87,120 tiled field cells, 6.1 MB of GPU input,
 zero support leaks, and zero seam mismatches. Its fulfilled-transport
-SwiftShader submission took about 2.87 seconds; that transient value is not a
+SwiftShader submission took about 3.70 seconds; that transient value is not a
 hardware performance claim and the visual result remains subordinate to the
 admitted source-resolution gap.
 
 | Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
 | -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
 | Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
-| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Orographic backbones and branches now read, but local form stays soft. | Major |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Orographic backbones, broad source-derived valleys, and branches now read, but local form stays soft. | Major |
 | Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Multiscale tone separates form, but the source still reads too softly. | Major |
 | Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.        | Major |
 | Water          | Continuous areas and terrain-following river hierarchy.      | Exact clipped river/wetland areas and tributaries retain shorelines.   | Major |
@@ -364,11 +367,11 @@ This separates three responsibilities:
    independent level of detail, labels, and transitions without minting
    geographic evidence.
 
-The source-controlled generator is the first geography compiler. Its fifth
+The source-controlled generator is the first geography compiler. Its sixth
 revision produces the 201×201 field with deterministic multi-scale relief,
-orographic branching, exact hydrology-conditioned height, coherent base
-materials, exact no-data, districts, transport, cartographic labels, and
-explicit synthesis metadata. Multi-package
+orographic branching, exact hydrology-conditioned height, validity-contained
+source drainage, coherent base materials, exact no-data, districts, transport,
+cartographic labels, and explicit synthesis metadata. Multi-package
 admission now retains a canonical bounded active scene set instead of replacing
 the preceding editor package whenever `scene-admission` runs. Every scene keeps
 its exact original atlas back-reference while the current atlas inventories all

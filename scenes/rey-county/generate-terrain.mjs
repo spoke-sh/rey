@@ -13,8 +13,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // still required for substantially finer fields.
 const COLUMNS = 201;
 const ROWS = 201;
-const DATASET_ID = "rey-county-semantic-terrain-v5";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@5";
+const DATASET_ID = "rey-county-semantic-terrain-v6";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@6";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -90,7 +90,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
   );
   const longitudeStep = (bounds.east - bounds.west) / (COLUMNS - 1);
   const latitudeStep = (bounds.north - bounds.south) / (ROWS - 1);
-  const features = [];
+  const cells = [];
   const summary = {
     valid_vertices: 0,
     no_data_vertices: 0,
@@ -108,54 +108,73 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
       const insideFootprint = pointInRing([longitude, latitude], boundary);
       const unexplored = pointInRing([longitude, latitude], omission);
       const valid = insideFootprint && !unexplored;
-      const properties = {
-        terrain_grid_id: DATASET_ID,
-        terrain_grid_column: column,
-        terrain_grid_row: row,
-        terrain_grid_columns: COLUMNS,
-        terrain_grid_rows: ROWS,
-        terrain_grid_validity: valid ? "valid" : "no_data",
-      };
-      const coordinates = [longitude, latitude];
-
-      if (valid) {
-        const sample = terrainSample(
-          longitude,
-          latitude,
-          bounds,
-          controls,
-          normalizedWaterways,
-          meadow,
-          wetland,
-        );
-        coordinates.push(sample.elevation);
-        properties.material = sample.material;
-        properties.landform = sample.landform;
-        summary.valid_vertices += 1;
-        summary.minimum_elevation_meters = Math.min(
-          summary.minimum_elevation_meters,
-          sample.elevation,
-        );
-        summary.maximum_elevation_meters = Math.max(
-          summary.maximum_elevation_meters,
-          sample.elevation,
-        );
-        summary.materials[sample.material] =
-          (summary.materials[sample.material] ?? 0) + 1;
-      } else {
-        summary.no_data_vertices += 1;
-        if (!insideFootprint) summary.outside_footprint_vertices += 1;
-        if (unexplored) summary.unexplored_vertices += 1;
-      }
-
-      features.push({
-        type: "Feature",
-        id: `terrain-r${String(row).padStart(2, "0")}-c${String(column).padStart(2, "0")}`,
-        properties,
-        geometry: { type: "Point", coordinates },
+      cells.push({
+        row,
+        column,
+        longitude,
+        latitude,
+        insideFootprint,
+        unexplored,
+        valid,
+        sample: valid
+          ? terrainSample(
+              longitude,
+              latitude,
+              bounds,
+              controls,
+              normalizedWaterways,
+              meadow,
+              wetland,
+            )
+          : null,
       });
     }
   }
+
+  const drainage = applyDrainageIncision(cells);
+  const features = cells.map((cell) => {
+    const properties = {
+      terrain_grid_id: DATASET_ID,
+      terrain_grid_column: cell.column,
+      terrain_grid_row: cell.row,
+      terrain_grid_columns: COLUMNS,
+      terrain_grid_rows: ROWS,
+      terrain_grid_validity: cell.valid ? "valid" : "no_data",
+    };
+    const coordinates = [cell.longitude, cell.latitude];
+    if (cell.valid) {
+      const sample = cell.sample;
+      sample.elevation = roundElevation(Math.max(32, sample.elevation));
+      sample.material = classifyTerrainMaterial(
+        sample.elevation,
+        sample.material_context,
+      );
+      coordinates.push(sample.elevation);
+      properties.material = sample.material;
+      properties.landform = sample.landform;
+      summary.valid_vertices += 1;
+      summary.minimum_elevation_meters = Math.min(
+        summary.minimum_elevation_meters,
+        sample.elevation,
+      );
+      summary.maximum_elevation_meters = Math.max(
+        summary.maximum_elevation_meters,
+        sample.elevation,
+      );
+      summary.materials[sample.material] =
+        (summary.materials[sample.material] ?? 0) + 1;
+    } else {
+      summary.no_data_vertices += 1;
+      if (!cell.insideFootprint) summary.outside_footprint_vertices += 1;
+      if (cell.unexplored) summary.unexplored_vertices += 1;
+    }
+    return {
+      type: "Feature",
+      id: `terrain-r${String(cell.row).padStart(2, "0")}-c${String(cell.column).padStart(2, "0")}`,
+      properties,
+      geometry: { type: "Point", coordinates },
+    };
+  });
 
   summary.minimum_elevation_meters = roundElevation(
     summary.minimum_elevation_meters,
@@ -168,7 +187,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v5",
+      schema: "rey.county-terrain-source.v6",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -192,9 +211,9 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped orographic backbones, branching ridges, incised ravines, and macro-to-fine relief kept below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped orographic backbones, branching ridges, incised ravines, and macro-to-fine relief followed by a validity-contained drainage pass below the source-grid Nyquist limit",
         hydrology:
-          "exact river and wetland areas accompany a tributary hierarchy; smooth authored drainage constraints carve the final height field before the renderer derives bounded flow accumulation inside exact validity",
+          "exact river and wetland areas accompany a tributary hierarchy; authored constraints and deterministic depression-safe source drainage carve the final height field without crossing no-data",
         land_cover:
           "deterministic elevation, moisture, exposure, meadow, wetland, and water-distance classification",
         cartography:
@@ -224,6 +243,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
         proof: "Proof Escarpment",
         unknown: "Unexplored Scrub",
       },
+      drainage,
       source_inputs: INPUT_FILES.map((name) => ({
         path: `scenes/rey-county/${name}`,
         sha256: inputs[name].sha256,
@@ -339,28 +359,267 @@ function terrainSample(
 
   const insideWetland = pointInRing([longitude, latitude], wetland);
   if (insideWetland) elevation -= 42;
-  elevation = roundElevation(Math.max(32, elevation));
 
   const insideMeadow = pointInRing([longitude, latitude], meadow);
   const moisture = fractalNoise(warpedX, warpedY, 503, [3, 7, 17]);
   const exposure = fractalNoise(warpedX, warpedY, 601, [4, 11, 29]);
-  let material;
-  if (insideWetland || nearestWaterway.distance < 0.009) material = "sand";
-  else if (insideMeadow) material = "vegetation";
-  else if (elevation >= 1_060 && exposure > -0.48) material = "granite";
-  else if (
-    elevation >= 735 ||
-    (elevation >= 560 && roughness >= 0.57 && exposure > -0.12)
-  )
-    material = "rock";
-  else if (elevation <= 350 && moisture < 0.18) material = "soil";
-  else material = "vegetation";
 
   return {
     elevation,
-    material,
+    material: null,
+    material_context: {
+      insideWetland,
+      insideMeadow,
+      waterDistance: nearestWaterway.distance,
+      roughness,
+      exposure,
+      moisture,
+    },
     landform: strongest.id.replace(/^terrain-/, ""),
   };
+}
+
+function classifyTerrainMaterial(elevation, context) {
+  if (context.insideWetland || context.waterDistance < 0.009) return "sand";
+  if (context.insideMeadow) return "vegetation";
+  if (elevation >= 1_060 && context.exposure > -0.48) return "granite";
+  if (
+    elevation >= 735 ||
+    (elevation >= 560 && context.roughness >= 0.57 && context.exposure > -0.12)
+  )
+    return "rock";
+  if (elevation <= 350 && context.moisture < 0.18) return "soil";
+  return "vegetation";
+}
+
+function applyDrainageIncision(cells) {
+  const count = COLUMNS * ROWS;
+  const hydraulicHeight = new Float64Array(count);
+  const receiver = new Int32Array(count);
+  receiver.fill(-1);
+  const floodParent = new Int32Array(count);
+  floodParent.fill(-1);
+  const visited = new Uint8Array(count);
+  const queue = new MinimumHeightQueue();
+  const indexAt = (column, row) => row * COLUMNS + column;
+  const offsets = [
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [0, 1],
+    [1, 1],
+  ];
+  const validityBoundary = (column, row) =>
+    column === 0 ||
+    row === 0 ||
+    column === COLUMNS - 1 ||
+    row === ROWS - 1 ||
+    offsets.some(([dx, dy]) => {
+      const nextColumn = column + dx;
+      const nextRow = row + dy;
+      return (
+        nextColumn < 0 ||
+        nextColumn >= COLUMNS ||
+        nextRow < 0 ||
+        nextRow >= ROWS ||
+        !cells[indexAt(nextColumn, nextRow)].valid
+      );
+    });
+  for (const cell of cells) {
+    if (!cell.valid || !validityBoundary(cell.column, cell.row)) continue;
+    const index = indexAt(cell.column, cell.row);
+    visited[index] = 1;
+    hydraulicHeight[index] = cell.sample.elevation;
+    queue.push(index, hydraulicHeight[index]);
+  }
+  while (queue.size > 0) {
+    const current = queue.pop();
+    const column = current.index % COLUMNS;
+    const row = Math.floor(current.index / COLUMNS);
+    for (const [dx, dy] of offsets) {
+      const nextColumn = column + dx;
+      const nextRow = row + dy;
+      if (
+        nextColumn < 0 ||
+        nextColumn >= COLUMNS ||
+        nextRow < 0 ||
+        nextRow >= ROWS
+      )
+        continue;
+      const next = indexAt(nextColumn, nextRow);
+      if (!cells[next].valid || visited[next] !== 0) continue;
+      visited[next] = 1;
+      floodParent[next] = current.index;
+      hydraulicHeight[next] = Math.max(
+        cells[next].sample.elevation,
+        current.height + 0.001,
+      );
+      queue.push(next, hydraulicHeight[next]);
+    }
+  }
+
+  // Priority-flood parents guarantee an outlet but form a traversal tree whose
+  // grid posture becomes visible when used directly. Recover D8 steepest
+  // descent over the depression-safe surface, retaining the flood parent only
+  // as a deterministic escape from a numerically flat cell.
+  for (const cell of cells) {
+    if (!cell.valid || validityBoundary(cell.column, cell.row)) continue;
+    const index = indexAt(cell.column, cell.row);
+    let steepestReceiver = -1;
+    let steepestSlope = 0;
+    for (const [dx, dy] of offsets) {
+      const nextColumn = cell.column + dx;
+      const nextRow = cell.row + dy;
+      if (
+        nextColumn < 0 ||
+        nextColumn >= COLUMNS ||
+        nextRow < 0 ||
+        nextRow >= ROWS
+      )
+        continue;
+      const next = indexAt(nextColumn, nextRow);
+      if (!cells[next].valid) continue;
+      const drop = hydraulicHeight[index] - hydraulicHeight[next];
+      if (drop <= 0) continue;
+      const slope = drop / Math.hypot(dx, dy);
+      if (
+        slope > steepestSlope ||
+        (slope === steepestSlope && next < steepestReceiver)
+      ) {
+        steepestSlope = slope;
+        steepestReceiver = next;
+      }
+    }
+    receiver[index] =
+      steepestReceiver >= 0 ? steepestReceiver : floodParent[index];
+  }
+
+  const ordered = cells
+    .map((cell, index) => ({ cell, index }))
+    .filter(({ cell }) => cell.valid)
+    .sort(
+      (left, right) =>
+        hydraulicHeight[right.index] - hydraulicHeight[left.index] ||
+        right.index - left.index,
+    );
+  const accumulation = new Float64Array(count);
+  for (const { index } of ordered) accumulation[index] = 1;
+  for (const { index } of ordered) {
+    const target = receiver[index];
+    if (target >= 0) accumulation[target] += accumulation[index];
+  }
+  const maximumAccumulation = ordered.reduce(
+    (maximum, { index }) => Math.max(maximum, accumulation[index]),
+    1,
+  );
+  const denominator = Math.log1p(maximumAccumulation);
+  const strength = new Float64Array(count);
+  for (const { index } of ordered) {
+    const normalized = Math.log1p(accumulation[index]) / denominator;
+    strength[index] = smootherstep((normalized - 0.44) / 0.48);
+  }
+  const broadened = smoothWithinValidity(strength, cells, 4);
+  let maximumIncision = 0;
+  let derivedChannelVertices = 0;
+  for (const { cell, index } of ordered) {
+    const incision = strength[index] * 16 + broadened[index] * 40;
+    cell.sample.elevation -= incision;
+    maximumIncision = Math.max(maximumIncision, incision);
+    if (strength[index] >= 0.02) derivedChannelVertices += 1;
+  }
+  return {
+    schema: "rey.county-source-drainage.v1",
+    authority:
+      "deterministic authored-source derivation inside exact validity; not observed hydrology",
+    depression_handling:
+      "priority flood seeded only from exact validity boundaries followed by steepest descent on the filled surface; receivers never cross no-data",
+    maximum_accumulation_vertices: maximumAccumulation,
+    derived_channel_vertices: derivedChannelVertices,
+    maximum_incision_meters: roundElevation(maximumIncision),
+  };
+}
+
+function smoothWithinValidity(values, cells, passes) {
+  let current = values.slice();
+  const weights = [1, 2, 1];
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = new Float64Array(current.length);
+    for (const cell of cells) {
+      if (!cell.valid) continue;
+      let total = 0;
+      let totalWeight = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const column = cell.column + dx;
+          const row = cell.row + dy;
+          if (column < 0 || column >= COLUMNS || row < 0 || row >= ROWS)
+            continue;
+          const index = row * COLUMNS + column;
+          if (!cells[index].valid) continue;
+          const weight = weights[dx + 1] * weights[dy + 1];
+          total += current[index] * weight;
+          totalWeight += weight;
+        }
+      }
+      next[cell.row * COLUMNS + cell.column] =
+        totalWeight === 0
+          ? current[cell.row * COLUMNS + cell.column]
+          : total / totalWeight;
+    }
+    current = next;
+  }
+  return current;
+}
+
+function smootherstep(value) {
+  const bounded = Math.max(0, Math.min(1, value));
+  return bounded * bounded * bounded * (bounded * (bounded * 6 - 15) + 10);
+}
+
+class MinimumHeightQueue {
+  entries = [];
+
+  get size() {
+    return this.entries.length;
+  }
+
+  push(index, height) {
+    const entry = { index, height };
+    this.entries.push(entry);
+    let cursor = this.entries.length - 1;
+    while (cursor > 0) {
+      const parent = Math.floor((cursor - 1) / 2);
+      if (this.entries[parent].height <= height) break;
+      this.entries[cursor] = this.entries[parent];
+      cursor = parent;
+    }
+    this.entries[cursor] = entry;
+  }
+
+  pop() {
+    const result = this.entries[0];
+    const tail = this.entries.pop();
+    if (!result || !tail || this.entries.length === 0) return result;
+    let cursor = 0;
+    while (true) {
+      const left = cursor * 2 + 1;
+      const right = left + 1;
+      if (left >= this.entries.length) break;
+      const child =
+        right < this.entries.length &&
+        this.entries[right].height < this.entries[left].height
+          ? right
+          : left;
+      if (this.entries[child].height >= tail.height) break;
+      this.entries[cursor] = this.entries[child];
+      cursor = child;
+    }
+    this.entries[cursor] = tail;
+    return result;
+  }
 }
 
 function fractalNoise(x, y, seed, frequencies) {
@@ -444,8 +703,7 @@ function orographicRelief(x, y, control, seed) {
   const envelope = Math.exp(-0.42 * distanceSquared);
   if (envelope < 0.002) return 0;
   const warp =
-    fractalNoise(rx * 0.18 + 0.31, ry * 0.18 - 0.17, seed, [1, 2, 4]) *
-    0.38;
+    fractalNoise(rx * 0.18 + 0.31, ry * 0.18 - 0.17, seed, [1, 2, 4]) * 0.38;
   const along = ry * 0.72 + warp;
   const across = rx * 0.96 + warp * 0.7;
   const backbone = ridgedFractalNoise(

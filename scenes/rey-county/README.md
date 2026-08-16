@@ -48,7 +48,9 @@ foundational contracts, twelve Rust crates, `@rey/agent`, and `@rey/explorer`:
 
 The terrain model combines the retained control geometry with deterministic,
 domain-warped macro, ridge, meso, and fine relief below the source grid's Nyquist
-limit. Smooth authored drainage constraints carve the channels, Explorer
+limit. Smooth authored drainage constraints carve the named channels, then a
+depression-safe source-drainage pass derives receivers and accumulation only
+inside exact validity and incises a bounded dendritic valley network. Explorer
 receives a subtle terrace response, and
 the five renderer-recognized land-cover materials follow coherent elevation,
 moisture, exposure, meadow, wetland, and water-distance fields. These are
@@ -57,19 +59,19 @@ the renderer.
 
 ## Native Sources
 
-| File                       | Editor role       | Meaning                                                           |
-| -------------------------- | ----------------- | ----------------------------------------------------------------- |
-| `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                      |
+| File                       | Editor role       | Meaning                                                             |
+| -------------------------- | ----------------- | ------------------------------------------------------------------- |
+| `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                        |
 | `terrain.geojson`          | `terrain`         | 201×201 row-major elevation/material dataset with explicit validity |
-| `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height   |
-| `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry            |
-| `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region              |
-| `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD            |
-| `districts.geojson`        | `district`        | Subordinate administrative and semantic boundaries                |
-| `highways.geojson`         | `highway`         | Primary and secondary authored transport hierarchy                |
-| `roads.geojson`            | `road`            | Terrain-aware local route candidates                              |
-| `railways.geojson`         | `railway`         | Regional and industrial rail candidates                           |
-| `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy             |
+| `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height     |
+| `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry              |
+| `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region                |
+| `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD              |
+| `districts.geojson`        | `district`        | Subordinate administrative and semantic boundaries                  |
+| `highways.geojson`         | `highway`         | Primary and secondary authored transport hierarchy                  |
+| `roads.geojson`            | `road`            | Terrain-aware local route candidates                                |
+| `railways.geojson`         | `railway`         | Regional and industrial rail candidates                             |
+| `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy               |
 
 The terrain grid contains 40,401 vertices at exact integer-microdegree spacing:
 
@@ -77,7 +79,7 @@ The terrain grid contains 40,401 vertices at exact integer-microdegree spacing:
 - 10,825 no-data vertices outside the County footprint;
 - 863 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
   predicates, producing 11,539 unique no-data vertices);
-- 49.31–1,774.91 meters of authored relief; and
+- 32–1,774.91 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
 Two hundred intervals per axis preserve the County's exact bounds at
@@ -89,16 +91,23 @@ source, not the final resolution target; a raster-native pyramid is required
 for substantially finer authored fields without turning GeoJSON points into a
 bulk terrain format.
 
-The embedded `rey.agent-geography.rey-county@5` compiler record states the
+The embedded `rey.agent-geography.rey-county@6` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
 It does not imply that multiple editor packages have already been stitched.
 Its elevation compiler now resolves each rough named landform into a bounded
 orographic backbone, branching ridge network, and incised ravines before exact
-authored waterways carve the final source height. The main river and wetland
-are exact admitted areas; tributaries remain exact paths. This is source
-geography rather than renderer noise, and every no-data vertex remains absent.
+authored waterways carve the preliminary source height. A second bounded pass
+priority-floods only from exact validity boundaries, derives source drainage,
+selects steepest descent over the depression-safe surface, and incises at most
+30.5 meters without crossing no-data. The retained derivation reports 1,271
+channel vertices and a maximum contributing area of 18,290 valid vertices. The
+shallower incision is deliberately spread across adjacent valid cells so the
+source reads as valley relief rather than a visible D8 drainage tree. The main
+river and wetland are exact admitted areas;
+tributaries remain exact paths. This is source geography rather than renderer
+noise, and every no-data vertex remains absent.
 Its cartographic hierarchy currently retains four highways, twelve local
 roads, four railway paths, and sixteen independently bounded labels. Its water
 hierarchy retains one exact river surface, one wetland, the river centerline,

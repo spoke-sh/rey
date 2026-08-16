@@ -82,9 +82,9 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v5",
-      dataset_id: "rey-county-semantic-terrain-v5",
-      compiler_revision: "rey.agent-geography.rey-county@5",
+      schema: "rey.county-terrain-source.v6",
+      dataset_id: "rey-county-semantic-terrain-v6",
+      compiler_revision: "rey.agent-geography.rey-county@6",
       synthesis: {
         elevation: expect.stringContaining("orographic backbones"),
         hydrology: expect.stringContaining("river and wetland areas"),
@@ -97,7 +97,27 @@ describe("Rey County terrain source", () => {
           omissions: [expect.stringContaining("not implemented")],
         },
       },
+      drainage: {
+        schema: "rey.county-source-drainage.v1",
+        authority: expect.stringContaining("not observed hydrology"),
+        depression_handling: expect.stringContaining("never cross no-data"),
+        maximum_accumulation_vertices: expect.any(Number),
+        derived_channel_vertices: expect.any(Number),
+        maximum_incision_meters: expect.any(Number),
+      },
     });
+    expect(
+      terrain.terrain_derivation.drainage.maximum_accumulation_vertices,
+    ).toBeGreaterThan(10_000);
+    expect(
+      terrain.terrain_derivation.drainage.derived_channel_vertices,
+    ).toBeGreaterThan(1_000);
+    expect(
+      terrain.terrain_derivation.drainage.maximum_incision_meters,
+    ).toBeGreaterThan(25);
+    expect(
+      terrain.terrain_derivation.drainage.maximum_incision_meters,
+    ).toBeLessThan(45);
 
     let supportedCenters = 0;
     let detailedCenters = 0;
@@ -159,9 +179,8 @@ describe("Rey County terrain source", () => {
       ).size,
     ).toBe(36);
     expect(
-      hierarchy.labels.filter(
-        ({ properties }) => properties.min_zoom <= 6,
-      ).length,
+      hierarchy.labels.filter(({ properties }) => properties.min_zoom <= 6)
+        .length,
     ).toBeGreaterThanOrEqual(14);
   });
 
