@@ -245,6 +245,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   useEffect(() => {
     retainedRegime.current = regime;
   }, [regime]);
+  const resolveRegimeForZoom = (nextZoom: number, previous?: LensRegime) =>
+    lensRegimeForZoom(nextZoom, previous ?? retainedRegime.current);
   const measuredSceneProjection = useMemo(() => {
     const started = globalThis.performance?.now() ?? Date.now();
     const projection = sceneCompiler.compile(
@@ -505,7 +507,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     const currentZoom = zoomRef.current;
     const boundedZoom = clampLensZoom(nextZoom);
     if (boundedZoom === currentZoom) return;
-    const nextRegime = lensRegimeForZoom(boundedZoom, regime);
+    const currentRegime = resolveRegimeForZoom(currentZoom);
+    const nextRegime = resolveRegimeForZoom(boundedZoom, currentRegime);
     const viewport = viewportRef.current;
     if (client && viewport) {
       const rect = viewport.getBoundingClientRect();
@@ -518,7 +521,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         scaleUsesTerrain,
         fitScale,
         currentZoom,
-        regime,
+        currentRegime,
       );
       const nextRenderedScale = renderedSceneScale(
         scaleUsesTerrain,
@@ -544,8 +547,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     const firstInteraction = acknowledgeMapInteraction();
     cancelWheelZoom();
     const boundedZoom = clampLensZoom(nextZoom);
-    const nextRegime = lensRegimeForZoom(boundedZoom, regime);
-    if (firstInteraction && nextRegime !== regime)
+    const currentRegime = resolveRegimeForZoom(zoomRef.current);
+    const nextRegime = resolveRegimeForZoom(boundedZoom, currentRegime);
+    if (firstInteraction && nextRegime !== currentRegime)
       suppressNextRegimeNoticeRef.current = true;
     applyZoomAt(boundedZoom, client);
     wheelTargetZoomRef.current = boundedZoom;
@@ -567,7 +571,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     else if (scene.regime === "landscape") nextZoom = NEIGHBORHOOD_LENS_ZOOM;
     else if (scene.regime === "neighborhoods") nextZoom = OBJECT_LENS_ZOOM;
     else if (scene.regime === "objects") nextZoom = EVIDENCE_LENS_ZOOM;
-    if (lensRegimeForZoom(nextZoom, regime) !== regime)
+    const currentRegime = resolveRegimeForZoom(zoomRef.current);
+    if (resolveRegimeForZoom(nextZoom, currentRegime) !== currentRegime)
       suppressNextRegimeNoticeRef.current = true;
     setFocusId(node.focus_id);
     if (scene.terrain) {
@@ -575,7 +580,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         true,
         fitScale,
         nextZoom,
-        lensRegimeForZoom(nextZoom, regime),
+        resolveRegimeForZoom(nextZoom, currentRegime),
       );
       setPan(
         panForTerrainTarget(node, scene.world, nextScale, {
@@ -619,6 +624,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const handleWheel = (event: globalThis.WheelEvent) => {
     event.preventDefault();
     const firstInteraction = acknowledgeMapInteraction();
+    const currentRegime = resolveRegimeForZoom(zoomRef.current);
     const targetZoom = clampLensZoom(
       wheelTargetZoomRef.current +
         wheelZoomDelta(
@@ -627,7 +633,10 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           event.deltaMode,
         ),
     );
-    if (firstInteraction && lensRegimeForZoom(targetZoom, regime) !== regime)
+    if (
+      firstInteraction &&
+      resolveRegimeForZoom(targetZoom, currentRegime) !== currentRegime
+    )
       suppressNextRegimeNoticeRef.current = true;
     wheelTargetZoomRef.current = targetZoom;
     wheelPointerRef.current = { x: event.clientX, y: event.clientY };
@@ -724,7 +733,8 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       scene.globe?.posture === "orientation"
         ? WORLD_LENS_ZOOM
         : DEFAULT_LENS_ZOOM;
-    if (lensRegimeForZoom(nextZoom, regime) !== regime)
+    const currentRegime = resolveRegimeForZoom(zoomRef.current);
+    if (resolveRegimeForZoom(nextZoom, currentRegime) !== currentRegime)
       suppressNextRegimeNoticeRef.current = true;
     commitImmediateZoom(nextZoom);
     setPan(zeroPoint);
