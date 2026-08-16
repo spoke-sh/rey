@@ -229,6 +229,43 @@ function usePassivePortfolio(initialDocument: OperatorContext) {
   return { document, error };
 }
 
+function useDemandPortfolio() {
+  const [document, setDocument] = useState<OperatorContext | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  useEffect(() => {
+    let active = true;
+    let stopRevalidation: (() => void) | null = null;
+    const retainedRevision = { current: "" };
+    void loadPortfolio()
+      .then((next) => {
+        if (!active) return;
+        retainedRevision.current = next.revalidation.revision;
+        setDocument(next);
+        stopRevalidation = startPassiveRevalidation({
+          intervalMs: next.revalidation.poll_after_ms,
+          load: () => loadPortfolioAfterRevision(retainedRevision.current),
+          publish: (revalidated) => {
+            if (!revalidated || !active) return;
+            retainedRevision.current = revalidated.revalidation.revision;
+            setDocument(revalidated);
+          },
+          reportError: (cause) => {
+            if (active) setError(cause);
+          },
+        });
+      })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setError(cause instanceof Error ? cause : new Error(String(cause)));
+      });
+    return () => {
+      active = false;
+      stopRevalidation?.();
+    };
+  }, []);
+  return { document, error };
+}
+
 function usePassiveOperatorShell(initialDocument: OperatorShell) {
   const [document, setDocument] = useState(initialDocument);
   const [error, setError] = useState<Error | null>(null);
@@ -1305,11 +1342,9 @@ function ExploreRoutePage() {
 
 function FeedRoutePage() {
   const initial = feedRoute.useLoaderData();
-  const { document: sources, publish } = usePassiveDocument(
-    initial.sources,
-    loadFeed,
-  );
-  const { document: portfolio } = usePassivePortfolio(initial.portfolio);
+  const { document: sources, publish } = usePassiveDocument(initial, loadFeed);
+  const { document: portfolio, error: portfolioError } = useDemandPortfolio();
+  const shell = rootRoute.useLoaderData();
   const search = feedRoute.useSearch();
   const navigate = feedRoute.useNavigate();
   const layout = resolveFeedLayout(search.streams ?? null, sources.channels);
@@ -1345,7 +1380,7 @@ function FeedRoutePage() {
         }
       }}
       onObservationCreate={
-        portfolio.ui_server.observation_write_enabled
+        shell.ui_server.observation_write_enabled
           ? async (write) => {
               const admission = await writeObservation(write);
               publish({ ...sources, observations: admission.frontier });
@@ -1354,6 +1389,7 @@ function FeedRoutePage() {
           : undefined
       }
       portfolio={portfolio}
+      portfolioError={portfolioError}
       sources={sources}
     />
   );
@@ -1367,14 +1403,16 @@ function CadenceRoutePage() {
 
 function AgentsRoutePage() {
   const initial = agentsRoute.useLoaderData();
-  const { document } = usePassiveDocument(initial.journal, loadAgentJournal);
-  const { document: portfolio } = usePassivePortfolio(initial.portfolio);
+  const { document } = usePassiveDocument(initial, loadAgentJournal);
+  const { document: portfolio, error: portfolioError } = useDemandPortfolio();
+  const shell = rootRoute.useLoaderData();
   return (
     <AgentsPage
-      agent={portfolio.agent_process}
+      agent={shell.agent_process}
       journal={document.journal}
       opportunities={document.opportunities}
       portfolio={portfolio}
+      portfolioError={portfolioError}
     />
   );
 }
@@ -1465,13 +1503,7 @@ const feedRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "feed",
   validateSearch: normalizeFeedSearch,
-  loader: async () => {
-    const [sources, portfolio] = await Promise.all([
-      loadFeed(),
-      loadPortfolio(),
-    ]);
-    return { sources, portfolio };
-  },
+  loader: loadFeed,
   component: FeedRoutePage,
 });
 
@@ -1485,13 +1517,7 @@ const cadenceRoute = createRoute({
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
-  loader: async () => {
-    const [journal, portfolio] = await Promise.all([
-      loadAgentJournal(),
-      loadPortfolio(),
-    ]);
-    return { journal, portfolio };
-  },
+  loader: loadAgentJournal,
   component: AgentsRoutePage,
 });
 

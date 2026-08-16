@@ -208,14 +208,16 @@ export function AgentsPage({
   journal,
   opportunities,
   portfolio,
+  portfolioError = null,
 }: {
   agent: AgentProcessDescriptor;
   journal: JournalProjection;
   opportunities: JournalOpportunitySurface;
-  portfolio: WorkloadList;
+  portfolio: WorkloadList | null;
+  portfolioError?: Error | null;
 }) {
-  const systemEntries = deriveJournalEntries(portfolio);
-  const insights = deriveWorkInsights(portfolio);
+  const systemEntries = portfolio ? deriveJournalEntries(portfolio) : [];
+  const insights = portfolio ? deriveWorkInsights(portfolio) : [];
   const ready = systemEntries.filter(
     (entry) => entry.readiness === "ready",
   ).length;
@@ -228,7 +230,7 @@ export function AgentsPage({
         data-rey-section="01 / JOURNAL"
       >
         <AgentHeading
-          detail={`${totalEntries} entries · ${ready} ready · ${journal.log.entries.length} retained authored`}
+          detail={`${totalEntries} entries · ${ready} ready · ${journal.log.entries.length} retained authored${portfolio ? "" : " · runtime attention loading"}`}
           index="01"
           kicker="JOURNAL"
           title="What should happen next"
@@ -299,12 +301,24 @@ export function AgentsPage({
         data-rey-section="03 / WORK LEDGER"
       >
         <AgentHeading
-          detail={`${portfolio.workloads.length} admitted · ${portfolio.drafts.length} requested · current bounded portfolio`}
+          detail={
+            portfolio
+              ? `${portfolio.workloads.length} admitted · ${portfolio.drafts.length} requested · current bounded portfolio`
+              : portfolioError
+                ? `portfolio unavailable · ${portfolioError.message}`
+                : "portfolio projection loading · Journal and process evidence remain available"
+          }
           index="03"
           kicker="WORK LEDGER"
           title="Observed work"
         />
-        {insights.length === 0 ? (
+        {!portfolio ? (
+          <div className={sx(chrome.micro, styles.empty)}>
+            {portfolioError
+              ? "WORK PORTFOLIO COULD NOT BE PROJECTED"
+              : "VERIFYING RETAINED WORK PORTFOLIO…"}
+          </div>
+        ) : insights.length === 0 ? (
           <div className={sx(chrome.micro, styles.empty)}>
             NO WORK HAS ENTERED THE CURRENT PORTFOLIO
           </div>

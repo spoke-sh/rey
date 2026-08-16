@@ -88,6 +88,27 @@ describe("operator routes", () => {
     expect(targets).not.toContain("/api/v1/workloads");
   });
 
+  it("loads Feed and Agents native projections before the workload portfolio", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const feedLoader = router.routesById["/feed"].options.loader;
+    const agentsLoader = router.routesById["/agents"].options.loader;
+    if (typeof feedLoader !== "function" || typeof agentsLoader !== "function")
+      throw new Error("Feed or Agents route loader is unavailable");
+    await Promise.all([feedLoader({} as never), agentsLoader({} as never)]);
+
+    const targets = fetch.mock.calls.map(([target]) => target);
+    expect(targets).toContain("/api/v1/cadence");
+    expect(targets).toContain("/api/v1/feed/admissions");
+    expect(targets).toContain("/api/v1/journal");
+    expect(targets).toContain("/api/v1/journal/opportunities");
+    expect(targets).not.toContain("/api/v1/workloads");
+  });
+
   it("retains bounded Feed stream composition in typed route search", () => {
     expect(
       normalizeFeedSearch({

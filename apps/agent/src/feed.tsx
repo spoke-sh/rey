@@ -565,6 +565,7 @@ export function FeedPage({
   onLayoutWrite,
   onObservationCreate,
   portfolio,
+  portfolioError = null,
   sources,
 }: {
   configuration?: FeedStreamSpec[];
@@ -577,7 +578,8 @@ export function FeedPage({
   onObservationCreate?: (
     write: ObservationWrite,
   ) => Promise<ObservationBroadcast>;
-  portfolio: WorkloadList;
+  portfolio: WorkloadList | null;
+  portfolioError?: Error | null;
   sources: Pick<
     FeedSources,
     "admissions" | "cadence" | "journal" | "observations"
@@ -784,6 +786,7 @@ export function FeedPage({
             onRename={renameStream}
             onTune={openFirehose}
             portfolio={portfolio}
+            portfolioError={portfolioError}
             admissions={admissions}
             sources={sources}
             stream={stream}
@@ -800,7 +803,9 @@ export function FeedPage({
             <span aria-hidden="true">＋</span>
             <strong>FIREHOSE</strong>
             <small>
-              {events.length + admissions.length + portfolio.workloads.length}
+              {events.length +
+                admissions.length +
+                (portfolio?.workloads.length ?? 0)}
             </small>
           </button>
         ) : (
@@ -817,7 +822,7 @@ export function FeedPage({
             onSave={saveDraft}
             sourceCounts={{
               admission: admissions.length,
-              flow: portfolio.workloads.length,
+              flow: portfolio?.workloads.length ?? 0,
               signals: events.length,
             }}
           />
@@ -1150,6 +1155,7 @@ function FeedStream({
   onRename,
   onTune,
   portfolio,
+  portfolioError,
   sources,
   stream,
   streamCount,
@@ -1166,7 +1172,8 @@ function FeedStream({
   onComposeObservation: (() => void) | null;
   onRename: (index: number, name: string) => void;
   onTune: (index: number) => void;
-  portfolio: WorkloadList;
+  portfolio: WorkloadList | null;
+  portfolioError: Error | null;
   sources: Pick<
     FeedSources,
     "admissions" | "cadence" | "journal" | "observations"
@@ -1175,7 +1182,9 @@ function FeedStream({
   streamCount: number;
 }) {
   const filteredEvents = filterEvents(events, stream.filter);
-  const filteredWorkloads = filterWorkloads(portfolio, stream.filter);
+  const filteredWorkloads = portfolio
+    ? filterWorkloads(portfolio, stream.filter)
+    : [];
   const id = `feed-stream-${stream.id}`;
   return (
     <section
@@ -1264,10 +1273,24 @@ function FeedStream({
         ) : null}
         {stream.kind === "flow" ? (
           <>
+            {!portfolio ? (
+              <QuietPost
+                detail={
+                  portfolioError
+                    ? `Signals and admissions remain available. Workload projection failed: ${portfolioError.message}`
+                    : "Signals and admissions are available now. The bounded workload projection will join this stream when its exact retained evidence has been verified."
+                }
+                title={
+                  portfolioError
+                    ? "WORKLOAD FLOW IS UNAVAILABLE"
+                    : "WORKLOAD FLOW IS LOADING"
+                }
+              />
+            ) : null}
             {filteredWorkloads.map((workload) => (
               <FlowPost key={workload.workload.id} workload={workload} />
             ))}
-            {filteredWorkloads.length === 0 ? (
+            {portfolio && filteredWorkloads.length === 0 ? (
               <QuietPost
                 detail="No admitted workload revision matches this stream lens."
                 title="NO MATCHING WORK IS IN FLOW"
