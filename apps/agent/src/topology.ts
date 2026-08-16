@@ -508,6 +508,22 @@ function regionalWorldSourceRevision(
   );
 }
 
+/**
+ * Shared by `buildRegionalWorld` and `buildWorldAtlasTransition` so a survey
+ * region's tone can't drift between the World globe and the globe compiled
+ * mid-transition before regime has actually reached "world" — a mismatch
+ * here previously read as a marker snapping color (and, since the mismatched
+ * marker set differs, apparently drifting position) partway through the
+ * unfurl.
+ */
+function semanticAtlasRegionTone(region: {
+  complete: boolean;
+  frontier_rows: number;
+}): TopologyTone {
+  if (!region.complete) return "omitted";
+  return region.frontier_rows > 0 ? "frontier" : "healthy";
+}
+
 function buildWorldAtlasTransition(
   regionalScenes: AdmittedRegionalProjection[],
   atlas: SemanticAtlas | null,
@@ -526,16 +542,29 @@ function buildWorldAtlasTransition(
     globe_source_revision: regionalWorldSourceRevision(regionalScenes, atlas),
     projection_revision: SEMANTIC_MERCATOR_PROJECTION_REVISION,
     atlas_frame: semanticMercatorFrame(),
-    points: regionalScenes
-      .map(({ scene, atlas_region: region }) => ({
+    points: [
+      ...regionalScenes.map(({ scene, atlas_region: region }) => ({
         identity: region.region_id,
         focus_id: `regional:${scene.scene_id}`,
         label: scene.region_id,
         longitude_microdegrees: region.semantic_longitude_microdegrees,
         latitude_microdegrees: region.semantic_latitude_microdegrees,
         tone: scene.complete ? ("healthy" as const) : ("omitted" as const),
-      }))
-      .sort((left, right) => left.identity.localeCompare(right.identity)),
+      })),
+      // Without these, the globe compiled mid-transition (before regime has
+      // actually reached "world") omits every survey region entirely, so a
+      // survey marker only appears once regime reaches "world" — and if it
+      // sits near a regional marker, that read as an existing dot changing
+      // color and drifting rather than a second marker simply appearing.
+      ...(atlas?.regions ?? []).map((region) => ({
+        identity: region.region_id,
+        focus_id: `topography:${region.workload_id}`,
+        label: region.workload_id,
+        longitude_microdegrees: region.semantic_longitude_microdegrees,
+        latitude_microdegrees: region.semantic_latitude_microdegrees,
+        tone: semanticAtlasRegionTone(region),
+      })),
+    ].sort((left, right) => left.identity.localeCompare(right.identity)),
     sectors: [...sectors.values()]
       .map((sector) => ({
         identity: sector.sector_id,
@@ -913,11 +942,7 @@ function buildRegionalWorld(
       longitude_degrees: region.semantic_longitude_microdegrees / 1_000_000,
       latitude_degrees: region.semantic_latitude_microdegrees / 1_000_000,
       angular_radius_degrees: region.angular_radius_microdegrees / 1_000_000,
-      tone: region.complete
-        ? region.frontier_rows > 0
-          ? "frontier"
-          : "healthy"
-        : "omitted",
+      tone: semanticAtlasRegionTone(region),
     }),
   );
   const sourceRevision = regionalWorldSourceRevision(regionalScenes, atlas);

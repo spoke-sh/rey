@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { SceneAdmissionResult, WorkloadList } from "../../domain";
+import type {
+  SceneAdmissionResult,
+  SemanticAtlas,
+  WorkloadList,
+} from "../../domain";
 import { buildTopologyScene } from "../../topology";
 import { compileSceneSnapshot } from "../engine/scene";
 import { SEMANTIC_LABEL_LAYOUT_REVISION } from "../engine/labels";
@@ -692,6 +696,63 @@ describe("regional scene topology projection", () => {
     expect(
       Object.isFrozen(compiledCounty.scene.county_frame?.source_origin),
     ).toBe(true);
+  });
+
+  it("carries a survey region's frontier tone into the mid-transition globe", () => {
+    const atlasWithSurvey = {
+      ...structuredClone(regionalAtlas),
+      regions: [
+        {
+          region_id: "survey-region:1",
+          cluster_id: "cluster:1",
+          sector_id: "sector:1",
+          workload_id: "context-anchor-survey",
+          source_patch_id: "patch:1",
+          source_topography_revision: "topo:1",
+          semantic_longitude_microdegrees: 10_000_000,
+          semantic_latitude_microdegrees: 5_000_000,
+          angular_radius_microdegrees: 2_000_000,
+          anchor_count: 4,
+          frontier_rows: 3,
+          complete: true,
+          dominant_feature: "terrain_control",
+        },
+      ],
+    } as unknown as SemanticAtlas;
+    const portfolioWithSurvey = {
+      ...structuredClone(regionalPortfolio),
+      semantic_atlas: atlasWithSurvey,
+      semantic_atlas_history: [atlasWithSurvey],
+    } as unknown as WorkloadList;
+
+    const world = buildTopologyScene(
+      portfolioWithSurvey,
+      0.1,
+      "cluster:portfolio",
+    );
+    // The settled World globe has always carried survey-region frontier tone
+    // correctly — this is the baseline the mid-transition globe must match.
+    expect(
+      world.globe?.regions.find(({ id }) => id === "survey-region:1"),
+    ).toMatchObject({
+      tone: "frontier",
+      longitude_degrees: 10,
+      latitude_degrees: 5,
+    });
+    // Before this fix, world_atlas_transition.points omitted survey regions
+    // entirely, so the globe compiled mid-transition (before regime ever
+    // reaches "world") had no marker for this region at all — it would only
+    // appear, already a different tone, the moment regime became "world".
+    expect(
+      world.world_atlas_transition?.points.find(
+        ({ identity }) => identity === "survey-region:1",
+      ),
+    ).toMatchObject({
+      focus_id: "topography:context-anchor-survey",
+      tone: "frontier",
+      longitude_microdegrees: 10_000_000,
+      latitude_microdegrees: 5_000_000,
+    });
   });
 
   it("retains qualified exact terrain samples without interpolating a surface", () => {
