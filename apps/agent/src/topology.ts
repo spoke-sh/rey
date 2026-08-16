@@ -1408,7 +1408,7 @@ function regionalLayerTone(
   layer: AdmittedRegionalProjection["scene"]["projection"]["objects"][number]["layer"],
 ): TopologyTone {
   if (layer === "terrain") return "healthy";
-  if (["hydrology", "highway", "road", "connector"].includes(layer))
+  if (["hydrology", "highway", "road", "railway", "connector"].includes(layer))
     return "accent";
   if (["boundary", "district", "lot"].includes(layer)) return "neutral";
   if (["poi", "label", "beacon", "construction"].includes(layer))

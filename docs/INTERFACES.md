@@ -1520,7 +1520,7 @@ writes a workspace `rey.scene.json` and exposes no project-path override.
 Declared native inputs remain bounded, regular, non-symlinked, and contained
 by the workspace. `source add` verifies and registers an existing RFC 7946
 GeoJSON path in WORKING under one explicit feature, marker/POI, terrain,
-terrain-control, hydrology, boundary, highway, road, district, lot, structure,
+terrain-control, hydrology, boundary, highway, road, railway, district, lot, structure,
 utility, label, beacon, construction, or connector role. It rejects path/role
 rebinding and writes only the canonical internal project declaration; it does
 not rewrite native bytes or touch INDEX. `source add` and `generate` create the

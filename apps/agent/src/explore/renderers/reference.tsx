@@ -564,7 +564,9 @@ function CountyFeatureLayer({
         const point = feature.geometry_kind.toLowerCase() === "point";
         const linear =
           feature.geometry_kind.toLowerCase().includes("line") ||
-          ["highway", "road", "utility", "connector"].includes(feature.layer);
+          ["highway", "road", "railway", "utility", "connector"].includes(
+            feature.layer,
+          );
         const selected = node.focus_id === scene.focus_id;
         const showLabel = selected;
         const content = (

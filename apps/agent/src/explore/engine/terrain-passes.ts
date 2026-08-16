@@ -642,6 +642,7 @@ function featureColor(layer: string, selected: boolean): number {
   if (layer === "hydrology") return 0x77bfd8;
   if (layer === "boundary") return 0xe4cb86;
   if (layer === "highway" || layer === "road") return 0xe5ded0;
+  if (layer === "railway") return 0x625f5a;
   if (layer === "structure" || layer === "construction") return 0xb8a98f;
   if (layer === "terrain_control") return 0xa88c65;
   return 0xc9c2ad;

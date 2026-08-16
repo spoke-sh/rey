@@ -32,6 +32,7 @@ const regionalAtlas = {
       poi_objects: 0,
       highway_objects: 0,
       road_objects: 0,
+      railway_objects: 0,
       district_objects: 0,
       lot_objects: 0,
       structure_objects: 0,

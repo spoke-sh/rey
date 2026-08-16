@@ -232,6 +232,7 @@ export type RegionalLayerKind =
   | "poi"
   | "highway"
   | "road"
+  | "railway"
   | "district"
   | "lot"
   | "structure"
@@ -490,6 +491,7 @@ export interface SemanticAtlasRegionalSource {
   poi_objects: number;
   highway_objects: number;
   road_objects: number;
+  railway_objects: number;
   district_objects: number;
   lot_objects: number;
   structure_objects: number;

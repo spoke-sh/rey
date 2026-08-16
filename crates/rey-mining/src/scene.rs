@@ -77,6 +77,7 @@ pub enum RegionalLayerKind {
     Poi,
     Highway,
     Road,
+    Railway,
     District,
     Lot,
     Structure,

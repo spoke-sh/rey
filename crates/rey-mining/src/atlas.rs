@@ -161,6 +161,7 @@ pub struct SemanticAtlasRegionalSource {
     pub poi_objects: u64,
     pub highway_objects: u64,
     pub road_objects: u64,
+    pub railway_objects: u64,
     pub district_objects: u64,
     pub lot_objects: u64,
     pub structure_objects: u64,
@@ -224,6 +225,7 @@ impl SemanticAtlasRegionalSource {
             poi_objects: count(RegionalLayerKind::Poi),
             highway_objects: count(RegionalLayerKind::Highway),
             road_objects: count(RegionalLayerKind::Road),
+            railway_objects: count(RegionalLayerKind::Railway),
             district_objects: count(RegionalLayerKind::District),
             lot_objects: count(RegionalLayerKind::Lot),
             structure_objects: count(RegionalLayerKind::Structure),
@@ -554,6 +556,7 @@ impl SemanticAtlas {
                     .saturating_add(source.poi_objects)
                     .saturating_add(source.highway_objects)
                     .saturating_add(source.road_objects)
+                    .saturating_add(source.railway_objects)
                     .saturating_add(source.district_objects)
                     .saturating_add(source.lot_objects)
                     .saturating_add(source.structure_objects)
@@ -1669,6 +1672,7 @@ fn regional_dominant_feature(source: &SemanticAtlasRegionalSource) -> String {
         ("poi", source.poi_objects),
         ("highway", source.highway_objects),
         ("road", source.road_objects),
+        ("railway", source.railway_objects),
         ("district", source.district_objects),
         ("lot", source.lot_objects),
         ("structure", source.structure_objects),
@@ -1954,6 +1958,7 @@ mod tests {
             poi_objects: 1,
             highway_objects: 0,
             road_objects: 0,
+            railway_objects: 0,
             district_objects: 0,
             lot_objects: 0,
             structure_objects: 0,
