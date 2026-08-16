@@ -335,7 +335,6 @@ export function renderedSceneScale(
   regime: LensRegime,
 ): number {
   if (
-    !terrain &&
     (regime === "world" || regime === "atlas") &&
     zoom <= WORLD_ATLAS_MORPH_END_ZOOM
   ) {

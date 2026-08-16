@@ -99,6 +99,18 @@ describe("Explorer camera engine", () => {
     );
   });
 
+  it("keeps terrain scenes continuous across the Atlas endpoint", () => {
+    expect(renderedSceneScale(true, 1, 0.14, "world")).toBeCloseTo(
+      renderedSceneScale(true, 1, 0.14, "atlas"),
+    );
+    expect(renderedSceneScale(true, 1, 0.24, "world")).toBeCloseTo(
+      renderedSceneScale(true, 1, 0.24, "atlas"),
+    );
+    expect(renderedSceneScale(true, 1, 0.19, "world")).toBeCloseTo(
+      renderedSceneScale(true, 1, 0.19, "atlas"),
+    );
+  });
+
   it("normalizes wheel hardware and scales continuous input with the lens", () => {
     expect(wheelZoomDelta(0.1, -100)).toBeCloseTo(0.045);
     expect(wheelZoomDelta(0.1, -1, 1)).toBeCloseTo(0.0072);
