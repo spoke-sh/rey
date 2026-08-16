@@ -295,7 +295,7 @@ The operator-supplied 3022×1926 terrain reference and Rey's current 1920×1080
 WebGL2 Landscape capture were inspected side by side. The reference is an
 acceptance target, not admitted scene evidence and not a source asset. The Rey
 capture is bound to voyage manifest
-`sha256:4910c787354f0a1eecac0f60c787a41213c10526b7374ab098126be242dd124c`.
+`sha256:b541431325d4f690540b2e583e0be823b0a2ef5af232f52101ca17e919a0e2f8`.
 The fulfilled-transport WebGL2 voyage passed World → rotated Atlas → Landscape
 → Objects → exact Evidence without browser exceptions, no-data triangle leaks,
 or tile-seam mismatches. It is a traversal baseline rather than a named
@@ -303,24 +303,30 @@ Landscape-fidelity matrix row.
 
 That capture binds source compiler `rey.agent-geography.rey-county@5`,
 renderer geography `rey.terrain.regional-geography@4`, and material
-`rey.terrain.tsl-continuous-relief@3`. Local, midslope, and regional
-topographic tone now contributes only where each complete sampling window is
-valid, and the material retains stronger directional separation. The
-Landscape frame selected 80 finest-level tiles containing 87,120 tiled field
-cells, 6.1 MB of GPU input, zero support leaks, and zero seam mismatches. Its
-fulfilled-transport SwiftShader submission still took about 4.08 seconds and
-the visual change remains subordinate to the admitted source-resolution gap;
-neither number is a hardware performance claim.
+`rey.terrain.tsl-continuous-relief@3`. Render-pass compiler
+`rey.explorer.terrain-render-passes@3` clips water boundary triangles to the
+exact admitted polygon and derives every new boundary height barycentrically
+inside the same fully valid terrain triangle. Local, midslope, and regional
+topographic tone contributes only where each complete sampling window is
+valid, and the material retains stronger directional separation. The healthy
+accelerated posture also leaves duplicate SVG vectors as invisible focus
+surfaces, keeping labels and evidence semantics without drawing each road,
+rail, district, and water edge twice. The Landscape frame selected 80
+finest-level tiles containing 87,120 tiled field cells, 6.1 MB of GPU input,
+zero support leaks, and zero seam mismatches. Its fulfilled-transport
+SwiftShader submission took about 2.87 seconds; that transient value is not a
+hardware performance claim and the visual result remains subordinate to the
+admitted source-resolution gap.
 
-| Dimension      | Minimum acceptance read                                      | Current Rey County read                                                 | Gap   |
-| -------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- | ----- |
-| Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.             | Minor |
-| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Orographic backbones and branches now read, but local form stays soft.  | Major |
-| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Multiscale tone separates form, but the source still reads too softly.  | Major |
-| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.         | Major |
-| Water          | Continuous areas and terrain-following river hierarchy.      | Twelve exact features include river and wetland areas plus tributaries. | Major |
-| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.       | Major |
-| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | 4 highways, 12 roads, 4 rails, and 16 labels form a clearer hierarchy.  | Major |
+| Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
+| -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
+| Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Orographic backbones and branches now read, but local form stays soft. | Major |
+| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Multiscale tone separates form, but the source still reads too softly. | Major |
+| Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.        | Major |
+| Water          | Continuous areas and terrain-following river hierarchy.      | Exact clipped river/wetland areas and tributaries retain shorelines.   | Major |
+| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.      | Major |
+| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Accelerated vectors no longer receive a duplicate SVG drawing.         | Major |
 
 This matrix keeps the side-by-side delivery item open. Repeated object-per-cell
 browser transport is now replaced by a compact renderer-neutral payload that

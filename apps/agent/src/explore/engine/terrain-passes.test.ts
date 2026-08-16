@@ -11,6 +11,7 @@ import {
 import { compileExplorerRenderGraph } from "./render-graph";
 import {
   compileTerrainRenderPasses,
+  drapeTerrainArea,
   parseSvgPolylines,
 } from "./terrain-passes";
 import type { TerrainFieldSet } from "../terrain/compile";
@@ -125,6 +126,26 @@ describe("executable terrain render passes", () => {
         visible(),
       ),
     ).toBeNull();
+  });
+
+  it("clips a draped water surface to its exact admitted polygon edge", () => {
+    const positions = drapeTerrainArea(
+      "M15.7,0.8 L19.2,0.8 19.2,4.3 15.7,4.3 Z",
+      [terrainFixture()],
+      1.05,
+    );
+    expect(positions.length).toBeGreaterThan(0);
+    expect(positions.length % 9).toBe(0);
+    const x = Array.from(positions).filter(
+      (_, component) => component % 3 === 0,
+    );
+    const y = Array.from(positions).filter(
+      (_, component) => component % 3 === 2,
+    );
+    expect(Math.min(...x)).toBeCloseTo(15.7, 5);
+    expect(Math.max(...x)).toBeCloseTo(19.2, 5);
+    expect(Math.min(...y)).toBeCloseTo(0.8, 5);
+    expect(Math.max(...y)).toBeCloseTo(4.3, 5);
   });
 });
 

@@ -18,7 +18,7 @@ import {
 } from "./render-graph";
 
 export const TERRAIN_RENDER_PASS_COMPILER_REVISION =
-  "rey.explorer.terrain-render-passes@2" as const;
+  "rey.explorer.terrain-render-passes@3" as const;
 
 export function compileTerrainRenderPasses(
   scene: TopologyScene,
@@ -179,7 +179,7 @@ export function compileTerrainRenderPasses(
               pass_id: "water_weather_boundary",
               kind: "water_area",
               source_revision: `${node.id}:${feature.geometry_path}:${feature.geometry_representation}`,
-              authority: `${feature.authority}; surface is conservatively quantized to fully valid terrain triangles`,
+              authority: `${feature.authority}; surface edge is clipped to the exact admitted polygon within fully valid terrain triangles`,
               positions,
               color: 0x4f93a0,
               opacity: 0.48,
@@ -320,6 +320,7 @@ export function drapeTerrainArea(
   const rings = parseSvgPolylines(path);
   if (rings.length === 0) return new Float32Array();
   const positions: number[] = [];
+  const polygonBounds = pointBounds(rings.flat());
   for (const field of fields) {
     const indices = terrainTriangleIndices(field);
     const pointForIndex = (index: number) => {
@@ -338,16 +339,230 @@ export function drapeTerrainArea(
         pointForIndex(indices[index + 1]!),
         pointForIndex(indices[index + 2]!),
       ] as const;
-      const center = {
-        x: (triangle[0].x + triangle[1].x + triangle[2].x) / 3,
-        y: (triangle[0].y + triangle[1].y + triangle[2].y) / 3,
-      };
-      if (!pointInPolygon(center, rings)) continue;
-      for (const point of triangle)
-        positions.push(point.x, point.height, point.y);
+      if (!boundsIntersect(polygonBounds, pointBounds(triangle))) continue;
+      for (const clipped of clipTerrainTriangleToPolygon(triangle, rings))
+        for (const point of clipped)
+          positions.push(point.x, point.height, point.y);
     }
   }
   return Float32Array.from(positions);
+}
+
+interface DrapedAreaPoint {
+  x: number;
+  y: number;
+  height: number;
+}
+
+interface PointBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+function clipTerrainTriangleToPolygon(
+  triangle: readonly [DrapedAreaPoint, DrapedAreaPoint, DrapedAreaPoint],
+  rings: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
+): ReadonlyArray<readonly [DrapedAreaPoint, DrapedAreaPoint, DrapedAreaPoint]> {
+  const candidates: DrapedAreaPoint[] = [];
+  const append = (point: { x: number; y: number }) => {
+    if (
+      candidates.some(
+        (candidate) =>
+          Math.abs(candidate.x - point.x) <= 1e-6 &&
+          Math.abs(candidate.y - point.y) <= 1e-6,
+      )
+    )
+      return;
+    const height = terrainTriangleHeightAtPoint(triangle, point);
+    if (height === null) return;
+    candidates.push({ x: point.x, y: point.y, height });
+  };
+  for (const point of triangle)
+    if (pointInPolygonOrBoundary(point, rings)) append(point);
+  for (const ring of rings) {
+    for (const point of ring)
+      if (pointInTriangle(point, triangle)) append(point);
+    for (
+      let index = 0, previous = ring.length - 1;
+      index < ring.length;
+      previous = index++
+    ) {
+      const first = ring[previous]!;
+      const second = ring[index]!;
+      for (let edge = 0; edge < triangle.length; edge += 1) {
+        const intersection = segmentIntersection(
+          triangle[edge]!,
+          triangle[(edge + 1) % triangle.length]!,
+          first,
+          second,
+        );
+        if (intersection) append(intersection);
+      }
+    }
+  }
+  if (candidates.length < 3) return Object.freeze([]);
+  const center = candidates.reduce(
+    (result, point) => ({ x: result.x + point.x, y: result.y + point.y }),
+    { x: 0, y: 0 },
+  );
+  center.x /= candidates.length;
+  center.y /= candidates.length;
+  candidates.sort(
+    (left, right) =>
+      Math.atan2(left.y - center.y, left.x - center.x) -
+      Math.atan2(right.y - center.y, right.x - center.x),
+  );
+  const clipped: Array<
+    readonly [DrapedAreaPoint, DrapedAreaPoint, DrapedAreaPoint]
+  > = [];
+  for (let index = 1; index < candidates.length - 1; index += 1) {
+    const result = [
+      candidates[0]!,
+      candidates[index]!,
+      candidates[index + 1]!,
+    ] as const;
+    if (Math.abs(signedArea(result[0], result[1], result[2])) <= 1e-8) continue;
+    const probes = [
+      averagePoint(result),
+      midpoint(result[0], result[1]),
+      midpoint(result[1], result[2]),
+      midpoint(result[2], result[0]),
+    ];
+    if (probes.every((point) => pointInPolygonOrBoundary(point, rings)))
+      clipped.push(Object.freeze(result));
+  }
+  return Object.freeze(clipped);
+}
+
+function terrainTriangleHeightAtPoint(
+  triangle: readonly [DrapedAreaPoint, DrapedAreaPoint, DrapedAreaPoint],
+  point: { x: number; y: number },
+): number | null {
+  const denominator = signedArea(triangle[0], triangle[1], triangle[2]);
+  if (Math.abs(denominator) <= 1e-12) return null;
+  const first = signedArea(point, triangle[1], triangle[2]) / denominator;
+  const second = signedArea(triangle[0], point, triangle[2]) / denominator;
+  const third = 1 - first - second;
+  if (first < -1e-7 || second < -1e-7 || third < -1e-7) return null;
+  return (
+    triangle[0].height * first +
+    triangle[1].height * second +
+    triangle[2].height * third
+  );
+}
+
+function pointInTriangle(
+  point: { x: number; y: number },
+  triangle: readonly [DrapedAreaPoint, DrapedAreaPoint, DrapedAreaPoint],
+): boolean {
+  return terrainTriangleHeightAtPoint(triangle, point) !== null;
+}
+
+function segmentIntersection(
+  firstStart: { x: number; y: number },
+  firstEnd: { x: number; y: number },
+  secondStart: { x: number; y: number },
+  secondEnd: { x: number; y: number },
+): { x: number; y: number } | null {
+  const firstX = firstEnd.x - firstStart.x;
+  const firstY = firstEnd.y - firstStart.y;
+  const secondX = secondEnd.x - secondStart.x;
+  const secondY = secondEnd.y - secondStart.y;
+  const denominator = firstX * secondY - firstY * secondX;
+  if (Math.abs(denominator) <= 1e-12) return null;
+  const dx = secondStart.x - firstStart.x;
+  const dy = secondStart.y - firstStart.y;
+  const firstAmount = (dx * secondY - dy * secondX) / denominator;
+  const secondAmount = (dx * firstY - dy * firstX) / denominator;
+  if (
+    firstAmount < -1e-7 ||
+    firstAmount > 1 + 1e-7 ||
+    secondAmount < -1e-7 ||
+    secondAmount > 1 + 1e-7
+  )
+    return null;
+  return {
+    x: firstStart.x + firstX * firstAmount,
+    y: firstStart.y + firstY * firstAmount,
+  };
+}
+
+function pointInPolygonOrBoundary(
+  point: { x: number; y: number },
+  rings: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>,
+): boolean {
+  if (
+    rings.some((ring) =>
+      ring.some((second, index) =>
+        pointOnSegment(
+          point,
+          ring[(index + ring.length - 1) % ring.length]!,
+          second,
+        ),
+      ),
+    )
+  )
+    return true;
+  return pointInPolygon(point, rings);
+}
+
+function pointOnSegment(
+  point: { x: number; y: number },
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+): boolean {
+  if (Math.abs(signedArea(first, second, point)) > 1e-7) return false;
+  return (
+    point.x >= Math.min(first.x, second.x) - 1e-7 &&
+    point.x <= Math.max(first.x, second.x) + 1e-7 &&
+    point.y >= Math.min(first.y, second.y) - 1e-7 &&
+    point.y <= Math.max(first.y, second.y) + 1e-7
+  );
+}
+
+function signedArea(
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  third: { x: number; y: number },
+): number {
+  return (
+    (second.x - first.x) * (third.y - first.y) -
+    (second.y - first.y) * (third.x - first.x)
+  );
+}
+
+function averagePoint(points: readonly DrapedAreaPoint[]) {
+  return {
+    x: points.reduce((total, point) => total + point.x, 0) / points.length,
+    y: points.reduce((total, point) => total + point.y, 0) / points.length,
+  };
+}
+
+function midpoint(
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+) {
+  return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+}
+
+function pointBounds(points: readonly { x: number; y: number }[]): PointBounds {
+  return {
+    left: Math.min(...points.map(({ x }) => x)),
+    top: Math.min(...points.map(({ y }) => y)),
+    right: Math.max(...points.map(({ x }) => x)),
+    bottom: Math.max(...points.map(({ y }) => y)),
+  };
+}
+
+function boundsIntersect(first: PointBounds, second: PointBounds): boolean {
+  return !(
+    first.right < second.left ||
+    second.right < first.left ||
+    first.bottom < second.top ||
+    second.bottom < first.top
+  );
 }
 
 function pointInPolygon(

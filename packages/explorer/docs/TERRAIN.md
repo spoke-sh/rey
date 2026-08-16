@@ -161,9 +161,10 @@ support, and splits a line when support is absent. A native vector therefore
 cannot bridge a no-data hole merely because its endpoints are valid. The
 application also projects an exact admitted hydrology Polygon into a
 terrain-following water surface by selecting only supported terrain triangles
-whose centroids fall inside its even-odd rings. Its exact vector outline stays
-visible, while the filled edge is explicitly quantized to terrain resolution;
-no triangle touching a no-data vertex can enter the surface. The surface,
+and clipping each boundary triangle to the exact even-odd rings. Every clipped
+vertex receives a barycentric height from that same fully valid terrain
+triangle. The filled surface therefore retains the exact admitted shoreline
+without extending support; no triangle touching a no-data vertex can enter the surface. The surface,
 areas, lines, and point anchors share one R3F terrain group and one
 Atlas-to-Landscape model transform. Validity is represented by missing
 triangles over the canvas background, not by a rectangular mesh that can read
