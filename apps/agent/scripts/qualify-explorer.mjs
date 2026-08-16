@@ -1016,7 +1016,27 @@ async function waitForAtlasTerrainPrewarm(connection, timeoutMs) {
   );
 }
 
+async function waitForSettledExplorerCommunicationLayout(connection) {
+  await waitFor(
+    connection,
+    `(() => {
+      const footer = document.querySelector('[data-explorer-footer]');
+      const diagnostics = document.querySelector('[data-renderer-diagnostics]');
+      if (!footer || !diagnostics) return false;
+      const footerBounds = footer.getBoundingClientRect();
+      const diagnosticsBounds = diagnostics.getBoundingClientRect();
+      const visible = footer.getAttribute('data-visible') === 'true';
+      return visible
+        ? footerBounds.height > 24 && diagnosticsBounds.bottom <= footerBounds.top + 1
+        : footerBounds.height <= 1.5;
+    })()`,
+    "settled Explorer communication layout",
+    5_000,
+  );
+}
+
 async function captureStage(connection, voyageDirectory, stage, startedAt) {
+  await waitForSettledExplorerCommunicationLayout(connection);
   const evidence = await connection.evaluate(`(() => {
     const shell = document.querySelector("[data-scene-snapshot]");
     const projection = document.querySelector("[data-lens-regime]");
