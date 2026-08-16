@@ -242,6 +242,33 @@ relief rather than bright framing lines. This corrects composition and layer
 hierarchy, but the roughly one-kilometer 81x81 source still leaves the retained
 relief-fidelity comparison open.
 
+### Perceptual rebaseline — 2026-08-15
+
+The operator-supplied 3022×1926 terrain reference and Rey's retained 1920×1080
+WebGL2 Landscape capture were inspected side by side. The reference is an
+acceptance target, not admitted scene evidence and not a source asset. The Rey
+capture is bound to voyage manifest
+`sha256:d242976085c5632c65d65cc9c6230bac6fe37223dc26e6c1024d6dccc65d1e21`.
+
+| Dimension        | Minimum acceptance read                                      | Current Rey County read                                      | Gap   |
+| ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ----- |
+| Composition      | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.  | Minor |
+| Relief           | Fine ridges, valleys, benches, and drainage at many scales.   | Broad blurred lobes reveal roughly one-kilometer sampling.   | Major |
+| Hillshade        | Crisp multiscale form without faceting or muddy smoothing.    | Stable but low-frequency shading cannot recover source form. | Major |
+| Land cover       | Coherent local classes with terrain-following boundaries.     | Five broad tints read as washes rather than geography.       | Major |
+| Water            | Continuous areas and terrain-following river hierarchy.       | One wetland area plus angular admitted centerlines.          | Major |
+| Contours         | Scale-aware hierarchy reveals form without dominating it.     | Sparse derived lines inherit the coarse elevation field.     | Major |
+| Vectors/labels   | Roads, rail, structures, and labels resolve by semantic LOD.  | Landscape exposes hydrology but no geographic network read.  | Major |
+
+This matrix keeps the side-by-side delivery item open. The next source-fidelity
+slice must first replace repeated object-per-cell browser transport with a
+compact renderer-neutral field payload retaining exact artifact revision,
+dimensions, bounds, value channels, material palette, and validity mask. Only
+then should the geography compiler increase field density and emit a deeper
+water/transport/label hierarchy against named byte, compile, resident, and
+submission budgets. Interpolating or shading the current 81×81 field more
+aggressively is not an acceptable substitute for admitted source detail.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
