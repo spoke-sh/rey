@@ -1723,6 +1723,13 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
   const waterSystems = scene.natural_features.filter(
     (feature) => feature.kind === "stream" || feature.kind === "river",
   );
+  const admittedWater = scene.nodes.filter(
+    ({ spatial_feature }) => spatial_feature?.layer === "hydrology",
+  );
+  const admittedWaterAreas = admittedWater.filter(
+    ({ spatial_feature }) =>
+      spatial_feature?.geometry_kind.toLowerCase() === "polygon",
+  );
   const weatherFronts = scene.natural_features.filter(
     (feature) => feature.kind === "weather_front",
   );
@@ -1791,25 +1798,54 @@ export function ReferenceMapReading({ scene }: { scene: TopologyScene }) {
         </small>
       </div>
       <div className={sx(styles.mapKey)} aria-hidden="true">
-        <span>
-          <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
-        </span>
-        <span>
-          <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
-        </span>
-        <span>
-          <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
-        </span>
-        <span>
-          <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
-        </span>
+        {admittedWater.length > 0 ? (
+          <>
+            <span>
+              <i className={sx(styles.keyContour)} /> VALIDITY / CONTOURS
+            </span>
+            <span>
+              <i className={sx(styles.keyStream)} /> ADMITTED / CHANNEL
+            </span>
+            <span>
+              <i className={sx(styles.keyRiver)} /> ADMITTED / WATER AREA
+            </span>
+            <span>
+              <i className={sx(styles.keyWeather)} /> NO-DATA / BOUNDARY
+            </span>
+          </>
+        ) : (
+          <>
+            <span>
+              <i className={sx(styles.keyContour)} /> ANCHORS / RELIEF
+            </span>
+            <span>
+              <i className={sx(styles.keyStream)} /> RUNOFF / STREAM
+            </span>
+            <span>
+              <i className={sx(styles.keyRiver)} /> ACCUMULATION / RIVER
+            </span>
+            <span>
+              <i className={sx(styles.keyWeather)} /> UNRESOLVED / WEATHER
+            </span>
+          </>
+        )}
       </div>
       <div className={sx(styles.mapScale)} aria-hidden="true">
         <i className={sx(styles.mapScaleBar)} />
         <span>
-          {waterSystems.length} PROJECTED WATER SYSTEMS · {weatherFronts.length}{" "}
-          WEATHER FRONTS · {probes.length} PROBES · NO PATH CLAIM · LOD{" "}
-          {scene.regime.toUpperCase()}
+          {admittedWater.length > 0 ? (
+            <>
+              {admittedWater.length} ADMITTED WATER FEATURES ·{" "}
+              {admittedWaterAreas.length} WATER AREAS · EXACT PATHS
+            </>
+          ) : (
+            <>
+              {waterSystems.length} PROJECTED WATER SYSTEMS ·{" "}
+              {weatherFronts.length} WEATHER FRONTS · {probes.length} PROBES ·
+              NO PATH CLAIM
+            </>
+          )}{" "}
+          · LOD {scene.regime.toUpperCase()}
         </span>
       </div>
     </aside>

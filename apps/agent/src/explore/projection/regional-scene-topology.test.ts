@@ -593,7 +593,7 @@ describe("regional scene topology projection", () => {
     expect(markup).toContain('fill-rule="evenodd"');
     expect(markup).not.toContain('data-county-feature="regional-object:ridge"');
     expect(markup).not.toContain('data-feature-layer="terrain_control"');
-    expect(markup).toContain("ridge");
+    expect(markup).not.toContain("ridge");
     expect(markup).not.toContain('data-feature-label-visible="true"');
     expect(markup).not.toContain("topology-terrain-field");
     const objectCounty = buildTopologyScene(

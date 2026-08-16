@@ -1,14 +1,14 @@
 import type { TopologyScene } from "../../topology";
 
-export const EXPLORER_RENDER_GRAPH_REVISION = "rey.explorer.render-graph@2";
+export const EXPLORER_RENDER_GRAPH_REVISION = "rey.explorer.render-graph@3";
 
 export const EXPLORER_RENDER_PASS_REVISIONS = Object.freeze({
   validity_background: "rey.render-pass.validity-background@1",
   base_terrain: "rey.render-pass.base-terrain@1",
   height_normals_hillshade: "rey.render-pass.height-normals-hillshade@1",
   ambient_valley_occlusion: "rey.render-pass.ambient-valley-occlusion@1",
-  contours: "rey.render-pass.contours@1",
-  water_weather_boundary: "rey.render-pass.water-weather-boundary@1",
+  contours: "rey.render-pass.contours@2",
+  water_weather_boundary: "rey.render-pass.water-weather-boundary@2",
   features_labels_selection: "rey.render-pass.features-labels-selection@1",
   evidence_accessibility: "rey.render-pass.evidence-accessibility@1",
 } satisfies Record<ExplorerRenderPassId, string>);
@@ -197,14 +197,13 @@ export function compileExplorerRenderGraph(
   ]);
   return Object.freeze({
     schema: "rey.explorer-render-graph.v1",
-    graph_id: [
-      EXPLORER_RENDER_GRAPH_REVISION,
-      scene.regime,
-      ...passes.map(
+    graph_id: compactPresentationRevision(
+      `${EXPLORER_RENDER_GRAPH_REVISION}:${scene.regime}`,
+      passes.map(
         (pass) =>
           `${pass.id}:${pass.enabled ? 1 : 0}:${pass.implementation_revision}:${pass.input_revision}:${pass.depends_on.join(",")}`,
       ),
-    ].join("|"),
+    ),
     compiler_revision: EXPLORER_RENDER_GRAPH_REVISION,
     passes,
   });
@@ -232,5 +231,27 @@ function renderPass(
 function revisionOf(values: readonly string[]): string {
   return values.length === 0
     ? "input:none"
-    : [...values].sort((left, right) => left.localeCompare(right)).join("|");
+    : compactPresentationRevision("input", values);
+}
+
+export function compactPresentationRevision(
+  namespace: string,
+  values: readonly string[],
+): string {
+  let first = 2_166_136_261;
+  let second = 2_654_435_769;
+  let characters = 0;
+  const update = (value: string) => {
+    for (let index = 0; index < value.length; index += 1) {
+      const code = value.charCodeAt(index);
+      first = Math.imul(first ^ code, 16_777_619);
+      second = Math.imul(second ^ code, 2_246_822_519);
+      characters += 1;
+    }
+    first = Math.imul(first ^ 0xff, 16_777_619);
+    second = Math.imul(second ^ 0xff, 2_246_822_519);
+  };
+  [...values].sort((left, right) => left.localeCompare(right)).forEach(update);
+  const hex = (value: number) => (value >>> 0).toString(16).padStart(8, "0");
+  return `${namespace}:presentation-hash64:${hex(first)}${hex(second)}:${values.length}:${characters}`;
 }

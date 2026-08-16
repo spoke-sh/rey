@@ -65,10 +65,13 @@ describe("Explorer render graph", () => {
       graph.passes.find(({ id }) => id === "height_normals_hillshade"),
     ).toMatchObject({
       implementation_revision: "rey.render-pass.height-normals-hillshade@1",
-      input_revision:
-        "terrain:one:source:one:elevation:one|terrain:one:source:one:normal:one",
       depends_on: ["base_terrain"],
     });
+    expect(
+      graph.passes.find(({ id }) => id === "height_normals_hillshade")
+        ?.input_revision,
+    ).toMatch(/^input:presentation-hash64:[0-9a-f]{16}:2:/);
+    expect(graph.graph_id.length).toBeLessThan(128);
     expect(Object.isFrozen(graph.passes)).toBe(true);
   });
 
@@ -105,6 +108,20 @@ describe("Explorer render graph", () => {
         ],
       }).graph_id,
     ).not.toBe(first.graph_id);
+  });
+
+  it("keeps presentation identities bounded when vector paths are large", () => {
+    const scene = sceneFixture();
+    const path = `M0,0 ${"L10,10 ".repeat(100_000)}`;
+    const graph = compileExplorerRenderGraph({
+      ...scene,
+      contours: [{ ...scene.contours[0]!, path }],
+    });
+    expect(graph.graph_id.length).toBeLessThan(128);
+    expect(
+      graph.passes.find(({ id }) => id === "contours")?.input_revision.length,
+    ).toBeLessThan(128);
+    expect(graph.graph_id).not.toContain(path);
   });
 
   it("projects transient controls without changing graph identity", () => {

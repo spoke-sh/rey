@@ -46,9 +46,11 @@ describe("executable terrain render passes", () => {
       compiled?.passes.find(({ id }) => id === "base_terrain"),
     ).toMatchObject({
       implementation_revision: "rey.render-pass.base-terrain@1",
-      input_revision: "terrain:fixture:source:fixture:material:fixture",
       authority: "derived",
     });
+    expect(
+      compiled?.passes.find(({ id }) => id === "base_terrain")?.input_revision,
+    ).toMatch(/^input:presentation-hash64:/);
     const contours = compiled?.lines.filter(({ kind }) => kind === "contour");
     expect(contours).toHaveLength(2);
     for (const contour of contours ?? []) {
@@ -75,7 +77,10 @@ describe("executable terrain render passes", () => {
       ),
     ).toEqual(expect.arrayContaining([expect.any(Number)]));
     expect(water?.authority).toContain("fully valid terrain triangles");
-    expect(compiled?.pass_set_id).toContain(graph.graph_id);
+    expect(compiled?.pass_set_id).toMatch(
+      /^rey\.terrain-render-pass-set\.v1:presentation-hash64:/,
+    );
+    expect(compiled?.pass_set_id.length).toBeLessThan(128);
     expect(Object.isFrozen(compiled?.areas)).toBe(true);
     expect(Object.isFrozen(compiled?.lines)).toBe(true);
   });

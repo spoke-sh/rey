@@ -11,13 +11,14 @@ import { fieldPoint } from "./fields";
 import { featureVisibleAtLens } from "./cartography";
 import {
   activeExplorerRenderPasses,
+  compactPresentationRevision,
   type ExplorerRenderGraph,
   type ExplorerRenderVisibility,
   type ExplorerRenderPassId,
 } from "./render-graph";
 
 export const TERRAIN_RENDER_PASS_COMPILER_REVISION =
-  "rey.explorer.terrain-render-passes@1" as const;
+  "rey.explorer.terrain-render-passes@2" as const;
 
 export function compileTerrainRenderPasses(
   scene: TopologyScene,
@@ -85,7 +86,7 @@ export function compileTerrainRenderPasses(
         id: contour.id,
         pass_id: "contours",
         kind: "contour",
-        source_revision: `${contour.id}:${contour.threshold}:${contour.path}`,
+        source_revision: `${contour.id}:${contour.threshold}`,
         authority: "derived contour over the same admitted validity field",
         path: contour.path,
         color: 0x756d54,
@@ -173,7 +174,7 @@ export function compileTerrainRenderPasses(
         authority: feature.authority,
         path: feature.geometry_path,
         color: featureColor(feature.layer, node.focus_id === scene.focus_id),
-        opacity: node.focus_id === scene.focus_id ? 0.82 : 0.58,
+        opacity: node.focus_id === scene.focus_id ? 0.72 : 0.42,
       });
     }
   }
@@ -259,19 +260,21 @@ export function compileTerrainRenderPasses(
   }
 
   const bounds = terrainBounds(scene.terrain_fields);
-  const passSetId = [
+  const passSetId = compactPresentationRevision(
     "rey.terrain-render-pass-set.v1",
-    TERRAIN_RENDER_PASS_COMPILER_REVISION,
-    graph.graph_id,
-    ...passes.map(
-      (pass) =>
-        `${pass.id}:${pass.implementation_revision}:${pass.input_revision}`,
-    ),
-    ...areas.map(({ id, source_revision }) => `${id}:${source_revision}`),
-    ...lines.map(({ id, source_revision }) => `${id}:${source_revision}`),
-    ...points.map(({ id, source_revision }) => `${id}:${source_revision}`),
-    ...omissions,
-  ].join("|");
+    [
+      TERRAIN_RENDER_PASS_COMPILER_REVISION,
+      graph.graph_id,
+      ...passes.map(
+        (pass) =>
+          `${pass.id}:${pass.implementation_revision}:${pass.input_revision}`,
+      ),
+      ...areas.map(({ id, source_revision }) => `${id}:${source_revision}`),
+      ...lines.map(({ id, source_revision }) => `${id}:${source_revision}`),
+      ...points.map(({ id, source_revision }) => `${id}:${source_revision}`),
+      ...omissions,
+    ],
+  );
   return Object.freeze({
     schema: "rey.terrain-render-pass-set.v1",
     pass_set_id: passSetId,

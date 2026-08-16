@@ -84,7 +84,7 @@ interaction and the semantic projection curve.
 
 ## Executable Geographic Passes
 
-`@rey/agent` owns `rey.explorer.render-graph@2` and compiles its active terrain
+`@rey/agent` owns `rey.explorer.render-graph@3` and compiles its active terrain
 subset into `rey.terrain-render-pass-set.v1`. The package accepts only typed,
 already bounded inputs:
 
@@ -101,7 +101,11 @@ already bounded inputs:
 
 Every pass binds an implementation revision, input revision, and dependency.
 The material and scene identity include the compiled pass-set identity. A
-missing dependency prevents its children from executing.
+missing dependency prevents its children from executing. Presentation graph
+and pass-set identifiers compact their sorted exact inputs into a bounded
+64-bit invalidation hash plus input count and character count. The compact
+identifier is cache/invalidation mechanism, not source evidence; exact source
+revisions and geometry remain on the scene and individual pass inputs.
 
 Line draping is conservative. The compiler adds probes at every crossed field
 grid boundary and within every crossed cell, evaluates only fully valid source
