@@ -396,6 +396,13 @@ describe("regional scene topology projection", () => {
       latitude_degrees: 18,
       angular_radius_degrees: 0,
     });
+    // The globe compiled mid-transition (before regime ever reaches "world")
+    // must seed its sample fabric from the same identity the retained World
+    // globe carries, or the fabric's deterministic rotation phase jumps the
+    // first time the World globe takes over — reading as an unwanted spin.
+    expect(world.world_atlas_transition?.globe_source_revision).toBe(
+      world.globe?.source_revision,
+    );
     expect(world.world_atlas_transition).toMatchObject({
       schema: "rey.world-atlas-transition.v1",
       atlas_revision: "atlas:1",
@@ -1075,10 +1082,11 @@ describe("regional scene topology projection", () => {
     packedTerrain.evaluator.revision = 2;
     packedTerrain.authority = packedGrid.authority;
     packedScene.artifacts.terrain_authority = packedGrid.authority;
-    packedScene.projection.layers = packedScene.projection.layers.map((layer) =>
-      layer.kind === "terrain"
-        ? { ...layer, authority: packedGrid.authority }
-        : layer,
+    packedScene.projection.layers = packedScene.projection.layers.map(
+      (layer) =>
+        layer.kind === "terrain"
+          ? { ...layer, authority: packedGrid.authority }
+          : layer,
     );
     const packedCounty = buildTopologyScene(
       packedPortfolio,

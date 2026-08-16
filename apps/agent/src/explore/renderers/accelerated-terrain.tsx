@@ -240,7 +240,11 @@ export function AcceleratedTerrainSurface({
       schema: "rey.semantic-globe-scene.v1" as const,
       posture: "semantic_atlas" as const,
       globe_id: `atlas-map:${transition.atlas_revision}`,
-      source_revision: transition.atlas_revision,
+      // Matches the identity `buildRegionalWorld` will assign once regime
+      // reaches "world", so the sample fabric's deterministic rotation phase
+      // (seeded from source_revision) stays continuous across the handoff
+      // instead of snapping when the retained World globe takes over.
+      source_revision: transition.globe_source_revision,
       compiler_revision: transition.projection_revision,
       coordinate_authority: transition.authority,
       clusters: [],
@@ -511,26 +515,23 @@ export function AcceleratedTerrainSurface({
     () => (projectionGlobe ? compileContextGlobe(projectionGlobe) : null),
     [projectionGlobe],
   );
-  const terrainRenderPasses = useMemo(
-    () => {
-      if (semanticGlobe) return null;
-      return compileTerrainRenderPasses(
-        snapshot.scene,
-        snapshot.render_graph,
-        renderVisibility,
-        activeTerrain?.result.derived_lines,
-      );
-    },
-    [
-      renderVisibility.contours,
-      renderVisibility.probes,
-      renderVisibility.water,
-      renderVisibility.weather,
-      activeTerrain?.job_id,
-      semanticGlobe,
-      snapshot.snapshot_id,
-    ],
-  );
+  const terrainRenderPasses = useMemo(() => {
+    if (semanticGlobe) return null;
+    return compileTerrainRenderPasses(
+      snapshot.scene,
+      snapshot.render_graph,
+      renderVisibility,
+      activeTerrain?.result.derived_lines,
+    );
+  }, [
+    renderVisibility.contours,
+    renderVisibility.probes,
+    renderVisibility.water,
+    renderVisibility.weather,
+    activeTerrain?.job_id,
+    semanticGlobe,
+    snapshot.snapshot_id,
+  ]);
   const terrainCompilation = useMemo(() => {
     if (semanticGlobe || !activeTerrain?.compiled) return null;
     if (!terrainRenderPasses) return activeTerrain.compiled;

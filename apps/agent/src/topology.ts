@@ -295,6 +295,14 @@ export interface TopologyWorldAtlasSector {
 export interface TopologyWorldAtlasTransition {
   schema: "rey.world-atlas-transition.v1";
   atlas_revision: string;
+  /**
+   * The exact identity `buildRegionalWorld` will assign the World regime's
+   * globe once regime flips to "world". A presentation-only globe compiled
+   * mid-transition must seed its sample fabric from this same identity, or
+   * the fabric's deterministic rotation phase jumps the moment the retained
+   * World globe takes over, reading as the globe suddenly spinning.
+   */
+  globe_source_revision: string;
   projection_revision: string;
   atlas_frame: { x: number; y: number; width: number; height: number };
   points: TopologyWorldAtlasPoint[];
@@ -413,7 +421,10 @@ export function buildTopologyScene(
       (regime === "world" ||
         regime === "atlas" ||
         (regime === "landscape" && atlasLandscape !== null))
-        ? buildWorldAtlasTransition(regionalScenes)
+        ? buildWorldAtlasTransition(
+            regionalScenes,
+            portfolio.semantic_atlas ?? null,
+          )
         : null,
     atlas_landscape_transition: atlasLandscape?.transition ?? null,
     county_frame: projection.county_frame ?? null,
@@ -479,8 +490,27 @@ export type TopologyProjection = Omit<
   county_footprint?: ProjectedCountyFootprint | null;
 };
 
+/**
+ * The identity a World regime globe compiled from `regionalScenes` carries.
+ * Shared by `buildRegionalWorld` and `buildWorldAtlasTransition` so a globe
+ * compiled mid-transition (before regime has actually reached "world") and
+ * the retained World globe agree on the same deterministic sample fabric.
+ */
+function regionalWorldSourceRevision(
+  regionalScenes: AdmittedRegionalProjection[],
+  atlas: SemanticAtlas | null,
+): string {
+  const packetRevisions = regionalScenes
+    .map(({ scene }) => scene.projection.packet_id)
+    .sort((left, right) => left.localeCompare(right));
+  return [...packetRevisions, ...(atlas ? [atlas.atlas_revision] : [])].join(
+    "+",
+  );
+}
+
 function buildWorldAtlasTransition(
   regionalScenes: AdmittedRegionalProjection[],
+  atlas: SemanticAtlas | null,
 ): TopologyWorldAtlasTransition {
   const sectors = new Map(
     regionalScenes.map(({ atlas_sector: sector }) => [
@@ -493,6 +523,7 @@ function buildWorldAtlasTransition(
   return {
     schema: "rey.world-atlas-transition.v1",
     atlas_revision: atlasRevision,
+    globe_source_revision: regionalWorldSourceRevision(regionalScenes, atlas),
     projection_revision: SEMANTIC_MERCATOR_PROJECTION_REVISION,
     atlas_frame: semanticMercatorFrame(),
     points: regionalScenes
@@ -889,13 +920,7 @@ function buildRegionalWorld(
         : "omitted",
     }),
   );
-  const packetRevisions = regionalScenes
-    .map(({ scene }) => scene.projection.packet_id)
-    .sort((left, right) => left.localeCompare(right));
-  const sourceRevision = [
-    ...packetRevisions,
-    ...(atlas ? [atlas.atlas_revision] : []),
-  ].join("+");
+  const sourceRevision = regionalWorldSourceRevision(regionalScenes, atlas);
   return {
     regime: "world",
     label: "REGIONAL EVIDENCE WORLD",
