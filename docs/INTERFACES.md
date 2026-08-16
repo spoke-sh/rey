@@ -1126,10 +1126,14 @@ index, just like `workloads list`, while decoding the retained workload state
 only once per projection. The lightweight `rey.ui-revalidation.v1` cursor
 hashes the exact bytes of the bounded workload, catalog, environment, Git,
 Channel/Observation, and conversation roots. It grants change-detection
-authority only: an unchanged cursor suppresses redundant heavyweight
-portfolio reads and reuses only response bytes keyed by that exact source
-revision, while a changed cursor invalidates the response cache and causes the
-browser to reload and validate the typed projections. The environment endpoint is derived anew
+authority only: an unchanged cursor suppresses redundant browser reads, while
+a changed cursor causes the browser to reload and validate typed projections.
+Each heavyweight projection owns a narrower dependency revision. The workload
+list and workload-evidence responses are cached against exact workload state,
+catalog, `.reyignore`, environment, and Git bytes; Channel or conversation
+activity may wake the browser but cannot invalidate and repeatedly rebuild an
+unchanged workload projection. A changed workload dependency still invalidates
+those cached bytes. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
 

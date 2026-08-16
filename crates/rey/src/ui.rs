@@ -600,11 +600,32 @@ impl UiServer {
         })
     }
 
+    fn workload_projection_revision(&self) -> Result<SemanticDigest, String> {
+        let catalog = if self.config.catalog_directory.is_absolute() {
+            self.config.catalog_directory.clone()
+        } else {
+            self.config.workspace.join(&self.config.catalog_directory)
+        };
+        let sources = [
+            ("workloads", self.config.state_directory.clone()),
+            ("catalog", catalog),
+            ("ignore", self.config.workspace.join(".reyignore")),
+            (
+                "environment",
+                self.config.workspace.join(".rey").join("environment"),
+            ),
+            ("git", self.config.workspace.join(".rey").join("git")),
+        ];
+        let mut hasher = SemanticHasher::new("rey.ui-workload-projection-revision.v1");
+        let mut scan = RevalidationScan::default();
+        for (label, root) in sources {
+            hash_revalidation_source(&mut hasher, label, &root, &mut scan)?;
+        }
+        Ok(hasher.finish())
+    }
+
     fn workloads(&self) -> Response<Cursor<Vec<u8>>> {
-        let source_revision = self
-            .revalidation_cursor()
-            .ok()
-            .map(|cursor| cursor.revision);
+        let source_revision = self.workload_projection_revision().ok();
         if let Some(revision) = &source_revision
             && let Ok(cache) = self.projection_cache.lock()
             && let Some(cached) = &cache.workloads
@@ -628,10 +649,7 @@ impl UiServer {
     }
 
     fn workload_evidence(&self) -> Response<Cursor<Vec<u8>>> {
-        let source_revision = self
-            .revalidation_cursor()
-            .ok()
-            .map(|cursor| cursor.revision);
+        let source_revision = self.workload_projection_revision().ok();
         if let Some(revision) = &source_revision
             && let Ok(cache) = self.projection_cache.lock()
             && let Some(cached) = &cache.workload_evidence
@@ -705,9 +723,9 @@ impl UiServer {
         };
         if let Some(source_revision) = source_revision
             && self
-                .revalidation_cursor()
+                .workload_projection_revision()
                 .ok()
-                .is_some_and(|cursor| cursor.revision == source_revision)
+                .is_some_and(|revision| revision == source_revision)
             && let Ok(mut cache) = self.projection_cache.lock()
         {
             retain(
@@ -2302,7 +2320,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(46 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(49 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -2367,6 +2385,26 @@ mod tests {
         assert!(workloads.contains("\"index\":null"));
         let cached_workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert_eq!(response_body(&cached_workloads), response_body(&workloads));
+
+        let global_before = request(&address, "GET /api/v1/revalidation HTTP/1.1");
+        let global_before: serde_json::Value =
+            serde_json::from_str(response_body(&global_before)).unwrap();
+        let unrelated_conversation_directory = workspace.path().join(".rey/conversations");
+        fs::create_dir_all(&unrelated_conversation_directory).unwrap();
+        fs::write(
+            unrelated_conversation_directory.join("unrelated-ui-tick"),
+            "conversation state does not feed the workload projection",
+        )
+        .unwrap();
+        let global_after = request(&address, "GET /api/v1/revalidation HTTP/1.1");
+        let global_after: serde_json::Value =
+            serde_json::from_str(response_body(&global_after)).unwrap();
+        assert_ne!(global_after["revision"], global_before["revision"]);
+        let workloads_after_unrelated_tick = request(&address, "GET /api/v1/workloads HTTP/1.1");
+        assert_eq!(
+            response_body(&workloads_after_unrelated_tick),
+            response_body(&workloads)
+        );
 
         let approval = serde_json::json!({
             "message": "Approve exact context survey",

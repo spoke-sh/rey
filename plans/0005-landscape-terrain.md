@@ -136,10 +136,20 @@ and 88.77–1,721.67 meters of authored semantic relief. Revision
 and micro relief, authored-hydrology carving, coherent land-cover inputs, and
 the explicit absence of cross-package stitching. The source is generated
 reproducibly from checked-in boundary, feature, hydrology, and terrain-control
-inputs and must still travel through the ordinary editor and scene-admission
-path before `/explore` can consume it. This improves the default project
-bearing without treating terrain controls as observed height or closing the
-still-open named fidelity matrix.
+inputs. It has traveled through editor admission as `SCENE@4` and passed the
+`scene-admission` workload before `/explore` consumption. This improves the
+default project bearing without treating terrain controls as observed height
+or closing the still-open named fidelity matrix.
+
+That admission also exposes a transport boundary. The current workload-list
+JSON is about 10.6 MB because it repeats thousands of terrain projections and
+grid cells; one cold local projection takes about eight seconds on the
+development machine. The UI now caches this heavyweight projection against
+its exact workload, catalog, ignore, environment, and Git dependencies, so an
+unrelated Channel or conversation revalidation tick cannot trigger a rebuild
+loop. Raster-native field transport, non-repeated summaries, and lazy exact
+terrain evidence remain required before this source density is a scalable
+browser contract.
 
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores
@@ -276,7 +286,7 @@ subsequent slices of the same boundary.
 - [x] Establish a cartographic layer hierarchy in which relief, water, land
       cover, and contours form the base read and semantic envelopes, markers,
       and selection cannot dominate at Landscape LOD.
-- [ ] Revise the Rey County geography compiler and admitted dataset to carry
+- [x] Revise the Rey County geography compiler and admitted dataset to carry
       denser multi-scale landforms, drainage response, and coherent land-cover
       fields under exact deterministic lineage and validity.
 - [ ] Add explicit water surfaces/areas and scale-aware contour styling before
