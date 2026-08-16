@@ -1267,37 +1267,79 @@ function GlobeSector({
   world: { width: number; height: number };
   wrapIndex: number;
 }) {
-  const meshes = useMemo(
-    () =>
-      buildProjectedBoundsMeshes(
-        {
-          west_degrees: sector.west_degrees,
-          south_degrees: sector.south_degrees,
-          east_degrees: sector.east_degrees,
-          north_degrees: sector.north_degrees,
-          crosses_antimeridian: sector.crosses_antimeridian,
-        },
+  // The bent seam-connection math a repeated sector needs is exact and
+  // linear in the eased morph progress (verified against buildProjectedBoundsMeshes
+  // directly across sampled progress values and both wrap directions), so
+  // the sphere/atlas endpoints can be built once per (bounds, view, wrapIndex)
+  // and blended every frame with a cheap array lerp instead of re-running
+  // buildProjectedBoundsMeshes' full trigonometric projection on every vertex,
+  // every frame, for every sector on screen.
+  const endpointMeshes = useMemo(() => {
+    const bounds = {
+      west_degrees: sector.west_degrees,
+      south_degrees: sector.south_degrees,
+      east_degrees: sector.east_degrees,
+      north_degrees: sector.north_degrees,
+      crosses_antimeridian: sector.crosses_antimeridian,
+    };
+    return {
+      sphere: buildProjectedBoundsMeshes(
+        bounds,
         view,
         world,
-        progress,
+        0,
         16,
         10,
         wrapIndex,
       ),
-    [
-      progress,
-      sector.crosses_antimeridian,
-      sector.east_degrees,
-      sector.north_degrees,
-      sector.south_degrees,
-      sector.west_degrees,
-      view.pitch_degrees,
-      view.yaw_degrees,
-      wrapIndex,
-      world.height,
-      world.width,
-    ],
-  );
+      atlas: buildProjectedBoundsMeshes(
+        bounds,
+        view,
+        world,
+        1,
+        16,
+        10,
+        wrapIndex,
+      ),
+    };
+  }, [
+    sector.crosses_antimeridian,
+    sector.east_degrees,
+    sector.north_degrees,
+    sector.south_degrees,
+    sector.west_degrees,
+    view.pitch_degrees,
+    view.yaw_degrees,
+    wrapIndex,
+    world.height,
+    world.width,
+  ]);
+  const interpolationBuffersRef = useRef<
+    ProjectedGlobeMeshInterpolationBuffer[]
+  >([]);
+  const meshes = useMemo(() => {
+    const easedProgress = 1 - globeProjectionMorphRemaining(progress);
+    const buffers = interpolationBuffersRef.current;
+    return endpointMeshes.sphere.map((sphereSpan, index) => {
+      const atlasSpan = endpointMeshes.atlas[index]!;
+      const retained = buffers[index];
+      const buffer =
+        retained &&
+        retained.positions.length === sphereSpan.positions.length &&
+        retained.normals.length === sphereSpan.normals.length
+          ? retained
+          : (buffers[index] = {
+              positions: new Float32Array(sphereSpan.positions.length),
+              normals: new Float32Array(sphereSpan.normals.length),
+            });
+      return interpolateProjectedGlobeMeshes(
+        sphereSpan,
+        atlasSpan,
+        easedProgress,
+        buffer,
+      );
+    });
+  }, [endpointMeshes, progress]);
   const unwrappedEast =
     sector.crosses_antimeridian || sector.east_degrees < sector.west_degrees
       ? sector.east_degrees + 360

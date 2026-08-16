@@ -16,6 +16,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
 import {
+  buildProjectedBoundsMeshes,
   globeAtlasRepeatOpacity,
   globeAtlasRepeatOffset,
   globeAtlasWidth,
@@ -705,6 +706,89 @@ describe("declarative React Three Fiber scenes", () => {
     expect(
       (updatedHaloMesh!.material as MeshBasicNodeMaterial).opacity,
     ).not.toBeCloseTo(haloOpacity);
+
+    await renderer.unmount();
+  });
+
+  it("matches direct sector projection exactly across morph frames, canonical and repeated", async () => {
+    const world = { width: 1200, height: 720 };
+    const baseView = { yaw_degrees: 24, pitch_degrees: -8 };
+    const compiled = compileContextGlobe(globeFixture());
+    const bounds = {
+      west_degrees: -60,
+      south_degrees: 10,
+      east_degrees: -30,
+      north_degrees: 30,
+      crosses_antimeridian: false,
+    };
+
+    const renderer = await create(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{ ...baseView, projection_morph_progress: 0.35 }}
+        world={world}
+      />,
+    );
+
+    const expectSectorMatches = (
+      name: string,
+      wrapIndex: number,
+      progress: number,
+    ) => {
+      const rendered = renderer.scene.findByProps({ name }).instance as Mesh;
+      const expected = buildProjectedBoundsMeshes(
+        bounds,
+        baseView,
+        world,
+        progress,
+        16,
+        10,
+        wrapIndex,
+      )[0]!;
+      const renderedPositions =
+        rendered.geometry.getAttribute("position").array;
+      for (let index = 0; index < expected.positions.length; index += 1)
+        expect(renderedPositions[index]).toBeCloseTo(
+          expected.positions[index]!,
+          4,
+        );
+    };
+
+    expectSectorMatches("context-globe-sector:sector:fixture:0", 0, 0.35);
+    expectSectorMatches(
+      "context-globe-sector:sector:fixture:wrap:1:0",
+      1,
+      0.35,
+    );
+    expectSectorMatches(
+      "context-globe-sector:sector:fixture:wrap:-1:0",
+      -1,
+      0.35,
+    );
+
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{ ...baseView, projection_morph_progress: 0.83 }}
+        world={world}
+      />,
+    );
+
+    // A later frame at a different progress: the cached sphere/atlas
+    // endpoints are reused, but the blended output must still match what
+    // buildProjectedBoundsMeshes computes directly for that exact progress —
+    // proving the endpoint-cache-and-lerp approach is not an approximation.
+    expectSectorMatches("context-globe-sector:sector:fixture:0", 0, 0.83);
+    expectSectorMatches(
+      "context-globe-sector:sector:fixture:wrap:1:0",
+      1,
+      0.83,
+    );
+    expectSectorMatches(
+      "context-globe-sector:sector:fixture:wrap:-1:0",
+      -1,
+      0.83,
+    );
 
     await renderer.unmount();
   });
