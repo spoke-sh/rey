@@ -149,7 +149,11 @@ its exact workload, catalog, ignore, environment, and Git dependencies, so an
 unrelated Channel or conversation revalidation tick cannot trigger a rebuild
 loop. Raster-native field transport, non-repeated summaries, and lazy exact
 terrain evidence remain required before this source density is a scalable
-browser contract.
+browser contract. A local debug measurement over the exact admitted `SCENE@4`
+workload list retained 10,605,502 decoded JSON bytes, 1,712,485 gzip wire bytes,
+an 8.13-second cold projection, and a 36-millisecond warm projection over
+`127.0.0.1`. This closes the repeated-send regression, not the cold-compute or
+semantic-duplication gap.
 
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores

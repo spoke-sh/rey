@@ -1,6 +1,6 @@
 use std::{
     env, fs,
-    io::{Cursor, Read},
+    io::{Cursor, Read, Write},
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
     sync::{
@@ -10,6 +10,7 @@ use std::{
     time::Duration,
 };
 
+use flate2::{Compression, write::GzEncoder};
 use rey::{
     channels::{
         ChannelGraph, ChannelGraphSource, ChannelMailboxProjection, ChannelObservationKind,
@@ -373,6 +374,7 @@ struct UiProjectionCache {
 struct CachedJsonProjection {
     source_revision: SemanticDigest,
     bytes: Vec<u8>,
+    gzip_bytes: Vec<u8>,
 }
 
 impl UiServer {
@@ -464,6 +466,7 @@ impl UiServer {
             .split_once('?')
             .map_or((request.url(), None), |(path, query)| (path, Some(query)));
         let head = request.method() == &Method::Head;
+        let accepts_gzip = accepts_content_encoding(request, "gzip");
         if request.method() == &Method::Post && path == "/api/v1/journal" {
             return self.admit_journal(request);
         }
@@ -506,9 +509,9 @@ impl UiServer {
             "/api/v1/journal/queries" => self.journal_queries(),
             "/api/v1/journal/seed" => self.journal_seed(query),
             "/api/v1/observations" => self.observations(),
-            "/api/v1/workloads" => self.workloads(),
+            "/api/v1/workloads" => self.workloads(accepts_gzip),
             "/api/v1/workloads/admissions" => self.workload_admissions(),
-            "/api/v1/workloads/evidence" => self.workload_evidence(),
+            "/api/v1/workloads/evidence" => self.workload_evidence(accepts_gzip),
             path if path.starts_with("/api/v1/workloads/") => self.exact_workload_evidence(path),
             path if path.starts_with("/api/") => json_error(
                 StatusCode(404),
@@ -624,14 +627,14 @@ impl UiServer {
         Ok(hasher.finish())
     }
 
-    fn workloads(&self) -> Response<Cursor<Vec<u8>>> {
+    fn workloads(&self, accepts_gzip: bool) -> Response<Cursor<Vec<u8>>> {
         let source_revision = self.workload_projection_revision().ok();
         if let Some(revision) = &source_revision
             && let Ok(cache) = self.projection_cache.lock()
             && let Some(cached) = &cache.workloads
             && &cached.source_revision == revision
         {
-            return json_bytes_response(StatusCode(200), cached.bytes.clone());
+            return cached_json_response(StatusCode(200), cached, accepts_gzip);
         }
         let result = {
             let store = LocalWorkloadStore::new(self.config.state_directory.clone());
@@ -643,19 +646,19 @@ impl UiServer {
             .map_err(|error| error.to_string())
         };
         match result {
-            Ok(list) => self.cache_workloads(source_revision, &list),
+            Ok(list) => self.cache_workloads(source_revision, &list, accepts_gzip),
             Err(detail) => json_error(StatusCode(500), "portfolio_unavailable", &detail),
         }
     }
 
-    fn workload_evidence(&self) -> Response<Cursor<Vec<u8>>> {
+    fn workload_evidence(&self, accepts_gzip: bool) -> Response<Cursor<Vec<u8>>> {
         let source_revision = self.workload_projection_revision().ok();
         if let Some(revision) = &source_revision
             && let Ok(cache) = self.projection_cache.lock()
             && let Some(cached) = &cache.workload_evidence
             && &cached.source_revision == revision
         {
-            return json_bytes_response(StatusCode(200), cached.bytes.clone());
+            return cached_json_response(StatusCode(200), cached, accepts_gzip);
         }
         let store = LocalWorkloadStore::new(self.config.state_directory.clone());
         let state = match store.load() {
@@ -680,7 +683,7 @@ impl UiServer {
         };
         let result = workload_evidence_catalog(&catalog, &state);
         match result {
-            Ok(evidence) => self.cache_workload_evidence(source_revision, &evidence),
+            Ok(evidence) => self.cache_workload_evidence(source_revision, &evidence, accepts_gzip),
             Err(error) => json_error(
                 StatusCode(500),
                 "workload_evidence_unavailable",
@@ -693,8 +696,9 @@ impl UiServer {
         &self,
         source_revision: Option<SemanticDigest>,
         list: &impl Serialize,
+        accepts_gzip: bool,
     ) -> Response<Cursor<Vec<u8>>> {
-        self.cache_projection(source_revision, list, |cache, projection| {
+        self.cache_projection(source_revision, list, accepts_gzip, |cache, projection| {
             cache.workloads = Some(projection);
         })
     }
@@ -703,22 +707,35 @@ impl UiServer {
         &self,
         source_revision: Option<SemanticDigest>,
         evidence: &impl Serialize,
+        accepts_gzip: bool,
     ) -> Response<Cursor<Vec<u8>>> {
-        self.cache_projection(source_revision, evidence, |cache, projection| {
-            cache.workload_evidence = Some(projection);
-        })
+        self.cache_projection(
+            source_revision,
+            evidence,
+            accepts_gzip,
+            |cache, projection| {
+                cache.workload_evidence = Some(projection);
+            },
+        )
     }
 
     fn cache_projection(
         &self,
         source_revision: Option<SemanticDigest>,
         value: &impl Serialize,
+        accepts_gzip: bool,
         retain: impl FnOnce(&mut UiProjectionCache, CachedJsonProjection),
     ) -> Response<Cursor<Vec<u8>>> {
         let bytes = match serde_json::to_vec(value) {
             Ok(bytes) => bytes,
             Err(error) => {
                 return json_error(StatusCode(500), "json_encoding_failed", &error.to_string());
+            }
+        };
+        let gzip_bytes = match gzip_bytes(&bytes) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return json_error(StatusCode(500), "gzip_encoding_failed", &error.to_string());
             }
         };
         if let Some(source_revision) = source_revision
@@ -733,10 +750,11 @@ impl UiServer {
                 CachedJsonProjection {
                     source_revision,
                     bytes: bytes.clone(),
+                    gzip_bytes: gzip_bytes.clone(),
                 },
             );
         }
-        json_bytes_response(StatusCode(200), bytes)
+        encoded_json_response(StatusCode(200), bytes, gzip_bytes, accepts_gzip)
     }
 
     fn workload_admissions(&self) -> Response<Cursor<Vec<u8>>> {
@@ -2026,6 +2044,42 @@ fn json_bytes_response(value_status: StatusCode, bytes: Vec<u8>) -> Response<Cur
     with_common_headers(response, "no-store")
 }
 
+fn cached_json_response(
+    status: StatusCode,
+    cached: &CachedJsonProjection,
+    accepts_gzip: bool,
+) -> Response<Cursor<Vec<u8>>> {
+    encoded_json_response(
+        status,
+        cached.bytes.clone(),
+        cached.gzip_bytes.clone(),
+        accepts_gzip,
+    )
+}
+
+fn encoded_json_response(
+    status: StatusCode,
+    bytes: Vec<u8>,
+    gzip_bytes: Vec<u8>,
+    accepts_gzip: bool,
+) -> Response<Cursor<Vec<u8>>> {
+    let response = if accepts_gzip {
+        let response = Response::from_data(gzip_bytes).with_status_code(status);
+        with_header(response, "Content-Encoding", "gzip")
+    } else {
+        Response::from_data(bytes).with_status_code(status)
+    };
+    let response = with_header(response, "Content-Type", "application/json; charset=utf-8");
+    let response = with_header(response, "Vary", "Accept-Encoding");
+    with_common_headers(response, "no-store")
+}
+
+fn gzip_bytes(bytes: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(bytes)?;
+    encoder.finish()
+}
+
 fn journal_admission_response(admission: &JournalAdmission) -> Response<Cursor<Vec<u8>>> {
     json_response(
         if admission.admitted {
@@ -2099,6 +2153,24 @@ fn request_header<'a>(request: &'a Request, name: &'static str) -> Option<&'a st
         .map(|header| header.value.as_str())
 }
 
+fn accepts_content_encoding(request: &Request, expected: &str) -> bool {
+    request_header(request, "Accept-Encoding").is_some_and(|header| {
+        header.split(',').any(|entry| {
+            let mut parts = entry.trim().split(';');
+            let encoding = parts.next().unwrap_or_default().trim();
+            let quality = parts
+                .find_map(|parameter| {
+                    parameter
+                        .trim()
+                        .strip_prefix("q=")
+                        .and_then(|value| value.parse::<f32>().ok())
+                })
+                .unwrap_or(1.0);
+            (encoding.eq_ignore_ascii_case(expected) || encoding == "*") && quality > 0.0
+        })
+    })
+}
+
 fn json_error(status: StatusCode, category: &str, detail: &str) -> Response<Cursor<Vec<u8>>> {
     let body = serde_json::to_vec(&json!({
         "schema": UI_ERROR_SCHEMA,
@@ -2152,9 +2224,10 @@ mod tests {
         thread,
     };
 
+    use flate2::read::GzDecoder;
     use tempfile::TempDir;
 
-    use super::{STATIC_UI_ASSETS, UiServer, UiServerConfig};
+    use super::{STATIC_UI_ASSETS, UiServer, UiServerConfig, gzip_bytes};
     use rey::{
         channels::LocalChannelStore,
         conversations::{
@@ -2169,6 +2242,18 @@ mod tests {
         Availability, CapabilityRecord, CapabilitySnapshot, DISCOVERY_APPLICATION_SCHEMA,
         DiscoveryApplicationProvenance, DiscoveryLimits, TrustClass,
     };
+
+    #[test]
+    fn gzip_projection_encoding_round_trips_exact_json_bytes() {
+        let source = br#"{"schema":"rey.workload-list.v1","terrain":"repeated"}"#.repeat(256);
+        let compressed = gzip_bytes(&source).unwrap();
+        assert!(compressed.len() < source.len());
+        let mut decoded = Vec::new();
+        GzDecoder::new(compressed.as_slice())
+            .read_to_end(&mut decoded)
+            .unwrap();
+        assert_eq!(decoded, source);
+    }
 
     #[test]
     fn server_admits_unauthenticated_journal_writes_and_serves_deep_links() {
@@ -2320,7 +2405,7 @@ mod tests {
         let origin = descriptor.url.clone();
         let handle = thread::spawn(move || {
             server
-                .serve_bounded(Some(49 + STATIC_UI_ASSETS.len()))
+                .serve_bounded(Some(50 + STATIC_UI_ASSETS.len()))
                 .unwrap()
         });
 
@@ -2385,6 +2470,14 @@ mod tests {
         assert!(workloads.contains("\"index\":null"));
         let cached_workloads = request(&address, "GET /api/v1/workloads HTTP/1.1");
         assert_eq!(response_body(&cached_workloads), response_body(&workloads));
+        let compressed_workloads = request_headers_only(
+            &address,
+            "GET /api/v1/workloads HTTP/1.1",
+            &[("Accept-Encoding", "br, gzip, deflate")],
+        );
+        assert!(compressed_workloads.starts_with("HTTP/1.1 200"));
+        assert!(compressed_workloads.contains("Content-Encoding: gzip"));
+        assert!(compressed_workloads.contains("Vary: Accept-Encoding"));
 
         let global_before = request(&address, "GET /api/v1/revalidation HTTP/1.1");
         let global_before: serde_json::Value =
@@ -3047,6 +3140,26 @@ mod tests {
             body.to_vec()
         };
         format!("{headers}\r\n\r\n{}", String::from_utf8(body).unwrap())
+    }
+
+    fn request_headers_only(address: &str, request_line: &str, headers: &[(&str, &str)]) -> String {
+        let mut stream = TcpStream::connect(address).unwrap();
+        write!(
+            stream,
+            "{request_line}\r\nHost: {address}\r\nConnection: close\r\nContent-Length: 0\r\n",
+        )
+        .unwrap();
+        for (name, value) in headers {
+            write!(stream, "{name}: {value}\r\n").unwrap();
+        }
+        write!(stream, "\r\n").unwrap();
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).unwrap();
+        let header_end = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .unwrap();
+        String::from_utf8(response[..header_end].to_vec()).unwrap()
     }
 
     fn decode_chunked(encoded: &[u8]) -> Vec<u8> {

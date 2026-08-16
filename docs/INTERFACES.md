@@ -1133,7 +1133,10 @@ list and workload-evidence responses are cached against exact workload state,
 catalog, `.reyignore`, environment, and Git bytes; Channel or conversation
 activity may wake the browser but cannot invalidate and repeatedly rebuild an
 unchanged workload projection. A changed workload dependency still invalidates
-those cached bytes. The environment endpoint is derived anew
+those cached bytes. Clients advertising `Accept-Encoding: gzip` receive the
+same cached workload JSON with `Content-Encoding: gzip` and
+`Vary: Accept-Encoding`; content negotiation changes wire representation, not
+the typed document or its revision. The environment endpoint is derived anew
 from the selected workspace map and local environment history through the same
 function as `env status`; it does not create UI-owned evidence.
 
