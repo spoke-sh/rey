@@ -293,10 +293,11 @@ The operator-supplied 3022×1926 terrain reference and Rey's current 1920×1080
 WebGL2 Landscape capture were inspected side by side. The reference is an
 acceptance target, not admitted scene evidence and not a source asset. The Rey
 capture is bound to voyage manifest
-`sha256:e5a6e59640fc50b458d99a9ff510d77a077aa6e4139b4ed4c9808406af51d496`.
-The voyage reached every semantic and exact-evidence stage without browser
-exceptions; it remains incomplete because the footer-layout assertion did not
-converge, so it is evidence for this rebaseline rather than a closed matrix row.
+`sha256:9900619c76482346a25e5ff48952f4e3d5e0537e41bde15e70155981531f7f10`.
+The fulfilled-transport WebGL2 voyage passed World → rotated Atlas → Landscape
+→ Objects → exact Evidence without browser exceptions, no-data triangle leaks,
+or tile-seam mismatches. It is a traversal baseline rather than a named
+Landscape-fidelity matrix row.
 
 | Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
 | -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
@@ -306,7 +307,7 @@ converge, so it is evidence for this rebaseline rather than a closed matrix row.
 | Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.        | Major |
 | Water          | Continuous areas and terrain-following river hierarchy.      | Six exact water features read coherently but remain too sparse.        | Major |
 | Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.     | Major |
-| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Districts, roads, rail, water, and labels now form a sparse hierarchy. | Major |
+| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | 4 highways, 12 roads, 4 rails, and 16 labels form a clearer hierarchy. | Major |
 
 This matrix keeps the side-by-side delivery item open. Repeated object-per-cell
 browser transport is now replaced by a compact renderer-neutral payload that

@@ -109,6 +109,90 @@
         "collision_priority": 60
       },
       "geometry": { "type": "Point", "coordinates": [-159.23, -19.59] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-anchor-crossing",
+      "properties": {
+        "title": "Anchor Crossing",
+        "category": "settlement",
+        "min_zoom": 6,
+        "max_zoom": 18,
+        "collision_priority": 67
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.835, -19.58] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-delta-junction",
+      "properties": {
+        "title": "Delta Junction",
+        "category": "settlement",
+        "min_zoom": 6,
+        "max_zoom": 18,
+        "collision_priority": 66
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.632, -19.769] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-foundry",
+      "properties": {
+        "title": "Foundry",
+        "category": "settlement",
+        "min_zoom": 6,
+        "max_zoom": 18,
+        "collision_priority": 64
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.58, -19.65] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-proof-gate",
+      "properties": {
+        "title": "Proof Gate",
+        "category": "settlement",
+        "min_zoom": 6,
+        "max_zoom": 18,
+        "collision_priority": 65
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.395, -19.837] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-context-way",
+      "properties": {
+        "title": "Context Way",
+        "category": "transport",
+        "min_zoom": 5,
+        "max_zoom": 12,
+        "collision_priority": 78
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.72, -19.66] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-north-arc",
+      "properties": {
+        "title": "North Arc",
+        "category": "transport",
+        "min_zoom": 6,
+        "max_zoom": 12,
+        "collision_priority": 62
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.62, -19.398] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-south-traverse",
+      "properties": {
+        "title": "South Traverse",
+        "category": "transport",
+        "min_zoom": 6,
+        "max_zoom": 12,
+        "collision_priority": 61
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.49, -19.849] }
     }
   ]
 }

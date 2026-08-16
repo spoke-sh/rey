@@ -137,6 +137,33 @@ describe("Rey County terrain source", () => {
     expect(maximumResidual).toBeGreaterThan(20);
   });
 
+  it("retains a landscape-scale transport and label hierarchy", () => {
+    const source = (name) =>
+      JSON.parse(readFileSync(resolve(sceneDirectory, name), "utf8"));
+    const hierarchy = {
+      highways: source("highways.geojson").features,
+      roads: source("roads.geojson").features,
+      railways: source("railways.geojson").features,
+      labels: source("labels.geojson").features,
+    };
+    expect(hierarchy.highways).toHaveLength(4);
+    expect(hierarchy.roads).toHaveLength(12);
+    expect(hierarchy.railways).toHaveLength(4);
+    expect(hierarchy.labels).toHaveLength(16);
+    expect(
+      new Set(
+        Object.values(hierarchy)
+          .flat()
+          .map(({ id }) => id),
+      ).size,
+    ).toBe(36);
+    expect(
+      hierarchy.labels.filter(
+        ({ properties }) => properties.min_zoom <= 6,
+      ).length,
+    ).toBeGreaterThanOrEqual(14);
+  });
+
   it("matches the checked-in native artifact byte for byte", () => {
     expect(
       readFileSync(resolve(sceneDirectory, "terrain.geojson"), "utf8"),

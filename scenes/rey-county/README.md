@@ -94,6 +94,9 @@ topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
 It does not imply that multiple editor packages have already been stitched.
+Its cartographic hierarchy currently retains four highways, twelve local
+roads, four railway paths, and sixteen independently bounded labels. These are
+source features with exact evidence routes, not renderer-generated decoration.
 
 ## Regeneration And Verification
 

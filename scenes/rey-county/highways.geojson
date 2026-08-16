@@ -69,6 +69,56 @@
           [-159.297, -19.642]
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "id": "highway-proof-meridian",
+      "properties": {
+        "name": "Proof Meridian",
+        "route_class": "secondary_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.551, -19.402],
+          [-159.548, -19.45],
+          [-159.543, -19.5],
+          [-159.54, -19.55],
+          [-159.54, -19.6],
+          [-159.54, -19.642],
+          [-159.548, -19.694],
+          [-159.552, -19.744],
+          [-159.545, -19.796],
+          [-159.545, -19.846]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "highway-south-traverse",
+      "properties": {
+        "name": "South Traverse",
+        "route_class": "secondary_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.825, -19.787],
+          [-159.781, -19.8],
+          [-159.736, -19.812],
+          [-159.69, -19.823],
+          [-159.643, -19.833],
+          [-159.594, -19.841],
+          [-159.545, -19.846],
+          [-159.495, -19.849],
+          [-159.445, -19.846],
+          [-159.395, -19.837],
+          [-159.348, -19.825],
+          [-159.302, -19.81]
+        ]
+      }
     }
   ]
 }

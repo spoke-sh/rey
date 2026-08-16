@@ -53,6 +53,53 @@
           [-159.58, -19.65]
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "id": "railway-anchor-line",
+      "properties": {
+        "name": "Anchor Line",
+        "rail_class": "regional_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.866, -19.513],
+          [-159.818, -19.526],
+          [-159.77, -19.54],
+          [-159.721, -19.551],
+          [-159.671, -19.556],
+          [-159.621, -19.553],
+          [-159.57, -19.548],
+          [-159.519, -19.548],
+          [-159.469, -19.554],
+          [-159.419, -19.566],
+          [-159.369, -19.581],
+          [-159.319, -19.596]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "railway-proof-line",
+      "properties": {
+        "name": "Proof Line",
+        "rail_class": "industrial_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.542, -19.766],
+          [-159.518, -19.79],
+          [-159.488, -19.812],
+          [-159.454, -19.829],
+          [-159.417, -19.841],
+          [-159.378, -19.845],
+          [-159.339, -19.841]
+        ]
+      }
     }
   ]
 }

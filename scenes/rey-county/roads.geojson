@@ -132,6 +132,133 @@
           [-159.275, -19.82]
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "id": "road-anchor-crossing",
+      "properties": {
+        "name": "Anchor Crossing",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.842, -19.438],
+          [-159.838, -19.486],
+          [-159.842, -19.535],
+          [-159.835, -19.582],
+          [-159.817, -19.627],
+          [-159.793, -19.668],
+          [-159.763, -19.706]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-mining-spur",
+      "properties": {
+        "name": "Mining Reach Spur",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.91, -19.606],
+          [-159.898, -19.642],
+          [-159.884, -19.681],
+          [-159.868, -19.72],
+          [-159.849, -19.755],
+          [-159.825, -19.787]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-runtime-north",
+      "properties": {
+        "name": "Runtime North Road",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.684, -19.394],
+          [-159.69, -19.438],
+          [-159.694, -19.486],
+          [-159.69, -19.535],
+          [-159.679, -19.584],
+          [-159.665, -19.661],
+          [-159.674, -19.729]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-foundry-link",
+      "properties": {
+        "name": "Foundry Link",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.596, -19.402],
+          [-159.594, -19.452],
+          [-159.587, -19.503],
+          [-159.578, -19.553],
+          [-159.57, -19.602],
+          [-159.58, -19.65],
+          [-159.599, -19.68],
+          [-159.61, -19.724]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-explorer-loop",
+      "properties": {
+        "name": "Explorer Vale Loop",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.424, -19.409],
+          [-159.398, -19.445],
+          [-159.373, -19.484],
+          [-159.349, -19.525],
+          [-159.325, -19.566],
+          [-159.297, -19.605],
+          [-159.263, -19.638],
+          [-159.224, -19.665]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-frontier-causeway",
+      "properties": {
+        "name": "Frontier Causeway",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.377, -19.657],
+          [-159.354, -19.627],
+          [-159.327, -19.603],
+          [-159.297, -19.585],
+          [-159.264, -19.575],
+          [-159.228, -19.573],
+          [-159.193, -19.582]
+        ]
+      }
     }
   ]
 }
