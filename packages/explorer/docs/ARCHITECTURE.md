@@ -37,19 +37,27 @@ accelerated frame and reveals it again after renderer failure.
 
 ## Component Map
 
-| Component          | Source                                                           | Responsibility                                                                                             |
-| ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Canvas boundary    | [`../src/canvas.tsx`](../src/canvas.tsx)                         | Configure the R3F root, select content, invalidate frames, and report readiness and draw submission.       |
-| Renderer contracts | [`../src/renderer.ts`](../src/renderer.ts)                       | Define lifecycle, status, frame identity, invalidation, and bounded viewport sizing.                       |
-| Backend adapter    | [`../src/three-webgpu.ts`](../src/three-webgpu.ts)               | Initialize `WebGPURenderer`, select WebGPU/WebGL2, observe loss, report submission, and dispose resources. |
-| Structural inputs  | [`../src/types.ts`](../src/types.ts)                             | Define renderer-facing globe, camera, terrain-field, and executable-pass shapes.                           |
-| Globe compiler     | [`../src/three-globe.ts`](../src/three-globe.ts)                 | Compile semantic globe input into deterministic fabric, marker statistics, and material identity.          |
-| Globe fabric       | [`../src/globe-samples.ts`](../src/globe-samples.ts)             | Generate revision-seeded stipple and subtle north/south patterns.                                          |
-| Globe projection   | [`../src/globe-projection.ts`](../src/globe-projection.ts)       | Project one indexed surface and its attached sectors and markers from sphere to Mercator.                  |
-| Terrain compiler   | [`../src/three-terrain.ts`](../src/three-terrain.ts)             | Compile valid grids into bounded meshes, verify parity, and execute gated TSL material stages.             |
-| Declarative scenes | [`../src/fiber-scenes.tsx`](../src/fiber-scenes.tsx)             | Express cameras, lights, terrain, draped geographic passes, instancing, and named scene objects.           |
-| Shared Three graph | [`../src/three-fiber-runtime.ts`](../src/three-fiber-runtime.ts) | Expose modular WebGPU Three.js and the legacy renderer needed by the R3F test harness.                     |
-| Public surface     | [`../src/index.ts`](../src/index.ts)                             | Export canvas, compilers, contracts, revisions, limits, and renderer status.                               |
+| Component                     | Source                                                                                     | Responsibility                                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Canvas boundary               | [`../src/canvas.tsx`](../src/canvas.tsx)                                                   | Configure the R3F root, select content, invalidate frames, and report readiness and draw submission.                      |
+| Renderer contracts            | [`../src/renderer.ts`](../src/renderer.ts)                                                 | Define lifecycle, status, frame identity, invalidation, and bounded viewport sizing.                                      |
+| Backend adapter               | [`../src/three-webgpu.ts`](../src/three-webgpu.ts)                                         | Initialize `WebGPURenderer`, select WebGPU/WebGL2, observe loss, report submission, and dispose resources.                |
+| Structural inputs             | [`../src/types.ts`](../src/types.ts)                                                       | Define renderer-facing globe, camera, terrain-field, and executable-pass shapes.                                          |
+| Globe compiler                | [`../src/three-globe.ts`](../src/three-globe.ts)                                           | Compile semantic globe input into deterministic fabric, marker statistics, and material identity.                         |
+| Globe fabric                  | [`../src/globe-samples.ts`](../src/globe-samples.ts)                                       | Generate revision-seeded stipple and subtle north/south patterns.                                                         |
+| Globe projection              | [`../src/globe-projection.ts`](../src/globe-projection.ts)                                 | Project one indexed surface and its attached sectors and markers from sphere to Mercator.                                 |
+| Terrain compiler              | [`../src/three-terrain.ts`](../src/three-terrain.ts)                                       | Compile valid grids into bounded meshes, verify parity, and execute gated TSL material stages.                            |
+| Shared orthographic camera    | [`../src/scenes/orthographic-camera.tsx`](../src/scenes/orthographic-camera.tsx)           | Configure one manual R3F orthographic camera shared by both scenes and register the WebGPU-sourced R3F intrinsic catalog. |
+| Terrain scene                 | [`../src/scenes/terrain-scene.tsx`](../src/scenes/terrain-scene.tsx)                       | Compose the terrain camera, lighting, compiled relief meshes, and executable geographic passes.                           |
+| Globe scene                   | [`../src/scenes/globe-scene.tsx`](../src/scenes/globe-scene.tsx)                           | Compose the globe camera, lighting, projected surface, atmosphere, fabric, sectors, and markers per Atlas wrap copy.      |
+| Globe surface and atmosphere  | [`../src/scenes/globe-surface.tsx`](../src/scenes/globe-surface.tsx)                       | Render the projected globe body and its stenciled, layered atmosphere shells.                                             |
+| Globe instanced sample fabric | [`../src/scenes/globe-instanced-samples.tsx`](../src/scenes/globe-instanced-samples.tsx)   | Instance the deterministic stipple fabric with GPU-interpolated sphere/Mercator morph.                                    |
+| Globe polar fabric            | [`../src/scenes/globe-pole-pattern-field.tsx`](../src/scenes/globe-pole-pattern-field.tsx) | Instance the deterministic north/south cap pattern.                                                                       |
+| Globe surface markers         | [`../src/scenes/globe-surface-marker.tsx`](../src/scenes/globe-surface-marker.tsx)         | Project one region or workload-beacon marker, with optional halo.                                                         |
+| Globe sectors                 | [`../src/scenes/globe-sector.tsx`](../src/scenes/globe-sector.tsx)                         | Project one occupied Atlas sector by blending cached sphere/Mercator endpoint meshes.                                     |
+| Projected mesh geometry       | [`../src/scenes/projected-mesh-geometry.tsx`](../src/scenes/projected-mesh-geometry.tsx)   | Retain and update one `BufferGeometry`'s position/normal/index attributes across morph frames.                            |
+| Shared Three graph            | [`../src/three-fiber-runtime.ts`](../src/three-fiber-runtime.ts)                           | Expose modular WebGPU Three.js and the legacy renderer needed by the R3F test harness.                                    |
+| Public surface                | [`../src/index.ts`](../src/index.ts)                                                       | Export canvas, compilers, contracts, revisions, limits, and renderer status.                                              |
 
 ## Immutable Frame Flow
 

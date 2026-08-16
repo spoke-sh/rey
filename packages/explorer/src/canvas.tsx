@@ -1,6 +1,7 @@
 import { createRoot, type Renderer as FiberRenderer } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
-import { ContextGlobeScene, ContinuousReliefScene } from "./fiber-scenes";
+import { ContextGlobeScene } from "./scenes/globe-scene";
+import { ContinuousReliefScene } from "./scenes/terrain-scene";
 import {
   boundedViewport,
   renderFrameInvalidation,
