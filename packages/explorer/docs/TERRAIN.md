@@ -174,9 +174,13 @@ identity.
 
 Text labels, evidence links, descriptions, and pointer semantics deliberately
 remain in `@rey/agent`'s deterministic reference overlay. It stays mounted
-under the accelerated surface and becomes visible on backend failure. No
-imagery source or license authority is currently admitted, so the package does
-not synthesize an imagery layer from elevation or styling.
+with the accelerated surface and becomes visible on backend failure. While an
+accelerated frame is healthy, exact SVG feature geometry remains an invisible
+focus/hit surface instead of drawing a second road, rail, boundary, or water
+outline over the corresponding 3D pass. Labels, descriptions, focus semantics,
+and exact evidence routes remain present in either posture. No imagery source
+or license authority is currently admitted, so the package does not synthesize
+an imagery layer from elevation or styling.
 
 ## Tiling, Workers, And Residency
 

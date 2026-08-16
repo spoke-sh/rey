@@ -252,6 +252,12 @@ export const exploreStyles = stylex.create({
       ":focus-visible": "2px solid var(--rey-accent)",
     },
   },
+  countyFeatureAcceleratedGeometry: {
+    fill: "transparent",
+    opacity: 0,
+    pointerEvents: "all",
+    stroke: "transparent",
+  },
   countyFeatureEnvelope: {
     fill: "color-mix(in srgb, #78946d 9%, transparent)",
     stroke: "color-mix(in srgb, #355b4c 44%, var(--rey-foreground))",

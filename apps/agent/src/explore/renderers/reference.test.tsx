@@ -126,6 +126,33 @@ describe("reference renderer", () => {
         path: "M96 72 L1104 72 L1104 648 L96 648 Z",
         screen_rings: [[]],
       },
+      nodes: [
+        {
+          id: "road:one",
+          focus_id: "road:one",
+          family: "road",
+          label: "CONTEXT WAY",
+          detail: "exact admitted road",
+          x: 320,
+          y: 420,
+          width: 120,
+          tone: "neutral",
+          semantic_identity: "rey://object/road:one",
+          spatial_feature: {
+            geometry_kind: "LineString",
+            layer: "road",
+            envelope_path: "M200 400 L500 440",
+            geometry_path: "M200 400 L500 440",
+            geometry_representation: "exact_native",
+            authority: "exact admitted road geometry",
+            cartographic_label: {
+              min_zoom: 3,
+              max_zoom: 12,
+              collision_priority: 80,
+            },
+          },
+        },
+      ],
     } satisfies TopologyScene;
     const markup = renderToStaticMarkup(
       <>
@@ -144,6 +171,19 @@ describe("reference renderer", () => {
     expect(markup).not.toContain("BEARING /");
     expect(markup).not.toContain("VALIDITY / CONTOURS");
     expect(markup).toContain("LOD LANDSCAPE");
+    expect(markup).toContain('data-accelerated-geometry="true"');
+    expect(markup).toContain("exact admitted road geometry");
+    expect(markup).toContain("CONTEXT WAY");
+
+    const fallbackMarkup = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        scene={scene}
+      />,
+    );
+    expect(fallbackMarkup).not.toContain("data-accelerated-geometry");
+    expect(fallbackMarkup).toContain('d="M200 400 L500 440"');
   });
 
   it("preserves the bounded terrain manifest without source-edge geography", () => {

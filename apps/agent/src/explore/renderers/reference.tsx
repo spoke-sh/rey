@@ -211,7 +211,11 @@ export function ReferenceRenderer({
       {!accelerated && scene.terrain ? (
         <AdmittedTerrainFieldLayer scene={scene} />
       ) : null}
-      <CountyFeatureLayer onFocus={onFocus} scene={scene} />
+      <CountyFeatureLayer
+        accelerated={accelerated}
+        onFocus={onFocus}
+        scene={scene}
+      />
       {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer
           globeView={globeView}
@@ -529,9 +533,11 @@ function AtlasFeatureLayer({
 }
 
 function CountyFeatureLayer({
+  accelerated,
   onFocus,
   scene,
 }: {
+  accelerated: boolean;
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
 }) {
@@ -637,16 +643,24 @@ function CountyFeatureLayer({
             {point && feature.layer !== "label" ? (
               <>
                 <circle
-                  className={sx(styles.countyFeaturePoint)}
+                  className={sx(
+                    styles.countyFeaturePoint,
+                    accelerated && styles.countyFeatureAcceleratedGeometry,
+                  )}
                   cx={node.x}
                   cy={node.y}
+                  data-accelerated-geometry={accelerated || undefined}
                   r={feature.layer === "terrain" ? 11 : 7}
                 />
                 {feature.layer === "terrain" ? (
                   <circle
-                    className={sx(styles.countyTerrainSampleHalo)}
+                    className={sx(
+                      styles.countyTerrainSampleHalo,
+                      accelerated && styles.countyFeatureAcceleratedGeometry,
+                    )}
                     cx={node.x}
                     cy={node.y}
+                    data-accelerated-geometry={accelerated || undefined}
                     r={18}
                   />
                 ) : null}
@@ -669,7 +683,9 @@ function CountyFeatureLayer({
                   feature.layer === "boundary" && styles.countyFeatureBoundary,
                   feature.layer === "terrain_control" &&
                     styles.countyTerrainControl,
+                  accelerated && styles.countyFeatureAcceleratedGeometry,
                 )}
+                data-accelerated-geometry={accelerated || undefined}
                 d={feature.geometry_path}
               />
             ) : null}
