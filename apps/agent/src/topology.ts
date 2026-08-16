@@ -1087,10 +1087,12 @@ function buildRegionalCounty(
     ]) ?? [],
   );
   const terrainGridCellsByObjectId = new Map(
-    scene.projection.terrain?.grid?.cells.map((cell) => [
-      cell.source_object_id,
-      cell,
-    ]) ?? [],
+    scene.projection.terrain?.grid?.schema === "rey.regional-terrain-grid.v1"
+      ? scene.projection.terrain.grid.cells.map((cell) => [
+          cell.source_object_id,
+          cell,
+        ])
+      : [],
   );
   const visibleObjects = terrainField
     ? objects.filter(

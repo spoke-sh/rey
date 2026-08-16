@@ -65,7 +65,7 @@ export interface WorkloadSummary {
   topography_projection: ProjectionPacket | null;
   scene_admission_results: number;
   scene_admissions?: SceneAdmissionResult[];
-  latest_scene_admission: SceneAdmissionResult | null;
+  latest_scene_admission?: SceneAdmissionResult | null;
   last_run_status: "passed" | "blocked" | null;
   last_test_result_id: string | null;
 }
@@ -109,6 +109,52 @@ export interface RegionalSceneLineage {
   identity: string;
   revision: string;
 }
+
+export interface RegionalTerrainGridCell {
+  cell_id: string;
+  source_object_id: string;
+  source_artifact_id: string;
+  source_object_revision: string;
+  grid_position: [number, number];
+  native_position: [number, number];
+  elevation_micrometers: number | null;
+  material: string | null;
+  validity: "valid" | "no_data";
+  authority: string;
+}
+
+interface RegionalTerrainGridBase {
+  dataset_id: string;
+  source_dataset_id: string;
+  columns: number;
+  rows: number;
+  native_bounds: RegionalBounds;
+  validity_semantics: string;
+  interpolation: string;
+  authority: string;
+}
+
+export type RegionalTerrainGrid =
+  | (RegionalTerrainGridBase & {
+      schema: "rey.regional-terrain-grid.v1";
+      cells: RegionalTerrainGridCell[];
+    })
+  | (RegionalTerrainGridBase & {
+      schema: "rey.regional-terrain-grid.transport.v1";
+      source_schema: "rey.regional-terrain-grid.v1";
+      transport_id: string;
+      source_id: string;
+      source_path: string;
+      source_artifact_id: string;
+      transport_authority: string;
+      cell_ids: string[];
+      source_object_ids: string[];
+      source_object_revisions: string[];
+      validity_hex: string;
+      elevation_micrometers: number[];
+      material_palette: string[];
+      material_indices_hex: string;
+    });
 
 export interface RegionalProjectionPacket {
   schema: "rey.regional-projection-packet.v1";
@@ -188,29 +234,7 @@ export interface RegionalProjectionPacket {
       material: string;
       authority: string;
     }>;
-    grid?: {
-      schema: "rey.regional-terrain-grid.v1";
-      dataset_id: string;
-      source_dataset_id: string;
-      columns: number;
-      rows: number;
-      native_bounds: RegionalBounds;
-      cells: Array<{
-        cell_id: string;
-        source_object_id: string;
-        source_artifact_id: string;
-        source_object_revision: string;
-        grid_position: [number, number];
-        native_position: [number, number];
-        elevation_micrometers: number | null;
-        material: string | null;
-        validity: "valid" | "no_data";
-        authority: string;
-      }>;
-      validity_semantics: string;
-      interpolation: string;
-      authority: string;
-    };
+    grid?: RegionalTerrainGrid;
     height_unit: "micrometer";
     interpolation: string;
     material_semantics: string;
@@ -230,6 +254,12 @@ export interface RegionalProjectionPacket {
   complete: boolean;
   omissions: RegionalSceneOmission[];
   lineage: RegionalSceneLineage[];
+  transport?: {
+    schema: "rey.regional-projection-packet.transport.v1";
+    source_packet_id: string;
+    omitted_terrain_objects: number;
+    authority: string;
+  };
 }
 
 export type RegionalLayerKind =
@@ -925,6 +955,12 @@ export interface WorkloadList {
   regional_geography?: RegionalGeographyComposition;
   semantic_atlas_history: SemanticAtlas[];
   semantic_atlas_deltas: SemanticAtlasDelta[];
+  transport?: {
+    schema: "rey.ui-workload-transport.v1";
+    terrain_grid_encoding: "rey.regional-terrain-grid.transport.v1";
+    latest_scene_policy: string;
+    authority: string;
+  };
   revision?: WorkloadRevisionStatus;
   attention: {
     schema: string;

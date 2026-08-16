@@ -13,6 +13,10 @@ import {
   type CountyFootprint,
   type CountyFrame,
 } from "./county-frame";
+import {
+  regionalTerrainGridCellAt,
+  validRegionalTerrainGridTransport,
+} from "../terrain/regional-grid-transport";
 
 export interface AdmittedRegionalProjection {
   workload: WorkloadSummary;
@@ -229,12 +233,11 @@ function validRegionalTerrainGrid(
   if (!grid) return false;
   const expectedCells = grid.columns * grid.rows;
   if (
-    grid.schema !== "rey.regional-terrain-grid.v1" ||
+    !validRegionalTerrainGridTransport(grid) ||
     !Number.isSafeInteger(grid.columns) ||
     !Number.isSafeInteger(grid.rows) ||
     grid.columns < 2 ||
     grid.rows < 2 ||
-    grid.cells.length !== expectedCells ||
     grid.dataset_id.length === 0 ||
     grid.source_dataset_id.length === 0 ||
     grid.native_bounds.crosses_antimeridian ||
@@ -262,7 +265,10 @@ function validRegionalTerrainGrid(
     return false;
   const identities = new Set<string>();
   const objects = new Set<string>();
-  const cellsValid = grid.cells.every((cell, index) => {
+  let cellsValid = true;
+  for (let index = 0; index < expectedCells; index += 1) {
+    const cell = regionalTerrainGridCellAt(grid, index);
+    if (!cell) return false;
     const column = index % grid.columns;
     const row = Math.floor(index / grid.columns);
     const object = objectsById.get(cell.source_object_id);
@@ -280,7 +286,21 @@ function validRegionalTerrainGrid(
           cell.material === null &&
           cell.authority ===
             "explicit source no-data vertex; geometry locates the hole but supplies no height or material";
-    return (
+    const sourceValid =
+      grid.schema === "rey.regional-terrain-grid.transport.v1"
+        ? cell.source_artifact_id === grid.source_artifact_id &&
+          cell.source_object_id === grid.source_object_ids[index] &&
+          cell.source_object_revision === grid.source_object_revisions[index]
+        : object?.layer === "terrain" &&
+          object.geometry_kind === "Point" &&
+          object.source_artifact_id === cell.source_artifact_id &&
+          object.object_revision === cell.source_object_revision &&
+          object.native_bounds.west_microdegrees === cell.native_position[0] &&
+          object.native_bounds.east_microdegrees === cell.native_position[0] &&
+          object.native_bounds.south_microdegrees === cell.native_position[1] &&
+          object.native_bounds.north_microdegrees === cell.native_position[1];
+    cellsValid =
+      cellsValid &&
       cell.cell_id.length > 0 &&
       !identities.has(cell.cell_id) &&
       !objects.has(cell.source_object_id) &&
@@ -293,16 +313,8 @@ function validRegionalTerrainGrid(
       cell.native_position[1] ===
         grid.native_bounds.north_microdegrees - row * latitudeStep &&
       validValue &&
-      object?.layer === "terrain" &&
-      object.geometry_kind === "Point" &&
-      object.source_artifact_id === cell.source_artifact_id &&
-      object.object_revision === cell.source_object_revision &&
-      object.native_bounds.west_microdegrees === cell.native_position[0] &&
-      object.native_bounds.east_microdegrees === cell.native_position[0] &&
-      object.native_bounds.south_microdegrees === cell.native_position[1] &&
-      object.native_bounds.north_microdegrees === cell.native_position[1]
-    );
-  });
+      sourceValid;
+  }
   if (!cellsValid) return false;
   for (let row = 0; row < grid.rows - 1; row += 1) {
     for (let column = 0; column < grid.columns - 1; column += 1) {
@@ -310,7 +322,8 @@ function validRegionalTerrainGrid(
       const topRight = topLeft + 1;
       const bottomLeft = topLeft + grid.columns;
       const bottomRight = bottomLeft + 1;
-      const valid = (index: number) => grid.cells[index]?.validity === "valid";
+      const valid = (index: number) =>
+        regionalTerrainGridCellAt(grid, index)?.validity === "valid";
       if (
         (valid(topLeft) && valid(bottomLeft) && valid(bottomRight)) ||
         (valid(topLeft) && valid(bottomRight) && valid(topRight)) ||

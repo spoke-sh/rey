@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     io::{Cursor, Read, Write},
     net::{IpAddr, SocketAddr},
@@ -41,13 +42,13 @@ use rey::{
         WorkloadEvidenceError, workload_delta_evidence, workload_evidence_catalog,
         workload_scenario_evidence,
     },
-    workloads::{LocalWorkloadStore, WorkloadCommit},
+    workloads::{LocalWorkloadStore, WorkloadCommit, WorkloadList},
 };
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_environment::{DiscoveryLimits, resolve_executable};
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 use thiserror::Error;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
@@ -695,12 +696,23 @@ impl UiServer {
     fn cache_workloads(
         &self,
         source_revision: Option<SemanticDigest>,
-        list: &impl Serialize,
+        list: &WorkloadList,
         accepts_gzip: bool,
     ) -> Response<Cursor<Vec<u8>>> {
-        self.cache_projection(source_revision, list, accepts_gzip, |cache, projection| {
-            cache.workloads = Some(projection);
-        })
+        let projection = match compact_workload_transport(list) {
+            Ok(projection) => projection,
+            Err(detail) => {
+                return json_error(StatusCode(500), "workload_transport_failed", &detail);
+            }
+        };
+        self.cache_projection(
+            source_revision,
+            &projection,
+            accepts_gzip,
+            |cache, projection| {
+                cache.workloads = Some(projection);
+            },
+        )
     }
 
     fn cache_workload_evidence(
@@ -2055,6 +2067,305 @@ fn cached_json_response(
         cached.gzip_bytes.clone(),
         accepts_gzip,
     )
+}
+
+fn compact_workload_transport(list: &WorkloadList) -> Result<Value, String> {
+    let mut value = serde_json::to_value(list).map_err(|error| error.to_string())?;
+    compact_regional_projection_packets(&mut value)?;
+    let root = value
+        .as_object_mut()
+        .ok_or_else(|| "workload transport root is not an object".to_owned())?;
+    let workloads = root
+        .get_mut("workloads")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "workload transport has no workload array".to_owned())?;
+    for workload in workloads {
+        let Some(workload) = workload.as_object_mut() else {
+            return Err("workload transport contains a non-object summary".to_owned());
+        };
+        if workload
+            .get("scene_admissions")
+            .and_then(Value::as_array)
+            .is_some_and(|admissions| !admissions.is_empty())
+        {
+            workload.remove("latest_scene_admission");
+        }
+    }
+    root.insert(
+        "transport".to_owned(),
+        json!({
+            "schema": "rey.ui-workload-transport.v1",
+            "terrain_grid_encoding": "rey.regional-terrain-grid.transport.v1",
+            "latest_scene_policy": "scene_admissions is canonical; duplicated latest_scene_admission is omitted when active scene admissions are present",
+            "authority": "lossless renderer transport over exact retained scene identities; omitted repeated rows remain available through CLI and exact evidence routes",
+        }),
+    );
+    Ok(value)
+}
+
+fn compact_regional_projection_packets(value: &mut Value) -> Result<(), String> {
+    if value
+        .get("schema")
+        .and_then(Value::as_str)
+        .is_some_and(|schema| schema == "rey.regional-projection-packet.v1")
+    {
+        compact_regional_projection_packet(value)?;
+        return Ok(());
+    }
+    match value {
+        Value::Array(values) => {
+            for value in values {
+                compact_regional_projection_packets(value)?;
+            }
+        }
+        Value::Object(values) => {
+            for value in values.values_mut() {
+                compact_regional_projection_packets(value)?;
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> {
+    let packet = packet
+        .as_object_mut()
+        .ok_or_else(|| "regional projection transport is not an object".to_owned())?;
+    let Some(grid) = packet
+        .get("terrain")
+        .and_then(|terrain| terrain.get("grid"))
+        .cloned()
+    else {
+        return Ok(());
+    };
+    if grid.get("schema").and_then(Value::as_str) != Some("rey.regional-terrain-grid.v1") {
+        return Err("regional terrain transport encountered an unsupported grid".to_owned());
+    }
+    let cells = grid
+        .get("cells")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "regional terrain grid has no cells".to_owned())?;
+    if cells.is_empty() {
+        return Err("regional terrain grid is empty".to_owned());
+    }
+    let objects = packet
+        .get("objects")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| "regional projection has no objects".to_owned())?;
+    let original_object_count = objects.len();
+    let objects_by_id = objects
+        .iter()
+        .filter_map(|object| Some((object.get("object_id")?.as_str()?.to_owned(), object)))
+        .collect::<BTreeMap<_, _>>();
+    let mut terrain_object_ids = BTreeSet::new();
+    let mut cell_ids = Vec::with_capacity(cells.len());
+    let mut source_object_ids = Vec::with_capacity(cells.len());
+    let mut source_object_revisions = Vec::with_capacity(cells.len());
+    let mut elevation_micrometers = Vec::with_capacity(cells.len());
+    let mut material_names = BTreeSet::new();
+    let mut validity = Vec::with_capacity(cells.len());
+    let mut source_id = None;
+    let mut source_path = None;
+    let mut source_artifact_id = None;
+    for cell in cells {
+        let cell_id = required_string(cell, "cell_id")?;
+        let object_id = required_string(cell, "source_object_id")?;
+        let object_revision = required_string(cell, "source_object_revision")?;
+        let artifact_id = required_string(cell, "source_artifact_id")?;
+        let object = objects_by_id
+            .get(&object_id)
+            .ok_or_else(|| format!("terrain cell {object_id} lost its exact source object"))?;
+        if object.get("layer").and_then(Value::as_str) != Some("terrain")
+            || required_string(object, "object_revision")? != object_revision
+            || required_string(object, "source_artifact_id")? != artifact_id
+        {
+            return Err(format!(
+                "terrain cell {object_id} does not match its exact source object"
+            ));
+        }
+        let object_source_id = required_string(object, "source_id")?;
+        let object_source_path = required_string(object, "source_path")?;
+        bind_common(&mut source_id, object_source_id, "terrain source id")?;
+        bind_common(&mut source_path, object_source_path, "terrain source path")?;
+        bind_common(
+            &mut source_artifact_id,
+            artifact_id,
+            "terrain source artifact",
+        )?;
+        let cell_valid = required_string(cell, "validity")? == "valid";
+        if !cell_valid && cell.get("validity").and_then(Value::as_str) != Some("no_data") {
+            return Err(format!("terrain cell {object_id} has unsupported validity"));
+        }
+        let elevation = if cell_valid {
+            cell.get("elevation_micrometers")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| format!("terrain cell {object_id} has no exact elevation"))?
+        } else {
+            0
+        };
+        if let Some(material) = cell.get("material").and_then(Value::as_str) {
+            material_names.insert(material.to_owned());
+        } else if cell_valid {
+            return Err(format!("terrain cell {object_id} has no exact material"));
+        }
+        terrain_object_ids.insert(object_id.clone());
+        cell_ids.push(cell_id);
+        source_object_ids.push(object_id);
+        source_object_revisions.push(object_revision);
+        elevation_micrometers.push(elevation);
+        validity.push(u8::from(cell_valid));
+    }
+    let material_palette = material_names.into_iter().collect::<Vec<_>>();
+    if material_palette.len() > 255 {
+        return Err("terrain material palette exceeds compact transport".to_owned());
+    }
+    let material_lookup = material_palette
+        .iter()
+        .enumerate()
+        .map(|(index, material)| (material.as_str(), index as u8))
+        .collect::<BTreeMap<_, _>>();
+    let material_indices = cells
+        .iter()
+        .map(|cell| {
+            cell.get("material")
+                .and_then(Value::as_str)
+                .map_or(Ok(255), |material| {
+                    material_lookup
+                        .get(material)
+                        .copied()
+                        .ok_or_else(|| "terrain material palette lost a member".to_owned())
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut compact = grid
+        .as_object()
+        .cloned()
+        .ok_or_else(|| "regional terrain grid is not an object".to_owned())?;
+    compact.remove("cells");
+    compact.insert(
+        "schema".to_owned(),
+        Value::String("rey.regional-terrain-grid.transport.v1".to_owned()),
+    );
+    compact.insert(
+        "source_schema".to_owned(),
+        Value::String("rey.regional-terrain-grid.v1".to_owned()),
+    );
+    compact.insert("source_id".to_owned(), Value::String(source_id.unwrap()));
+    compact.insert(
+        "source_path".to_owned(),
+        Value::String(source_path.unwrap()),
+    );
+    compact.insert(
+        "source_artifact_id".to_owned(),
+        Value::String(source_artifact_id.unwrap()),
+    );
+    compact.insert("cell_ids".to_owned(), json!(cell_ids));
+    compact.insert("source_object_ids".to_owned(), json!(source_object_ids));
+    compact.insert(
+        "source_object_revisions".to_owned(),
+        json!(source_object_revisions),
+    );
+    compact.insert(
+        "validity_hex".to_owned(),
+        Value::String(hex_bytes(&validity)),
+    );
+    compact.insert(
+        "elevation_micrometers".to_owned(),
+        json!(elevation_micrometers),
+    );
+    compact.insert("material_palette".to_owned(), json!(material_palette));
+    compact.insert(
+        "material_indices_hex".to_owned(),
+        Value::String(hex_bytes(&material_indices)),
+    );
+    compact.insert(
+        "transport_authority".to_owned(),
+        Value::String("lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions".to_owned()),
+    );
+    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v1");
+    hasher.add_bytes(&serde_json::to_vec(&compact).map_err(|error| error.to_string())?);
+    compact.insert(
+        "transport_id".to_owned(),
+        Value::String(hasher.finish().to_string()),
+    );
+
+    packet
+        .get_mut("terrain")
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| "regional terrain program is not an object".to_owned())?
+        .insert("grid".to_owned(), Value::Object(compact));
+    packet
+        .get_mut("objects")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "regional projection objects changed during transport".to_owned())?
+        .retain(|object| {
+            object
+                .get("object_id")
+                .and_then(Value::as_str)
+                .is_none_or(|id| !terrain_object_ids.contains(id))
+        });
+    for layer in packet
+        .get_mut("layers")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "regional projection layers changed during transport".to_owned())?
+    {
+        if layer.get("kind").and_then(Value::as_str) == Some("terrain") {
+            layer
+                .as_object_mut()
+                .ok_or_else(|| "regional terrain layer is not an object".to_owned())?
+                .insert("object_ids".to_owned(), Value::Array(Vec::new()));
+        }
+    }
+    packet
+        .get_mut("validity")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "regional projection validity changed during transport".to_owned())?
+        .retain(|record| {
+            record
+                .get("scope")
+                .and_then(Value::as_str)
+                .and_then(|scope| scope.strip_prefix("native_geometry:"))
+                .is_none_or(|id| !terrain_object_ids.contains(id))
+        });
+    packet.insert(
+        "transport".to_owned(),
+        json!({
+            "schema": "rey.regional-projection-packet.transport.v1",
+            "source_packet_id": packet.get("packet_id").cloned().unwrap_or(Value::Null),
+            "omitted_terrain_objects": original_object_count.saturating_sub(packet.get("objects").and_then(Value::as_array).map_or(0, Vec::len)),
+            "authority": "terrain object, layer-membership, and per-object validity repetition is encoded once in the exact compact grid; semantic content is unchanged",
+        }),
+    );
+    Ok(())
+}
+
+fn required_string(value: &Value, field: &str) -> Result<String, String> {
+    value
+        .get(field)
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| format!("regional terrain transport has no {field}"))
+}
+
+fn bind_common(target: &mut Option<String>, value: String, label: &str) -> Result<(), String> {
+    if target.as_ref().is_some_and(|current| current != &value) {
+        return Err(format!("regional terrain transport mixes {label}"));
+    }
+    *target = Some(value);
+    Ok(())
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
 }
 
 fn encoded_json_response(

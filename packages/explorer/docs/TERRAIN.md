@@ -230,6 +230,18 @@ in objects plus cells; increasing terrain density must not reintroduce a
 per-cell scan of every native object. Terrain-control geometry never becomes
 observed elevation.
 
+The browser receives dense admitted grids through
+`rey.regional-terrain-grid.transport.v1`. This is a lossless transport view,
+not a new terrain authority: it binds the original dataset and source artifact,
+retains canonical row-major cell and source-object identities/revisions, packs
+validity and material indices, and keeps exact elevations. Native coordinates
+and grid positions are reconstructed only from admitted bounds and dimensions.
+Repeated terrain Point objects, per-object validity rows, and terrain-layer
+membership are omitted from the workload payload. Field compilation expands
+only the row-major values it consumes; an exact evidence route reconstructs
+only its selected cell. The retained CLI scene remains the full admission
+artifact.
+
 Each admitted regional field remains one bounded in-memory grid rendered by a
 bounded 3D orthographic terrain camera through a tiled accelerated working set.
 The application may now retain and validate multiple active editor packages,

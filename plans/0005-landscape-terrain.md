@@ -154,19 +154,28 @@ terrain-control inputs. It has traveled through editor admission as `SCENE@5` an
 default project bearing without treating terrain controls as observed height
 or closing the still-open named fidelity matrix.
 
-That admission also exposes a transport boundary. The current workload-list
-JSON is about 10.6 MB because it repeats thousands of terrain projections and
-grid cells; one cold local projection takes about eight seconds on the
-development machine. The UI now caches this heavyweight projection against
-its exact workload, catalog, ignore, environment, and Git dependencies, so an
-unrelated Channel or conversation revalidation tick cannot trigger a rebuild
-loop. Raster-native field transport, non-repeated summaries, and lazy exact
-terrain evidence remain required before this source density is a scalable
-browser contract. A local debug measurement over the exact admitted `SCENE@4`
-workload list retained 10,605,502 decoded JSON bytes, 1,712,485 gzip wire bytes,
-an 8.13-second cold projection, and a 36-millisecond warm projection over
-`127.0.0.1`. This closes the repeated-send regression, not the cold-compute or
-semantic-duplication gap.
+That admission exposed a transport boundary. The original workload-list JSON
+was about 10.6 MB because it repeated thousands of terrain objects, validity
+rows, layer memberships, and grid cells; one cold local projection took about
+eight seconds on the development machine. The UI caches this heavyweight
+derivation against its exact workload, catalog, ignore, environment, and Git
+dependencies, so an unrelated Channel or conversation revalidation tick
+cannot trigger a rebuild loop.
+
+`rey.ui-workload-transport.v1` now removes the duplicated latest accepted scene
+when the canonical active-scene set is present and encodes a gridded terrain
+source once as `rey.regional-terrain-grid.transport.v1`. Row-major cell IDs,
+source object IDs and revisions, one exact source artifact, validity bytes,
+elevations, and palette-indexed materials remain lossless; coordinates and
+grid positions derive only from admitted dimensions and bounds. The browser
+validates the compact representation before projection and reconstructs only
+the field or exact selected evidence cell it needs. On the same Rey County
+state, decoded transport fell from 10,658,308 to 1,447,459 bytes and gzip wire
+size fell from roughly 1.71 MB to 564,722 bytes. Warm local delivery measured
+about 15–20 milliseconds. The server still derives and verifies the full
+retained scene on a cold projection, so cold compute and compact retained-state
+storage remain open even though the browser contract is no longer dominated by
+semantic repetition.
 
 Client-side source validation now builds one unique native-object identity map
 before checking terrain cells. The 81×81 field therefore validates in linear
@@ -289,14 +298,15 @@ capture is bound to voyage manifest
 | Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are coherent but inherit coarse source form.           | Major |
 | Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Districts, roads, rail, water, and labels now form a sparse hierarchy. | Major |
 
-This matrix keeps the side-by-side delivery item open. The next source-fidelity
-slice must first replace repeated object-per-cell browser transport with a
-compact renderer-neutral field payload retaining exact artifact revision,
-dimensions, bounds, value channels, material palette, and validity mask. Only
-then should the geography compiler increase field density and emit a deeper
-water/transport/label hierarchy against named byte, compile, resident, and
-submission budgets. Interpolating or shading the current 81×81 field more
-aggressively is not an acceptable substitute for admitted source detail.
+This matrix keeps the side-by-side delivery item open. Repeated object-per-cell
+browser transport is now replaced by a compact renderer-neutral payload that
+retains exact artifact revision, dimensions, bounds, value channels, material
+palette, validity, and lazy exact-cell evidence. The next source-fidelity slice
+may therefore increase authored field density and deepen the
+water/transport/label hierarchy, but must do so against named retained-state,
+cold-compile, wire, resident, and submission budgets. Interpolating or shading
+the current 81×81 field more aggressively is not an acceptable substitute for
+admitted source detail.
 
 ## Geographic Synthesis Boundary
 
@@ -436,6 +446,10 @@ density remain subsequent slices of the same boundary.
 - [x] Revise the Rey County geography compiler and admitted dataset to carry
       denser multi-scale landforms, drainage response, and coherent land-cover
       fields under exact deterministic lineage and validity.
+- [x] Replace repeated terrain-object browser transport with a bounded compact
+      row-major field representation while retaining exact dataset, artifact,
+      cell, source-object, revision, validity, elevation, material, and lazy
+      evidence bindings.
 - [x] Add explicit water surfaces/areas and scale-aware contour styling before
       treating roads, railways, structures, or label density as fidelity
       completion.

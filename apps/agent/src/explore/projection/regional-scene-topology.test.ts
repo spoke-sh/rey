@@ -983,7 +983,87 @@ describe("regional scene topology projection", () => {
     expect(markup).toContain("Explicit no-data vertices remain holes");
     expect(markup).toContain("data-terrain-triangle");
 
-    scene.projection.terrain.grid!.cells[3]!.material = "granite";
+    const compactPortfolio = structuredClone(terrainPortfolio);
+    const compactScene =
+      compactPortfolio.workloads[0]!.latest_scene_admission!.scene!;
+    const compactGrid = compactScene.projection.terrain!.grid!;
+    if (compactGrid.schema !== "rey.regional-terrain-grid.v1")
+      throw new Error("test fixture must use the retained grid representation");
+    compactScene.projection.terrain!.grid = {
+      schema: "rey.regional-terrain-grid.transport.v1",
+      source_schema: "rey.regional-terrain-grid.v1",
+      transport_id: "terrain-transport:grid",
+      dataset_id: compactGrid.dataset_id,
+      source_dataset_id: compactGrid.source_dataset_id,
+      columns: compactGrid.columns,
+      rows: compactGrid.rows,
+      native_bounds: compactGrid.native_bounds,
+      source_id: "terrain-grid",
+      source_path: "terrain-grid.geojson",
+      source_artifact_id: "artifact:terrain-grid",
+      transport_authority:
+        "lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions",
+      cell_ids: compactGrid.cells.map((cell) => cell.cell_id),
+      source_object_ids: compactGrid.cells.map((cell) => cell.source_object_id),
+      source_object_revisions: compactGrid.cells.map(
+        (cell) => cell.source_object_revision,
+      ),
+      validity_hex: "01010100",
+      elevation_micrometers: compactGrid.cells.map(
+        (cell) => cell.elevation_micrometers ?? 0,
+      ),
+      material_palette: ["granite"],
+      material_indices_hex: "000000ff",
+      validity_semantics: compactGrid.validity_semantics,
+      interpolation: compactGrid.interpolation,
+      authority: compactGrid.authority,
+    };
+    compactScene.projection.objects = compactScene.projection.objects.filter(
+      (object) => object.layer !== "terrain",
+    );
+    compactScene.projection.layers = compactScene.projection.layers.map(
+      (layer) =>
+        layer.kind === "terrain" ? { ...layer, object_ids: [] } : layer,
+    );
+    compactScene.projection.transport = {
+      schema: "rey.regional-projection-packet.transport.v1",
+      source_packet_id: compactScene.projection.packet_id,
+      omitted_terrain_objects: 4,
+      authority:
+        "terrain object, layer-membership, and per-object validity repetition is encoded once in the exact compact grid; semantic content is unchanged",
+    };
+    const compactCounty = buildTopologyScene(
+      compactPortfolio,
+      0.58,
+      "regional:scene:1",
+    );
+    expect(compactCounty.terrain_fields[0]?.validity.values).toEqual(
+      county.terrain_fields[0]?.validity.values,
+    );
+    const compactEvidence = resolveRegionalObjectEvidence(
+      compactPortfolio,
+      "scene-admission",
+      "scene:1",
+      "terrain-object:0",
+    );
+    expect(compactEvidence).toMatchObject({
+      object: {
+        object_id: objectIds[0],
+        source_path: "terrain-grid.geojson",
+        source_artifact_id: "artifact:terrain-grid",
+        object_revision: "terrain-object:0",
+        layer: "terrain",
+      },
+      object_validity: {
+        validity_id: "terrain-cell:0",
+        class: "valid",
+      },
+    });
+
+    const grid = scene.projection.terrain.grid!;
+    if (grid.schema !== "rey.regional-terrain-grid.v1")
+      throw new Error("test fixture must use the retained grid representation");
+    grid.cells[3]!.material = "granite";
     expect(
       buildTopologyScene(terrainPortfolio, 0.1, "regional:scene:1").globe
         ?.posture,

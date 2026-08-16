@@ -7566,7 +7566,15 @@ fn scene_admission_is_qualified_and_run_from_an_exact_editor_commit() {
     let response = http_request(&address, "GET /api/v1/workloads HTTP/1.1");
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.contains("\"scene_admissions\""));
-    assert!(response.contains("\"latest_scene_admission\""));
+    assert!(!response.contains("\"latest_scene_admission\""));
+    assert!(response.contains("\"schema\":\"rey.ui-workload-transport.v1\""));
+    assert!(response.contains("\"schema\":\"rey.regional-terrain-grid.transport.v1\""));
+    assert!(response.contains("\"source_schema\":\"rey.regional-terrain-grid.v1\""));
+    assert!(response.contains("\"validity_hex\":\""));
+    assert!(response.contains("\"material_indices_hex\":\""));
+    assert!(
+        !response.contains("exact admitted Point altitude and material at one valid grid vertex")
+    );
     assert!(response.contains("\"status\":\"accepted\""));
     assert!(response.contains("\"scenario\":null"));
     assert!(response.contains(admission.result_id.as_str()));

@@ -321,6 +321,13 @@ grid. Its no-data vertices carry no height or material, and a triangle may
 exist only when all three of its source vertices are valid. Reference,
 WebGL2, and WebGPU paths consume that same rule.
 
+Dense terrain moves to the browser as a renderer-neutral field payload, not as
+thousands of repeated point-shaped UI objects. Compact transport must remain
+lossless for dataset, artifact, cell, source-object revision, validity,
+elevation, material, bounds, and dimensions. Exact evidence is reconstructed
+for the selected cell on demand; compaction cannot turn a retained omission
+into an unavailable evidence route or weaken the validity mask.
+
 Acceleration is a bounded projection of that reference dataset. Stable tiles
 retain source revision, parentage, shared edge samples, conservative validity,
 geometric error, and byte cost. A camera may select and retain tiles under

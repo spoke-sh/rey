@@ -12,6 +12,7 @@ import {
 } from "../engine/fields";
 import type { TerrainFieldSet } from "../terrain/compile";
 import { deriveTerrainNormals } from "../terrain/normals";
+import { regionalTerrainGridCells } from "../terrain/regional-grid-transport";
 import type {
   CountyFrame,
   CountyFootprint,
@@ -33,6 +34,7 @@ export function compileRegionalTerrainField(
   const program = scene.projection.terrain;
   const dataset = program?.grid;
   if (!program || !dataset) return null;
+  const datasetCells = regionalTerrainGridCells(dataset);
   const bounds = projectRegionalTerrainBounds(
     scene.native_bounds,
     dataset.native_bounds,
@@ -40,12 +42,12 @@ export function compileRegionalTerrainField(
   );
   const grid = createFieldGrid(dataset.columns, dataset.rows, bounds);
   const cells = fieldCellCount(grid);
-  if (dataset.cells.length !== cells)
+  if (datasetCells.length !== cells)
     throw new Error("regional terrain dataset shape changed after admission");
   const validityValues = Uint8Array.from(
-    dataset.cells.map((cell) => (cell.validity === "valid" ? 1 : 0)),
+    datasetCells.map((cell) => (cell.validity === "valid" ? 1 : 0)),
   );
-  const validElevations = dataset.cells.flatMap((cell) =>
+  const validElevations = datasetCells.flatMap((cell) =>
     cell.validity === "valid" && cell.elevation_micrometers !== null
       ? [cell.elevation_micrometers / 1_000_000]
       : [],
@@ -56,7 +58,7 @@ export function compileRegionalTerrainField(
   const maximumElevation = Math.max(...validElevations);
   const elevationRange = Math.max(1, maximumElevation - minimumElevation);
   const elevationValues = Float32Array.from(
-    dataset.cells.map((cell) =>
+    datasetCells.map((cell) =>
       cell.validity === "valid" && cell.elevation_micrometers !== null
         ? (cell.elevation_micrometers / 1_000_000 - minimumElevation) /
           elevationRange
@@ -110,7 +112,7 @@ export function compileRegionalTerrainField(
   const tint = new Float32Array(cells * 3);
   const occlusion = new Float32Array(cells);
   const roughness = new Float32Array(cells);
-  dataset.cells.forEach((cell, index) => {
+  datasetCells.forEach((cell, index) => {
     const offset = index * 3;
     const color = terrainMaterialTint(
       cell.material,

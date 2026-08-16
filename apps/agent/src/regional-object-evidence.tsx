@@ -8,6 +8,7 @@ import type {
   WorkloadSummary,
 } from "./domain";
 import { admittedRegionalScenes } from "./explore/projection/regional-scene-projector";
+import { regionalTerrainGridCellAt } from "./explore/terrain/regional-grid-transport";
 import { regionalObjectEvidenceRoute } from "./regional-object-route";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
@@ -47,21 +48,35 @@ export function resolveRegionalObjectEvidence(
   );
   if (projections.length !== 1) return null;
   const projection = projections[0]!;
-  const objects = projection.scene.projection.objects.filter(
+  const retainedObjects = projection.scene.projection.objects.filter(
     (object) => object.object_revision === objectRevision,
   );
+  const transportedObject =
+    retainedObjects.length === 0
+      ? transportedTerrainObject(projection.scene, objectRevision)
+      : null;
+  const objects = transportedObject
+    ? [transportedObject.object]
+    : retainedObjects;
   if (objects.length !== 1) return null;
   const object = objects[0]!;
   const layers = projection.scene.projection.layers.filter(
     (layer) =>
       layer.kind === object.layer &&
-      layer.object_ids.includes(object.object_id),
+      (layer.object_ids.includes(object.object_id) ||
+        (transportedObject !== null &&
+          layer.kind === "terrain" &&
+          layer.object_ids.length === 0 &&
+          projection.scene.projection.transport?.schema ===
+            "rey.regional-projection-packet.transport.v1")),
   );
-  const objectValidity = projection.scene.projection.validity.filter(
-    (validity) =>
-      validity.scope === `native_geometry:${object.object_id}` &&
-      validity.source_revision === object.object_revision,
-  );
+  const objectValidity = transportedObject
+    ? [transportedObject.validity]
+    : projection.scene.projection.validity.filter(
+        (validity) =>
+          validity.scope === `native_geometry:${object.object_id}` &&
+          validity.source_revision === object.object_revision,
+      );
   const atlasDelta = portfolio.semantic_atlas_deltas.at(-1);
   if (layers.length !== 1 || objectValidity.length !== 1 || !atlasDelta)
     return null;
@@ -76,7 +91,9 @@ export function resolveRegionalObjectEvidence(
     object,
     layer: layers[0]!,
     object_validity: objectValidity[0]!,
-    validity: projection.scene.projection.validity,
+    validity: transportedObject
+      ? [...projection.scene.projection.validity, transportedObject.validity]
+      : projection.scene.projection.validity,
     atlas_region: projection.atlas_region,
     atlas_delta: atlasDelta,
     atlas_change:
@@ -86,6 +103,62 @@ export function resolveRegionalObjectEvidence(
     object_delta: null,
     object_delta_boundary:
       "the retained workload document exposes the directed atlas revision delta, not an object-local source diff; no object change is inferred",
+  };
+}
+
+function transportedTerrainObject(
+  scene: AdmittedRegionalScene,
+  objectRevision: string,
+): { object: RegionalObject; validity: RegionalValidity } | null {
+  const grid = scene.projection.terrain?.grid;
+  if (
+    grid?.schema !== "rey.regional-terrain-grid.transport.v1" ||
+    scene.projection.transport?.schema !==
+      "rey.regional-projection-packet.transport.v1"
+  )
+    return null;
+  const index = grid.source_object_revisions.indexOf(objectRevision);
+  if (
+    index < 0 ||
+    grid.source_object_revisions.lastIndexOf(objectRevision) !== index
+  )
+    return null;
+  const cell = regionalTerrainGridCellAt(grid, index);
+  if (!cell) return null;
+  const nativeBounds = {
+    west_microdegrees: cell.native_position[0],
+    south_microdegrees: cell.native_position[1],
+    east_microdegrees: cell.native_position[0],
+    north_microdegrees: cell.native_position[1],
+    crosses_antimeridian: false,
+  };
+  return {
+    object: {
+      object_id: cell.source_object_id,
+      source_id: grid.source_id,
+      source_path: grid.source_path,
+      source_artifact_id: cell.source_artifact_id,
+      object_revision: cell.source_object_revision,
+      geometry_kind: "Point",
+      native_bounds: nativeBounds,
+      native_geometry: {
+        kind: "point",
+        position: cell.native_position,
+      },
+      layer: "terrain",
+      authority:
+        "exact admitted native geometry reconstructed from the lossless row-major terrain transport; appearance grants no relationship, activity, or action authority",
+    },
+    validity: {
+      validity_id: cell.cell_id,
+      class: cell.validity,
+      scope: `terrain_grid_cell:${cell.source_object_id}`,
+      source_revision: cell.source_object_revision,
+      rule:
+        cell.validity === "valid"
+          ? "exact admitted terrain cell has height and material only at this source coordinate"
+          : "exact admitted no-data cell locates a validity hole and supplies no height or material",
+    },
   };
 }
 
