@@ -332,19 +332,10 @@ fn member(
         .clone()
         .ok_or(RegionalGeographyCompositionError::AtlasBinding)?;
     let grid = terrain_grid(scene);
-    let cells = grid.map(RegionalTerrainGrid::expanded_cells).transpose()?;
-    let terrain_valid_vertices = cells.as_ref().map_or(0, |cells| {
-        cells
-            .iter()
-            .filter(|cell| cell.validity == RegionalValidityClass::Valid)
-            .count() as u64
-    });
-    let terrain_no_data_vertices = cells.as_ref().map_or(0, |cells| {
-        cells
-            .iter()
-            .filter(|cell| cell.validity == RegionalValidityClass::NoData)
-            .count() as u64
-    });
+    let (terrain_valid_vertices, terrain_no_data_vertices) = grid
+        .map(RegionalTerrainGrid::validity_counts)
+        .transpose()?
+        .unwrap_or_default();
     let mut member = RegionalGeographyMember {
         member_id: placeholder("regional-geography-member"),
         workload_id: workload_id.to_owned(),

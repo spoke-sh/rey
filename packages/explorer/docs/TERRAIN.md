@@ -255,38 +255,34 @@ vertex. Re-expansion is exact and verification remains linear in objects plus
 cells; increasing terrain density must not reintroduce a per-cell scan of every
 native object. Terrain-control geometry never becomes observed elevation.
 
-The browser receives dense admitted grids through
-`rey.regional-terrain-grid.transport.v2`. This is a lossless transport view,
-not a new terrain authority: it binds the original dataset and source artifact,
-retains canonical row-major cell and source-object identities/revisions, packs
-validity and material indices, and keeps exact elevations. Native coordinates
-and grid positions are reconstructed only from admitted bounds and dimensions.
-BLAKE3 cell and source-revision identities travel as fixed-width packed bytes;
-source-object IDs travel as one common prefix plus exact row-major suffixes.
-This removes large JSON hash columns without weakening exact evidence routes.
-Repeated terrain Point objects, per-object validity rows, and terrain-layer
-membership are absent from both compact retention and the workload payload.
-Packed-source retention uses `rey.regional-terrain-grid.v3`: one exact source
-feature identity plus row/column is the derivation basis for every cell and
-source revision, so the retained state does not repeat three identity columns.
-The server reconstructs those identities while producing the compatible v2
-browser transport.
-Field compilation decodes only its typed value columns. It does not allocate a
-full identity-rich object for every vertex; an exact evidence route reconstructs
-only its selected cell. The browser still accepts v1 transport for retained
-compatibility, while the server emits v2. The CLI remains the full human
-verification surface and reports the semantic terrain-vertex count even though
-those vertices are not stored as duplicate projection objects.
+The browser receives packed-source grids through
+`rey.regional-terrain-grid.transport.v3`. This is a lossless transport view,
+not a new terrain authority: it binds the original dataset, source artifact,
+exact source feature and revision, packed row-major values, and explicit
+validity. Native coordinates and grid positions derive only from admitted
+bounds and dimensions. Cell locators, source revisions, and BLAKE3 cell
+identities derive from the exact source feature plus row and column only when
+an individual cell is inspected. Rust and TypeScript share an executable
+identity vector so this derivation cannot silently drift across runtimes.
 
-For the 501×501 Rey County field, derivation-compact v3 keeps the complete
-retained workload state at 9,955,778 bytes. Compatible browser transport v2 is
-still 27,294,879 uncompressed bytes because it carries the packed cell and
-source-revision digests required by its existing identity contract. Large
-Base64 columns are validated in one bounded linear pass, while their bytes are
-decoded only when field compilation or exact Evidence needs them. A future
-derivation-aware browser transport may reproduce those identities from the
-source feature and row/column, as retention v3 does; until then, cold server
-projection and wire size remain explicit costs rather than renderer work.
+Repeated terrain Point objects, per-object validity rows, terrain-layer
+membership, fixed-width digest columns, and source-object suffix arrays are
+absent from both compact retention and the v3 workload payload. Field
+compilation decodes only typed value columns and never allocates an
+identity-rich object for every vertex. Retained v1/v2 point grids continue to
+use compatible v1/v2 browser transport; exact historical identities are not
+rewritten. The CLI remains the full human verification surface and reports the
+semantic terrain-vertex count even though those vertices are not stored or
+transported as duplicate objects.
+
+For the 501×501 Rey County field, a measured cold unoptimized operator read
+fell from roughly 200 seconds of repeated packed-cell expansion plus 34 seconds
+of transport work to 1.3 seconds with optimized pure-compute development
+dependencies. The gzip workload transfer is about 718 KiB and a warm retained
+projection returns in about 15 ms. These are named local development
+measurements, not universal deployment guarantees. The structural invariant is
+more important: retained verification and wire size are proportional to packed
+value/validity columns, not multiplied by derivable per-cell identity objects.
 
 Source admission also accepts one bounded GeoJSON foreign member with schema
 `rey.packed-terrain-grid.v1`. Its Polygon geometry is the exact CRS84 grid

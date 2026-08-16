@@ -32,9 +32,11 @@ define the semantics of the typed documents carried over HTTP.
 7. **Route readiness is demand-scoped.** The browser's root shell loads only
    process identity, Channels, Observations, conversation, and the exact
    revalidation cursor. It does not request the workload portfolio. A route
-   waits only for the projections it consumes; Cadence, Environment, Journal
-   entries, and exact scenario/delta evidence remain independent of a cold
-   workload projection.
+   waits only for the projection required to establish its first useful
+   surface. Feed renders signals and admissions before workload flow arrives;
+   Agents renders Journal and process evidence before its work ledger arrives.
+   Cadence, Environment, Journal entries, and exact scenario/delta evidence
+   remain wholly independent of a cold workload projection.
 
 ## Discovery And Versioning
 
@@ -46,14 +48,14 @@ rey agent
 
 The default origin is `http://127.0.0.1:5714`.
 
-| Surface | Path | Behavior |
-| --- | --- | --- |
-| Server root | `/` | `307 Temporary Redirect` to `/api`. |
-| API root | `/api` | `307 Temporary Redirect` to `/api/docs/`. |
-| Swagger | `/api/docs/` | Embedded interactive documentation. Assets are served below `/api/docs/`. |
-| OpenAPI | `/api/openapi.json` | OpenAPI 3.1 JSON generated from the registered route catalog. |
-| Versioned API | `/api/v1/...` | Current pre-alpha HTTP operations. |
-| Browser application | `/explore` and application routes below | Embedded same-origin operator application. |
+| Surface             | Path                                    | Behavior                                                                  |
+| ------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
+| Server root         | `/`                                     | `307 Temporary Redirect` to `/api`.                                       |
+| API root            | `/api`                                  | `307 Temporary Redirect` to `/api/docs/`.                                 |
+| Swagger             | `/api/docs/`                            | Embedded interactive documentation. Assets are served below `/api/docs/`. |
+| OpenAPI             | `/api/openapi.json`                     | OpenAPI 3.1 JSON generated from the registered route catalog.             |
+| Versioned API       | `/api/v1/...`                           | Current pre-alpha HTTP operations.                                        |
+| Browser application | `/explore` and application routes below | Embedded same-origin operator application.                                |
 
 `rey.ui-server.v2` reports `http_framework`, `api_root`, `swagger_ui`, and
 `openapi_document` alongside the listener, exposure, enabled writes, roots,
@@ -81,11 +83,15 @@ assets, health, or other requests from being accepted. This is request
 concurrency, not background workload scheduling.
 
 The browser preserves the same separation above HTTP. Its lightweight root
-loader never fetches `/api/v1/workloads`; portfolio-dependent routes opt in to
-that endpoint. Opening the mailbox makes runtime attention demand-visible:
-retained Channel history is usable immediately while the workload attention
-projection identifies itself as loading. In-flight portfolio requests are
-deduplicated.
+loader never fetches `/api/v1/workloads`. Feed and Agents load their native
+documents first, render them immediately, and attach portfolio-derived
+sections after the workload projection arrives. Explorer and Workloads still
+await that projection because it is their primary evidence. Opening the
+mailbox makes runtime attention demand-visible: retained Channel history is
+usable immediately while the workload attention projection identifies itself
+as loading. In-flight portfolio requests are deduplicated in a browser, and
+the server serializes cold portfolio derivation so concurrent clients share
+the retained result instead of repeating the computation.
 
 Swagger assets are compiled into the binary. Opening the API documentation
 does not require a CDN or widen network authority.
@@ -107,6 +113,10 @@ does not require a CDN or widen network authority.
 - Browser HTML and embedded assets use `Cache-Control: no-cache`.
 - Large workload and workload-evidence projections support gzip when
   `Accept-Encoding` admits it and return `Vary: Accept-Encoding`.
+- Packed terrain grids use `rey.regional-terrain-grid.transport.v3`: exact
+  source values, validity, and identity derivation inputs cross the wire once;
+  individual BLAKE3 cell identities are reconstructed only when inspected.
+  This is a lossless transport optimization and grants no inferred terrain.
 - JSON writes require `Content-Type: application/json`; unsupported media
   returns `415`.
 - The router rejects bodies larger than 1 MiB before endpoint decoding.
@@ -121,26 +131,26 @@ authenticated identity, TLS, or CSRF guarantee.
 
 Every row is available through `GET` and `HEAD`.
 
-| Path | Response schema | Contract and authority |
-| --- | --- | --- |
-| `/api/v1/health` | `rey.agent-health.v2` | Readiness plus exact process, worker topology, and operator descriptor. |
-| `/api/v1/agent` | `rey.agent-process.v2` | Foreground process, supervision, lifecycle, authority, limits, and omissions. |
-| `/api/v1/revalidation` | `rey.ui-revalidation.v1` | Exact bounded source-change cursor; no assessment or scheduling. |
-| `/api/v1/cadence` | `rey.ui-cadence.v1` | Partially ordered retained Git, environment, and mounted-browser cadence. |
-| `/api/v1/environment` | `rey.environment-status.v2` | The same bounded environment-status derivation available through the CLI. |
-| `/api/v1/channels` | `rey.ui-channels.v1` | Channel status and current retained provider mailbox frontier. |
-| `/api/v1/conversations` | `rey.conversation-transcript.v1` | One bounded workspace-local transcript and its exact writer/delivery boundary. |
-| `/api/v1/feed/admissions` | `rey.ui-feed-admissions.v1` | Verified retained environment and workload commits; no fabricated activity. |
-| `/api/v1/journal` | `rey.ui-journal.v2` | Verified bounded Journal log and browser admission boundary. |
-| `/api/v1/journal/opportunities` | `rey.journal-opportunity-surface.v1` | Authored action cells only; no readiness, assignment, execution, or proof claim. |
-| `/api/v1/journal/queries` | `rey.journal-query-state.v1` | Retained query admission and execution evidence; no browser query mutation. |
-| `/api/v1/journal/seed?observations={id[,id]}` | `rey.journal-seed.v1` | Deterministic unretained proposal from exact unresolved observations. |
-| `/api/v1/observations` | `rey.observation-frontier.v1` | Bounded unresolved collaboration frontier and exact Channel admissions. |
-| `/api/v1/workloads` | `rey.workload-list.v1` | Portfolio, retained results, attention, atlas, and compact terrain transport. May be expensive on a cold revision. |
-| `/api/v1/workloads/admissions` | `rey.workload-log.v1` | Newest verified workload commits under the retained history bound. |
-| `/api/v1/workloads/evidence` | `rey.ui-workload-evidence-catalog.v1` | Index of exact retained scenario and directed-delta references. |
-| `/api/v1/workloads/{workload_id}/scenarios/{execution_id}` | `rey.ui-workload-scenario-evidence.v1` | One exact content-addressed scenario execution; never falls back to latest. |
-| `/api/v1/workloads/{workload_id}/deltas/{delta_id}` | `rey.ui-workload-delta-evidence.v1` | One exact retained directed delta in its original direction. |
+| Path                                                       | Response schema                        | Contract and authority                                                                                             |
+| ---------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `/api/v1/health`                                           | `rey.agent-health.v2`                  | Readiness plus exact process, worker topology, and operator descriptor.                                            |
+| `/api/v1/agent`                                            | `rey.agent-process.v2`                 | Foreground process, supervision, lifecycle, authority, limits, and omissions.                                      |
+| `/api/v1/revalidation`                                     | `rey.ui-revalidation.v1`               | Exact bounded source-change cursor; no assessment or scheduling.                                                   |
+| `/api/v1/cadence`                                          | `rey.ui-cadence.v1`                    | Partially ordered retained Git, environment, and mounted-browser cadence.                                          |
+| `/api/v1/environment`                                      | `rey.environment-status.v2`            | The same bounded environment-status derivation available through the CLI.                                          |
+| `/api/v1/channels`                                         | `rey.ui-channels.v1`                   | Channel status and current retained provider mailbox frontier.                                                     |
+| `/api/v1/conversations`                                    | `rey.conversation-transcript.v1`       | One bounded workspace-local transcript and its exact writer/delivery boundary.                                     |
+| `/api/v1/feed/admissions`                                  | `rey.ui-feed-admissions.v1`            | Verified retained environment and workload commits; no fabricated activity.                                        |
+| `/api/v1/journal`                                          | `rey.ui-journal.v2`                    | Verified bounded Journal log and browser admission boundary.                                                       |
+| `/api/v1/journal/opportunities`                            | `rey.journal-opportunity-surface.v1`   | Authored action cells only; no readiness, assignment, execution, or proof claim.                                   |
+| `/api/v1/journal/queries`                                  | `rey.journal-query-state.v1`           | Retained query admission and execution evidence; no browser query mutation.                                        |
+| `/api/v1/journal/seed?observations={id[,id]}`              | `rey.journal-seed.v1`                  | Deterministic unretained proposal from exact unresolved observations.                                              |
+| `/api/v1/observations`                                     | `rey.observation-frontier.v1`          | Bounded unresolved collaboration frontier and exact Channel admissions.                                            |
+| `/api/v1/workloads`                                        | `rey.workload-list.v1`                 | Portfolio, retained results, attention, atlas, and compact terrain transport. May be expensive on a cold revision. |
+| `/api/v1/workloads/admissions`                             | `rey.workload-log.v1`                  | Newest verified workload commits under the retained history bound.                                                 |
+| `/api/v1/workloads/evidence`                               | `rey.ui-workload-evidence-catalog.v1`  | Index of exact retained scenario and directed-delta references.                                                    |
+| `/api/v1/workloads/{workload_id}/scenarios/{execution_id}` | `rey.ui-workload-scenario-evidence.v1` | One exact content-addressed scenario execution; never falls back to latest.                                        |
+| `/api/v1/workloads/{workload_id}/deltas/{delta_id}`        | `rey.ui-workload-delta-evidence.v1`    | One exact retained directed delta in its original direction.                                                       |
 
 Path identities must be non-empty UTF-8 after percent decoding and cannot
 contain `/` or NUL. An unknown exact identity returns `404`; it never selects a
@@ -151,13 +161,13 @@ newer retained result.
 Swagger can issue these requests for local inspection, but that convenience
 does not alter their authority or safety boundary.
 
-| Method and path | Request | Result | Exact authority |
-| --- | --- | --- | --- |
-| `POST /api/v1/journal` | `rey.journal-entry-proposal.v2` | `rey.journal-admission.v2`; `201` when newly retained, `200` when idempotently present. | Validate and retain one bounded self-asserted human document. No typed block executes. |
-| `POST /api/v1/observations` | `rey.ui-observation-write.v1` | Observation admission/broadcast receipt; `201`. | Admit one partial self-asserted finding and attempt bounded broadcast to default local Channels. No relay, action, or proof authority. |
-| `POST /api/v1/conversations/messages` | `rey.ui-conversation-message-write.v1` | Conditional append receipt; `201`. | Append as the declared browser writer only when log and session identities match. Delivery remains `not_attempted`. |
-| `POST /api/v1/channels/working` | `rey.ui-channel-working-write.v1` | Conditional replacement receipt; `201` when changed, `200` when unchanged. | Validate a complete graph and replace only Channel WORKING when expected HEAD and WORKING snapshots still match. |
-| `POST /api/v1/workloads/admit` | Workload approval with `message`, `expected_head`, and `expected_working` | Exact qualification/admission receipt; `201`. | Freeze reviewed files, require fresh HEAD/WORKING preconditions, run the complete suite, and commit only that qualified INDEX. |
+| Method and path                       | Request                                                                   | Result                                                                                  | Exact authority                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/journal`                | `rey.journal-entry-proposal.v2`                                           | `rey.journal-admission.v2`; `201` when newly retained, `200` when idempotently present. | Validate and retain one bounded self-asserted human document. No typed block executes.                                                 |
+| `POST /api/v1/observations`           | `rey.ui-observation-write.v1`                                             | Observation admission/broadcast receipt; `201`.                                         | Admit one partial self-asserted finding and attempt bounded broadcast to default local Channels. No relay, action, or proof authority. |
+| `POST /api/v1/conversations/messages` | `rey.ui-conversation-message-write.v1`                                    | Conditional append receipt; `201`.                                                      | Append as the declared browser writer only when log and session identities match. Delivery remains `not_attempted`.                    |
+| `POST /api/v1/channels/working`       | `rey.ui-channel-working-write.v1`                                         | Conditional replacement receipt; `201` when changed, `200` when unchanged.              | Validate a complete graph and replace only Channel WORKING when expected HEAD and WORKING snapshots still match.                       |
+| `POST /api/v1/workloads/admit`        | Workload approval with `message`, `expected_head`, and `expected_working` | Exact qualification/admission receipt; `201`.                                           | Freeze reviewed files, require fresh HEAD/WORKING preconditions, run the complete suite, and commit only that qualified INDEX.         |
 
 Write requests reject unknown fields where their typed decoder requires a
 closed document. Endpoint-specific size and semantic bounds include:
@@ -189,18 +199,18 @@ API errors emitted by Rey use:
 `category` is a stable machine-facing classification within this schema;
 `detail` is bounded human diagnostic context. The current status families are:
 
-| Status | Meaning |
-| --- | --- |
-| `400` | Malformed path, query, JSON, or request contract. |
-| `403` | The current retained contract does not authorize the requested writer. |
-| `404` | Unknown API route or unknown exact retained identity. |
-| `405` | Registered route, unsupported method. |
-| `409` | Exact precondition changed or the conditional write conflicts. |
-| `413` | Shared or endpoint-specific request body limit exceeded. |
-| `414` | Request target limit exceeded. |
-| `415` | JSON media type required. |
-| `422` | Well-formed request rejected by semantic validation. |
-| `500` | A bounded projection, retained artifact, encoding, or handler failed. |
+| Status | Meaning                                                                |
+| ------ | ---------------------------------------------------------------------- |
+| `400`  | Malformed path, query, JSON, or request contract.                      |
+| `403`  | The current retained contract does not authorize the requested writer. |
+| `404`  | Unknown API route or unknown exact retained identity.                  |
+| `405`  | Registered route, unsupported method.                                  |
+| `409`  | Exact precondition changed or the conditional write conflicts.         |
+| `413`  | Shared or endpoint-specific request body limit exceeded.               |
+| `414`  | Request target limit exceeded.                                         |
+| `415`  | JSON media type required.                                              |
+| `422`  | Well-formed request rejected by semantic validation.                   |
+| `500`  | A bounded projection, retained artifact, encoding, or handler failed.  |
 
 Errors do not imply retry safety. A caller must use the endpoint's exact
 preconditions and subject contract to decide whether a new attempt is valid.
@@ -211,15 +221,15 @@ The embedded single-page application is a projection of the same typed
 evidence. Known application routes and deep links return the embedded shell;
 the client router selects the view.
 
-| Route | Bearing |
-| --- | --- |
-| `/explore` | Continuous evidence-bound spatial view and default human bearing. |
-| `/feed` | Verified admissions, observations, and collaboration attention. |
-| `/environment` | Environment evidence and exact application inventory. |
-| `/workloads` and workload deep links | Portfolio, review, results, and exact evidence. |
-| `/journal`, `/journal/new`, `/journal/{slug}` | Journal index, authoring, and stable content-addressed entries. |
-| `/cadence` | Partially ordered retained clocks and repository posture. |
-| `/agents` | Exact Rey process and supervised topology. |
+| Route                                         | Bearing                                                           |
+| --------------------------------------------- | ----------------------------------------------------------------- |
+| `/explore`                                    | Continuous evidence-bound spatial view and default human bearing. |
+| `/feed`                                       | Verified admissions, observations, and collaboration attention.   |
+| `/environment`                                | Environment evidence and exact application inventory.             |
+| `/workloads` and workload deep links          | Portfolio, review, results, and exact evidence.                   |
+| `/journal`, `/journal/new`, `/journal/{slug}` | Journal index, authoring, and stable content-addressed entries.   |
+| `/cadence`                                    | Partially ordered retained clocks and repository posture.         |
+| `/agents`                                     | Exact Rey process and supervised topology.                        |
 
 Panning, zooming, opening a deep link, selecting an object, or loading a page
 does not execute a locator, run a survey, schedule a workload, or widen read

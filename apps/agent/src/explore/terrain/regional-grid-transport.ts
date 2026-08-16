@@ -1,3 +1,4 @@
+import { blake3 } from "@noble/hashes/blake3.js";
 import type {
   RegionalTerrainGrid,
   RegionalTerrainGridCell,
@@ -8,7 +9,8 @@ type TransportedRegionalTerrainGrid = Extract<
   {
     schema:
       | "rey.regional-terrain-grid.transport.v1"
-      | "rey.regional-terrain-grid.transport.v2";
+      | "rey.regional-terrain-grid.transport.v2"
+      | "rey.regional-terrain-grid.transport.v3";
   }
 >;
 
@@ -85,6 +87,15 @@ export function validRegionalTerrainGridTransport(
       grid.source_object_id_suffixes.some(
         (suffix) => !`${grid.source_object_id_prefix}${suffix}`,
       ))
+  )
+    return false;
+  if (
+    grid.schema === "rey.regional-terrain-grid.transport.v3" &&
+    (grid.source_schema !== "rey.regional-terrain-grid.v3" ||
+      grid.cell_source_encoding !== "geojson_packed_grid_v1" ||
+      grid.identity_encoding !== "rey.packed-terrain-grid-cell-identities.v1" ||
+      !grid.source_feature_id ||
+      !/^blake3:[0-9a-f]{64}$/.test(grid.source_feature_revision))
   )
     return false;
   try {
@@ -177,34 +188,61 @@ export function regionalTerrainGridCellAt(
   const valid = validity[index] === 1;
   const materialIndex = materials[index]!;
   const packed = grid.schema === "rey.regional-terrain-grid.transport.v2";
+  const derived = grid.schema === "rey.regional-terrain-grid.transport.v3";
   const identities = packed ? transportIdentityBytes(grid) : undefined;
-  return {
-    cell_id: packed
-      ? digestAt(identities!.cellDigests, index)
-      : grid.cell_ids[index]!,
-    source_object_id: packed
+  const sourceObjectId = derived
+    ? `${grid.source_feature_id}/cell-r${row}-c${column}`
+    : packed
       ? `${grid.source_object_id_prefix}${grid.source_object_id_suffixes[index]}`
-      : grid.source_object_ids[index]!,
-    source_artifact_id: grid.source_artifact_id,
-    source_object_revision: packed
+      : grid.source_object_ids[index]!;
+  const sourceObjectRevision = derived
+    ? packedTerrainCellSourceRevision(grid.source_feature_revision, row, column)
+    : packed
       ? digestAt(identities!.sourceObjectRevisionDigests, index)
-      : grid.source_object_revisions[index]!,
+      : grid.source_object_revisions[index]!;
+  const elevation = valid ? grid.elevation_micrometers[index]! : null;
+  const material = valid ? grid.material_palette[materialIndex]! : null;
+  const authority =
+    grid.cell_source_encoding === "geojson_packed_grid_v1"
+      ? valid
+        ? "exact packed source altitude and material at one valid grid vertex"
+        : "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+      : valid
+        ? "exact admitted Point altitude and material at one valid grid vertex"
+        : "explicit source no-data vertex; geometry locates the hole but supplies no height or material";
+  return {
+    cell_id: derived
+      ? packedTerrainGridCellId({
+          authority,
+          cellId: PACKED_TERRAIN_CELL_PLACEHOLDER,
+          column,
+          elevation,
+          material,
+          nativePosition: [
+            grid.native_bounds.west_microdegrees + column * longitudeStep,
+            grid.native_bounds.north_microdegrees - row * latitudeStep,
+          ],
+          row,
+          sourceArtifactId: grid.source_artifact_id,
+          sourceObjectId,
+          sourceObjectRevision,
+          validity: valid ? "valid" : "no_data",
+        })
+      : packed
+        ? digestAt(identities!.cellDigests, index)
+        : grid.cell_ids[index]!,
+    source_object_id: sourceObjectId,
+    source_artifact_id: grid.source_artifact_id,
+    source_object_revision: sourceObjectRevision,
     grid_position: [column, row],
     native_position: [
       grid.native_bounds.west_microdegrees + column * longitudeStep,
       grid.native_bounds.north_microdegrees - row * latitudeStep,
     ],
-    elevation_micrometers: valid ? grid.elevation_micrometers[index]! : null,
-    material: valid ? grid.material_palette[materialIndex]! : null,
+    elevation_micrometers: elevation,
+    material,
     validity: valid ? "valid" : "no_data",
-    authority:
-      grid.cell_source_encoding === "geojson_packed_grid_v1"
-        ? valid
-          ? "exact packed source altitude and material at one valid grid vertex"
-          : "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
-        : valid
-          ? "exact admitted Point altitude and material at one valid grid vertex"
-          : "explicit source no-data vertex; geometry locates the hole but supplies no height or material",
+    authority,
   };
 }
 
@@ -238,6 +276,26 @@ export function regionalTerrainGridCellIndexForRevision(
       grid.source_object_revisions.lastIndexOf(revision) === index
       ? index
       : undefined;
+  }
+  if (grid.schema === "rey.regional-terrain-grid.transport.v3") {
+    if (!/^blake3:[0-9a-f]{64}$/.test(revision)) return undefined;
+    for (
+      let index = 0;
+      index < regionalTerrainGridCellCount(grid);
+      index += 1
+    ) {
+      const column = index % grid.columns;
+      const row = Math.floor(index / grid.columns);
+      if (
+        packedTerrainCellSourceRevision(
+          grid.source_feature_revision,
+          row,
+          column,
+        ) === revision
+      )
+        return index;
+    }
+    return undefined;
   }
   const wanted = decodeBlake3Digest(revision);
   if (!wanted) return undefined;
@@ -296,6 +354,87 @@ function digestAt(bytes: Uint8Array, index: number): string {
   return digest;
 }
 
+const textEncoder = new TextEncoder();
+const PACKED_TERRAIN_CELL_PLACEHOLDER = semanticDigest(
+  "rey.regional-scene.placeholder.v1",
+  textEncoder.encode("excluded from identity"),
+);
+
+function packedTerrainCellSourceRevision(
+  sourceFeatureRevision: string,
+  row: number,
+  column: number,
+): string {
+  return semanticDigest(
+    "rey.packed-terrain-grid-cell-source.v1",
+    textEncoder.encode(sourceFeatureRevision),
+    u64Bytes(row),
+    u64Bytes(column),
+  );
+}
+
+function packedTerrainGridCellId(cell: {
+  authority: string;
+  cellId: string;
+  column: number;
+  elevation: number | null;
+  material: string | null;
+  nativePosition: [number, number];
+  row: number;
+  sourceArtifactId: string;
+  sourceObjectId: string;
+  sourceObjectRevision: string;
+  validity: "valid" | "no_data";
+}): string {
+  const normalized = {
+    cell_id: cell.cellId,
+    source_object_id: cell.sourceObjectId,
+    source_artifact_id: cell.sourceArtifactId,
+    source_object_revision: cell.sourceObjectRevision,
+    grid_position: [cell.column, cell.row],
+    native_position: cell.nativePosition,
+    elevation_micrometers: cell.elevation,
+    material: cell.material,
+    validity: cell.validity,
+    authority: cell.authority,
+  };
+  return semanticDigest(
+    "rey.regional-terrain-grid-cell.v1",
+    textEncoder.encode(JSON.stringify(normalized)),
+  );
+}
+
+function semanticDigest(domain: string, ...fields: Uint8Array[]): string {
+  const framed = [textEncoder.encode(domain), ...fields].map(frameBytes);
+  const length = framed.reduce((sum, field) => sum + field.length, 0);
+  const input = new Uint8Array(length);
+  let offset = 0;
+  for (const field of framed) {
+    input.set(field, offset);
+    offset += field.length;
+  }
+  return `blake3:${hex(blake3(input))}`;
+}
+
+function frameBytes(bytes: Uint8Array): Uint8Array {
+  const framed = new Uint8Array(8 + bytes.length);
+  new DataView(framed.buffer).setBigUint64(0, BigInt(bytes.length), true);
+  framed.set(bytes, 8);
+  return framed;
+}
+
+function u64Bytes(value: number): Uint8Array {
+  const bytes = new Uint8Array(8);
+  new DataView(bytes.buffer).setBigUint64(0, BigInt(value), true);
+  return bytes;
+}
+
+function hex(bytes: Uint8Array): string {
+  let encoded = "";
+  for (const byte of bytes) encoded += byte.toString(16).padStart(2, "0");
+  return encoded;
+}
+
 function decodeBlake3Digest(value: string): Uint8Array | undefined {
   if (!/^blake3:[0-9a-f]{64}$/.test(value)) return undefined;
   return decodeHex(value.slice("blake3:".length));
@@ -317,15 +456,13 @@ function validBase64Bytes(value: string, expectedBytes?: number): boolean {
   const contentLength = value.length - padding;
   for (let index = 0; index < contentLength; index += 1) {
     const character = value.charCodeAt(index);
-    if (
-      !(
-        (character >= 65 && character <= 90) ||
-        (character >= 97 && character <= 122) ||
-        (character >= 48 && character <= 57) ||
-        character === 43 ||
-        character === 47
-      )
-    )
+    if (!(
+      (character >= 65 && character <= 90) ||
+      (character >= 97 && character <= 122) ||
+      (character >= 48 && character <= 57) ||
+      character === 43 ||
+      character === 47
+    ))
       return false;
   }
   for (let index = contentLength; index < value.length; index += 1)

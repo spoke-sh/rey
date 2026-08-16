@@ -60,7 +60,6 @@ use rey::{
 use rey_core::{SemanticDigest, SemanticHasher};
 use rey_environment::{DiscoveryLimits, resolve_executable};
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
-use rey_mining::RegionalTerrainGrid;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -499,6 +498,7 @@ pub struct UiServer {
     config: UiServerConfig,
     descriptor: UiServerDescriptor,
     projection_cache: Mutex<UiProjectionCache>,
+    workload_projection: Mutex<()>,
 }
 
 #[derive(Default)]
@@ -680,6 +680,7 @@ impl UiServer {
             config,
             descriptor,
             projection_cache: Mutex::new(UiProjectionCache::default()),
+            workload_projection: Mutex::new(()),
         })
     }
 
@@ -896,7 +897,25 @@ impl UiServer {
     }
 
     fn workloads(&self, accepts_gzip: bool) -> Response<Cursor<Vec<u8>>> {
-        let source_revision = self.workload_projection_revision().ok();
+        let mut source_revision = self.workload_projection_revision().ok();
+        if let Some(revision) = &source_revision
+            && let Ok(cache) = self.projection_cache.lock()
+            && let Some(cached) = &cache.workloads
+            && &cached.source_revision == revision
+        {
+            return cached_json_response(StatusCode(200), cached, accepts_gzip);
+        }
+        let _projection = match self.workload_projection.lock() {
+            Ok(projection) => projection,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "portfolio_projection_unavailable",
+                    &format!("workload projection coordinator is unavailable: {error}"),
+                );
+            }
+        };
+        source_revision = self.workload_projection_revision().ok();
         if let Some(revision) = &source_revision
             && let Ok(cache) = self.projection_cache.lock()
             && let Some(cached) = &cache.workloads
@@ -2362,7 +2381,10 @@ fn compact_workload_transport(list: &WorkloadList) -> Result<Value, String> {
         "transport".to_owned(),
         json!({
             "schema": "rey.ui-workload-transport.v1",
-            "terrain_grid_encoding": "rey.regional-terrain-grid.transport.v2",
+            "terrain_grid_encodings": [
+                "rey.regional-terrain-grid.transport.v2",
+                "rey.regional-terrain-grid.transport.v3"
+            ],
             "latest_scene_policy": "scene_admissions is canonical; duplicated latest_scene_admission is omitted when active scene admissions are present",
             "authority": "lossless renderer transport over exact retained scene identities; omitted repeated rows remain available through CLI and exact evidence routes",
         }),
@@ -2691,10 +2713,6 @@ fn compact_retained_regional_projection_packet(
     transport.remove("packed_compact");
     transport.remove("cells");
     transport.insert(
-        "schema".to_owned(),
-        Value::String("rey.regional-terrain-grid.transport.v2".to_owned()),
-    );
-    transport.insert(
         "source_schema".to_owned(),
         Value::String(source_schema.to_owned()),
     );
@@ -2719,49 +2737,54 @@ fn compact_retained_regional_projection_packet(
         "cell_source_encoding".to_owned(),
         Value::String(cell_source_encoding.to_owned()),
     );
-    let (cell_ids, source_object_ids, source_object_revisions) =
-        if source_schema == "rey.regional-terrain-grid.v2" {
-            (
-                required_string_array(compact, "cell_ids")?,
-                required_string_array(compact, "source_object_ids")?,
-                required_string_array(compact, "source_object_revisions")?,
-            )
-        } else {
-            let retained =
-                serde_json::from_value::<RegionalTerrainGrid>(Value::Object(grid.clone()))
-                    .map_err(|error| format!("retained packed terrain grid is invalid: {error}"))?;
-            let cells = retained
-                .expanded_cells()
-                .map_err(|error| format!("retained packed terrain cells are invalid: {error}"))?;
-            (
-                cells.iter().map(|cell| cell.cell_id.to_string()).collect(),
-                cells
-                    .iter()
-                    .map(|cell| cell.source_object_id.clone())
-                    .collect(),
-                cells
-                    .iter()
-                    .map(|cell| cell.source_object_revision.to_string())
-                    .collect(),
-            )
-        };
-    if cell_ids.len() as u64 != cell_count
-        || source_object_ids.len() as u64 != cell_count
-        || source_object_revisions.len() as u64 != cell_count
-    {
-        return Err("retained regional terrain identity count changed".to_owned());
+    if source_schema == "rey.regional-terrain-grid.v2" {
+        let cell_ids = required_string_array(compact, "cell_ids")?;
+        let source_object_ids = required_string_array(compact, "source_object_ids")?;
+        let source_object_revisions = required_string_array(compact, "source_object_revisions")?;
+        if cell_ids.len() as u64 != cell_count
+            || source_object_ids.len() as u64 != cell_count
+            || source_object_revisions.len() as u64 != cell_count
+        {
+            return Err("retained regional terrain identity count changed".to_owned());
+        }
+        transport.insert(
+            "schema".to_owned(),
+            Value::String("rey.regional-terrain-grid.transport.v2".to_owned()),
+        );
+        insert_packed_terrain_identities(
+            &mut transport,
+            &cell_ids,
+            &source_object_ids,
+            &source_object_revisions,
+        )?;
+    } else {
+        transport.insert(
+            "schema".to_owned(),
+            Value::String("rey.regional-terrain-grid.transport.v3".to_owned()),
+        );
+        transport.insert(
+            "identity_encoding".to_owned(),
+            Value::String("rey.packed-terrain-grid-cell-identities.v1".to_owned()),
+        );
+        for field in ["source_feature_id", "source_feature_revision"] {
+            transport.insert(
+                field.to_owned(),
+                compact
+                    .get(field)
+                    .cloned()
+                    .ok_or_else(|| format!("retained packed terrain grid lost {field}"))?,
+            );
+        }
     }
-    insert_packed_terrain_identities(
-        &mut transport,
-        &cell_ids,
-        &source_object_ids,
-        &source_object_revisions,
-    )?;
     transport.insert(
         "transport_authority".to_owned(),
         Value::String("lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions".to_owned()),
     );
-    let mut hasher = SemanticHasher::new("rey.regional-terrain-grid.transport.v2");
+    let transport_schema = transport
+        .get("schema")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "regional terrain transport lost its schema".to_owned())?;
+    let mut hasher = SemanticHasher::new(transport_schema);
     hasher.add_bytes(&serde_json::to_vec(&transport).map_err(|error| error.to_string())?);
     transport.insert(
         "transport_id".to_owned(),
@@ -3098,7 +3121,10 @@ mod tests {
     use flate2::read::GzDecoder;
     use tempfile::TempDir;
 
-    use super::{STATIC_UI_ASSETS, UiServer, UiServerConfig, gzip_bytes};
+    use super::{
+        STATIC_UI_ASSETS, UiServer, UiServerConfig, compact_retained_regional_projection_packet,
+        gzip_bytes,
+    };
     use rey::{
         channels::LocalChannelStore,
         conversations::{
@@ -3124,6 +3150,68 @@ mod tests {
             .read_to_end(&mut decoded)
             .unwrap();
         assert_eq!(decoded, source);
+    }
+
+    #[test]
+    fn packed_terrain_transport_retains_derivation_inputs_without_cell_identity_columns() {
+        let mut packet = serde_json::json!({
+            "packet_id": "blake3:packet",
+            "objects": [],
+            "layers": [{"kind": "terrain", "object_ids": []}],
+            "terrain": {
+                "grid": {
+                    "schema": "rey.regional-terrain-grid.v3",
+                    "dataset_id": "blake3:dataset",
+                    "source_dataset_id": "relief",
+                    "columns": 2,
+                    "rows": 2,
+                    "native_bounds": {
+                        "west_microdegrees": -2,
+                        "south_microdegrees": 4,
+                        "east_microdegrees": 0,
+                        "north_microdegrees": 6,
+                        "crosses_antimeridian": false
+                    },
+                    "validity_semantics": "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support",
+                    "interpolation": "piecewise linear only within triangles whose three admitted source vertices are valid",
+                    "authority": "qualified packed rectilinear height/material grid; validity ends at supported source triangles",
+                    "packed_compact": {
+                        "encoding": "canonical row-major packed-source cells; positions and identities derive from bounds, dimensions, and the exact source feature; validity and material indices are hexadecimal bytes",
+                        "source_id": "terrain",
+                        "source_path": "terrain.geojson",
+                        "source_artifact_id": "blake3:artifact",
+                        "source_feature_id": "terrain/relief",
+                        "source_feature_revision": "blake3:feature",
+                        "validity_hex": "01010101",
+                        "elevation_micrometers": [1, 2, 3, 4],
+                        "material_palette": ["granite"],
+                        "material_indices_hex": "00000000",
+                        "authority": "lossless retained encoding of exact packed-source terrain values and derivation inputs; it grants no interpolation, synthesis, or coverage authority"
+                    }
+                }
+            }
+        });
+        let grid = packet["terrain"]["grid"].clone();
+        compact_retained_regional_projection_packet(packet.as_object_mut().unwrap(), &grid)
+            .unwrap();
+        let transport = &packet["terrain"]["grid"];
+        assert_eq!(
+            transport["schema"],
+            "rey.regional-terrain-grid.transport.v3"
+        );
+        assert_eq!(
+            transport["identity_encoding"],
+            "rey.packed-terrain-grid-cell-identities.v1"
+        );
+        assert_eq!(transport["source_feature_id"], "terrain/relief");
+        assert_eq!(transport["source_feature_revision"], "blake3:feature");
+        assert!(transport.get("cell_digests_base64").is_none());
+        assert!(transport.get("source_object_id_suffixes").is_none());
+        assert!(
+            transport
+                .get("source_object_revision_digests_base64")
+                .is_none()
+        );
     }
 
     #[test]

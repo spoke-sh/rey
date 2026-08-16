@@ -38,6 +38,22 @@ unsafe_code = "forbid"
 [workspace.lints.clippy]
 all = "warn"
 
+# The operator server validates and hashes high-resolution retained terrain in
+# development. Keep the relevant pure-compute crates optimized so `just rey
+# agent` exercises production-shaped data without turning every cold read into
+# a debug-interpreter benchmark.
+[profile.dev.package.blake3]
+opt-level = 3
+
+[profile.dev.package.serde_json]
+opt-level = 3
+
+[profile.dev.package.rey-mining]
+opt-level = 2
+
+[profile.dev.package.rey-runtime]
+opt-level = 2
+
 [profile.release]
 codegen-units = 1
 lto = "thin"

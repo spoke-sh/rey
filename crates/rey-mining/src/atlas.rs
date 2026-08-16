@@ -214,7 +214,9 @@ impl SemanticAtlasRegionalSource {
                 .grid
                 .as_ref()
                 .map_or(Ok(terrain.samples.len() as u64), |grid| {
-                    grid.expanded_cells().map(|cells| cells.len() as u64)
+                    grid.columns
+                        .checked_mul(grid.rows)
+                        .ok_or(SemanticAtlasError::Limit)
                 })
         })?;
         let native_objects = scene

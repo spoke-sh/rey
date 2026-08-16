@@ -116,7 +116,8 @@ function transportedTerrainObject(
   const grid = scene.projection.terrain?.grid;
   if (
     (grid?.schema !== "rey.regional-terrain-grid.transport.v1" &&
-      grid?.schema !== "rey.regional-terrain-grid.transport.v2") ||
+      grid?.schema !== "rey.regional-terrain-grid.transport.v2" &&
+      grid?.schema !== "rey.regional-terrain-grid.transport.v3") ||
     scene.projection.transport?.schema !==
       "rey.regional-projection-packet.transport.v1"
   )

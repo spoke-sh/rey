@@ -275,7 +275,10 @@ function validRegionalTerrainGrid(
     (grid.rows - 1);
   if (!Number.isInteger(longitudeStep) || !Number.isInteger(latitudeStep))
     return false;
-  if (grid.schema === "rey.regional-terrain-grid.transport.v2") {
+  if (
+    grid.schema === "rey.regional-terrain-grid.transport.v2" ||
+    grid.schema === "rey.regional-terrain-grid.transport.v3"
+  ) {
     const values = regionalTerrainGridValueColumns(grid);
     for (let index = 0; index < expectedCells; index += 1) {
       const valid = values.validity[index] === 1;

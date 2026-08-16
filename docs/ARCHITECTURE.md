@@ -227,12 +227,18 @@ human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
 deeper diagnostic plane. Its root browser loader admits only the lightweight
 operator shell: process identity, Channels, Observations, conversation, and
-the exact revalidation cursor. Workload portfolio projection is
-demand-scoped to Explorer, Feed, Agents, Journal authoring, and Workloads
-routes; it cannot delay Cadence, Environment, retained Journal entries, or
-exact scenario/delta evidence. Mailbox runtime attention loads explicitly and
-identifies its pending portfolio boundary while retained Channel history stays
-usable. Before any workload HEAD or admitted topography
+the exact revalidation cursor. Workload portfolio projection cannot delay
+Cadence, Environment, retained Journal entries, or exact scenario/delta
+evidence. Feed establishes readiness from signals and admissions before
+attaching workload flow; Agents establishes readiness from Journal and process
+evidence before attaching runtime attention and the work ledger. Explorer,
+Journal authoring, and Workloads remain demand-scoped portfolio consumers.
+Mailbox runtime attention loads explicitly and identifies its pending
+portfolio boundary while retained Channel history stays usable. Packed
+regional terrain validates retained value/validity columns directly and uses
+a lossless source-derived cell-identity transport; it does not expand hundreds
+of thousands of cells merely to re-prove derivable identities. Before any
+workload HEAD or admitted topography
 exists, Explorer projects exact request/WORKING/INDEX workload file state as
 attention beacons on a presentation-only orientation globe. That globe is an
 unmapped consent surface, not `rey.semantic-atlas.v1`; it claims no semantic

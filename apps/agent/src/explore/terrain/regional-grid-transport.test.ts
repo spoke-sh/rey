@@ -87,6 +87,41 @@ const packed = {
   authority: compact.authority,
 } satisfies RegionalTerrainGrid;
 
+const derivedPacked = {
+  schema: "rey.regional-terrain-grid.transport.v3",
+  source_schema: "rey.regional-terrain-grid.v3",
+  transport_id: "transport:3",
+  dataset_id: "dataset:3",
+  source_dataset_id: "source-grid",
+  columns: 3,
+  rows: 2,
+  native_bounds: {
+    west_microdegrees: -122_500_000,
+    south_microdegrees: 37_500_000,
+    east_microdegrees: -121_500_000,
+    north_microdegrees: 38_000_000,
+    crosses_antimeridian: false,
+  },
+  source_id: "terrain",
+  source_path: "terrain.geojson",
+  source_artifact_id:
+    "blake3:510e871e6ffdb1652cb21d468f1cab5e94c8a42e2bea0b18b9e914c1c5b8b16e",
+  cell_source_encoding: "geojson_packed_grid_v1",
+  transport_authority: compact.transport_authority,
+  identity_encoding: "rey.packed-terrain-grid-cell-identities.v1",
+  source_feature_id: "terrain/relief",
+  source_feature_revision:
+    "blake3:e56bca53a6bad8ba9d5627b7cf2c39a8ca71e82c6430e05a46370346a83f74a9",
+  validity_hex: "010101010101",
+  elevation_micrometers: [1, 2, 3, 4, 5, 12_500_000],
+  material_palette: ["granite"],
+  material_indices_hex: "000000000000",
+  validity_semantics: compact.validity_semantics,
+  interpolation: compact.interpolation,
+  authority:
+    "qualified packed rectilinear height/material grid; validity ends at supported source triangles",
+} satisfies RegionalTerrainGrid;
+
 describe("regional terrain grid transport", () => {
   it("reconstructs exact row-major cell bindings without repeated geometry", () => {
     expect(validRegionalTerrainGridTransport(compact)).toBe(true);
@@ -163,6 +198,28 @@ describe("regional terrain grid transport", () => {
     ).toBeUndefined();
     expect(decodeBase64).toHaveBeenCalledTimes(2);
     decodeBase64.mockRestore();
+  });
+
+  it("derives packed-source identities on demand from the exact source feature", () => {
+    expect(validRegionalTerrainGridTransport(derivedPacked)).toBe(true);
+    expect(regionalTerrainGridCellAt(derivedPacked, 5)).toMatchObject({
+      cell_id:
+        "blake3:c414d2270032425a982840aad6ef17af03903e2f47177bb59164c0e6e2d4a2b3",
+      source_object_id: "terrain/relief/cell-r1-c2",
+      source_object_revision:
+        "blake3:1ddb1957fc879cf5f84575961d91884bd25ee155039f30bf231cb5c2e347335d",
+      grid_position: [2, 1],
+      native_position: [-121_500_000, 37_500_000],
+      elevation_micrometers: 12_500_000,
+      material: "granite",
+      validity: "valid",
+    });
+    expect(
+      regionalTerrainGridCellIndexForRevision(
+        derivedPacked,
+        "blake3:1ddb1957fc879cf5f84575961d91884bd25ee155039f30bf231cb5c2e347335d",
+      ),
+    ).toBe(5);
   });
 
   it("fails closed when a packed identity column changes length", () => {

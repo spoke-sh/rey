@@ -488,6 +488,43 @@ impl RegionalTerrainGrid {
         Ok(Cow::Owned(cells))
     }
 
+    pub fn validity_counts(&self) -> Result<(u64, u64), RegionalSceneError> {
+        let expected_cells = self
+            .columns
+            .checked_mul(self.rows)
+            .and_then(|cells| usize::try_from(cells).ok())
+            .ok_or(RegionalSceneError::TerrainAuthority)?;
+        if self.schema == REGIONAL_TERRAIN_GRID_SCHEMA {
+            if self.cells.len() != expected_cells {
+                return Err(RegionalSceneError::TerrainAuthority);
+            }
+            let valid = self
+                .cells
+                .iter()
+                .filter(|cell| cell.validity == RegionalValidityClass::Valid)
+                .count() as u64;
+            return Ok((valid, self.cells.len() as u64 - valid));
+        }
+        let encoded = if self.schema == REGIONAL_TERRAIN_COMPACT_GRID_SCHEMA {
+            self.compact
+                .as_ref()
+                .map(|compact| compact.validity_hex.as_str())
+        } else if self.schema == REGIONAL_TERRAIN_PACKED_GRID_SCHEMA {
+            self.packed_compact
+                .as_ref()
+                .map(|compact| compact.validity_hex.as_str())
+        } else {
+            None
+        }
+        .ok_or(RegionalSceneError::TerrainAuthority)?;
+        let validity = decode_hex(encoded)?;
+        if validity.len() != expected_cells || validity.iter().any(|value| *value > 1) {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        let valid = validity.iter().filter(|value| **value == 1).count() as u64;
+        Ok((valid, validity.len() as u64 - valid))
+    }
+
     fn expand_packed_cells(&self) -> Result<Vec<RegionalTerrainGridCell>, RegionalSceneError> {
         if self.columns < 2
             || self.rows < 2
@@ -599,7 +636,115 @@ impl RegionalTerrainGrid {
         Ok(cells)
     }
 
+    fn verify_packed_compact(&self) -> Result<(), RegionalSceneError> {
+        validate_identifier(&self.source_dataset_id)?;
+        validate_bounds(&self.native_bounds)?;
+        if self.schema != REGIONAL_TERRAIN_PACKED_GRID_SCHEMA
+            || !self.cells.is_empty()
+            || self.compact.is_some()
+            || self.packed_compact.is_none()
+            || self.columns < 2
+            || self.rows < 2
+            || self.native_bounds.crosses_antimeridian
+            || self.native_bounds.west_microdegrees >= self.native_bounds.east_microdegrees
+            || self.native_bounds.south_microdegrees >= self.native_bounds.north_microdegrees
+            || self.validity_semantics
+                != "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
+            || self.interpolation
+                != "piecewise linear only within triangles whose three admitted source vertices are valid"
+            || self.authority
+                != "qualified packed rectilinear height/material grid; validity ends at supported source triangles"
+            || self.dataset_id != regional_terrain_grid_digest(self)?
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        let expected_cells = self
+            .columns
+            .checked_mul(self.rows)
+            .and_then(|cells| usize::try_from(cells).ok())
+            .ok_or(RegionalSceneError::TerrainAuthority)?;
+        let packed = self
+            .packed_compact
+            .as_ref()
+            .ok_or(RegionalSceneError::TerrainAuthority)?;
+        let validity = decode_hex(&packed.validity_hex)?;
+        let materials = decode_hex(&packed.material_indices_hex)?;
+        if packed.encoding
+            != "canonical row-major packed-source cells; positions and identities derive from bounds, dimensions, and the exact source feature; validity and material indices are hexadecimal bytes"
+            || packed.authority
+                != "lossless retained encoding of exact packed-source terrain values and derivation inputs; it grants no interpolation, synthesis, or coverage authority"
+            || packed.source_id.is_empty()
+            || packed.source_path.is_empty()
+            || validate_identifier_path(&packed.source_feature_id).is_err()
+            || packed.elevation_micrometers.len() != expected_cells
+            || validity.len() != expected_cells
+            || materials.len() != expected_cells
+            || packed.material_palette.len() > 255
+            || !packed
+                .material_palette
+                .windows(2)
+                .all(|pair| pair[0] < pair[1])
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        let longitude_span =
+            i128::from(self.native_bounds.east_microdegrees - self.native_bounds.west_microdegrees);
+        let latitude_span = i128::from(
+            self.native_bounds.north_microdegrees - self.native_bounds.south_microdegrees,
+        );
+        if longitude_span % i128::from(self.columns - 1) != 0
+            || latitude_span % i128::from(self.rows - 1) != 0
+        {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        for (index, (&validity, &material_index)) in
+            validity.iter().zip(materials.iter()).enumerate()
+        {
+            let valid = validity == 1;
+            let material = valid
+                .then(|| packed.material_palette.get(usize::from(material_index)))
+                .flatten();
+            if (validity != 0 && validity != 1)
+                || (valid
+                    && (material.is_none()
+                        || !(-12_000_000_000..=100_000_000_000)
+                            .contains(&packed.elevation_micrometers[index])
+                        || material.is_some_and(|material| {
+                            material.is_empty()
+                                || material.chars().count() > 64
+                                || !material.chars().all(|character| {
+                                    character.is_ascii_alphanumeric()
+                                        || matches!(character, '-' | '_' | '.')
+                                })
+                        })))
+                || (!valid && material_index != 255)
+            {
+                return Err(RegionalSceneError::TerrainAuthority);
+            }
+        }
+        let valid = |index: usize| validity[index] == 1;
+        let has_valid_triangle = (0..self.rows - 1).any(|row| {
+            (0..self.columns - 1).any(|column| {
+                let top_left = (row * self.columns + column) as usize;
+                let top_right = top_left + 1;
+                let bottom_left = top_left + self.columns as usize;
+                let bottom_right = bottom_left + 1;
+                (valid(top_left) && valid(bottom_left) && valid(bottom_right))
+                    || (valid(top_left) && valid(bottom_right) && valid(top_right))
+                    || (valid(top_left) && valid(bottom_left) && valid(top_right))
+                    || (valid(top_right) && valid(bottom_left) && valid(bottom_right))
+            })
+        });
+        if !has_valid_triangle {
+            return Err(RegionalSceneError::TerrainAuthority);
+        }
+        Ok(())
+    }
+
     pub fn verify(&self) -> Result<(), RegionalSceneError> {
+        if self.schema == REGIONAL_TERRAIN_PACKED_GRID_SCHEMA {
+            return self.verify_packed_compact();
+        }
         validate_identifier(&self.source_dataset_id)?;
         validate_bounds(&self.native_bounds)?;
         let expected_cells = self
@@ -1393,8 +1538,8 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
             return Err(RegionalSceneError::TerrainAuthority);
         }
         if let Some(grid) = &terrain.grid {
-            let cells = grid.expanded_cells()?;
             if grid.schema == REGIONAL_TERRAIN_GRID_SCHEMA {
+                let cells = grid.expanded_cells()?;
                 if cells.iter().any(|cell| {
                     objects_by_id
                         .get(cell.source_object_id.as_str())
@@ -2097,5 +2242,43 @@ mod tests {
             bound.with_admitted_atlas_revision(&digest("fixture.atlas", "two")),
             Err(RegionalSceneError::AtlasBinding)
         ));
+    }
+
+    #[test]
+    fn packed_terrain_cell_identity_has_a_cross_runtime_vector() {
+        let feature_revision = digest("fixture.feature", "packed");
+        let artifact_id = digest("fixture.artifact", "packed");
+        let source_object_revision =
+            regional_packed_terrain_cell_source_revision(&feature_revision, 1, 2);
+        let cell = RegionalTerrainGridCell {
+            cell_id: placeholder_digest(),
+            source_object_id: "terrain/relief/cell-r1-c2".to_owned(),
+            source_artifact_id: artifact_id.clone(),
+            source_object_revision: source_object_revision.clone(),
+            grid_position: [2, 1],
+            native_position: [-121_500_000, 37_500_000],
+            elevation_micrometers: Some(12_500_000),
+            material: Some("granite".to_owned()),
+            validity: RegionalValidityClass::Valid,
+            authority: "exact packed source altitude and material at one valid grid vertex"
+                .to_owned(),
+        };
+        let cell_id = regional_terrain_grid_cell_digest(&cell).unwrap();
+        assert_eq!(
+            feature_revision.as_str(),
+            "blake3:e56bca53a6bad8ba9d5627b7cf2c39a8ca71e82c6430e05a46370346a83f74a9"
+        );
+        assert_eq!(
+            artifact_id.as_str(),
+            "blake3:510e871e6ffdb1652cb21d468f1cab5e94c8a42e2bea0b18b9e914c1c5b8b16e"
+        );
+        assert_eq!(
+            source_object_revision.as_str(),
+            "blake3:1ddb1957fc879cf5f84575961d91884bd25ee155039f30bf231cb5c2e347335d"
+        );
+        assert_eq!(
+            cell_id.as_str(),
+            "blake3:c414d2270032425a982840aad6ef17af03903e2f47177bb59164c0e6e2d4a2b3"
+        );
     }
 }
