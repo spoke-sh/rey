@@ -146,13 +146,15 @@ dedicated-worker coverage.
 The normal Rey County fixture now carries a deterministic 201×201 authored
 regional grid. Its exact County footprint and Unexplored Scrub become 11,539
 explicit no-data vertices; 28,862 valid vertices retain five bounded materials
-and 62.65–1,728.72 meters of authored semantic relief. Revision
-`rey.agent-geography.rey-county@4` records band-limited domain-warped macro,
-meso, ridge, and fine relief, authored-hydrology carving, coherent land-cover
-inputs, a district/transport/label hierarchy, and the explicit absence of
-cross-package stitching. The source is generated reproducibly from checked-in
+and 49.31–1,774.91 meters of authored semantic relief. Revision
+`rey.agent-geography.rey-county@5` resolves the named landform controls into
+bounded orographic backbones, branching ridge networks, and incised ravines
+before exact authored hydrology carves the final source field. It also records
+band-limited domain-warped macro, meso, ridge, and fine relief, coherent
+land-cover inputs, a district/transport/label hierarchy, and the explicit
+absence of cross-package stitching. The source is generated reproducibly from checked-in
 boundary, district, feature, highway, hydrology, label, railway, road, and
-terrain-control inputs. It has traveled through editor admission as `SCENE@5` and passed the
+terrain-control inputs. It has traveled through editor admission as `SCENE@8` and passed the
 `scene-admission` workload before `/explore` consumption. This improves the
 default project bearing without treating terrain controls as observed height
 or closing the still-open named fidelity matrix.
@@ -302,10 +304,10 @@ Landscape-fidelity matrix row.
 | Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
 | -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
 | Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
-| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Fine authored texture now survives, but regional form is still sparse. | Major |
-| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Revision 2 preserves fine normal contrast; source structure is sparse. | Major |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Orographic backbones and branches now read, but local form stays soft.  | Major |
+| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Revision 2 exposes the new form, but the presentation remains blurred. | Major |
 | Land cover     | Coherent local classes with terrain-following boundaries.    | Five admitted classes now survive the derived biome modulation.        | Major |
-| Water          | Continuous areas and terrain-following river hierarchy.      | Six exact water features read coherently but remain too sparse.        | Major |
+| Water          | Continuous areas and terrain-following river hierarchy.      | Twelve exact features include river and wetland areas plus tributaries. | Major |
 | Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are subordinate but lack reference-level density.     | Major |
 | Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | 4 highways, 12 roads, 4 rails, and 16 labels form a clearer hierarchy. | Major |
 
@@ -345,10 +347,11 @@ This separates three responsibilities:
    independent level of detail, labels, and transitions without minting
    geographic evidence.
 
-The source-controlled generator is the first geography compiler. Its fourth
+The source-controlled generator is the first geography compiler. Its fifth
 revision produces the 201×201 field with deterministic multi-scale relief,
-hydrology response, coherent base materials, exact no-data, districts,
-transport, cartographic labels, and explicit synthesis metadata. Multi-package
+orographic branching, exact hydrology-conditioned height, coherent base
+materials, exact no-data, districts, transport, cartographic labels, and
+explicit synthesis metadata. Multi-package
 admission now retains a canonical bounded active scene set instead of replacing
 the preceding editor package whenever `scene-admission` runs. Every scene keeps
 its exact original atlas back-reference while the current atlas inventories all

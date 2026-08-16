@@ -77,7 +77,7 @@ The terrain grid contains 40,401 vertices at exact integer-microdegree spacing:
 - 10,825 no-data vertices outside the County footprint;
 - 863 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
   predicates, producing 11,539 unique no-data vertices);
-- 62.65–1,728.72 meters of authored relief; and
+- 49.31–1,774.91 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
 Two hundred intervals per axis preserve the County's exact bounds at
@@ -89,14 +89,21 @@ source, not the final resolution target; a raster-native pyramid is required
 for substantially finer authored fields without turning GeoJSON points into a
 bulk terrain format.
 
-The embedded `rey.agent-geography.rey-county@4` compiler record states the
+The embedded `rey.agent-geography.rey-county@5` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
 It does not imply that multiple editor packages have already been stitched.
+Its elevation compiler now resolves each rough named landform into a bounded
+orographic backbone, branching ridge network, and incised ravines before exact
+authored waterways carve the final source height. The main river and wetland
+are exact admitted areas; tributaries remain exact paths. This is source
+geography rather than renderer noise, and every no-data vertex remains absent.
 Its cartographic hierarchy currently retains four highways, twelve local
-roads, four railway paths, and sixteen independently bounded labels. These are
-source features with exact evidence routes, not renderer-generated decoration.
+roads, four railway paths, and sixteen independently bounded labels. Its water
+hierarchy retains one exact river surface, one wetland, the river centerline,
+and nine exact tributary or runoff paths. These are source features with exact
+evidence routes, not renderer-generated decoration.
 
 ## Regeneration And Verification
 

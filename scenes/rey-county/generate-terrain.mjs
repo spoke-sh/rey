@@ -13,8 +13,8 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // still required for substantially finer fields.
 const COLUMNS = 201;
 const ROWS = 201;
-const DATASET_ID = "rey-county-semantic-terrain-v4";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@4";
+const DATASET_ID = "rey-county-semantic-terrain-v5";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@5";
 const INPUT_FILES = [
   "boundary.geojson",
   "districts.geojson",
@@ -168,7 +168,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v4",
+      schema: "rey.county-terrain-source.v5",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -192,9 +192,9 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
         topology:
           "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped macro, ridge, meso, and fine relief kept below the source-grid Nyquist limit",
+          "anisotropic named landforms plus deterministic domain-warped orographic backbones, branching ridges, incised ravines, and macro-to-fine relief kept below the source-grid Nyquist limit",
         hydrology:
-          "smooth authored drainage constraints carve the height field; the renderer derives bounded flow accumulation inside exact validity while wetland remains an authored area",
+          "exact river and wetland areas accompany a tributary hierarchy; smooth authored drainage constraints carve the final height field before the renderer derives bounded flow accumulation inside exact validity",
         land_cover:
           "deterministic elevation, moisture, exposure, meadow, wetland, and water-distance classification",
         cartography:
@@ -297,33 +297,39 @@ function terrainSample(
     }
   }
 
-  let nearestWaterway = { id: null, distance: Number.POSITIVE_INFINITY };
-  for (const waterway of normalizedWaterways) {
-    const distance = distanceToPolyline([x, y], waterway.points);
-    if (distance < nearestWaterway.distance)
-      nearestWaterway = { id: waterway.id, distance };
-    const main = waterway.id === "hydrology-evidence-river";
-    const width = main ? 0.024 : 0.014;
-    const depth = main ? 124 : 64;
-    elevation -= depth * Math.exp(-((distance / width) ** 2));
-  }
-
   const warpX = fractalNoise(x, y, 17, [1.1, 2.2, 4.4]) * 0.026;
   const warpY = fractalNoise(x, y, 53, [1.0, 2.0, 4.0]) * 0.024;
   const warpedX = x + warpX;
   const warpedY = y + warpY;
   const reliefWeight = 0.24 + Math.min(1, roughness) * 0.76;
   const macroTexture =
-    fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 86;
-  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 12]) * 22;
+    fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 92;
+  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 14]) * 38;
   const ridgeTexture =
-    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8]) * 42;
-  const fineTexture = fractalNoise(warpedX, warpedY, 401, [13, 27, 51]) * 8;
+    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8, 17.6]) * 72;
+  const fineTexture = fractalNoise(warpedX, warpedY, 401, [13, 27, 51]) * 24;
   const fineRidges =
-    ridgedFractalNoise(warpedX, warpedY, 457, [11, 23, 43]) * 11;
+    ridgedFractalNoise(warpedX, warpedY, 457, [11, 23, 43, 71]) * 34;
   elevation +=
     (macroTexture + mesoTexture + ridgeTexture + fineTexture + fineRidges) *
     reliefWeight;
+
+  for (let index = 0; index < controls.length; index += 1) {
+    const control = controls[index];
+    if (control.roughness < 0.42) continue;
+    elevation += orographicRelief(x, y, control, 701 + index * 149);
+  }
+
+  let nearestWaterway = { id: null, distance: Number.POSITIVE_INFINITY };
+  for (const waterway of normalizedWaterways) {
+    const distance = distanceToPolyline([x, y], waterway.points);
+    if (distance < nearestWaterway.distance)
+      nearestWaterway = { id: waterway.id, distance };
+    const main = waterway.id === "hydrology-evidence-river";
+    const width = main ? 0.021 : 0.011;
+    const depth = main ? 148 : 76;
+    elevation -= depth * Math.exp(-((distance / width) ** 2));
+  }
 
   const terraceInfluence = influenceById["terrain-explorer-terraces"] ?? 0;
   const terracedElevation = Math.round(elevation / 12) * 12;
@@ -416,6 +422,11 @@ function interpolate(left, right, progress) {
 }
 
 function anisotropicGaussian(x, y, control) {
+  const { rx, ry } = anisotropicCoordinates(x, y, control);
+  return Math.exp(-0.5 * (rx ** 2 + ry ** 2));
+}
+
+function anisotropicCoordinates(x, y, control) {
   const dx = x - control.center[0];
   const dy = y - control.center[1];
   const cosine = Math.cos(control.rotation);
@@ -424,7 +435,42 @@ function anisotropicGaussian(x, y, control) {
   const ry = dx * sine + dy * cosine;
   const sigmaX = Math.max(0.035, control.width * 0.22);
   const sigmaY = Math.max(0.035, control.height * 0.22);
-  return Math.exp(-0.5 * ((rx / sigmaX) ** 2 + (ry / sigmaY) ** 2));
+  return { rx: rx / sigmaX, ry: ry / sigmaY };
+}
+
+function orographicRelief(x, y, control, seed) {
+  const { rx, ry } = anisotropicCoordinates(x, y, control);
+  const distanceSquared = rx ** 2 + ry ** 2;
+  const envelope = Math.exp(-0.42 * distanceSquared);
+  if (envelope < 0.002) return 0;
+  const warp =
+    fractalNoise(rx * 0.18 + 0.31, ry * 0.18 - 0.17, seed, [1, 2, 4]) *
+    0.38;
+  const along = ry * 0.72 + warp;
+  const across = rx * 0.96 + warp * 0.7;
+  const backbone = ridgedFractalNoise(
+    across,
+    along,
+    seed + 31,
+    [0.72, 1.45, 2.9, 5.8],
+  );
+  const branches = ridgedFractalNoise(
+    across * 0.78 + along * 0.36,
+    along * 1.18,
+    seed + 67,
+    [1.5, 3, 6, 12],
+  );
+  const ravines = Math.max(
+    0,
+    ridgedFractalNoise(
+      across * 0.62 - along * 0.48,
+      along * 1.42,
+      seed + 101,
+      [2.4, 4.8, 9.6, 19.2],
+    ),
+  );
+  const gain = 54 + control.roughness * 74;
+  return envelope * gain * (backbone * 0.62 + branches * 0.38 - ravines * 0.3);
 }
 
 function distanceToPolyline(point, line) {

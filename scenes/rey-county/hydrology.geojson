@@ -147,6 +147,177 @@
     },
     {
       "type": "Feature",
+      "id": "hydrology-foundation-creek",
+      "properties": {
+        "name": "Foundation Creek",
+        "water_class": "stream_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.862, -19.315],
+          [-159.855, -19.346],
+          [-159.846, -19.378],
+          [-159.838, -19.41],
+          [-159.832, -19.443],
+          [-159.827, -19.476],
+          [-159.827, -19.504]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-explorer-cascade",
+      "properties": {
+        "name": "Explorer Cascade",
+        "water_class": "stream_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.238, -19.402],
+          [-159.247, -19.438],
+          [-159.259, -19.474],
+          [-159.273, -19.51],
+          [-159.282, -19.548],
+          [-159.287, -19.588],
+          [-159.288, -19.652]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-runtime-creek",
+      "properties": {
+        "name": "Runtime Creek",
+        "water_class": "stream_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.574, -19.862],
+          [-159.56, -19.826],
+          [-159.548, -19.79],
+          [-159.536, -19.754],
+          [-159.522, -19.718],
+          [-159.502, -19.684]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-southern-fork",
+      "properties": {
+        "name": "Southern Fork",
+        "water_class": "seasonal_runoff_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.585, -19.915],
+          [-159.557, -19.904],
+          [-159.528, -19.894],
+          [-159.498, -19.89],
+          [-159.468, -19.897],
+          [-159.438, -19.907]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-frontier-brook",
+      "properties": {
+        "name": "Frontier Brook",
+        "water_class": "stream_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "not_a_path": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.142, -19.468],
+          [-159.148, -19.496],
+          [-159.151, -19.524],
+          [-159.151, -19.553],
+          [-159.154, -19.581],
+          [-159.164, -19.604]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "hydrology-evidence-river-channel",
+      "properties": {
+        "name": "Evidence River",
+        "water_class": "river_area_candidate",
+        "authority": "authored_natural_feature_candidate",
+        "basis": "explicit water surface paired with the authored main drainage constraint"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.758, -19.331],
+            [-159.746, -19.364],
+            [-159.739, -19.395],
+            [-159.731, -19.426],
+            [-159.718, -19.457],
+            [-159.702, -19.488],
+            [-159.686, -19.517],
+            [-159.674, -19.546],
+            [-159.668, -19.574],
+            [-159.66, -19.601],
+            [-159.642, -19.629],
+            [-159.616, -19.652],
+            [-159.583, -19.669],
+            [-159.545, -19.679],
+            [-159.503, -19.681],
+            [-159.461, -19.675],
+            [-159.42, -19.663],
+            [-159.376, -19.65],
+            [-159.333, -19.645],
+            [-159.287, -19.649],
+            [-159.243, -19.643],
+            [-159.2, -19.623],
+            [-159.16, -19.601],
+            [-159.168, -19.611],
+            [-159.204, -19.629],
+            [-159.245, -19.649],
+            [-159.289, -19.655],
+            [-159.333, -19.651],
+            [-159.378, -19.656],
+            [-159.422, -19.669],
+            [-159.463, -19.681],
+            [-159.501, -19.687],
+            [-159.541, -19.685],
+            [-159.575, -19.675],
+            [-159.606, -19.658],
+            [-159.632, -19.635],
+            [-159.65, -19.607],
+            [-159.658, -19.579],
+            [-159.664, -19.551],
+            [-159.676, -19.522],
+            [-159.692, -19.493],
+            [-159.708, -19.462],
+            [-159.721, -19.431],
+            [-159.73, -19.4],
+            [-159.737, -19.37],
+            [-159.752, -19.345],
+            [-159.758, -19.331]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
       "id": "hydrology-frontier-wetland",
       "properties": {
         "name": "Frontier Wetland",

@@ -82,12 +82,12 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v4",
-      dataset_id: "rey-county-semantic-terrain-v4",
-      compiler_revision: "rey.agent-geography.rey-county@4",
+      schema: "rey.county-terrain-source.v5",
+      dataset_id: "rey-county-semantic-terrain-v5",
+      compiler_revision: "rey.agent-geography.rey-county@5",
       synthesis: {
-        elevation: expect.stringContaining("domain-warped"),
-        hydrology: expect.stringContaining("drainage constraints"),
+        elevation: expect.stringContaining("orographic backbones"),
+        hydrology: expect.stringContaining("river and wetland areas"),
         land_cover: expect.stringContaining("moisture"),
         cartography: expect.stringContaining("railway"),
         stitching: {
@@ -135,6 +135,7 @@ describe("Rey County terrain source", () => {
     expect(supportedCenters).toBeGreaterThan(6_500);
     expect(detailedCenters).toBeGreaterThan(1_000);
     expect(maximumResidual).toBeGreaterThan(20);
+    expect(detailedCenters / supportedCenters).toBeGreaterThan(0.42);
   });
 
   it("retains a landscape-scale transport and label hierarchy", () => {
