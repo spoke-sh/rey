@@ -143,12 +143,13 @@ dedicated-worker coverage.
 The normal Rey County fixture now carries a deterministic 81×81 authored
 regional grid. Its exact County footprint and Unexplored Scrub become 1,938
 explicit no-data vertices; 4,623 valid vertices retain five bounded materials
-and 88.77–1,721.67 meters of authored semantic relief. Revision
-`rey.agent-geography.rey-county@2` records domain-warped macro, meso, ridge,
-and micro relief, authored-hydrology carving, coherent land-cover inputs, and
-the explicit absence of cross-package stitching. The source is generated
-reproducibly from checked-in boundary, feature, hydrology, and terrain-control
-inputs. It has traveled through editor admission as `SCENE@4` and passed the
+and 70.28–1,721.89 meters of authored semantic relief. Revision
+`rey.agent-geography.rey-county@3` records band-limited domain-warped macro,
+meso, ridge, and micro relief, authored-hydrology carving, coherent land-cover
+inputs, a district/transport/label hierarchy, and the explicit absence of
+cross-package stitching. The source is generated reproducibly from checked-in
+boundary, district, feature, highway, hydrology, label, railway, road, and
+terrain-control inputs. It has traveled through editor admission as `SCENE@5` and passed the
 `scene-admission` workload before `/explore` consumption. This improves the
 default project bearing without treating terrain controls as observed height
 or closing the still-open named fidelity matrix.
@@ -248,24 +249,27 @@ roughly one-kilometer 81x81 source still leaves the retained relief-fidelity
 comparison open.
 
 The browser now compiles that admitted 81×81 source into a 321×321
-renderer-neutral presentation field before tile selection. Refinement uses the
-same deterministic triangle diagonal as the admitted mesh, rejects every
-sample outside a fully valid source triangle, retains an independent validity
-mask, and constrains deterministic microrelief to zero at all admitted source
+renderer-neutral presentation field before tile selection. Fully supported
+cell interiors use smooth bilinear refinement; cells touching explicit no-data
+fall back to validity-safe triangles and reject unsupported samples. An
+independent validity mask survives the complete pipeline, and band-limited
+deterministic microrelief is constrained to zero at all admitted source
 vertices. The resulting 103,041-cell field yields a deeper bounded tile
 pyramid while diagnostics continue to report the 6,561 source vertices. Its
 microrelief authority is presentation-only and does not close the still-open
 compact source payload or authored high-resolution geography requirements.
 
 The refined field now feeds one deterministic geography chain:
-`elevation → depression-safe receivers → basin accumulation → bounded channel
-incision → normals/curvature → land cover`. The priority-flood topology never
-crosses no-data, source vertices retain their admitted elevation, and derived
-stream/river linework is disclosed separately from exact admitted hydrology.
-Contours now use elevation intervals in meters—100 m at Landscape, 50 m at
-Neighborhoods, and 25 m at Objects/Evidence—with a hard level bound. This
-closes the former zero-filled drainage-channel gap for regional presentation;
-it does not promote synthetic drainage or land cover into evidence.
+`admitted elevation → depression-safe receivers → basin accumulation →
+validity-bounded moisture/erosion potential → normals/curvature → land cover`.
+The priority-flood topology never crosses no-data. Raw accumulation remains a
+deterministic topology channel, while a smoothed copy drives material moisture
+without exposing D8 raster paths. Renderer drainage does not displace the
+already hydrology-conditioned authored elevation, and derived stream/river
+linework is disclosed separately from exact admitted hydrology. Contours use
+elevation intervals in meters—100 m at Landscape, 50 m at Neighborhoods, and
+25 m at Objects/Evidence—with a hard level bound. Landscape omits supplemental
+synthetic drainage linework so exact admitted waterways own its water read.
 
 ### Perceptual rebaseline — 2026-08-15
 
@@ -275,15 +279,15 @@ acceptance target, not admitted scene evidence and not a source asset. The Rey
 capture is bound to voyage manifest
 `sha256:d242976085c5632c65d65cc9c6230bac6fe37223dc26e6c1024d6dccc65d1e21`.
 
-| Dimension        | Minimum acceptance read                                      | Current Rey County read                                      | Gap   |
-| ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ----- |
-| Composition      | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.  | Minor |
-| Relief           | Fine ridges, valleys, benches, and drainage at many scales.   | Broad blurred lobes reveal roughly one-kilometer sampling.   | Major |
-| Hillshade        | Crisp multiscale form without faceting or muddy smoothing.    | Stable but low-frequency shading cannot recover source form. | Major |
-| Land cover       | Coherent local classes with terrain-following boundaries.     | Five broad tints read as washes rather than geography.       | Major |
-| Water            | Continuous areas and terrain-following river hierarchy.       | One wetland area plus angular admitted centerlines.          | Major |
-| Contours         | Scale-aware hierarchy reveals form without dominating it.     | Sparse derived lines inherit the coarse elevation field.     | Major |
-| Vectors/labels   | Roads, rail, structures, and labels resolve by semantic LOD.  | Landscape exposes hydrology but no geographic network read.  | Major |
+| Dimension      | Minimum acceptance read                                      | Current Rey County read                                                | Gap   |
+| -------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- | ----- |
+| Composition    | Continuous, overhead geography fills the map viewport.       | One attached near-north-up surface fills the usable canvas.            | Minor |
+| Relief         | Fine ridges, valleys, benches, and drainage at many scales.  | Smooth broad landforms remain limited by kilometer sampling.           | Major |
+| Hillshade      | Crisp multiscale form without faceting or muddy smoothing.   | Grid artifacts are removed; fine source form is still absent.          | Major |
+| Land cover     | Coherent local classes with terrain-following boundaries.    | Five broad tints read as washes rather than geography.                 | Major |
+| Water          | Continuous areas and terrain-following river hierarchy.      | One wetland and smoother exact waterways remain sparse.                | Major |
+| Contours       | Scale-aware hierarchy reveals form without dominating it.    | Metric contours are coherent but inherit coarse source form.           | Major |
+| Vectors/labels | Roads, rail, structures, and labels resolve by semantic LOD. | Districts, roads, rail, water, and labels now form a sparse hierarchy. | Major |
 
 This matrix keeps the side-by-side delivery item open. The next source-fidelity
 slice must first replace repeated object-per-cell browser transport with a
@@ -320,12 +324,13 @@ This separates three responsibilities:
    independent level of detail, labels, and transitions without minting
    geographic evidence.
 
-The source-controlled generator is the first geography compiler. Its second
+The source-controlled generator is the first geography compiler. Its third
 revision produces the 81×81 field with deterministic multi-scale relief,
-hydrology response, coherent base materials, exact no-data, and explicit
-synthesis metadata. Multi-package ingestion, explicit cross-package seam
-resolution, raster-native field storage, and deeper vector hierarchy remain
-subsequent slices of the same boundary.
+hydrology response, coherent base materials, exact no-data, districts,
+transport, cartographic labels, and explicit synthesis metadata. Multi-package
+ingestion, explicit cross-package seam resolution, raster-native field
+storage, and deeper vector density remain subsequent slices of the same
+boundary.
 
 ## Delivery Sequence
 

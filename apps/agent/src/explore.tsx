@@ -341,6 +341,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
   const previousSourceRevisionKeyRef = useRef(sourceRevisionKey);
   const previousRevalidationNoticeRef = useRef("");
   const previousRendererNoticeRef = useRef("");
+  const previousTerrainReadyNoticeRef = useRef("");
 
   const publishFooterNotice = (
     message: string,
@@ -449,6 +450,32 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     terrainRenderer.status.degraded,
     terrainRenderer.status.detail,
     terrainRenderer.status.lifecycle,
+  ]);
+
+  useEffect(() => {
+    const submittedSnapshot = terrainRenderer.submitted_frame?.snapshot_id;
+    const readyKey =
+      footerState.has_interacted &&
+      scene.terrain &&
+      terrainRenderer.status.lifecycle === "ready" &&
+      submittedSnapshot === snapshot.snapshot_id
+        ? `${submittedSnapshot}:${terrainRenderer.render_pass_set_id}`
+        : "";
+    const previousKey = previousTerrainReadyNoticeRef.current;
+    previousTerrainReadyNoticeRef.current = readyKey;
+    if (!readyKey || previousKey === readyKey) return;
+    publishFooterNotice(
+      `MAP READY / ${lensLabel(regime)} · ${terrainRenderer.active_tile_count} TERRAIN TILE${terrainRenderer.active_tile_count === 1 ? "" : "S"}`,
+    );
+  }, [
+    footerState.has_interacted,
+    regime,
+    scene.terrain,
+    snapshot.snapshot_id,
+    terrainRenderer.active_tile_count,
+    terrainRenderer.render_pass_set_id,
+    terrainRenderer.status.lifecycle,
+    terrainRenderer.submitted_frame?.snapshot_id,
   ]);
 
   useLayoutEffect(() => {

@@ -1,0 +1,114 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey County authored geographic labels",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "label-rey-county",
+      "properties": {
+        "title": "REY COUNTY",
+        "category": "county",
+        "min_zoom": 3,
+        "max_zoom": 8,
+        "collision_priority": 100
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.55, -19.57] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-anchor-range",
+      "properties": {
+        "title": "Anchor Range",
+        "category": "landform",
+        "min_zoom": 5,
+        "max_zoom": 15,
+        "collision_priority": 88
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.79, -19.4] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-architecture-highlands",
+      "properties": {
+        "title": "Architecture Highlands",
+        "category": "landform",
+        "min_zoom": 6,
+        "max_zoom": 15,
+        "collision_priority": 76
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.49, -19.37] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-explorer-vale",
+      "properties": {
+        "title": "Explorer Vale",
+        "category": "district",
+        "min_zoom": 6,
+        "max_zoom": 16,
+        "collision_priority": 72
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.27, -19.5] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-runtime-basin",
+      "properties": {
+        "title": "Runtime Basin",
+        "category": "landform",
+        "min_zoom": 5,
+        "max_zoom": 16,
+        "collision_priority": 82
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.55, -19.78] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-mining-reach",
+      "properties": {
+        "title": "Mining Reach",
+        "category": "district",
+        "min_zoom": 6,
+        "max_zoom": 16,
+        "collision_priority": 70
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.83, -19.76] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-proof-escarpment",
+      "properties": {
+        "title": "Proof Escarpment",
+        "category": "landform",
+        "min_zoom": 6,
+        "max_zoom": 16,
+        "collision_priority": 74
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.37, -19.84] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-evidence-river",
+      "properties": {
+        "title": "Evidence River",
+        "category": "water",
+        "min_zoom": 5,
+        "max_zoom": 18,
+        "collision_priority": 84
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.46, -19.67] }
+    },
+    {
+      "type": "Feature",
+      "id": "label-frontier-wetland",
+      "properties": {
+        "title": "Frontier Wetland",
+        "category": "water",
+        "min_zoom": 7,
+        "max_zoom": 18,
+        "collision_priority": 60
+      },
+      "geometry": { "type": "Point", "coordinates": [-159.23, -19.59] }
+    }
+  ]
+}

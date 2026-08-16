@@ -5,6 +5,7 @@ export const LANDSCAPE_BASE_VECTOR_LAYERS = Object.freeze([
   "highway",
   "road",
   "railway",
+  "district",
   "connector",
 ] as const);
 
@@ -25,6 +26,7 @@ export function featureVisibleAtLens(
   if (feature.geometry_kind.toLowerCase() === "point") {
     const label = feature.cartographic_label;
     if (!label) return regime !== "landscape";
+    if (regime === "landscape" && feature.layer === "poi") return false;
     const zoom = CARTOGRAPHIC_ZOOM_BY_LENS[regime];
     return zoom >= label.min_zoom && zoom <= label.max_zoom;
   }

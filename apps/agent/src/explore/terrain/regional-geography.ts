@@ -13,9 +13,9 @@ import { regionalTerrainContourThresholds } from "./contours";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_GEOGRAPHY_REVISION =
-  "rey.terrain.regional-geography@1" as const;
+  "rey.terrain.regional-geography@2" as const;
 export const REGIONAL_TERRAIN_LINEWORK_REVISION =
-  "rey.terrain.regional-linework@1" as const;
+  "rey.terrain.regional-linework@2" as const;
 
 const DRAINAGE_EPSILON = 1e-7;
 const MAXIMUM_CHANNEL_INCISION = 0.0045;
@@ -110,29 +110,25 @@ export function deriveRegionalTerrainGeography(
     accumulationValues[index] =
       Math.log1p(accumulationValues[index]!) / accumulationDenominator;
 
-  const elevationValues = source.elevation.values.slice();
   const erosionValues = new Float32Array(cells);
+  const landCoverAccumulationValues = smoothScalarWithinValidity(
+    accumulationValues,
+    source,
+    2,
+  );
   for (const index of descending) {
-    const row = Math.floor(index / source.grid.columns);
-    const column = index % source.grid.columns;
     const drainageStrength = smootherstep(
-      (accumulationValues[index]! - 0.55) / 0.35,
+      (landCoverAccumulationValues[index]! - 0.55) / 0.35,
     );
-    const incision = isAdmittedSourceVertex(source, column, row)
-      ? 0
-      : drainageStrength *
-        MAXIMUM_CHANNEL_INCISION *
-        sourceVertexDisplacementWeight(source, column, row);
-    erosionValues[index] = incision;
-    elevationValues[index] = Math.max(0, elevationValues[index]! - incision);
+    erosionValues[index] = drainageStrength * MAXIMUM_CHANNEL_INCISION;
   }
 
   const revision = `${REGIONAL_TERRAIN_GEOGRAPHY_REVISION}:${source.source_revision}:${source.grid.columns}x${source.grid.rows}`;
   const elevation = scalarField(
     "elevation",
-    `${revision}:drainage-conditioned-elevation`,
+    `${revision}:admitted-elevation-preserved`,
     source.grid,
-    elevationValues,
+    source.elevation.values.slice(),
   );
   const relief = deriveTerrainNormals(
     elevation,
@@ -164,15 +160,21 @@ export function deriveRegionalTerrainGeography(
   );
   const erosion = scalarField(
     "erosion",
-    `${revision}:presentation-channel-incision`,
+    `${revision}:non-displacing-erosion-potential`,
     source.grid,
     erosionValues,
+  );
+  const landCoverAccumulation = scalarField(
+    "flow_accumulation",
+    `${revision}:validity-bounded-land-cover-accumulation`,
+    source.grid,
+    landCoverAccumulationValues,
   );
   const material = deriveRegionalLandCover(
     source,
     elevation,
     rainfall,
-    flowAccumulation,
+    landCoverAccumulation,
     relief.normal,
     relief.curvature,
     seed,
@@ -200,7 +202,7 @@ export function deriveRegionalTerrainGeography(
         "derived_land_cover",
       ]),
     ]),
-    detail_authority: `${source.detail_authority}; depression-safe drainage, accumulation, channel incision, and land cover are deterministic presentation derivations within admitted support, not observed hydrology or new geographic evidence`,
+    detail_authority: `${source.detail_authority}; depression-safe drainage, non-displacing erosion potential, and validity-bounded land cover are deterministic presentation derivations within admitted support; admitted elevation remains unchanged and the result is not observed hydrology or new geographic evidence`,
     elevation,
     rainfall,
     flow_direction: flowDirection,
@@ -244,6 +246,7 @@ export function deriveRegionalTerrainPresentationLines(
       }),
     );
   }
+  if (regime === "landscape") return Object.freeze(lines);
   const streams = drainageSegments(
     field,
     STREAM_THRESHOLD,
@@ -623,37 +626,46 @@ function smoothDrainageTrace(
   return points;
 }
 
-function isAdmittedSourceVertex(
+function smoothScalarWithinValidity(
+  source: Float32Array,
   field: TerrainFieldSet,
-  column: number,
-  row: number,
-): boolean {
-  const summary = field.source_summary;
-  if (!summary) return true;
-  const factorX = (field.grid.columns - 1) / Math.max(1, summary.columns - 1);
-  const factorY = (field.grid.rows - 1) / Math.max(1, summary.rows - 1);
-  if (!Number.isInteger(factorX) || !Number.isInteger(factorY)) return true;
-  return column % factorX === 0 && row % factorY === 0;
-}
-
-function sourceVertexDisplacementWeight(
-  field: TerrainFieldSet,
-  column: number,
-  row: number,
-): number {
-  const summary = field.source_summary;
-  if (!summary) return 0;
-  const factorX = (field.grid.columns - 1) / Math.max(1, summary.columns - 1);
-  const factorY = (field.grid.rows - 1) / Math.max(1, summary.rows - 1);
-  if (!Number.isInteger(factorX) || !Number.isInteger(factorY)) return 0;
-  const localX = column % factorX;
-  const localY = row % factorY;
-  const distanceX = Math.min(localX, factorX - localX);
-  const distanceY = Math.min(localY, factorY - localY);
-  return smootherstep(
-    Math.hypot(distanceX, distanceY) /
-      Math.max(1, Math.min(factorX, factorY) * 0.4),
-  );
+  passes: number,
+): Float32Array {
+  let values = source.slice();
+  const kernel = [1, 2, 1] as const;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = new Float32Array(values.length);
+    for (let row = 0; row < field.grid.rows; row += 1) {
+      for (let column = 0; column < field.grid.columns; column += 1) {
+        const index = row * field.grid.columns + column;
+        if (field.validity.values[index] === 0) continue;
+        let weighted = 0;
+        let weight = 0;
+        for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+          for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+            const neighborColumn = column + columnOffset;
+            const neighborRow = row + rowOffset;
+            if (
+              neighborColumn < 0 ||
+              neighborColumn >= field.grid.columns ||
+              neighborRow < 0 ||
+              neighborRow >= field.grid.rows
+            )
+              continue;
+            const neighbor = neighborRow * field.grid.columns + neighborColumn;
+            if (field.validity.values[neighbor] === 0) continue;
+            const neighborWeight =
+              kernel[columnOffset + 1]! * kernel[rowOffset + 1]!;
+            weighted += values[neighbor]! * neighborWeight;
+            weight += neighborWeight;
+          }
+        }
+        next[index] = weight === 0 ? values[index]! : weighted / weight;
+      }
+    }
+    values = next;
+  }
+  return values;
 }
 
 class MinimumHeap {

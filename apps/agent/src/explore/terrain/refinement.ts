@@ -12,10 +12,10 @@ import type { TerrainFieldSet } from "./compile";
 import { deriveTerrainNormals } from "./normals";
 
 export const REGIONAL_TERRAIN_REFINEMENT_REVISION =
-  "rey.terrain.validity-safe-refinement@1" as const;
+  "rey.terrain.validity-safe-refinement@2" as const;
 export const REGIONAL_TERRAIN_PRESENTATION_INTERVALS = 320;
 const MAXIMUM_REFINEMENT_FACTOR = 4;
-const MICRO_RELIEF_AMPLITUDE = 0.022;
+const MICRO_RELIEF_AMPLITUDE = 0.007;
 
 interface SampledTerrain {
   elevation: number;
@@ -167,7 +167,7 @@ export function refineRegionalTerrainField(
       ...source.active_band_ids,
       "presentation_microrelief",
     ]),
-    detail_authority: `${source.detail_authority}; validity-safe piecewise-linear refinement with deterministic presentation-only microrelief constrained to zero at every admitted source vertex; refined displacement is not observed or authored elevation`,
+    detail_authority: `${source.detail_authority}; validity-safe bilinear refinement inside fully supported cells and triangular refinement along explicit support boundaries, with deterministic band-limited presentation-only microrelief constrained to zero at every admitted source vertex; refined displacement is not observed or authored elevation`,
     source_revision: source.source_revision,
     source_summary: source.source_summary,
     grid,
@@ -204,6 +204,20 @@ function sampleSupportedTerrain(
   const topRight = topLeft + 1;
   const bottomLeft = topLeft + field.grid.columns;
   const bottomRight = bottomLeft + 1;
+  const supportedCorners = [
+    topLeft,
+    topRight,
+    bottomLeft,
+    bottomRight,
+  ] as const;
+  if (supportedCorners.every((index) => field.validity.values[index] !== 0)) {
+    return interpolateTerrainSample(field, supportedCorners, [
+      (1 - localX) * (1 - localY),
+      localX * (1 - localY),
+      (1 - localX) * localY,
+      localX * localY,
+    ]);
+  }
   const descending = [
     [topLeft, bottomLeft, bottomRight],
     [topLeft, bottomRight, topRight],
@@ -241,40 +255,44 @@ function sampleSupportedTerrain(
       coordinates.get(triangle[2])!,
     );
     if (!weights || weights.some((weight) => weight < -1e-7)) continue;
-    const scalar = (values: Float32Array) =>
-      triangle.reduce(
-        (total, index, vertex) => total + values[index]! * weights[vertex]!,
-        0,
-      );
-    const component = (
-      values: Float32Array,
-      components: number,
-      part: number,
-    ) =>
-      triangle.reduce(
-        (total, index, vertex) =>
-          total + values[index * components + part]! * weights[vertex]!,
-        0,
-      );
-    return {
-      elevation: scalar(field.elevation.values),
-      rainfall: scalar(field.rainfall.values),
-      flow_direction: [
-        component(field.flow_direction.values as Float32Array, 2, 0),
-        component(field.flow_direction.values as Float32Array, 2, 1),
-      ],
-      flow_accumulation: scalar(field.flow_accumulation.values),
-      erosion: scalar(field.erosion.values),
-      tint: [
-        component(field.material.tint, 3, 0),
-        component(field.material.tint, 3, 1),
-        component(field.material.tint, 3, 2),
-      ],
-      occlusion: scalar(field.material.occlusion),
-      roughness: scalar(field.material.roughness),
-    };
+    return interpolateTerrainSample(field, triangle, weights);
   }
   return null;
+}
+
+function interpolateTerrainSample(
+  field: TerrainFieldSet,
+  indices: readonly number[],
+  weights: readonly number[],
+): SampledTerrain {
+  const scalar = (values: Float32Array) =>
+    indices.reduce(
+      (total, index, vertex) => total + values[index]! * weights[vertex]!,
+      0,
+    );
+  const component = (values: Float32Array, components: number, part: number) =>
+    indices.reduce(
+      (total, index, vertex) =>
+        total + values[index * components + part]! * weights[vertex]!,
+      0,
+    );
+  return {
+    elevation: scalar(field.elevation.values),
+    rainfall: scalar(field.rainfall.values),
+    flow_direction: [
+      component(field.flow_direction.values as Float32Array, 2, 0),
+      component(field.flow_direction.values as Float32Array, 2, 1),
+    ],
+    flow_accumulation: scalar(field.flow_accumulation.values),
+    erosion: scalar(field.erosion.values),
+    tint: [
+      component(field.material.tint, 3, 0),
+      component(field.material.tint, 3, 1),
+      component(field.material.tint, 3, 2),
+    ],
+    occlusion: scalar(field.material.occlusion),
+    roughness: scalar(field.material.roughness),
+  };
 }
 
 function barycentricWeights(
@@ -316,14 +334,10 @@ function constrainedMicroRelief(x: number, y: number, seed: number): number {
 
 function microRelief(x: number, y: number, seed: number): number {
   return (
-    ridgedNoise(x * 0.92, y * 0.92, seed + 101) * 0.52 +
-    valueNoise(x * 1.83, y * 1.83, seed + 211) * 0.31 +
-    ridgedNoise(x * 3.27, y * 3.27, seed + 307) * 0.17
+    valueNoise(x * 0.42, y * 0.42, seed + 101) * 0.55 +
+    valueNoise(x * 0.84, y * 0.84, seed + 211) * 0.3 +
+    valueNoise(x * 1.35, y * 1.35, seed + 307) * 0.15
   );
-}
-
-function ridgedNoise(x: number, y: number, seed: number): number {
-  return 1 - Math.abs(valueNoise(x, y, seed) * 2);
 }
 
 function valueNoise(x: number, y: number, seed: number): number {

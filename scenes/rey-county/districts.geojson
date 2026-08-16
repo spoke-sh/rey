@@ -1,0 +1,138 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey County authored district boundaries",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "district-anchor-range",
+      "properties": {
+        "name": "Anchor Range Preserve",
+        "boundary_class": "district_candidate",
+        "basis": "56 survey anchors"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.95, -19.5],
+            [-159.8, -19.31],
+            [-159.62, -19.35],
+            [-159.65, -19.58],
+            [-159.83, -19.66],
+            [-159.95, -19.5]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "district-architecture",
+      "properties": {
+        "name": "Architecture Highlands",
+        "boundary_class": "district_candidate",
+        "basis": "docs/ARCHITECTURE.md seed"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.64, -19.35],
+            [-159.44, -19.27],
+            [-159.29, -19.4],
+            [-159.4, -19.59],
+            [-159.61, -19.55],
+            [-159.64, -19.35]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "district-explorer",
+      "properties": {
+        "name": "Explorer Vale",
+        "boundary_class": "district_candidate",
+        "basis": "docs/EXPLORER.md seed"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.39, -19.45],
+            [-159.24, -19.39],
+            [-159.14, -19.57],
+            [-159.2, -19.73],
+            [-159.39, -19.68],
+            [-159.39, -19.45]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "district-runtime",
+      "properties": {
+        "name": "Runtime Basin",
+        "boundary_class": "district_candidate",
+        "basis": "runtime graph and scenario execution"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.72, -19.58],
+            [-159.5, -19.54],
+            [-159.39, -19.69],
+            [-159.48, -19.87],
+            [-159.68, -19.85],
+            [-159.72, -19.58]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "district-mining",
+      "properties": {
+        "name": "Mining Reach",
+        "boundary_class": "district_candidate",
+        "basis": "source mining capability"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.96, -19.56],
+            [-159.78, -19.58],
+            [-159.7, -19.78],
+            [-159.8, -19.93],
+            [-159.96, -19.82],
+            [-159.96, -19.56]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "district-proof",
+      "properties": {
+        "name": "Proof Escarpment",
+        "boundary_class": "district_candidate",
+        "basis": "exact revision and evidence retention"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-159.49, -19.78],
+            [-159.3, -19.69],
+            [-159.18, -19.75],
+            [-159.28, -19.9],
+            [-159.51, -19.96],
+            [-159.49, -19.78]
+          ]
+        ]
+      }
+    }
+  ]
+}

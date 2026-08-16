@@ -46,24 +46,28 @@ cannot upgrade either source's authority.
 
 The current Rey County working field refines each admitted source interval four
 times, producing a 321×321 renderer-neutral field from the qualified 81×81
-dataset before `@rey/explorer` receives it. Every refined point is evaluated
-inside the same supported source triangle and carries an independent validity
-value. Deterministic microrelief is constrained to zero at admitted source
-vertices and remains explicitly presentation-only; diagnostics continue to
-report the original admitted vertex counts and elevation range. The reference
-renderer selects conservative root tiles instead of mounting hundreds of
-thousands of fallback polygons.
+dataset before `@rey/explorer` receives it. Fully supported cell interiors use
+bilinear sampling; a cell touching no-data uses only fully supported source
+triangles. Every refined point carries an independent validity value.
+Band-limited deterministic microrelief is constrained to zero at admitted
+source vertices and remains explicitly presentation-only; diagnostics continue
+to report the original admitted vertex counts and elevation range. The
+reference renderer selects conservative root tiles instead of mounting
+hundreds of thousands of fallback polygons.
 
 That dense working field is then treated as a causal geography graph, not a
 bag of independent visual channels. A priority-flood pass resolves local
 depressions without crossing no-data, every valid cell receives one bounded
 downstream receiver, and a height-ordered accumulation pass carries rainfall
-through the complete admitted basin. Presentation-only channel incision is
-zero at every admitted source vertex. Normals and curvature are recomputed
-from that conditioned elevation; moisture, slope, height, exposure, and
-accumulation then derive a coherent land-cover material. Metric contour
-intervals tighten by semantic lens, while smoothed synthetic stream and river
-linework remains distinctly qualified from exact admitted hydrology.
+through the complete admitted basin. The raw accumulation channel retains that
+topology; a validity-bounded smoothed copy drives moisture and occlusion so D8
+paths do not become visible material bands. Non-displacing erosion potential
+remains a separate derived channel, while the authored elevation and its
+normals/curvature stay intact. Moisture, slope, height, exposure, and smoothed
+accumulation derive the coherent land-cover material. Metric contour intervals
+tighten by semantic lens. Supplemental synthetic stream and river linework is
+reserved for closer lenses and remains distinctly qualified from exact
+admitted hydrology.
 
 ## Validity-Safe Mesh Compilation
 
@@ -167,7 +171,7 @@ remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from measured geometric error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@1` runs tile projection, resampling, relief
+`rey.terrain.compilation-worker@2` runs tile projection, resampling, relief
 derivation, procedural field evaluation, parity checking, and mesh preparation
 in a cancellable dedicated worker. The deterministic reference field remains
 visible while work is pending or after failure. A disclosed main-thread

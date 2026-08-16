@@ -187,6 +187,23 @@ describe("regional terrain projection", () => {
       6,
     );
 
+    const saddleValues = source.elevation.values.slice();
+    saddleValues[0] = 0;
+    saddleValues[1] = 1;
+    saddleValues[source.grid.columns] = 1;
+    saddleValues[source.grid.columns + 1] = 0;
+    const saddle = refineRegionalTerrainField(
+      {
+        ...source,
+        elevation: { ...source.elevation, values: saddleValues },
+      },
+      2,
+    );
+    expect(saddle.elevation.values[saddle.grid.columns + 1]).toBeCloseTo(
+      0.5,
+      1,
+    );
+
     const withHole = refineRegionalTerrainField(
       compileRegionalTerrainField(regionalTerrainScene(), {
         width: 1200,

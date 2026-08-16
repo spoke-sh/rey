@@ -82,13 +82,14 @@ describe("Rey County terrain source", () => {
 
   it("binds explicit multi-scale synthesis without claiming package seams", () => {
     expect(terrain.terrain_derivation).toMatchObject({
-      schema: "rey.county-terrain-source.v2",
-      dataset_id: "rey-county-semantic-terrain-v2",
-      compiler_revision: "rey.agent-geography.rey-county@2",
+      schema: "rey.county-terrain-source.v3",
+      dataset_id: "rey-county-semantic-terrain-v3",
+      compiler_revision: "rey.agent-geography.rey-county@3",
       synthesis: {
         elevation: expect.stringContaining("domain-warped"),
-        hydrology: expect.stringContaining("authored river and stream"),
+        hydrology: expect.stringContaining("drainage constraints"),
         land_cover: expect.stringContaining("moisture"),
+        cartography: expect.stringContaining("railway"),
         stitching: {
           strategy: "single bounded County authoring domain",
           seam_count: 0,

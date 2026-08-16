@@ -23,7 +23,8 @@ The County is built from five rules:
    and inside Unexplored Scrub are explicit `no_data`; they have no height or
    material for the renderer to interpolate.
 4. **Channels retain separate meaning.** Elevation, validity, material,
-   hydrology, boundaries, districts, and markers enter the scene independently.
+   hydrology, boundaries, districts, transport, markers, and labels enter the
+   scene independently.
    Evidence River can shape the authored field without becoming a route or an
    observed watershed.
 5. **The whole artifact is bounded and reproducible.** One deterministic
@@ -46,8 +47,9 @@ foundational contracts, twelve Rust crates, `@rey/agent`, and `@rey/explorer`:
 | Unexplored Scrub       | Explicitly unsupported or not-yet-surveyed space                  |
 
 The terrain model combines the retained control geometry with deterministic,
-domain-warped macro, meso, ridge, and micro relief. Existing hydrology alone
-carves the authored channels, Explorer receives a subtle terrace response, and
+domain-warped macro, ridge, and meso relief below the source grid's Nyquist
+limit. Smooth authored drainage constraints carve the channels, Explorer
+receives a subtle terrace response, and
 the five renderer-recognized land-cover materials follow coherent elevation,
 moisture, exposure, meadow, wetland, and water-distance fields. These are
 authored semantic choices recorded in the native source, not facts inferred by
@@ -61,8 +63,13 @@ the renderer.
 | `terrain.geojson`          | `terrain`         | 81×81 row-major elevation/material dataset with explicit validity |
 | `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height   |
 | `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry            |
-| `features.geojson`         | `features`        | Districts, meadow, and the explicit unexplored region             |
+| `features.geojson`         | `features`        | Meadow land cover and the explicit unexplored region              |
 | `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD            |
+| `districts.geojson`        | `district`        | Subordinate administrative and semantic boundaries                |
+| `highways.geojson`         | `highway`         | Primary and secondary authored transport hierarchy                |
+| `roads.geojson`            | `road`            | Terrain-aware local route candidates                              |
+| `railways.geojson`         | `railway`         | Regional and industrial rail candidates                           |
+| `labels.geojson`           | `label`           | Geographic names with exact zoom and collision policy             |
 
 The terrain grid contains 6,561 vertices at exact integer-microdegree spacing:
 
@@ -70,7 +77,7 @@ The terrain grid contains 6,561 vertices at exact integer-microdegree spacing:
 - 1,825 no-data vertices outside the County footprint;
 - 138 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
   predicates, producing 1,938 unique no-data vertices);
-- 88.77–1,721.67 meters of authored relief; and
+- 70.28–1,721.89 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
 Eighty intervals per axis preserve the County's exact bounds at approximately
@@ -82,7 +89,7 @@ the correctness fixture, not the final resolution target; a raster-native
 pyramid is required for sub-kilometer authored fields without turning GeoJSON
 points into a bulk terrain format.
 
-The embedded `rey.agent-geography.rey-county@2` compiler record states the
+The embedded `rey.agent-geography.rey-county@3` compiler record states the
 topology, elevation, hydrology, land-cover, and stitching contracts. This
 revision owns one County-wide authoring domain and therefore reports zero
 seams and conflicts while explicitly omitting cross-package seam resolution.
@@ -90,10 +97,10 @@ It does not imply that multiple editor packages have already been stitched.
 
 ## Regeneration And Verification
 
-Regeneration reads only the checked-in boundary, feature, hydrology, and
-terrain-control files. Their SHA-256 identities, derivation principles, grid
-shape, and summary are embedded in the GeoJSON foreign metadata. Same inputs
-produce the same bytes.
+Regeneration reads only the checked-in boundary, district, feature, highway,
+hydrology, label, railway, road, and terrain-control files. Their SHA-256
+identities, derivation principles, grid shape, and summary are embedded in the
+GeoJSON foreign metadata. Same inputs produce the same bytes.
 
 ```sh
 node scenes/rey-county/generate-terrain.mjs
@@ -116,10 +123,20 @@ rey editor source add scenes/rey-county/boundary.geojson \
   --id rey-county-boundary --role boundary --scene-id rey-county
 rey editor source add scenes/rey-county/features.geojson \
   --id rey-county-features --role features
+rey editor source add scenes/rey-county/districts.geojson \
+  --id rey-county-districts --role district
+rey editor source add scenes/rey-county/highways.geojson \
+  --id rey-county-highways --role highway
 rey editor source add scenes/rey-county/hydrology.geojson \
   --id rey-county-hydrology --role hydrology
+rey editor source add scenes/rey-county/labels.geojson \
+  --id rey-county-labels --role label
 rey editor source add scenes/rey-county/markers.geojson \
   --id rey-county-markers --role markers
+rey editor source add scenes/rey-county/railways.geojson \
+  --id rey-county-railways --role railway
+rey editor source add scenes/rey-county/roads.geojson \
+  --id rey-county-roads --role road
 rey editor source add scenes/rey-county/terrain-controls.geojson \
   --id rey-county-terrain-controls --role terrain_control
 rey editor source add scenes/rey-county/terrain.geojson \

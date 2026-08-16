@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REGIONAL_TERRAIN_GEOGRAPHY_REVISION } from "./regional-geography";
 import { TerrainCompilationWorkerClient } from "./worker-client";
 import { executeTerrainCompilationJob } from "./worker";
 import { admittedField, terrainTileView } from "./tiles.fixture";
@@ -32,9 +33,17 @@ describe("bounded terrain compilation worker", () => {
     expect(result.compiled.statistics.gpu_bytes).toBeLessThanOrEqual(
       8 * 1024 * 1024,
     );
+    expect(
+      result.derived_lines.some(
+        ({ kind }) => kind === "derived_stream" || kind === "derived_river",
+      ),
+    ).toBe(false);
+    expect(
+      result.derived_lines.some(({ kind }) => kind === "derived_contour"),
+    ).toBe(true);
     for (const tile of result.compiled_tiles) {
       expect(tile.fields.normal.implementation_revision).toContain(
-        "rey.terrain.regional-geography@1",
+        REGIONAL_TERRAIN_GEOGRAPHY_REVISION,
       );
       for (const index of tile.mesh.indices)
         expect(tile.fields.validity.values[index]).toBe(1);

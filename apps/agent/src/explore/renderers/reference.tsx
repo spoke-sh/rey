@@ -240,7 +240,9 @@ export function ReferenceRenderer({
           scene={scene}
         />
       ) : null}
-      {!globeWorld && layers.relief ? <ReliefLayer scene={scene} /> : null}
+      {!globeWorld && !accelerated && layers.relief ? (
+        <ReliefLayer scene={scene} />
+      ) : null}
       {!globeWorld && (layers.water || layers.weather) ? (
         <NaturalFeatureLayer
           scene={scene}
@@ -632,7 +634,7 @@ function CountyFeatureLayer({
                 : 0
             }
           >
-            {point ? (
+            {point && feature.layer !== "label" ? (
               <>
                 <circle
                   className={sx(styles.countyFeaturePoint)}
@@ -649,7 +651,7 @@ function CountyFeatureLayer({
                   />
                 ) : null}
               </>
-            ) : (
+            ) : !point ? (
               <path
                 className={sx(
                   styles.countyFeatureEnvelope,
@@ -663,13 +665,14 @@ function CountyFeatureLayer({
                   feature.layer === "highway" && styles.countyFeatureHighway,
                   feature.layer === "road" && styles.countyFeatureRoad,
                   feature.layer === "railway" && styles.countyFeatureRailway,
+                  feature.layer === "district" && styles.countyFeatureDistrict,
                   feature.layer === "boundary" && styles.countyFeatureBoundary,
                   feature.layer === "terrain_control" &&
                     styles.countyTerrainControl,
                 )}
                 d={feature.geometry_path}
               />
-            )}
+            ) : null}
             {showLabel ? (
               <text
                 className={sx(styles.countyFeatureLabel)}

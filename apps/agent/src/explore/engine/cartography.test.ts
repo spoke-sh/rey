@@ -16,7 +16,7 @@ describe("Landscape cartographic hierarchy", () => {
         "landscape",
         false,
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       featureVisibleAtLens(
         { geometry_kind: "Polygon", layer: "terrain_control" },
@@ -54,7 +54,8 @@ describe("Landscape cartographic hierarchy", () => {
       layer: "label",
       cartographic_label: { min_zoom: 7, max_zoom: 24 },
     };
-    expect(featureVisibleAtLens(seat, "landscape", false)).toBe(true);
+    expect(featureVisibleAtLens(seat, "landscape", false)).toBe(false);
+    expect(featureVisibleAtLens(seat, "neighborhoods", false)).toBe(false);
     expect(featureVisibleAtLens(detail, "landscape", false)).toBe(false);
     expect(featureVisibleAtLens(detail, "neighborhoods", false)).toBe(true);
   });

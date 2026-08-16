@@ -229,6 +229,7 @@ export function compileTerrainRenderPasses(
       } else if (
         !feature ||
         (feature.geometry_kind.toLowerCase() === "point" &&
+          feature.layer !== "label" &&
           featureVisibleAtLens(
             feature,
             scene.regime,
@@ -641,6 +642,7 @@ function featureColor(layer: string, selected: boolean): number {
   if (selected) return 0xffd36e;
   if (layer === "hydrology") return 0x77bfd8;
   if (layer === "boundary") return 0xe4cb86;
+  if (layer === "district") return 0x77736a;
   if (layer === "highway" || layer === "road") return 0xe5ded0;
   if (layer === "railway") return 0x625f5a;
   if (layer === "structure" || layer === "construction") return 0xb8a98f;

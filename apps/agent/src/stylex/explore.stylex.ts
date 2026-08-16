@@ -256,44 +256,53 @@ export const exploreStyles = stylex.create({
     fill: "color-mix(in srgb, #78946d 9%, transparent)",
     stroke: "color-mix(in srgb, #355b4c 44%, var(--rey-foreground))",
     strokeLinejoin: "round",
-    strokeWidth: 1.5,
+    strokeWidth: "calc(1.2px * var(--rey-terrain-counter-scale))",
     vectorEffect: "non-scaling-stroke",
   },
   countyFeatureLinear: {
     fill: "none",
     stroke: "color-mix(in srgb, #b67a2c 68%, var(--rey-foreground))",
-    strokeWidth: 2.2,
+    strokeWidth: "calc(1.8px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureHydrology: {
     fill: "none",
     opacity: 0.68,
     stroke: "color-mix(in srgb, #72a6ae 80%, var(--rey-foreground))",
-    strokeWidth: 1.4,
+    strokeWidth: "calc(1.25px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureHighway: {
     stroke: "#eee6d5",
-    strokeWidth: 2.8,
+    strokeWidth: "calc(2.2px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureRoad: {
     stroke: "#d7d0c2",
-    strokeWidth: 1.45,
+    strokeWidth: "calc(1.15px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureRailway: {
     stroke: "#5e5b56",
-    strokeDasharray: "5 3",
-    strokeWidth: 1.25,
+    strokeDasharray:
+      "calc(5px * var(--rey-terrain-counter-scale)) calc(3px * var(--rey-terrain-counter-scale))",
+    strokeWidth: "calc(1px * var(--rey-terrain-counter-scale))",
+  },
+  countyFeatureDistrict: {
+    fill: "none",
+    opacity: 0.42,
+    stroke: "#726f66",
+    strokeDasharray:
+      "calc(2px * var(--rey-terrain-counter-scale)) calc(5px * var(--rey-terrain-counter-scale))",
+    strokeWidth: "calc(0.75px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureWaterArea: {
     fill: "color-mix(in srgb, #4f93a0 48%, transparent)",
     opacity: 0.74,
     stroke: "color-mix(in srgb, #356f7a 72%, var(--rey-foreground))",
-    strokeWidth: 1.4,
+    strokeWidth: "calc(1.15px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureBoundary: {
     fill: "none",
     stroke: "color-mix(in srgb, #314941 64%, var(--rey-foreground))",
     strokeDasharray: "2 4",
-    strokeWidth: 1.2,
+    strokeWidth: "calc(1px * var(--rey-terrain-counter-scale))",
   },
   countyTerrainControl: {
     fill: "color-mix(in srgb, #7d7160 5%, transparent)",
@@ -304,6 +313,9 @@ export const exploreStyles = stylex.create({
     fill: "#446c61",
     stroke: "#f0ead6",
     strokeWidth: 1.5,
+    transform: "scale(var(--rey-terrain-counter-scale))",
+    transformBox: "fill-box",
+    transformOrigin: "center",
     vectorEffect: "non-scaling-stroke",
   },
   countyTerrainSampleHalo: {
@@ -319,13 +331,13 @@ export const exploreStyles = stylex.create({
   countyFeatureLabel: {
     fill: "var(--rey-foreground)",
     fontFamily: mono,
-    fontSize: 9,
+    fontSize: "calc(9px * var(--rey-terrain-counter-scale))",
     fontWeight: 800,
     letterSpacing: "0.05em",
     paintOrder: "stroke",
     pointerEvents: "none",
     stroke: "color-mix(in srgb, var(--rey-background) 92%, transparent)",
-    strokeWidth: 4,
+    strokeWidth: "calc(3px * var(--rey-terrain-counter-scale))",
   },
   countyFeatureEvidenceLabel: {
     fill: "var(--rey-accent)",

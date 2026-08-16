@@ -28,7 +28,7 @@ import {
 } from "./tiles";
 
 export const TERRAIN_COMPILATION_WORKER_REVISION =
-  "rey.terrain.compilation-worker@1" as const;
+  "rey.terrain.compilation-worker@2" as const;
 
 export interface TerrainProgramWorkerRequest {
   program: TerrainProgram;

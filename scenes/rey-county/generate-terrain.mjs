@@ -13,12 +13,17 @@ const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
 // an interchange slice; raster-native pyramids are required for finer fields.
 const COLUMNS = 81;
 const ROWS = 81;
-const DATASET_ID = "rey-county-semantic-terrain-v2";
-const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@2";
+const DATASET_ID = "rey-county-semantic-terrain-v3";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@3";
 const INPUT_FILES = [
   "boundary.geojson",
+  "districts.geojson",
   "features.geojson",
+  "highways.geojson",
   "hydrology.geojson",
+  "labels.geojson",
+  "railways.geojson",
+  "roads.geojson",
   "terrain-controls.geojson",
 ];
 
@@ -163,7 +168,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v2",
+      schema: "rey.county-terrain-source.v3",
       dataset_id: DATASET_ID,
       compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
@@ -185,13 +190,15 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
       },
       synthesis: {
         topology:
-          "named terrain controls, exact County footprint, hydrology, meadow, wetland, and explicit unexplored polygon",
+          "named terrain controls, exact County footprint, districts, hydrology, meadow, wetland, transport hierarchy, labels, and explicit unexplored polygon",
         elevation:
-          "anisotropic named landforms plus deterministic domain-warped macro, meso, ridge, and micro relief",
+          "anisotropic named landforms plus deterministic low-frequency domain-warped macro, ridge, and meso relief kept below the source-grid Nyquist limit",
         hydrology:
-          "only authored river and stream centerlines carve the height field; wetland remains an authored area",
+          "smooth authored drainage constraints carve the height field; the renderer derives bounded flow accumulation inside exact validity while wetland remains an authored area",
         land_cover:
           "deterministic elevation, moisture, exposure, meadow, wetland, and water-distance classification",
+        cartography:
+          "separately admitted district, highway, road, railway, marker, and label sources form a scale-aware hierarchy without changing terrain validity",
         stitching: {
           strategy: "single bounded County authoring domain",
           seam_count: 0,
@@ -301,25 +308,25 @@ function terrainSample(
     elevation -= depth * Math.exp(-((distance / width) ** 2));
   }
 
-  const warpX = fractalNoise(x, y, 17, [2.1, 4.2, 8.4]) * 0.038;
-  const warpY = fractalNoise(x, y, 53, [1.8, 3.6, 7.2]) * 0.034;
+  const warpX = fractalNoise(x, y, 17, [1.1, 2.2, 4.4]) * 0.026;
+  const warpY = fractalNoise(x, y, 53, [1.0, 2.0, 4.0]) * 0.024;
   const warpedX = x + warpX;
   const warpedY = y + warpY;
   const reliefWeight = 0.24 + Math.min(1, roughness) * 0.76;
   const macroTexture =
-    fractalNoise(warpedX, warpedY, 101, [2.4, 4.8, 9.6]) * 54;
-  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [7.5, 15, 30]) * 24;
+    fractalNoise(warpedX, warpedY, 101, [1.2, 2.4, 4.8]) * 86;
+  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [3.5, 7, 12]) * 22;
   const ridgeTexture =
-    ridgedFractalNoise(warpedX, warpedY, 307, [5.5, 11, 22]) * 34;
-  const microTexture = fractalNoise(warpedX, warpedY, 401, [16, 24, 32]) * 8;
+    ridgedFractalNoise(warpedX, warpedY, 307, [2.2, 4.4, 8.8]) * 42;
+  const microTexture = fractalNoise(warpedX, warpedY, 401, [8, 13, 21]) * 3.5;
   elevation +=
     (macroTexture + mesoTexture + ridgeTexture + microTexture) * reliefWeight;
 
   const terraceInfluence = influenceById["terrain-explorer-terraces"] ?? 0;
-  const terracedElevation = Math.round(elevation / 24) * 24;
+  const terracedElevation = Math.round(elevation / 12) * 12;
   elevation =
-    elevation * (1 - terraceInfluence * 0.34) +
-    terracedElevation * terraceInfluence * 0.34;
+    elevation * (1 - terraceInfluence * 0.12) +
+    terracedElevation * terraceInfluence * 0.12;
 
   const insideWetland = pointInRing([longitude, latitude], wetland);
   if (insideWetland) elevation -= 42;

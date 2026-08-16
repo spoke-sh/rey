@@ -38,6 +38,7 @@ describe("regional terrain geography", () => {
     expect(geography.detail_authority).toContain("not observed hydrology");
     expect(geography.validity.values).toEqual(refined.validity.values);
     expect(geography.elevation.values).toEqual(replay.elevation.values);
+    expect(geography.elevation.values).toEqual(refined.elevation.values);
     expect(geography.flow_accumulation.values).toEqual(
       replay.flow_accumulation.values,
     );
@@ -77,13 +78,23 @@ describe("regional terrain geography", () => {
       2,
     );
     const geography = deriveRegionalTerrainGeography(refined);
-    const lines = deriveRegionalTerrainPresentationLines(
+    const landscapeLines = deriveRegionalTerrainPresentationLines(
       geography,
       "landscape",
     );
+    const lines = deriveRegionalTerrainPresentationLines(
+      geography,
+      "neighborhoods",
+    );
 
-    expect(lines.filter(({ kind }) => kind === "derived_contour").length).toBe(
-      9,
+    expect(
+      landscapeLines.filter(({ kind }) => kind === "derived_contour").length,
+    ).toBe(9);
+    expect(landscapeLines.some(({ kind }) => kind.startsWith("derived_"))).toBe(
+      true,
+    );
+    expect(landscapeLines.some(({ kind }) => kind === "derived_stream")).toBe(
+      false,
     );
     expect(lines.some(({ kind }) => kind === "derived_stream")).toBe(true);
     expect(lines.some(({ kind }) => kind === "derived_river")).toBe(true);

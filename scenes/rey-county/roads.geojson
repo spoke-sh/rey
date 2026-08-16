@@ -1,0 +1,137 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey County authored local road candidates",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "road-anchor-pass",
+      "properties": {
+        "name": "Anchor Pass Road",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.875, -19.475],
+          [-159.842, -19.493],
+          [-159.807, -19.52],
+          [-159.778, -19.552],
+          [-159.753, -19.59],
+          [-159.735, -19.63],
+          [-159.707, -19.658]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-basin-loop-west",
+      "properties": {
+        "name": "Basin Loop West",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.707, -19.658],
+          [-159.686, -19.692],
+          [-159.674, -19.729],
+          [-159.667, -19.768],
+          [-159.649, -19.802],
+          [-159.62, -19.827],
+          [-159.584, -19.842],
+          [-159.545, -19.846]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-basin-loop-east",
+      "properties": {
+        "name": "Basin Loop East",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.545, -19.846],
+          [-159.508, -19.836],
+          [-159.477, -19.813],
+          [-159.454, -19.782],
+          [-159.439, -19.746],
+          [-159.429, -19.707],
+          [-159.418, -19.67],
+          [-159.418, -19.652]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-architecture-climb",
+      "properties": {
+        "name": "Architecture Climb",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.54, -19.642],
+          [-159.541, -19.606],
+          [-159.533, -19.568],
+          [-159.515, -19.535],
+          [-159.493, -19.502],
+          [-159.474, -19.468],
+          [-159.458, -19.433],
+          [-159.447, -19.401]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-explorer-rise",
+      "properties": {
+        "name": "Explorer Rise",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.377, -19.657],
+          [-159.356, -19.633],
+          [-159.335, -19.608],
+          [-159.313, -19.58],
+          [-159.292, -19.551],
+          [-159.274, -19.519],
+          [-159.258, -19.485],
+          [-159.247, -19.452]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-proof-bench",
+      "properties": {
+        "name": "Proof Bench Road",
+        "route_class": "local_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.545, -19.846],
+          [-159.506, -19.865],
+          [-159.464, -19.879],
+          [-159.421, -19.885],
+          [-159.378, -19.882],
+          [-159.337, -19.87],
+          [-159.302, -19.85],
+          [-159.275, -19.82]
+        ]
+      }
+    }
+  ]
+}

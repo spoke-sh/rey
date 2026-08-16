@@ -1,0 +1,58 @@
+{
+  "type": "FeatureCollection",
+  "name": "Rey County authored railway candidates",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "railway-delta-line",
+      "properties": {
+        "name": "Delta Line",
+        "rail_class": "regional_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.938, -19.69],
+          [-159.894, -19.687],
+          [-159.85, -19.693],
+          [-159.806, -19.706],
+          [-159.763, -19.724],
+          [-159.72, -19.744],
+          [-159.676, -19.76],
+          [-159.632, -19.769],
+          [-159.587, -19.771],
+          [-159.542, -19.766],
+          [-159.498, -19.754],
+          [-159.454, -19.737],
+          [-159.411, -19.716],
+          [-159.369, -19.692],
+          [-159.327, -19.67],
+          [-159.285, -19.653],
+          [-159.243, -19.646],
+          [-159.203, -19.651]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "railway-foundry-spur",
+      "properties": {
+        "name": "Foundry Spur",
+        "rail_class": "industrial_candidate",
+        "authority": "authored_transport_candidate"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-159.632, -19.769],
+          [-159.619, -19.748],
+          [-159.61, -19.724],
+          [-159.604, -19.701],
+          [-159.599, -19.68],
+          [-159.58, -19.65]
+        ]
+      }
+    }
+  ]
+}

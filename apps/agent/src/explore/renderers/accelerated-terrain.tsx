@@ -485,7 +485,9 @@ export function AcceleratedTerrainSurface({
     return () => abort.abort();
   }, [semanticGlobe, snapshot.snapshot_id, terrainJobId, workingSetRevision]);
   const activeTerrain =
-    !semanticGlobe && resolvedTerrain?.source_key === terrainSourceKey
+    !semanticGlobe &&
+    resolvedTerrain?.source_key === terrainSourceKey &&
+    resolvedTerrain.job_id === terrainJobId
       ? resolvedTerrain
       : null;
   const fieldProjection = useMemo(() => {
