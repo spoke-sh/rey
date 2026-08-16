@@ -1743,7 +1743,8 @@ async function runVoyage(options) {
   const visibleMapNoticeLayout = captures.find(
     (capture) =>
       ["landscape", "objects", "evidence"].includes(capture.stage) &&
-      capture.communication_layout.footer_visible,
+      capture.communication_layout.footer_visible &&
+      capture.communication_layout.footer_height_px > 24,
   )?.communication_layout;
   const diagnosticsFollowFooter =
     hiddenWorldLayout?.footer_visible === false &&
