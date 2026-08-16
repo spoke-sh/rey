@@ -29,6 +29,12 @@ define the semantics of the typed documents carried over HTTP.
 6. **Evidence boundaries survive transport.** Schema identity, revisions,
    completeness, omissions, limits, and lineage stay in response documents.
    Swagger examples cannot broaden those guarantees.
+7. **Route readiness is demand-scoped.** The browser's root shell loads only
+   process identity, Channels, Observations, conversation, and the exact
+   revalidation cursor. It does not request the workload portfolio. A route
+   waits only for the projections it consumes; Cadence, Environment, Journal
+   entries, and exact scenario/delta evidence remain independent of a cold
+   workload projection.
 
 ## Discovery And Versioning
 
@@ -73,6 +79,13 @@ blocking pool. A cold or expensive projection such as `/api/v1/workloads`
 therefore does not occupy the HTTP event loop or prevent Swagger, static
 assets, health, or other requests from being accepted. This is request
 concurrency, not background workload scheduling.
+
+The browser preserves the same separation above HTTP. Its lightweight root
+loader never fetches `/api/v1/workloads`; portfolio-dependent routes opt in to
+that endpoint. Opening the mailbox makes runtime attention demand-visible:
+retained Channel history is usable immediately while the workload attention
+projection identifies itself as loading. In-flight portfolio requests are
+deduplicated.
 
 Swagger assets are compiled into the binary. Opening the API documentation
 does not require a CDN or widen network authority.
@@ -220,6 +233,10 @@ the OpenAPI document, application deep links, typed method errors, writes,
 gzip, and exact evidence routes. The CLI integration path starts `rey agent`,
 discovers its printed origin, and verifies `/`, `/api`, Swagger, OpenAPI,
 `/explore`, health, process, and evidence projections.
+
+Vitest also invokes the actual root and Cadence route loaders together and
+asserts that `/api/v1/cadence` and lightweight shell endpoints are requested
+while `/api/v1/workloads` is not.
 
 The source of truth for registered operations is
 `crates/rey/src/api.rs`. The OpenAPI document is a runtime projection of that

@@ -117,14 +117,16 @@ export interface WorkloadApprovalRequest {
   expected_working: string;
 }
 
-export type OperatorContext = WorkloadList & {
+export interface OperatorShell {
   agent_process: AgentProcessDescriptor;
   channels: ChannelProjection;
   observations: ObservationFrontier;
   conversation: ConversationTranscript;
   revalidation: UiRevalidationCursor;
   ui_server: UiServerIdentity;
-};
+}
+
+export type OperatorContext = WorkloadList & OperatorShell;
 
 export interface FeedSources {
   cadence: CadenceProjection;
@@ -187,27 +189,22 @@ export interface AgentJournalDocument {
   opportunities: JournalOpportunitySurface;
 }
 
+let portfolioRequest: Promise<OperatorContext> | null = null;
+
 export async function loadPortfolio(): Promise<OperatorContext> {
-  return loadPortfolioDocument();
+  if (portfolioRequest) return portfolioRequest;
+  portfolioRequest = loadPortfolioDocument().finally(() => {
+    portfolioRequest = null;
+  });
+  return portfolioRequest;
 }
 
 async function loadPortfolioDocument(
   retainedRevalidation?: UiRevalidationCursor,
 ): Promise<OperatorContext> {
-  const [
-    portfolioResponse,
-    healthResponse,
-    observations,
-    conversation,
-    channels,
-    revalidation,
-  ] = await Promise.all([
+  const [portfolioResponse, shell] = await Promise.all([
     fetch("/api/v1/workloads", { headers: { Accept: "application/json" } }),
-    fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
-    loadObservations(),
-    loadConversation(),
-    loadChannels(),
-    retainedRevalidation ?? loadPortfolioRevalidation(),
+    loadOperatorShell(retainedRevalidation),
   ]);
   if (!portfolioResponse.ok) {
     const detail = await portfolioResponse.text();
@@ -215,25 +212,39 @@ async function loadPortfolioDocument(
       `Portfolio request failed (${portfolioResponse.status}): ${detail}`,
     );
   }
+  const portfolio = (await portfolioResponse.json()) as WorkloadList;
+  return Object.assign(portfolio, shell);
+}
+
+export async function loadOperatorShell(
+  retainedRevalidation?: UiRevalidationCursor,
+): Promise<OperatorShell> {
+  const [healthResponse, observations, conversation, channels, revalidation] =
+    await Promise.all([
+      fetch("/api/v1/health", { headers: { Accept: "application/json" } }),
+      loadObservations(),
+      loadConversation(),
+      loadChannels(),
+      retainedRevalidation ?? loadPortfolioRevalidation(),
+    ]);
   if (!healthResponse.ok) {
     const detail = await healthResponse.text();
     throw new Error(
       `Server identity request failed (${healthResponse.status}): ${detail}`,
     );
   }
-  const portfolio = (await portfolioResponse.json()) as WorkloadList;
   const health = (await healthResponse.json()) as {
     agent: AgentProcessDescriptor;
     server: UiServerIdentity;
   };
-  return Object.assign(portfolio, {
+  return {
     agent_process: health.agent,
     channels,
     observations,
     conversation,
     revalidation,
     ui_server: health.server,
-  });
+  };
 }
 
 export async function loadPortfolioRevalidation(): Promise<UiRevalidationCursor> {
@@ -255,6 +266,14 @@ export async function loadPortfolioAfterRevision(
   const revalidation = await loadPortfolioRevalidation();
   if (revalidation.revision === retainedRevision) return null;
   return loadPortfolioDocument(revalidation);
+}
+
+export async function loadOperatorShellAfterRevision(
+  retainedRevision: string,
+): Promise<OperatorShell | null> {
+  const revalidation = await loadPortfolioRevalidation();
+  if (revalidation.revision === retainedRevision) return null;
+  return loadOperatorShell(revalidation);
 }
 
 export async function loadConversation(): Promise<ConversationTranscript> {

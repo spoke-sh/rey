@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ConversationTranscript } from "./conversations";
 import type { ChannelMessage } from "./channels";
 import {
@@ -17,6 +17,10 @@ import {
   PRIMARY_NAV_ITEMS,
   router,
 } from "./router";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("operator routes", () => {
   it("derives a qualification-only base path for local-file browser voyages", () => {
@@ -49,6 +53,39 @@ describe("operator routes", () => {
     expect(isViewportLockedPath("/feed")).toBe(true);
     expect(isViewportLockedPath("/explore")).toBe(true);
     expect(isViewportLockedPath("/cadence")).toBe(false);
+  });
+
+  it("loads Cadence without requesting the workload portfolio", async () => {
+    const fetch = vi.fn().mockImplementation(async (input: string) => ({
+      ok: true,
+      json: async () => {
+        if (input === "/api/v1/health") return { agent: {}, server: {} };
+        if (input === "/api/v1/revalidation") {
+          return {
+            schema: "rey.ui-revalidation.v1",
+            revision: "blake3:current",
+            poll_after_ms: 5_000,
+          };
+        }
+        return {};
+      },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    const rootLoader = router.routesById.__root__.options.loader;
+    const cadenceLoader = router.routesById["/cadence"].options.loader;
+    if (
+      typeof rootLoader !== "function" ||
+      typeof cadenceLoader !== "function"
+    ) {
+      throw new Error("Cadence route loaders are unavailable");
+    }
+    await Promise.all([rootLoader({} as never), cadenceLoader({} as never)]);
+
+    const targets = fetch.mock.calls.map(([target]) => target);
+    expect(targets).toContain("/api/v1/cadence");
+    expect(targets).toContain("/api/v1/health");
+    expect(targets).not.toContain("/api/v1/workloads");
   });
 
   it("retains bounded Feed stream composition in typed route search", () => {

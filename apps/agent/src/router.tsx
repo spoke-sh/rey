@@ -10,8 +10,6 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import {
-  createContext,
-  useContext,
   useEffect,
   useRef,
   useState,
@@ -27,6 +25,8 @@ import {
   loadFeed,
   loadJournal,
   loadJournalSeed,
+  loadOperatorShell,
+  loadOperatorShellAfterRevision,
   loadPortfolio,
   loadPortfolioAfterRevision,
   loadWorkloadDeltaEvidence,
@@ -36,6 +36,7 @@ import {
   writeConversationMessage,
   writeObservation,
   type OperatorContext,
+  type OperatorShell,
 } from "./api";
 import {
   conversationBrowserWriter,
@@ -107,7 +108,6 @@ const ScenarioEvidencePage = lazyRouteComponent(
 );
 
 const precision = kineticThemeMaterials.precision;
-const PortfolioContext = createContext<OperatorContext | null>(null);
 
 export type CommunicationAxis = "mailbox" | "conversation";
 
@@ -207,12 +207,6 @@ function usePassiveDocument<T>(initialDocument: T, load: () => Promise<T>) {
   return { document, error, publish: setDocument };
 }
 
-function usePortfolio(): OperatorContext {
-  const portfolio = useContext(PortfolioContext);
-  if (!portfolio) throw new Error("portfolio context is unavailable");
-  return portfolio;
-}
-
 function usePassivePortfolio(initialDocument: OperatorContext) {
   const [document, setDocument] = useState(initialDocument);
   const [error, setError] = useState<Error | null>(null);
@@ -235,15 +229,66 @@ function usePassivePortfolio(initialDocument: OperatorContext) {
   return { document, error };
 }
 
+function usePassiveOperatorShell(initialDocument: OperatorShell) {
+  const [document, setDocument] = useState(initialDocument);
+  const [error, setError] = useState<Error | null>(null);
+  const retainedRevision = useRef(initialDocument.revalidation.revision);
+  useEffect(() => {
+    retainedRevision.current = initialDocument.revalidation.revision;
+    setDocument(initialDocument);
+    setError(null);
+    return startPassiveRevalidation({
+      intervalMs: initialDocument.revalidation.poll_after_ms,
+      load: () => loadOperatorShellAfterRevision(retainedRevision.current),
+      publish: (next) => {
+        if (!next) return;
+        retainedRevision.current = next.revalidation.revision;
+        setDocument(next);
+      },
+      reportError: setError,
+    });
+  }, [initialDocument]);
+  return { document, error };
+}
+
 function RootLayout() {
-  const initialPortfolio = rootRoute.useLoaderData();
-  const { document: portfolio, error: portfolioError } =
-    usePassivePortfolio(initialPortfolio);
+  const initialShell = rootRoute.useLoaderData();
+  const { document: shell, error: shellError } =
+    usePassiveOperatorShell(initialShell);
   const [communicationAxis, setCommunicationAxis] =
     useState<CommunicationAxis | null>(null);
+  const [mailboxPortfolio, setMailboxPortfolio] =
+    useState<OperatorContext | null>(null);
+  const [mailboxPending, setMailboxPending] = useState(false);
+  const [mailboxError, setMailboxError] = useState<Error | null>(null);
+  const mailboxRequest = useRef<Promise<OperatorContext> | null>(null);
+  useEffect(() => {
+    const needsInitialPortfolio =
+      communicationAxis === "mailbox" && !mailboxPortfolio;
+    const needsRefresh =
+      mailboxPortfolio !== null &&
+      mailboxPortfolio.revalidation.revision !== shell.revalidation.revision;
+    if ((!needsInitialPortfolio && !needsRefresh) || mailboxRequest.current)
+      return;
+    setMailboxPending(true);
+    setMailboxError(null);
+    const request = loadPortfolio();
+    mailboxRequest.current = request;
+    void request
+      .then(setMailboxPortfolio)
+      .catch((error: unknown) => {
+        setMailboxError(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      })
+      .finally(() => {
+        mailboxRequest.current = null;
+        setMailboxPending(false);
+      });
+  }, [communicationAxis, mailboxPortfolio, shell.revalidation.revision]);
   const mailboxCount =
-    operatorMailboxRows(portfolio).length +
-    portfolio.channels.mailbox.messages.length;
+    (mailboxPortfolio ? operatorMailboxRows(mailboxPortfolio).length : 0) +
+    shell.channels.mailbox.messages.length;
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -257,7 +302,7 @@ function RootLayout() {
     "--rey-radius": `${precision.radius}px`,
   } as CSSProperties;
   return (
-    <PortfolioContext.Provider value={portfolio}>
+    <>
       <div
         className={sx(
           styles.environment,
@@ -318,8 +363,10 @@ function RootLayout() {
 
         <CommunicationPlane
           axis={communicationAxis}
-          error={portfolioError}
-          portfolio={portfolio}
+          error={mailboxError ?? shellError}
+          mailboxPending={mailboxPending}
+          portfolio={mailboxPortfolio}
+          shell={shell}
           onClose={() => setCommunicationAxis(null)}
         />
 
@@ -354,11 +401,13 @@ function RootLayout() {
             <span
               className={sx(
                 styles.mailboxCount,
-                (mailboxCount > 0 || portfolioError) &&
+                (mailboxCount > 0 || mailboxError || shellError) &&
                   styles.mailboxCountActive,
               )}
             >
-              {mailboxCount + (portfolioError ? 1 : 0)}
+              {mailboxPending
+                ? "…"
+                : mailboxCount + (mailboxError || shellError ? 1 : 0)}
             </span>
           </button>
           <button
@@ -384,25 +433,29 @@ function RootLayout() {
             {communicationAxis === "conversation" ? "⌄ ⌄ ⌄" : "⌃ ⌃ ⌃"}
           </button>
           <ImplementationLink
-            repository={portfolio.ui_server.source_repository}
-            revision={portfolio.ui_server.implementation_revision}
+            repository={shell.ui_server.source_repository}
+            revision={shell.ui_server.implementation_revision}
           />
         </footer>
       </div>
-    </PortfolioContext.Provider>
+    </>
   );
 }
 
 function CommunicationPlane({
   axis,
   error,
+  mailboxPending,
   onClose,
   portfolio,
+  shell,
 }: {
   axis: CommunicationAxis | null;
   error: Error | null;
+  mailboxPending: boolean;
   onClose: () => void;
-  portfolio: OperatorContext;
+  portfolio: OperatorContext | null;
+  shell: OperatorShell;
 }) {
   const [lastAxis, setLastAxis] = useState<CommunicationAxis>("mailbox");
   const open = axis !== null;
@@ -437,9 +490,14 @@ function CommunicationPlane({
         id="rey-communications"
       >
         {visibleAxis === "mailbox" ? (
-          <MailboxHistory error={error} portfolio={portfolio} />
+          <MailboxHistory
+            error={error}
+            pending={mailboxPending}
+            portfolio={portfolio}
+            shell={shell}
+          />
         ) : (
-          <ConversationSurface transcript={portfolio.conversation} />
+          <ConversationSurface transcript={shell.conversation} />
         )}
       </aside>
     </>
@@ -468,15 +526,19 @@ export function CommunicationBackdrop({
 
 function MailboxHistory({
   error,
+  pending,
   portfolio,
+  shell,
 }: {
   error: Error | null;
-  portfolio: OperatorContext;
+  pending: boolean;
+  portfolio: OperatorContext | null;
+  shell: OperatorShell;
 }) {
-  const attentionMessages = operatorMailboxRows(portfolio);
-  const channelMessages = portfolio.channels.mailbox.messages;
+  const attentionMessages = portfolio ? operatorMailboxRows(portfolio) : [];
+  const channelMessages = shell.channels.mailbox.messages;
   const channelBoundaryCount =
-    portfolio.channels.mailbox.omissions.length > 0 ? 1 : 0;
+    shell.channels.mailbox.omissions.length > 0 ? 1 : 0;
   const messageCount =
     attentionMessages.length + channelMessages.length + channelBoundaryCount;
   return (
@@ -490,8 +552,11 @@ function MailboxHistory({
         </div>
         <div className={sx(styles.communicationsCoordinate)}>
           <span className={sx(styles.micro, styles.muted)}>
-            CHANNELS / {shortDigest(portfolio.channels.status.head.graph_id)} ·
-            ATTENTION / {shortDigest(portfolio.attention.attention_id)}
+            CHANNELS / {shortDigest(shell.channels.status.head.graph_id)} ·
+            ATTENTION /{" "}
+            {portfolio
+              ? shortDigest(portfolio.attention.attention_id)
+              : "LOADING"}
           </span>
           <span className={sx(styles.micro)}>
             {messageCount + (error ? 1 : 0)} ACTIVE · SOURCE ORDER
@@ -508,18 +573,30 @@ function MailboxHistory({
             <p>{error.message}</p>
           </article>
         ) : null}
+        {pending ? (
+          <article className={sx(styles.communicationMessage)}>
+            <span className={sx(styles.micro, styles.muted)}>
+              PORTFOLIO / LOADING
+            </span>
+            <strong>Runtime attention is still projecting.</strong>
+            <p>
+              Channel history is available now. Workload attention will join it
+              when the bounded portfolio projection completes.
+            </p>
+          </article>
+        ) : null}
         {channelMessages.length > 0 ? (
           <MailboxBoundary
             detail="Current unread GitHub notifications and bounded comments are retained by a poll through the exact gh application admitted in Channel HEAD and environment HEAD. The CLI verifies one tick; the foreground Rey process supervises its committed cadence. GitHub provider order does not establish causal order with runtime attention."
-            label={`GITHUB INBOX / ${portfolio.channels.mailbox.polls.length} POLL SOURCES`}
+            label={`GITHUB INBOX / ${shell.channels.mailbox.polls.length} POLL SOURCES`}
           />
         ) : null}
         {channelMessages.map((message) => (
           <GitHubMailboxMessage key={message.message_id} message={message} />
         ))}
-        {portfolio.channels.mailbox.omissions.length > 0 ? (
+        {shell.channels.mailbox.omissions.length > 0 ? (
           <MailboxBoundary
-            detail={portfolio.channels.mailbox.omissions.join(" · ")}
+            detail={shell.channels.mailbox.omissions.join(" · ")}
             label="GITHUB INBOX / PARTIAL"
           />
         ) : null}
@@ -547,7 +624,7 @@ function MailboxHistory({
             </small>
           </article>
         ))}
-        {!error && messageCount === 0 ? (
+        {!error && !pending && portfolio && messageCount === 0 ? (
           <div className={sx(styles.communicationsQuiet)}>
             <span className={sx(styles.micro)}>NO NEWS</span>
             <strong>No mailbox entries in the current projection.</strong>
@@ -1074,12 +1151,15 @@ function ApplicationDiffGroup({
 }
 
 function WorkloadsRoutePage() {
-  return <WorkloadsPage portfolio={usePortfolio()} />;
+  const initialPortfolio = workloadsRoute.useLoaderData();
+  const { document: portfolio } = usePassivePortfolio(initialPortfolio);
+  return <WorkloadsPage portfolio={portfolio} />;
 }
 
 function WorkloadDetailRoutePage() {
-  const portfolio = usePortfolio();
-  const workloadEvidence = workloadDetailRoute.useLoaderData();
+  const initial = workloadDetailRoute.useLoaderData();
+  const { document: portfolio } = usePassivePortfolio(initial.portfolio);
+  const workloadEvidence = initial.evidence;
   const { workloadId } = workloadDetailRoute.useParams();
   const workload = portfolio.workloads.find(
     (candidate) => candidate.workload.id === workloadId,
@@ -1125,7 +1205,7 @@ function WorkloadDeltaRoutePage() {
 }
 
 function RegionalObjectEvidenceRoutePage() {
-  const portfolio = usePortfolio();
+  const portfolio = regionalObjectEvidenceRoute.useLoaderData();
   const { workloadId, sceneId, objectRevision } =
     regionalObjectEvidenceRoute.useParams();
   const evidence = resolveRegionalObjectEvidence(
@@ -1206,7 +1286,8 @@ function NotFoundPage() {
 }
 
 function ExploreRoutePage() {
-  const portfolio = usePortfolio();
+  const initialPortfolio = exploreRoute.useLoaderData();
+  const { document: portfolio } = usePassivePortfolio(initialPortfolio);
   const search = exploreRoute.useSearch();
   if (!search.coordinate && !search.scale) {
     return <ExplorePage portfolio={portfolio} />;
@@ -1223,14 +1304,14 @@ function ExploreRoutePage() {
 }
 
 function FeedRoutePage() {
-  const initialSources = feedRoute.useLoaderData();
+  const initial = feedRoute.useLoaderData();
   const { document: sources, publish } = usePassiveDocument(
-    initialSources,
+    initial.sources,
     loadFeed,
   );
+  const { document: portfolio } = usePassivePortfolio(initial.portfolio);
   const search = feedRoute.useSearch();
   const navigate = feedRoute.useNavigate();
-  const portfolio = usePortfolio();
   const layout = resolveFeedLayout(search.streams ?? null, sources.channels);
   return (
     <FeedPage
@@ -1286,8 +1367,8 @@ function CadenceRoutePage() {
 
 function AgentsRoutePage() {
   const initial = agentsRoute.useLoaderData();
-  const { document } = usePassiveDocument(initial, loadAgentJournal);
-  const portfolio = usePortfolio();
+  const { document } = usePassiveDocument(initial.journal, loadAgentJournal);
+  const { document: portfolio } = usePassivePortfolio(initial.portfolio);
   return (
     <AgentsPage
       agent={portfolio.agent_process}
@@ -1304,10 +1385,11 @@ function JournalNewRoutePage() {
     initial.journal,
     loadJournal,
   );
+  const { document: portfolio } = usePassivePortfolio(initial.portfolio);
   const navigate = journalNewRoute.useNavigate();
   return (
     <JournalNewPage
-      binding={defaultJournalBinding(usePortfolio())}
+      binding={defaultJournalBinding(portfolio)}
       seed={initial.seed}
       onAdmit={async (proposal) => {
         const admission = await admitJournalEntry(proposal);
@@ -1354,7 +1436,7 @@ function JournalEntryRoutePage() {
 
 const rootRoute = createRootRoute({
   component: RootLayout,
-  loader: loadPortfolio,
+  loader: () => loadOperatorShell(),
   pendingComponent: PendingPage,
   errorComponent: ({ error }) => <ErrorPage error={error} />,
   notFoundComponent: NotFoundPage,
@@ -1375,6 +1457,7 @@ const exploreRoute = createRoute({
       ? "explore.html"
       : "explore",
   validateSearch: normalizeExplorerSearch,
+  loader: loadPortfolio,
   component: ExploreRoutePage,
 });
 
@@ -1382,7 +1465,13 @@ const feedRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "feed",
   validateSearch: normalizeFeedSearch,
-  loader: loadFeed,
+  loader: async () => {
+    const [sources, portfolio] = await Promise.all([
+      loadFeed(),
+      loadPortfolio(),
+    ]);
+    return { sources, portfolio };
+  },
   component: FeedRoutePage,
 });
 
@@ -1396,7 +1485,13 @@ const cadenceRoute = createRoute({
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
-  loader: loadAgentJournal,
+  loader: async () => {
+    const [journal, portfolio] = await Promise.all([
+      loadAgentJournal(),
+      loadPortfolio(),
+    ]);
+    return { journal, portfolio };
+  },
   component: AgentsRoutePage,
 });
 
@@ -1407,13 +1502,14 @@ const journalNewRoute = createRoute({
   loaderDeps: ({ search }) => ({ observations: search.observations }),
   loader: async ({ deps }) => {
     const observationIds = journalSeedObservationIds(deps.observations);
-    const [journal, seed] = await Promise.all([
+    const [journal, seed, portfolio] = await Promise.all([
       loadJournal(),
       observationIds.length > 0
         ? loadJournalSeed(observationIds)
         : Promise.resolve(null),
+      loadPortfolio(),
     ]);
-    return { journal, seed };
+    return { journal, seed, portfolio };
   },
   component: JournalNewRoutePage,
 });
@@ -1435,13 +1531,20 @@ const environmentRoute = createRoute({
 const workloadsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads",
+  loader: loadPortfolio,
   component: WorkloadsRoutePage,
 });
 
 const workloadDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads/$workloadId",
-  loader: loadWorkloadEvidence,
+  loader: async () => {
+    const [evidence, portfolio] = await Promise.all([
+      loadWorkloadEvidence(),
+      loadPortfolio(),
+    ]);
+    return { evidence, portfolio };
+  },
   component: WorkloadDetailRoutePage,
 });
 
@@ -1464,6 +1567,7 @@ const workloadDeltaRoute = createRoute({
 const regionalObjectEvidenceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "workloads/$workloadId/scenes/$sceneId/objects/$objectRevision",
+  loader: loadPortfolio,
   component: RegionalObjectEvidenceRoutePage,
 });
 

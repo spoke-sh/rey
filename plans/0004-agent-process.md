@@ -71,6 +71,9 @@ work.
 - [x] Keep slow synchronous evidence projections off the HTTP event loop and
   prove API discovery plus browser deep-link reachability through live-server
   tests.
+- [x] Keep the browser root loader independent of the workload portfolio;
+  demand-load portfolio evidence only on consuming routes or when runtime
+  mailbox attention is opened, and prove Cadence never requests workloads.
 - [x] Register exact admitted GitHub inbox polling as the first resident
   orchestrator-owned task.
 - [x] Make SIGINT/SIGTERM cancellation cooperative and bind worker lifetime to

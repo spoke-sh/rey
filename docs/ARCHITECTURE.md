@@ -225,7 +225,14 @@ single-page application and serves the live bounded workload-list document
 used by the CLI. The server root lands on Swagger-guided API discovery; the
 human operator lands on
 `/explore`; the CLI remains the agent's primary interface and the human's
-deeper diagnostic plane. Before any workload HEAD or admitted topography
+deeper diagnostic plane. Its root browser loader admits only the lightweight
+operator shell: process identity, Channels, Observations, conversation, and
+the exact revalidation cursor. Workload portfolio projection is
+demand-scoped to Explorer, Feed, Agents, Journal authoring, and Workloads
+routes; it cannot delay Cadence, Environment, retained Journal entries, or
+exact scenario/delta evidence. Mailbox runtime attention loads explicitly and
+identifies its pending portfolio boundary while retained Channel history stays
+usable. Before any workload HEAD or admitted topography
 exists, Explorer projects exact request/WORKING/INDEX workload file state as
 attention beacons on a presentation-only orientation globe. That globe is an
 unmapped consent surface, not `rey.semantic-atlas.v1`; it claims no semantic
