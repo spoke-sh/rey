@@ -1169,26 +1169,46 @@ function GlobeSurfaceMarker({
   );
   const opacity =
     wrapIndex === 0 ? 1 : globeAtlasRepeatVisibility(progress, seamWeight);
-  const pointMaterial = useMemo(
-    () =>
-      new MeshBasicNodeMaterial({
-        color,
-        depthWrite: opacity >= 1,
-        opacity,
-        transparent: opacity < 1,
-      }),
-    [color, opacity],
-  );
-  const haloMaterial = useMemo(
-    () =>
-      new MeshBasicNodeMaterial({
-        color,
-        depthWrite: false,
-        opacity: 0.42 * opacity,
-        transparent: true,
-      }),
-    [color, opacity],
-  );
+  // Markers re-project every frame while the globe morphs, but rebuilding a
+  // MeshBasicNodeMaterial on every opacity tick forces WebGPU pipeline churn
+  // for every visible marker each frame. Build the material once per color
+  // and drive opacity through a uniform instead, mirroring GlobeSurface and
+  // ProjectedAtmosphereLayer below.
+  const pointMaterialState = useMemo(() => {
+    const opacityNode = uniform(1);
+    const material = new MeshBasicNodeMaterial({ color });
+    material.opacityNode = opacityNode;
+    return { material, opacityNode };
+  }, [color]);
+  const pointMaterial = pointMaterialState.material;
+  const haloMaterialState = useMemo(() => {
+    const opacityNode = uniform(1);
+    const material = new MeshBasicNodeMaterial({
+      color,
+      depthWrite: false,
+      transparent: true,
+    });
+    material.opacityNode = opacityNode;
+    return { material, opacityNode };
+  }, [color]);
+  const haloMaterial = haloMaterialState.material;
+  useLayoutEffect(() => {
+    const wasTransparent = pointMaterial.transparent;
+    pointMaterial.depthWrite = opacity >= 1;
+    pointMaterial.opacity = opacity;
+    pointMaterial.transparent = opacity < 1;
+    pointMaterialState.opacityNode.value = opacity;
+    if (pointMaterial.transparent !== wasTransparent)
+      pointMaterial.needsUpdate = true;
+    haloMaterial.opacity = 0.42 * opacity;
+    haloMaterialState.opacityNode.value = 0.42 * opacity;
+  }, [
+    haloMaterial,
+    haloMaterialState,
+    opacity,
+    pointMaterial,
+    pointMaterialState,
+  ]);
   useEffect(
     () => () => {
       pointMaterial.dispose();
@@ -1288,17 +1308,25 @@ function GlobeSector({
   );
   const opacity =
     wrapIndex === 0 ? 1 : globeAtlasRepeatVisibility(progress, seamWeight);
-  const material = useMemo(
-    () =>
-      new MeshBasicNodeMaterial({
-        color: 0xd57824,
-        depthWrite: false,
-        opacity: 0.18 * opacity,
-        side: DoubleSide,
-        transparent: true,
-      }),
-    [opacity],
-  );
+  // Sectors rebuild their geometry every frame while the globe morphs; build
+  // the material once instead of on every opacity tick, or every sector on
+  // screen forces a WebGPU pipeline rebuild each animation frame.
+  const materialState = useMemo(() => {
+    const opacityNode = uniform(0.18);
+    const material = new MeshBasicNodeMaterial({
+      color: 0xd57824,
+      depthWrite: false,
+      side: DoubleSide,
+      transparent: true,
+    });
+    material.opacityNode = opacityNode;
+    return { material, opacityNode };
+  }, []);
+  const material = materialState.material;
+  useLayoutEffect(() => {
+    material.opacity = 0.18 * opacity;
+    materialState.opacityNode.value = 0.18 * opacity;
+  }, [material, materialState, opacity]);
   useEffect(() => () => material.dispose(), [material]);
   return meshes.map((mesh, index) => (
     <mesh material={material} name={`${name}:${index}`} key={index}>

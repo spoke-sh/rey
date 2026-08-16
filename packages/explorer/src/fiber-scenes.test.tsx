@@ -4,6 +4,7 @@ import {
   BackSide,
   Color,
   DirectionalLight,
+  type Group,
   type InstancedBufferAttribute,
   type InstancedMesh,
   Matrix4,
@@ -639,6 +640,71 @@ describe("declarative React Three Fiber scenes", () => {
     expect(
       (closingRepeatedAtmosphere.material as MeshBasicNodeMaterial).opacity,
     ).toBeCloseTo(0.17 * globeAtmosphereRepeatOpacity(0.79));
+
+    await renderer.unmount();
+  });
+
+  it("reuses sector and marker materials across morph frames instead of rebuilding them", async () => {
+    const world = { width: 1200, height: 720 };
+    const view = {
+      yaw_degrees: 24,
+      pitch_degrees: -8,
+      projection_morph_progress: 0.79,
+    };
+    const compiled = compileContextGlobe(globeFixture());
+    const renderer = await create(
+      <ContextGlobeScene compiled={compiled} view={view} world={world} />,
+    );
+
+    const repeatedSector = renderer.scene.findByProps({
+      name: "context-globe-sector:sector:fixture:wrap:1:0",
+    }).instance as Mesh;
+    const repeatedMarkerGroup = renderer.scene.findByProps({
+      name: "workload-beacon:survey:wrap:1",
+    }).instance as Group;
+    const [repeatedPointMesh, repeatedHaloMesh] =
+      repeatedMarkerGroup.children as Mesh[];
+    const sectorMaterial = repeatedSector.material as MeshBasicNodeMaterial;
+    const pointMaterial = repeatedPointMesh!.material as MeshBasicNodeMaterial;
+    const haloMaterial = repeatedHaloMesh!.material as MeshBasicNodeMaterial;
+    const sectorOpacity = sectorMaterial.opacity;
+    const pointOpacity = pointMaterial.opacity;
+    const haloOpacity = haloMaterial.opacity;
+
+    await renderer.update(
+      <ContextGlobeScene
+        compiled={compiled}
+        view={{ ...view, projection_morph_progress: 0.9 }}
+        world={world}
+      />,
+    );
+
+    const updatedSector = renderer.scene.findByProps({
+      name: "context-globe-sector:sector:fixture:wrap:1:0",
+    }).instance as Mesh;
+    const updatedMarkerGroup = renderer.scene.findByProps({
+      name: "workload-beacon:survey:wrap:1",
+    }).instance as Group;
+    const [updatedPointMesh, updatedHaloMesh] =
+      updatedMarkerGroup.children as Mesh[];
+
+    // The sector geometry legitimately rebuilds every frame as it morphs, but
+    // its material — and a repeated marker's materials — must stay the same
+    // object across progress ticks. Recreating a MeshBasicNodeMaterial every
+    // frame forces WebGPU pipeline churn for every sector and marker on
+    // screen, which is what made scrolling through the unfurl sluggish.
+    expect(updatedSector.material).toBe(sectorMaterial);
+    expect(updatedPointMesh!.material).toBe(pointMaterial);
+    expect(updatedHaloMesh!.material).toBe(haloMaterial);
+    expect(
+      (updatedSector.material as MeshBasicNodeMaterial).opacity,
+    ).not.toBeCloseTo(sectorOpacity);
+    expect(
+      (updatedPointMesh!.material as MeshBasicNodeMaterial).opacity,
+    ).not.toBeCloseTo(pointOpacity);
+    expect(
+      (updatedHaloMesh!.material as MeshBasicNodeMaterial).opacity,
+    ).not.toBeCloseTo(haloOpacity);
 
     await renderer.unmount();
   });
