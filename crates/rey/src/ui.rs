@@ -2257,6 +2257,10 @@ fn compact_regional_projection_packet(packet: &mut Value) -> Result<(), String> 
         "source_schema".to_owned(),
         Value::String("rey.regional-terrain-grid.v1".to_owned()),
     );
+    compact.insert(
+        "cell_source_encoding".to_owned(),
+        Value::String("geojson_point_features_v1".to_owned()),
+    );
     compact.insert("source_id".to_owned(), Value::String(source_id.unwrap()));
     compact.insert(
         "source_path".to_owned(),
@@ -2372,6 +2376,7 @@ fn compact_retained_regional_projection_packet(
         "source_id",
         "source_path",
         "source_artifact_id",
+        "cell_source_encoding",
         "cell_ids",
         "source_object_ids",
         "source_object_revisions",
@@ -2413,6 +2418,7 @@ fn compact_retained_regional_projection_packet(
         "source_id",
         "source_path",
         "source_artifact_id",
+        "cell_source_encoding",
         "validity_hex",
         "elevation_micrometers",
         "material_palette",

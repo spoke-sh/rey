@@ -86,6 +86,8 @@ pub struct SceneAdmissionTerrainSample {
     pub material: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grid: Option<SceneAdmissionTerrainGridCell>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packed_grid: Option<SceneAdmissionTerrainPackedGrid>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -97,6 +99,21 @@ pub struct SceneAdmissionTerrainGridCell {
     pub columns: u64,
     pub rows: u64,
     pub validity: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAdmissionTerrainPackedGrid {
+    pub schema: String,
+    pub dataset_id: String,
+    pub compiler_revision: String,
+    pub columns: u64,
+    pub rows: u64,
+    pub native_bounds_microdegrees: [i64; 4],
+    pub validity_hex: String,
+    pub elevation_centimeters_le_hex: String,
+    pub material_palette: Vec<String>,
+    pub material_indices_hex: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -868,8 +885,10 @@ fn inspect_geojson_source(
         let terrain_sample = inspect_terrain_sample(
             &source.role,
             &source_feature_id,
+            object,
             geometry,
             geometry_kind,
+            &bounds,
             properties,
         )?;
         let cartographic_label =
@@ -947,12 +966,31 @@ fn inspect_cartographic_label(
 fn inspect_terrain_sample(
     role: &str,
     feature_id: &str,
+    feature: &serde_json::Map<String, Value>,
     geometry: &serde_json::Map<String, Value>,
     geometry_kind: &str,
+    bounds: &RegionalBounds,
     properties: &serde_json::Map<String, Value>,
 ) -> Result<Option<SceneAdmissionTerrainSample>, SceneAdmissionError> {
     if role != "terrain" {
         return Ok(None);
+    }
+    if let Some(value) = feature.get("terrain_grid") {
+        if properties
+            .keys()
+            .any(|key| key.starts_with("terrain_grid_"))
+        {
+            return Err(SceneAdmissionError::TerrainSample);
+        }
+        let packed_grid = inspect_packed_terrain_grid(geometry_kind, bounds, value)?;
+        return Ok(Some(SceneAdmissionTerrainSample {
+            longitude_microdegrees: packed_grid.native_bounds_microdegrees[0],
+            latitude_microdegrees: packed_grid.native_bounds_microdegrees[3],
+            elevation_micrometers: None,
+            material: None,
+            grid: None,
+            packed_grid: Some(packed_grid),
+        }));
     }
     if geometry_kind != "Point" {
         return Err(SceneAdmissionError::TerrainSample);
@@ -1001,7 +1039,127 @@ fn inspect_terrain_sample(
         elevation_micrometers: elevation.map(|value| (value * 1_000_000.0).round() as i64),
         material: material.map(str::to_owned),
         grid,
+        packed_grid: None,
     }))
+}
+
+fn inspect_packed_terrain_grid(
+    geometry_kind: &str,
+    geometry_bounds: &RegionalBounds,
+    value: &Value,
+) -> Result<SceneAdmissionTerrainPackedGrid, SceneAdmissionError> {
+    const SCHEMA: &str = "rey.packed-terrain-grid.v1";
+    const MAX_CELLS: u64 = 1_100_000;
+    let grid = serde_json::from_value::<SceneAdmissionTerrainPackedGrid>(value.clone())
+        .map_err(|_| SceneAdmissionError::TerrainSample)?;
+    validate_identifier(&grid.dataset_id)?;
+    let compiler_valid = !grid.compiler_revision.is_empty()
+        && grid.compiler_revision.chars().count() <= 128
+        && grid.compiler_revision.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | '@')
+        });
+    let cells = grid
+        .columns
+        .checked_mul(grid.rows)
+        .filter(|cells| *cells <= MAX_CELLS)
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let [west, south, east, north] = grid.native_bounds_microdegrees;
+    let longitude_span = east.checked_sub(west);
+    let latitude_span = north.checked_sub(south);
+    if grid.schema != SCHEMA
+        || geometry_kind != "Polygon"
+        || !compiler_valid
+        || grid.columns < 2
+        || grid.rows < 2
+        || geometry_bounds.west_microdegrees != west
+        || geometry_bounds.south_microdegrees != south
+        || geometry_bounds.east_microdegrees != east
+        || geometry_bounds.north_microdegrees != north
+        || geometry_bounds.crosses_antimeridian
+        || longitude_span.is_none_or(|span| span <= 0 || span % (grid.columns as i64 - 1) != 0)
+        || latitude_span.is_none_or(|span| span <= 0 || span % (grid.rows as i64 - 1) != 0)
+        || grid.material_palette.is_empty()
+        || grid.material_palette.len() > 255
+        || !grid
+            .material_palette
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        || grid
+            .material_palette
+            .iter()
+            .any(|material| validate_identifier(material).is_err())
+    {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    let validity = decode_packed_terrain_hex(&grid.validity_hex)?;
+    let elevations = decode_packed_terrain_hex(&grid.elevation_centimeters_le_hex)?;
+    let materials = decode_packed_terrain_hex(&grid.material_indices_hex)?;
+    let expected = usize::try_from(cells).map_err(|_| SceneAdmissionError::TerrainSample)?;
+    if validity.len() != expected || elevations.len() != expected * 4 || materials.len() != expected
+    {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    let mut has_supported_triangle = false;
+    for index in 0..expected {
+        let elevation = i32::from_le_bytes(
+            elevations[index * 4..index * 4 + 4]
+                .try_into()
+                .map_err(|_| SceneAdmissionError::TerrainSample)?,
+        );
+        match validity[index] {
+            1 if (-1_200_000..=10_000_000).contains(&elevation)
+                && usize::from(materials[index]) < grid.material_palette.len() => {}
+            0 if elevation == 0 && materials[index] == 255 => {}
+            _ => return Err(SceneAdmissionError::TerrainSample),
+        }
+    }
+    let columns = grid.columns as usize;
+    let rows = grid.rows as usize;
+    for row in 0..rows - 1 {
+        for column in 0..columns - 1 {
+            let top_left = row * columns + column;
+            let top_right = top_left + 1;
+            let bottom_left = top_left + columns;
+            let bottom_right = bottom_left + 1;
+            let valid = |index: usize| validity[index] == 1;
+            if (valid(top_left) && valid(bottom_left) && valid(bottom_right))
+                || (valid(top_left) && valid(bottom_right) && valid(top_right))
+                || (valid(top_left) && valid(bottom_left) && valid(top_right))
+                || (valid(top_right) && valid(bottom_left) && valid(bottom_right))
+            {
+                has_supported_triangle = true;
+                break;
+            }
+        }
+        if has_supported_triangle {
+            break;
+        }
+    }
+    if !has_supported_triangle {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    Ok(grid)
+}
+
+fn decode_packed_terrain_hex(encoded: &str) -> Result<Vec<u8>, SceneAdmissionError> {
+    if encoded.len() % 2 != 0 {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    encoded
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let digit = |byte: u8| match byte {
+                b'0'..=b'9' => Some(byte - b'0'),
+                b'a'..=b'f' => Some(byte - b'a' + 10),
+                _ => None,
+            };
+            digit(pair[0])
+                .zip(digit(pair[1]))
+                .map(|(high, low)| high * 16 + low)
+                .ok_or(SceneAdmissionError::TerrainSample)
+        })
+        .collect()
 }
 
 fn inspect_terrain_grid_cell(
@@ -1060,6 +1218,7 @@ fn build_scene(
     let limits = RegionalSceneLimits {
         max_sources: context.input.limits.max_sources,
         max_native_objects: context.input.limits.max_features,
+        max_terrain_cells: 1_100_000,
         max_native_coordinates: context.input.limits.max_coordinates,
         max_layers: 16,
         max_validity_records: context.input.limits.max_features.saturating_add(2),
@@ -1108,6 +1267,13 @@ fn build_scene(
     let gridded_terrain = terrain
         .as_ref()
         .is_some_and(|terrain| terrain.grid.is_some());
+    let packed_terrain = terrain.as_ref().is_some_and(|terrain| {
+        terrain
+            .grid
+            .as_ref()
+            .and_then(|grid| grid.compact.as_ref())
+            .is_some_and(|compact| compact.cell_source_encoding == "geojson_packed_grid_v1")
+    });
     if gridded_terrain {
         objects.retain(|object| object.layer != RegionalLayerKind::Terrain);
     }
@@ -1133,7 +1299,11 @@ fn build_scene(
                         "qualified exact height/material samples; no interpolated terrain coverage"
                     },
                     if gridded_terrain {
-                        "exact row-major Point vertices with explicit valid/no-data support; piecewise-linear triangles cannot cross no-data"
+                        if packed_terrain {
+                            "exact packed row-major source cells with explicit valid/no-data support and cell-addressable lineage; piecewise-linear triangles cannot cross no-data"
+                        } else {
+                            "exact row-major Point vertices with explicit valid/no-data support; piecewise-linear triangles cannot cross no-data"
+                        }
                     } else {
                         "exact Point altitude and bounded material property retained only at admitted sample coordinates"
                     },
@@ -1167,7 +1337,12 @@ fn build_scene(
             kind: RegionalLayerKind::Terrain,
             object_ids: Vec::new(),
             authority: "qualified rectilinear height/material grid; validity ends at supported source triangles".to_owned(),
-            semantics: "exact row-major Point vertices with explicit valid/no-data support; piecewise-linear triangles cannot cross no-data".to_owned(),
+            semantics: if packed_terrain {
+                "exact packed row-major source cells with explicit valid/no-data support and cell-addressable lineage; piecewise-linear triangles cannot cross no-data"
+            } else {
+                "exact row-major Point vertices with explicit valid/no-data support; piecewise-linear triangles cannot cross no-data"
+            }
+            .to_owned(),
             source_revision: candidate.package_snapshot_revision.clone(),
         });
     }
@@ -1396,6 +1571,17 @@ fn build_regional_terrain(
     if terrain_features.is_empty() {
         return Ok(None);
     }
+    let packed_count = terrain_features
+        .iter()
+        .filter(|(_, sample)| sample.packed_grid.is_some())
+        .count();
+    if packed_count != 0 {
+        if packed_count != 1 || terrain_features.len() != 1 {
+            return Err(SceneAdmissionError::TerrainSample);
+        }
+        let (feature, sample) = terrain_features[0];
+        return build_regional_packed_terrain_grid(feature, sample, objects).map(Some);
+    }
     let grid_count = terrain_features
         .iter()
         .filter(|(_, sample)| sample.grid.is_some())
@@ -1456,6 +1642,129 @@ fn build_regional_terrain(
     }
     .finalize()
     .map(Some)
+    .map_err(SceneAdmissionError::from)
+}
+
+fn build_regional_packed_terrain_grid(
+    feature: &SceneAdmissionFeature,
+    sample: &SceneAdmissionTerrainSample,
+    objects: &[RegionalNativeObject],
+) -> Result<RegionalTerrainProgram, SceneAdmissionError> {
+    let packed = sample
+        .packed_grid
+        .as_ref()
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let object = objects
+        .iter()
+        .find(|object| object.object_id == feature.feature_id)
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    let validity = decode_packed_terrain_hex(&packed.validity_hex)?;
+    let elevations = decode_packed_terrain_hex(&packed.elevation_centimeters_le_hex)?;
+    let materials = decode_packed_terrain_hex(&packed.material_indices_hex)?;
+    let expected = packed
+        .columns
+        .checked_mul(packed.rows)
+        .and_then(|cells| usize::try_from(cells).ok())
+        .ok_or(SceneAdmissionError::TerrainSample)?;
+    if validity.len() != expected || elevations.len() != expected * 4 || materials.len() != expected
+    {
+        return Err(SceneAdmissionError::TerrainSample);
+    }
+    let [west, south, east, north] = packed.native_bounds_microdegrees;
+    let longitude_step = (east - west) / (packed.columns as i64 - 1);
+    let latitude_step = (north - south) / (packed.rows as i64 - 1);
+    let mut cells = Vec::with_capacity(expected);
+    for index in 0..expected {
+        let column = index as u64 % packed.columns;
+        let row = index as u64 / packed.columns;
+        let valid = validity[index] == 1;
+        let elevation_centimeters = i32::from_le_bytes(
+            elevations[index * 4..index * 4 + 4]
+                .try_into()
+                .map_err(|_| SceneAdmissionError::TerrainSample)?,
+        );
+        let mut source_revision = SemanticHasher::new("rey.packed-terrain-grid-cell-source.v1");
+        source_revision.add_str(object.object_revision.as_str());
+        source_revision.add_u64(row);
+        source_revision.add_u64(column);
+        cells.push(RegionalTerrainGridCell {
+            cell_id: placeholder_digest(),
+            source_object_id: format!(
+                "{}/cell-r{}-c{}",
+                feature.feature_id, row, column
+            ),
+            source_artifact_id: object.source_artifact_id.clone(),
+            source_object_revision: source_revision.finish(),
+            grid_position: [column, row],
+            native_position: [
+                west + column as i64 * longitude_step,
+                north - row as i64 * latitude_step,
+            ],
+            elevation_micrometers: valid
+                .then_some(i64::from(elevation_centimeters) * 10_000),
+            material: valid.then(|| {
+                packed.material_palette[usize::from(materials[index])].clone()
+            }),
+            validity: if valid {
+                RegionalValidityClass::Valid
+            } else {
+                RegionalValidityClass::NoData
+            },
+            authority: if valid {
+                "exact packed source altitude and material at one valid grid vertex"
+            } else {
+                "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+            }
+            .to_owned(),
+        });
+    }
+    let grid = RegionalTerrainGrid {
+        schema: REGIONAL_TERRAIN_GRID_SCHEMA.to_owned(),
+        dataset_id: placeholder_digest(),
+        source_dataset_id: packed.dataset_id.clone(),
+        columns: packed.columns,
+        rows: packed.rows,
+        native_bounds: RegionalBounds {
+            west_microdegrees: west,
+            south_microdegrees: south,
+            east_microdegrees: east,
+            north_microdegrees: north,
+            crosses_antimeridian: false,
+        },
+        cells,
+        compact: None,
+        validity_semantics:
+            "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support"
+                .to_owned(),
+        interpolation:
+            "piecewise linear only within triangles whose three admitted source vertices are valid"
+                .to_owned(),
+        authority:
+            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                .to_owned(),
+    }
+    .finalize_compact(&feature.source_id, &object.source_path)?;
+    RegionalTerrainProgram {
+        schema: REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA.to_owned(),
+        program_id: placeholder_digest(),
+        evaluator: ContractIdentity::new(
+            "rey.regional-terrain.rectilinear-grid",
+            2,
+            "retain one exact row-major point-feature or packed-source terrain grid and authorize piecewise-linear interpolation only inside fully supported source triangles",
+        ),
+        samples: Vec::new(),
+        grid: Some(grid),
+        height_unit: "micrometer".to_owned(),
+        interpolation:
+            "piecewise linear only within triangles whose three admitted source vertices are valid"
+                .to_owned(),
+        material_semantics:
+            "source-declared bounded material identifier; no inferred physical properties".to_owned(),
+        authority:
+            "qualified rectilinear height/material grid; validity ends at supported source triangles"
+                .to_owned(),
+    }
+    .finalize()
     .map_err(SceneAdmissionError::from)
 }
 
@@ -2343,6 +2652,7 @@ mod tests {
                 elevation_micrometers: Some(153_250_000),
                 material: Some("granite".to_owned()),
                 grid: None,
+                packed_grid: None,
             }),
         });
         candidate.candidate_id = candidate_digest(&candidate).unwrap();
@@ -2423,6 +2733,7 @@ mod tests {
                             rows: 3,
                             validity: if valid { "valid" } else { "no_data" }.to_owned(),
                         }),
+                        packed_grid: None,
                     }),
                 });
                 native_features.push(feature_value);
@@ -2456,6 +2767,61 @@ mod tests {
         candidate
             .features
             .retain(|feature| feature.source_id != "fixture-terrain-grid");
+        candidate.features.extend(inspected.features);
+        candidate.candidate_id = candidate_digest(&candidate).unwrap();
+        candidate
+    }
+
+    fn candidate_with_qualified_packed_terrain_grid() -> SceneAdmissionCandidate {
+        let mut candidate = scene_admission_fixture(SceneAdmissionFixture::Accepted).unwrap();
+        let elevation_hex = [
+            10_000_i32, 10_400, 10_800, 9_800, 0, 10_600, 9_600, 10_000, 10_400,
+        ]
+        .into_iter()
+        .flat_map(i32::to_le_bytes)
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+        let native = serde_json::to_vec(&serde_json::json!({
+            "type": "Feature",
+            "id": "packed-dem",
+            "properties": {"title": "Packed fixture terrain"},
+            "terrain_grid": {
+                "schema": "rey.packed-terrain-grid.v1",
+                "dataset_id": "packed-dem-v1",
+                "compiler_revision": "rey.fixture.packed-terrain@1",
+                "columns": 3,
+                "rows": 3,
+                "native_bounds_microdegrees": [-122600000, 37400000, -122400000, 37600000],
+                "validity_hex": "010101010001010101",
+                "elevation_centimeters_le_hex": elevation_hex,
+                "material_palette": ["granite"],
+                "material_indices_hex": "00000000ff00000000"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [-122.6, 37.6], [-122.4, 37.6], [-122.4, 37.4],
+                    [-122.6, 37.4], [-122.6, 37.6]
+                ]]
+            }
+        }))
+        .unwrap();
+        candidate.sources.push(SceneAdmissionSource {
+            source_id: "fixture-packed-terrain".to_owned(),
+            worktree_path: "fixtures/packed-terrain.geojson".to_owned(),
+            format: "geo_json".to_owned(),
+            role: "terrain".to_owned(),
+            media_type: "application/geo+json".to_owned(),
+            artifact_id: native_artifact_digest(&native),
+            artifact_path: "objects/fixture-packed-terrain.geojson".to_owned(),
+            declared_bytes: native.len() as u64,
+            native_bytes: Some(native),
+            feature_count: 1,
+            coordinate_count: 5,
+        });
+        let source = candidate.sources.last().unwrap();
+        let inspected =
+            inspect_geojson_source(source, source.native_bytes.as_ref().unwrap()).unwrap();
         candidate.features.extend(inspected.features);
         candidate.candidate_id = candidate_digest(&candidate).unwrap();
         candidate
@@ -2789,6 +3155,82 @@ mod tests {
                 capability_snapshot_id: semantic_digest(
                     "fixture.capabilities",
                     "terrain-grid-tampered",
+                ),
+            },
+            &contracts,
+            &campaign,
+        ))
+        .unwrap();
+        assert_eq!(rejected.status, SceneAdmissionStatus::Rejected);
+        assert_eq!(rejected.code, "package_tampering");
+    }
+
+    #[test]
+    fn qualified_packed_terrain_grid_retains_exact_cells_without_point_objects() {
+        let candidate = candidate_with_qualified_packed_terrain_grid();
+        let input = SceneAdmissionInput {
+            candidate: candidate.clone(),
+            limits: SceneAdmissionLimits::default(),
+            capability_snapshot_id: semantic_digest("fixture.capabilities", "packed-terrain-grid"),
+        };
+        let contracts = contracts();
+        let campaign = semantic_digest("fixture.campaign", "packed-terrain-grid");
+        let result = execute_scene_admission(context(&input, &contracts, &campaign)).unwrap();
+        assert_eq!(
+            result.status,
+            SceneAdmissionStatus::Accepted,
+            "{}: {}",
+            result.code,
+            result.detail
+        );
+        let scene = result.scene.unwrap();
+        let terrain = scene.projection.terrain.as_ref().unwrap();
+        assert_eq!(terrain.evaluator.revision, 2);
+        let grid = terrain.grid.as_ref().unwrap();
+        assert_eq!((grid.columns, grid.rows), (3, 3));
+        assert_eq!(grid.schema, "rey.regional-terrain-grid.v2");
+        let compact = grid.compact.as_ref().unwrap();
+        assert_eq!(compact.cell_source_encoding, "geojson_packed_grid_v1");
+        let cells = grid.expanded_cells().unwrap();
+        assert_eq!(cells.len(), 9);
+        assert_eq!(cells[4].validity, RegionalValidityClass::NoData);
+        assert_eq!(cells[4].elevation_micrometers, None);
+        assert_eq!(cells[0].elevation_micrometers, Some(100_000_000));
+        assert!(
+            cells
+                .windows(2)
+                .all(|pair| pair[0].source_object_revision != pair[1].source_object_revision)
+        );
+        assert!(
+            scene
+                .projection
+                .objects
+                .iter()
+                .all(|object| object.layer != RegionalLayerKind::Terrain)
+        );
+        scene.verify().unwrap();
+
+        let mut tampered = candidate;
+        tampered
+            .features
+            .last_mut()
+            .unwrap()
+            .terrain_sample
+            .as_mut()
+            .unwrap()
+            .packed_grid
+            .as_mut()
+            .unwrap()
+            .validity_hex
+            .replace_range(8..10, "01");
+        tampered.candidate_id = candidate_digest(&tampered).unwrap();
+        let rejected = execute_scene_admission(context(
+            &SceneAdmissionInput {
+                candidate: tampered,
+                limits: SceneAdmissionLimits::default(),
+                capability_snapshot_id: semantic_digest(
+                    "fixture.capabilities",
+                    "packed-terrain-grid-tampered",
                 ),
             },
             &contracts,

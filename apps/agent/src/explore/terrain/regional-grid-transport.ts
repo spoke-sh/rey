@@ -48,6 +48,8 @@ export function validRegionalTerrainGridTransport(
     Boolean(grid.source_id) &&
     Boolean(grid.source_path) &&
     Boolean(grid.source_artifact_id) &&
+    (grid.cell_source_encoding === "geojson_point_features_v1" ||
+      grid.cell_source_encoding === "geojson_packed_grid_v1") &&
     grid.transport_authority ===
       "lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions" &&
     grid.elevation_micrometers.length === cells &&
@@ -180,9 +182,14 @@ export function regionalTerrainGridCellAt(
     elevation_micrometers: valid ? grid.elevation_micrometers[index]! : null,
     material: valid ? grid.material_palette[materialIndex]! : null,
     validity: valid ? "valid" : "no_data",
-    authority: valid
-      ? "exact admitted Point altitude and material at one valid grid vertex"
-      : "explicit source no-data vertex; geometry locates the hole but supplies no height or material",
+    authority:
+      grid.cell_source_encoding === "geojson_packed_grid_v1"
+        ? valid
+          ? "exact packed source altitude and material at one valid grid vertex"
+          : "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+        : valid
+          ? "exact admitted Point altitude and material at one valid grid vertex"
+          : "explicit source no-data vertex; geometry locates the hole but supplies no height or material",
   };
 }
 

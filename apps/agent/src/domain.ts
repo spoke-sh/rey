@@ -147,6 +147,9 @@ export type RegionalTerrainGrid =
       source_id: string;
       source_path: string;
       source_artifact_id: string;
+      cell_source_encoding:
+        | "geojson_point_features_v1"
+        | "geojson_packed_grid_v1";
       transport_authority: string;
       cell_ids: string[];
       source_object_ids: string[];
@@ -164,6 +167,9 @@ export type RegionalTerrainGrid =
       source_id: string;
       source_path: string;
       source_artifact_id: string;
+      cell_source_encoding:
+        | "geojson_point_features_v1"
+        | "geojson_packed_grid_v1";
       transport_authority: string;
       digest_encoding: "base64-concatenated-blake3-256";
       cell_digests_base64: string;
@@ -264,6 +270,7 @@ export interface RegionalProjectionPacket {
   limits: {
     max_sources: number;
     max_native_objects: number;
+    max_terrain_cells: number;
     max_native_coordinates: number;
     max_layers: number;
     max_validity_records: number;

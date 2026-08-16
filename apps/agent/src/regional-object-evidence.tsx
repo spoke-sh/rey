@@ -147,7 +147,9 @@ function transportedTerrainObject(
       },
       layer: "terrain",
       authority:
-        "exact admitted native geometry reconstructed from the lossless row-major terrain transport; appearance grants no relationship, activity, or action authority",
+        grid.cell_source_encoding === "geojson_packed_grid_v1"
+          ? "exact packed source cell reconstructed from the lossless row-major terrain transport; appearance grants no relationship, activity, or action authority"
+          : "exact admitted native geometry reconstructed from the lossless row-major terrain transport; appearance grants no relationship, activity, or action authority",
     },
     validity: {
       validity_id: cell.cell_id,
@@ -155,9 +157,13 @@ function transportedTerrainObject(
       scope: `terrain_grid_cell:${cell.source_object_id}`,
       source_revision: cell.source_object_revision,
       rule:
-        cell.validity === "valid"
-          ? "exact admitted terrain cell has height and material only at this source coordinate"
-          : "exact admitted no-data cell locates a validity hole and supplies no height or material",
+        grid.cell_source_encoding === "geojson_packed_grid_v1"
+          ? cell.validity === "valid"
+            ? "exact packed terrain cell has height and material only at this source coordinate"
+            : "exact packed no-data cell locates a validity hole and supplies no height or material"
+          : cell.validity === "valid"
+            ? "exact admitted terrain cell has height and material only at this source coordinate"
+            : "exact admitted no-data cell locates a validity hole and supplies no height or material",
     },
   };
 }

@@ -26,6 +26,7 @@ const compact = {
   source_id: "terrain",
   source_path: "terrain.geojson",
   source_artifact_id: "artifact:1",
+  cell_source_encoding: "geojson_point_features_v1",
   transport_authority:
     "lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions",
   cell_ids: ["cell:0", "cell:1", "cell:2", "cell:3"],
@@ -70,6 +71,7 @@ const packed = {
   source_id: compact.source_id,
   source_path: compact.source_path,
   source_artifact_id: compact.source_artifact_id,
+  cell_source_encoding: compact.cell_source_encoding,
   transport_authority: compact.transport_authority,
   digest_encoding: "base64-concatenated-blake3-256",
   cell_digests_base64: packedDigestColumn([0, 1, 2, 3]),

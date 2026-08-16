@@ -273,6 +273,21 @@ compatibility, while the server emits v2. The CLI remains the full human
 verification surface and reports the semantic terrain-vertex count even though
 those vertices are not stored as duplicate projection objects.
 
+Source admission also accepts one bounded GeoJSON foreign member with schema
+`rey.packed-terrain-grid.v1`. Its Polygon geometry is the exact CRS84 grid
+envelope; the foreign member binds dimensions, integer-microdegree bounds,
+compiler revision, byte-exact validity, little-endian centimeter elevation,
+and palette-indexed material channels. Editor indexing validates every channel,
+requires an exact supported triangle, freezes the native bytes, and exposes the
+same source through `rey editor`. Scene admission independently reparses those
+bytes and derives a unique cell locator and revision from the packed feature
+revision plus row/column. The retained result is still
+`rey.regional-terrain-grid.v2`, but its `geojson_packed_grid_v1` source encoding
+prevents any Point-feature authority claim. Lazy browser evidence reconstructs
+an exact packed source cell, not a fictitious native Point object. The adapter
+is bounded to 1.1 million cells and cannot mix packed and point-grid bindings in
+one terrain source.
+
 Each admitted regional field remains one bounded in-memory grid rendered by a
 bounded 3D orthographic terrain camera through a tiled accelerated working set.
 The application may now retain and validate multiple active editor packages,

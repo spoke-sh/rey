@@ -16,6 +16,14 @@ pub const REGIONAL_TERRAIN_GRID_PROGRAM_SCHEMA: &str = "rey.regional-terrain-pro
 pub const REGIONAL_TERRAIN_GRID_SCHEMA: &str = "rey.regional-terrain-grid.v1";
 pub const REGIONAL_TERRAIN_COMPACT_GRID_SCHEMA: &str = "rey.regional-terrain-grid.v2";
 
+fn point_feature_cell_source_encoding() -> String {
+    "geojson_point_features_v1".to_owned()
+}
+
+const fn default_max_terrain_cells() -> u64 {
+    1_100_000
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RegionalCoordinateSpace {
@@ -123,6 +131,8 @@ pub struct RegionalTerrainGridCell {
 #[serde(deny_unknown_fields)]
 pub struct RegionalTerrainCompactGrid {
     pub encoding: String,
+    #[serde(default = "point_feature_cell_source_encoding")]
+    pub cell_source_encoding: String,
     pub source_id: String,
     pub source_path: String,
     pub source_artifact_id: SemanticDigest,
@@ -210,6 +220,19 @@ impl RegionalTerrainGrid {
             .collect::<Result<Vec<_>, _>>()?;
         grid.compact = Some(RegionalTerrainCompactGrid {
             encoding: "canonical row-major exact cells; positions derive from bounds and dimensions; validity and material indices are hexadecimal bytes".to_owned(),
+            cell_source_encoding: if grid.cells.iter().all(|cell| {
+                cell.authority == "exact admitted Point altitude and material at one valid grid vertex"
+                    || cell.authority == "explicit source no-data vertex; geometry locates the hole but supplies no height or material"
+            }) {
+                point_feature_cell_source_encoding()
+            } else if grid.cells.iter().all(|cell| {
+                cell.authority == "exact packed source altitude and material at one valid grid vertex"
+                    || cell.authority == "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+            }) {
+                "geojson_packed_grid_v1".to_owned()
+            } else {
+                return Err(RegionalSceneError::TerrainAuthority);
+            },
             source_id: source_id.to_owned(),
             source_path: source_path.to_owned(),
             source_artifact_id,
@@ -267,6 +290,10 @@ impl RegionalTerrainGrid {
         let materials = decode_hex(&compact.material_indices_hex)?;
         if compact.encoding
             != "canonical row-major exact cells; positions derive from bounds and dimensions; validity and material indices are hexadecimal bytes"
+            || !matches!(
+                compact.cell_source_encoding.as_str(),
+                "geojson_point_features_v1" | "geojson_packed_grid_v1"
+            )
             || compact.authority
                 != "lossless retained encoding of exact admitted terrain cells; it grants no interpolation, synthesis, or coverage authority"
             || compact.source_id.is_empty()
@@ -336,10 +363,20 @@ impl RegionalTerrainGrid {
                 } else {
                     RegionalValidityClass::NoData
                 },
-                authority: if valid {
-                    "exact admitted Point altitude and material at one valid grid vertex"
-                } else {
-                    "explicit source no-data vertex; geometry locates the hole but supplies no height or material"
+                authority: match (compact.cell_source_encoding.as_str(), valid) {
+                    ("geojson_point_features_v1", true) => {
+                        "exact admitted Point altitude and material at one valid grid vertex"
+                    }
+                    ("geojson_point_features_v1", false) => {
+                        "explicit source no-data vertex; geometry locates the hole but supplies no height or material"
+                    }
+                    ("geojson_packed_grid_v1", true) => {
+                        "exact packed source altitude and material at one valid grid vertex"
+                    }
+                    ("geojson_packed_grid_v1", false) => {
+                        "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+                    }
+                    _ => return Err(RegionalSceneError::TerrainAuthority),
                 }
                 .to_owned(),
             });
@@ -419,6 +456,16 @@ impl RegionalTerrainGrid {
             {
                 return Err(RegionalSceneError::TerrainAuthority);
             }
+            let valid_authority = matches!(
+                cell.authority.as_str(),
+                "exact admitted Point altitude and material at one valid grid vertex"
+                    | "exact packed source altitude and material at one valid grid vertex"
+            );
+            let no_data_authority = matches!(
+                cell.authority.as_str(),
+                "explicit source no-data vertex; geometry locates the hole but supplies no height or material"
+                    | "explicit packed source no-data vertex; grid position locates the hole but supplies no height or material"
+            );
             match cell.validity {
                 RegionalValidityClass::Valid
                     if cell.elevation_micrometers.is_some_and(|height| {
@@ -430,15 +477,11 @@ impl RegionalTerrainGrid {
                                 character.is_ascii_alphanumeric()
                                     || matches!(character, '-' | '_' | '.')
                             })
-                    }) && cell.authority
-                        == "exact admitted Point altitude and material at one valid grid vertex" => {
-                }
+                    }) && valid_authority => {}
                 RegionalValidityClass::NoData
                     if cell.elevation_micrometers.is_none()
                         && cell.material.is_none()
-                        && cell.authority
-                            == "explicit source no-data vertex; geometry locates the hole but supplies no height or material" =>
-                    {}
+                        && no_data_authority => {}
                 _ => return Err(RegionalSceneError::TerrainAuthority),
             }
         }
@@ -499,14 +542,25 @@ impl RegionalTerrainProgram {
             && self.interpolation == "none; exact admitted samples only"
             && self.authority
                 == "qualified exact height/material samples; no interpolated terrain coverage";
-        let grid_program = self.samples.is_empty()
-            && self.grid.is_some()
-            && self.evaluator
-                == ContractIdentity::new(
+        let grid_evaluator = self.grid.as_ref().and_then(|grid| {
+            let encoding = grid.compact.as_ref()?.cell_source_encoding.as_str();
+            Some(match encoding {
+                "geojson_point_features_v1" => ContractIdentity::new(
                     "rey.regional-terrain.rectilinear-grid",
                     1,
                     "retain one exact row-major terrain grid and authorize piecewise-linear interpolation only inside fully supported source triangles",
-                )
+                ),
+                "geojson_packed_grid_v1" => ContractIdentity::new(
+                    "rey.regional-terrain.rectilinear-grid",
+                    2,
+                    "retain one exact row-major point-feature or packed-source terrain grid and authorize piecewise-linear interpolation only inside fully supported source triangles",
+                ),
+                _ => return None,
+            })
+        });
+        let grid_program = self.samples.is_empty()
+            && self.grid.is_some()
+            && grid_evaluator.as_ref() == Some(&self.evaluator)
             && self.interpolation
                 == "piecewise linear only within triangles whose three admitted source vertices are valid"
             && self.authority
@@ -700,6 +754,8 @@ pub struct RegionalValidity {
 pub struct RegionalSceneLimits {
     pub max_sources: u64,
     pub max_native_objects: u64,
+    #[serde(default = "default_max_terrain_cells")]
+    pub max_terrain_cells: u64,
     pub max_native_coordinates: u64,
     pub max_layers: u64,
     pub max_validity_records: u64,
@@ -713,6 +769,7 @@ impl Default for RegionalSceneLimits {
         Self {
             max_sources: 64,
             max_native_objects: 10_000,
+            max_terrain_cells: default_max_terrain_cells(),
             max_native_coordinates: 1_000_000,
             max_layers: 16,
             max_validity_records: 256,
@@ -1075,7 +1132,8 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
         let grid_cells = terrain.grid.as_ref().map_or(Ok(0), |grid| {
             grid.expanded_cells().map(|cells| cells.len() as u64)
         })?;
-        if terrain.samples.len() as u64 + grid_cells > packet.limits.max_native_objects
+        if terrain.samples.len() as u64 > packet.limits.max_native_objects
+            || grid_cells > packet.limits.max_terrain_cells
             || terrain.samples.iter().any(|sample| {
                 objects_by_id
                     .get(sample.source_object_id.as_str())
@@ -1122,7 +1180,6 @@ fn validate_projection_shape(packet: &RegionalProjectionPacket) -> Result<(), Re
                 .objects
                 .iter()
                 .any(|object| object.layer == RegionalLayerKind::Terrain)
-                || packet.objects.len() as u64 + grid_cells > packet.limits.max_native_objects
             {
                 return Err(RegionalSceneError::TerrainAuthority);
             }

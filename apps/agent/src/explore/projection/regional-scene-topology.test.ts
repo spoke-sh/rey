@@ -1001,6 +1001,7 @@ describe("regional scene topology projection", () => {
       source_id: "terrain-grid",
       source_path: "terrain-grid.geojson",
       source_artifact_id: "artifact:terrain-grid",
+      cell_source_encoding: "geojson_point_features_v1",
       transport_authority:
         "lossless row-major transport of the exact admitted grid; coordinates and grid positions are reconstructed only from admitted bounds and dimensions",
       cell_ids: compactGrid.cells.map((cell) => cell.cell_id),

@@ -189,6 +189,19 @@ at substantially higher source density remains open even though neither
 retained state nor the browser contract requires duplicate geometry or JSON
 hash strings per terrain vertex.
 
+The source side now has a matching compact admission path. A single GeoJSON
+feature may carry `rey.packed-terrain-grid.v1` beside its exact Polygon grid
+envelope. Editor and scene admission independently validate the declared shape,
+integer-microdegree spacing, sorted material palette, byte-exact validity,
+little-endian centimeter elevation, material indices, and at least one fully
+supported triangle. Admission derives stable row/column cell locators and
+revisions from the frozen packed feature, retains the same compact v2 grid, and
+marks the source encoding as `geojson_packed_grid_v1` through browser transport
+and exact evidence. A 1.1-million-cell limit is distinct from the native-object
+limit because packed cells are not counterfeit GeoJSON Point features. This is
+the required high-density source adapter; Rey County still uses the 201×201
+point fixture until a separately reviewed generated artifact is admitted.
+
 Client-side source validation now builds one unique native-object identity map
 before checking terrain cells. The 81×81 field therefore validates in linear
 time rather than performing roughly 43 million object comparisons. Repeating

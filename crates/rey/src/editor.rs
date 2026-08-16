@@ -327,6 +327,8 @@ pub struct SceneTerrainSample {
     pub material: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grid: Option<SceneTerrainGridCell>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub packed_grid: Option<SceneTerrainPackedGrid>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -338,6 +340,21 @@ pub struct SceneTerrainGridCell {
     pub columns: u64,
     pub rows: u64,
     pub validity: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTerrainPackedGrid {
+    pub schema: String,
+    pub dataset_id: String,
+    pub compiler_revision: String,
+    pub columns: u64,
+    pub rows: u64,
+    pub native_bounds_microdegrees: [i64; 4],
+    pub validity_hex: String,
+    pub elevation_centimeters_le_hex: String,
+    pub material_palette: Vec<String>,
+    pub material_indices_hex: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1362,6 +1379,22 @@ impl LocalEditorStore {
                                 validity: grid.validity.clone(),
                             }
                         }),
+                        packed_grid: sample.packed_grid.as_ref().map(|grid| {
+                            rey_runtime::SceneAdmissionTerrainPackedGrid {
+                                schema: grid.schema.clone(),
+                                dataset_id: grid.dataset_id.clone(),
+                                compiler_revision: grid.compiler_revision.clone(),
+                                columns: grid.columns,
+                                rows: grid.rows,
+                                native_bounds_microdegrees: grid.native_bounds_microdegrees,
+                                validity_hex: grid.validity_hex.clone(),
+                                elevation_centimeters_le_hex: grid
+                                    .elevation_centimeters_le_hex
+                                    .clone(),
+                                material_palette: grid.material_palette.clone(),
+                                material_indices_hex: grid.material_indices_hex.clone(),
+                            }
+                        }),
                     }
                 }),
             })
@@ -2114,19 +2147,22 @@ fn parse_geojson(
         } else {
             None
         };
+        let bounds = geometry_summary
+            .bounds
+            .clone()
+            .ok_or_else(|| EditorError::MissingGeometry(source_feature_id.clone()))?;
         let terrain_sample = terrain_sample(
             role,
             &source_feature_id,
+            feature_object,
             geometry,
             &geometry_summary.kind,
+            &bounds,
             properties,
         )?;
         let feature_id = format!("{source_id}/{source_feature_id}");
         let feature_bytes = serde_json::to_vec(feature)?;
         let feature_revision = feature_identity(source_id, role, &feature_bytes);
-        let bounds = geometry_summary
-            .bounds
-            .ok_or_else(|| EditorError::MissingGeometry(source_feature_id.clone()))?;
         match &mut source_bounds {
             Some(source_bounds) => source_bounds.merge(&bounds),
             None => source_bounds = Some(bounds.clone()),
@@ -2157,12 +2193,33 @@ fn parse_geojson(
 fn terrain_sample(
     role: SceneSourceRole,
     feature_id: &str,
+    feature: &serde_json::Map<String, Value>,
     geometry: &serde_json::Map<String, Value>,
     geometry_kind: &str,
+    bounds: &SceneBounds,
     properties: &serde_json::Map<String, Value>,
 ) -> Result<Option<SceneTerrainSample>, EditorError> {
     if role != SceneSourceRole::Terrain {
         return Ok(None);
+    }
+    if let Some(value) = feature.get("terrain_grid") {
+        if properties
+            .keys()
+            .any(|key| key.starts_with("terrain_grid_"))
+        {
+            return Err(EditorError::TerrainSample(format!(
+                "{feature_id} mixes packed and point terrain grid bindings"
+            )));
+        }
+        let packed_grid = packed_terrain_grid(feature_id, geometry_kind, bounds, value)?;
+        return Ok(Some(SceneTerrainSample {
+            longitude_microdegrees: packed_grid.native_bounds_microdegrees[0],
+            latitude_microdegrees: packed_grid.native_bounds_microdegrees[3],
+            elevation_micrometers: None,
+            material: None,
+            grid: None,
+            packed_grid: Some(packed_grid),
+        }));
     }
     if geometry_kind != "Point" {
         return Err(EditorError::TerrainSample(format!(
@@ -2212,7 +2269,152 @@ fn terrain_sample(
         elevation_micrometers: elevation.map(|value| (value * 1_000_000.0).round() as i64),
         material: material.map(str::to_owned),
         grid,
+        packed_grid: None,
     }))
+}
+
+fn packed_terrain_grid(
+    feature_id: &str,
+    geometry_kind: &str,
+    geometry_bounds: &SceneBounds,
+    value: &Value,
+) -> Result<SceneTerrainPackedGrid, EditorError> {
+    const SCHEMA: &str = "rey.packed-terrain-grid.v1";
+    const MAX_CELLS: u64 = 1_100_000;
+    let grid = serde_json::from_value::<SceneTerrainPackedGrid>(value.clone()).map_err(|_| {
+        EditorError::TerrainSample(format!("{feature_id} has an invalid packed terrain grid"))
+    })?;
+    validate_identifier("terrain grid id", &grid.dataset_id)?;
+    let compiler_valid = !grid.compiler_revision.is_empty()
+        && grid.compiler_revision.chars().count() <= 128
+        && grid.compiler_revision.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | '@')
+        });
+    let cells = grid
+        .columns
+        .checked_mul(grid.rows)
+        .filter(|cells| *cells <= MAX_CELLS)
+        .ok_or_else(|| EditorError::TerrainSample(format!("{feature_id} grid is too large")))?;
+    let [west, south, east, north] = grid.native_bounds_microdegrees;
+    let expected_bounds = [
+        (geometry_bounds.west * 1_000_000.0).round() as i64,
+        (geometry_bounds.south * 1_000_000.0).round() as i64,
+        (geometry_bounds.east * 1_000_000.0).round() as i64,
+        (geometry_bounds.north * 1_000_000.0).round() as i64,
+    ];
+    let longitude_span = east.checked_sub(west);
+    let latitude_span = north.checked_sub(south);
+    if grid.schema != SCHEMA
+        || geometry_kind != "Polygon"
+        || !compiler_valid
+        || grid.columns < 2
+        || grid.rows < 2
+        || grid.native_bounds_microdegrees != expected_bounds
+        || !(-180_000_000..=180_000_000).contains(&west)
+        || !(-180_000_000..=180_000_000).contains(&east)
+        || !(-90_000_000..=90_000_000).contains(&south)
+        || !(-90_000_000..=90_000_000).contains(&north)
+        || longitude_span.is_none_or(|span| span <= 0 || span % (grid.columns as i64 - 1) != 0)
+        || latitude_span.is_none_or(|span| span <= 0 || span % (grid.rows as i64 - 1) != 0)
+        || grid.material_palette.is_empty()
+        || grid.material_palette.len() > 255
+        || !grid
+            .material_palette
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        || grid
+            .material_palette
+            .iter()
+            .any(|material| validate_identifier("terrain material", material).is_err())
+    {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} packed terrain metadata is invalid"
+        )));
+    }
+    let validity = decode_terrain_hex(feature_id, &grid.validity_hex)?;
+    let elevations = decode_terrain_hex(feature_id, &grid.elevation_centimeters_le_hex)?;
+    let materials = decode_terrain_hex(feature_id, &grid.material_indices_hex)?;
+    let expected = usize::try_from(cells)
+        .map_err(|_| EditorError::TerrainSample(format!("{feature_id} grid is too large")))?;
+    if validity.len() != expected || elevations.len() != expected * 4 || materials.len() != expected
+    {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} packed terrain channels do not match the declared shape"
+        )));
+    }
+    let mut has_supported_triangle = false;
+    for index in 0..expected {
+        let elevation = i32::from_le_bytes(
+            elevations[index * 4..index * 4 + 4]
+                .try_into()
+                .map_err(|_| EditorError::TerrainSample(feature_id.to_owned()))?,
+        );
+        match validity[index] {
+            1 if (-1_200_000..=10_000_000).contains(&elevation)
+                && usize::from(materials[index]) < grid.material_palette.len() => {}
+            0 if elevation == 0 && materials[index] == 255 => {}
+            _ => {
+                return Err(EditorError::TerrainSample(format!(
+                    "{feature_id} packed terrain cell {index} is invalid"
+                )));
+            }
+        }
+    }
+    let columns = grid.columns as usize;
+    let rows = grid.rows as usize;
+    for row in 0..rows - 1 {
+        for column in 0..columns - 1 {
+            let top_left = row * columns + column;
+            let top_right = top_left + 1;
+            let bottom_left = top_left + columns;
+            let bottom_right = bottom_left + 1;
+            let valid = |index: usize| validity[index] == 1;
+            if (valid(top_left) && valid(bottom_left) && valid(bottom_right))
+                || (valid(top_left) && valid(bottom_right) && valid(top_right))
+                || (valid(top_left) && valid(bottom_left) && valid(top_right))
+                || (valid(top_right) && valid(bottom_left) && valid(bottom_right))
+            {
+                has_supported_triangle = true;
+                break;
+            }
+        }
+        if has_supported_triangle {
+            break;
+        }
+    }
+    if !has_supported_triangle {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} packed terrain has no supported triangle"
+        )));
+    }
+    Ok(grid)
+}
+
+fn decode_terrain_hex(feature_id: &str, encoded: &str) -> Result<Vec<u8>, EditorError> {
+    if encoded.len() % 2 != 0 {
+        return Err(EditorError::TerrainSample(format!(
+            "{feature_id} packed terrain channel is not canonical hexadecimal"
+        )));
+    }
+    encoded
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let digit = |byte: u8| match byte {
+                b'0'..=b'9' => Some(byte - b'0'),
+                b'a'..=b'f' => Some(byte - b'a' + 10),
+                _ => None,
+            };
+            digit(pair[0])
+                .zip(digit(pair[1]))
+                .map(|(high, low)| high * 16 + low)
+                .ok_or_else(|| {
+                    EditorError::TerrainSample(format!(
+                        "{feature_id} packed terrain channel is not canonical hexadecimal"
+                    ))
+                })
+        })
+        .collect()
 }
 
 fn terrain_grid_cell(
@@ -3374,6 +3576,7 @@ mod tests {
                 elevation_micrometers: Some(153_250_000),
                 material: Some("granite".to_owned()),
                 grid: None,
+                packed_grid: None,
             })
         );
 
@@ -3431,6 +3634,86 @@ mod tests {
                 std::path::Path::new("incomplete-grid.geojson"),
                 None,
                 "incomplete-grid".to_owned(),
+                SceneSourceRole::Terrain,
+            ),
+            Err(super::EditorError::TerrainSample(_))
+        ));
+    }
+
+    #[test]
+    fn packed_terrain_grid_retains_exact_bounded_channels() {
+        let workspace = TempDir::new().unwrap();
+        let store = LocalEditorStore::default_for_workspace(workspace.path());
+        let elevation_values = [
+            10_000_i32, 10_400, 10_800, 9_800, 0, 10_600, 9_600, 10_000, 10_400,
+        ];
+        let elevation_hex = elevation_values
+            .into_iter()
+            .flat_map(i32::to_le_bytes)
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let terrain = serde_json::json!({
+            "type": "Feature",
+            "id": "packed-dem",
+            "properties": {"title": "Packed fixture terrain"},
+            "terrain_grid": {
+                "schema": "rey.packed-terrain-grid.v1",
+                "dataset_id": "packed-dem-v1",
+                "compiler_revision": "rey.fixture.packed-terrain@1",
+                "columns": 3,
+                "rows": 3,
+                "native_bounds_microdegrees": [-123000000, 37000000, -122000000, 38000000],
+                "validity_hex": "010101010001010101",
+                "elevation_centimeters_le_hex": elevation_hex,
+                "material_palette": ["granite"],
+                "material_indices_hex": "00000000ff00000000"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [-123.0, 38.0], [-122.0, 38.0], [-122.0, 37.0],
+                    [-123.0, 37.0], [-123.0, 38.0]
+                ]]
+            }
+        });
+        fs::write(
+            workspace.path().join("packed-terrain.geojson"),
+            serde_json::to_vec(&terrain).unwrap(),
+        )
+        .unwrap();
+        store
+            .add_source(
+                std::path::Path::new("packed-terrain.geojson"),
+                Some("packed-county".to_owned()),
+                "packed-terrain".to_owned(),
+                SceneSourceRole::Terrain,
+            )
+            .unwrap();
+        let snapshot = store.add().unwrap().snapshot;
+        let packed = snapshot.features[0]
+            .terrain_sample
+            .as_ref()
+            .and_then(|sample| sample.packed_grid.as_ref())
+            .unwrap();
+        assert_eq!(packed.columns, 3);
+        assert_eq!(packed.rows, 3);
+        assert_eq!(packed.validity_hex, "010101010001010101");
+        assert_eq!(snapshot.coverage.features, 1);
+        assert_eq!(snapshot.coverage.coordinates, 5);
+
+        let mut invalid = terrain;
+        invalid["terrain_grid"]["material_indices_hex"] =
+            serde_json::Value::String("000000000000000000".to_owned());
+        fs::write(
+            workspace.path().join("invalid-packed-terrain.geojson"),
+            serde_json::to_vec(&invalid).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            store.add_source(
+                std::path::Path::new("invalid-packed-terrain.geojson"),
+                None,
+                "invalid-packed-terrain".to_owned(),
                 SceneSourceRole::Terrain,
             ),
             Err(super::EditorError::TerrainSample(_))
