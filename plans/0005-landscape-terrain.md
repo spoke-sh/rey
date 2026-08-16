@@ -177,14 +177,36 @@ fallback, and terrain-grid Points remain canonical in the qualified row-major
 grid rather than duplicating 6,561 coordinate payloads. This repairs vector
 shape fidelity but does not by itself close water-surface or contour fidelity.
 
-The next implementation slice derives regional contours from the admitted
-elevation field at lens-dependent density and skips every cell touching
-no-data. It also projects exact admitted hydrology Polygons as terrain-following
-water areas made only from fully valid source triangles, retaining the exact
-outline and disclosing the filled edge's terrain-grid quantization. Reference
-fallback, accelerated rendering, diagnostics, and fidelity-suite revision 2
-all retain the new area contract. A fresh admitted-scene voyage is still
-required before the delivery item can close.
+Regional contours are now derived from the admitted elevation field at
+lens-dependent density and skip every cell touching no-data. Exact admitted
+hydrology Polygons become terrain-following water areas made only from fully
+valid source triangles; the exact outline remains retained and the filled edge
+discloses its terrain-grid quantization. Reference fallback, accelerated
+rendering, diagnostics, and fidelity-suite revision 2 retain the area
+contract.
+
+Fresh 1920×1080 fulfilled-transport voyages passed the complete World →
+rotated Atlas → Landscape → Objects → Evidence traversal in reference manifest
+`sha256:2f64841d0c3c13163cdb8b1811da0df1267ad8a96b0a1eaf04fd0cb8bf7f21eb`
+and WebGL2 manifest
+`sha256:68a90fbc2cdf265f9296aec21dd082e71c9127c95bb2805aa917f535813a7cc1`.
+The WebGL2 Landscape retained one water area, twelve provenance-bound line
+batches containing 2,481 contour and hydrology segments, zero no-data triangle
+leaks, and zero tile-seam mismatches. Object and Evidence no longer mount all
+6,561 exact terrain vertices; the complete WebGL2 manifest is 105,311 bytes,
+down from the prior 6.3 MiB traversal artifact, while an exact selected terrain
+vertex remains addressable.
+
+Those voyages close the executable base-layer item, not the named fidelity
+matrix. The named `coastline-water` row still requires an admitted `river`
+subtype and an accelerated admitted boundary. Regional scene admission
+currently retains only the generic hydrology layer, and the exact County
+boundary coincides with no-data support, so qualifying that row would require a
+stronger semantic-property admission contract or a distinct matching fixture.
+The suite is not weakened to make Rey County pass. The WebGL2 image also
+retains blurred kilometer-scale relief, and its first Landscape submission
+took about 2.07 seconds under SwiftShader; both remain material acceptance
+gaps.
 
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores
@@ -324,7 +346,7 @@ subsequent slices of the same boundary.
 - [x] Revise the Rey County geography compiler and admitted dataset to carry
       denser multi-scale landforms, drainage response, and coherent land-cover
       fields under exact deterministic lineage and validity.
-- [ ] Add explicit water surfaces/areas and scale-aware contour styling before
+- [x] Add explicit water surfaces/areas and scale-aware contour styling before
       treating roads, railways, structures, or label density as fidelity
       completion.
 - [ ] Retain 1920x1080 side-by-side captures and record perceptual gaps for
