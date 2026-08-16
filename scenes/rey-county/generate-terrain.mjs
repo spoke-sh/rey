@@ -7,13 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SCENE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = resolve(SCENE_DIRECTORY, "terrain.geojson");
-// Forty intervals on each axis are the smallest exact County grid that crosses
-// the renderer's 32-interval tile boundary in both directions. The resulting
-// 2×2 leaf set exercises residency without overflowing the bounded local
-// workload result that must retain every admitted source binding.
-const COLUMNS = 41;
-const ROWS = 41;
-const DATASET_ID = "rey-county-semantic-terrain-v1";
+// Eighty intervals preserve exact integer-microdegree coordinates, yield a
+// three-by-three 32-interval leaf working set, and keep the GeoJSON authoring
+// artifact within the current bounded editor/admission contract. This remains
+// an interchange slice; raster-native pyramids are required for finer fields.
+const COLUMNS = 81;
+const ROWS = 81;
+const DATASET_ID = "rey-county-semantic-terrain-v2";
+const GEOGRAPHY_COMPILER_REVISION = "rey.agent-geography.rey-county@2";
 const INPUT_FILES = [
   "boundary.geojson",
   "features.geojson",
@@ -73,6 +74,12 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
   const waterways = inputs["hydrology.geojson"].document.features.filter(
     ({ geometry }) => geometry.type === "LineString",
   );
+  const normalizedWaterways = waterways.map((feature) => ({
+    id: feature.id,
+    points: feature.geometry.coordinates.map((point) =>
+      normalizePoint(point, bounds),
+    ),
+  }));
   const controls = inputs["terrain-controls.geojson"].document.features.map(
     (feature) => compileControl(feature, bounds),
   );
@@ -112,7 +119,7 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
           latitude,
           bounds,
           controls,
-          waterways,
+          normalizedWaterways,
           meadow,
           wetland,
         );
@@ -156,8 +163,9 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
     type: "FeatureCollection",
     name: "Rey County authored semantic terrain",
     terrain_derivation: {
-      schema: "rey.county-terrain-source.v1",
+      schema: "rey.county-terrain-source.v2",
       dataset_id: DATASET_ID,
+      compiler_revision: GEOGRAPHY_COMPILER_REVISION,
       authority:
         "authored semantic terrain candidate; not Earth elevation, an environment observation, or inferred survey coverage",
       generator: "scenes/rey-county/generate-terrain.mjs",
@@ -168,6 +176,30 @@ export function buildReyCountyTerrain(sceneDirectory = SCENE_DIRECTORY) {
         column_zero: "west",
         longitude_step_degrees: roundCoordinate(longitudeStep),
         latitude_step_degrees: roundCoordinate(latitudeStep),
+        nominal_longitude_spacing_meters: roundElevation(
+          longitudeStep *
+            111_320 *
+            Math.cos((((bounds.north + bounds.south) / 2) * Math.PI) / 180),
+        ),
+        nominal_latitude_spacing_meters: roundElevation(latitudeStep * 111_132),
+      },
+      synthesis: {
+        topology:
+          "named terrain controls, exact County footprint, hydrology, meadow, wetland, and explicit unexplored polygon",
+        elevation:
+          "anisotropic named landforms plus deterministic domain-warped macro, meso, ridge, and micro relief",
+        hydrology:
+          "only authored river and stream centerlines carve the height field; wetland remains an authored area",
+        land_cover:
+          "deterministic elevation, moisture, exposure, meadow, wetland, and water-distance classification",
+        stitching: {
+          strategy: "single bounded County authoring domain",
+          seam_count: 0,
+          conflict_count: 0,
+          omissions: [
+            "cross-package seam and conflict resolution is not implemented by this compiler revision",
+          ],
+        },
       },
       first_principles: [
         "one admitted dataset retains identity across Atlas and Landscape postures",
@@ -236,7 +268,7 @@ function terrainSample(
   latitude,
   bounds,
   controls,
-  waterways,
+  normalizedWaterways,
   meadow,
   wetland,
 ) {
@@ -258,30 +290,30 @@ function terrainSample(
     }
   }
 
-  const normalizedWaterways = waterways.map((feature) => ({
-    id: feature.id,
-    points: feature.geometry.coordinates.map((point) =>
-      normalizePoint(point, bounds),
-    ),
-  }));
   let nearestWaterway = { id: null, distance: Number.POSITIVE_INFINITY };
   for (const waterway of normalizedWaterways) {
     const distance = distanceToPolyline([x, y], waterway.points);
     if (distance < nearestWaterway.distance)
       nearestWaterway = { id: waterway.id, distance };
     const main = waterway.id === "hydrology-evidence-river";
-    const width = main ? 0.031 : 0.019;
-    const depth = main ? 112 : 58;
+    const width = main ? 0.024 : 0.014;
+    const depth = main ? 124 : 64;
     elevation -= depth * Math.exp(-((distance / width) ** 2));
   }
 
+  const warpX = fractalNoise(x, y, 17, [2.1, 4.2, 8.4]) * 0.038;
+  const warpY = fractalNoise(x, y, 53, [1.8, 3.6, 7.2]) * 0.034;
+  const warpedX = x + warpX;
+  const warpedY = y + warpY;
+  const reliefWeight = 0.24 + Math.min(1, roughness) * 0.76;
   const macroTexture =
-    Math.sin((x * 6.4 + y * 2.7) * Math.PI * 2) * 16 +
-    Math.cos((x * 2.8 - y * 7.1) * Math.PI * 2) * 11;
-  const mesoTexture =
-    Math.sin((x * 14.3 + y * 11.7) * Math.PI * 2) * 5.5 +
-    Math.cos((x * 21.1 - y * 8.6) * Math.PI * 2) * 3.5;
-  elevation += (macroTexture + mesoTexture) * Math.min(1, roughness);
+    fractalNoise(warpedX, warpedY, 101, [2.4, 4.8, 9.6]) * 54;
+  const mesoTexture = fractalNoise(warpedX, warpedY, 211, [7.5, 15, 30]) * 24;
+  const ridgeTexture =
+    ridgedFractalNoise(warpedX, warpedY, 307, [5.5, 11, 22]) * 34;
+  const microTexture = fractalNoise(warpedX, warpedY, 401, [16, 24, 32]) * 8;
+  elevation +=
+    (macroTexture + mesoTexture + ridgeTexture + microTexture) * reliefWeight;
 
   const terraceInfluence = influenceById["terrain-explorer-terraces"] ?? 0;
   const terracedElevation = Math.round(elevation / 24) * 24;
@@ -294,12 +326,18 @@ function terrainSample(
   elevation = roundElevation(Math.max(32, elevation));
 
   const insideMeadow = pointInRing([longitude, latitude], meadow);
+  const moisture = fractalNoise(warpedX, warpedY, 503, [2.6, 5.2, 10.4]);
+  const exposure = fractalNoise(warpedX, warpedY, 601, [3.1, 6.2, 12.4]);
   let material;
-  if (insideWetland || nearestWaterway.distance < 0.012) material = "sand";
+  if (insideWetland || nearestWaterway.distance < 0.009) material = "sand";
   else if (insideMeadow) material = "vegetation";
-  else if (elevation >= 860) material = "granite";
-  else if (elevation >= 610 || roughness >= 0.58) material = "rock";
-  else if (elevation <= 335) material = "soil";
+  else if (elevation >= 1_060 && exposure > -0.48) material = "granite";
+  else if (
+    elevation >= 735 ||
+    (elevation >= 560 && roughness >= 0.57 && exposure > -0.12)
+  )
+    material = "rock";
+  else if (elevation <= 350 && moisture < 0.18) material = "soil";
   else material = "vegetation";
 
   return {
@@ -307,6 +345,64 @@ function terrainSample(
     material,
     landform: strongest.id.replace(/^terrain-/, ""),
   };
+}
+
+function fractalNoise(x, y, seed, frequencies) {
+  let value = 0;
+  let totalWeight = 0;
+  frequencies.forEach((frequency, octave) => {
+    const weight = 1 / 2 ** octave;
+    value +=
+      valueNoise(x * frequency, y * frequency, seed + octave * 101) * weight;
+    totalWeight += weight;
+  });
+  return value / totalWeight;
+}
+
+function ridgedFractalNoise(x, y, seed, frequencies) {
+  let value = 0;
+  let totalWeight = 0;
+  frequencies.forEach((frequency, octave) => {
+    const weight = 1 / 2 ** octave;
+    const noise = valueNoise(x * frequency, y * frequency, seed + octave * 131);
+    value += ((1 - Math.abs(noise)) * 2 - 1) * weight;
+    totalWeight += weight;
+  });
+  return value / totalWeight;
+}
+
+function valueNoise(x, y, seed) {
+  const column = Math.floor(x);
+  const row = Math.floor(y);
+  const amountX = smoothFraction(x - column);
+  const amountY = smoothFraction(y - row);
+  const north = interpolate(
+    signedHash(column, row, seed),
+    signedHash(column + 1, row, seed),
+    amountX,
+  );
+  const south = interpolate(
+    signedHash(column, row + 1, seed),
+    signedHash(column + 1, row + 1, seed),
+    amountX,
+  );
+  return interpolate(north, south, amountY);
+}
+
+function signedHash(x, y, seed) {
+  let value = Math.imul(x, 374_761_393);
+  value = Math.imul(value ^ Math.imul(y, 668_265_263), 1_274_126_177);
+  value = Math.imul(value ^ seed, 2_246_822_519);
+  value ^= value >>> 13;
+  return (value >>> 0) / 2_147_483_647.5 - 1;
+}
+
+function smoothFraction(value) {
+  return value * value * (3 - 2 * value);
+}
+
+function interpolate(left, right, progress) {
+  return left + (right - left) * progress;
 }
 
 function anisotropicGaussian(x, y, control) {

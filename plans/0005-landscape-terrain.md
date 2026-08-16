@@ -96,12 +96,13 @@ deterministic reference overlay, which stays mounted across backend loss.
 
 This proves admission, renderer parity, bounded tiled execution, transition
 continuity, and executable geographic passes, not the final fidelity bar. The
-current 41x41 source is a correctness and residency fixture presented through
-a tilted object-view composition. It is too coarse to support the required
-multi-scale terrain read, and its validity plane and outlined semantic
-envelopes currently make the region resemble a floating slab. No imagery
-provider or license authority is admitted, so the engine renders admitted
-material and discloses the absence instead of fabricating familiar map imagery.
+original 41x41 source was a correctness and residency fixture presented
+through a tilted object-view composition. The current 81x81 geography-compiler
+output and map-first composition materially improve the base read, but roughly
+one-kilometer source spacing remains too coarse to close the required
+multi-scale fidelity gap. No imagery provider or license authority is
+admitted, so the engine renders admitted material and discloses the absence
+instead of fabricating familiar map imagery.
 
 Fidelity qualification is now executable but has not yet been retained for the
 complete matrix. `rey.explorer.landscape-fidelity@1` names steep relief, low
@@ -127,15 +128,18 @@ workload/backend/viewport rows only; fulfilled transport exercises the
 disclosed main-thread fallback and cannot close direct networking or
 dedicated-worker coverage.
 
-The normal Rey County fixture now also carries a deterministic 41×41 authored
-regional grid. Its exact County footprint and Unexplored Scrub become 523
-explicit no-data vertices; 1,158 valid vertices retain five bounded materials
-and 86.17–1,689.11 meters of authored semantic relief. The source is generated
+The normal Rey County fixture now carries a deterministic 81×81 authored
+regional grid. Its exact County footprint and Unexplored Scrub become 1,938
+explicit no-data vertices; 4,623 valid vertices retain five bounded materials
+and 88.77–1,721.67 meters of authored semantic relief. Revision
+`rey.agent-geography.rey-county@2` records domain-warped macro, meso, ridge,
+and micro relief, authored-hydrology carving, coherent land-cover inputs, and
+the explicit absence of cross-package stitching. The source is generated
 reproducibly from checked-in boundary, feature, hydrology, and terrain-control
-inputs, retained through the ordinary editor path, and admitted as a production
-regional scene. This makes the implemented Landscape path visible in the
-default project bearing without treating terrain controls as observed height or
-closing the still-open named fidelity matrix.
+inputs and must still travel through the ordinary editor and scene-admission
+path before `/explore` can consume it. This improves the default project
+bearing without treating terrain controls as observed height or closing the
+still-open named fidelity matrix.
 
 Landscape now enters through a near-north-up 82-degree map camera. Shift-drag
 retains bounded orbit inspection from 28 to 88 degrees, while reset restores
@@ -145,7 +149,8 @@ feature LOD retains water and transport vectors plus the exact selection while
 hiding terrain-control, district, lot, and unselected point envelopes until a
 closer semantic lens. Contours and the County boundary are subordinate to the
 relief rather than bright framing lines. This corrects composition and layer
-hierarchy, but the 41x41 source still leaves the relief-fidelity item open.
+hierarchy, but the roughly one-kilometer 81x81 source still leaves the retained
+relief-fidelity comparison open.
 
 ## Geographic Synthesis Boundary
 
@@ -173,11 +178,12 @@ This separates three responsibilities:
    independent level of detail, labels, and transitions without minting
    geographic evidence.
 
-The existing source-controlled generator is the first geography compiler. Its
-next revision must demonstrate denser multi-scale relief and coherent base
-materials while keeping exact no-data. Multi-package ingestion, explicit
-cross-package seam resolution, raster-native field storage, and deeper vector
-hierarchy remain subsequent slices of the same boundary.
+The source-controlled generator is the first geography compiler. Its second
+revision produces the 81×81 field with deterministic multi-scale relief,
+hydrology response, coherent base materials, exact no-data, and explicit
+synthesis metadata. Multi-package ingestion, explicit cross-package seam
+resolution, raster-native field storage, and deeper vector hierarchy remain
+subsequent slices of the same boundary.
 
 ## Delivery Sequence
 

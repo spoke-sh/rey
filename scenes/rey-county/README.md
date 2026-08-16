@@ -45,36 +45,48 @@ foundational contracts, twelve Rust crates, `@rey/agent`, and `@rey/explorer`:
 | Proof Escarpment       | Qualification, exact evidence, limits, and staleness              |
 | Unexplored Scrub       | Explicitly unsupported or not-yet-surveyed space                  |
 
-The terrain model combines the retained control geometry with bounded
-multi-scale relief. Existing hydrology carves valleys, Explorer receives a
-subtle terrace response, and the five renderer-recognized materials are chosen
-independently from height. These are authored semantic choices recorded in the
-native source, not facts inferred by the renderer.
+The terrain model combines the retained control geometry with deterministic,
+domain-warped macro, meso, ridge, and micro relief. Existing hydrology alone
+carves the authored channels, Explorer receives a subtle terrace response, and
+the five renderer-recognized land-cover materials follow coherent elevation,
+moisture, exposure, meadow, wetland, and water-distance fields. These are
+authored semantic choices recorded in the native source, not facts inferred by
+the renderer.
 
 ## Native Sources
 
 | File                       | Editor role       | Meaning                                                           |
 | -------------------------- | ----------------- | ----------------------------------------------------------------- |
 | `boundary.geojson`         | `boundary`        | Exact County footprint and validity boundary                      |
-| `terrain.geojson`          | `terrain`         | 41×41 row-major elevation/material dataset with explicit validity |
+| `terrain.geojson`          | `terrain`         | 81×81 row-major elevation/material dataset with explicit validity |
 | `terrain-controls.geojson` | `terrain_control` | Candidate-only named landform influences; never observed height   |
 | `hydrology.geojson`        | `hydrology`       | Authored rivers, streams, runoff, and wetland geometry            |
 | `features.geojson`         | `features`        | Districts, meadow, and the explicit unexplored region             |
 | `markers.geojson`          | `markers`         | Semantic points of interest with independent label LOD            |
 
-The terrain grid contains 1,681 vertices at exact integer-microdegree spacing:
+The terrain grid contains 6,561 vertices at exact integer-microdegree spacing:
 
-- 1,158 valid vertices;
-- 493 no-data vertices outside the County footprint;
-- 36 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
-  predicates, producing 523 unique no-data vertices);
-- 86.17–1,689.11 meters of authored relief; and
+- 4,623 valid vertices;
+- 1,825 no-data vertices outside the County footprint;
+- 138 no-data vertices in Unexplored Scrub (some exterior vertices satisfy both
+  predicates, producing 1,938 unique no-data vertices);
+- 88.77–1,721.67 meters of authored relief; and
 - `granite`, `rock`, `sand`, `soil`, and `vegetation` material identifiers.
 
-Forty intervals per axis preserve the County's exact bounds and cross the
-renderer’s 32-interval tile boundary in both directions. The resulting 2×2
-leaf working set exercises tiled evaluation and residency while the complete
-admitted result remains inside the bounded local workload store.
+Eighty intervals per axis preserve the County's exact bounds at approximately
+1.04–1.15-kilometer sample spacing and cross the renderer’s 32-interval tile
+boundary twice in both directions. The resulting 3×3 leaf working set exercises
+tiled evaluation and residency while the complete admitted result remains
+inside the bounded local workload store. This is a material improvement over
+the correctness fixture, not the final resolution target; a raster-native
+pyramid is required for sub-kilometer authored fields without turning GeoJSON
+points into a bulk terrain format.
+
+The embedded `rey.agent-geography.rey-county@2` compiler record states the
+topology, elevation, hydrology, land-cover, and stitching contracts. This
+revision owns one County-wide authoring domain and therefore reports zero
+seams and conflicts while explicitly omitting cross-package seam resolution.
+It does not imply that multiple editor packages have already been stitched.
 
 ## Regeneration And Verification
 
