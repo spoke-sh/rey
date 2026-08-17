@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { Object3D, Vector3 } from "three/src/Three.WebGPU.js";
 import {
   buildProjectedBoundsMeshes,
   buildProjectedGlobeMesh,
   GLOBE_ATLAS_REPEAT_DEPTH_CONNECTION_WEIGHT,
   GLOBE_ATLAS_REPEAT_MAX_DEPTH,
+  GLOBE_CAMERA_DISTANCE,
   GLOBE_CAMERA_HALF_HEIGHT,
   globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOpacity,
@@ -17,6 +19,7 @@ import {
   globeAtmosphereOpacity,
   globeAtmosphereRepeatOpacity,
   globeAtmosphereShellScale,
+  globeCameraPose,
   globeProjectionMorphRemaining,
   globeSurfaceOpacity,
   interpolateProjectedGlobeMeshes,
@@ -124,37 +127,85 @@ describe("declarative globe-to-Mercator projection", () => {
     expect(sector!.indices.length).toBe(16 * 10 * 6);
   });
 
-  it("anchors the sphere's own bearing at progress 0 and the level bearing at progress 1", () => {
-    // The two endpoints anchor to different references by design: the
-    // sphere (progress 0) is still fully pitched, so it's the live view's
-    // own bearing (globeAtlasViewCenter) that projects to screen center
-    // there. The flat Atlas (progress 1) has no way to represent pitch, so
-    // it's always centered on the LEVEL bearing (globeAtlasProjectionCenter)
-    // instead — the camera eases from one to the other as progress
-    // increases, per globeSphereDeRollMatrix, rather than a single semantic
-    // coordinate staying anchored at screen center throughout.
+  it("keeps the projected sphere anchored to the live yaw bearing, independent of pitch", () => {
+    // Pitch no longer lives in vertex data at all — only yaw recenters the
+    // sphere (for seam placement). The level (pitch-0) bearing is what
+    // projects to screen center at every progress now, sphere and Atlas
+    // alike, since projectGlobeCoordinate's sphereNormal is Ry(yaw)*local
+    // with no pitch term.
     const rotatedView = { yaw_degrees: 58, pitch_degrees: -24 };
-    const fullPitchCenter = globeAtlasViewCenter(rotatedView);
-    const sphereProjected = projectGlobeCoordinate(
-      fullPitchCenter.longitude_degrees,
-      fullPitchCenter.latitude_degrees,
-      rotatedView,
-      world,
-      0,
-    );
-    expect(sphereProjected.position[0]).toBeCloseTo(0, 10);
-    expect(sphereProjected.position[1]).toBeCloseTo(0, 10);
-
     const levelCenter = globeAtlasProjectionCenter(rotatedView);
-    const atlasProjected = projectGlobeCoordinate(
-      levelCenter.longitude_degrees,
-      levelCenter.latitude_degrees,
-      rotatedView,
-      world,
-      1,
+    for (const progress of [0, 1]) {
+      const projected = projectGlobeCoordinate(
+        levelCenter.longitude_degrees,
+        levelCenter.latitude_degrees,
+        rotatedView,
+        world,
+        progress,
+      );
+      expect(projected.position[0]).toBeCloseTo(0, 10);
+      expect(projected.position[1]).toBeCloseTo(0, 10);
+    }
+  });
+
+  it("orbits the camera through the full pitch at progress 0 and levels it at progress 1", () => {
+    const rotatedView = { yaw_degrees: 58, pitch_degrees: -24 };
+
+    const atlasPose = globeCameraPose(rotatedView, 1);
+    expect(atlasPose.position[0]).toBe(0);
+    expect(atlasPose.position[1]).toBeCloseTo(0, 10);
+    expect(atlasPose.position[2]).toBe(GLOBE_CAMERA_DISTANCE);
+    expect(atlasPose.rotation[0]).toBeCloseTo(0, 10);
+    expect(atlasPose.rotation[1]).toBe(0);
+    expect(atlasPose.rotation[2]).toBe(0);
+
+    const spherePose = globeCameraPose(rotatedView, 0);
+    const pitch = (rotatedView.pitch_degrees * Math.PI) / 180;
+    expect(spherePose.position[0]).toBeCloseTo(0, 10);
+    expect(spherePose.position[1]).toBeCloseTo(
+      GLOBE_CAMERA_DISTANCE * Math.sin(pitch),
+      10,
     );
-    expect(atlasProjected.position[0]).toBeCloseTo(0, 10);
-    expect(atlasProjected.position[1]).toBeCloseTo(0, 10);
+    expect(spherePose.position[2]).toBeCloseTo(
+      GLOBE_CAMERA_DISTANCE * Math.cos(pitch),
+      10,
+    );
+    expect(spherePose.rotation[0]).toBeCloseTo(-pitch, 10);
+    expect(spherePose.rotation[1]).toBe(0);
+    expect(spherePose.rotation[2]).toBe(0);
+
+    const midPose = globeCameraPose(rotatedView, 0.5);
+    const progressEased = 1 - globeProjectionMorphRemaining(0.5);
+    const midPitch =
+      (rotatedView.pitch_degrees * (1 - progressEased) * Math.PI) / 180;
+    expect(midPose.position[1]).toBeCloseTo(
+      GLOBE_CAMERA_DISTANCE * Math.sin(midPitch),
+      10,
+    );
+    expect(midPose.rotation[0]).toBeCloseTo(-midPitch, 10);
+
+    expect(() => globeCameraPose(rotatedView, Number.NaN)).toThrow(
+      "globe camera pose requires finite orientation",
+    );
+  });
+
+  it("always faces the globe's own center, verified against Three.js's own rotation math", () => {
+    // The camera pose is a closed-form formula, not something derived from
+    // Three.js's lookAt — this locks in that the two agree exactly, for
+    // every bounded pitch value, the same rigor used to verify the earlier
+    // de-roll correction matrix it replaces.
+    for (const pitchDegrees of [-62, -30, -5, 0, 5, 30, 62]) {
+      const pose = globeCameraPose({ pitch_degrees: pitchDegrees }, 0);
+      const object = new Object3D();
+      object.position.set(...pose.position);
+      object.rotation.set(...pose.rotation);
+      object.updateMatrixWorld(true);
+      const forward = new Vector3(0, 0, -1).applyQuaternion(object.quaternion);
+      const toOrigin = new Vector3(0, 0, 0).sub(object.position).normalize();
+      expect(forward.x).toBeCloseTo(toOrigin.x, 12);
+      expect(forward.y).toBeCloseTo(toOrigin.y, 12);
+      expect(forward.z).toBeCloseTo(toOrigin.z, 12);
+    }
   });
 
   it("moves the surface seam behind a rotated view", () => {

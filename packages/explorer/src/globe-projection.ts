@@ -3,6 +3,7 @@ import { GLOBE_RADIUS } from "./three-globe";
 
 export const SEMANTIC_MERCATOR_LATITUDE_CUTOFF_DEGREES = 85.051129;
 export const GLOBE_CAMERA_HALF_HEIGHT = 2.12;
+export const GLOBE_CAMERA_DISTANCE = 6;
 export const GLOBE_ATLAS_HORIZONTAL_WRAP_INDEXES = Object.freeze([
   -1, 0, 1,
 ] as const);
@@ -237,6 +238,53 @@ export function globeAtlasProjectionCenter(
   });
 }
 
+export interface GlobeCameraPose {
+  position: readonly [number, number, number];
+  rotation: readonly [number, number, number];
+}
+
+/**
+ * The camera's own pose, not the geometry's: pitch has no Mercator
+ * analogue (the flat chart's "north is up" convention is fixed), so it
+ * lives entirely here as a screen-relative tilt about a fixed
+ * world-horizontal axis, independent of yaw — the same orbit-camera
+ * convention `terrainCameraProjection` already uses. Yaw stays out of this
+ * function entirely; it's baked into the projected geometry itself (see
+ * `projectGlobeCoordinate`'s `Ry(yaw)`), since recentering the mesh around
+ * the current bearing also decides where the sphere's unfurl seam lands —
+ * a content decision, not a viewing-angle one.
+ *
+ * Eases from the raw pitch (progress 0, a full orbit tilt) to level
+ * (progress 1, exactly the static `(0,0,GLOBE_CAMERA_DISTANCE)` pose the
+ * Mercator endpoint has always used) over the same curve the rest of the
+ * morph runs on, so the camera visibly re-levels while the globe flattens.
+ * Verified exact against Three.js's own Object3D/Quaternion math in
+ * globe-projection.test.ts: `rotation=[-pitch,0,0]` always faces the
+ * origin from `position`, for every bounded pitch value.
+ */
+export function globeCameraPose(
+  view: Pick<GlobeCameraView, "pitch_degrees">,
+  progress: number,
+): GlobeCameraPose {
+  if (!Number.isFinite(view.pitch_degrees) || !Number.isFinite(progress))
+    throw new Error("globe camera pose requires finite orientation");
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const progressEased = 1 - globeProjectionMorphRemaining(boundedProgress);
+  const pitch = (view.pitch_degrees * (1 - progressEased) * Math.PI) / 180;
+  return Object.freeze({
+    position: Object.freeze([
+      0,
+      GLOBE_CAMERA_DISTANCE * Math.sin(pitch),
+      GLOBE_CAMERA_DISTANCE * Math.cos(pitch),
+    ]) as readonly [number, number, number],
+    rotation: Object.freeze([-pitch, 0, 0]) as readonly [
+      number,
+      number,
+      number,
+    ],
+  });
+}
+
 export function projectGlobeCoordinate(
   longitudeDegrees: number,
   latitudeDegrees: number,
@@ -269,21 +317,14 @@ export function projectGlobeCoordinate(
     Math.sin(latitude),
     Math.cos(longitude) * Math.cos(latitude),
   ] as const;
-  // Eases toward level (pitch 0) as this call's own progress increases, so a
-  // point sampled live at an intermediate progress (markers, pole fabric,
-  // sector opacity) traces the same de-rolled path the cached-endpoint
-  // interpolation below reconstructs via globeSphereDeRollCorrectionMatrix.
-  // At progress 0 this is exactly view.pitch_degrees, unchanged; at
-  // progress 1 it's fully level, matching atlasCenter's own fixed pitch.
-  const effectivePitchDegrees = view.pitch_degrees * (1 - progressEased);
-  const pitch = (effectivePitchDegrees * Math.PI) / 180;
+  // Yaw recenters the sphere around the current bearing (and with it, the
+  // unfurl seam) — this is the only orientation baked into the geometry.
+  // Pitch lives entirely in the camera now (see globeCameraPose).
   const yaw = (view.yaw_degrees * Math.PI) / 180;
-  const pitchY = local[1] * Math.cos(pitch) - local[2] * Math.sin(pitch);
-  const pitchZ = local[1] * Math.sin(pitch) + local[2] * Math.cos(pitch);
   const sphereNormal = [
-    local[0] * Math.cos(yaw) + pitchZ * Math.sin(yaw),
-    pitchY,
-    -local[0] * Math.sin(yaw) + pitchZ * Math.cos(yaw),
+    local[0] * Math.cos(yaw) + local[2] * Math.sin(yaw),
+    local[1],
+    -local[0] * Math.sin(yaw) + local[2] * Math.cos(yaw),
   ] as const;
   const spherePosition = sphereNormal.map((value) => value * radius) as [
     number,
@@ -512,83 +553,16 @@ export interface ProjectedGlobeMeshInterpolationBuffer {
  * Interpolates precompiled sphere/Mercator endpoint buffers for one frame.
  * Called every animation frame while the globe morphs; pass a retained
  * `output` buffer (sized to match `source`) to write into it in place
- * instead of allocating two fresh Float32Arrays each call.
+ * instead of allocating two fresh Float32Arrays each call. A plain per-
+ * vertex lerp is exact here: pitch no longer lives in either endpoint's
+ * vertex data (see `globeCameraPose`), so there's no view-dependent
+ * rotation for the two cached endpoints to disagree on mid-transition.
  */
-/**
- * A combined yaw+pitch orbit rolls content away from the view center
- * relative to the screen (verified: the geographic pole's own screen-space
- * X component is only ever nonzero when yaw AND pitch are both nonzero).
- * The flat Mercator chart this mesh interpolates toward has no way to
- * represent that roll — its "north is up" convention is fixed — so
- * `globeAtlasProjectionCenter` always targets pitch 0. Interpolating
- * positions straight from the still-fully-pitched sphere source toward that
- * level target therefore shears the mesh mid-transition: different vertices
- * accumulate different roll relative to the fixed target, worse farther
- * from the view center and worse at extreme pitch.
- *
- * This closes that gap the same way projectGlobeCoordinate's own live
- * evaluation does — easing pitch toward 0 as progress increases — but
- * cheaply, for a mesh whose sphere/atlas endpoints are cached once and
- * reused across frames: instead of re-deriving each vertex's position via
- * full trigonometry every frame, it applies ONE rotation matrix (computed
- * once per call, not per vertex) that exactly reproduces what re-deriving
- * the sphere position at the eased pitch would give. Verified exact against
- * a live per-vertex reconstruction in globe-projection.test.ts.
- */
-export function globeSphereDeRollMatrix(
-  sourceView: Pick<GlobeCameraView, "yaw_degrees" | "pitch_degrees">,
-  progressEased: number,
-): readonly [
-  readonly [number, number, number],
-  readonly [number, number, number],
-  readonly [number, number, number],
-] {
-  const yaw = (sourceView.yaw_degrees * Math.PI) / 180;
-  const angle = -((sourceView.pitch_degrees * Math.PI) / 180) * progressEased;
-  const cosYaw = Math.cos(yaw);
-  const sinYaw = Math.sin(yaw);
-  const cosAngle = Math.cos(angle);
-  const sinAngle = Math.sin(angle);
-  // Ry(yaw) * Rx(angle) * Ry(-yaw), expanded and verified numerically
-  // exact against the matrix-multiplied form in globe-projection.test.ts.
-  return [
-    [
-      cosYaw * cosYaw + sinYaw * sinYaw * cosAngle,
-      sinYaw * sinAngle,
-      sinYaw * cosYaw * (cosAngle - 1),
-    ],
-    [-sinYaw * sinAngle, cosAngle, -sinAngle * cosYaw],
-    [
-      sinYaw * cosYaw * (cosAngle - 1),
-      sinAngle * cosYaw,
-      sinYaw * sinYaw + cosYaw * cosYaw * cosAngle,
-    ],
-  ] as const;
-}
-
-function applyRotationMatrix3(
-  matrix: readonly [
-    readonly [number, number, number],
-    readonly [number, number, number],
-    readonly [number, number, number],
-  ],
-  x: number,
-  y: number,
-  z: number,
-): readonly [number, number, number] {
-  return [
-    matrix[0][0] * x + matrix[0][1] * y + matrix[0][2] * z,
-    matrix[1][0] * x + matrix[1][1] * y + matrix[1][2] * z,
-    matrix[2][0] * x + matrix[2][1] * y + matrix[2][2] * z,
-  ];
-}
-
 export function interpolateProjectedGlobeMeshes(
   source: ProjectedGlobeMesh,
   target: ProjectedGlobeMesh,
   progress: number,
   output?: ProjectedGlobeMeshInterpolationBuffer,
-  sourceView?: Pick<GlobeCameraView, "yaw_degrees" | "pitch_degrees">,
 ): ProjectedGlobeMesh {
   if (!Number.isFinite(progress))
     throw new Error("globe mesh interpolation progress must be finite");
@@ -602,13 +576,6 @@ export function interpolateProjectedGlobeMeshes(
   const boundedProgress = Math.max(0, Math.min(1, progress));
   if (boundedProgress === 0) return source;
   if (boundedProgress === 1) return target;
-  // `progress` here is already the eased S-curve value (every caller passes
-  // `1 - globeProjectionMorphRemaining(...)`, matching how it's used
-  // directly below as the lerp weight) — not a raw progress needing its own
-  // easing applied again.
-  const derollMatrix = sourceView
-    ? globeSphereDeRollMatrix(sourceView, boundedProgress)
-    : null;
   const reuseOutput =
     output !== undefined &&
     output.positions.length === source.positions.length &&
@@ -619,33 +586,20 @@ export function interpolateProjectedGlobeMeshes(
   const normals = reuseOutput
     ? output.normals
     : new Float32Array(source.normals.length);
-  for (let index = 0; index < positions.length; index += 3) {
-    const sourceX = source.positions[index]!;
-    const sourceY = source.positions[index + 1]!;
-    const sourceZ = source.positions[index + 2]!;
-    const [derolledX, derolledY, derolledZ] = derollMatrix
-      ? applyRotationMatrix3(derollMatrix, sourceX, sourceY, sourceZ)
-      : ([sourceX, sourceY, sourceZ] as const);
+  for (let index = 0; index < positions.length; index += 1) {
     positions[index] =
-      derolledX + (target.positions[index]! - derolledX) * boundedProgress;
-    positions[index + 1] =
-      derolledY + (target.positions[index + 1]! - derolledY) * boundedProgress;
-    positions[index + 2] =
-      derolledZ + (target.positions[index + 2]! - derolledZ) * boundedProgress;
+      source.positions[index]! +
+      (target.positions[index]! - source.positions[index]!) * boundedProgress;
   }
   for (let index = 0; index < normals.length; index += 3) {
     const sourceX = source.normals[index]!;
     const sourceY = source.normals[index + 1]!;
     const sourceZ = source.normals[index + 2]!;
-    const [derolledX, derolledY, derolledZ] = derollMatrix
-      ? applyRotationMatrix3(derollMatrix, sourceX, sourceY, sourceZ)
-      : ([sourceX, sourceY, sourceZ] as const);
-    const x =
-      derolledX + (target.normals[index]! - derolledX) * boundedProgress;
+    const x = sourceX + (target.normals[index]! - sourceX) * boundedProgress;
     const y =
-      derolledY + (target.normals[index + 1]! - derolledY) * boundedProgress;
+      sourceY + (target.normals[index + 1]! - sourceY) * boundedProgress;
     const z =
-      derolledZ + (target.normals[index + 2]! - derolledZ) * boundedProgress;
+      sourceZ + (target.normals[index + 2]! - sourceZ) * boundedProgress;
     const length = Math.hypot(x, y, z) || 1;
     normals[index] = x / length;
     normals[index + 1] = y / length;

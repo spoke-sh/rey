@@ -8,12 +8,12 @@ import {
   type InstancedBufferAttribute,
   type InstancedMesh,
   type LineSegments,
-  Matrix3,
   Matrix4,
   type Mesh,
   type MeshBasicNodeMaterial,
   type MeshStandardNodeMaterial,
   NotEqualStencilFunc,
+  type OrthographicCamera,
 } from "three/src/Three.WebGPU.js";
 import { describe, expect, it } from "vitest";
 import { ContextGlobeScene } from "./globe-scene";
@@ -26,8 +26,8 @@ import {
   globeAtlasRepeatSeamWeight,
   globeAtlasWidth,
   globeAtmosphereRepeatOpacity,
+  globeCameraPose,
   globeProjectionMorphRemaining,
-  globeSphereDeRollMatrix,
   projectGlobeCoordinate,
 } from "../globe-projection";
 import { globeFixture } from "../test-fixtures";
@@ -196,6 +196,18 @@ describe("globe scene", () => {
     const repeatedGlowLeft = renderer.scene.findByProps({
       name: "context-globe-atmosphere:0:wrap:-1",
     }).instance as Mesh;
+    // The camera, not the geometry, now carries pitch — confirm the actual
+    // rendered Three.js camera object is wired to globeCameraPose's exact
+    // position/rotation for this pitched, mid-morph view, the same "prove
+    // the prop is actually wired" rigor the deleted de-roll uniform test
+    // used to provide.
+    const camera = renderer.scene.findAllByType("OrthographicCamera")[0]!
+      .instance as OrthographicCamera;
+    const expectedPose = globeCameraPose(view, progress);
+    expect(camera.position.toArray()).toEqual([...expectedPose.position]);
+    expect([camera.rotation.x, camera.rotation.y, camera.rotation.z]).toEqual([
+      ...expectedPose.rotation,
+    ]);
     const postureOpacity = 0.48 * (1 - progress * (1 - 0.36));
     expect((canonical.material as MeshBasicNodeMaterial).opacity).toBeCloseTo(
       postureOpacity,
@@ -228,33 +240,6 @@ describe("globe scene", () => {
     ).not.toBeNull();
     expect(canonical.userData.reyStippleMorphExecution).toBe("gpu_uniform");
     expect(repeated.userData.reyStippleMorphExecution).toBe("gpu_uniform");
-    // The canonical stipple field blends its cached spherical/Atlas endpoints
-    // on the GPU (a mix() node, not interpolateProjectedGlobeMeshes' CPU
-    // lerp), so it carries its own de-roll correction uniform mirroring
-    // globeSphereDeRollMatrix — this confirms it's wired to the exact
-    // expected matrix for this test's live view and eased progress, not left
-    // at its identity default.
-    const derollMatrix = globeSphereDeRollMatrix(
-      view,
-      1 - globeProjectionMorphRemaining(progress),
-    );
-    const derollUniform = (canonical.material as MeshBasicNodeMaterial).userData
-      .reyStippleDerollMatrixNode.value as Matrix3;
-    expect(derollUniform.elements).toEqual(
-      new Matrix3()
-        .set(
-          derollMatrix[0][0],
-          derollMatrix[0][1],
-          derollMatrix[0][2],
-          derollMatrix[1][0],
-          derollMatrix[1][1],
-          derollMatrix[1][2],
-          derollMatrix[2][0],
-          derollMatrix[2][1],
-          derollMatrix[2][2],
-        )
-        .toArray(),
-    );
     expect(rightGradient.count).toBe(repeated.instanceMatrix.count);
     expect(leftGradient.count).toBe(repeatedLeft.instanceMatrix.count);
     expect(repeated.count).toBeGreaterThan(0);

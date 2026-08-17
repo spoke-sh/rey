@@ -44,17 +44,21 @@ twisting back toward the canonical antimeridian.
 
 The flat Mercator chart's "north is up" convention has no analogue for
 camera pitch: it can only recenter around a bearing's longitude and latitude,
-never its tilt. A combined yaw+pitch orbit therefore auto-straightens as it
-unfurls — pitch eases to level over the same projection progress that drives
-the rest of the morph, so the chart always arrives perfectly north-up, and the
-camera visibly re-levels while flattening rather than snapping straight at
-the planar endpoint. Yaw is unaffected and keeps tracking the operator's
-bearing throughout. Every live coordinate evaluation eases pitch the same
-way, so the indexed surface, sectors, and markers re-level in lockstep; only
-the fabric's repeat-copy wrap connections (mirrored side charts, and the
-deterministic stipple's own wrap-copy caching) intentionally sit outside this
-correction, since their position formulas already blend toward a seam rather
-than rotating a sphere.
+never its tilt. Pitch is therefore not part of the shared projector at all —
+it lives entirely in the camera (`globeCameraPose`), as a screen-relative
+tilt about a fixed world-horizontal axis, independent of yaw. It eases from
+the raw pitch to level over the same projection progress that drives the
+rest of the morph, so the camera genuinely re-levels while the globe
+flattens, arriving at exactly the same static, level pose the Mercator
+endpoint has always used — rather than a per-vertex correction simulating
+that motion under a fixed lens. Yaw stays in the projector: it recenters the
+indexed surface (and, with it, the unfurl seam) around the operator's
+current bearing, a content decision independent of viewing angle. Because
+pitch never touches vertex data, every consumer of the shared projector
+(indexed surface, sectors, markers, pole fabric, the deterministic stipple's
+GPU-blended positions) sees a consistent, un-rolled sphere with no
+correction needed to keep cached sphere/Mercator endpoints from shearing
+mid-transition.
 
 Projection progress, presentation progress, and camera scale are separate.
 The surface can keep morphing while posture-specific presentation exits on a
@@ -65,8 +69,8 @@ faster curve and semantic content crosses independent LOD thresholds.
 The current scene uses:
 
 - a `1.72` unit sphere with `160 × 96` segments;
-- an orthographic camera;
-- one shared yaw/pitch orientation in the projector;
+- an orthographic camera that itself orbits through pitch (`globeCameraPose`);
+- yaw orientation baked into the shared projector, independent of camera pitch;
 - two directional lights and one ambient light;
 - three transparent atmosphere shells; and
 - depth-tested surface markers with optional beacon halos.
@@ -185,22 +189,15 @@ sample, rebuild node materials, or recreate atmosphere geometry.
 
 The canonical (non-repeated) stipple field blends this same cached spherical
 instance transform toward its cached Atlas position entirely inside the
-vertex shader, one scalar `mix()` between two fixed endpoints — the auto-
-straighten correction below applies here too, as a small per-frame rotation
-uniform rather than a CPU array pass, since thousands of dots are involved
-and the blend already lives on the GPU.
+vertex shader, one scalar `mix()` between two fixed endpoints.
 
 The indexed surface's own sphere/Mercator endpoints are cached the same way
 and blended per vertex every frame with a cheap array lerp rather than full
-per-vertex reprojection. Auto-straightening pitch as the morph runs would
-normally break that cache, since the cached sphere endpoint is fixed at the
-view's full live pitch while the Mercator target has none — interpolating
-between them directly would shear the mesh mid-transition instead of tracing
-the same eased-pitch path a live per-vertex reprojection would. The
-interpolation step corrects for this cheaply: one rotation matrix, derived
-from the view's yaw and pitch and the current eased progress, de-rolls the
-cached sphere endpoint before each frame's lerp, reproducing what re-deriving
-every vertex at the eased pitch would give without the per-vertex trigonometry. Repeat
+per-vertex reprojection. Because pitch lives in the camera (`globeCameraPose`)
+rather than in either cached endpoint's vertex data, this plain lerp is
+exact — a real camera rotation never shears interpolated geometry the way a
+naive blend between two differently-view-rotated vertex sets would, so no
+correction step is needed here at all. Repeat
 instances are ordered from the joined seam toward the outer edge, and each
 frame submits only the prefix that the dissolve can make visible. Transparent
 cached dots are not draw work.

@@ -20,6 +20,7 @@ import {
   smoothstep,
   step,
   sub,
+  transformNormalToView,
   uniform,
 } from "three/src/nodes/TSL.js";
 import { useEffect, useLayoutEffect, useMemo } from "react";
@@ -220,10 +221,16 @@ function ProjectedAtmosphereLayer({
     material.positionNode = positionLocal.add(
       sphereNormal.mul(shellOffsetNode),
     );
+    // The camera now genuinely tilts (see globeCameraPose), so "faces the
+    // camera" must go through the real view transform rather than reading
+    // the object-space normal's z directly — transformNormalToView is the
+    // same operation Three's own normalView builtin performs internally,
+    // just applied to this custom fixed-sphere-shape attribute instead of
+    // the mesh's regular (morphing) normal attribute.
     const rimFalloffNode = smoothstep(
       float(0),
       falloffLimitNode,
-      sphereNormal.z.abs(),
+      transformNormalToView(sphereNormal).z.abs(),
     );
     // Unlike sectors/samples/markers, which reveal expanding outward FROM
     // the connected seam (globeAtlasRepeatVisibility in globe-projection.ts),

@@ -6,6 +6,7 @@ import {
   GLOBE_CAMERA_HALF_HEIGHT,
   globeAtlasRepeatOffset,
   globeAtlasRepeatOpacity,
+  globeCameraPose,
   globeProjectionMorphRemaining,
   interpolateProjectedGlobeMeshes,
   type ProjectedGlobeMeshInterpolationBuffer,
@@ -43,7 +44,9 @@ export function ContextGlobeScene({
       atlas: buildProjectedGlobeMesh(view, world, 1),
       sphere: buildProjectedGlobeMesh(view, world, 0),
     }),
-    [view.pitch_degrees, view.yaw_degrees, world.height, world.width],
+    // Pitch no longer affects vertex data at all (see globeCameraPose) —
+    // only yaw and world dimensions change the projected grid.
+    [view.yaw_degrees, world.height, world.width],
   );
   // Runs every animation frame while the globe morphs. Reuse one retained
   // buffer across frames instead of letting interpolateProjectedGlobeMeshes
@@ -68,23 +71,23 @@ export function ContextGlobeScene({
       endpointMeshes.atlas,
       1 - morphRemaining,
       buffer,
-      view,
     );
-  }, [endpointMeshes, morphRemaining, view.pitch_degrees, view.yaw_degrees]);
+  }, [endpointMeshes, morphRemaining]);
   const projectedGeometry = useProjectedMeshGeometry(
     projectedMesh,
     endpointMeshes.sphere.normals,
     endpointMeshes.sphere.normalizedChartX,
   );
+  const cameraPose = globeCameraPose(view, projectionMorphProgress);
   return (
     <>
       <ReyOrthographicCamera
         bottom={-halfHeight}
         far={100}
         left={-halfHeight * aspect * horizontalLayoutWrapIndexes.length}
-        position={[0, 0, 6]}
+        position={cameraPose.position}
         right={halfHeight * aspect * horizontalLayoutWrapIndexes.length}
-        rotation={[0, 0, 0]}
+        rotation={cameraPose.rotation}
         top={halfHeight}
       />
       <group name={`context-globe:${compiled.globe.source_revision}`}>

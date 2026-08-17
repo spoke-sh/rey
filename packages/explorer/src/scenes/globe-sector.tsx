@@ -93,7 +93,8 @@ export function GlobeSector({
     sector.north_degrees,
     sector.south_degrees,
     sector.west_degrees,
-    view.pitch_degrees,
+    // Pitch no longer affects vertex data at all (see globeCameraPose) —
+    // only yaw and world dimensions change the projected grid.
     view.yaw_degrees,
     wrapIndex,
     world.height,
@@ -122,15 +123,9 @@ export function GlobeSector({
         atlasSpan,
         easedProgress,
         buffer,
-        // Only the canonical (wrapIndex 0) span is a plain sphere rotation
-        // the de-roll correction applies to. A repeated span's "sphere"
-        // endpoint already comes from projectGlobeAtlasRepeatCoordinate — a
-        // blend toward the connected seam, not a rotation — so correcting
-        // it here would rotate an already-blended quantity incorrectly.
-        wrapIndex === 0 ? view : undefined,
       );
     });
-  }, [endpointMeshes, progress, view, wrapIndex]);
+  }, [endpointMeshes, progress]);
   const unwrappedEast =
     sector.crosses_antimeridian || sector.east_degrees < sector.west_degrees
       ? sector.east_degrees + 360

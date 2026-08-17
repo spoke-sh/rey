@@ -391,15 +391,23 @@ export function projectSemanticGlobe(
   const localX = Math.cos(latitude) * Math.sin(longitude);
   const localY = Math.sin(latitude);
   const localZ = Math.cos(latitude) * Math.cos(longitude);
-  const pitch = (view.pitch_degrees * Math.PI) / 180;
   const yaw = (view.yaw_degrees * Math.PI) / 180;
-  const pitchY = localY * Math.cos(pitch) - localZ * Math.sin(pitch);
-  const pitchZ = localY * Math.sin(pitch) + localZ * Math.cos(pitch);
-  const rotatedX = localX * Math.cos(yaw) + pitchZ * Math.sin(yaw);
-  const depth = -localX * Math.sin(yaw) + pitchZ * Math.cos(yaw);
+  const pitch = (view.pitch_degrees * Math.PI) / 180;
+  // Yaw recenters content around the current bearing, same as ever. Pitch
+  // is applied afterward, about a fixed screen-horizontal axis — mirroring
+  // @rey/explorer's globeCameraPose, which tilts a real camera the same
+  // screen-relative way instead of rotating vertex data before yaw. Applied
+  // this way (rather than the reverse order), a combined yaw+pitch orbit
+  // doesn't roll content relative to the screen the way the old
+  // pitch-before-yaw composition did. Verified exact against Three.js's own
+  // camera/matrix math in semantic-mercator.test.ts.
+  const rotatedX = localX * Math.cos(yaw) + localZ * Math.sin(yaw);
+  const rotatedZ = -localX * Math.sin(yaw) + localZ * Math.cos(yaw);
+  const pitchedY = localY * Math.cos(pitch) - rotatedZ * Math.sin(pitch);
+  const depth = localY * Math.sin(pitch) + rotatedZ * Math.cos(pitch);
   return Object.freeze({
     x: center.x + radius * rotatedX,
-    y: center.y - radius * pitchY,
+    y: center.y - radius * pitchedY,
     depth,
     visible: depth >= -0.02,
   });

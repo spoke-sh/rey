@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { OrthographicCamera, Vector3 } from "three/src/Three.WebGPU.js";
 import { globeAtlasViewCenter } from "@rey/explorer/globe-projection";
 import {
   invertSemanticMercator,
   invertViewAlignedSemanticMercator,
   pickSemanticMercator,
+  projectSemanticGlobe,
   projectSemanticMercator,
   projectSemanticMercatorBounds,
   projectViewAlignedSemanticMercator,
@@ -16,6 +18,101 @@ import {
 const frame = { x: 70, y: 55, width: 1060, height: 610 };
 
 describe("semantic Mercator projection", () => {
+  it("matches a real orbit camera's screen-relative pitch, verified against Three.js's own matrix math", () => {
+    // projectSemanticGlobe's pitch/yaw composition mirrors
+    // @rey/explorer's globeCameraPose (a real camera tilting about a fixed
+    // screen-horizontal axis, applied after content yaw) rather than
+    // reproducing it independently by formula alone — this builds an
+    // actual Three.js camera at the equivalent pose and confirms the 2D
+    // reference projection's x/y agree with what that camera would
+    // actually see, for a spread of longitude/latitude/yaw/pitch
+    // combinations, not just one hand-checked case.
+    const center = { x: 0, y: 0 };
+    const radius = 1;
+    for (const { longitude, latitude } of [
+      { longitude: 30, latitude: 20 },
+      { longitude: -70, latitude: -40 },
+      { longitude: 170, latitude: 60 },
+      { longitude: 0, latitude: 0 },
+      { longitude: 120, latitude: -10 },
+    ]) {
+      const longitudeRadians = (longitude * Math.PI) / 180;
+      const latitudeRadians = (latitude * Math.PI) / 180;
+      const localX = Math.cos(latitudeRadians) * Math.sin(longitudeRadians);
+      const localY = Math.sin(latitudeRadians);
+      const localZ = Math.cos(latitudeRadians) * Math.cos(longitudeRadians);
+      for (const yawDegrees of [0, 45, -30, 120]) {
+        for (const pitchDegrees of [0, -24, 40, -55]) {
+          const projected = projectSemanticGlobe(
+            {
+              longitude_microdegrees: longitude * 1_000_000,
+              latitude_microdegrees: latitude * 1_000_000,
+            },
+            center,
+            radius,
+            { yaw_degrees: yawDegrees, pitch_degrees: pitchDegrees },
+          );
+
+          const yaw = (yawDegrees * Math.PI) / 180;
+          const rotatedX = localX * Math.cos(yaw) + localZ * Math.sin(yaw);
+          const rotatedZ = -localX * Math.sin(yaw) + localZ * Math.cos(yaw);
+          const worldPoint = new Vector3(rotatedX, localY, rotatedZ);
+
+          const pitch = (pitchDegrees * Math.PI) / 180;
+          const distance = 6;
+          const camera = new OrthographicCamera();
+          camera.position.set(
+            0,
+            distance * Math.sin(pitch),
+            distance * Math.cos(pitch),
+          );
+          camera.rotation.set(-pitch, 0, 0);
+          camera.updateMatrixWorld(true);
+          const local = worldPoint
+            .clone()
+            .applyMatrix4(camera.matrixWorldInverse);
+
+          // projectSemanticGlobe negates y deliberately (screen coordinates
+          // grow downward; Three.js world coordinates grow upward).
+          expect(projected.x).toBeCloseTo(center.x + local.x, 9);
+          expect(projected.y).toBeCloseTo(center.y - local.y, 9);
+        }
+      }
+    }
+  });
+
+  it("marks a point facing the camera as visible and its antipode as not", () => {
+    // At longitude 0, latitude == pitch_degrees is exactly the point whose
+    // outward normal points straight at the tilted camera (localY=sin(pitch),
+    // localZ=cos(pitch) with localX=0) — its antipode (latitude negated,
+    // longitude flipped 180) points straight away from it.
+    const pitchDegrees = -24;
+    const view = { yaw_degrees: 0, pitch_degrees: pitchDegrees };
+    const facingCamera = projectSemanticGlobe(
+      {
+        longitude_microdegrees: 0,
+        latitude_microdegrees: pitchDegrees * 1_000_000,
+      },
+      { x: 0, y: 0 },
+      1,
+      view,
+    );
+    expect(facingCamera.depth).toBeCloseTo(1, 9);
+    expect(facingCamera.visible).toBe(true);
+
+    const facingAway = projectSemanticGlobe(
+      {
+        longitude_microdegrees: 180_000_000,
+        latitude_microdegrees: -pitchDegrees * 1_000_000,
+      },
+      { x: 0, y: 0 },
+      1,
+      view,
+    );
+    expect(facingAway.depth).toBeCloseTo(-1, 9);
+    expect(facingAway.visible).toBe(false);
+  });
+
   it("wraps chart copies and inverts them to one canonical coordinate", () => {
     expect(wrapSemanticLongitude(181_000_000)).toBe(-179_000_000);
     const source = {
@@ -135,7 +232,7 @@ describe("semantic Mercator projection", () => {
     expect(middle.y).toBeCloseTo((world.y + atlas.y) / 2);
   });
 
-  it("keeps the rotated globe center fixed through every morph frame", () => {
+  it("keeps the rotated globe's Atlas-aligned center fixed at the flat endpoint", () => {
     const view = { yaw_degrees: 58, pitch_degrees: -24 };
     const viewCenter = globeAtlasViewCenter(view);
     const coordinate = {
@@ -152,19 +249,64 @@ describe("semantic Mercator projection", () => {
     expect(
       invertViewAlignedSemanticMercator(center, frame, view).coordinate,
     ).toEqual(coordinate);
-    for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
-      const point = projectWorldAtlasMorph(
-        "region:center",
-        "regional:center",
-        coordinate,
-        { center: { x: 600, y: 360 }, radius: 295.2 },
-        frame,
-        view,
-        progress,
-      );
-      expect(point.x).toBeCloseTo(600, 3);
-      expect(point.y).toBeCloseTo(360, 3);
-    }
+    // The flat Atlas chart doesn't auto-straighten pitch here (unaffected by
+    // this change — it always uses the raw view center, unlike
+    // @rey/explorer's globeAtlasProjectionCenter), so this coordinate stays
+    // exactly centered at the flat endpoint regardless of progress-scaling.
+    const atlasEndpoint = projectWorldAtlasMorph(
+      "region:center",
+      "regional:center",
+      coordinate,
+      { center: { x: 600, y: 360 }, radius: 295.2 },
+      frame,
+      view,
+      1,
+    );
+    expect(atlasEndpoint.x).toBeCloseTo(600, 3);
+    expect(atlasEndpoint.y).toBeCloseTo(360, 3);
+  });
+
+  it("keeps the rotated globe's own screen-relative bearing centered at the World endpoint", () => {
+    // Mirrors the World-side coordinate that faces a screen-relative-pitch
+    // camera (see projectSemanticGlobe's own composition and
+    // globeCameraPose in @rey/explorer) — a different coordinate than the
+    // flat Atlas chart's own (unrelated, raw-pitch) view center, since the
+    // two sides now use genuinely different pitch conventions. Verified
+    // directly: this is exactly the same closed-form inversion checked
+    // against Three.js's own camera math in the earlier "matches a real
+    // orbit camera" test above.
+    const view = { yaw_degrees: 58, pitch_degrees: -24 };
+    const yaw = (view.yaw_degrees * Math.PI) / 180;
+    const pitch = (view.pitch_degrees * Math.PI) / 180;
+    const worldViewCenter = {
+      longitude_degrees:
+        (Math.atan2(
+          -Math.cos(pitch) * Math.sin(yaw),
+          Math.cos(pitch) * Math.cos(yaw),
+        ) *
+          180) /
+        Math.PI,
+      latitude_degrees: (Math.asin(Math.sin(pitch)) * 180) / Math.PI,
+    };
+    const coordinate = {
+      longitude_microdegrees: Math.round(
+        worldViewCenter.longitude_degrees * 1_000_000,
+      ),
+      latitude_microdegrees: Math.round(
+        worldViewCenter.latitude_degrees * 1_000_000,
+      ),
+    };
+    const worldEndpoint = projectWorldAtlasMorph(
+      "region:center",
+      "regional:center",
+      coordinate,
+      { center: { x: 600, y: 360 }, radius: 295.2 },
+      frame,
+      view,
+      0,
+    );
+    expect(worldEndpoint.x).toBeCloseTo(600, 3);
+    expect(worldEndpoint.y).toBeCloseTo(360, 3);
   });
 
   it("splits sectors at the view-relative seam instead of twisting them", () => {
