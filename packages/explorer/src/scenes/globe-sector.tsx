@@ -12,11 +12,8 @@ import {
   buildProjectedBoundsMeshes,
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
-  globeAtlasWidth,
   globeProjectionMorphRemaining,
   interpolateProjectedGlobeMeshes,
-  projectGlobeAtlasRepeatCoordinate,
-  projectGlobeCoordinate,
   type ProjectedGlobeMesh,
   type ProjectedGlobeMeshInterpolationBuffer,
 } from "../globe-projection";
@@ -126,33 +123,56 @@ export function GlobeSector({
       );
     });
   }, [endpointMeshes, progress]);
-  const unwrappedEast =
-    sector.crosses_antimeridian || sector.east_degrees < sector.west_degrees
-      ? sector.east_degrees + 360
-      : sector.east_degrees;
-  const projectedCenter =
-    wrapIndex === 0
-      ? projectGlobeCoordinate(
-          (sector.west_degrees + unwrappedEast) / 2,
-          (sector.south_degrees + sector.north_degrees) / 2,
-          view,
-          world,
-          progress,
+  // A sector straddling the current chart window's edge splits into
+  // multiple fragments (see buildProjectedBoundsMeshes/globeAtlasLongitudeSpans),
+  // each with its own position along the chart. A single sector-wide
+  // opacity computed from the sector's naive (west+east)/2 center breaks
+  // down exactly for these straddling sectors — that center sits right at
+  // the seam, so its own seam weight is unstable, and worse, it makes every
+  // fragment share one opacity even though only the fragment actually
+  // adjoining the connected seam should be visible on a repeat copy; the
+  // other fragment (the far side of the same sector, present only because
+  // the same chart-window split logic reruns for every wrap index) would
+  // incorrectly inherit that visibility too, rendering as a duplicate
+  // boundary. Each fragment's own (progress-independent) normalizedChartX
+  // already says exactly where it sits, so its seam weight — and from that,
+  // its own opacity — comes from that instead.
+  const fragmentOpacities = useMemo(
+    () =>
+      endpointMeshes.sphere.map((fragment) => {
+        if (wrapIndex === 0) return 1;
+        let sum = 0;
+        for (
+          let index = 0;
+          index < fragment.normalizedChartX.length;
+          index += 1
         )
-      : projectGlobeAtlasRepeatCoordinate(
-          (sector.west_degrees + unwrappedEast) / 2,
-          (sector.south_degrees + sector.north_degrees) / 2,
-          view,
-          world,
-          progress,
-          wrapIndex,
-        );
-  const seamWeight = globeAtlasRepeatSeamWeight(
-    projectedCenter.atlas_position[0] / globeAtlasWidth(world) + 0.5,
-    wrapIndex,
+          sum += fragment.normalizedChartX[index]!;
+        const chartX = sum / fragment.normalizedChartX.length;
+        const seamWeight = globeAtlasRepeatSeamWeight(chartX, wrapIndex);
+        return globeAtlasRepeatVisibility(progress, seamWeight);
+      }),
+    [endpointMeshes, progress, wrapIndex],
   );
-  const opacity =
-    wrapIndex === 0 ? 1 : globeAtlasRepeatVisibility(progress, seamWeight);
+  return meshes.map((mesh, index) => (
+    <SectorFragment
+      key={index}
+      mesh={mesh}
+      name={`${name}:${index}`}
+      opacity={fragmentOpacities[index]!}
+    />
+  ));
+}
+
+function SectorFragment({
+  mesh,
+  name,
+  opacity,
+}: {
+  mesh: ProjectedGlobeMesh;
+  name: string;
+  opacity: number;
+}) {
   // Sectors rebuild their geometry every frame while the globe morphs; build
   // the materials once instead of on every opacity tick, or every sector on
   // screen forces a WebGPU pipeline rebuild each animation frame.
@@ -200,17 +220,18 @@ export function GlobeSector({
     },
     [borderMaterial, material],
   );
-  return meshes.flatMap((mesh, index) => [
-    <mesh material={material} name={`${name}:${index}`} key={`${index}:fill`}>
-      <ProjectedMeshGeometry data={mesh} />
-    </mesh>,
-    <SectorBoundary
-      key={`${index}:border`}
-      material={borderMaterial}
-      mesh={mesh}
-      name={`${name}:${index}:border`}
-    />,
-  ]);
+  return (
+    <>
+      <mesh material={material} name={name}>
+        <ProjectedMeshGeometry data={mesh} />
+      </mesh>
+      <SectorBoundary
+        material={borderMaterial}
+        mesh={mesh}
+        name={`${name}:border`}
+      />
+    </>
+  );
 }
 
 function SectorBoundary({

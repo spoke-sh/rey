@@ -42,6 +42,14 @@ unfurling, and bounded sectors split against the same view-relative seam. A
 rotated globe therefore opens around the operator's current bearing instead of
 twisting back toward the canonical antimeridian.
 
+A sector that straddles that seam splits into multiple fragments so no
+triangle crosses the discontinuity, and that same split reruns unchanged for
+every horizontal repeat copy, regardless of which one is actually connecting.
+Each fragment's own chart position — not the sector's naive bounds-average
+center, which sits unstably right at the seam for a straddling sector —
+decides its own repeat-copy visibility, so the fragment that isn't adjoining
+the connected seam stays suppressed instead of doubling the boundary.
+
 The flat Mercator chart's "north is up" convention has no analogue for
 camera pitch: it can only recenter around a bearing's longitude and latitude,
 never its tilt. Pitch is therefore not part of the shared projector at all —

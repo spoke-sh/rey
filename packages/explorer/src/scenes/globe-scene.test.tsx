@@ -820,4 +820,64 @@ describe("globe scene", () => {
 
     await renderer.unmount();
   });
+
+  it("suppresses a straddling sector's far fragment instead of duplicating its boundary", async () => {
+    // A sector whose bounds straddle the current chart window's seam splits
+    // into two fragments (buildProjectedBoundsMeshes/globeAtlasLongitudeSpans),
+    // and that same split reruns for every wrap copy regardless of which one
+    // is actually connecting. Only the fragment adjoining the connected seam
+    // should render with real opacity — the other exists only as a byproduct
+    // of the split and must stay effectively invisible, or it reads as a
+    // duplicate boundary.
+    const world = { width: 1200, height: 720 };
+    const view = {
+      yaw_degrees: 170,
+      pitch_degrees: 0,
+      projection_morph_progress: 0.9,
+    };
+    const rawSeamLongitude =
+      globeAtlasProjectionCenter(view).longitude_degrees + 180;
+    const seamLongitude = ((rawSeamLongitude + 180 + 360) % 360) - 180;
+    const globe = {
+      ...globeFixture(),
+      sectors: [
+        {
+          id: "sector:seam",
+          label: "SEAM COUNTY",
+          west_degrees: seamLongitude - 3,
+          south_degrees: 10,
+          east_degrees: seamLongitude + 3,
+          north_degrees: 20,
+          crosses_antimeridian: false,
+          tone: "neutral" as const,
+        },
+      ],
+    };
+    const compiled = compileContextGlobe(globe);
+    const renderer = await create(
+      <ContextGlobeScene compiled={compiled} view={view} world={world} />,
+    );
+
+    // Isolate ONE wrap copy's own fragments — comparing across different
+    // wrap indexes would be meaningless, since they legitimately carry
+    // different opacity from each other. The bug (and the fix) is about
+    // whether fragments sharing the SAME wrap index differ correctly.
+    const wrapFragments = renderer.scene.findAll(
+      ({ props }) =>
+        typeof props.name === "string" &&
+        props.name.startsWith("context-globe-sector:sector:seam:wrap:-1:") &&
+        !props.name.endsWith(":border"),
+    );
+    expect(wrapFragments.length).toBeGreaterThanOrEqual(2);
+    const opacities = wrapFragments
+      .map(
+        ({ instance }) => (instance as Mesh).material as MeshBasicNodeMaterial,
+      )
+      .map((material) => material.opacity)
+      .sort((a, b) => a - b);
+    expect(opacities[0]).toBeLessThan(0.01);
+    expect(opacities[opacities.length - 1]!).toBeGreaterThan(0.1);
+
+    await renderer.unmount();
+  });
 });
