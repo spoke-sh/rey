@@ -460,6 +460,100 @@ describe("reference renderer", () => {
     );
   });
 
+  it("eases an Atlas node label's white halo in as the morph reaches the flat map", () => {
+    const dissolvingScene: TopologyScene = {
+      ...terrainScene,
+      regime: "world",
+      terrain: false,
+      globe: null,
+      regions: [],
+      nodes: [
+        {
+          id: "node:1",
+          focus_id: "regional:1",
+          family: "region",
+          label: "region one",
+          detail: "settled Atlas region",
+          x: 140,
+          y: 130,
+          width: 80,
+          tone: "healthy",
+          semantic_identity: "region:1",
+        },
+      ],
+      world_atlas_transition: {
+        schema: "rey.world-atlas-transition.v1",
+        atlas_revision: "atlas:1",
+        globe_source_revision: "atlas:1",
+        projection_revision: "rey.semantic-mercator-projection@2",
+        atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        points: [],
+        sectors: [],
+        authority: "test fixture",
+      },
+    };
+    // chartWrapIndexes excludes the canonical copy (wrapIndex 0) while
+    // still dissolving — only the repeat copies (wrapIndex -1/1) render
+    // then, so that's what this fix's ramp is actually visible on. Search
+    // for a specific wrap index's own marker rather than the first "region
+    // one" text found, since each wrap index gets its own <text>.
+    const labelStrokeOpacityForWrapIndex = (
+      markup: string,
+      wrapIndex: string,
+    ) => {
+      const wrapStart = markup.indexOf(`data-chart-wrap-index="${wrapIndex}"`);
+      expect(wrapStart).toBeGreaterThan(-1);
+      const match = markup
+        .slice(wrapStart)
+        .match(/<text[^>]*stroke-opacity="([^"]+)"[^>]*>region one</);
+      expect(match).not.toBeNull();
+      return Number(match![1]);
+    };
+
+    // AtlasFeatureLayer mounts as soon as repeat copies start dissolving in
+    // (well before progress reaches 1) — before this fix, a repeat copy's
+    // label's white halo was always at full strength the instant it mounted.
+    const justDissolving = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.6}
+        scene={dissolvingScene}
+      />,
+    );
+    expect(labelStrokeOpacityForWrapIndex(justDissolving, "1")).toBeLessThan(
+      0.05,
+    );
+
+    const midDissolve = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.79}
+        scene={dissolvingScene}
+      />,
+    );
+    const midOpacity = labelStrokeOpacityForWrapIndex(midDissolve, "1");
+    expect(midOpacity).toBeGreaterThan(0.05);
+    expect(midOpacity).toBeLessThan(0.95);
+
+    // The canonical copy (wrapIndex 0) only ever mounts once progress
+    // reaches exactly 1 and the regime has switched to "atlas" — it has no
+    // earlier moment to ease in from, so it must simply be at full
+    // strength the instant it exists (see worldAtlasMorphLabelStrokeOpacity,
+    // which stays at full through this same handoff on the World side so
+    // the swap itself carries no visible discontinuity).
+    const atFlatMap = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={1}
+        scene={{ ...dissolvingScene, regime: "atlas" }}
+      />,
+    );
+    expect(labelStrokeOpacityForWrapIndex(atFlatMap, "0")).toBe(1);
+  });
+
   it("hides its own morph-transition marker once acceleration is healthy", () => {
     const morphScene: TopologyScene = {
       ...terrainScene,
@@ -528,7 +622,7 @@ describe("reference renderer", () => {
     expect(extractMorphLayer(acceleratedMarkup)).not.toContain("<circle");
   });
 
-  it("eases a retained regional label's white halo in and out of the morph instead of popping", () => {
+  it("eases a retained regional label's white halo in as the morph starts, staying at full strength through arrival at the flat map", () => {
     const morphScene: TopologyScene = {
       ...terrainScene,
       regime: "world",
@@ -563,8 +657,12 @@ describe("reference renderer", () => {
     };
 
     // WorldAtlasTransitionLayer only mounts while 0 < progress < 1, so its
-    // label's halo must fade in/out near those boundaries rather than
-    // popping at full strength the instant it mounts or unmounts.
+    // label's halo must fade in near that boundary rather than popping at
+    // full strength the instant it mounts. It must NOT fade back out
+    // approaching progress 1: AtlasFeatureLayer's own canonical label only
+    // ever mounts at progress 1 exactly (no earlier moment to ease in
+    // from), so fading this one out first would dip to nothing right
+    // before that pops in at full strength.
     const nearWorldEndpoint = renderToStaticMarkup(
       <ReferenceRenderer
         layers={{ relief: true, water: true, weather: true, probes: true }}
@@ -593,7 +691,7 @@ describe("reference renderer", () => {
         scene={morphScene}
       />,
     );
-    expect(labelStrokeOpacity(nearAtlasEndpoint)).toBeLessThan(0.15);
+    expect(labelStrokeOpacity(nearAtlasEndpoint)).toBe(1);
   });
 
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {

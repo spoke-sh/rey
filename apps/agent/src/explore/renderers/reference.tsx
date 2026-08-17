@@ -26,6 +26,7 @@ import {
   contextGlobeSamples,
 } from "@rey/explorer/globe-samples";
 import {
+  GLOBE_ATLAS_REPEAT_DISSOLVE_START,
   globeAtlasRepeatOpacity,
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
@@ -399,6 +400,9 @@ function AtlasFeatureLayer({
     scene.world_atlas_transition!.atlas_frame,
     globeView,
   );
+  const labelStrokeOpacity = atlasFeatureLabelStrokeOpacity(
+    projectionMorphProgress,
+  );
   return (
     <svg
       aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
@@ -525,6 +529,7 @@ function AtlasFeatureLayer({
                 {placement.visible ? (
                   <text
                     className={sx(styles.atlasFeatureLabel)}
+                    strokeOpacity={labelStrokeOpacity}
                     x={x + 13}
                     y={node.y - 11}
                   >
@@ -538,6 +543,28 @@ function AtlasFeatureLayer({
         )}
       </g>
     </svg>
+  );
+}
+
+/**
+ * Eases an Atlas node label's white halo in as the morph reaches the flat
+ * map, instead of it popping to full strength the instant AtlasFeatureLayer
+ * first mounts (as early as GLOBE_ATLAS_REPEAT_DISSOLVE_START, well before
+ * progress actually reaches 1). Only its repeat copies (wrapIndex -1/1) are
+ * ever actually rendered while this is less than 1 — chartWrapIndexes
+ * excludes the canonical wrapIndex-0 copy until progress reaches exactly 1
+ * (avoiding a duplicate of WorldAtlasTransitionLayer's own retained label),
+ * so this always evaluates to a full 1 the one moment that copy exists.
+ */
+function atlasFeatureLabelStrokeOpacity(progress: number): number {
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  if (boundedProgress <= GLOBE_ATLAS_REPEAT_DISSOLVE_START) return 0;
+  return (
+    1 -
+    globeProjectionMorphRemaining(
+      (boundedProgress - GLOBE_ATLAS_REPEAT_DISSOLVE_START) /
+        (1 - GLOBE_ATLAS_REPEAT_DISSOLVE_START),
+    )
   );
 }
 
@@ -1369,31 +1396,29 @@ function WorldAtlasTransitionLayer({
 const WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW = 0.18;
 
 /**
- * Eases a retained regional label's white halo in and out at each end of
- * the World<->Atlas morph instead of popping at full strength the instant
- * WorldAtlasTransitionLayer mounts or unmounts (progress crossing 0 or 1,
- * its own bounded rendering window) — full strength through the middle of
- * the transition, ramping over the first/last 18% of progress on either
- * side. Reuses globeProjectionMorphRemaining's own smoothstep curve
+ * Eases a retained regional label's white halo in as WorldAtlasTransitionLayer
+ * mounts (progress just above 0), instead of popping to full strength the
+ * instant it does — full strength for the rest of the transition, all the
+ * way through arriving at the flat map. It does NOT fade back out
+ * approaching progress 1: AtlasFeatureLayer's own canonical (wrapIndex 0)
+ * label only ever mounts at progress 1 exactly (chartWrapIndexes excludes
+ * it while still dissolving, to avoid duplicating this very label), so it
+ * has no earlier moment to ease in from — fading this one out first would
+ * dip to nothing right before that label pops in at full strength, reading
+ * as worse than not fading at all. Staying at full strength through the
+ * handoff means both sides of it agree, so the swap itself is invisible.
+ * Reuses globeProjectionMorphRemaining's own smoothstep curve
  * (1 - smoothstep) rather than a new formula, so the fade shares its exact
  * shape with the rest of the morph's presentation.
  */
 function worldAtlasMorphLabelStrokeOpacity(progress: number): number {
   const boundedProgress = Math.max(0, Math.min(1, progress));
-  const fadeIn =
+  return (
     1 -
     globeProjectionMorphRemaining(
       Math.min(1, boundedProgress / WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW),
-    );
-  const fadeOut =
-    1 -
-    globeProjectionMorphRemaining(
-      Math.min(
-        1,
-        (1 - boundedProgress) / WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW,
-      ),
-    );
-  return Math.min(fadeIn, fadeOut);
+    )
+  );
 }
 
 function globeBeaconLabel(workloadId: string, mappingRole: string) {
