@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  atlasLandscapeCompositionScale,
   atlasLandscapeMorphProgress,
   atlasLandscapePresentation,
   projectAtlasLandscapePoint,
@@ -83,5 +84,32 @@ describe("Atlas-to-Landscape projector", () => {
     expect(samples[0]).toBe(0);
     expect(samples.at(-1)).toBe(1);
     expect(samples).toEqual([...samples].sort((left, right) => left - right));
+  });
+
+  it("exposes composition_scale standalone, exactly matching the full presentation", () => {
+    // Zoom-anchoring call sites (explore.tsx's applyZoomAt/focusNode) need
+    // this exact value without paying for the rest of the presentation
+    // (model transform, pitch/yaw, opacities) at every candidate zoom they
+    // evaluate — this locks in that the standalone function and the full
+    // presentation never drift apart, which would silently reintroduce the
+    // pan-drift bug this split was written to fix.
+    for (const progress of [0, 0.12, 0.3, 0.5, 0.75, 1]) {
+      const { composition_scale } = atlasLandscapePresentation(
+        binding,
+        progress,
+        orbit,
+        world,
+      );
+      expect(atlasLandscapeCompositionScale(progress)).toBe(composition_scale);
+    }
+    expect(atlasLandscapeCompositionScale(-1)).toBe(
+      atlasLandscapeCompositionScale(0),
+    );
+    expect(atlasLandscapeCompositionScale(2)).toBe(
+      atlasLandscapeCompositionScale(1),
+    );
+    expect(() => atlasLandscapeCompositionScale(Number.NaN)).toThrow(
+      "Atlas-to-Landscape composition scale requires finite progress",
+    );
   });
 });

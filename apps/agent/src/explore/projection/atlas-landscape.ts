@@ -39,6 +39,27 @@ export function atlasLandscapeMorphProgress(zoom: number): number {
   );
 }
 
+/**
+ * The composition scale atlasLandscapePresentation bakes into the real
+ * on-screen render — pulled out on its own so callers that only need to
+ * anchor a zoom-to-pointer pan (not the full presentation: pitch/yaw,
+ * model transform, opacities) can compute the exact same scale the paint
+ * path uses, instead of recomputing pan against a scale that omits this
+ * factor. That mismatch previously let the anchored point drift out from
+ * under the pointer while zooming through the Atlas-to-Landscape band,
+ * compounding every animation frame since pan is derived from its own
+ * previous value each frame.
+ */
+export function atlasLandscapeCompositionScale(progress: number): number {
+  if (!Number.isFinite(progress))
+    throw new Error(
+      "Atlas-to-Landscape composition scale requires finite progress",
+    );
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const cameraProgress = smootherstep((boundedProgress - 0.12) / (1 - 0.12));
+  return interpolate(1, 1.38, cameraProgress);
+}
+
 export function atlasLandscapePresentation(
   binding: AtlasLandscapeProjectionBinding,
   progress: number,
@@ -78,7 +99,7 @@ export function atlasLandscapePresentation(
   return Object.freeze({
     progress: boundedProgress,
     camera_progress: cameraProgress,
-    composition_scale: interpolate(1, 1.38, cameraProgress),
+    composition_scale: atlasLandscapeCompositionScale(boundedProgress),
     terrain_opacity: smootherstep(boundedProgress / 0.22),
     atlas_opacity: 1 - smootherstep((boundedProgress - 0.42) / 0.46),
     pitch_degrees: pitchDegrees,

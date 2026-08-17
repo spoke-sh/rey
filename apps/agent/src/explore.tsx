@@ -57,6 +57,7 @@ import {
 } from "./explore/projection/county-frame";
 import { invertViewAlignedSemanticMercator } from "./explore/projection/semantic-mercator";
 import {
+  atlasLandscapeCompositionScale,
   atlasLandscapeMorphProgress,
   atlasLandscapePresentation,
 } from "./explore/projection/atlas-landscape";
@@ -283,11 +284,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
     );
     return () => window.clearTimeout(timeout);
   }, [atlasTerrainPrewarmEligible, atlasTerrainPrewarmKey, zoom]);
-  const atlasLandscapeProgress = scene.atlas_landscape_transition
-    ? atlasLandscapeMorphProgress(zoom)
-    : scene.terrain
-      ? 1
-      : 0;
+  const atlasLandscapeProgress = atlasLandscapeProgressForZoom(scene, zoom);
   const terrainTargetFrame = scene.atlas_landscape_transition?.target_frame ??
     scene.terrain_fields[0]?.grid.bounds ?? {
       x: 0,
@@ -517,18 +514,32 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
         y: client.y - rect.top - rect.height / 2,
       };
       const scaleUsesTerrain = scene.terrain || scene.county_frame !== null;
-      const currentRenderedScale = renderedSceneScale(
-        scaleUsesTerrain,
-        fitScale,
-        currentZoom,
-        currentRegime,
-      );
-      const nextRenderedScale = renderedSceneScale(
-        scaleUsesTerrain,
-        fitScale,
-        boundedZoom,
-        nextRegime,
-      );
+      // Must match the exact scale the live render paints with
+      // (explore.tsx's own `renderedScale`, including the Atlas-to-Landscape
+      // composition_scale factor) — anchoring pan against a scale that
+      // omits it under-corrects every frame of a wheel-zoom through that
+      // band, so the anchored point visibly drifts out from under the
+      // pointer instead of staying put.
+      const currentRenderedScale =
+        renderedSceneScale(
+          scaleUsesTerrain,
+          fitScale,
+          currentZoom,
+          currentRegime,
+        ) *
+        atlasLandscapeCompositionScale(
+          atlasLandscapeProgressForZoom(scene, currentZoom),
+        );
+      const nextRenderedScale =
+        renderedSceneScale(
+          scaleUsesTerrain,
+          fitScale,
+          boundedZoom,
+          nextRegime,
+        ) *
+        atlasLandscapeCompositionScale(
+          atlasLandscapeProgressForZoom(scene, boundedZoom),
+        );
       setPan((currentPan) =>
         panForScaleAtPoint(
           currentPan,
@@ -576,12 +587,18 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
       suppressNextRegimeNoticeRef.current = true;
     setFocusId(node.focus_id);
     if (scene.terrain) {
-      const nextScale = renderedSceneScale(
-        true,
-        fitScale,
-        nextZoom,
-        resolveRegimeForZoom(nextZoom, currentRegime),
-      );
+      // Same composition_scale correction as applyZoomAt — must match the
+      // scale the live render actually paints with.
+      const nextScale =
+        renderedSceneScale(
+          true,
+          fitScale,
+          nextZoom,
+          resolveRegimeForZoom(nextZoom, currentRegime),
+        ) *
+        atlasLandscapeCompositionScale(
+          atlasLandscapeProgressForZoom(scene, nextZoom),
+        );
       setPan(
         panForTerrainTarget(node, scene.world, nextScale, {
           pitch_degrees: landscapePresentation.pitch_degrees,
@@ -1120,6 +1137,24 @@ export function atlasTerrainPrewarmStatus(
   if (!eligible) return "unavailable";
   if (submitted) return "submitted";
   return mounted ? "mounted" : "scheduled";
+}
+
+/**
+ * Mirrors the atlasLandscapeProgress branch computed inline for the live
+ * render (same scene.atlas_landscape_transition/scene.terrain check),
+ * exposed as its own pure function so zoom-anchoring call sites can
+ * evaluate it at an arbitrary candidate zoom (not just the current one)
+ * without duplicating the branch.
+ */
+function atlasLandscapeProgressForZoom(
+  scene: TopologyScene,
+  zoom: number,
+): number {
+  return scene.atlas_landscape_transition
+    ? atlasLandscapeMorphProgress(zoom)
+    : scene.terrain
+      ? 1
+      : 0;
 }
 
 function focusNoticeLabel(scene: TopologyScene, focusId: string): string {
