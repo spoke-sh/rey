@@ -1,3 +1,4 @@
+import { projectTerrainCoordinate } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LENS_ZOOM,
@@ -199,6 +200,26 @@ describe("Explorer camera engine", () => {
     );
     expect(isometric.x).toBeCloseTo(-42.4264, 3);
     expect(isometric.y).toBeCloseTo(-220.454, 2);
+  });
+
+  it("targets the exact point projectTerrainCoordinate places on screen", () => {
+    // panForTerrainTarget is derived from the same shared orbit-camera
+    // projection atlas-landscape's css_transform uses, so it should always
+    // land the target point precisely at the viewport center it aims for.
+    const world = { width: 1500, height: 1000 };
+    const orbit = { pitch_degrees: 61, yaw_degrees: -108 };
+    const point = { x: 1180, y: 340 };
+    const renderedScale = 1.6;
+    const pan = panForTerrainTarget(point, world, renderedScale, orbit);
+    const projected = projectTerrainCoordinate(
+      { x: point.x, z: point.y },
+      orbit,
+      world,
+    );
+    expect(pan.x).toBeCloseTo(-(projected.x - world.width / 2) * renderedScale);
+    expect(pan.y).toBeCloseTo(
+      -(projected.y - world.height / 2) * renderedScale,
+    );
   });
 
   it("partitions World drag between the rendered atmosphere and surrounding canvas", () => {

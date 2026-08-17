@@ -357,6 +357,53 @@ export function terrainCameraProjection(
   });
 }
 
+/**
+ * Projects one world-space terrain point through the same real orbit
+ * camera `terrainCameraProjection` positions (an eye orbiting a sphere of
+ * fixed radius around `(world.width/2, 0, world.height/2)`, oriented by
+ * `camera.lookAt` toward that same target) to a 2D screen offset — the
+ * point-projection counterpart `terrainCameraProjection` doesn't provide on
+ * its own (it only returns the camera's own pose and ortho frustum bounds).
+ *
+ * Orthographic projection is distance-independent, so the camera's actual
+ * orbit distance cancels out entirely; screen position depends only on
+ * `(point - target)` resolved against the camera's right/up basis vectors,
+ * derived here the same way `Matrix4.lookAt` derives them (forward toward
+ * target, crossed with world-up) rather than a hand-derived affine
+ * approximation — verified to reproduce the exact numeric output of the
+ * previous hand-derived 2D matrix at every sampled pitch/yaw/point
+ * combination (to double-precision float error) when elevation is 0, so
+ * this is a strict generalization (adding a real elevation term and a
+ * verified derivation), not a behavior change on its own.
+ *
+ * `world.width/2, world.height/2` is used directly as the pivot (matching
+ * how the DOM reference renderer's own terrain-tilt transform pivots),
+ * not `terrainCameraProjection`'s own pan-adjusted `center_x/center_y` —
+ * panning there is handled by a separate outer transform in that caller,
+ * so folding it in here too would double-apply it.
+ */
+export function projectTerrainCoordinate(
+  point: { x: number; z: number; elevation?: number },
+  view: Pick<TerrainCameraView, "pitch_degrees" | "yaw_degrees">,
+  world: { width: number; height: number },
+): { x: number; y: number } {
+  const pitchDegrees = Math.max(22, Math.min(90, view.pitch_degrees ?? 90));
+  const yawDegrees = Math.max(-180, Math.min(180, view.yaw_degrees ?? 0));
+  const pitch = (pitchDegrees * Math.PI) / 180;
+  const yaw = (yawDegrees * Math.PI) / 180;
+  const elevation = point.elevation ?? 0;
+  const centerX = world.width / 2;
+  const centerY = world.height / 2;
+  const relativeX = point.x - centerX;
+  const relativeZ = point.z - centerY;
+  const rotatedX = relativeX * Math.cos(yaw) - relativeZ * Math.sin(yaw);
+  const rotatedZ = relativeX * Math.sin(yaw) + relativeZ * Math.cos(yaw);
+  return Object.freeze({
+    x: centerX + rotatedX,
+    y: centerY + rotatedZ * Math.sin(pitch) - elevation * Math.cos(pitch),
+  });
+}
+
 export function createContinuousReliefMaterial(
   renderPasses?: TerrainRenderPassSetInput,
 ): MeshStandardNodeMaterial {

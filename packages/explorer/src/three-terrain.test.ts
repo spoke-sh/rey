@@ -4,6 +4,7 @@ import {
   compileContinuousRelief,
   continuousReliefMaterialRevision,
   createContinuousReliefMaterial,
+  projectTerrainCoordinate,
   terrainCameraProjection,
   terrainMeshByteLength,
   terrainNoDataLeakTriangleCount,
@@ -89,6 +90,53 @@ describe("accelerated continuous terrain compiler", () => {
     expect(orbit.position[0]).not.toBe(orbit.center_x);
     expect(orbit.position[2]).not.toBe(orbit.center_y);
     expect(orbit.target).toEqual([orbit.center_x, 0, orbit.center_y]);
+  });
+
+  it("projects terrain points through the same orbit camera terrainCameraProjection poses", () => {
+    const world = { width: 1500, height: 1000 };
+
+    // Pure top-down (pitch 90) is an identity mapping onto the ground plane.
+    expect(
+      projectTerrainCoordinate(
+        { x: 1200, z: 300 },
+        { pitch_degrees: 90, yaw_degrees: 0 },
+        world,
+      ),
+    ).toEqual({ x: 1200, y: 300 });
+
+    expect(
+      projectTerrainCoordinate(
+        { x: 1200, z: 300 },
+        { pitch_degrees: 45, yaw_degrees: 45 },
+        world,
+      ),
+    ).toEqual({ x: 1209.6194077712557, y: 625 });
+
+    // Elevation lifts the point up-screen, independent of the ground-plane
+    // yaw rotation already exercised above.
+    expect(
+      projectTerrainCoordinate(
+        { x: 1200, z: 300, elevation: 50 },
+        { pitch_degrees: 28, yaw_degrees: -90 },
+        world,
+      ),
+    ).toEqual({ x: 550, y: 244.59041710340279 });
+
+    // The orbit target always projects to the pivot itself, for any pose —
+    // the same invariant terrainCameraProjection's own `target` encodes.
+    for (const view of [
+      { pitch_degrees: 90, yaw_degrees: 0 },
+      { pitch_degrees: 60, yaw_degrees: 120 },
+      { pitch_degrees: 22, yaw_degrees: -180 },
+    ]) {
+      expect(
+        projectTerrainCoordinate(
+          { x: world.width / 2, z: world.height / 2 },
+          view,
+          world,
+        ),
+      ).toEqual({ x: world.width / 2, y: world.height / 2 });
+    }
   });
 
   it("separates the base material graph from independently changing overlays", () => {

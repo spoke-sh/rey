@@ -1,3 +1,4 @@
+import { projectTerrainCoordinate } from "@rey/explorer";
 import type { FieldBounds } from "../engine/fields";
 
 export const ATLAS_LANDSCAPE_PROJECTION_REVISION =
@@ -88,7 +89,15 @@ export function atlasLandscapePresentation(
   const translateX = interpolate(sourceTranslateX, 0, boundedProgress);
   const translateZ = interpolate(sourceTranslateZ, 0, boundedProgress);
   const pitchDegrees = interpolate(90, orbit.pitch_degrees, cameraProgress);
-  const yawDegrees = interpolate(0, orbit.yaw_degrees, cameraProgress);
+  // Yaw is held constant (not animated) through the swoop: sweeping pitch
+  // and yaw together makes off-center screen positions non-monotonic during
+  // the transition (verified against both this DOM projection and the
+  // accelerated path's own orbit camera — it's a property of composing
+  // rotation with translation for off-pivot points, not a bug specific to
+  // either implementation). Holding yaw fixed and only sweeping pitch across
+  // its clamped [22°,90°] range keeps every flat (zero-elevation) point's
+  // screen Y a single monotonic quarter-sine, which covers every label.
+  const yawDegrees = orbit.yaw_degrees;
   const modelTransform = Object.freeze({
     scale_x: scaleX,
     scale_z: scaleZ,
@@ -124,31 +133,53 @@ export function projectAtlasLandscapePoint(
   });
 }
 
+/**
+ * Builds the 2D CSS matrix approximating the same real orbit camera
+ * `packages/explorer`'s accelerated terrain path renders with
+ * (`projectTerrainCoordinate` / `terrainCameraProjection`), rather than an
+ * independently hand-derived rotation formula that could silently diverge
+ * from it. `projectTerrainCoordinate` is affine in `(x, z)` for a fixed
+ * pose (elevation held at 0, since labels are flat), so probing it at the
+ * pivot and one unit step along each axis recovers the exact linear
+ * coefficients — no approximation, just finite differences of an affine
+ * function.
+ */
 function cssTerrainTransform(
   model: TerrainModelTransform,
   pitchDegrees: number,
   yawDegrees: number,
   world: { width: number; height: number },
 ): string {
-  const yaw = (yawDegrees * Math.PI) / 180;
-  const pitch = (pitchDegrees * Math.PI) / 180;
-  const cosine = Math.cos(yaw);
-  const sine = Math.sin(yaw);
-  const pitchScale = Math.sin(pitch);
-  const cameraA = cosine;
-  const cameraC = -sine;
-  const cameraB = pitchScale * sine;
-  const cameraD = pitchScale * cosine;
+  const view = { pitch_degrees: pitchDegrees, yaw_degrees: yawDegrees };
   const centerX = world.width / 2;
   const centerY = world.height / 2;
-  const cameraE = centerX - cameraA * centerX - cameraC * centerY;
-  const cameraF = centerY - cameraB * centerX - cameraD * centerY;
+  const origin = projectTerrainCoordinate(
+    { x: centerX, z: centerY },
+    view,
+    world,
+  );
+  const alongX = projectTerrainCoordinate(
+    { x: centerX + 1, z: centerY },
+    view,
+    world,
+  );
+  const alongZ = projectTerrainCoordinate(
+    { x: centerX, z: centerY + 1 },
+    view,
+    world,
+  );
+  const cameraA = alongX.x - origin.x;
+  const cameraB = alongX.y - origin.y;
+  const cameraC = alongZ.x - origin.x;
+  const cameraD = alongZ.y - origin.y;
   const a = cameraA * model.scale_x;
   const b = cameraB * model.scale_x;
   const c = cameraC * model.scale_z;
   const d = cameraD * model.scale_z;
-  const e = cameraA * model.translate_x + cameraC * model.translate_z + cameraE;
-  const f = cameraB * model.translate_x + cameraD * model.translate_z + cameraF;
+  const e =
+    cameraA * model.translate_x + cameraC * model.translate_z + origin.x;
+  const f =
+    cameraB * model.translate_x + cameraD * model.translate_z + origin.y;
   return `matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})`;
 }
 

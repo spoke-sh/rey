@@ -1,3 +1,5 @@
+import { projectTerrainCoordinate } from "@rey/explorer";
+
 export type LensRegime =
   "world" | "atlas" | "landscape" | "neighborhoods" | "objects" | "evidence";
 
@@ -274,6 +276,16 @@ export function panForFocusedPoint(
   };
 }
 
+/**
+ * Derives the pan needed to bring `point` under the viewport center from
+ * the same orbit-camera projection `atlasLandscapePresentation`'s
+ * `css_transform` is built from (`projectTerrainCoordinate` in
+ * `@rey/explorer`), instead of an independently hand-derived rotation
+ * formula that could silently diverge from it. `projectTerrainCoordinate`
+ * already clamps `pitch_degrees` to `[22, 90]`, which keeps `sin(pitch)`
+ * comfortably above the ad hoc `0.2` floor this used to apply by hand, so
+ * that floor is now redundant rather than dropped behavior.
+ */
 export function panForTerrainTarget(
   point: CameraPoint,
   world: WorldExtent,
@@ -287,16 +299,14 @@ export function panForTerrainTarget(
     !Number.isFinite(orbit.yaw_degrees)
   )
     throw new Error("terrain focus requires finite bounded camera values");
-  const yaw = (orbit.yaw_degrees * Math.PI) / 180;
-  const pitch = (orbit.pitch_degrees * Math.PI) / 180;
-  const deltaX = point.x - world.width / 2;
-  const deltaY = point.y - world.height / 2;
+  const projected = projectTerrainCoordinate(
+    { x: point.x, z: point.y },
+    orbit,
+    world,
+  );
   return {
-    x: (-Math.cos(yaw) * deltaX + Math.sin(yaw) * deltaY) * renderedScale,
-    y:
-      -Math.max(0.2, Math.sin(pitch)) *
-      (Math.sin(yaw) * deltaX + Math.cos(yaw) * deltaY) *
-      renderedScale,
+    x: -(projected.x - world.width / 2) * renderedScale,
+    y: -(projected.y - world.height / 2) * renderedScale,
   };
 }
 

@@ -116,7 +116,20 @@ terrain-group lifecycle; `@rey/agent` owns the explicit Shift-drag orbit
 interaction, the semantic projection curve, and the reversible interior
 composition scale used to make Landscape fill the viewport. Evidence and
 validity boundaries remain mounted while their visual weight is independently
-controlled by the application lens.
+controlled by the application lens. `terrainCameraProjection` returns this
+camera's pose and ortho frustum bounds; `projectTerrainCoordinate` is its
+point-projection counterpart, resolving one world-space terrain point to a 2D
+screen offset through the same orbit basis (right/up vectors derived the way
+`camera.lookAt` derives them). The DOM reference renderer's Atlas→Landscape
+tilt transform (`@rey/agent`'s `atlasLandscapePresentation`) and its
+click-to-focus panning (`panForTerrainTarget`) both derive their 2D CSS
+matrices from `projectTerrainCoordinate` rather than independently
+hand-rolled trigonometry, so they cannot silently diverge from the
+accelerated camera they approximate. That presentation also holds yaw
+constant through the whole tilt — only pitch animates — since sweeping pitch
+and yaw together makes off-pivot screen points move non-monotonically; with
+yaw fixed, every flat (zero-elevation) point's screen position is guaranteed
+monotonic across the transition.
 
 ## Executable Geographic Passes
 

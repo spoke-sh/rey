@@ -52,6 +52,7 @@ export {
   createContinuousReliefMaterial,
   MAX_ACCELERATED_TERRAIN_GPU_BYTES,
   TERRAIN_MESH_PARITY_REVISION,
+  projectTerrainCoordinate,
   terrainCameraProjection,
   terrainMeshByteLength,
   terrainNoDataLeakTriangleCount,
