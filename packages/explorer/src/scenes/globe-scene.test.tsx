@@ -8,6 +8,7 @@ import {
   type InstancedBufferAttribute,
   type InstancedMesh,
   type LineSegments,
+  Matrix3,
   Matrix4,
   type Mesh,
   type MeshBasicNodeMaterial,
@@ -18,11 +19,16 @@ import { describe, expect, it } from "vitest";
 import { ContextGlobeScene } from "./globe-scene";
 import {
   buildProjectedBoundsMeshes,
+  globeAtlasProjectionCenter,
+  globeAtlasRepeatConnectionProgress,
+  globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOffset,
+  globeAtlasRepeatSeamWeight,
   globeAtlasWidth,
   globeAtmosphereRepeatOpacity,
   globeProjectionMorphRemaining,
-  projectGlobeAtlasRepeatCoordinate,
+  globeSphereDeRollMatrix,
+  projectGlobeCoordinate,
 } from "../globe-projection";
 import { globeFixture } from "../test-fixtures";
 import { compileContextGlobe, GLOBE_RADIUS } from "../three-globe";
@@ -222,6 +228,33 @@ describe("globe scene", () => {
     ).not.toBeNull();
     expect(canonical.userData.reyStippleMorphExecution).toBe("gpu_uniform");
     expect(repeated.userData.reyStippleMorphExecution).toBe("gpu_uniform");
+    // The canonical stipple field blends its cached spherical/Atlas endpoints
+    // on the GPU (a mix() node, not interpolateProjectedGlobeMeshes' CPU
+    // lerp), so it carries its own de-roll correction uniform mirroring
+    // globeSphereDeRollMatrix — this confirms it's wired to the exact
+    // expected matrix for this test's live view and eased progress, not left
+    // at its identity default.
+    const derollMatrix = globeSphereDeRollMatrix(
+      view,
+      1 - globeProjectionMorphRemaining(progress),
+    );
+    const derollUniform = (canonical.material as MeshBasicNodeMaterial).userData
+      .reyStippleDerollMatrixNode.value as Matrix3;
+    expect(derollUniform.elements).toEqual(
+      new Matrix3()
+        .set(
+          derollMatrix[0][0],
+          derollMatrix[0][1],
+          derollMatrix[0][2],
+          derollMatrix[1][0],
+          derollMatrix[1][1],
+          derollMatrix[1][2],
+          derollMatrix[2][0],
+          derollMatrix[2][1],
+          derollMatrix[2][2],
+        )
+        .toArray(),
+    );
     expect(rightGradient.count).toBe(repeated.instanceMatrix.count);
     expect(leftGradient.count).toBe(repeatedLeft.instanceMatrix.count);
     expect(repeated.count).toBeGreaterThan(0);
@@ -259,42 +292,76 @@ describe("globe scene", () => {
           rightMorphOffsets.getZ(index) * remaining,
       ];
     };
+    // Mirrors globe-instanced-samples.tsx's own repeat-copy cache formula
+    // exactly (a translation-only instance matrix at the fixed-progress-1
+    // planar position, plus a cached morphOffset — itself built from
+    // fixed-progress 0/1 endpoints and the seam-weight-driven
+    // connectionProgress/depth-offset, not a raw morph-remaining lerp —
+    // scaled live by morphRemaining) rather than cross-checking against
+    // projectGlobeAtlasRepeatCoordinate's own connected-seam blend: the two
+    // are different, only approximately-coincident formulas, and only the
+    // former is what GlobeSampleField's wrap-copy caching actually computes.
+    const atlasCenter = globeAtlasProjectionCenter(view);
+    const wrapIndex = 1;
+    const expectedRepeatPosition = (sample: {
+      longitude_degrees: number;
+      latitude_degrees: number;
+    }) => {
+      const planar = projectGlobeCoordinate(
+        sample.longitude_degrees,
+        sample.latitude_degrees,
+        view,
+        world,
+        1,
+        GLOBE_RADIUS * 1.005,
+        0.008,
+      );
+      const closedSeam = projectGlobeCoordinate(
+        atlasCenter.longitude_degrees + 180,
+        sample.latitude_degrees,
+        view,
+        world,
+        0,
+        GLOBE_RADIUS * 1.005,
+        0.008,
+      );
+      const normalizedChartX =
+        planar.atlas_position[0] / globeAtlasWidth(world) + 0.5;
+      const seamWeight = globeAtlasRepeatSeamWeight(
+        normalizedChartX,
+        wrapIndex,
+      );
+      const connectionProgress = globeAtlasRepeatConnectionProgress(seamWeight);
+      const morphOffset = [
+        closedSeam.position[0]! * connectionProgress,
+        (closedSeam.position[1]! - planar.position[1]!) * connectionProgress,
+        (closedSeam.position[2]! - planar.position[2]!) * connectionProgress +
+          globeAtlasRepeatDepthOffset(0, seamWeight),
+      ];
+      const remaining = globeProjectionMorphRemaining(progress);
+      return [0, 1, 2].map(
+        (index) => planar.position[index]! + morphOffset[index]! * remaining,
+      );
+    };
+
     const outerPosition = effectivePosition(outerIndex);
     const outerSample =
       compiled.sample_buckets[0]!.samples[
         repeatedProjectionCache.sourceIndexes[outerIndex]!
       ]!;
-    const expectedOuter = projectGlobeAtlasRepeatCoordinate(
-      outerSample.longitude_degrees,
-      outerSample.latitude_degrees,
-      view,
-      world,
-      progress,
-      1,
-      GLOBE_RADIUS * 1.005,
-      0.008,
-    );
-    expect(outerPosition[0]).toBeCloseTo(expectedOuter.position[0], 5);
-    expect(outerPosition[1]).toBeCloseTo(expectedOuter.position[1], 5);
-    expect(outerPosition[2]).toBeCloseTo(expectedOuter.position[2], 5);
+    const expectedOuter = expectedRepeatPosition(outerSample);
+    expect(outerPosition[0]).toBeCloseTo(expectedOuter[0]!, 5);
+    expect(outerPosition[1]).toBeCloseTo(expectedOuter[1]!, 5);
+    expect(outerPosition[2]).toBeCloseTo(expectedOuter[2]!, 5);
     const seamPosition = effectivePosition(seamIndex);
     const seamSample =
       compiled.sample_buckets[0]!.samples[
         repeatedProjectionCache.sourceIndexes[seamIndex]!
       ]!;
-    const expectedSeam = projectGlobeAtlasRepeatCoordinate(
-      seamSample.longitude_degrees,
-      seamSample.latitude_degrees,
-      view,
-      world,
-      progress,
-      1,
-      GLOBE_RADIUS * 1.005,
-      0.008,
-    );
-    expect(seamPosition[0]).toBeCloseTo(expectedSeam.position[0], 5);
-    expect(seamPosition[1]).toBeCloseTo(expectedSeam.position[1], 5);
-    expect(seamPosition[2]).toBeCloseTo(expectedSeam.position[2], 5);
+    const expectedSeam = expectedRepeatPosition(seamSample);
+    expect(seamPosition[0]).toBeCloseTo(expectedSeam[0]!, 5);
+    expect(seamPosition[1]).toBeCloseTo(expectedSeam[1]!, 5);
+    expect(seamPosition[2]).toBeCloseTo(expectedSeam[2]!, 5);
     const surface = renderer.scene.findByProps({
       name: "context-globe-surface",
     }).instance as Mesh;

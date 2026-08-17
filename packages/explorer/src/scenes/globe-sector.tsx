@@ -122,9 +122,15 @@ export function GlobeSector({
         atlasSpan,
         easedProgress,
         buffer,
+        // Only the canonical (wrapIndex 0) span is a plain sphere rotation
+        // the de-roll correction applies to. A repeated span's "sphere"
+        // endpoint already comes from projectGlobeAtlasRepeatCoordinate — a
+        // blend toward the connected seam, not a rotation — so correcting
+        // it here would rotate an already-blended quantity incorrectly.
+        wrapIndex === 0 ? view : undefined,
       );
     });
-  }, [endpointMeshes, progress]);
+  }, [endpointMeshes, progress, view, wrapIndex]);
   const unwrappedEast =
     sector.crosses_antimeridian || sector.east_degrees < sector.west_degrees
       ? sector.east_degrees + 360

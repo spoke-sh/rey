@@ -68,8 +68,9 @@ export function ContextGlobeScene({
       endpointMeshes.atlas,
       1 - morphRemaining,
       buffer,
+      view,
     );
-  }, [endpointMeshes, morphRemaining]);
+  }, [endpointMeshes, morphRemaining, view.pitch_degrees, view.yaw_degrees]);
   const projectedGeometry = useProjectedMeshGeometry(
     projectedMesh,
     endpointMeshes.sphere.normals,

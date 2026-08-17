@@ -1,6 +1,7 @@
 import {
   InstancedBufferAttribute,
   InstancedMesh,
+  Matrix3,
   Matrix4,
   MeshBasicNodeMaterial,
   Quaternion,
@@ -22,13 +23,14 @@ import {
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { GlobeCameraView } from "../types";
 import {
+  globeAtlasProjectionCenter,
   globeAtlasRepeatConnectionProgress,
   globeAtlasRepeatDepthOffset,
   globeAtlasRepeatOffset,
   globeAtlasRepeatSeamWeight,
-  globeAtlasViewCenter,
   globeAtlasWidth,
   globeProjectionMorphRemaining,
+  globeSphereDeRollMatrix,
   projectGlobeCoordinate,
 } from "../globe-projection";
 import {
@@ -77,6 +79,15 @@ export function GlobeSampleField({
   const morphRemaining = globeProjectionMorphRemaining(progress);
   const canonicalMaterialState = useMemo(() => {
     const morphProgressNode = uniform(0);
+    // The cached spherical instance transform below is built once at full,
+    // un-eased pitch (progress 0) and blended straight toward the flat
+    // Atlas position via morphProgressNode — the same cached-endpoint lerp
+    // globeSphereDeRollMatrix corrects for the indexed surface mesh, since
+    // the flat chart's fixed "north is up" convention can't represent that
+    // pitch and a straight blend shears mid-transition. This uniform mirrors
+    // that correction on the GPU, rotating the cached spherical position
+    // toward the live eased-pitch path before the mix.
+    const derollMatrixNode = uniform(new Matrix3());
     const atlasPosition = attribute<"vec3">("reyAtlasPosition", "vec3");
     const material = new MeshBasicNodeMaterial({
       color: bucket.color,
@@ -84,11 +95,15 @@ export function GlobeSampleField({
       transparent: true,
     });
     material.positionNode = mix(
-      positionLocal,
+      derollMatrixNode.mul(positionLocal),
       positionGeometry.add(atlasPosition),
       morphProgressNode,
     );
-    return { material, morphProgressNode };
+    // Exposed for test observability only (mirrors reyStippleMorphExecution
+    // below) — the node graph itself has no stable, public way to recover
+    // this uniform's live value for assertions.
+    material.userData.reyStippleDerollMatrixNode = derollMatrixNode;
+    return { material, morphProgressNode, derollMatrixNode };
   }, [bucket.color, bucket.opacity]);
   const canonicalMaterial = canonicalMaterialState.material;
   const repeatedMaterialState = useMemo(() => {
@@ -128,6 +143,18 @@ export function GlobeSampleField({
     canonicalMaterial.opacity = postureOpacity;
     repeatedMaterial.opacity = postureOpacity;
     canonicalMaterialState.morphProgressNode.value = 1 - morphRemaining;
+    const deroll = globeSphereDeRollMatrix(view, 1 - morphRemaining);
+    canonicalMaterialState.derollMatrixNode.value.set(
+      deroll[0][0],
+      deroll[0][1],
+      deroll[0][2],
+      deroll[1][0],
+      deroll[1][1],
+      deroll[1][2],
+      deroll[2][0],
+      deroll[2][1],
+      deroll[2][2],
+    );
     repeatedMaterialState.morphRemainingNode.value = morphRemaining;
     repeatedMaterialState.postureOpacityNode.value = postureOpacity;
     repeatedMaterialState.repeatOpacityNode.value = repeatOpacity;
@@ -139,6 +166,7 @@ export function GlobeSampleField({
     repeatOpacity,
     repeatedMaterial,
     repeatedMaterialState,
+    view,
   ]);
   useEffect(
     () => () => {
@@ -227,7 +255,11 @@ export function GlobeSampleField({
       canonicalCache === null ||
       [...repeatMeshes.values()].some(({ cache }) => cache === null)
     ) {
-      const atlasCenter = globeAtlasViewCenter(view);
+      // Matches projectGlobeAtlasRepeatCoordinate's own connected-seam
+      // reference (globeAtlasProjectionCenter, fixed at pitch 0) — the flat
+      // Atlas frame these repeat samples bend toward has no way to
+      // represent pitch, so this must agree with it exactly.
+      const atlasCenter = globeAtlasProjectionCenter(view);
       canonicalCache = {
         atlasPositions: new Float32Array(bucket.samples.length * 3),
         matrices: new Float32Array(bucket.samples.length * 16),

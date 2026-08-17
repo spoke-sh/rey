@@ -11,6 +11,7 @@ import {
   globeAtlasRepeatPeriod,
   globeAtlasRepeatSeamWeight,
   globeAtlasRepeatVisibility,
+  globeAtlasProjectionCenter,
   globeAtlasWidth,
   globeAtlasViewCenter,
   globeAtmosphereOpacity,
@@ -123,20 +124,37 @@ describe("declarative globe-to-Mercator projection", () => {
     expect(sector!.indices.length).toBe(16 * 10 * 6);
   });
 
-  it("keeps the rotated view center anchored while the globe unfurls", () => {
+  it("anchors the sphere's own bearing at progress 0 and the level bearing at progress 1", () => {
+    // The two endpoints anchor to different references by design: the
+    // sphere (progress 0) is still fully pitched, so it's the live view's
+    // own bearing (globeAtlasViewCenter) that projects to screen center
+    // there. The flat Atlas (progress 1) has no way to represent pitch, so
+    // it's always centered on the LEVEL bearing (globeAtlasProjectionCenter)
+    // instead — the camera eases from one to the other as progress
+    // increases, per globeSphereDeRollMatrix, rather than a single semantic
+    // coordinate staying anchored at screen center throughout.
     const rotatedView = { yaw_degrees: 58, pitch_degrees: -24 };
-    const center = globeAtlasViewCenter(rotatedView);
-    for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
-      const projected = projectGlobeCoordinate(
-        center.longitude_degrees,
-        center.latitude_degrees,
-        rotatedView,
-        world,
-        progress,
-      );
-      expect(projected.position[0]).toBeCloseTo(0, 10);
-      expect(projected.position[1]).toBeCloseTo(0, 10);
-    }
+    const fullPitchCenter = globeAtlasViewCenter(rotatedView);
+    const sphereProjected = projectGlobeCoordinate(
+      fullPitchCenter.longitude_degrees,
+      fullPitchCenter.latitude_degrees,
+      rotatedView,
+      world,
+      0,
+    );
+    expect(sphereProjected.position[0]).toBeCloseTo(0, 10);
+    expect(sphereProjected.position[1]).toBeCloseTo(0, 10);
+
+    const levelCenter = globeAtlasProjectionCenter(rotatedView);
+    const atlasProjected = projectGlobeCoordinate(
+      levelCenter.longitude_degrees,
+      levelCenter.latitude_degrees,
+      rotatedView,
+      world,
+      1,
+    );
+    expect(atlasProjected.position[0]).toBeCloseTo(0, 10);
+    expect(atlasProjected.position[1]).toBeCloseTo(0, 10);
   });
 
   it("moves the surface seam behind a rotated view", () => {
@@ -206,7 +224,11 @@ describe("declarative globe-to-Mercator projection", () => {
   it("keeps repeat interiors planar while bending only their seam joint", () => {
     const rotatedView = { yaw_degrees: 58, pitch_degrees: -24 };
     const progress = 0.71;
-    const center = globeAtlasViewCenter(rotatedView);
+    // projectGlobeAtlasRepeatCoordinate's own connected-seam computation
+    // uses globeAtlasProjectionCenter (fixed at pitch 0), not the live,
+    // possibly-pitched view center — the flat Atlas frame it bends toward
+    // has no way to represent pitch, so this must be the same reference.
+    const center = globeAtlasProjectionCenter(rotatedView);
     for (const wrapIndex of [-1, 1]) {
       const connectedLongitude = center.longitude_degrees + wrapIndex * 180;
       const sourceSeamLongitude = center.longitude_degrees - wrapIndex * 180;
