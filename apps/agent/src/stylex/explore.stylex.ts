@@ -553,13 +553,17 @@ export const exploreStyles = stylex.create({
   atlasFeatureLabel: {
     fill: "#213532",
     fontFamily: mono,
-    fontSize: "calc(10px * var(--rey-terrain-counter-scale))",
-    fontWeight: 850,
-    letterSpacing: "0.06em",
+    // Matches worldAtlasMorphLabel exactly (size, weight, halo color and
+    // width) — this label is what that one hands off to the instant the
+    // World<->Atlas morph reaches progress 1, so any difference between
+    // the two reads as the label's glow visibly snapping to a new look at
+    // that exact moment instead of the handoff being invisible.
+    fontSize: "calc(8.64px * var(--rey-terrain-counter-scale))",
+    fontWeight: 800,
     paintOrder: "stroke",
     pointerEvents: "none",
-    stroke: "color-mix(in srgb, #f4f2e8 94%, transparent)",
-    strokeWidth: "calc(4px * var(--rey-terrain-counter-scale))",
+    stroke: "color-mix(in srgb, var(--rey-background) 88%, transparent)",
+    strokeWidth: "calc(5px * var(--rey-terrain-counter-scale))",
   },
   worldHorizon: {
     fill: "color-mix(in srgb, #78959b 5%, transparent)",
