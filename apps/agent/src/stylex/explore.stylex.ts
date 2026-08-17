@@ -512,12 +512,16 @@ export const exploreStyles = stylex.create({
   worldAtlasMorphLabel: {
     fill: "#213532",
     fontFamily: mono,
-    fontSize: "calc(8.64px * var(--rey-terrain-counter-scale))",
+    // The growth factor multiplies on top of the counter-scale (which only
+    // cancels the scene's own zoom curve) — see worldAtlasLabelGrowthScale.
+    fontSize:
+      "calc(8.64px * var(--rey-terrain-counter-scale) * var(--rey-world-atlas-label-growth, 1))",
     fontWeight: 800,
     paintOrder: "stroke",
     pointerEvents: "none",
     stroke: "color-mix(in srgb, var(--rey-background) 88%, transparent)",
-    strokeWidth: "calc(5px * var(--rey-terrain-counter-scale))",
+    strokeWidth:
+      "calc(5px * var(--rey-terrain-counter-scale) * var(--rey-world-atlas-label-growth, 1))",
   },
   atlasFeatureLayer: {
     pointerEvents: "auto",
@@ -557,13 +561,17 @@ export const exploreStyles = stylex.create({
     // width) — this label is what that one hands off to the instant the
     // World<->Atlas morph reaches progress 1, so any difference between
     // the two reads as the label's glow visibly snapping to a new look at
-    // that exact moment instead of the handoff being invisible.
-    fontSize: "calc(8.64px * var(--rey-terrain-counter-scale))",
+    // that exact moment instead of the handoff being invisible. Same growth
+    // factor too (see worldAtlasLabelGrowthScale) so size keeps climbing
+    // continuously through the handoff instead of jumping to a flat value.
+    fontSize:
+      "calc(8.64px * var(--rey-terrain-counter-scale) * var(--rey-world-atlas-label-growth, 1))",
     fontWeight: 800,
     paintOrder: "stroke",
     pointerEvents: "none",
     stroke: "color-mix(in srgb, var(--rey-background) 88%, transparent)",
-    strokeWidth: "calc(5px * var(--rey-terrain-counter-scale))",
+    strokeWidth:
+      "calc(5px * var(--rey-terrain-counter-scale) * var(--rey-world-atlas-label-growth, 1))",
   },
   worldHorizon: {
     fill: "color-mix(in srgb, #78959b 5%, transparent)",

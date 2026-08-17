@@ -403,6 +403,11 @@ function AtlasFeatureLayer({
   const labelStrokeOpacity = atlasFeatureLabelStrokeOpacity(
     projectionMorphProgress,
   );
+  const labelStyle = {
+    "--rey-world-atlas-label-growth": worldAtlasLabelGrowthScale(
+      projectionMorphProgress,
+    ),
+  } as CSSProperties;
   return (
     <svg
       aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
@@ -530,6 +535,7 @@ function AtlasFeatureLayer({
                   <text
                     className={sx(styles.atlasFeatureLabel)}
                     strokeOpacity={labelStrokeOpacity}
+                    style={labelStyle}
                     x={x + 13}
                     y={node.y - 11}
                   >
@@ -1261,6 +1267,9 @@ function WorldAtlasTransitionLayer({
 }) {
   const transition = scene.world_atlas_transition!;
   const labelStrokeOpacity = worldAtlasMorphLabelStrokeOpacity(progress);
+  const labelStyle = {
+    "--rey-world-atlas-label-growth": worldAtlasLabelGrowthScale(progress),
+  } as CSSProperties;
   const worldFrame = {
     center: { x: scene.world.width / 2, y: scene.world.height / 2 },
     radius: Math.min(scene.world.width, scene.world.height) * 0.41,
@@ -1379,6 +1388,7 @@ function WorldAtlasTransitionLayer({
                 <text
                   className={sx(styles.worldAtlasMorphLabel)}
                   strokeOpacity={labelStrokeOpacity}
+                  style={labelStyle}
                   x={projected.x + 13}
                   y={projected.y - 10}
                 >
@@ -1419,6 +1429,26 @@ function worldAtlasMorphLabelStrokeOpacity(progress: number): number {
       Math.min(1, boundedProgress / WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW),
     )
   );
+}
+
+const WORLD_ATLAS_LABEL_GROWTH = 0.3;
+
+/**
+ * Grows a retained regional label as the World<->Atlas morph approaches the
+ * flat map, reading as gaining presence while zooming in rather than
+ * staying a fixed pixel size the whole way. Layered on top of, not instead
+ * of, the counter-scale that cancels the scene's own zoom curve — this
+ * growth is a deliberate design curve, independent of that curve's own
+ * (non-monotonic, wobble-shaped) one. Shared by both sides of the
+ * World<->Atlas handoff (worldAtlasMorphLabel and atlasFeatureLabel) so the
+ * size in view keeps climbing continuously through the swap instead of
+ * jumping between two different curves. Reuses globeProjectionMorphRemaining's
+ * own smoothstep curve, matching the rest of the morph's presentation.
+ */
+function worldAtlasLabelGrowthScale(progress: number): number {
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const eased = 1 - globeProjectionMorphRemaining(boundedProgress);
+  return 1 + WORLD_ATLAS_LABEL_GROWTH * eased;
 }
 
 function globeBeaconLabel(workloadId: string, mappingRole: string) {

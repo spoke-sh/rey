@@ -694,6 +694,103 @@ describe("reference renderer", () => {
     expect(labelStrokeOpacity(nearAtlasEndpoint)).toBe(1);
   });
 
+  it("grows a retained regional label continuously as the morph approaches the flat map", () => {
+    const morphScene: TopologyScene = {
+      ...terrainScene,
+      regime: "world",
+      terrain: false,
+      globe: null,
+      regions: [],
+      nodes: [
+        {
+          id: "node:1",
+          focus_id: "regional:1",
+          family: "region",
+          label: "region one",
+          detail: "settled Atlas region",
+          x: 140,
+          y: 130,
+          width: 80,
+          tone: "healthy",
+          semantic_identity: "region:1",
+        },
+      ],
+      world_atlas_transition: {
+        schema: "rey.world-atlas-transition.v1",
+        atlas_revision: "atlas:1",
+        globe_source_revision: "atlas:1",
+        projection_revision: "rey.semantic-mercator-projection@2",
+        atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        points: [
+          {
+            identity: "region:1",
+            focus_id: "regional:1",
+            label: "region one",
+            longitude_microdegrees: 10_000_000,
+            latitude_microdegrees: 5_000_000,
+            tone: "healthy",
+          },
+        ],
+        sectors: [],
+        authority: "test fixture",
+      },
+    };
+    const labelGrowth = (markup: string) => {
+      const match = markup.match(
+        /<text[^>]*style="[^"]*--rey-world-atlas-label-growth:([^;"]+)[^"]*"[^>]*>region one</,
+      );
+      expect(match).not.toBeNull();
+      return Number(match![1]);
+    };
+
+    const nearWorldEndpoint = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.02}
+        scene={morphScene}
+      />,
+    );
+    expect(labelGrowth(nearWorldEndpoint)).toBeCloseTo(1, 2);
+
+    const midMorph = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.5}
+        scene={morphScene}
+      />,
+    );
+    const midGrowth = labelGrowth(midMorph);
+    // 1 + 0.3 * smoothstep(0.5) = 1 + 0.3 * 0.5 = 1.15
+    expect(midGrowth).toBeCloseTo(1.15, 5);
+
+    const laterMorph = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.9}
+        scene={morphScene}
+      />,
+    );
+    const laterGrowth = labelGrowth(laterMorph);
+    expect(laterGrowth).toBeGreaterThan(midGrowth);
+
+    // The canonical Atlas-side label (atlasFeatureLabel) picks up the exact
+    // same growth curve, reaching its ceiling (1.3x) right as the World-side
+    // label's own growth also reaches it — the size in view keeps climbing
+    // continuously through the handoff instead of jumping to a flat value.
+    const atFlatMap = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={1}
+        scene={{ ...morphScene, regime: "atlas" }}
+      />,
+    );
+    expect(labelGrowth(atFlatMap)).toBeCloseTo(1.3, 5);
+  });
+
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {
     const orientationScene: TopologyScene = {
       ...terrainScene,
