@@ -528,6 +528,74 @@ describe("reference renderer", () => {
     expect(extractMorphLayer(acceleratedMarkup)).not.toContain("<circle");
   });
 
+  it("eases a retained regional label's white halo in and out of the morph instead of popping", () => {
+    const morphScene: TopologyScene = {
+      ...terrainScene,
+      regime: "world",
+      terrain: false,
+      globe: null,
+      world_atlas_transition: {
+        schema: "rey.world-atlas-transition.v1",
+        atlas_revision: "atlas:1",
+        globe_source_revision: "atlas:1",
+        projection_revision: "rey.semantic-mercator-projection@2",
+        atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        points: [
+          {
+            identity: "region:1",
+            focus_id: "regional:1",
+            label: "region one",
+            longitude_microdegrees: 10_000_000,
+            latitude_microdegrees: 5_000_000,
+            tone: "healthy",
+          },
+        ],
+        sectors: [],
+        authority: "test fixture",
+      },
+    };
+    const labelStrokeOpacity = (markup: string) => {
+      const match = markup.match(
+        /<text[^>]*stroke-opacity="([^"]+)"[^>]*>region one</,
+      );
+      expect(match).not.toBeNull();
+      return Number(match![1]);
+    };
+
+    // WorldAtlasTransitionLayer only mounts while 0 < progress < 1, so its
+    // label's halo must fade in/out near those boundaries rather than
+    // popping at full strength the instant it mounts or unmounts.
+    const nearWorldEndpoint = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.02}
+        scene={morphScene}
+      />,
+    );
+    expect(labelStrokeOpacity(nearWorldEndpoint)).toBeLessThan(0.15);
+
+    const midMorph = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.5}
+        scene={morphScene}
+      />,
+    );
+    expect(labelStrokeOpacity(midMorph)).toBe(1);
+
+    const nearAtlasEndpoint = renderToStaticMarkup(
+      <ReferenceRenderer
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        projectionMorphProgress={0.98}
+        scene={morphScene}
+      />,
+    );
+    expect(labelStrokeOpacity(nearAtlasEndpoint)).toBeLessThan(0.15);
+  });
+
   it("renders a pre-survey workload as a consent beacon rather than terrain", () => {
     const orientationScene: TopologyScene = {
       ...terrainScene,

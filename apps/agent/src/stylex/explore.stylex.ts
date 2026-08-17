@@ -512,12 +512,12 @@ export const exploreStyles = stylex.create({
   worldAtlasMorphLabel: {
     fill: "#213532",
     fontFamily: mono,
-    fontSize: "0.54rem",
+    fontSize: "calc(8.64px * var(--rey-terrain-counter-scale))",
     fontWeight: 800,
     paintOrder: "stroke",
     pointerEvents: "none",
     stroke: "color-mix(in srgb, var(--rey-background) 88%, transparent)",
-    strokeWidth: 5,
+    strokeWidth: "calc(5px * var(--rey-terrain-counter-scale))",
   },
   atlasFeatureLayer: {
     pointerEvents: "auto",
@@ -553,13 +553,13 @@ export const exploreStyles = stylex.create({
   atlasFeatureLabel: {
     fill: "#213532",
     fontFamily: mono,
-    fontSize: 10,
+    fontSize: "calc(10px * var(--rey-terrain-counter-scale))",
     fontWeight: 850,
     letterSpacing: "0.06em",
     paintOrder: "stroke",
     pointerEvents: "none",
     stroke: "color-mix(in srgb, #f4f2e8 94%, transparent)",
-    strokeWidth: 4,
+    strokeWidth: "calc(4px * var(--rey-terrain-counter-scale))",
   },
   worldHorizon: {
     fill: "color-mix(in srgb, #78959b 5%, transparent)",

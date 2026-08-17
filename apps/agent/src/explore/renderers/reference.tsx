@@ -1233,6 +1233,7 @@ function WorldAtlasTransitionLayer({
   scene: TopologyScene;
 }) {
   const transition = scene.world_atlas_transition!;
+  const labelStrokeOpacity = worldAtlasMorphLabelStrokeOpacity(progress);
   const worldFrame = {
     center: { x: scene.world.width / 2, y: scene.world.height / 2 },
     radius: Math.min(scene.world.width, scene.world.height) * 0.41,
@@ -1350,6 +1351,7 @@ function WorldAtlasTransitionLayer({
               {label.visible ? (
                 <text
                   className={sx(styles.worldAtlasMorphLabel)}
+                  strokeOpacity={labelStrokeOpacity}
                   x={projected.x + 13}
                   y={projected.y - 10}
                 >
@@ -1362,6 +1364,36 @@ function WorldAtlasTransitionLayer({
       </g>
     </svg>
   );
+}
+
+const WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW = 0.18;
+
+/**
+ * Eases a retained regional label's white halo in and out at each end of
+ * the World<->Atlas morph instead of popping at full strength the instant
+ * WorldAtlasTransitionLayer mounts or unmounts (progress crossing 0 or 1,
+ * its own bounded rendering window) — full strength through the middle of
+ * the transition, ramping over the first/last 18% of progress on either
+ * side. Reuses globeProjectionMorphRemaining's own smoothstep curve
+ * (1 - smoothstep) rather than a new formula, so the fade shares its exact
+ * shape with the rest of the morph's presentation.
+ */
+function worldAtlasMorphLabelStrokeOpacity(progress: number): number {
+  const boundedProgress = Math.max(0, Math.min(1, progress));
+  const fadeIn =
+    1 -
+    globeProjectionMorphRemaining(
+      Math.min(1, boundedProgress / WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW),
+    );
+  const fadeOut =
+    1 -
+    globeProjectionMorphRemaining(
+      Math.min(
+        1,
+        (1 - boundedProgress) / WORLD_ATLAS_MORPH_LABEL_STROKE_FADE_WINDOW,
+      ),
+    );
+  return Math.min(fadeIn, fadeOut);
 }
 
 function globeBeaconLabel(workloadId: string, mappingRole: string) {
