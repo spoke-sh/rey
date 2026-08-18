@@ -793,41 +793,65 @@ function CountyFeatureLayer({
   onFocus: (node: FocusableTopologyObject) => void;
   scene: TopologyScene;
 }) {
-  if (!scene.county_frame) return null;
-  const features = scene.nodes.filter(
-    (node) =>
-      node.spatial_feature &&
-      node.id !==
-        `regional-object:${scene.county_footprint?.source_object_id}` &&
-      featureVisibleAtLens(
-        node.spatial_feature,
-        scene.regime,
-        node.focus_id === scene.focus_id,
+  // scene (and scene.nodes with it) is stable across pure pan/zoom renders —
+  // buildTopologyScene only reruns on focusId/regime/portfolio changes — so
+  // memoizing here (previously recomputed unconditionally on every render,
+  // including every pan frame) turns a per-frame filter-plus-label-collision
+  // pass over every County feature into a one-time cost per scene, the same
+  // fix AtlasFeatureLayer's stipple needed for the same reason: Neighborhoods
+  // shows every vector layer (roads, hydrology, districts, POIs — nothing
+  // this dense renders at Landscape or above at Atlas), so this was the
+  // most expensive per-frame recompute in the whole reference layer.
+  const features = useMemo(
+    () =>
+      scene.county_frame
+        ? scene.nodes.filter(
+            (node) =>
+              node.spatial_feature &&
+              node.id !==
+                `regional-object:${scene.county_footprint?.source_object_id}` &&
+              featureVisibleAtLens(
+                node.spatial_feature,
+                scene.regime,
+                node.focus_id === scene.focus_id,
+              ),
+          )
+        : [],
+    [
+      scene.county_frame,
+      scene.county_footprint,
+      scene.focus_id,
+      scene.nodes,
+      scene.regime,
+    ],
+  );
+  const labelPlacements = useMemo(
+    () =>
+      new Map(
+        layoutSemanticLabels(
+          features.flatMap((node) => {
+            const label = node.spatial_feature?.cartographic_label;
+            if (!label) return [];
+            return [
+              {
+                fragment_id: `county:${node.id}`,
+                semantic_identity: node.semantic_identity ?? node.id,
+                focus_id: node.focus_id,
+                x: node.x + 10,
+                y: node.y - 20,
+                width: Math.max(44, node.label.length * 6.2),
+                height: 18,
+                priority: label.collision_priority,
+                selected: node.focus_id === scene.focus_id,
+              },
+            ];
+          }),
+          32,
+        ).map((placement) => [placement.fragment_id, placement]),
       ),
+    [features, scene.focus_id],
   );
-  if (features.length === 0) return null;
-  const labelPlacements = new Map(
-    layoutSemanticLabels(
-      features.flatMap((node) => {
-        const label = node.spatial_feature?.cartographic_label;
-        if (!label) return [];
-        return [
-          {
-            fragment_id: `county:${node.id}`,
-            semantic_identity: node.semantic_identity ?? node.id,
-            focus_id: node.focus_id,
-            x: node.x + 10,
-            y: node.y - 20,
-            width: Math.max(44, node.label.length * 6.2),
-            height: 18,
-            priority: label.collision_priority,
-            selected: node.focus_id === scene.focus_id,
-          },
-        ];
-      }),
-      32,
-    ).map((placement) => [placement.fragment_id, placement]),
-  );
+  if (!scene.county_frame || features.length === 0) return null;
   return (
     <svg
       aria-label={`${features.length} admitted County features`}
