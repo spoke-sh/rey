@@ -26,6 +26,18 @@ export const REGIONAL_TERRAIN_SCENE_COMPILER_REVISION =
 const TERRAIN_CANVAS_INSET_X = 96;
 const TERRAIN_CANVAS_INSET_Y = 72;
 const REGIONAL_ELEVATION_HEIGHT_RATIO = 0.24;
+const TERRAIN_ELEVATION_BAND_COUNT = 4;
+
+/**
+ * Pads the admitted region's shown geographic span before it's projected
+ * into the landscape frame, so landing settles into a wider halo of context
+ * around the region instead of the data's own tight bounds filling the
+ * frame edge-to-edge. Applied symmetrically (and to both the forward and
+ * inverse projection) so every overlay derived from these functions —
+ * footprints, contours, the Atlas<->Landscape target frame — shifts
+ * together rather than drifting out of registration with the terrain.
+ */
+export const REGIONAL_TERRAIN_FRAME_PADDING_RATIO = 0.3;
 
 export function compileRegionalTerrainField(
   scene: AdmittedRegionalScene,
@@ -236,21 +248,20 @@ export function projectRegionalTerrainPosition(
 ) {
   if (sceneBounds.crosses_antimeridian)
     throw new Error("regional terrain grids do not yet cross the antimeridian");
-  const longitudeSpan =
-    sceneBounds.east_microdegrees - sceneBounds.west_microdegrees;
-  const latitudeSpan =
-    sceneBounds.north_microdegrees - sceneBounds.south_microdegrees;
+  const padded = paddedRegionalTerrainBounds(sceneBounds);
+  const longitudeSpan = padded.east_microdegrees - padded.west_microdegrees;
+  const latitudeSpan = padded.north_microdegrees - padded.south_microdegrees;
   if (longitudeSpan <= 0 || latitudeSpan <= 0)
     throw new Error("regional terrain scene bounds are invalid");
   const frame = regionalTerrainCanvasFrame(world);
   return Object.freeze({
     x:
       frame.x +
-      ((position[0] - sceneBounds.west_microdegrees) / longitudeSpan) *
+      ((position[0] - padded.west_microdegrees) / longitudeSpan) *
         frame.width,
     y:
       frame.y +
-      ((sceneBounds.north_microdegrees - position[1]) / latitudeSpan) *
+      ((padded.north_microdegrees - position[1]) / latitudeSpan) *
         frame.height,
   });
 }
@@ -262,6 +273,7 @@ export function invertRegionalTerrainPosition(
 ): readonly [number, number] {
   if (sceneBounds.crosses_antimeridian)
     throw new Error("regional terrain grids do not yet cross the antimeridian");
+  const padded = paddedRegionalTerrainBounds(sceneBounds);
   const frame = regionalTerrainCanvasFrame(world);
   if (
     !Number.isFinite(point.x) ||
@@ -271,14 +283,28 @@ export function invertRegionalTerrainPosition(
   )
     throw new Error("regional terrain inverse requires a finite point");
   const longitude =
-    sceneBounds.west_microdegrees +
+    padded.west_microdegrees +
     ((point.x - frame.x) / frame.width) *
-      (sceneBounds.east_microdegrees - sceneBounds.west_microdegrees);
+      (padded.east_microdegrees - padded.west_microdegrees);
   const latitude =
-    sceneBounds.north_microdegrees -
+    padded.north_microdegrees -
     ((point.y - frame.y) / frame.height) *
-      (sceneBounds.north_microdegrees - sceneBounds.south_microdegrees);
+      (padded.north_microdegrees - padded.south_microdegrees);
   return Object.freeze([longitude, latitude]);
+}
+
+function paddedRegionalTerrainBounds(bounds: RegionalBounds): RegionalBounds {
+  const longitudeSpan = bounds.east_microdegrees - bounds.west_microdegrees;
+  const latitudeSpan = bounds.north_microdegrees - bounds.south_microdegrees;
+  const longitudePad = longitudeSpan * REGIONAL_TERRAIN_FRAME_PADDING_RATIO;
+  const latitudePad = latitudeSpan * REGIONAL_TERRAIN_FRAME_PADDING_RATIO;
+  return {
+    ...bounds,
+    west_microdegrees: bounds.west_microdegrees - longitudePad,
+    east_microdegrees: bounds.east_microdegrees + longitudePad,
+    south_microdegrees: bounds.south_microdegrees - latitudePad,
+    north_microdegrees: bounds.north_microdegrees + latitudePad,
+  };
 }
 
 export function projectRegionalTerrainFootprint(
@@ -331,6 +357,13 @@ export function regionalTerrainCanvasFrame(world: {
   });
 }
 
+/**
+ * Flat, banded tint instead of a continuous per-cell elevation lift — quantizing
+ * elevation into a handful of steps before lifting is what gives the landscape
+ * a Google-Maps-style abstract read (discrete color bands) rather than a
+ * continuously shaded, lit-relief one. Material hue still varies by admitted
+ * ground cover; only the elevation contribution is banded.
+ */
 function terrainMaterialTint(
   material: string | null,
   elevation: number,
@@ -345,7 +378,12 @@ function terrainMaterialTint(
     vegetation: [0.28, 0.49, 0.31],
   };
   const base = palettes[material ?? ""] ?? [0.42, 0.49, 0.38];
-  const lift = elevation * 0.11;
+  const bandedElevation =
+    Math.round(
+      Math.max(0, Math.min(1, elevation)) * (TERRAIN_ELEVATION_BAND_COUNT - 1),
+    ) /
+    (TERRAIN_ELEVATION_BAND_COUNT - 1);
+  const lift = bandedElevation * 0.11;
   return [
     Math.min(1, base[0] + lift),
     Math.min(1, base[1] + lift),

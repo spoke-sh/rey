@@ -1,7 +1,85 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import type { AdmittedRegionalScene } from "../../domain";
 import type { TopologyScene } from "../../topology";
+import {
+  ATLAS_LANDSCAPE_PROJECTION_REVISION,
+  atlasLandscapePresentation,
+} from "../projection/atlas-landscape";
+import { compileRegionalTerrainField } from "../projection/regional-terrain";
 import { ReferenceMapReading, ReferenceRenderer } from "./reference";
+
+function minimalRegionalTerrainField() {
+  const cells = Array.from({ length: 4 }, (_, index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    return {
+      cell_id: `cell:${index}`,
+      source_object_id: `terrain/cell-${row}-${column}`,
+      source_artifact_id: "artifact:terrain",
+      source_object_revision: `object:${index}`,
+      grid_position: [column, row] as [number, number],
+      native_position: [
+        -123_000_000 + column * 500_000,
+        38_000_000 - row * 500_000,
+      ] as [number, number],
+      elevation_micrometers: (100 + index * 17) * 1_000_000,
+      material: "granite",
+      validity: "valid" as const,
+      authority: "exact admitted Point altitude and material at one valid grid vertex",
+    };
+  });
+  const scene = {
+    native_bounds: {
+      west_microdegrees: -123_000_000,
+      south_microdegrees: 37_500_000,
+      east_microdegrees: -122_500_000,
+      north_microdegrees: 38_000_000,
+      crosses_antimeridian: false,
+    },
+    projection: {
+      terrain: {
+        schema: "rey.regional-terrain-program.v2",
+        program_id: "program:terrain",
+        evaluator: {
+          id: "rey.regional-terrain.rectilinear-grid",
+          revision: 1,
+          semantic_digest: "evaluator:terrain",
+        },
+        samples: [],
+        grid: {
+          schema: "rey.regional-terrain-grid.v1",
+          dataset_id: "dataset:focused",
+          source_dataset_id: "terrain-dem",
+          columns: 2,
+          rows: 2,
+          native_bounds: {
+            west_microdegrees: -123_000_000,
+            south_microdegrees: 37_500_000,
+            east_microdegrees: -122_500_000,
+            north_microdegrees: 38_000_000,
+            crosses_antimeridian: false,
+          },
+          cells,
+          validity_semantics:
+            "row-major source vertices are explicitly valid or no_data; no_data cuts triangle support",
+          interpolation:
+            "piecewise linear only within triangles whose three admitted source vertices are valid",
+          authority:
+            "qualified rectilinear height/material grid; validity ends at supported source triangles",
+        },
+        height_unit: "micrometer",
+        interpolation:
+          "piecewise linear only within triangles whose three admitted source vertices are valid",
+        material_semantics:
+          "source-declared bounded material identifier; no inferred physical properties",
+        authority:
+          "qualified rectilinear height/material grid; validity ends at supported source triangles",
+      },
+    },
+  } as unknown as AdmittedRegionalScene;
+  return compileRegionalTerrainField(scene, { width: 1500, height: 1000 })!;
+}
 
 const terrainScene = {
   regime: "world",
@@ -458,6 +536,117 @@ describe("reference renderer", () => {
     expect(extractAtlasFeatureLayer(acceleratedMarkup)).not.toContain(
       "<circle",
     );
+  });
+
+  it("fades the Atlas sector out through the Atlas-to-Landscape band instead of hard-cutting it at the regime boundary", () => {
+    const landscapeScene: TopologyScene = {
+      ...terrainScene,
+      regime: "landscape",
+      terrain: true,
+      globe: null,
+      focus_id: "regional:1",
+      regions: [
+        {
+          id: "atlas-sector:1",
+          fragment_id: "atlas-sector:1",
+          label: "SECTOR 1.1",
+          detail: "one admitted member",
+          x: 100,
+          y: 100,
+          width: 80,
+          height: 60,
+          tone: "neutral",
+          variant: "map-zone",
+        },
+      ],
+      nodes: [
+        {
+          id: "node:1",
+          focus_id: "regional:1",
+          family: "region",
+          label: "region one",
+          detail: "settled Atlas region",
+          x: 140,
+          y: 130,
+          width: 80,
+          tone: "healthy",
+          semantic_identity: "region:1",
+        },
+      ],
+      terrain_fields: [minimalRegionalTerrainField()],
+      world_atlas_transition: {
+        schema: "rey.world-atlas-transition.v1",
+        atlas_revision: "atlas:1",
+        globe_source_revision: "atlas:1",
+        projection_revision: "rey.semantic-mercator-projection@2",
+        atlas_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        points: [],
+        sectors: [],
+        authority: "test fixture",
+      },
+      atlas_landscape_transition: {
+        schema: "rey.atlas-landscape-transition.v1",
+        transition_id: "transition:1",
+        atlas_revision: "atlas:1",
+        scene_id: "scene:1",
+        terrain_field_id: "dataset:focused",
+        projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
+        source_frame: { x: 0, y: 0, width: 1500, height: 1000 },
+        target_frame: { x: 200, y: 150, width: 800, height: 500 },
+        authority: "test fixture",
+      },
+    };
+    const presentation = atlasLandscapePresentation(
+      landscapeScene.atlas_landscape_transition!,
+      0.6,
+      { pitch_degrees: 60, yaw_degrees: 0 },
+      landscapeScene.world,
+    );
+    // Sanity on the fixture: this progress must sit mid-fade, not at either
+    // opacity extreme, or the assertions below wouldn't distinguish a real
+    // fade from an accidental hard 0/1.
+    expect(presentation.atlas_opacity).toBeGreaterThan(0);
+    expect(presentation.atlas_opacity).toBeLessThan(1);
+
+    const markup = renderToStaticMarkup(
+      <ReferenceRenderer
+        atlasLandscapeMorphProgress={presentation.progress}
+        atlasLandscapePresentation={presentation}
+        layers={{ relief: true, water: true, weather: true, probes: true }}
+        onFocus={() => undefined}
+        scene={landscapeScene}
+      />,
+    );
+
+    // Before this fix, AtlasFeatureLayer's mount condition (wrappedAtlas)
+    // required regime === "atlas" — so the sector rect hard-unmounted the
+    // instant regime flipped to "landscape", regardless of atlas_opacity.
+    // It must still be present and carrying the fade here.
+    expect(markup).toContain('data-atlas-feature-layer="atlas:1"');
+    expect(markup).toContain('data-semantic-identity="atlas-sector:1"');
+    expect(markup).toContain("style=\"opacity:" + presentation.atlas_opacity);
+
+    // The css_transform is meant only for content laid out in target_frame
+    // (terrain/county pixel space) — it maps that space onto source_frame
+    // at progress 0. The Atlas sector is already sitting at its correct
+    // source_frame-aligned position and was never meant to be warped by it;
+    // applying it there anyway (an earlier version of this fix did, by
+    // nesting AtlasFeatureLayer inside the same transformed wrapper) would
+    // double-transform an already-correct point and visibly misplace the
+    // sector through the swoop. It must appear exactly once in the markup —
+    // on the terrain-space wrapper — never inside AtlasFeatureLayer's own
+    // <svg>.
+    const transformOccurrences = markup.split(
+      presentation.css_transform,
+    ).length - 1;
+    expect(transformOccurrences).toBe(1);
+    const atlasLayerStart = markup.indexOf(
+      'data-atlas-feature-layer="atlas:1"',
+    );
+    const atlasLayerEnd = markup.indexOf("</svg>", atlasLayerStart);
+    expect(
+      markup.slice(atlasLayerStart, atlasLayerEnd),
+    ).not.toContain(presentation.css_transform);
   });
 
   it("eases an Atlas node label's white halo in as the morph reaches the flat map", () => {

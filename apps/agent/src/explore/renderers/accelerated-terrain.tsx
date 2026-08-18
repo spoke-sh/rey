@@ -416,6 +416,13 @@ export function AcceleratedTerrainSurface({
   useEffect(() => {
     if (
       semanticGlobe ||
+      // The landscape tier renders the flat/stippled reference layer only —
+      // no lit mesh, so there's nothing worth a worker round-trip for. This
+      // also removes the two-renderer seam that made landing on a region
+      // feel like a pop/settle rather than a continuous zoom: only one
+      // layer (the cheap synchronous one) is ever active through the
+      // Atlas<->Landscape transition and the landscape tier itself.
+      snapshot.scene.regime === "landscape" ||
       (snapshot.scene.terrain_fields.length === 0 &&
         snapshot.scene.terrain_programs.length === 0)
     ) {

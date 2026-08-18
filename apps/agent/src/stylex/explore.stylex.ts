@@ -391,6 +391,14 @@ export const exploreStyles = stylex.create({
     opacity: 0.96,
     stroke: "#243b38",
   },
+  regionalTerrainStipple: {
+    fill: "none",
+    opacity: 0.5,
+    pointerEvents: "none",
+    stroke: "color-mix(in srgb, #243b38 70%, #899b91)",
+    strokeLinecap: "round",
+    strokeWidth: "calc(1.3px * var(--rey-terrain-counter-scale))",
+  },
   semanticGlobeCluster: {
     fill: "color-mix(in srgb, #e8d18f 10%, transparent)",
     pointerEvents: "none",

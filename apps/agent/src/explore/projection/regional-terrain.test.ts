@@ -117,22 +117,27 @@ describe("regional terrain projection", () => {
     );
   });
 
-  it("maps native north-west and south-east to the bounded landscape frame", () => {
+  it("maps native north-west and south-east into a padded, zoomed-out landscape frame", () => {
     const bounds = regionalTerrainScene().native_bounds;
+    // The frame pads the admitted region's own bounds (REGIONAL_TERRAIN_FRAME_PADDING_RATIO)
+    // so the data sits inset with a halo of context, rather than filling the frame
+    // edge-to-edge — hence these corners land inside {x:96,y:72,w:1008,h:576}, not on it.
     expect(
       projectRegionalTerrainPosition(
         bounds,
         [bounds.west_microdegrees, bounds.north_microdegrees],
         { width: 1200, height: 720 },
       ),
-    ).toEqual({ x: 96, y: 72 });
+    ).toEqual({ x: 285, y: 180 });
     expect(
       projectRegionalTerrainPosition(
         bounds,
         [bounds.east_microdegrees, bounds.south_microdegrees],
         { width: 1200, height: 720 },
       ),
-    ).toEqual({ x: 1104, y: 648 });
+    ).toEqual({ x: 915, y: 540 });
+    // The center of a symmetric pad is unchanged, so the inverse at the frame's
+    // own center still recovers the bounds' original center coordinate.
     expect(
       invertRegionalTerrainPosition(
         bounds,

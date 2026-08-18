@@ -24,6 +24,7 @@ import type {
 import {
   contextGlobePolePatterns,
   contextGlobeSamples,
+  planarPresentationSamples,
 } from "@rey/explorer/globe-samples";
 import {
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
@@ -59,6 +60,7 @@ import {
   materializeTerrainTile,
   projectTerrainTilePyramid,
 } from "../terrain/tiles";
+import type { TerrainFieldSet } from "../terrain/compile";
 
 export interface FocusableTopologyObject {
   focus_id: string;
@@ -122,7 +124,23 @@ export function ReferenceRenderer({
     (1 - globeProjectionMorphRemaining(projectionMorphProgress));
   const atlasRepeatOffset = (scene.world.width + atlasSeamPeriod) / 2;
   const dissolvingAtlasRepeats = morphActive && atlasRepeatOpacity > 0;
-  const atlasFeatureLayerActive = wrappedAtlas || dissolvingAtlasRepeats;
+  // Once a region is admitted, world_atlas_transition (and its sector/marker
+  // geometry) is deliberately retained by the scene builder through the
+  // "landscape" regime for exactly this band (topology.ts:421-423) — so the
+  // atlas sector can keep rendering, fading via atlas_opacity, instead of
+  // hard-unmounting the instant the regime flips. Without this the sector
+  // rect (opaque, painted after the terrain layer) fully occludes the
+  // terrain fading in underneath it, then vanishes outright at the regime
+  // boundary — the "jump" that made the transition feel broken.
+  const atlasSectorsRetained =
+    scene.regime === "landscape" &&
+    scene.atlas_landscape_transition !== null &&
+    scene.world_atlas_transition !== null;
+  const atlasFeatureLayerActive =
+    wrappedAtlas || dissolvingAtlasRepeats || atlasSectorsRetained;
+  const atlasSectorOpacity = atlasSectorsRetained
+    ? (atlasLandscapePresentation?.atlas_opacity ?? 1)
+    : 1;
   const chartWrapIndexes = wrappedAtlas
     ? [-1, 0, 1]
     : dissolvingAtlasRepeats
@@ -166,15 +184,6 @@ export function ReferenceRenderer({
       data-render-passes={activeRenderPasses.map(({ id }) => id).join(",")}
       data-renderer={accelerated ? "reference-overlays" : "reference"}
       data-atlas-landscape-progress={atlasLandscapeMorphProgress}
-      style={
-        scene.terrain && atlasLandscapePresentation
-          ? {
-              opacity: atlasLandscapePresentation.terrain_opacity,
-              transform: atlasLandscapePresentation.css_transform,
-              transformOrigin: "0 0",
-            }
-          : undefined
-      }
     >
       {!globeWorld &&
         !morphActive &&
@@ -208,20 +217,49 @@ export function ReferenceRenderer({
             </div>
           )),
         )}
-      <CountyFootprintLayer accelerated={accelerated} scene={scene} />
-      {!accelerated && scene.terrain ? (
-        <AdmittedTerrainFieldLayer scene={scene} />
-      ) : null}
-      <CountyFeatureLayer
-        accelerated={accelerated}
-        onFocus={onFocus}
-        scene={scene}
-      />
+      {/*
+        Only content naturally laid out in target_frame (native terrain/
+        county pixel space) belongs inside this transform: at progress 0,
+        atlasLandscapePresentation's css_transform maps target_frame onto
+        source_frame exactly, so this content visually emerges from the
+        Atlas sector's own position and grows to its natural size by
+        progress 1. AtlasFeatureLayer's sector rect is NOT target_frame
+        content — it's already at its correct absolute (source_frame)
+        position — so applying this same transform to it would warp it
+        away from where it belongs (double-transforming an already-correct
+        point) instead of leaving it in place while it fades. That's why it
+        renders as a sibling below, outside this wrapper, with its own
+        independent opacity fade instead.
+      */}
+      <div
+        className={sx(styles.projection)}
+        style={
+          scene.terrain && atlasLandscapePresentation
+            ? {
+                opacity: atlasLandscapePresentation.terrain_opacity,
+                transform: atlasLandscapePresentation.css_transform,
+                transformOrigin: "0 0",
+              }
+            : undefined
+        }
+      >
+        <CountyFootprintLayer accelerated={accelerated} scene={scene} />
+        {!accelerated && scene.terrain ? (
+          <AdmittedTerrainFieldLayer scene={scene} />
+        ) : null}
+        <CountyFeatureLayer
+          accelerated={accelerated}
+          onFocus={onFocus}
+          scene={scene}
+        />
+      </div>
       {atlasFeatureLayerActive ? (
         <AtlasFeatureLayer
           accelerated={accelerated}
           globeView={globeView}
           labelPlacements={atlasLabelPlacements}
+          landscapeMorphProgress={atlasLandscapeMorphProgress}
+          landscapeOpacity={atlasSectorOpacity}
           onFocus={onFocus}
           projectionMorphProgress={projectionMorphProgress}
           scene={scene}
@@ -304,6 +342,53 @@ export function ReferenceRenderer({
   );
 }
 
+const REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT = 2_600;
+
+/**
+ * Same deterministic dot-fabric technique the globe's samplePath builds
+ * (see SemanticGlobeLayer below): one SVG path with many short subpaths,
+ * not one DOM node per dot, so a few thousand stipple points cost a single
+ * element. Reuses planarPresentationSamples — the flat-map sibling of the
+ * globe's contextGlobeSamples — so the abstraction reads as the same visual
+ * language, not a coincidentally similar one.
+ */
+function regionalTerrainStipplePath(field: TerrainFieldSet): string {
+  return planarStipplePathSegments(
+    field.source_revision,
+    REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
+    field.grid.bounds,
+    (u, v) => {
+      const column = Math.min(
+        field.grid.columns - 1,
+        Math.round(u * (field.grid.columns - 1)),
+      );
+      const row = Math.min(
+        field.grid.rows - 1,
+        Math.round(v * (field.grid.rows - 1)),
+      );
+      return field.validity.values[row * field.grid.columns + column] === 1;
+    },
+  );
+}
+
+function planarStipplePathSegments(
+  sourceRevision: string,
+  candidateCount: number,
+  bounds: { x: number; y: number; width: number; height: number },
+  includeSample: (u: number, v: number) => boolean = () => true,
+): string {
+  const samples = planarPresentationSamples(sourceRevision, candidateCount);
+  const segments: string[] = [];
+  for (const sample of samples) {
+    if (!includeSample(sample.u, sample.v)) continue;
+    const x = bounds.x + sample.u * bounds.width;
+    const y = bounds.y + sample.v * bounds.height;
+    const length = Math.max(0.5, 0.7 + sample.brightness * 0.9);
+    segments.push(`M${x.toFixed(1)} ${y.toFixed(1)}h${length.toFixed(1)}`);
+  }
+  return segments.join("");
+}
+
 function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
   const fields = useMemo(
     () =>
@@ -316,6 +401,10 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
             .map((tile) => materializeTerrainTile(field, tile));
         }),
     [scene.terrain_fields],
+  );
+  const stipplePath = useMemo(
+    () => fields.map(regionalTerrainStipplePath).join(""),
+    [fields],
   );
   if (fields.length === 0) return null;
   return (
@@ -373,14 +462,25 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
           );
         });
       })}
+      {stipplePath ? (
+        <path
+          aria-hidden="true"
+          className={sx(styles.regionalTerrainStipple)}
+          d={stipplePath}
+        />
+      ) : null}
     </svg>
   );
 }
+
+const ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT = 260;
 
 function AtlasFeatureLayer({
   accelerated,
   globeView,
   labelPlacements,
+  landscapeMorphProgress = 0,
+  landscapeOpacity = 1,
   onFocus,
   projectionMorphProgress,
   scene,
@@ -390,6 +490,8 @@ function AtlasFeatureLayer({
   accelerated: boolean;
   globeView: GlobeCameraView;
   labelPlacements: ReadonlyMap<string, SemanticLabelPlacement>;
+  landscapeMorphProgress?: number;
+  landscapeOpacity?: number;
   onFocus: (node: FocusableTopologyObject) => void;
   projectionMorphProgress: number;
   scene: TopologyScene;
@@ -408,12 +510,61 @@ function AtlasFeatureLayer({
       projectionMorphProgress,
     ),
   } as CSSProperties;
+  // The focused sector reuses the exact terrain field revision the
+  // landscape stipple (regionalTerrainStipplePath) will seed itself with,
+  // so as sample count ramps toward REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT the
+  // same deterministic dots simply keep appearing (R2 sequence positions
+  // depend only on index, not candidate count) — the sector's own stipple
+  // visibly resolves into the landscape's, instead of one pattern swapping
+  // for an unrelated one at the handoff.
+  const focusedTerrainRevision = scene.terrain_fields.find((field) =>
+    field.active_band_ids.includes("admitted_dem"),
+  )?.source_revision;
+  // TopologyRegion (sector rects) carries no focus_id of its own — sectors
+  // are synthetic membership partitions, not single regions — so the
+  // focused sector is whichever one geometrically contains the selected
+  // node's marker position.
+  const focusedNode = scene.nodes.find(
+    (node) => node.focus_id === scene.focus_id,
+  );
+  const atlasStipplePath = accelerated
+    ? ""
+    : scene.regions
+        .map((region) => {
+          const focused =
+            focusedNode !== undefined &&
+            focusedNode.x >= region.x &&
+            focusedNode.x <= region.x + region.width &&
+            focusedNode.y >= region.y &&
+            focusedNode.y <= region.y + region.height;
+          const sampleCount =
+            focused && focusedTerrainRevision
+              ? Math.round(
+                  ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT +
+                    (REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT -
+                      ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT) *
+                      landscapeMorphProgress,
+                )
+              : ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT;
+          const seed =
+            focused && focusedTerrainRevision
+              ? focusedTerrainRevision
+              : region.id;
+          return planarStipplePathSegments(seed, sampleCount, {
+            x: region.x,
+            y: region.y,
+            width: region.width,
+            height: region.height,
+          });
+        })
+        .join("");
   return (
     <svg
       aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
       className={sx(styles.worldGeometryLayer, styles.atlasFeatureLayer)}
       data-atlas-feature-layer={scene.world_atlas_transition?.atlas_revision}
       role="group"
+      style={landscapeOpacity < 1 ? { opacity: landscapeOpacity } : undefined}
       viewBox={`0 0 ${scene.world.width} ${scene.world.height}`}
     >
       <desc>
@@ -458,6 +609,13 @@ function AtlasFeatureLayer({
               }),
             )
           : null}
+        {atlasStipplePath ? (
+          <path
+            aria-hidden="true"
+            className={sx(styles.regionalTerrainStipple)}
+            d={atlasStipplePath}
+          />
+        ) : null}
         {wrapIndexes.flatMap((wrapIndex) =>
           scene.nodes.map((node) => {
             const placement = labelPlacements.get(`${wrapIndex}:${node.id}`)!;

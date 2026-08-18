@@ -105,12 +105,21 @@ export function atlasLandscapePresentation(
     translate_z: translateZ,
     elevation_scale: smootherstep((boundedProgress - 0.08) / (1 - 0.08)),
   });
+  // Complementary across the whole [0,1] band (not staggered — terrain
+  // used to ramp to full opacity by 0.22 while atlas didn't start fading
+  // until 0.42, leaving a dead zone where the opaque atlas sector, painted
+  // over the terrain, hid it regardless of how far it had already faded
+  // in). Now the two dissolve into each other continuously the entire way,
+  // which is what makes the terrain's stipple read as gaining detail out of
+  // the atlas sector's own sparser stipple, instead of an invisible swap
+  // hidden behind an opaque rect until a late, sudden reveal.
+  const terrainOpacity = smootherstep(boundedProgress);
   return Object.freeze({
     progress: boundedProgress,
     camera_progress: cameraProgress,
     composition_scale: atlasLandscapeCompositionScale(boundedProgress),
-    terrain_opacity: smootherstep(boundedProgress / 0.22),
-    atlas_opacity: 1 - smootherstep((boundedProgress - 0.42) / 0.46),
+    terrain_opacity: terrainOpacity,
+    atlas_opacity: 1 - terrainOpacity,
     pitch_degrees: pitchDegrees,
     yaw_degrees: yawDegrees,
     model_transform: modelTransform,

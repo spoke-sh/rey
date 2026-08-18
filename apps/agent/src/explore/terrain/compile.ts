@@ -452,8 +452,6 @@ export function materializeTerrainWorkingSet(
   );
   const material = deriveTerrainMaterial(
     hydrology.elevation,
-    relief.normal,
-    relief.curvature,
     hydrology.flow_accumulation,
     anchor.validity,
     revision("material"),

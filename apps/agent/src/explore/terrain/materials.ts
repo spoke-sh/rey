@@ -4,15 +4,21 @@ import {
   type MaskField2D,
   type MaterialField2D,
   type ScalarField2D,
-  type VectorField2D,
 } from "../engine/fields";
 import { PROJECTED_SUPPORT } from "./elevation";
 import { HYDROLOGY_ACCUMULATION_NORMALIZATION } from "./hydrology";
 
+const TERRAIN_MATERIAL_ELEVATION_BAND_COUNT = 4;
+
+/**
+ * Flat, banded elevation tint instead of a continuous height/slope/curvature/
+ * wetness-driven gradient — quantizing height into a handful of steps, and
+ * flattening occlusion/roughness to near-constants, is what keeps this
+ * reading as an abstract map rather than a lit 3D relief render. Wetness
+ * still nudges hue slightly so water-adjacent ground stays legible.
+ */
 export function deriveTerrainMaterial(
   elevation: ScalarField2D,
-  normal: VectorField2D,
-  curvature: ScalarField2D,
   flowAccumulation: ScalarField2D,
   validity: MaskField2D,
   revision: string,
@@ -24,10 +30,6 @@ export function deriveTerrainMaterial(
   for (let index = 0; index < cells; index += 1) {
     if (validity.values[index] !== PROJECTED_SUPPORT) continue;
     const height = elevation.values[index]!;
-    const normalZ = normal.values[index * 3 + 2]!;
-    const slope = 1 - normalZ;
-    const valley = Math.max(0, curvature.values[index]!);
-    const ridge = Math.max(0, -curvature.values[index]!);
     const wetness = Math.min(
       1,
       flowAccumulation.values[index]! / HYDROLOGY_ACCUMULATION_NORMALIZATION,
@@ -35,15 +37,21 @@ export function deriveTerrainMaterial(
     const low = [0.27, 0.3, 0.3] as const;
     const middle = [0.45, 0.47, 0.43] as const;
     const high = [0.68, 0.67, 0.61] as const;
-    const first = Math.min(1, height * 2);
-    const second = Math.max(0, Math.min(1, height * 2 - 1));
+    const bandedHeight =
+      Math.round(
+        Math.max(0, Math.min(1, height)) *
+          (TERRAIN_MATERIAL_ELEVATION_BAND_COUNT - 1),
+      ) /
+      (TERRAIN_MATERIAL_ELEVATION_BAND_COUNT - 1);
+    const first = Math.min(1, bandedHeight * 2);
+    const second = Math.max(0, Math.min(1, bandedHeight * 2 - 1));
     for (let component = 0; component < 3; component += 1) {
       const mid = mix(low[component]!, middle[component]!, first);
       const value = mix(mid, high[component]!, second);
-      tint[index * 3 + component] = value * (1 - wetness * 0.12) + ridge * 0.16;
+      tint[index * 3 + component] = value * (1 - wetness * 0.12);
     }
-    occlusion[index] = clamp(1 - valley * 2.2 - slope * 0.08, 0.56, 1);
-    roughness[index] = clamp(0.72 + slope * 0.34 + wetness * 0.08, 0.68, 1);
+    occlusion[index] = 0.92;
+    roughness[index] = 0.88;
   }
   return materialField(
     "material",
@@ -57,8 +65,4 @@ export function deriveTerrainMaterial(
 
 function mix(left: number, right: number, amount: number) {
   return left + (right - left) * amount;
-}
-
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.max(minimum, Math.min(maximum, value));
 }

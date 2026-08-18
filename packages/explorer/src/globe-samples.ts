@@ -105,6 +105,65 @@ export function contextGlobePolePatterns(): readonly GlobePolePattern[] {
   );
 }
 
+export interface PlanarPresentationSample {
+  u: number;
+  v: number;
+  brightness: number;
+}
+
+export const PLANAR_PRESENTATION_FABRIC_REVISION =
+  "rey.planar-presentation-fabric@1";
+
+/**
+ * The flat-map sibling of contextGlobeSamples: same deterministic,
+ * revision-seeded presentation fabric, laid out over a unit square instead
+ * of a sphere so it can dress a rectangular terrain frame with the same
+ * visual language as the globe's stipple. Point placement uses the R2
+ * (plastic-number) low-discrepancy sequence — the natural 2D generalization
+ * of a golden-angle spiral for a square domain rather than a sphere, so it
+ * fills the whole rectangle evenly instead of fading out toward the corners
+ * the way a disk-packed spiral would.
+ */
+export function planarPresentationSamples(
+  sourceRevision: string,
+  candidateCount = 6_000,
+): readonly PlanarPresentationSample[] {
+  const seed = revisionSeed(sourceRevision);
+  const phase = ((seed % 65_521) / 65_521) * Math.PI * 2;
+  const samples: PlanarPresentationSample[] = [];
+  for (let index = 0; index < candidateCount; index += 1) {
+    const u = fractional(0.5 + PLASTIC_INVERSE * index + phase / (Math.PI * 2));
+    const v = fractional(0.5 + PLASTIC_INVERSE_SQUARE * index);
+    const fabric = planarFabric(u * 2 - 1, v * 2 - 1, seed);
+    const selection = pseudoRandom(index, seed);
+    const density = Math.min(0.98, Math.max(0.44, 0.69 + fabric * 0.2));
+    if (selection > density) continue;
+    samples.push({
+      u,
+      v,
+      brightness: Math.min(1, Math.max(0.28, 0.54 + fabric * 0.27)),
+    });
+  }
+  return Object.freeze(samples.map((sample) => Object.freeze(sample)));
+}
+
+const PLASTIC_NUMBER = 1.324_717_957_244_746;
+const PLASTIC_INVERSE = 1 / PLASTIC_NUMBER;
+const PLASTIC_INVERSE_SQUARE = 1 / (PLASTIC_NUMBER * PLASTIC_NUMBER);
+
+function fractional(value: number): number {
+  return value - Math.floor(value);
+}
+
+function planarFabric(x: number, z: number, seed: number): number {
+  const a = ((seed >>> 3) % 997) / 997;
+  const b = ((seed >>> 13) % 991) / 991;
+  const broad = Math.sin(x * 3.1 + z * 2.4 + a * 6.1) * 0.46;
+  const folded = Math.sin(z * 5.7 - x * 3.1 + b * 5.4) * 0.31;
+  const grain = Math.cos((x - z) * 9.3 + a * 3.2) * 0.15;
+  return broad + folded + grain;
+}
+
 function pseudoRandom(index: number, seed: number) {
   let value = (index + 1) ^ seed;
   value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
