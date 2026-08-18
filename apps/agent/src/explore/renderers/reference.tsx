@@ -25,6 +25,7 @@ import {
   contextGlobePolePatterns,
   contextGlobeSamples,
   planarPresentationSamples,
+  type PlanarPresentationSample,
 } from "@rey/explorer/globe-samples";
 import {
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
@@ -377,7 +378,26 @@ function planarStipplePathSegments(
   bounds: { x: number; y: number; width: number; height: number },
   includeSample: (u: number, v: number) => boolean = () => true,
 ): string {
-  const samples = planarPresentationSamples(sourceRevision, candidateCount);
+  return stipplePathFromSamples(
+    planarPresentationSamples(sourceRevision, candidateCount),
+    bounds,
+    includeSample,
+  );
+}
+
+/**
+ * Split out from planarStipplePathSegments so a caller whose sample count
+ * changes continuously (a progress-driven density ramp, redrawn every
+ * animation frame) can generate the point fabric once — the expensive part,
+ * one hash plus trig per candidate point — and cheaply re-slice/re-stringify
+ * a prefix of it per frame, instead of recomputing the whole fabric from
+ * scratch every frame.
+ */
+function stipplePathFromSamples(
+  samples: readonly PlanarPresentationSample[],
+  bounds: { x: number; y: number; width: number; height: number },
+  includeSample: (u: number, v: number) => boolean = () => true,
+): string {
   const segments: string[] = [];
   for (const sample of samples) {
     if (!includeSample(sample.u, sample.v)) continue;
@@ -527,37 +547,69 @@ function AtlasFeatureLayer({
   const focusedNode = scene.nodes.find(
     (node) => node.focus_id === scene.focus_id,
   );
+  const focusedRegion = scene.regions.find(
+    (region) =>
+      focusedNode !== undefined &&
+      focusedNode.x >= region.x &&
+      focusedNode.x <= region.x + region.width &&
+      focusedNode.y >= region.y &&
+      focusedNode.y <= region.y + region.height,
+  );
+  // Baseline sectors never change density, so their samples and path
+  // strings are generated once (per region set) and reused, not rebuilt on
+  // every render this component gets during the zoom.
+  const baselineStipplePaths = useMemo(
+    () =>
+      new Map(
+        scene.regions
+          .filter((region) => region !== focusedRegion)
+          .map((region) => [
+            region.id,
+            planarStipplePathSegments(
+              region.id,
+              ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT,
+              region,
+            ),
+          ]),
+      ),
+    [scene.regions, focusedRegion],
+  );
+  // The focused sector's full fabric (the expensive part — one hash plus
+  // trig per candidate point) is generated once per terrain revision, since
+  // it doesn't change through the morph; only how much of its prefix is
+  // revealed does. landscapeMorphProgress updates every animation frame, so
+  // rounding it before it drives which prefix is sliced/stringified keeps
+  // that (cheap, but not free at ~2,600 segments) work from re-running on
+  // every single frame — this was expensive enough to visibly stall the
+  // Atlas-to-Landscape morph before this fix.
+  const focusedFullSamples = useMemo(
+    () =>
+      focusedTerrainRevision
+        ? planarPresentationSamples(
+            focusedTerrainRevision,
+            REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT,
+          )
+        : null,
+    [focusedTerrainRevision],
+  );
+  const roundedLandscapeMorphProgress =
+    Math.round(landscapeMorphProgress * 50) / 50;
+  const focusedStipplePath = useMemo(() => {
+    if (!focusedRegion || !focusedFullSamples) return "";
+    const sampleCount = Math.round(
+      ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT +
+        (REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT -
+          ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT) *
+          roundedLandscapeMorphProgress,
+    );
+    return stipplePathFromSamples(
+      focusedFullSamples.slice(0, sampleCount),
+      focusedRegion,
+    );
+  }, [focusedFullSamples, focusedRegion, roundedLandscapeMorphProgress]);
   const atlasStipplePath = accelerated
     ? ""
-    : scene.regions
-        .map((region) => {
-          const focused =
-            focusedNode !== undefined &&
-            focusedNode.x >= region.x &&
-            focusedNode.x <= region.x + region.width &&
-            focusedNode.y >= region.y &&
-            focusedNode.y <= region.y + region.height;
-          const sampleCount =
-            focused && focusedTerrainRevision
-              ? Math.round(
-                  ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT +
-                    (REGIONAL_TERRAIN_STIPPLE_SAMPLE_COUNT -
-                      ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT) *
-                      landscapeMorphProgress,
-                )
-              : ATLAS_SECTOR_STIPPLE_BASE_SAMPLE_COUNT;
-          const seed =
-            focused && focusedTerrainRevision
-              ? focusedTerrainRevision
-              : region.id;
-          return planarStipplePathSegments(seed, sampleCount, {
-            x: region.x,
-            y: region.y,
-            width: region.width,
-            height: region.height,
-          });
-        })
-        .join("");
+    : [...baselineStipplePaths.values(), focusedStipplePath].join("");
   return (
     <svg
       aria-label={`${scene.nodes.length} admitted regional identities on the semantic Mercator atlas`}
