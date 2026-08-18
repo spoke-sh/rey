@@ -344,6 +344,20 @@ export function buildTopologyScene(
       regionalSceneTraversable(regionalScene) &&
       regionalSceneMatchesFocus(regionalScene.scene, focusId),
   );
+  // Computed up front (not after `projection`, where it used to live) so its
+  // terrain field can be threaded into buildRegionalCounty below instead of
+  // that function independently recompiling the same admitted DEM through
+  // compileRegionalTerrainField a second time — a real, synchronous,
+  // uncached cost (elevation summary, per-cell material, normals) that
+  // landed exactly at the moment regime flips from "atlas" to "landscape",
+  // stalling the frame the Atlas-to-Landscape morph needed to keep animating.
+  const atlasLandscape =
+    regionalScenes.length > 0 &&
+    !surveyFocus &&
+    regionalFocus &&
+    (regime === "atlas" || regime === "landscape")
+      ? buildAtlasLandscapeTransition(regionalScenes, focusId)
+      : null;
   let projection: TopologyProjection;
   if (isFreshProjectOrientation(portfolio))
     projection = buildOrientationWorld(portfolio, focusId);
@@ -371,7 +385,12 @@ export function buildTopologyScene(
     !surveyFocus &&
     !focusId.startsWith("agent:")
   )
-    projection = buildRegionalCounty(regionalScenes, focusId, regime);
+    projection = buildRegionalCounty(
+      regionalScenes,
+      focusId,
+      regime,
+      atlasLandscape?.terrain_field,
+    );
   else if (regime === "world") projection = buildWorld(portfolio, focusId);
   else if (regime === "atlas") projection = buildAtlas(portfolio, focusId);
   else if (regime === "landscape")
@@ -381,13 +400,6 @@ export function buildTopologyScene(
   else if (regime === "objects")
     projection = buildPortfolioObjects(portfolio, focusId);
   else projection = buildPortfolioEvidence(portfolio, focusId);
-  const atlasLandscape =
-    regionalScenes.length > 0 &&
-    !surveyFocus &&
-    regionalFocus &&
-    (regime === "atlas" || regime === "landscape")
-      ? buildAtlasLandscapeTransition(regionalScenes, focusId)
-      : null;
   const atlasTerrainPrewarm =
     regime === "atlas" && atlasLandscape === null
       ? compileSingleRegionalTerrainField(regionalScenes)
@@ -1102,6 +1114,13 @@ function buildRegionalCounty(
   regionalScenes: AdmittedRegionalProjection[],
   focusId: string,
   regime: LensRegime,
+  // Passed by buildTopologyScene when buildAtlasLandscapeTransition has
+  // already compiled this same admitted scene's terrain field (true
+  // whenever regime is "landscape" with a regional focus) — reusing it
+  // avoids doing that admitted-DEM compile twice for the same scene on
+  // every render. Falls back to compiling it here (unchanged from before)
+  // whenever no such field was precompiled.
+  precompiledTerrainField?: TerrainFieldSet | null,
 ): TopologyProjection {
   const selected = selectRegionalScene(regionalScenes, focusId);
   const {
@@ -1115,7 +1134,10 @@ function buildRegionalCounty(
   const bounds = scene.native_bounds;
   const objects = scene.projection.objects;
   const frameView = countyFrameView(countyFrame, world);
-  const terrainField = compileRegionalTerrainField(scene, world);
+  const terrainField =
+    precompiledTerrainField !== undefined
+      ? precompiledTerrainField
+      : compileRegionalTerrainField(scene, world);
   if (!countyFootprint && !terrainField)
     throw new Error(
       "County projection requires an admitted footprint or terrain validity grid",
