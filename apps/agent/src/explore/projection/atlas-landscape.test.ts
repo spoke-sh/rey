@@ -1,3 +1,4 @@
+import { planarPresentationSamples } from "@rey/explorer/globe-samples";
 import { describe, expect, it } from "vitest";
 import {
   atlasLandscapeCompositionScale,
@@ -131,13 +132,24 @@ describe("Atlas-to-Landscape projector", () => {
       expect(yawDegrees).toBe(yawedOrbit.yaw_degrees);
   });
 
-  it("keeps an off-center point's screen Y monotonic across the whole swoop", () => {
+  it("keeps an off-center point's screen Y close to monotonic across the whole swoop", () => {
     // Root-cause regression test for the reported jitter: previously,
     // animating yaw alongside pitch could make an off-pivot point's screen Y
-    // reverse direction mid-zoom. With yaw held constant this is
-    // mathematically guaranteed monotonic for flat (zero-elevation) content,
-    // which covers every label — verified here across several yaw/pitch
-    // combinations by sampling the real css_transform this module emits.
+    // reverse direction mid-zoom. With yaw held constant, projectTerrainCoordinate
+    // itself is monotonic in screen Y for a *fixed* point as pitch alone
+    // sweeps — but css_transform composes that with model_transform, whose
+    // scale/translate are *also* interpolating over the same progress. That
+    // composition is what's actually rendered, and composing two
+    // independently-monotonic factors doesn't guarantee the product is
+    // monotonic — so this is a bounded-tolerance check, not the strict
+    // guarantee this used to claim (an earlier version of cssTerrainTransform
+    // dropped a pivot term, which happened to be monotonic here by
+    // coincidence — it was also wrong by up to half the world's width at
+    // every progress value, not just this one). Swept the full reachable
+    // pitch/yaw envelope ([28,88] x [-180,180], `draggedTerrainOrbit`'s own
+    // clamp) offline; worst observed reversal was ~42px, so 50px leaves
+    // headroom without hiding a real regression back toward the old bug's
+    // scale (hundreds of px).
     const point = {
       x: binding.target_frame.x + binding.target_frame.width * 0.75,
       y: binding.target_frame.y + binding.target_frame.height * 0.2,
@@ -148,6 +160,7 @@ describe("Atlas-to-Landscape projector", () => {
       { pitch_degrees: 70, yaw_degrees: -125 },
       { pitch_degrees: 28, yaw_degrees: 179 },
     ];
+    const maximumReversalPixels = 50;
     for (const sampleOrbit of orbits) {
       const screenYs: number[] = [];
       for (let step = 0; step <= 40; step += 1) {
@@ -159,10 +172,59 @@ describe("Atlas-to-Landscape projector", () => {
         );
         screenYs.push(applyCssMatrix(presentation.css_transform, point).y);
       }
-      const deltas = screenYs.slice(1).map((y, index) => y - screenYs[index]!);
-      const increasing = deltas.every((delta) => delta >= -1e-6);
-      const decreasing = deltas.every((delta) => delta <= 1e-6);
-      expect(increasing || decreasing).toBe(true);
+      let runningMinimum = screenYs[0]!;
+      let runningMaximum = screenYs[0]!;
+      let worstIncreasingReversal = 0;
+      let worstDecreasingReversal = 0;
+      for (const y of screenYs) {
+        worstIncreasingReversal = Math.max(
+          worstIncreasingReversal,
+          runningMaximum - y,
+        );
+        worstDecreasingReversal = Math.max(
+          worstDecreasingReversal,
+          y - runningMinimum,
+        );
+        runningMaximum = Math.max(runningMaximum, y);
+        runningMinimum = Math.min(runningMinimum, y);
+      }
+      expect(
+        Math.min(worstIncreasingReversal, worstDecreasingReversal),
+      ).toBeLessThan(maximumReversalPixels);
+    }
+  });
+
+  it("lands the terrain stipple's dots exactly on the Atlas sector's own stipple dots at progress 0", () => {
+    // reference.tsx's AtlasFeatureLayer seeds the focused sector's stipple
+    // with the same terrain field revision the landscape stipple uses, over
+    // the sector's own (untransformed) rect. AdmittedTerrainFieldLayer seeds
+    // the terrain stipple with that revision over field.grid.bounds
+    // (target_frame), which — being inside the transformed wrapper — gets
+    // warped by this exact css_transform. For the "stipple resolving into
+    // relief" effect to actually read as connected rather than as two
+    // coincidentally-similar patterns, those two need to land on the same
+    // screen pixels at progress 0, where source_frame and the sector rect
+    // are the same rectangle. This locks that in with the real sample
+    // fabric and the real transform, not just the hand-derived algebra.
+    const seed = "dataset:focused-region";
+    const samples = planarPresentationSamples(seed, 12);
+    expect(samples.length).toBeGreaterThan(0);
+    const presentation = atlasLandscapePresentation(binding, 0, orbit, world);
+    for (const sample of samples) {
+      const terrainPoint = {
+        x: binding.target_frame.x + sample.u * binding.target_frame.width,
+        y: binding.target_frame.y + sample.v * binding.target_frame.height,
+      };
+      const atlasSectorPoint = {
+        x: binding.source_frame.x + sample.u * binding.source_frame.width,
+        y: binding.source_frame.y + sample.v * binding.source_frame.height,
+      };
+      const warpedTerrainPoint = applyCssMatrix(
+        presentation.css_transform,
+        terrainPoint,
+      );
+      expect(warpedTerrainPoint.x).toBeCloseTo(atlasSectorPoint.x, 6);
+      expect(warpedTerrainPoint.y).toBeCloseTo(atlasSectorPoint.y, 6);
     }
   });
 });

@@ -185,10 +185,27 @@ function cssTerrainTransform(
   const b = cameraB * model.scale_x;
   const c = cameraC * model.scale_z;
   const d = cameraD * model.scale_z;
+  // projectTerrainCoordinate is affine around the pivot — p ↦ origin +
+  // M·(p − pivot), not p ↦ origin + M·p — so composing it with the model
+  // transform (q ↦ S·q + T) needs the pivot subtracted back out of the
+  // constant term: origin + M·T − M·pivot. Omitting the −M·pivot term (as
+  // this used to) leaves every point offset by exactly (cameraA·centerX +
+  // cameraC·centerY, cameraB·centerX + cameraD·centerY) — 600px at
+  // progress 0 in a 1200-wide world — which is why the terrain never
+  // actually lined up with the Atlas sector it's supposed to emerge from,
+  // however correct the crossfade opacity and stipple seeding were.
   const e =
-    cameraA * model.translate_x + cameraC * model.translate_z + origin.x;
+    cameraA * model.translate_x +
+    cameraC * model.translate_z +
+    origin.x -
+    cameraA * centerX -
+    cameraC * centerY;
   const f =
-    cameraB * model.translate_x + cameraD * model.translate_z + origin.y;
+    cameraB * model.translate_x +
+    cameraD * model.translate_z +
+    origin.y -
+    cameraB * centerX -
+    cameraD * centerY;
   return `matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f})`;
 }
 
