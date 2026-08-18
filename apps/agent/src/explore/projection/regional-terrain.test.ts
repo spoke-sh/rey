@@ -117,6 +117,40 @@ describe("regional terrain projection", () => {
     );
   });
 
+  it("caches the compiled field by scene identity instead of recompiling on every call", () => {
+    // buildTopologyScene reruns from scratch on every focusId/regime
+    // change, and admittedRegionalScenes hands back the same underlying
+    // scene object reference each time (from the portfolio) rather than
+    // building a fresh one — so caching by that reference is what stops
+    // the same admitted-DEM compile from redoing its elevation/material/
+    // normal work on every Atlas<->Landscape regime flip. Same object in →
+    // same result instance out; a different object (even with identical
+    // content) is a cache miss.
+    const scene = regionalTerrainScene();
+    const first = compileRegionalTerrainField(scene, {
+      width: 1200,
+      height: 720,
+    });
+    const second = compileRegionalTerrainField(scene, {
+      width: 1200,
+      height: 720,
+    });
+    expect(second).toBe(first);
+
+    const differentWorld = compileRegionalTerrainField(scene, {
+      width: 1500,
+      height: 1000,
+    });
+    expect(differentWorld).not.toBe(first);
+
+    const differentScene = compileRegionalTerrainField(regionalTerrainScene(), {
+      width: 1200,
+      height: 720,
+    });
+    expect(differentScene).not.toBe(first);
+    expect(differentScene).toEqual(first);
+  });
+
   it("maps native north-west and south-east into a padded, zoomed-out landscape frame", () => {
     const bounds = regionalTerrainScene().native_bounds;
     // The frame pads the admitted region's own bounds (REGIONAL_TERRAIN_FRAME_PADDING_RATIO)

@@ -39,7 +39,45 @@ const TERRAIN_ELEVATION_BAND_COUNT = 4;
  */
 export const REGIONAL_TERRAIN_FRAME_PADDING_RATIO = 0.3;
 
+/**
+ * Keyed by the admitted scene's own object identity (stable across renders
+ * — admittedRegionalScenes hands back the same `result.scene` reference
+ * from the portfolio, not a freshly built object each call), with `world`
+ * as a nested key for defensive correctness even though it's always the
+ * same TOPOLOGY_WORLD constant in practice. Nothing here invalidates the
+ * cache explicitly; a scene that's genuinely re-admitted with new data
+ * gets a new object reference from the portfolio, which is simply a miss.
+ *
+ * Every scene compile (buildTopologyScene, run fresh on every focusId/
+ * regime change — nothing upstream of this caches either) was redoing this
+ * same admitted-DEM compile (elevation summary, per-cell material, normal
+ * derivation) from scratch, including for scenes whose underlying data
+ * hadn't changed at all. That's real, synchronous, main-thread work,
+ * landing squarely on interactions like the Atlas-to-Landscape zoom that
+ * need to keep painting frames to read as a morph rather than a stall.
+ */
+const regionalTerrainFieldCache = new WeakMap<
+  AdmittedRegionalScene,
+  Map<string, TerrainFieldSet | null>
+>();
+
 export function compileRegionalTerrainField(
+  scene: AdmittedRegionalScene,
+  world: { width: number; height: number },
+): TerrainFieldSet | null {
+  const worldKey = `${world.width}x${world.height}`;
+  let byWorld = regionalTerrainFieldCache.get(scene);
+  if (!byWorld) {
+    byWorld = new Map();
+    regionalTerrainFieldCache.set(scene, byWorld);
+  }
+  if (byWorld.has(worldKey)) return byWorld.get(worldKey)!;
+  const field = compileRegionalTerrainFieldUncached(scene, world);
+  byWorld.set(worldKey, field);
+  return field;
+}
+
+function compileRegionalTerrainFieldUncached(
   scene: AdmittedRegionalScene,
   world: { width: number; height: number },
 ): TerrainFieldSet | null {
