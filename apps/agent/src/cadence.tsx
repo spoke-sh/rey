@@ -90,6 +90,9 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
           title="Working tree and push relation"
         />
         <RepositoryStateView
+          gitAdmissionRequired={cadence.lanes.some(
+            (lane) => lane.id === "git:unavailable",
+          )}
           repository={cadence.source_repository}
           state={cadence.repository_state}
         />
@@ -187,16 +190,20 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
 }
 
 function RepositoryStateView({
+  gitAdmissionRequired,
   repository,
   state,
 }: {
+  gitAdmissionRequired: boolean;
   repository: string | null;
   state: CadenceRepositoryState | null;
 }) {
   if (state === null) {
     return (
       <div className={sx(chrome.micro, styles.repositoryAbsent)}>
-        REPOSITORY STATE NOT OBSERVED
+        {gitAdmissionRequired
+          ? "GIT ADMISSION REQUIRED · Working-tree and local-upstream state cannot be read until an available git executable is committed in Environment HEAD. Ambient PATH presence does not enable this observation."
+          : "REPOSITORY STATE NOT OBSERVED"}
       </div>
     );
   }

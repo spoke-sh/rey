@@ -68,7 +68,11 @@ append-only queue.
 The implemented `/cadence` Git lane is correspondingly labeled reachable HEAD
 history, not a commit event stream. It is newest-first, bounded, and incomplete
 when shallow or truncated. It neither advances a cursor nor infers that the
-visible commits were appended since a prior observation.
+visible commits were appended since a prior observation. The lane and its
+working-tree/publication projection are enabled only when the committed
+Environment HEAD admits an available `git` application. Every observation uses
+that admission's exact resolved executable path; ambient `PATH` presence does
+not enable Git inspection.
 
 `rey.git-repository-status.v1` keeps two axes independent. Working-tree state
 counts staged, unstaged, untracked, and conflicted porcelain-v2 records;

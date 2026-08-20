@@ -59,7 +59,7 @@ use rey::{
     workloads::{LocalWorkloadStore, WorkloadCommit, WorkloadList},
 };
 use rey_core::{SemanticDigest, SemanticHasher};
-use rey_environment::{DiscoveryLimits, resolve_executable};
+use rey_environment::DiscoveryLimits;
 use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -2148,10 +2148,22 @@ impl UiServer {
         let mut projection_omissions = Vec::new();
         let source_repository = None;
         let mut repository_state: Option<UiCadenceRepositoryState> = None;
-        let git_lane = match env::var_os("PATH")
-            .map(|path| env::split_paths(&path).collect::<Vec<_>>())
-            .and_then(|paths| resolve_executable("git", &paths))
-        {
+        let admitted_git_program = history
+            .commits
+            .last()
+            .and_then(|commit| {
+                commit
+                    .snapshot
+                    .capabilities
+                    .iter()
+                    .find(|capability| {
+                        capability.capability_id == "tool.git.identity"
+                            && capability.availability.as_str() == "available"
+                    })
+            })
+            .and_then(|capability| capability.resolved_location.as_deref())
+            .map(std::path::PathBuf::from);
+        let git_lane = match admitted_git_program {
             Some(git_program) => {
                 let inspector = GitInspector {
                     git_program,
@@ -2250,15 +2262,24 @@ impl UiServer {
                     }
                 }
             }
-            None => UiCadenceLane {
-                id: "git:unavailable".to_owned(),
-                label: "Git commits".to_owned(),
-                clock: "reachable_head_history".to_owned(),
-                ordering: "newest_first".to_owned(),
-                complete: false,
-                ticks: Vec::new(),
-                omissions: vec!["git executable was not found on the declared PATH".to_owned()],
-            },
+            None => {
+                projection_omissions.push(
+                    "Working-tree, local-upstream, and Git commit observations are disabled until Environment HEAD admits an available git executable"
+                        .to_owned(),
+                );
+                UiCadenceLane {
+                    id: "git:unavailable".to_owned(),
+                    label: "Git commits".to_owned(),
+                    clock: "reachable_head_history".to_owned(),
+                    ordering: "newest_first".to_owned(),
+                    complete: false,
+                    ticks: Vec::new(),
+                    omissions: vec![
+                        "Git commit ticks cannot be read until an available git executable is admitted in Environment HEAD"
+                            .to_owned(),
+                    ],
+                }
+            }
         };
         let environment_lane = UiCadenceLane {
             id: history.head().map_or_else(

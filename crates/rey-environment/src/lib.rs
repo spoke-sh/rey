@@ -419,7 +419,8 @@ impl LocalDiscovery {
         started: Instant,
     ) -> CapabilityRecord {
         let search_path_count = self.search_paths.len() as u64;
-        let Some(program) = resolve_executable(adapter.executable, &self.search_paths) else {
+        let Some(program) = resolve_executable_binding(adapter.executable, &self.search_paths)
+        else {
             return unavailable_tool(
                 adapter,
                 search_path_count,
@@ -430,9 +431,12 @@ impl LocalDiscovery {
         let Some(identity_args) = adapter.identity_args else {
             return available_tool(
                 adapter,
-                &program,
+                &program.identity_path,
                 None,
-                Some(executable_digest(&program, self.limits.max_capture_bytes)),
+                Some(executable_digest(
+                    &program.identity_path,
+                    self.limits.max_capture_bytes,
+                )),
                 search_path_count,
                 false,
             );
@@ -441,7 +445,7 @@ impl LocalDiscovery {
         let Some(remaining) = total.checked_sub(started.elapsed()) else {
             return error_tool(
                 adapter,
-                &program,
+                &program.identity_path,
                 search_path_count,
                 "discovery_deadline",
                 "total discovery deadline elapsed",
@@ -449,7 +453,7 @@ impl LocalDiscovery {
         };
         let timeout = remaining.min(Duration::from_millis(self.limits.probe_timeout_ms));
         let request = CommandRequest {
-            program: program.clone(),
+            program: program.invocation_path.clone(),
             args: identity_args.iter().map(OsString::from).collect(),
             cwd: workspace.to_owned(),
             timeout,
@@ -459,21 +463,21 @@ impl LocalDiscovery {
         match run_bounded(&request) {
             Ok(output) if output.timed_out => error_tool(
                 adapter,
-                &program,
+                &program.identity_path,
                 search_path_count,
                 "probe_timeout",
                 "identity probe exceeded its deadline",
             ),
             Ok(output) if output.overflowed => error_tool(
                 adapter,
-                &program,
+                &program.identity_path,
                 search_path_count,
                 "probe_output_limit",
                 "identity probe exceeded its capture limit",
             ),
             Ok(output) if !output.status.success() => error_tool(
                 adapter,
-                &program,
+                &program.identity_path,
                 search_path_count,
                 "probe_nonzero",
                 &format!(
@@ -484,15 +488,18 @@ impl LocalDiscovery {
             Ok(output) => match parse_version(&output.stdout) {
                 Ok(version) => available_tool(
                     adapter,
-                    &program,
+                    &program.identity_path,
                     Some(version),
-                    Some(executable_digest(&program, self.limits.max_capture_bytes)),
+                    Some(executable_digest(
+                        &program.identity_path,
+                        self.limits.max_capture_bytes,
+                    )),
                     search_path_count,
                     true,
                 ),
                 Err(detail) => error_tool(
                     adapter,
-                    &program,
+                    &program.identity_path,
                     search_path_count,
                     "probe_malformed",
                     detail,
@@ -500,7 +507,7 @@ impl LocalDiscovery {
             },
             Err(error) => error_tool(
                 adapter,
-                &program,
+                &program.identity_path,
                 search_path_count,
                 "probe_failed",
                 &error.to_string(),
@@ -921,6 +928,18 @@ fn executable_digest(path: &Path, max_bytes: u64) -> String {
 
 #[must_use]
 pub fn resolve_executable(name: &str, search_paths: &[PathBuf]) -> Option<PathBuf> {
+    resolve_executable_binding(name, search_paths).map(|program| program.invocation_path)
+}
+
+struct ResolvedExecutable {
+    invocation_path: PathBuf,
+    identity_path: PathBuf,
+}
+
+fn resolve_executable_binding(
+    name: &str,
+    search_paths: &[PathBuf],
+) -> Option<ResolvedExecutable> {
     search_paths.iter().find_map(|directory| {
         if directory.as_os_str().is_empty() || !directory.is_absolute() {
             return None;
@@ -934,7 +953,10 @@ pub fn resolve_executable(name: &str, search_paths: &[PathBuf]) -> Option<PathBu
         // mutable PATH alias. Canonicalization follows every symlink component
         // and rejects dangling links and loops without widening discovery.
         let resolved = fs::canonicalize(candidate).ok()?;
-        is_executable(&resolved).then_some(resolved)
+        is_executable(&resolved).then_some(ResolvedExecutable {
+            invocation_path: directory.join(name),
+            identity_path: resolved,
+        })
     })
 }
 

@@ -129,9 +129,11 @@ agent runtimes without starting them. After selecting the first bounded PATH
 candidate, discovery follows its symlink chain and records the canonical target
 as the executable location and content identity; dangling links and symlink
 loops remain unavailable. This does not relax the separate rejection of
-symlinked environment-map or mapped source inputs. Fixed bounded identity probes
-remain limited to the non-interactive `git` and `rg` adapters. Discovery does
-not turn a found application into assignment or execution authority.
+symlinked environment-map or mapped source inputs. A fixed identity probe invokes
+the selected alias so multi-call executables retain their `argv[0]` contract,
+while its retained identity remains canonical. Probes remain limited to the
+non-interactive `git` and `rg` adapters. Discovery does not turn a found
+application into assignment or execution authority.
 `/environment` is the human owner of this desired/search evidence; higher-order
 views may consume exact capabilities but do not repeat the executable inventory.
 
@@ -147,10 +149,13 @@ or create mail.
 
 Environment discovery retains the `git` executable identity but does not run
 repository inspection or add `git.repository.inspect` to the environment
-snapshot. HEAD, refs, semantic index entries, and commit reachability belong to
-the separate Git cadence/activation provider. Moving Git HEAD or staging files
-therefore leaves the environment snapshot unchanged unless a declared
-environment input, variable, or application observation also changed.
+snapshot. Committing an available `git` application admits its exact resolved
+executable path for the read-only `/cadence` Git projection; ambient `PATH`
+presence alone does not enable that projection. HEAD, refs, semantic index
+entries, and commit reachability belong to the separate Git cadence/activation
+provider. Moving Git HEAD or staging files therefore leaves the environment
+snapshot unchanged unless a declared environment input, variable, or
+application observation also changed.
 
 Endpoint and token variables are not discovery seeds. An agent may propose
 explicit non-sensitive references in a reasoning map when frozen project
