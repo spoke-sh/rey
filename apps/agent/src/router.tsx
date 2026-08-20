@@ -27,6 +27,7 @@ import {
   loadJournalSeed,
   loadOperatorShell,
   loadOperatorShellAfterRevision,
+  pollGitHubMailbox,
   loadPortfolio,
   loadPortfolioAfterRevision,
   loadWorkloadDeltaEvidence,
@@ -43,7 +44,7 @@ import {
   conversationParticipant,
   type ConversationTranscript,
 } from "./conversations";
-import type { ChannelMessage } from "./channels";
+import type { ChannelMessage, ChannelProjection } from "./channels";
 import { operatorMailboxRows, shortDigest } from "./domain";
 import {
   environmentApplicationDiff,
@@ -285,18 +286,21 @@ function usePassiveOperatorShell(initialDocument: OperatorShell) {
       reportError: setError,
     });
   }, [initialDocument]);
-  return { document, error };
+  const publishChannels = (channels: ChannelProjection) =>
+    setDocument((current) => ({ ...current, channels }));
+  return { document, error, publishChannels };
 }
 
 function RootLayout() {
   const initialShell = rootRoute.useLoaderData();
-  const { document: shell, error: shellError } =
+  const { document: shell, error: shellError, publishChannels } =
     usePassiveOperatorShell(initialShell);
   const [communicationAxis, setCommunicationAxis] =
     useState<CommunicationAxis | null>(null);
   const [mailboxPortfolio, setMailboxPortfolio] =
     useState<OperatorContext | null>(null);
   const [mailboxPending, setMailboxPending] = useState(false);
+  const [mailboxLinkPollPending, setMailboxLinkPollPending] = useState(false);
   const [mailboxError, setMailboxError] = useState<Error | null>(null);
   const mailboxRequest = useRef<Promise<OperatorContext> | null>(null);
   useEffect(() => {
@@ -326,6 +330,28 @@ function RootLayout() {
   const mailboxCount =
     (mailboxPortfolio ? operatorMailboxRows(mailboxPortfolio).length : 0) +
     shell.channels.mailbox.messages.length;
+  const requestClickedMessagePoll = (message: ChannelMessage) => {
+    const source = message.source;
+    if (source.kind === "local_admission") return;
+    window.setTimeout(() => {
+      setMailboxLinkPollPending(true);
+      setMailboxError(null);
+      void pollGitHubMailbox({
+        schema: "rey.ui-github-poll-write.v1",
+        expected_channel_head_commit_id: message.channel_head_commit_id,
+        application_id: source.application_id,
+        application_revision: source.application_revision,
+        message_id: message.message_id,
+      })
+        .then(publishChannels)
+        .catch((error: unknown) => {
+          setMailboxError(
+            error instanceof Error ? error : new Error(String(error)),
+          );
+        })
+        .finally(() => setMailboxLinkPollPending(false));
+    }, 1_500);
+  };
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -401,7 +427,8 @@ function RootLayout() {
         <CommunicationPlane
           axis={communicationAxis}
           error={mailboxError ?? shellError}
-          mailboxPending={mailboxPending}
+          mailboxPending={mailboxPending || mailboxLinkPollPending}
+          onMessageFollow={requestClickedMessagePoll}
           portfolio={mailboxPortfolio}
           shell={shell}
           onClose={() => setCommunicationAxis(null)}
@@ -442,7 +469,7 @@ function RootLayout() {
                   styles.mailboxCountActive,
               )}
             >
-              {mailboxPending
+              {mailboxPending || mailboxLinkPollPending
                 ? "…"
                 : mailboxCount + (mailboxError || shellError ? 1 : 0)}
             </span>
@@ -483,6 +510,7 @@ function CommunicationPlane({
   axis,
   error,
   mailboxPending,
+  onMessageFollow,
   onClose,
   portfolio,
   shell,
@@ -490,6 +518,7 @@ function CommunicationPlane({
   axis: CommunicationAxis | null;
   error: Error | null;
   mailboxPending: boolean;
+  onMessageFollow: (message: ChannelMessage) => void;
   onClose: () => void;
   portfolio: OperatorContext | null;
   shell: OperatorShell;
@@ -532,6 +561,7 @@ function CommunicationPlane({
             pending={mailboxPending}
             portfolio={portfolio}
             shell={shell}
+            onMessageFollow={onMessageFollow}
           />
         ) : (
           <ConversationSurface transcript={shell.conversation} />
@@ -564,11 +594,13 @@ export function CommunicationBackdrop({
 function MailboxHistory({
   error,
   pending,
+  onMessageFollow,
   portfolio,
   shell,
 }: {
   error: Error | null;
   pending: boolean;
+  onMessageFollow: (message: ChannelMessage) => void;
   portfolio: OperatorContext | null;
   shell: OperatorShell;
 }) {
@@ -629,7 +661,11 @@ function MailboxHistory({
           />
         ) : null}
         {channelMessages.map((message) => (
-          <GitHubMailboxMessage key={message.message_id} message={message} />
+          <GitHubMailboxMessage
+            key={message.message_id}
+            message={message}
+            onFollow={onMessageFollow}
+          />
         ))}
         {shell.channels.mailbox.omissions.length > 0 ? (
           <MailboxBoundary
@@ -677,7 +713,13 @@ function MailboxHistory({
   );
 }
 
-export function GitHubMailboxMessage({ message }: { message: ChannelMessage }) {
+export function GitHubMailboxMessage({
+  message,
+  onFollow,
+}: {
+  message: ChannelMessage;
+  onFollow?: (message: ChannelMessage) => void;
+}) {
   const source = message.source;
   if (source.kind === "local_admission") return null;
   const isNotification = source.kind === "git_hub_notification";
@@ -705,6 +747,7 @@ export function GitHubMailboxMessage({ message }: { message: ChannelMessage }) {
         <a
           className={sx(styles.focusable)}
           href={source.html_url}
+          onClick={() => onFollow?.(message)}
           rel="noreferrer"
           target="_blank"
         >

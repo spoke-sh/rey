@@ -77,6 +77,15 @@ pub(crate) const API_ROUTES: &[ApiRoute] = &[
         "ChannelsProjection",
     ),
     write(
+        "/api/v1/channels/poll",
+        "pollGitHubMailbox",
+        "Collaboration",
+        "Poll the exact GitHub mailbox application after following evidence",
+        "Runs the same bounded admitted GitHub poll as the CLI for a clicked current mailbox message, then returns the refreshed Channel projection.",
+        "bounded unauthenticated provider read probe and local message retention; no provider mutation, INDEX, HEAD, relay, or proof authority",
+        ("ChannelsProjection", "GitHubPollWrite"),
+    ),
+    write(
         "/api/v1/channels/working",
         "replaceChannelWorking",
         "Collaboration",
@@ -467,6 +476,11 @@ fn component_schemas() -> Value {
             "ChannelsProjection",
             "rey.ui-channels.v1",
             "Channel status and current provider mailbox.",
+        ),
+        (
+            "GitHubPollWrite",
+            "rey.ui-github-poll-write.v1",
+            "Exact current mailbox message and admitted GitHub application poll preconditions.",
         ),
         (
             "ConversationTranscript",

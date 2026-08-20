@@ -125,7 +125,10 @@ Rey organizes collaboration around two clients with one evidence plane:
   path is a bounded `gh` poll for unread GitHub notifications and comments on
   their pull requests. `rey channels poll` verifies one tick directly, while
   `rey agent` supervises the same contract at the committed application
-  cadence. The composer creates an Observation, never a Journal entry.
+  cadence. Following a retained GitHub mailbox evidence link requests one
+  immediate exact poll; that retained receipt resets the supervisor to the
+  admitted steady-state cadence. The composer creates an Observation, never a
+  Journal entry.
   Selected exact unresolved observations can seed a deterministic
   unretained Journal proposal; only ordinary Journal admission retains it.
   Current action cells project as authored-only opportunities. One narrow

@@ -166,6 +166,7 @@ does not alter their authority or safety boundary.
 | `POST /api/v1/journal`                | `rey.journal-entry-proposal.v2`                                           | `rey.journal-admission.v2`; `201` when newly retained, `200` when idempotently present. | Validate and retain one bounded self-asserted human document. No typed block executes.                                                 |
 | `POST /api/v1/observations`           | `rey.ui-observation-write.v1`                                             | Observation admission/broadcast receipt; `201`.                                         | Admit one partial self-asserted finding and attempt bounded broadcast to default local Channels. No relay, action, or proof authority. |
 | `POST /api/v1/conversations/messages` | `rey.ui-conversation-message-write.v1`                                    | Conditional append receipt; `201`.                                                      | Append as the declared browser writer only when log and session identities match. Delivery remains `not_attempted`.                    |
+| `POST /api/v1/channels/poll`          | `rey.ui-github-poll-write.v1`                                              | Refreshed `rey.ui-channels.v1`; `200`.                                                  | Poll only from a clicked current mailbox message under exact Channel HEAD and GitHub application-revision preconditions.               |
 | `POST /api/v1/channels/working`       | `rey.ui-channel-working-write.v1`                                         | Conditional replacement receipt; `201` when changed, `200` when unchanged.              | Validate a complete graph and replace only Channel WORKING when expected HEAD and WORKING snapshots still match.                       |
 | `POST /api/v1/workloads/admit`        | Workload approval with `message`, `expected_head`, and `expected_working` | Exact qualification/admission receipt; `201`.                                           | Freeze reviewed files, require fresh HEAD/WORKING preconditions, run the complete suite, and commit only that qualified INDEX.         |
 
@@ -251,6 +252,21 @@ while `/api/v1/workloads` is not.
 The source of truth for registered operations is
 `crates/rey/src/api.rs`. The OpenAPI document is a runtime projection of that
 catalog; do not hand-maintain a second static specification.
+
+## Click-Driven GitHub Mailbox Poll
+
+`POST /api/v1/channels/poll` accepts `rey.ui-github-poll-write.v1` with the
+exact current Channel HEAD commit, GitHub application id and revision, and
+clicked retained message id. The message must still be present in the current
+mailbox and bind that application revision. Rey then runs the same bounded
+`rey channels poll` operation used by the supervised worker and returns the
+refreshed `rey.ui-channels.v1` projection.
+
+This is an unauthenticated bounded provider read probe plus local poll/message
+retention on the configured listener. It never marks a GitHub notification
+read, changes Channel INDEX or HEAD, relays a message, or grants proof
+authority. A retained click-driven receipt becomes the supervisor's new cadence
+anchor; the next automatic poll uses the application's admitted interval.
 
 ## Current Boundary
 

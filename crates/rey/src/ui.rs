@@ -4,6 +4,7 @@ use std::{
     io::{Cursor, Read, Write},
     net::{IpAddr, SocketAddr, TcpListener},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -74,6 +75,7 @@ const UI_CADENCE_SCHEMA: &str = "rey.ui-cadence.v1";
 const UI_JOURNAL_SCHEMA: &str = "rey.ui-journal.v2";
 const UI_CHANNELS_SCHEMA: &str = "rey.ui-channels.v1";
 const UI_CHANNEL_WORKING_WRITE_SCHEMA: &str = "rey.ui-channel-working-write.v1";
+const UI_GITHUB_POLL_WRITE_SCHEMA: &str = "rey.ui-github-poll-write.v1";
 const UI_CONVERSATION_MESSAGE_WRITE_SCHEMA: &str = "rey.ui-conversation-message-write.v1";
 const UI_OBSERVATION_WRITE_SCHEMA: &str = "rey.ui-observation-write.v1";
 const UI_FEED_ADMISSIONS_SCHEMA: &str = "rey.ui-feed-admissions.v1";
@@ -82,6 +84,7 @@ const MAX_REQUEST_TARGET_BYTES: usize = 4_096;
 const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const MAX_UI_OBSERVATION_WRITE_BYTES: u64 = 32 * 1_024;
 const MAX_UI_OBSERVATION_BODY_CHARS: usize = 500;
+const MAX_UI_GITHUB_POLL_WRITE_BYTES: u64 = 4 * 1_024;
 const MAX_REVALIDATION_SOURCE_BYTES: u64 = 128 * 1_024 * 1_024;
 const MAX_REVALIDATION_SOURCE_ENTRIES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
@@ -456,6 +459,16 @@ struct UiChannelWorkingWrite {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct UiGitHubPollWrite {
+    schema: String,
+    expected_channel_head_commit_id: SemanticDigest,
+    application_id: String,
+    application_revision: u64,
+    message_id: SemanticDigest,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UiWorkloadApproval {
     message: String,
     expected_head: String,
@@ -746,6 +759,9 @@ impl UiServer {
         }
         if request.method() == &Method::Post && path == "/api/v1/channels/working" {
             return self.write_channel_working(request);
+        }
+        if request.method() == &Method::Post && path == "/api/v1/channels/poll" {
+            return self.poll_github_mailbox(request);
         }
         if request.method() == &Method::Post && path == "/api/v1/conversations/messages" {
             return self.write_conversation_message(request);
@@ -1265,17 +1281,17 @@ impl UiServer {
                 &UiChannelProjection {
                     schema: UI_CHANNELS_SCHEMA.to_owned(),
                     write_enabled: self.descriptor.channel_write_enabled,
-                    authority: "unauthenticated_channel_working_write; no INDEX, HEAD, relay, or execution authority"
+                    authority: "unauthenticated_channel_working_write and exact clicked-message GitHub poll; no INDEX, HEAD, relay, provider mutation, or proof authority"
                         .to_owned(),
                     listener: UiChannelListener {
                         address: self.descriptor.address.clone(),
                         loopback_only: self.descriptor.loopback_only,
                         authentication: "none".to_owned(),
                         warning: if self.descriptor.loopback_only {
-                            "any local client that can reach this listener may replace Channel WORKING"
+                            "any local client that can reach this listener may replace Channel WORKING or request an exact admitted GitHub poll"
                                 .to_owned()
                         } else {
-                            "any network client that can reach this listener may replace Channel WORKING without authentication"
+                            "any network client that can reach this listener may replace Channel WORKING or request an exact admitted GitHub poll without authentication"
                                 .to_owned()
                         },
                     },
@@ -1289,6 +1305,184 @@ impl UiServer {
                 &error.to_string(),
             ),
         }
+    }
+
+    fn poll_github_mailbox(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        if request_header(request, "Content-Type") != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "github_poll_content_type",
+                "GitHub poll requests require Content-Type: application/json",
+            );
+        }
+        if request
+            .body_length()
+            .is_some_and(|length| length as u64 > MAX_UI_GITHUB_POLL_WRITE_BYTES)
+        {
+            return json_error(
+                StatusCode(413),
+                "github_poll_body_limit",
+                "GitHub poll request exceeds the 4096-byte limit",
+            );
+        }
+        let mut bytes = Vec::new();
+        if let Err(error) = request
+            .as_reader()
+            .take(MAX_UI_GITHUB_POLL_WRITE_BYTES.saturating_add(1))
+            .read_to_end(&mut bytes)
+        {
+            return json_error(
+                StatusCode(400),
+                "github_poll_body_unreadable",
+                &error.to_string(),
+            );
+        }
+        if bytes.len() as u64 > MAX_UI_GITHUB_POLL_WRITE_BYTES {
+            return json_error(
+                StatusCode(413),
+                "github_poll_body_limit",
+                "GitHub poll request exceeds the 4096-byte limit",
+            );
+        }
+        let write: UiGitHubPollWrite = match serde_json::from_slice(&bytes) {
+            Ok(write) => write,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "github_poll_json_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        if write.schema != UI_GITHUB_POLL_WRITE_SCHEMA {
+            return json_error(
+                StatusCode(422),
+                "github_poll_schema_invalid",
+                "expected rey.ui-github-poll-write.v1",
+            );
+        }
+
+        let store = LocalChannelStore::new(self.config.channel_directory.clone());
+        let status = match store.status() {
+            Ok(status) => status,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "channel_status_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let Some(head) = status.head_commit.as_ref() else {
+            return json_error(
+                StatusCode(409),
+                "github_poll_head_unavailable",
+                "GitHub poll requires an admitted Channel HEAD",
+            );
+        };
+        if head.commit_id != write.expected_channel_head_commit_id {
+            return json_error(
+                StatusCode(409),
+                "github_poll_head_stale",
+                "clicked mailbox evidence does not bind the current Channel HEAD",
+            );
+        }
+        let mailbox = match store.mailbox(&status) {
+            Ok(mailbox) => mailbox,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "github_mailbox_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let Some(message) = mailbox
+            .messages
+            .iter()
+            .find(|message| message.message_id == write.message_id)
+        else {
+            return self.channels();
+        };
+        if message.source.github_application()
+            != Some((write.application_id.as_str(), write.application_revision))
+        {
+            return json_error(
+                StatusCode(409),
+                "github_poll_message_stale",
+                "clicked mailbox evidence does not bind the requested GitHub application revision",
+            );
+        }
+        let application_current = head.snapshot.graph.applications.iter().any(|application| {
+            application.id == write.application_id
+                && application.revision == write.application_revision
+                && application.github_inbox.is_some()
+        });
+        if !application_current {
+            return json_error(
+                StatusCode(409),
+                "github_poll_application_stale",
+                "clicked mailbox evidence does not bind a current admitted GitHub application",
+            );
+        }
+
+        let executable = match env::current_exe() {
+            Ok(executable) => executable,
+            Err(error) => {
+                return json_error(
+                    StatusCode(500),
+                    "github_poll_executable_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let output = match Command::new(executable)
+            .arg("channels")
+            .arg("--workspace")
+            .arg(&self.config.workspace)
+            .arg("--state-dir")
+            .arg(&self.config.channel_directory)
+            .arg("poll")
+            .arg(&write.application_id)
+            .arg("--format")
+            .arg("json")
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+        {
+            Ok(output) => output,
+            Err(error) => {
+                return json_error(
+                    StatusCode(502),
+                    "github_poll_spawn_failed",
+                    &error.to_string(),
+                );
+            }
+        };
+        if !output.status.success() && output.status.code() != Some(3) {
+            let detail = String::from_utf8_lossy(&output.stderr)
+                .trim()
+                .chars()
+                .take(512)
+                .collect::<String>();
+            return json_error(
+                StatusCode(502),
+                "github_poll_failed",
+                &format!(
+                    "GitHub poll exited with {}{}",
+                    output
+                        .status
+                        .code()
+                        .map_or_else(|| "signal".to_owned(), |code| code.to_string()),
+                    if detail.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" · {detail}")
+                    }
+                ),
+            );
+        }
+        self.channels()
     }
 
     fn conversations(&self) -> Response<Cursor<Vec<u8>>> {

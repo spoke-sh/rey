@@ -379,6 +379,7 @@ struct GitHubPollKey {
 struct AdmittedGitHubPoll {
     key: GitHubPollKey,
     interval: Duration,
+    latest_poll_sequence: Option<u64>,
 }
 
 struct ChannelIngressWorker {
@@ -399,6 +400,7 @@ impl ChannelIngressWorker {
     fn serve_until(self, cancelled: Arc<AtomicBool>) -> Result<(), ChannelIngressError> {
         let store = LocalChannelStore::new(self.channel_directory.clone());
         let mut next_polls = BTreeMap::<GitHubPollKey, Instant>::new();
+        let mut observed_poll_sequences = BTreeMap::<GitHubPollKey, Option<u64>>::new();
         while !cancelled.load(Ordering::Relaxed) {
             let admitted = Self::admitted_polls(&store)?;
             let current = admitted
@@ -406,12 +408,19 @@ impl ChannelIngressWorker {
                 .map(|poll| poll.key.clone())
                 .collect::<BTreeSet<_>>();
             next_polls.retain(|key, _| current.contains(key));
+            observed_poll_sequences.retain(|key, _| current.contains(key));
 
             for poll in admitted {
                 if cancelled.load(Ordering::Relaxed) {
                     return Ok(());
                 }
                 let now = Instant::now();
+                let previous = observed_poll_sequences
+                    .insert(poll.key.clone(), poll.latest_poll_sequence);
+                if previous.is_some_and(|sequence| sequence != poll.latest_poll_sequence) {
+                    next_polls.insert(poll.key, now + poll.interval);
+                    continue;
+                }
                 if next_polls.get(&poll.key).is_some_and(|next| *next > now) {
                     continue;
                 }
@@ -438,6 +447,7 @@ impl ChannelIngressWorker {
         store: &LocalChannelStore,
     ) -> Result<Vec<AdmittedGitHubPoll>, ChannelIngressError> {
         let status = store.status()?;
+        let mailbox = store.mailbox(&status)?;
         let Some(head) = status.head_commit else {
             return Ok(Vec::new());
         };
@@ -457,6 +467,14 @@ impl ChannelIngressWorker {
                             application_revision: application.revision,
                         },
                         interval: Duration::from_secs(inbox.poll_interval_seconds),
+                        latest_poll_sequence: mailbox
+                            .polls
+                            .iter()
+                            .find(|receipt| {
+                                receipt.application_id == application.id
+                                    && receipt.application_revision == application.revision
+                            })
+                            .map(|receipt| receipt.sequence),
                     })
             })
             .collect())

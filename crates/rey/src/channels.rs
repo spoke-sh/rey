@@ -1138,7 +1138,7 @@ impl ChannelMessageSource {
         }
     }
 
-    fn github_application(&self) -> Option<(&str, u64)> {
+    pub fn github_application(&self) -> Option<(&str, u64)> {
         match self {
             Self::LocalAdmission => None,
             Self::GitHubNotification {

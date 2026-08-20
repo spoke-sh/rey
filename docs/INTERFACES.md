@@ -90,7 +90,10 @@ operator attention is requested; the UI must not invent activity.
 
 Browser controls are allowed only when their write authority is separately
 declared. Loading a route, panning Explorer, opening a detail, or selecting an
-object is read-only navigation.
+object is read-only navigation. Following a current retained GitHub mailbox
+evidence link is the narrow exception that also requests the separately
+declared exact bounded inbox poll; the probe retains a receipt and current
+messages but does not mutate provider read state.
 
 ### Evidence projections
 

@@ -61,7 +61,10 @@ These are responsibility boundaries, not requirements for separate processes.
 The first topology is the foreground local Rey process started by `rey agent`.
 Its root role is an orchestrator that owns all in-process background-work
 lifecycle. The registered workers are the embedded Axum operator HTTP server and
-the exact admitted GitHub Channel inbox poller;
+the exact admitted GitHub Channel inbox poller. Following a retained GitHub
+mailbox evidence link may request one immediate poll through the same exact CLI
+contract; its receipt resets the worker's next deadline to the admitted
+steady-state cadence;
 the startup log binds that process to its package version and build commit,
 while the startup document and `GET /api/v1/agent` expose the exact process,
 worker, and supervision edge. `rey version` projects the same immutable build
@@ -79,6 +82,7 @@ does not prevent health, documentation, assets, or other pages from being
 accepted. This concurrency is transport mechanism, not workload scheduling.
 Its explicit browser writes are bounded
 unauthenticated Journal admission, conditional Channel WORKING replacement,
+an exact clicked-message GitHub read probe with local poll/message retention,
 and exact workload file qualification/admission on any explicitly configured
 listener. It is not a separate runtime or scheduler; none of those writes
 grants general compute or proof authority.

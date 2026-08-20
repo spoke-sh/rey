@@ -265,6 +265,14 @@ export interface ChannelWorkingWriteRequest {
   graph: ChannelGraph;
 }
 
+export interface GitHubPollWriteRequest {
+  schema: "rey.ui-github-poll-write.v1";
+  expected_channel_head_commit_id: string;
+  application_id: string;
+  application_revision: number;
+  message_id: string;
+}
+
 export interface ChannelApplyResult {
   schema: "rey.channel-apply-result.v1";
   applied: boolean;

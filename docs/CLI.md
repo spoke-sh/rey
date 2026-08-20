@@ -629,7 +629,9 @@ rey agent [--workspace PATH] [--state-dir PATH]
 `agent` starts the foreground Rey process. Its orchestrator registers the
 embedded operator HTTP server and exact admitted GitHub inbox poller as two
 bounded background workers and defaults the listener to loopback. The inbox
-worker remains idle without a committed `github_inbox` application. The
+worker remains idle without a committed `github_inbox` application. A browser
+mailbox evidence-link click may request one immediate exact poll; the retained
+receipt resets the worker to the committed application cadence. The
 default human startup output is one
 line—`INFO:     Listening on http://127.0.0.1:5714 (Press CTRL+C to quit)`—and
 stderr first identifies the exact Rey version and build commit, then logs
@@ -712,7 +714,7 @@ latest result.
 | `workloads run` | Executes an admitted graph and retains results under declared provider/effect contracts. |
 | `editor generate`, `workloads create` | Explicitly author workspace files; neither admits its output. |
 | `channels apply` | Writes only the Channel WORKING proposal. |
-| `channels poll` | Executes bounded read-only GitHub API probes only through exact Channel/environment HEAD application admission, then atomically retains the poll receipt and immutable Channel messages; it never marks provider notifications read. |
+| `channels poll` | Executes bounded read-only GitHub API probes only through exact Channel/environment HEAD application admission, then atomically retains the poll receipt and immutable Channel messages; it never marks provider notifications read. The browser may request this same operation only from a clicked current mailbox message under exact HEAD/application preconditions. |
 | `journal add` | Retains a document only; notebook blocks remain inert. |
 | `journal seed`, `journal opportunities` | Read-only deterministic projections; neither retains a document, schedules work, or executes a block. |
 | `journal query admit` | Retains one exact read-only query admission; executes nothing and leaves the Journal unchanged. |

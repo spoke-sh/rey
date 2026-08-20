@@ -9,6 +9,7 @@ import type {
   ChannelApplyResult,
   ChannelProjection,
   ChannelWorkingWriteRequest,
+  GitHubPollWriteRequest,
 } from "./channels";
 import type {
   EnvironmentAvailability,
@@ -376,6 +377,26 @@ export async function loadChannels(): Promise<ChannelProjection> {
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(`Channel request failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as ChannelProjection;
+}
+
+export async function pollGitHubMailbox(
+  write: GitHubPollWriteRequest,
+): Promise<ChannelProjection> {
+  const response = await fetch("/api/v1/channels/poll", {
+    body: JSON.stringify(write),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `GitHub mailbox poll failed (${response.status}): ${detail}`,
+    );
   }
   return (await response.json()) as ChannelProjection;
 }

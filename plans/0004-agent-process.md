@@ -31,7 +31,9 @@ fails the process closed on an unexpected worker error, exit, or panic. The
 inbox worker remains idle until Channel HEAD admits a `github_inbox`
 application whose exact `gh` capability is also present in environment HEAD.
 It polls immediately and then at the admitted cadence through the same bounded
-`rey channels poll` path exposed to humans. One declarative API catalog owns
+`rey channels poll` path exposed to humans. A current retained mailbox evidence
+link may request an immediate exact poll, whose receipt resets the next worker
+deadline to that admitted cadence. One declarative API catalog owns
 Axum registration and the OpenAPI 3.1 document; `/api` enters vendored Swagger
 while synchronous evidence projections run outside the HTTP event loop.
 `rey.agent-process.v2`,
