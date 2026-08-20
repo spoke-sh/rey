@@ -125,9 +125,13 @@ Discovery flattens those declarations by application identity before PATH
 resolution, so one application is searched and observed exactly once even when
 it appears in multiple groups. Each search record carries complete
 `rey.discovery-application.v2` provenance. PATH resolution records executable presence for
-agent runtimes without starting them; fixed bounded identity probes remain
-limited to the non-interactive `git` and `rg` adapters. Discovery does not turn
-a found application into assignment or execution authority.
+agent runtimes without starting them. After selecting the first bounded PATH
+candidate, discovery follows its symlink chain and records the canonical target
+as the executable location and content identity; dangling links and symlink
+loops remain unavailable. This does not relax the separate rejection of
+symlinked environment-map or mapped source inputs. Fixed bounded identity probes
+remain limited to the non-interactive `git` and `rg` adapters. Discovery does
+not turn a found application into assignment or execution authority.
 `/environment` is the human owner of this desired/search evidence; higher-order
 views may consume exact capabilities but do not repeat the executable inventory.
 

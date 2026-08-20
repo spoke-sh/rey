@@ -926,14 +926,15 @@ pub fn resolve_executable(name: &str, search_paths: &[PathBuf]) -> Option<PathBu
             return None;
         }
         let candidate = directory.join(name);
-        if is_executable(&candidate) {
-            // Preserve the invoked basename. Some tool distributions use one
-            // multi-call executable behind several symlinks and select the
-            // operation from argv[0].
-            Some(candidate)
-        } else {
-            None
+        if !is_executable(&candidate) {
+            return None;
         }
+
+        // Executable identity belongs to the resolved file rather than a
+        // mutable PATH alias. Canonicalization follows every symlink component
+        // and rejects dangling links and loops without widening discovery.
+        let resolved = fs::canonicalize(candidate).ok()?;
+        is_executable(&resolved).then_some(resolved)
     })
 }
 
