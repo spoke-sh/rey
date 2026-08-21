@@ -2,6 +2,7 @@
 
 mod agent;
 mod api;
+mod scheduler;
 mod ui;
 mod version;
 
@@ -152,6 +153,9 @@ enum Command {
     Journal(JournalArgs),
     /// Start the supervised Rey process and operator interface.
     Agent(AgentArgs),
+    /// Run the orchestrator-owned scheduler child protocol.
+    #[command(hide = true)]
+    Scheduler(SchedulerArgs),
     /// Track and generate read-first scene revisions for explicit Rey admission.
     Editor(EditorArgs),
     /// Show the exact Rey package version and build commit.
@@ -1053,6 +1057,14 @@ struct AgentArgs {
 }
 
 #[derive(Debug, Args)]
+struct SchedulerArgs {
+    #[arg(long)] workspace: PathBuf,
+    #[arg(long)] channel_state_dir: PathBuf,
+    #[arg(long)] state_dir: PathBuf,
+    #[arg(long)] operator_address: String,
+}
+
+#[derive(Debug, Args)]
 struct WorkloadsArgs {
     /// Workspace used as the default local result-state boundary.
     #[arg(long, global = true, default_value = ".")]
@@ -1490,6 +1502,7 @@ fn run(cli: Cli) -> Result<ExitCode, CliError> {
         Command::Workloads(args) => workloads(args),
         Command::Journal(args) => journal_command(args),
         Command::Agent(args) => agent_command(args),
+        Command::Scheduler(args) => scheduler_command(args),
         Command::Editor(args) => editor_command(args),
         Command::Version(args) => version_command(args),
         Command::Channels(args) => channels_command(args),
@@ -3633,6 +3646,17 @@ fn agent_command(args: AgentArgs) -> Result<ExitCode, CliError> {
     }
     stdout.flush()?;
     orchestrator.wait()?;
+    Ok(ExitCode::SUCCESS)
+}
+
+fn scheduler_command(args: SchedulerArgs) -> Result<ExitCode, CliError> {
+    scheduler::run_scheduler(scheduler::SchedulerConfig {
+        workspace: args.workspace,
+        channel_directory: args.channel_state_dir,
+        state_directory: args.state_dir,
+        operator_address: args.operator_address,
+        rey_executable: std::env::current_exe()?,
+    })?;
     Ok(ExitCode::SUCCESS)
 }
 
@@ -13309,6 +13333,8 @@ enum CliError {
     Ui(#[from] ui::UiError),
     #[error(transparent)]
     Agent(#[from] agent::AgentError),
+    #[error(transparent)]
+    Scheduler(#[from] scheduler::SchedulerError),
     #[error("YAML input failed: {0}")]
     Yaml(#[from] serde_saphyr::Error),
     #[error("JSON output failed: {0}")]

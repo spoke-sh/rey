@@ -18,6 +18,7 @@ import {
 } from "react";
 import {
   admitJournalEntry,
+  controlSchedule,
   loadAgentJournal,
   loadCadence,
   loadChannels,
@@ -66,7 +67,7 @@ import {
   resolveJournalEntry,
 } from "./journal";
 import { parseExplorerView, resolveExplorerView } from "./explorer-coordinate";
-import { startPassiveRevalidation } from "./passive";
+import { subscribeRuntimeChanges } from "./events";
 import {
   RegionalObjectEvidencePage,
   resolveRegionalObjectEvidence,
@@ -194,14 +195,61 @@ export function activateCommunicationAxis(
   return current === requested ? null : requested;
 }
 
+function subscribeAfterInvalidation<T>({
+  load,
+  publish,
+  reportError,
+}: {
+  load: () => Promise<T>;
+  publish: (document: T) => void;
+  reportError: (error: Error | null) => void;
+}): () => void {
+  let active = true;
+  let running = false;
+  let queued = false;
+
+  const refresh = async () => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    do {
+      queued = false;
+      try {
+        const document = await load();
+        if (active) {
+          publish(document);
+          reportError(null);
+        }
+      } catch (cause) {
+        if (active) {
+          reportError(
+            cause instanceof Error ? cause : new Error(String(cause)),
+          );
+        }
+      }
+    } while (active && queued);
+    running = false;
+  };
+
+  const unsubscribe = subscribeRuntimeChanges({
+    publish: () => void refresh(),
+    reportError,
+  });
+  return () => {
+    active = false;
+    unsubscribe();
+  };
+}
+
 function usePassiveDocument<T>(initialDocument: T, load: () => Promise<T>) {
   const [document, setDocument] = useState(initialDocument);
   const [error, setError] = useState<Error | null>(null);
   useEffect(() => {
     setDocument(initialDocument);
     setError(null);
-    return startPassiveRevalidation({
-      intervalMs: 5_000,
+    return subscribeAfterInvalidation({
       load,
       publish: setDocument,
       reportError: setError,
@@ -218,8 +266,7 @@ function usePassivePortfolio(initialDocument: OperatorContext) {
     retainedRevision.current = initialDocument.revalidation.revision;
     setDocument(initialDocument);
     setError(null);
-    return startPassiveRevalidation({
-      intervalMs: initialDocument.revalidation.poll_after_ms,
+    return subscribeAfterInvalidation({
       load: () => loadPortfolioAfterRevision(retainedRevision.current),
       publish: (next) => {
         if (!next) return;
@@ -244,8 +291,7 @@ function useDemandPortfolio() {
         if (!active) return;
         retainedRevision.current = next.revalidation.revision;
         setDocument(next);
-        stopRevalidation = startPassiveRevalidation({
-          intervalMs: next.revalidation.poll_after_ms,
+        stopRevalidation = subscribeAfterInvalidation({
           load: () => loadPortfolioAfterRevision(retainedRevision.current),
           publish: (revalidated) => {
             if (!revalidated || !active) return;
@@ -277,8 +323,7 @@ function usePassiveOperatorShell(initialDocument: OperatorShell) {
     retainedRevision.current = initialDocument.revalidation.revision;
     setDocument(initialDocument);
     setError(null);
-    return startPassiveRevalidation({
-      intervalMs: initialDocument.revalidation.poll_after_ms,
+    return subscribeAfterInvalidation({
       load: () => loadOperatorShellAfterRevision(retainedRevision.current),
       publish: (next) => {
         if (!next) return;
@@ -345,7 +390,7 @@ function RootLayout() {
         application_revision: source.application_revision,
         message_id: message.message_id,
       })
-        .then(publishChannels)
+        .then(() => undefined)
         .catch((error: unknown) => {
           setMailboxError(
             error instanceof Error ? error : new Error(String(error)),
@@ -1444,7 +1489,18 @@ function FeedRoutePage() {
 function CadenceRoutePage() {
   const initialCadence = cadenceRoute.useLoaderData();
   const { document: cadence } = usePassiveDocument(initialCadence, loadCadence);
-  return <CadencePage cadence={cadence} />;
+  return (
+    <CadencePage
+      cadence={cadence}
+      onScheduleToggle={(schedule, enabled) =>
+        controlSchedule({
+          schedule_id: schedule.id,
+          expected_revision: schedule.revision ?? 0,
+          enabled,
+        })
+      }
+    />
+  );
 }
 
 function CadenceTicksRoutePage() {

@@ -1,32 +1,29 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
     io,
-    path::PathBuf,
-    process::{Command, Stdio},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::scheduler::{ManagedScheduler, SchedulerError};
 use crate::ui::{UiError, UiServer, UiServerDescriptor};
 use crate::version;
-use rey::channels::{ChannelGraphError, LocalChannelStore};
 
 pub const AGENT_PROCESS_SCHEMA: &str = "rey.agent-process.v2";
 pub const REY_PROCESS_SCHEMA: &str = "rey.process.v1";
 pub const AGENT_TOPOLOGY_SCHEMA: &str = "rey.agent-topology.v1";
 const ORCHESTRATOR_NODE_ID: &str = "rey.orchestrator";
 const OPERATOR_SERVER_NODE_ID: &str = "rey.operator-http";
-const GITHUB_INBOX_NODE_ID: &str = "rey.channel-github-inbox";
+const SCHEDULER_PROCESS_NODE_ID: &str = "rey.scheduler";
+const SCHEDULER_BRIDGE_NODE_ID: &str = "rey.scheduler-event-bridge";
 const SUPERVISION_POLL_INTERVAL_MS: u64 = 50;
-const INGRESS_SCAN_INTERVAL_MS: u64 = 250;
-const MAX_BACKGROUND_WORKERS: u64 = 2;
+const MAX_BACKGROUND_WORKERS: u64 = 3;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct AgentProcessDescriptor {
@@ -128,14 +125,25 @@ impl AgentProcessDescriptor {
                     endpoint: Some(operator.url.clone()),
                 },
                 AgentTopologyNode {
-                    node_id: GITHUB_INBOX_NODE_ID.to_owned(),
+                    node_id: SCHEDULER_PROCESS_NODE_ID.to_owned(),
+                    kind: "background_work".to_owned(),
+                    parent_node_id: Some(ORCHESTRATOR_NODE_ID.to_owned()),
+                    execution: "supervised_child_process".to_owned(),
+                    lifecycle: "bound_to_rey_process".to_owned(),
+                    state: "running".to_owned(),
+                    restart_policy: "never; fail the Rey process closed".to_owned(),
+                    authority: "bounded registered scans, retained schedule control, exact admitted provider polls, and semantic-change publication only".to_owned(),
+                    endpoint: None,
+                },
+                AgentTopologyNode {
+                    node_id: SCHEDULER_BRIDGE_NODE_ID.to_owned(),
                     kind: "background_work".to_owned(),
                     parent_node_id: Some(ORCHESTRATOR_NODE_ID.to_owned()),
                     execution: "supervised_thread".to_owned(),
-                    lifecycle: "bound_to_rey_process".to_owned(),
+                    lifecycle: "bound_to_scheduler_process".to_owned(),
                     state: "running".to_owned(),
-                    restart_policy: "next admitted cadence; no immediate retry".to_owned(),
-                    authority: "poll exact committed GitHub inbox applications through the bounded channels poll contract".to_owned(),
+                    restart_policy: "never; fail the Rey process closed".to_owned(),
+                    authority: "typed scheduler IPC projection and runtime event publication only".to_owned(),
                     endpoint: None,
                 },
             ],
@@ -147,7 +155,12 @@ impl AgentProcessDescriptor {
                 },
                 AgentTopologyEdge {
                     source_node_id: ORCHESTRATOR_NODE_ID.to_owned(),
-                    target_node_id: GITHUB_INBOX_NODE_ID.to_owned(),
+                    target_node_id: SCHEDULER_PROCESS_NODE_ID.to_owned(),
+                    relationship: "supervises".to_owned(),
+                },
+                AgentTopologyEdge {
+                    source_node_id: ORCHESTRATOR_NODE_ID.to_owned(),
+                    target_node_id: SCHEDULER_BRIDGE_NODE_ID.to_owned(),
                     relationship: "supervises".to_owned(),
                 },
             ],
@@ -162,7 +175,7 @@ impl AgentProcessDescriptor {
             process,
             topology,
             operator,
-            authority: "local orchestration, operator projection, and exact admitted GitHub Channel polling only".to_owned(),
+            authority: "local orchestration, operator projection, scheduler lifecycle, bounded scans, and exact admitted provider polling only".to_owned(),
             omissions: vec![
                 "no autonomous workload scheduling".to_owned(),
                 "no discovered agent runtime is invoked or assigned".to_owned(),
@@ -177,12 +190,13 @@ impl AgentProcessDescriptor {
 pub struct AgentOrchestrator {
     cancelled: Arc<AtomicBool>,
     operator_worker: thread::JoinHandle<Result<(), UiError>>,
-    github_inbox_worker: thread::JoinHandle<Result<(), ChannelIngressError>>,
+    scheduler: ManagedScheduler,
 }
 
 impl AgentOrchestrator {
     pub fn start(operator: UiServer) -> Result<Self, AgentError> {
-        let ingress = ChannelIngressWorker::from_operator(&operator.descriptor())?;
+        let operator_descriptor = operator.descriptor();
+        let scheduler_runtime = operator.scheduler_runtime();
         let cancelled = Arc::new(AtomicBool::new(false));
         signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&cancelled))
             .map_err(AgentError::Signal)?;
@@ -194,16 +208,12 @@ impl AgentOrchestrator {
             .name(OPERATOR_SERVER_NODE_ID.to_owned())
             .spawn(move || operator.serve_until(worker_cancelled))
             .map_err(AgentError::Spawn)?;
-        let ingress_cancelled = Arc::clone(&cancelled);
-        let github_inbox_worker = match thread::Builder::new()
-            .name(GITHUB_INBOX_NODE_ID.to_owned())
-            .spawn(move || ingress.serve_until(ingress_cancelled))
-        {
-            Ok(worker) => worker,
+        let scheduler = match ManagedScheduler::spawn(&operator_descriptor, scheduler_runtime) {
+            Ok(scheduler) => scheduler,
             Err(error) => {
                 cancelled.store(true, Ordering::Relaxed);
                 let _ = operator_worker.join();
-                return Err(AgentError::Spawn(error));
+                return Err(AgentError::Scheduler(error));
             }
         };
         log_info(format_args!(
@@ -213,36 +223,34 @@ impl AgentOrchestrator {
         ));
         log_info(format_args!("Started Rey process [{}]", std::process::id()));
         log_info(format_args!(
-            "Agent startup complete; background workers {OPERATOR_SERVER_NODE_ID} and {GITHUB_INBOX_NODE_ID} are running"
+            "Agent startup complete; background worker {OPERATOR_SERVER_NODE_ID} and child process {SCHEDULER_PROCESS_NODE_ID} are running"
         ));
         Ok(Self {
             cancelled,
             operator_worker,
-            github_inbox_worker,
+            scheduler,
         })
     }
 
     pub fn wait(self) -> Result<(), AgentError> {
         let mut operator_worker = Some(self.operator_worker);
-        let mut github_inbox_worker = Some(self.github_inbox_worker);
+        let mut scheduler = Some(self.scheduler);
         loop {
             if self.cancelled.load(Ordering::Relaxed) {
                 log_info("Shutdown requested");
                 log_info(format_args!(
-                    "Agent shutdown started; stopping background workers {OPERATOR_SERVER_NODE_ID} and {GITHUB_INBOX_NODE_ID}"
+                    "Agent shutdown started; stopping {OPERATOR_SERVER_NODE_ID} and {SCHEDULER_PROCESS_NODE_ID}"
                 ));
                 let operator_result = finish_operator_worker(
                     operator_worker.take().expect("operator worker is present"),
                     true,
                 );
-                let ingress_result = finish_github_inbox_worker(
-                    github_inbox_worker
-                        .take()
-                        .expect("GitHub inbox worker is present"),
-                    true,
-                );
+                let scheduler_result = scheduler
+                    .take()
+                    .expect("scheduler process is present")
+                    .finish(true);
                 operator_result?;
-                ingress_result?;
+                scheduler_result?;
                 log_info(format_args!(
                     "Finished Rey process [{}]",
                     std::process::id()
@@ -258,31 +266,28 @@ impl AgentOrchestrator {
                     operator_worker.take().expect("operator worker is present"),
                     false,
                 );
-                let ingress_result = finish_github_inbox_worker(
-                    github_inbox_worker
-                        .take()
-                        .expect("GitHub inbox worker is present"),
-                    true,
-                );
+                let scheduler_result = scheduler
+                    .take()
+                    .expect("scheduler process is present")
+                    .finish(true);
                 operator_result?;
-                return ingress_result;
+                return scheduler_result.map_err(AgentError::Scheduler);
             }
-            if github_inbox_worker
-                .as_ref()
-                .is_some_and(thread::JoinHandle::is_finished)
+            if scheduler
+                .as_mut()
+                .expect("scheduler process is present")
+                .is_finished()?
             {
                 self.cancelled.store(true, Ordering::Relaxed);
-                let ingress_result = finish_github_inbox_worker(
-                    github_inbox_worker
-                        .take()
-                        .expect("GitHub inbox worker is present"),
-                    false,
-                );
+                let scheduler_result = scheduler
+                    .take()
+                    .expect("scheduler process is present")
+                    .finish(false);
                 let operator_result = finish_operator_worker(
                     operator_worker.take().expect("operator worker is present"),
                     true,
                 );
-                ingress_result?;
+                scheduler_result?;
                 return operator_result;
             }
             thread::park_timeout(Duration::from_millis(SUPERVISION_POLL_INTERVAL_MS));
@@ -334,199 +339,6 @@ fn finish_operator_worker(
     }
 }
 
-fn finish_github_inbox_worker(
-    worker: thread::JoinHandle<Result<(), ChannelIngressError>>,
-    cancelled: bool,
-) -> Result<(), AgentError> {
-    match worker.join() {
-        Ok(Ok(())) if cancelled => {
-            log_info(format_args!(
-                "Agent shutdown complete; background worker {GITHUB_INBOX_NODE_ID} stopped"
-            ));
-            Ok(())
-        }
-        Ok(Ok(())) => {
-            log_error(format_args!(
-                "Agent lifecycle failed; background worker {GITHUB_INBOX_NODE_ID} exited without a shutdown request"
-            ));
-            Err(AgentError::UnexpectedWorkerExit(
-                GITHUB_INBOX_NODE_ID.to_owned(),
-            ))
-        }
-        Ok(Err(error)) => {
-            log_error(format_args!(
-                "Agent lifecycle failed; background worker {GITHUB_INBOX_NODE_ID}: {error}"
-            ));
-            Err(AgentError::ChannelIngress(error))
-        }
-        Err(_) => {
-            log_error(format_args!(
-                "Agent lifecycle failed; background worker {GITHUB_INBOX_NODE_ID} panicked"
-            ));
-            Err(AgentError::WorkerPanicked(GITHUB_INBOX_NODE_ID.to_owned()))
-        }
-    }
-}
-
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct GitHubPollKey {
-    channel_head_commit_id: String,
-    application_id: String,
-    application_revision: u64,
-}
-
-#[derive(Clone, Debug)]
-struct AdmittedGitHubPoll {
-    key: GitHubPollKey,
-    interval: Duration,
-    latest_poll_sequence: Option<u64>,
-}
-
-struct ChannelIngressWorker {
-    workspace: PathBuf,
-    channel_directory: PathBuf,
-    rey_executable: PathBuf,
-}
-
-impl ChannelIngressWorker {
-    fn from_operator(operator: &UiServerDescriptor) -> Result<Self, ChannelIngressError> {
-        Ok(Self {
-            workspace: PathBuf::from(&operator.workspace),
-            channel_directory: PathBuf::from(&operator.channel_root),
-            rey_executable: std::env::current_exe().map_err(ChannelIngressError::Executable)?,
-        })
-    }
-
-    fn serve_until(self, cancelled: Arc<AtomicBool>) -> Result<(), ChannelIngressError> {
-        let store = LocalChannelStore::new(self.channel_directory.clone());
-        let mut next_polls = BTreeMap::<GitHubPollKey, Instant>::new();
-        let mut observed_poll_sequences = BTreeMap::<GitHubPollKey, Option<u64>>::new();
-        while !cancelled.load(Ordering::Relaxed) {
-            let admitted = Self::admitted_polls(&store)?;
-            let current = admitted
-                .iter()
-                .map(|poll| poll.key.clone())
-                .collect::<BTreeSet<_>>();
-            next_polls.retain(|key, _| current.contains(key));
-            observed_poll_sequences.retain(|key, _| current.contains(key));
-
-            for poll in admitted {
-                if cancelled.load(Ordering::Relaxed) {
-                    return Ok(());
-                }
-                let now = Instant::now();
-                let previous = observed_poll_sequences
-                    .insert(poll.key.clone(), poll.latest_poll_sequence);
-                if previous.is_some_and(|sequence| sequence != poll.latest_poll_sequence) {
-                    next_polls.insert(poll.key, now + poll.interval);
-                    continue;
-                }
-                if next_polls.get(&poll.key).is_some_and(|next| *next > now) {
-                    continue;
-                }
-                if let Err(error) = self.run_poll(&poll.key) {
-                    if cancelled.load(Ordering::Relaxed) {
-                        return Ok(());
-                    }
-                    let still_current = Self::admitted_polls(&store)?
-                        .iter()
-                        .any(|candidate| candidate.key == poll.key);
-                    if still_current {
-                        return Err(error);
-                    }
-                    continue;
-                }
-                next_polls.insert(poll.key, Instant::now() + poll.interval);
-            }
-            thread::park_timeout(Duration::from_millis(INGRESS_SCAN_INTERVAL_MS));
-        }
-        Ok(())
-    }
-
-    fn admitted_polls(
-        store: &LocalChannelStore,
-    ) -> Result<Vec<AdmittedGitHubPoll>, ChannelIngressError> {
-        let status = store.status()?;
-        let mailbox = store.mailbox(&status)?;
-        let Some(head) = status.head_commit else {
-            return Ok(Vec::new());
-        };
-        Ok(head
-            .snapshot
-            .graph
-            .applications
-            .iter()
-            .filter_map(|application| {
-                application
-                    .github_inbox
-                    .as_ref()
-                    .map(|inbox| AdmittedGitHubPoll {
-                        key: GitHubPollKey {
-                            channel_head_commit_id: head.commit_id.to_string(),
-                            application_id: application.id.clone(),
-                            application_revision: application.revision,
-                        },
-                        interval: Duration::from_secs(inbox.poll_interval_seconds),
-                        latest_poll_sequence: mailbox
-                            .polls
-                            .iter()
-                            .find(|receipt| {
-                                receipt.application_id == application.id
-                                    && receipt.application_revision == application.revision
-                            })
-                            .map(|receipt| receipt.sequence),
-                    })
-            })
-            .collect())
-    }
-
-    fn run_poll(&self, poll: &GitHubPollKey) -> Result<(), ChannelIngressError> {
-        let output = Command::new(&self.rey_executable)
-            .arg("channels")
-            .arg("--workspace")
-            .arg(&self.workspace)
-            .arg("--state-dir")
-            .arg(&self.channel_directory)
-            .arg("poll")
-            .arg(&poll.application_id)
-            .arg("--format")
-            .arg("json")
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output()
-            .map_err(ChannelIngressError::PollSpawn)?;
-        if output.status.success() || output.status.code() == Some(3) {
-            return Ok(());
-        }
-        let detail = String::from_utf8_lossy(&output.stderr);
-        let detail = detail.trim().chars().take(512).collect::<String>();
-        Err(ChannelIngressError::PollFailed {
-            application_id: poll.application_id.clone(),
-            status: output
-                .status
-                .code()
-                .map_or_else(|| "signal".to_owned(), |code| code.to_string()),
-            detail,
-        })
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum ChannelIngressError {
-    #[error("current Rey executable could not be resolved: {0}")]
-    Executable(io::Error),
-    #[error("Channel state could not be inspected: {0}")]
-    Channel(#[from] ChannelGraphError),
-    #[error("resident GitHub poll command could not be started: {0}")]
-    PollSpawn(io::Error),
-    #[error("resident GitHub poll for {application_id} exited with {status}: {detail}")]
-    PollFailed {
-        application_id: String,
-        status: String,
-        detail: String,
-    },
-}
-
 #[derive(Debug, Error)]
 pub enum AgentError {
     #[error("Rey agent signal handling could not be installed: {0}")]
@@ -539,8 +351,8 @@ pub enum AgentError {
     WorkerPanicked(String),
     #[error("supervised operator worker failed: {0}")]
     Operator(UiError),
-    #[error("supervised GitHub Channel ingress worker failed: {0}")]
-    ChannelIngress(#[from] ChannelIngressError),
+    #[error("supervised scheduler failed: {0}")]
+    Scheduler(#[from] SchedulerError),
 }
 
 #[cfg(test)]

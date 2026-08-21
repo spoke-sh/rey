@@ -37,6 +37,7 @@ serde-saphyr.workspace = true
 signal-hook.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-stream.workspace = true
 utoipa-swagger-ui.workspace = true
 
 [dev-dependencies]

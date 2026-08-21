@@ -69,9 +69,9 @@ the startup log binds that process to its package version and build commit,
 while the startup document and `GET /api/v1/agent` expose the exact process,
 worker, and supervision edge. `rey version` projects the same immutable build
 identity without starting the process. SIGINT or SIGTERM requests cooperative
-shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a fixed two-worker
-bound and no restart, daemonization, multi-process fencing, or crash-durability
-claim.
+shutdown, and an unexpected worker exit fails the Rey process closed. V1 has a
+fixed operator-and-scheduler bound and no restart, daemonization,
+multi-process fencing, or crash-durability claim.
 
 The operator projection attaches to that process. `/` enters the formal
 `/api` discovery root, `/api/docs/` serves vendored Swagger, and
@@ -82,7 +82,7 @@ does not prevent health, documentation, assets, or other pages from being
 accepted. This concurrency is transport mechanism, not workload scheduling.
 Its explicit browser writes are bounded
 unauthenticated Journal admission, conditional Channel WORKING replacement,
-an exact clicked-message GitHub read probe with local poll/message retention,
+an exact clicked-message GitHub schedule request with local poll/message retention,
 and exact workload file qualification/admission on any explicitly configured
 listener. It is not a separate runtime or scheduler; none of those writes
 grants general compute or proof authority.
@@ -90,9 +90,10 @@ grants general compute or proof authority.
 The topology is a lifecycle graph, not agent execution authority. Discovered
 agent runtimes remain potential environment capabilities; the orchestrator
 does not invoke, assign, or supervise one until a later explicit admission
-contract exists. Browser passive revalidation remains browser-owned work and
-does not become server-side scheduling merely because its HTTP server is
-supervised.
+contract exists. The orchestrator also supervises one `rey scheduler` child OS
+process. That process owns recurring observation and provider schedules,
+retained controls and receipts, and semantic invalidation publication. Browser
+routes revalidate from that event stream and own no recurring scan timer.
 
 ## System Graph
 
@@ -355,17 +356,17 @@ journeys remain derived. Agent
 application discovery stays on `/environment`, and generator tuples remain
 provenance rather than activity or assignment. A separately admitted exact
 `gh` application may be invoked only by the bounded Channel poll contract; the
-CLI verifies one tick and the supervised inbox worker repeats it at the exact
+CLI verifies one tick and the supervised scheduler repeats it at the exact
 committed cadence. Its retained GitHub notifications and pull-request comments
 then enter the mailbox.
 `/cadence`
-keeps bounded Git reachability, environment sequence, and mounted browser scan
+keeps bounded Git reachability, environment sequence, and runtime schedule
 schedules on separate clocks instead of fabricating a total event order. Its
 repository-state plane separately shows staged, unstaged, untracked, and
 conflicted working-tree attention plus exact `HEAD`-to-local-upstream
 publication. That relation is revision-bound and performs no remote transport.
 The fixed footer is a live communications channel over current retained
-Channel poll messages, typed attention, and passive-revalidation health. A
+Channel poll messages, typed attention, and scheduler/event-stream health. A
 quiet mailbox means no operator attention is requested; it is not filled with
 authored Observations or synthetic heartbeat activity. The mailbox
 control selects the history axis. The center chevrons select a separate
@@ -411,12 +412,12 @@ implemented. The separate local conversation log now retains immutable
 sessions, declared participants/writers, per-session message order, exact
 sources, availability, authority, limits, and failure posture; no append
 invokes an agent or uses Channel relay. Browser conversation projection and
-conditional append are delivered. Resident beacon scheduling and durable
-remote provider cursors remain planned behavior. The implemented GitHub poll
-has both an explicit one-shot CLI and a supervised admitted-cadence worker; its
+conditional append are delivered. Durable remote provider cursors remain
+planned behavior. The implemented GitHub poll has both an explicit one-shot
+CLI and a dynamic supervised scheduler entry; its
 latest exact-Channel-HEAD receipt defines the current provider mailbox
 frontier. The mailbox projects that frontier beside
-typed runtime attention and passive revalidation failures; it does not
+typed runtime attention and event-driven revalidation failures; it does not
 reinterpret authored Observations as mail.
 
 Hifi's

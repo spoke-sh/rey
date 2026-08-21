@@ -73,8 +73,20 @@ export interface CadenceSchedule {
   source: string;
   interval_ms: number;
   activation: string;
-  authority: "mounted_browser_projection";
-  retention: "last_good_document";
+  authority: string;
+  retention: string;
+  revision?: number;
+  kind?: string;
+  topic?: string;
+  enabled?: boolean;
+  state?: string;
+  last_started_unix?: number | null;
+  last_success_unix?: number | null;
+  next_run_unix?: number | null;
+  source_revision?: string | null;
+  run_count?: number;
+  event_count?: number;
+  last_error?: string | null;
 }
 
 export interface CadenceProjection {
@@ -87,7 +99,16 @@ export interface CadenceProjection {
   omissions: string[];
 }
 
-export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
+export function CadencePage({
+  cadence,
+  onScheduleToggle,
+}: {
+  cadence: CadenceProjection;
+  onScheduleToggle?: (
+    schedule: CadenceSchedule,
+    enabled: boolean,
+  ) => Promise<void>;
+}) {
   return (
     <main className={sx(chrome.page, styles.page)}>
       <section
@@ -134,49 +155,103 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
 
       <section
         className={sx(styles.section)}
-        data-rey-section="03 / SCHEDULED SCANS"
+        data-rey-section="03 / SCHEDULER"
       >
         <CadenceHeading
-          detail="read-only browser projection · no runtime admission"
+          detail={`${cadence.schedules.filter((schedule) => schedule.enabled !== false).length} enabled · ${cadence.schedules.length} total`}
           index="03"
-          kicker="SCHEDULED SCANS"
-          title="Mounted observation loops"
+          kicker="SCHEDULER"
+          title="Observation schedules"
         />
         <div className={sx(styles.scheduleGrid)}>
           {cadence.schedules.map((schedule) => (
-            <article className={sx(styles.scheduleCard)} key={schedule.id}>
-              <div className={sx(styles.scheduleDial)}>
-                <span>{formatInterval(schedule.interval_ms)}</span>
-                <i />
-              </div>
-              <div className={sx(styles.scheduleBody)}>
-                <span className={sx(chrome.micro, styles.scheduleId)}>
-                  {schedule.id}
-                </span>
-                <h3>{schedule.label}</h3>
-                <code>{schedule.source}</code>
-                <dl className={sx(styles.scheduleDefinitions)}>
-                  <div>
-                    <dt>ACTIVATION</dt>
-                    <dd>{schedule.activation.replaceAll("_", " ")}</dd>
-                  </div>
-                  <div>
-                    <dt>AUTHORITY</dt>
-                    <dd>{schedule.authority.replaceAll("_", " ")}</dd>
-                  </div>
-                  <div>
-                    <dt>RETENTION</dt>
-                    <dd>{schedule.retention.replaceAll("_", " ")}</dd>
-                  </div>
-                </dl>
-              </div>
-            </article>
+            <ScheduleCard
+              key={schedule.id}
+              schedule={schedule}
+              onToggle={onScheduleToggle}
+            />
           ))}
         </div>
       </section>
 
     </main>
   );
+}
+
+function ScheduleCard({
+  schedule,
+  onToggle,
+}: {
+  schedule: CadenceSchedule;
+  onToggle?: (schedule: CadenceSchedule, enabled: boolean) => Promise<void>;
+}) {
+  const enabled = schedule.enabled !== false;
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const toggle = () => {
+    if (!onToggle || pending) return;
+    setPending(true);
+    setError(null);
+    void onToggle(schedule, !enabled)
+      .catch((cause) =>
+        setError(cause instanceof Error ? cause : new Error(String(cause))),
+      )
+      .finally(() => setPending(false));
+  };
+
+  return (
+    <article className={sx(styles.scheduleCard)}>
+      <div className={sx(styles.scheduleIdentity)}>
+        <h3>{schedule.label}</h3>
+        <code>{schedule.id}</code>
+      </div>
+      <div className={sx(styles.scheduleDatum)}>
+        <span>CADENCE</span>
+        <strong>{formatInterval(schedule.interval_ms)}</strong>
+      </div>
+      <div className={sx(styles.scheduleDatum)}>
+        <span>LAST SUCCESS</span>
+        <strong>{formatScheduleTime(schedule.last_success_unix)}</strong>
+      </div>
+      <div className={sx(styles.scheduleState)}>
+        <i className={sx(enabled && styles.scheduleStateEnabled)} />
+        <span>{pending ? "updating" : enabled ? "enabled" : "disabled"}</span>
+      </div>
+      {onToggle ? (
+        <KineticButton
+          aria-checked={enabled}
+          aria-label={`${enabled ? "Disable" : "Enable"} ${schedule.label}`}
+          className={sx(styles.scheduleToggle)}
+          disabled={pending}
+          onClick={toggle}
+          role="switch"
+          theme="precision"
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className={sx(
+              styles.scheduleToggleTrack,
+              enabled && styles.scheduleToggleTrackEnabled,
+            )}
+          >
+            <i />
+          </span>
+          <span>{enabled ? "ON" : "OFF"}</span>
+        </KineticButton>
+      ) : null}
+      {schedule.last_error || error ? (
+        <p className={sx(styles.scheduleError)}>
+          {error?.message ?? schedule.last_error}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+function formatScheduleTime(value: number | null | undefined): string {
+  if (value == null) return "not yet";
+  return new Date(value * 1_000).toLocaleString();
 }
 
 export function CadenceTicksPage({ cadence }: { cadence: CadenceProjection }) {
@@ -718,3 +793,4 @@ function formatInterval(intervalMs: number): string {
     ? `${intervalMs / 1_000}s`
     : `${intervalMs}ms`;
 }
+import { KineticButton } from "@hifi/kinetic";

@@ -46,6 +46,7 @@ schemas, or renderer internals. Follow the linked contract for those details.
 | Mining | [Mining](MINING.md) | Relational and source operation families, frozen requests/results, lineage, limits, and native artifacts. |
 | Workloads | [Workloads](WORKLOADS.md) | Versioned graph, scenarios, policy, qualification, total budget, results, and admission. |
 | Runtime | [Runtime](RUNTIME.md) | Deterministic transitions, probes and effects, cancellation, retries, budgets, and process versus semantic outcomes. |
+| Scheduling | [Scheduling](SCHEDULING.md) | Supervised scan schedules, semantic invalidations, revision-checked controls, and retained receipts. |
 | Frontier | [Frontier](FRONTIER.md) | Typed attention, dependencies, invalidation, prioritization inputs, progress, and convergence. |
 | Diff | [Diff](DIFF.md) | Directed typed comparison, alignment, schema change, text/structural direction, and renderings. |
 | Proof | [Proof](PROOF.md) | Claims, evidence manifests, assessment, certificates, staleness, and missing evidence. |
@@ -260,7 +261,7 @@ shortcut around an unresolved ownership decision.
 ## Current Boundary
 
 Rey currently implements a local foreground agent process, bounded CLI,
-embedded Axum API/browser worker, admitted GitHub Channel inbox poller, local
+embedded Axum API/browser worker, supervised scheduler child, admitted GitHub Channel inbox poller, local
 revision stores, workload qualification/runtime slices, evidence projections,
 and the Explorer rendering engine described by the linked contracts.
 

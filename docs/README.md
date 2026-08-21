@@ -25,6 +25,7 @@ is which.
 | [Mining](MINING.md) | Relational and source mining families, request/result lineage, native artifacts, visualization, and provider boundaries. |
 | [Workloads](WORKLOADS.md) | The public unit of computation: workspace packages, graphs, scenarios, qualification, admission, execution, retained results, and exact scenario/delta inspection. |
 | [Runtime](RUNTIME.md) | Deterministic transition state, nested campaigns, reasoning surfaces, stop guards, and semantic convergence. |
+| [Scheduling](SCHEDULING.md) | Supervised schedules, semantic invalidations, controls, and retention. |
 | [Frontier](FRONTIER.md) | Unresolved work, directional progress, readiness, deterministic scheduling, and workload attention placement. |
 | [Diffs](DIFFS.md) | Authoritative typed relational, text, and structural deltas, direction, normalization, invalidation, and portable projections. |
 | [Proofs](PROOFS.md) | Claims, evidence manifests, qualification, certificates, completeness, staleness, verification, and retention profiles. |

@@ -383,7 +383,7 @@ export async function loadChannels(): Promise<ChannelProjection> {
 
 export async function pollGitHubMailbox(
   write: GitHubPollWriteRequest,
-): Promise<ChannelProjection> {
+): Promise<void> {
   const response = await fetch("/api/v1/channels/poll", {
     body: JSON.stringify(write),
     headers: {
@@ -398,7 +398,28 @@ export async function pollGitHubMailbox(
       `GitHub mailbox poll failed (${response.status}): ${detail}`,
     );
   }
-  return (await response.json()) as ChannelProjection;
+}
+
+export async function controlSchedule(write: {
+  schedule_id: string;
+  expected_revision: number;
+  enabled?: boolean;
+  run_now?: boolean;
+}): Promise<void> {
+  const response = await fetch("/api/v1/schedules/control", {
+    body: JSON.stringify(write),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Schedule control failed (${response.status}): ${detail}`,
+    );
+  }
 }
 
 export async function writeChannelWorking(

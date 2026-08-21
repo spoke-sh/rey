@@ -66,8 +66,10 @@ rey agent
 ```
 
 `rey agent` starts the foreground Rey process. Its orchestrator supervises the
-operator HTTP server and owns the lifecycle of every in-process background
-worker. Startup prints one framework-style listening URL while stderr records
+operator HTTP server and a distinct scheduler child process. The scheduler
+owns recurring runtime scans and dynamic GitHub inbox schedules; the browser
+revalidates through semantic server-sent events rather than polling. Startup
+prints one framework-style listening URL while stderr records
 the exact `rey version` identity and lifecycle events as the process and
 workers start and stop. Rey listens on
 `127.0.0.1:5714` by default. The server root opens the Swagger-guided API at
@@ -315,6 +317,8 @@ active implementation plans. The key bearings are:
   admission, and execution.
 - [Runtime](docs/RUNTIME.md) and [Frontier](docs/FRONTIER.md) — deterministic
   transitions, attention, progress, scheduling, and convergence.
+- [Scheduling](docs/SCHEDULING.md) — supervised runtime scans, controls,
+  semantic invalidations, and retained receipts.
 - [Interfaces](docs/INTERFACES.md) — the high-level map between CLI, API,
   browser, evidence, provider, policy, and persistence boundaries.
 

@@ -30,6 +30,7 @@ signal-hook = "0.4.4"
 tempfile = "3.27.0"
 thiserror = "2.0.19"
 tokio = { version = "1.49.0", features = ["net", "rt", "sync", "time"] }
+tokio-stream = { version = "0.1.18", features = ["sync"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum", "vendored"] }
 
 [workspace.lints.rust]

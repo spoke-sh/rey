@@ -85,20 +85,20 @@ scene admission, remaining engine separation, World/Atlas/County completion,
 and CLI/browser/performance proof.
 The former Instrument dashboard is
 Environment at `/environment`. `/cadence` keeps bounded Git reachability, Rey
-admissions, and mounted browser scans on explicit partial-order clocks. `/agents` ranks
+admissions, and supervised runtime schedules on explicit partial-order clocks. `/agents` ranks
 evidence-backed system recommendations and summarizes retained work results;
 agent-runtime discovery remains on `/environment`. Generator provenance remains
 workload evidence, not the definition of an available or assigned agent. The
 foreground Rey process owns an orchestrator that supervises the operator HTTP
-worker, fails closed on unexpected worker exit, and stops it cooperatively on
+worker and scheduler child, fails closed on unexpected worker exit, and stops them cooperatively on
 SIGINT or SIGTERM. It does not invoke a discovered agent runtime or schedule a
-workload. The UI starts from that CLI process, passively revalidates the same workload-list
-derivation, defaults to loopback, and is not a general mutation plane or public
+workload. The UI starts from that CLI process, revalidates the same workload-list
+derivation from scheduler invalidations, defaults to loopback, and is not a general mutation plane or public
 Rey service. Channel topology remains non-navigable substrate behind Feed,
 mailbox, and conversation. `rey channels poll` may use an exact Channel- and
 environment-HEAD-admitted `gh` executable to retain current unread GitHub
-notifications and bounded pull-request comments for the mailbox; `rey agent`
-supervises that same command at the committed application cadence. Neither
+notifications and bounded pull-request comments for the mailbox; the supervised
+scheduler invokes that same command at the committed application cadence. Neither
 path marks provider notifications read or runs from discovery alone. Feed's
 Admission stream projects retained environment and workload commits only;
 WORKING/INDEX review and exact approval remain on their source surfaces.

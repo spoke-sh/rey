@@ -1,10 +1,10 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    convert::Infallible,
     env, fs,
     io::{Cursor, Read, Write},
     net::{IpAddr, SocketAddr, TcpListener},
     path::{Path, PathBuf},
-    process::{Command, Stdio},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -21,7 +21,7 @@ use axum::{
         StatusCode as AxumStatusCode, Uri,
     },
     middleware::{self, Next},
-    response::Response as AxumResponse,
+    response::{Response as AxumResponse, sse::{Event, KeepAlive, Sse}},
     routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -64,9 +64,13 @@ use rey_git::{GitInspector, GitLimits, GitRepositoryStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use thiserror::Error;
+use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{API_ROOT_PATH, API_ROUTES, ApiMethod, OPENAPI_PATH, SWAGGER_PATH, openapi};
+use crate::scheduler::{
+    SCHEDULER_CONTROL_SCHEMA, SchedulerRuntime, SchedulerScheduleProjection,
+};
 
 const UI_SERVER_SCHEMA: &str = "rey.ui-server.v2";
 const AGENT_HEALTH_SCHEMA: &str = "rey.agent-health.v2";
@@ -85,6 +89,7 @@ const MAX_WORKLOAD_APPROVAL_BYTES: u64 = 16 * 1_024;
 const MAX_UI_OBSERVATION_WRITE_BYTES: u64 = 32 * 1_024;
 const MAX_UI_OBSERVATION_BODY_CHARS: usize = 500;
 const MAX_UI_GITHUB_POLL_WRITE_BYTES: u64 = 4 * 1_024;
+const MAX_UI_SCHEDULER_CONTROL_BYTES: u64 = 4 * 1_024;
 const MAX_REVALIDATION_SOURCE_BYTES: u64 = 128 * 1_024 * 1_024;
 const MAX_REVALIDATION_SOURCE_ENTRIES: usize = 4_096;
 const LIVE_REFRESH_INTERVAL_MS: u64 = 5_000;
@@ -328,24 +333,13 @@ struct UiCadenceLane {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-struct UiCadenceSchedule {
-    id: String,
-    label: String,
-    source: String,
-    interval_ms: u64,
-    activation: String,
-    authority: String,
-    retention: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 struct UiCadenceProjection {
     schema: String,
     ordering: String,
     source_repository: Option<String>,
     repository_state: Option<UiCadenceRepositoryState>,
     lanes: Vec<UiCadenceLane>,
-    schedules: Vec<UiCadenceSchedule>,
+    schedules: Vec<SchedulerScheduleProjection>,
     omissions: Vec<String>,
 }
 
@@ -512,6 +506,7 @@ pub struct UiServer {
     descriptor: UiServerDescriptor,
     projection_cache: Mutex<UiProjectionCache>,
     workload_projection: Mutex<()>,
+    scheduler: SchedulerRuntime,
 }
 
 #[derive(Default)]
@@ -551,6 +546,9 @@ impl ServeControl {
 fn operator_router(server: Arc<UiServer>, control: ServeControl) -> Router {
     let mut router = Router::<Arc<UiServer>>::new();
     for route in API_ROUTES {
+        if route.path == "/api/v1/events" {
+            continue;
+        }
         let method_router = match route.method {
             ApiMethod::Read => get(dispatch_request),
             ApiMethod::Write => post(dispatch_request),
@@ -558,6 +556,7 @@ fn operator_router(server: Arc<UiServer>, control: ServeControl) -> Router {
         router = router.route(route.path, method_router);
     }
     router
+        .route("/api/v1/events", get(scheduler_events))
         .route("/", get(dispatch_request))
         .merge(SwaggerUi::new(SWAGGER_PATH).external_url_unchecked(OPENAPI_PATH, openapi()))
         .method_not_allowed_fallback(method_not_allowed)
@@ -565,6 +564,35 @@ fn operator_router(server: Arc<UiServer>, control: ServeControl) -> Router {
         .layer(DefaultBodyLimit::max(MAX_OPERATOR_REQUEST_BODY_BYTES))
         .layer(middleware::from_fn_with_state(control, count_request))
         .with_state(server)
+}
+
+async fn scheduler_events(
+    State(server): State<Arc<UiServer>>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    let snapshot = server.scheduler.snapshot();
+    let initial = crate::scheduler::SchedulerEvent {
+        schema: crate::scheduler::SCHEDULER_EVENT_SCHEMA.to_owned(),
+        sequence: snapshot.sequence,
+        schedule_id: "scheduler.subscription".to_owned(),
+        topic: "*".to_owned(),
+        source_revision: format!("snapshot:{}", snapshot.sequence),
+        occurred_at_unix: chrono::Utc::now().timestamp(),
+    };
+    let initial = tokio_stream::once(Ok::<Event, Infallible>(
+        Event::default()
+            .id(initial.sequence.to_string())
+            .data(serde_json::to_string(&initial).expect("scheduler event serializes")),
+    ));
+    let updates = BroadcastStream::new(server.scheduler.subscribe()).filter_map(|result| {
+        result.ok().map(|event| {
+            Ok::<Event, Infallible>(
+                Event::default()
+                    .id(event.sequence.to_string())
+                    .data(serde_json::to_string(&event).expect("scheduler event serializes")),
+            )
+        })
+    });
+    Sse::new(initial.chain(updates)).keep_alive(KeepAlive::default())
 }
 
 async fn method_not_allowed(uri: Uri) -> AxumResponse {
@@ -694,12 +722,18 @@ impl UiServer {
             descriptor,
             projection_cache: Mutex::new(UiProjectionCache::default()),
             workload_projection: Mutex::new(()),
+            scheduler: SchedulerRuntime::new(),
         })
     }
 
     #[must_use]
     pub fn descriptor(&self) -> UiServerDescriptor {
         self.descriptor.clone()
+    }
+
+    #[must_use]
+    pub fn scheduler_runtime(&self) -> SchedulerRuntime {
+        self.scheduler.clone()
     }
 
     pub fn serve_until(self, cancelled: Arc<AtomicBool>) -> Result<(), UiError> {
@@ -763,6 +797,9 @@ impl UiServer {
         if request.method() == &Method::Post && path == "/api/v1/channels/poll" {
             return self.poll_github_mailbox(request);
         }
+        if request.method() == &Method::Post && path == "/api/v1/schedules/control" {
+            return self.control_schedule(request);
+        }
         if request.method() == &Method::Post && path == "/api/v1/conversations/messages" {
             return self.write_conversation_message(request);
         }
@@ -784,6 +821,7 @@ impl UiServer {
             "/api/v1/health" => self.health(),
             "/api/v1/agent" => self.agent(),
             "/api/v1/revalidation" => self.revalidation(),
+            "/api/v1/schedules" => json_response(StatusCode(200), &self.scheduler.snapshot()),
             "/api/v1/cadence" => self.cadence(),
             "/api/v1/channels" => self.channels(),
             "/api/v1/conversations" => self.conversations(),
@@ -843,6 +881,77 @@ impl UiServer {
         match self.revalidation_cursor() {
             Ok(cursor) => json_response(StatusCode(200), &cursor),
             Err(detail) => json_error(StatusCode(500), "revalidation_unavailable", &detail),
+        }
+    }
+
+    fn control_schedule(&self, request: &mut Request) -> Response<Cursor<Vec<u8>>> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Write {
+            schema: String,
+            schedule_id: String,
+            expected_revision: u64,
+            enabled: bool,
+        }
+        if request_header(request, "Content-Type") != Some("application/json") {
+            return json_error(
+                StatusCode(415),
+                "scheduler_control_content_type",
+                "scheduler control requires Content-Type: application/json",
+            );
+        }
+        let mut bytes = Vec::new();
+        if request
+            .as_reader()
+            .take(MAX_UI_SCHEDULER_CONTROL_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .is_err()
+            || bytes.len() as u64 > MAX_UI_SCHEDULER_CONTROL_BYTES
+        {
+            return json_error(
+                StatusCode(413),
+                "scheduler_control_body_limit",
+                "scheduler control exceeds the 4096-byte limit",
+            );
+        }
+        let write: Write = match serde_json::from_slice(&bytes) {
+            Ok(write) => write,
+            Err(error) => {
+                return json_error(
+                    StatusCode(400),
+                    "scheduler_control_json_invalid",
+                    &error.to_string(),
+                );
+            }
+        };
+        if write.schema != SCHEDULER_CONTROL_SCHEMA {
+            return json_error(
+                StatusCode(422),
+                "scheduler_control_schema_invalid",
+                "expected rey.scheduler-control.v1",
+            );
+        }
+        match self.scheduler.set_enabled(
+            &write.schedule_id,
+            write.expected_revision,
+            write.enabled,
+        ) {
+            Ok(()) => json_response(
+                StatusCode(202),
+                &json!({
+                    "schema": "rey.scheduler-control-receipt.v1",
+                    "schedule_id": write.schedule_id,
+                    "expected_revision": write.expected_revision,
+                    "requested_enabled": write.enabled,
+                    "state": "accepted",
+                    "authority": "scheduler child process must validate and apply the request"
+                }),
+            ),
+            Err(error) => json_error(
+                StatusCode(409),
+                "scheduler_control_rejected",
+                &error.to_string(),
+            ),
         }
     }
 
@@ -1426,63 +1535,22 @@ impl UiServer {
             );
         }
 
-        let executable = match env::current_exe() {
-            Ok(executable) => executable,
-            Err(error) => {
-                return json_error(
-                    StatusCode(500),
-                    "github_poll_executable_unavailable",
-                    &error.to_string(),
-                );
-            }
-        };
-        let output = match Command::new(executable)
-            .arg("channels")
-            .arg("--workspace")
-            .arg(&self.config.workspace)
-            .arg("--state-dir")
-            .arg(&self.config.channel_directory)
-            .arg("poll")
-            .arg(&write.application_id)
-            .arg("--format")
-            .arg("json")
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output()
-        {
-            Ok(output) => output,
-            Err(error) => {
-                return json_error(
-                    StatusCode(502),
-                    "github_poll_spawn_failed",
-                    &error.to_string(),
-                );
-            }
-        };
-        if !output.status.success() && output.status.code() != Some(3) {
-            let detail = String::from_utf8_lossy(&output.stderr)
-                .trim()
-                .chars()
-                .take(512)
-                .collect::<String>();
-            return json_error(
-                StatusCode(502),
-                "github_poll_failed",
-                &format!(
-                    "GitHub poll exited with {}{}",
-                    output
-                        .status
-                        .code()
-                        .map_or_else(|| "signal".to_owned(), |code| code.to_string()),
-                    if detail.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" · {detail}")
-                    }
-                ),
-            );
+        let schedule_id = format!("provider.github-inbox/{}", write.application_id);
+        match self.scheduler.run_now(&schedule_id) {
+            Ok(()) => json_response(
+                StatusCode(202),
+                &json!({
+                    "schema": "rey.scheduler-run-request.v1",
+                    "schedule_id": schedule_id,
+                    "state": "accepted"
+                }),
+            ),
+            Err(error) => json_error(
+                StatusCode(409),
+                "github_poll_schedule_rejected",
+                &error.to_string(),
+            ),
         }
-        self.channels()
     }
 
     fn conversations(&self) -> Response<Cursor<Vec<u8>>> {
@@ -2332,53 +2400,7 @@ impl UiServer {
             source_repository,
             repository_state,
             lanes: vec![git_lane, environment_lane],
-            schedules: vec![
-                UiCadenceSchedule {
-                    id: "ui.portfolio.passive-revalidation".to_owned(),
-                    label: "Portfolio change scan".to_owned(),
-                    source: "/api/v1/revalidation".to_owned(),
-                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "application_mounted".to_owned(),
-                    authority: "mounted_browser_projection".to_owned(),
-                    retention: "last_good_document".to_owned(),
-                },
-                UiCadenceSchedule {
-                    id: "ui.environment.passive-revalidation".to_owned(),
-                    label: "Environment scan".to_owned(),
-                    source: "/api/v1/environment".to_owned(),
-                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "environment_route_mounted".to_owned(),
-                    authority: "mounted_browser_projection".to_owned(),
-                    retention: "last_good_document".to_owned(),
-                },
-                UiCadenceSchedule {
-                    id: "ui.channels.passive-revalidation".to_owned(),
-                    label: "Channel-backed Feed scan".to_owned(),
-                    source: "/api/v1/channels".to_owned(),
-                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "feed_route_mounted".to_owned(),
-                    authority: "mounted_browser_projection".to_owned(),
-                    retention: "last_good_document".to_owned(),
-                },
-                UiCadenceSchedule {
-                    id: "ui.observations.passive-revalidation".to_owned(),
-                    label: "Observation frontier scan".to_owned(),
-                    source: "/api/v1/observations".to_owned(),
-                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "application_or_feed_mounted".to_owned(),
-                    authority: "mounted_browser_projection".to_owned(),
-                    retention: "last_good_document".to_owned(),
-                },
-                UiCadenceSchedule {
-                    id: "ui.cadence.passive-revalidation".to_owned(),
-                    label: "Cadence scan".to_owned(),
-                    source: "/api/v1/cadence".to_owned(),
-                    interval_ms: LIVE_REFRESH_INTERVAL_MS,
-                    activation: "cadence_route_mounted".to_owned(),
-                    authority: "mounted_browser_projection".to_owned(),
-                    retention: "last_good_document".to_owned(),
-                },
-            ],
+            schedules: self.scheduler.snapshot().schedules,
             omissions: projection_omissions,
         })
     }

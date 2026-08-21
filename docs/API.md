@@ -136,7 +136,9 @@ Every row is available through `GET` and `HEAD`.
 | `/api/v1/health`                                           | `rey.agent-health.v2`                  | Readiness plus exact process, worker topology, and operator descriptor.                                            |
 | `/api/v1/agent`                                            | `rey.agent-process.v2`                 | Foreground process, supervision, lifecycle, authority, limits, and omissions.                                      |
 | `/api/v1/revalidation`                                     | `rey.ui-revalidation.v1`               | Exact bounded source-change cursor; no assessment or scheduling.                                                   |
-| `/api/v1/cadence`                                          | `rey.ui-cadence.v1`                    | Partially ordered retained Git, environment, and mounted-browser cadence.                                          |
+| `/api/v1/cadence`                                          | `rey.ui-cadence.v1`                    | Partially ordered retained Git, environment, and supervised runtime schedules.                                    |
+| `/api/v1/schedules`                                        | `rey.scheduler-snapshot.v1`            | Current scheduler state, semantic revisions, and bounded run receipts.                                             |
+| `/api/v1/events`                                           | `rey.scheduler-event.v1`               | Process-local server-sent semantic invalidations; initial wildcard requires route resynchronization.              |
 | `/api/v1/environment`                                      | `rey.environment-status.v2`            | The same bounded environment-status derivation available through the CLI.                                          |
 | `/api/v1/channels`                                         | `rey.ui-channels.v1`                   | Channel status and current retained provider mailbox frontier.                                                     |
 | `/api/v1/conversations`                                    | `rey.conversation-transcript.v1`       | One bounded workspace-local transcript and its exact writer/delivery boundary.                                     |
@@ -167,6 +169,7 @@ does not alter their authority or safety boundary.
 | `POST /api/v1/observations`           | `rey.ui-observation-write.v1`                                             | Observation admission/broadcast receipt; `201`.                                         | Admit one partial self-asserted finding and attempt bounded broadcast to default local Channels. No relay, action, or proof authority. |
 | `POST /api/v1/conversations/messages` | `rey.ui-conversation-message-write.v1`                                    | Conditional append receipt; `201`.                                                      | Append as the declared browser writer only when log and session identities match. Delivery remains `not_attempted`.                    |
 | `POST /api/v1/channels/poll`          | `rey.ui-github-poll-write.v1`                                              | Refreshed `rey.ui-channels.v1`; `200`.                                                  | Poll only from a clicked current mailbox message under exact Channel HEAD and GitHub application-revision preconditions.               |
+| `POST /api/v1/schedules/control`      | Exact schedule id, expected revision, and enablement or run-now command     | Accepted scheduler command; `202`.                                                     | Change or run only the exact retained schedule revision; no workload or provider authority is granted.                                |
 | `POST /api/v1/channels/working`       | `rey.ui-channel-working-write.v1`                                         | Conditional replacement receipt; `201` when changed, `200` when unchanged.              | Validate a complete graph and replace only Channel WORKING when expected HEAD and WORKING snapshots still match.                       |
 | `POST /api/v1/workloads/admit`        | Workload approval with `message`, `expected_head`, and `expected_working` | Exact qualification/admission receipt; `201`.                                           | Freeze reviewed files, require fresh HEAD/WORKING preconditions, run the complete suite, and commit only that qualified INDEX.         |
 
@@ -258,9 +261,10 @@ catalog; do not hand-maintain a second static specification.
 `POST /api/v1/channels/poll` accepts `rey.ui-github-poll-write.v1` with the
 exact current Channel HEAD commit, GitHub application id and revision, and
 clicked retained message id. The message must still be present in the current
-mailbox and bind that application revision. Rey then runs the same bounded
-`rey channels poll` operation used by the supervised worker and returns the
-refreshed `rey.ui-channels.v1` projection.
+mailbox and bind that application revision. Rey requests `run_now` for the
+matching dynamic schedule. The scheduler runs the same bounded
+`rey channels poll` operation used by its committed cadence; semantic changes
+are delivered through `/api/v1/events`.
 
 This is an unauthenticated bounded provider read probe plus local poll/message
 retention on the configured listener. It never marks a GitHub notification
