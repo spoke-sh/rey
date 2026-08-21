@@ -1170,5 +1170,39 @@ export function sourceCommitUrl(
   revision: string,
 ): string | null {
   if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(revision)) return null;
-  return `${repository.replace(/\/$/, "")}/commit/${revision}`;
+  const base = repository.replace(/\/$/, "");
+  const provider = sourceRepositoryProvider(base);
+  if (provider === "github") return `${base}/commit/${revision}`;
+  if (provider === "gitlab") return `${base}/-/commit/${revision}`;
+  if (provider === "bitbucket") return `${base}/commits/${revision}`;
+  return null;
+}
+
+export function sourceBranchUrl(
+  repository: string,
+  branch: string,
+): string | null {
+  if (!branch || /[\u0000-\u001f\u007f]/.test(branch)) return null;
+  const base = repository.replace(/\/$/, "");
+  const encoded = branch.split("/").map(encodeURIComponent).join("/");
+  const provider = sourceRepositoryProvider(base);
+  if (provider === "github") return `${base}/tree/${encoded}`;
+  if (provider === "gitlab") return `${base}/-/tree/${encoded}`;
+  if (provider === "bitbucket") return `${base}/src/${encoded}`;
+  return null;
+}
+
+function sourceRepositoryProvider(
+  repository: string,
+): "github" | "gitlab" | "bitbucket" | null {
+  try {
+    const url = new URL(repository);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    if (url.hostname === "github.com") return "github";
+    if (url.hostname === "gitlab.com") return "gitlab";
+    if (url.hostname === "bitbucket.org") return "bitbucket";
+    return null;
+  } catch {
+    return null;
+  }
 }

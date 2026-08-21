@@ -2146,7 +2146,7 @@ impl UiServer {
         };
 
         let mut projection_omissions = Vec::new();
-        let source_repository = None;
+        let mut source_repository = None;
         let mut repository_state: Option<UiCadenceRepositoryState> = None;
         let admitted_git_program = history
             .commits
@@ -2171,7 +2171,35 @@ impl UiServer {
                     limits: GitLimits::default(),
                 };
                 match inspector.inspect_repository_status() {
-                    Ok(Some(status)) => repository_state = Some(status.into()),
+                    Ok(Some(status)) => {
+                        if let Some(remote_name) = status
+                            .publication
+                            .upstream
+                            .as_deref()
+                            .and_then(|upstream| upstream.split_once('/'))
+                            .map(|(remote, _)| remote)
+                        {
+                            match inspector.inspect_remote_url(remote_name) {
+                                Ok(Some(remote_url)) => {
+                                    source_repository =
+                                        Self::normalize_hub_repository_url(&remote_url);
+                                    if source_repository.is_none() {
+                                        projection_omissions.push(
+                                            "configured Git remote is not a supported GitHub, GitLab, or Bitbucket repository binding"
+                                                .to_owned(),
+                                        );
+                                    }
+                                }
+                                Ok(None) => projection_omissions.push(format!(
+                                    "configured Git remote {remote_name} has no URL"
+                                )),
+                                Err(error) => projection_omissions.push(format!(
+                                    "configured Git remote inspection failed: {error}"
+                                )),
+                            }
+                        }
+                        repository_state = Some(status.into());
+                    }
                     Ok(None) => projection_omissions
                         .push("Git repository state is absent for this workspace".to_owned()),
                     Err(error) => projection_omissions
@@ -2354,6 +2382,49 @@ impl UiServer {
             omissions: projection_omissions,
         })
     }
+
+fn normalize_hub_repository_url(remote_url: &str) -> Option<String> {
+    if remote_url.trim() != remote_url || remote_url.chars().any(char::is_control) {
+        return None;
+    }
+    let (host, path) = if let Some(remote) = remote_url.strip_prefix("https://") {
+        let (authority, path) = remote.split_once('/')?;
+        if authority.contains('@') || authority.contains(':') {
+            return None;
+        }
+        (authority, path)
+    } else if let Some(remote) = remote_url.strip_prefix("ssh://") {
+        let (authority, path) = remote.split_once('/')?;
+        let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+        if host.contains(':') {
+            return None;
+        }
+        (host, path)
+    } else {
+        let (authority, path) = remote_url.split_once(':')?;
+        let host = authority.rsplit_once('@').map_or(authority, |(_, host)| host);
+        (host, path)
+    };
+    let host = host.to_ascii_lowercase();
+    if !matches!(host.as_str(), "github.com" | "gitlab.com" | "bitbucket.org") {
+        return None;
+    }
+    let path = path.strip_suffix(".git").unwrap_or(path);
+    let segments = path.split('/').collect::<Vec<_>>();
+    if segments.len() < 2
+        || (host != "gitlab.com" && segments.len() != 2)
+        || segments.iter().any(|segment| {
+            segment.is_empty()
+                || matches!(*segment, "." | "..")
+                || !segment
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+        })
+    {
+        return None;
+    }
+    Some(format!("https://{host}/{path}"))
+}
 }
 
 #[derive(Default)]

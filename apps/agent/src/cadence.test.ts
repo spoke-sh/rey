@@ -79,6 +79,5 @@ describe("cadence projection", () => {
     expect(markup).toContain("PUSH RELATION");
     expect(markup).toContain("unpushed");
     expect(markup).toContain("local");
-    expect(markup).toContain("NO NETWORK FETCH");
   });
 });

@@ -2452,6 +2452,34 @@ impl GitInspector {
         }
     }
 
+    pub fn inspect_remote_url(&self, remote_name: &str) -> Result<Option<String>, GitError> {
+        if remote_name.is_empty()
+            || remote_name.len() > 256
+            || remote_name.chars().any(char::is_control)
+        {
+            return Err(GitError::MalformedStatus("remote name is invalid"));
+        }
+        let deadline = Instant::now() + Duration::from_millis(self.limits.total_timeout_ms);
+        let workspace = fs::canonicalize(&self.workspace).map_err(|source| GitError::Path {
+            path: self.workspace.clone(),
+            source,
+        })?;
+        let key = format!("remote.{remote_name}.url");
+        let output = self.git(&workspace, &["config", "--get", &key], deadline)?;
+        if output.status.success() {
+            let url = parse_line(&output.stdout)?;
+            if url.is_empty() || url.chars().any(char::is_control) {
+                return Err(GitError::MalformedStatus("remote URL is invalid"));
+            }
+            return Ok(Some(url.to_owned()));
+        }
+        if output.status.code() == Some(1) {
+            return Ok(None);
+        }
+        output.success("read configured Git remote URL")?;
+        unreachable!("successful Git output returned through the failure branch")
+    }
+
     fn git_line(
         &self,
         workspace: &Path,

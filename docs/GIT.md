@@ -83,6 +83,13 @@ classifies each visible commit against the retained upstream OID as `pushed`,
 local-ref facts rather than claims about current remote-host state. See
 [Interfaces](INTERFACES.md) for the Cadence projection.
 
+When an upstream names a configured remote, Cadence reads that remote's URL
+through the exact admitted `git` executable without contacting it. Credential-
+free HTTPS and SSH forms for GitHub, GitLab, and Bitbucket are normalized into
+typed web bindings for branch, upstream, and commit links. Local remotes,
+unsupported hosts, embedded credentials, and malformed URLs remain explicitly
+unbound; the UI never guesses a hub from a ref name.
+
 ## Git Surfaces
 
 The provider distinguishes:

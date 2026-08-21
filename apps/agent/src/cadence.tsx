@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { shortDigest } from "./domain";
+import { shortDigest, sourceBranchUrl } from "./domain";
 import { GitCommitLink } from "./git-commit-link";
 import { cadenceStyles as styles } from "./stylex/cadence.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
@@ -87,7 +87,7 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
           detail="local observation · no remote transport"
           index="01"
           kicker="REPOSITORY STATE"
-          title="Working tree and push relation"
+          title="Working tree and remote"
         />
         <RepositoryStateView
           gitAdmissionRequired={cadence.lanes.some(
@@ -207,6 +207,15 @@ function RepositoryStateView({
       </div>
     );
   }
+  const branchHref =
+    repository && state.branch
+      ? sourceBranchUrl(repository, state.branch)
+      : null;
+  const upstreamBranch = state.upstream?.split("/").slice(1).join("/") || null;
+  const upstreamHref =
+    repository && upstreamBranch
+      ? sourceBranchUrl(repository, upstreamBranch)
+      : null;
   return (
     <div className={sx(styles.repositoryState)}>
       <article className={sx(styles.stateInstrument)}>
@@ -237,9 +246,6 @@ function RepositoryStateView({
           <StateMeasure label="UNTRACKED" value={state.untracked_entries} />
           <StateMeasure label="CONFLICTED" value={state.conflicted_entries} />
         </div>
-        <footer className={sx(chrome.micro, styles.stateFootnote)}>
-          {state.scope.replaceAll("_", " ")}
-        </footer>
       </article>
 
       <article className={sx(styles.stateInstrument)}>
@@ -255,39 +261,76 @@ function RepositoryStateView({
           </span>
         </header>
         <div className={sx(styles.refPath)}>
-          <div>
+          <div className={sx(styles.refEndpoint)}>
             <span className={sx(chrome.micro)}>BRANCH</span>
-            <b>{state.branch ?? "DETACHED"}</b>
+            {branchHref ? (
+              <a
+                className={sx(
+                  chrome.focusable,
+                  styles.refValue,
+                  styles.refLink,
+                )}
+                href={branchHref}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {state.branch}
+              </a>
+            ) : (
+              <strong className={sx(styles.refValue)}>
+                {state.branch ?? "DETACHED"}
+              </strong>
+            )}
           </div>
-          <i aria-hidden="true">→</i>
-          <div>
+          <i aria-hidden="true" className={sx(styles.refArrow)}>
+            →
+          </i>
+          <div className={sx(styles.refEndpoint, styles.refEndpointRemote)}>
             <span className={sx(chrome.micro)}>UPSTREAM</span>
-            <b>{state.upstream ?? "NOT CONFIGURED"}</b>
+            {upstreamHref ? (
+              <a
+                className={sx(
+                  chrome.focusable,
+                  styles.refValue,
+                  styles.refLink,
+                )}
+                href={upstreamHref}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {state.upstream}
+              </a>
+            ) : (
+              <strong className={sx(styles.refValue)}>
+                {state.upstream ?? "NOT CONFIGURED"}
+              </strong>
+            )}
           </div>
         </div>
         <div className={sx(styles.publicationMeasures)}>
           <StateMeasure label="AHEAD" value={state.ahead} />
           <StateMeasure label="BEHIND" value={state.behind} />
-          <RepositoryRevision
-            label="HEAD"
-            repository={repository}
-            revision={state.head_revision}
-          />
-          <RepositoryRevision
-            label="UPSTREAM"
-            repository={repository}
-            revision={state.upstream_revision}
-          />
+          {repository === null ? (
+            <div className={sx(styles.repositoryUnbound)}>
+              <span className={sx(chrome.micro)}>COMMIT LINKS</span>
+              <strong>REPOSITORY UNBOUND</strong>
+            </div>
+          ) : (
+            <>
+              <RepositoryRevision
+                label="HEAD"
+                repository={repository}
+                revision={state.head_revision}
+              />
+              <RepositoryRevision
+                label="UPSTREAM"
+                repository={repository}
+                revision={state.upstream_revision}
+              />
+            </>
+          )}
         </div>
-        <footer className={sx(chrome.micro, styles.stateFootnote)}>
-          {state.comparison_basis.replaceAll("_", " ")} · NO NETWORK FETCH
-        </footer>
       </article>
-      <ul className={sx(styles.repositoryOmissions)}>
-        {state.omissions.map((omission) => (
-          <li key={omission}>BOUND / {omission}</li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -320,10 +363,14 @@ function RepositoryRevision({
     <div className={sx(styles.repositoryRevision)}>
       <span className={sx(chrome.micro)}>{label}</span>
       {revision === null ? (
-        <strong>—</strong>
+        <strong className={sx(styles.refValue)}>—</strong>
       ) : (
         <GitCommitLink
-          className={sx(chrome.focusable, styles.commitLink)}
+          className={sx(
+            chrome.focusable,
+            styles.refValue,
+            styles.refLink,
+          )}
           fallback="GIT COMMIT / REPOSITORY UNBOUND"
           repository={repository}
           revision={revision}

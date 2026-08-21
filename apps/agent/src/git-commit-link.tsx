@@ -16,7 +16,7 @@ export function GitCommitLink({
   fallback = "GIT COMMIT LINK UNAVAILABLE",
   repository,
   revision,
-  title = `Open GitHub commit ${revision}`,
+  title = `Open Git commit ${revision}`,
 }: GitCommitLinkProps) {
   const href = repository ? sourceCommitUrl(repository, revision) : null;
   if (!href) return <span className={className}>{fallback}</span>;

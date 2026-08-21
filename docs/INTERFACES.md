@@ -110,7 +110,10 @@ identity.
 
 - A Git commit identity is an exact commit SHA on a bound repository. The
   browser links a known SHA to that exact commit; it does not guess the
-  repository or label semantic digests as commits.
+  repository or label semantic digests as commits. Cadence derives supported
+  GitHub, GitLab, and Bitbucket web bindings only from the configured upstream
+  remote read through the admitted `git` executable; this performs no remote
+  transport and never retains embedded credentials.
 - A Journal entry has a stable human-readable route carrying exact content
   identity. Typed blocks expose fragment permalinks.
 - An Explorer resource coordinate remains separate from camera center, scale,
