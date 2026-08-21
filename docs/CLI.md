@@ -280,7 +280,10 @@ An unmatched path leaves INDEX unchanged. Patch selection offers only
 applications whose current WORKING observation is `available`; unavailable and
 errored application hunks are excluded and cannot be selected by `y` or `a`.
 The interactive output begins directly with the first stageable hunk. A scope
-containing only unresolved application hunks fails without
+that stages at least one hunk returns directly after the final decision without
+printing the non-interactive `ENVIRONMENT ADMISSION` receipt, matching Git's
+interactive-add rhythm. Use `env status` or `env diff --staged` for readback. A
+scope containing only unresolved application hunks fails without
 creating or changing INDEX. Full `add .` and `add -A` retain the complete
 snapshot, including explicit missing/error degradation evidence.
 

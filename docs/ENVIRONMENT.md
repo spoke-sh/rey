@@ -423,7 +423,10 @@ Every
 prompt renders an environment-native `diff --rey` hunk for a variable,
 application, input, or reference when possible, with an exact capability
 fallback. The fallback names changed semantic fields but omits raw structured
-provenance and directs exact inspection to JSON. File bytes never enter the selection interface; an explicitly
+provenance and directs exact inspection to JSON. After the final successful
+patch decision, table output returns without the non-interactive environment
+admission receipt; `status` and `diff --staged` own readback. File bytes never
+enter the selection interface; an explicitly
 value-captured variable is part of the retained capability observation. Staging a
 mapped executable accepts its observation for history but grants no execution
 or provider authority.

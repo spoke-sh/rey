@@ -10962,9 +10962,10 @@ fn env_add(
     let mut stdout = io::stdout().lock();
     match args.format {
         EnvHistoryOutputFormat::Json => write_json_line(&mut stdout, &result)?,
-        EnvHistoryOutputFormat::Table => {
+        EnvHistoryOutputFormat::Table if !args.patch => {
             write_env_add(&mut stdout, store, &result, TerminalStyle::stdout())?
         }
+        EnvHistoryOutputFormat::Table => {}
     }
     Ok(ExitCode::SUCCESS)
 }
