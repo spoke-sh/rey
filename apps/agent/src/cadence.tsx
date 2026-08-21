@@ -175,29 +175,6 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
         </div>
       </section>
 
-      <section
-        className={sx(styles.section, styles.boundary)}
-        data-rey-section="04 / REFERENCE PLANE"
-      >
-        <CadenceHeading
-          detail={`${cadence.omissions.length} declared ordering boundary`}
-          index="04"
-          kicker="REFERENCE PLANE"
-          title="Ordering and omissions"
-        />
-        <div className={sx(styles.boundaryGrid)}>
-          <p className={sx(styles.boundaryStatement)}>
-            <strong>PARTIAL ORDER IS AUTHORITATIVE.</strong> Movement within a
-            lane is sequenced. Movement between lanes is related only when
-            retained evidence supplies an explicit edge.
-          </p>
-          <ul className={sx(styles.omissionList)}>
-            {cadence.omissions.map((omission) => (
-              <li key={omission}>{omission}</li>
-            ))}
-          </ul>
-        </div>
-      </section>
     </main>
   );
 }

@@ -392,33 +392,4 @@ export const cadenceStyles = stylex.create({
     marginBottom: 0,
     marginTop: 20,
   },
-  boundary: { marginBottom: 30 },
-  boundaryGrid: {
-    display: "grid",
-    gap: 0,
-    gridTemplateColumns: {
-      default: "minmax(0, 1fr) minmax(360px, 0.8fr)",
-      "@media (max-width: 850px)": "1fr",
-    },
-    marginTop: 28,
-  },
-  boundaryStatement: {
-    backgroundColor: "var(--rey-foreground)",
-    color: "var(--rey-background)",
-    fontFamily: mono,
-    lineHeight: 1.8,
-    margin: 0,
-    padding: "clamp(28px, 5vw, 60px)",
-  },
-  omissionList: {
-    borderColor: "var(--line)",
-    borderStyle: "solid",
-    borderWidth: 1,
-    fontFamily: mono,
-    fontSize: "0.68rem",
-    lineHeight: 1.6,
-    listStyle: "square",
-    margin: 0,
-    padding: "clamp(28px, 5vw, 60px)",
-  },
 });
