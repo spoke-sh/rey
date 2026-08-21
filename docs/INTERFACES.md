@@ -114,6 +114,13 @@ identity.
   GitHub, GitLab, and Bitbucket web bindings only from the configured upstream
   remote read through the admitted `git` executable; this performs no remote
   transport and never retains embedded credentials.
+- `/cadence` renders at most five retained entries per tick lane and links to
+  `/cadence/ticks`, which traverses the bounded cadence projection through a
+  fixed rendered window. Forward and reverse scrolling replace that window
+  instead of accumulating tick rows. Reaching the end identifies whether the
+  lane is complete or whether older retained history is outside the projection.
+- Rey admission ticks link to the admission-bearing Environment section. The
+  route remains a read-only projection and does not admit the referenced state.
 - A Journal entry has a stable human-readable route carrying exact content
   identity. Typed blocks expose fragment permalinks.
 - An Explorer resource coordinate remains separate from camera center, scale,

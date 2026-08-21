@@ -76,9 +76,11 @@ import { environmentStyles as styles } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
 
 const AgentsPage = lazyRouteComponent(() => import("./agents"), "AgentsPage");
-const CadencePage = lazyRouteComponent(
-  () => import("./cadence"),
-  "CadencePage",
+const importCadence = () => import("./cadence");
+const CadencePage = lazyRouteComponent(importCadence, "CadencePage");
+const CadenceTicksPage = lazyRouteComponent(
+  importCadence,
+  "CadenceTicksPage",
 );
 const ExplorePage = lazyRouteComponent(
   () => import("./explore"),
@@ -1040,6 +1042,7 @@ function EnvironmentPage() {
       <section
         className={sx(styles.environmentDiffSurface)}
         data-rey-section="01 / DIRECTED TEXT"
+        id="admission"
       >
         <div className={sx(styles.environmentPanelHeader)}>
           <div>
@@ -1444,6 +1447,12 @@ function CadenceRoutePage() {
   return <CadencePage cadence={cadence} />;
 }
 
+function CadenceTicksRoutePage() {
+  const initialCadence = cadenceTicksRoute.useLoaderData();
+  const { document: cadence } = usePassiveDocument(initialCadence, loadCadence);
+  return <CadenceTicksPage cadence={cadence} />;
+}
+
 function AgentsRoutePage() {
   const initial = agentsRoute.useLoaderData();
   const { document } = usePassiveDocument(initial, loadAgentJournal);
@@ -1557,6 +1566,13 @@ const cadenceRoute = createRoute({
   component: CadenceRoutePage,
 });
 
+const cadenceTicksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "cadence/ticks",
+  loader: loadCadence,
+  component: CadenceTicksRoutePage,
+});
+
 const agentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "agents",
@@ -1644,6 +1660,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   feedRoute,
   exploreRoute,
+  cadenceTicksRoute,
   cadenceRoute,
   agentsRoute,
   journalNewRoute,

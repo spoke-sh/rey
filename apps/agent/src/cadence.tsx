@@ -1,9 +1,20 @@
 import { Link } from "@tanstack/react-router";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import { shortDigest, sourceBranchUrl } from "./domain";
 import { GitCommitLink } from "./git-commit-link";
 import { cadenceStyles as styles } from "./stylex/cadence.stylex";
 import { environmentStyles as chrome } from "./stylex/environment.stylex";
 import { className as sx } from "./stylex/shared.stylex";
+
+const CADENCE_PREVIEW_TICKS = 5;
+const CADENCE_TICK_WINDOW = 10;
+const CADENCE_TICK_WINDOW_STEP = 5;
 
 export interface CadenceTick {
   id: string;
@@ -113,7 +124,9 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
             <CadenceLaneView
               key={lane.id}
               lane={lane}
+              limit={CADENCE_PREVIEW_TICKS}
               repository={cadence.source_repository}
+              trackHref="/cadence/ticks"
             />
           ))}
         </div>
@@ -183,6 +196,33 @@ export function CadencePage({ cadence }: { cadence: CadenceProjection }) {
               <li key={omission}>{omission}</li>
             ))}
           </ul>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+export function CadenceTicksPage({ cadence }: { cadence: CadenceProjection }) {
+  return (
+    <main className={sx(chrome.page, styles.page)}>
+      <section
+        className={sx(styles.section, styles.firstSection)}
+        data-rey-section="01 / RETAINED TICKS"
+      >
+        <CadenceHeading
+          detail={`${cadence.lanes.length} clocks · progressive retained projection`}
+          index="01"
+          kicker="RETAINED TICKS"
+          title="Tick lanes"
+        />
+        <div className={sx(styles.lanes)}>
+          {cadence.lanes.map((lane) => (
+            <InfiniteCadenceLaneView
+              key={lane.id}
+              lane={lane}
+              repository={cadence.source_repository}
+            />
+          ))}
         </div>
       </section>
     </main>
@@ -384,11 +424,29 @@ function RepositoryRevision({
 
 function CadenceLaneView({
   lane,
+  limit,
+  onViewportScroll,
+  ordinalOffset = 0,
   repository,
+  tail,
+  trackHref,
+  viewportRef,
 }: {
   lane: CadenceLane;
+  limit?: number;
+  onViewportScroll?: (event: UIEvent<HTMLDivElement>) => void;
+  ordinalOffset?: number;
   repository: string | null;
+  tail?: ReactNode;
+  trackHref?: "/cadence/ticks";
+  viewportRef?: React.RefObject<HTMLDivElement | null>;
 }) {
+  const ticks = lane.ticks.slice(0, limit ?? lane.ticks.length);
+  const visibleOmissions = lane.omissions.filter(
+    (omission) =>
+      omission !==
+      "reachable history beyond the newest 24 commits was not inspected",
+  );
   return (
     <article className={sx(styles.lane)}>
       <header className={sx(styles.laneHeader)}>
@@ -408,73 +466,221 @@ function CadenceLaneView({
           {lane.complete ? "COMPLETE" : "BOUNDED"}
         </span>
       </header>
-      {lane.ticks.length === 0 ? (
-        <div className={sx(chrome.micro, styles.emptyLane)}>
-          NO TICKS OBSERVED ON THIS CLOCK
-        </div>
-      ) : (
-        <ol className={sx(styles.tickList)}>
-          {lane.ticks.map((tick, index) => (
-            <li className={sx(styles.tick)} key={tick.id}>
-              <div className={sx(styles.tickRail)}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <i />
-              </div>
-              <div className={sx(styles.tickBody)}>
-                <div className={sx(styles.tickMeta)}>
-                  <span className={sx(chrome.micro, styles.tickKind)}>
-                    {tick.kind.replaceAll("_", " ")}
-                  </span>
-                  <span className={sx(chrome.micro)}>{tick.ordinal}</span>
-                  <span className={sx(chrome.micro)}>{tick.state}</span>
-                  {tick.publication === null ? null : (
-                    <span
-                      className={sx(
-                        chrome.micro,
-                        styles.publication,
-                        tick.publication === "pushed"
-                          ? styles.publicationPushed
-                          : tick.publication === "local"
-                            ? styles.publicationLocal
-                            : styles.publicationUnknown,
-                      )}
-                    >
-                      {tick.publication}
-                    </span>
-                  )}
-                  <time className={sx(chrome.micro)}>
-                    {formatCadenceTime(tick.occurred_at_unix)}
-                  </time>
-                </div>
-                <h3>{tick.title}</h3>
-                <p>{tick.detail}</p>
-                <div className={sx(styles.tickBinding)}>
-                  <TickRevision repository={repository} tick={tick} />
+      <div
+        className={sx(
+          styles.laneContent,
+          viewportRef ? styles.tickViewport : undefined,
+        )}
+        onScroll={onViewportScroll}
+        ref={viewportRef}
+      >
+        {ticks.length === 0 ? (
+          <div className={sx(chrome.micro, styles.emptyLane)}>
+            NO TICKS OBSERVED ON THIS CLOCK
+          </div>
+        ) : (
+          <ol className={sx(styles.tickList)}>
+            {ticks.map((tick, index) => (
+              <li className={sx(styles.tick)} key={tick.id}>
+                <div className={sx(styles.tickRail)}>
                   <span>
-                    {tick.parent_revisions.length} PARENT
-                    {tick.parent_revisions.length === 1 ? "" : "S"}
+                    {String(ordinalOffset + index + 1).padStart(2, "0")}
                   </span>
-                  <TickLink tick={tick} />
+                  <i />
                 </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-      {lane.omissions.length > 0 ? (
-        <ul className={sx(styles.laneOmissions)}>
-          {lane.omissions.map((omission) => (
-            <li key={omission}>BOUND / {omission}</li>
-          ))}
-        </ul>
-      ) : null}
+                <div className={sx(styles.tickBody)}>
+                  <div className={sx(styles.tickMeta)}>
+                    <span className={sx(chrome.micro, styles.tickKind)}>
+                      {tick.kind.replaceAll("_", " ")}
+                    </span>
+                    <span className={sx(chrome.micro)}>{tick.ordinal}</span>
+                    <span className={sx(chrome.micro)}>{tick.state}</span>
+                    {tick.publication === null ? null : (
+                      <span
+                        className={sx(
+                          chrome.micro,
+                          styles.publication,
+                          tick.publication === "pushed"
+                            ? styles.publicationPushed
+                            : tick.publication === "local"
+                              ? styles.publicationLocal
+                              : styles.publicationUnknown,
+                        )}
+                      >
+                        {tick.publication}
+                      </span>
+                    )}
+                    <time className={sx(chrome.micro)}>
+                      {formatCadenceTime(tick.occurred_at_unix)}
+                    </time>
+                  </div>
+                  <h3>{tick.title}</h3>
+                  <p>{tick.detail}</p>
+                  <div className={sx(styles.tickBinding)}>
+                    <TickRevision repository={repository} tick={tick} />
+                    <span>
+                      {tick.parent_revisions.length} PARENT
+                      {tick.parent_revisions.length === 1 ? "" : "S"}
+                    </span>
+                    <TickLink tick={tick} />
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+        {visibleOmissions.length > 0 ? (
+          <ul className={sx(styles.laneOmissions)}>
+            {visibleOmissions.map((omission) => (
+              <li key={omission}>BOUND / {omission}</li>
+            ))}
+          </ul>
+        ) : null}
+        {tail}
+        {trackHref ? (
+          <Link
+            className={sx(chrome.focusable, styles.laneTrack)}
+            to={trackHref}
+          >
+            <span className={sx(chrome.micro)}>
+              {ticks.length} OF {lane.ticks.length} RETAINED TICKS
+            </span>
+            <strong>TRACK ALL TICKS →</strong>
+          </Link>
+        ) : null}
+      </div>
     </article>
+  );
+}
+
+function InfiniteCadenceLaneView({
+  lane,
+  repository,
+}: {
+  lane: CadenceLane;
+  repository: string | null;
+}) {
+  const viewport = useRef<HTMLDivElement>(null);
+  const shifting = useRef(false);
+  const adjustment = useRef<
+    | { direction: "forward"; pixels: number }
+    | { addedRows: number; direction: "backward" }
+    | null
+  >(null);
+  const maximumStart = Math.max(0, lane.ticks.length - CADENCE_TICK_WINDOW);
+  const [requestedStart, setRequestedStart] = useState(0);
+  const windowStart = Math.min(requestedStart, maximumStart);
+  const windowEnd = Math.min(
+    windowStart + CADENCE_TICK_WINDOW,
+    lane.ticks.length,
+  );
+  const hasPrevious = windowStart > 0;
+  const hasNext = windowEnd < lane.ticks.length;
+
+  useLayoutEffect(() => {
+    const pending = adjustment.current;
+    const target = viewport.current;
+    if (pending === null || target === null) return;
+    if (pending.direction === "forward") {
+      target.scrollTop = Math.max(1, target.scrollTop - pending.pixels);
+    } else {
+      const rows = Array.from(target.querySelectorAll("ol > li")).slice(
+        0,
+        pending.addedRows,
+      );
+      target.scrollTop += rows.reduce(
+        (height, row) => height + row.getBoundingClientRect().height,
+        0,
+      );
+    }
+    adjustment.current = null;
+    requestAnimationFrame(() => {
+      shifting.current = false;
+    });
+  }, [windowStart]);
+
+  function shiftWindow(event: UIEvent<HTMLDivElement>) {
+    if (shifting.current) return;
+    const target = event.currentTarget;
+    const lowerBoundary =
+      target.scrollTop + target.clientHeight >= target.scrollHeight - 80;
+    if (lowerBoundary && hasNext) {
+      const advance = Math.min(
+        CADENCE_TICK_WINDOW_STEP,
+        maximumStart - windowStart,
+      );
+      const removedRows = Array.from(target.querySelectorAll("ol > li")).slice(
+        0,
+        advance,
+      );
+      adjustment.current = {
+        direction: "forward",
+        pixels: removedRows.reduce(
+          (height, row) => height + row.getBoundingClientRect().height,
+          0,
+        ),
+      };
+      shifting.current = true;
+      setRequestedStart(windowStart + advance);
+      return;
+    }
+    if (target.scrollTop <= 80 && hasPrevious) {
+      const retreat = Math.min(CADENCE_TICK_WINDOW_STEP, windowStart);
+      adjustment.current = {
+        addedRows: retreat,
+        direction: "backward",
+      };
+      shifting.current = true;
+      setRequestedStart(windowStart - retreat);
+    }
+  }
+
+  const windowedLane = {
+    ...lane,
+    omissions: hasNext ? [] : lane.omissions,
+    ticks: lane.ticks.slice(windowStart, windowEnd),
+  };
+
+  return (
+    <CadenceLaneView
+      lane={windowedLane}
+      onViewportScroll={shiftWindow}
+      ordinalOffset={windowStart}
+      repository={repository}
+      tail={
+        <div
+          aria-live="polite"
+          className={sx(chrome.micro, styles.scrollSentinel)}
+        >
+          {lane.ticks.length === 0
+            ? "NO RETAINED TICKS"
+            : `${windowStart + 1}–${windowEnd} OF ${lane.ticks.length} RETAINED · ${
+                hasNext
+                  ? "SCROLL FOR OLDER TICKS"
+                  : hasPrevious
+                    ? "SCROLL UP FOR NEWER TICKS"
+                    : lane.complete
+              ? `END OF COMPLETE LANE · ${lane.ticks.length} TICKS`
+                      : "END OF RETAINED WINDOW · OLDER TICKS OMITTED"
+              }`}
+        </div>
+      }
+      viewportRef={viewport}
+    />
   );
 }
 
 function TickLink({ tick }: { tick: CadenceTick }) {
   if (tick.kind === "git_commit") return null;
-  return <Link to="/environment">OPEN ENVIRONMENT →</Link>;
+  return (
+    <Link
+      className={sx(chrome.focusable, styles.tickActionLink)}
+      hash="admission"
+      to="/environment"
+    >
+      OPEN ENVIRONMENT →
+    </Link>
+  );
 }
 
 function TickRevision({
