@@ -831,7 +831,21 @@ export const environmentStyles = stylex.create({
     padding: "clamp(22px, 3vw, 42px)",
   },
   communicationsCoordinate: { display: "grid", gap: 7 },
+  mailboxSources: {
+    alignSelf: "end",
+    display: "grid",
+    gap: 0,
+  },
+  mailboxSource: {
+    borderTopColor: "var(--line)",
+    borderTopStyle: "solid",
+    borderTopWidth: 1,
+    display: "grid",
+    gap: 5,
+    paddingBlock: 13,
+  },
   communicationsBody: {
+    maxHeight: "min(72vh, 720px)",
     minHeight: 180,
     overflowY: "auto",
     overscrollBehavior: "contain",

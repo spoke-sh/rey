@@ -241,16 +241,16 @@ impl AgentOrchestrator {
                 log_info(format_args!(
                     "Agent shutdown started; stopping {OPERATOR_SERVER_NODE_ID} and {SCHEDULER_PROCESS_NODE_ID}"
                 ));
-                let operator_result = finish_operator_worker(
-                    operator_worker.take().expect("operator worker is present"),
-                    true,
-                );
                 let scheduler_result = scheduler
                     .take()
                     .expect("scheduler process is present")
                     .finish(true);
-                operator_result?;
+                let operator_result = finish_operator_worker(
+                    operator_worker.take().expect("operator worker is present"),
+                    true,
+                );
                 scheduler_result?;
+                operator_result?;
                 log_info(format_args!(
                     "Finished Rey process [{}]",
                     std::process::id()

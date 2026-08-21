@@ -20,6 +20,7 @@ use crate::ui::UiServerDescriptor;
 
 pub const SCHEDULER_SNAPSHOT_SCHEMA: &str = "rey.scheduler-snapshot.v1";
 pub const SCHEDULER_EVENT_SCHEMA: &str = "rey.scheduler-event.v1";
+pub const SCHEDULER_SHUTDOWN_TOPIC: &str = "scheduler.shutdown";
 pub const SCHEDULER_CONTROL_SCHEMA: &str = "rey.scheduler-control.v1";
 const OUTPUT_SCHEMA: &str = "rey.scheduler-output.v1";
 const STATE_SCHEMA: &str = "rey.scheduler-state.v1";
@@ -184,6 +185,15 @@ impl SchedulerRuntime {
     }
 
     fn shutdown(&self) -> Result<(), SchedulerError> {
+        let snapshot = self.snapshot();
+        let _ = self.events.send(SchedulerEvent {
+            schema: SCHEDULER_EVENT_SCHEMA.to_owned(),
+            sequence: snapshot.sequence.saturating_add(1),
+            schedule_id: "scheduler.shutdown".to_owned(),
+            topic: SCHEDULER_SHUTDOWN_TOPIC.to_owned(),
+            source_revision: format!("snapshot:{}", snapshot.sequence),
+            occurred_at_unix: now(),
+        });
         self.send(&Control::Shutdown { schema: SCHEDULER_CONTROL_SCHEMA.to_owned() })
     }
 

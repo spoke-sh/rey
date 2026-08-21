@@ -69,7 +69,8 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{API_ROOT_PATH, API_ROUTES, ApiMethod, OPENAPI_PATH, SWAGGER_PATH, openapi};
 use crate::scheduler::{
-    SCHEDULER_CONTROL_SCHEMA, SchedulerRuntime, SchedulerScheduleProjection,
+    SCHEDULER_CONTROL_SCHEMA, SCHEDULER_SHUTDOWN_TOPIC, SchedulerRuntime,
+    SchedulerScheduleProjection,
 };
 
 const UI_SERVER_SCHEMA: &str = "rey.ui-server.v2";
@@ -583,15 +584,19 @@ async fn scheduler_events(
             .id(initial.sequence.to_string())
             .data(serde_json::to_string(&initial).expect("scheduler event serializes")),
     ));
-    let updates = BroadcastStream::new(server.scheduler.subscribe()).filter_map(|result| {
-        result.ok().map(|event| {
-            Ok::<Event, Infallible>(
-                Event::default()
-                    .id(event.sequence.to_string())
-                    .data(serde_json::to_string(&event).expect("scheduler event serializes")),
-            )
+    let updates = BroadcastStream::new(server.scheduler.subscribe())
+        .take_while(|result| {
+            !matches!(result, Ok(event) if event.topic == SCHEDULER_SHUTDOWN_TOPIC)
         })
-    });
+        .filter_map(|result| {
+            result.ok().map(|event| {
+                Ok::<Event, Infallible>(
+                    Event::default()
+                        .id(event.sequence.to_string())
+                        .data(serde_json::to_string(&event).expect("scheduler event serializes")),
+                )
+            })
+        });
     Sse::new(initial.chain(updates)).keep_alive(KeepAlive::default())
 }
 

@@ -678,6 +678,19 @@ function MailboxHistory({
             {messageCount + (error ? 1 : 0)} ACTIVE · SOURCE ORDER
           </span>
         </div>
+        {shell.channels.mailbox.polls.length > 0 ? (
+          <div className={sx(styles.mailboxSources)}>
+            <span className={sx(styles.micro, styles.muted)}>SOURCES</span>
+            {shell.channels.mailbox.polls.map((poll) => (
+              <article className={sx(styles.mailboxSource)} key={poll.poll_id}>
+                <strong>{poll.application_id}</strong>
+                <span className={sx(styles.micro, styles.muted)}>
+                  GITHUB INBOX · REV {poll.application_revision}
+                </span>
+              </article>
+            ))}
+          </div>
+        ) : null}
       </header>
       <div className={sx(styles.communicationsBody)} aria-live="polite">
         {error ? (
@@ -700,12 +713,6 @@ function MailboxHistory({
               when the bounded portfolio projection completes.
             </p>
           </article>
-        ) : null}
-        {channelMessages.length > 0 ? (
-          <MailboxBoundary
-            detail="Current unread GitHub notifications and bounded comments are retained by a poll through the exact gh application admitted in Channel HEAD and environment HEAD. The CLI verifies one tick; the foreground Rey process supervises its committed cadence. GitHub provider order does not establish causal order with runtime attention."
-            label={`GITHUB INBOX / ${shell.channels.mailbox.polls.length} POLL SOURCES`}
-          />
         ) : null}
         {channelMessages.map((message) => (
           <GitHubMailboxMessage
