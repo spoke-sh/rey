@@ -407,7 +407,10 @@ export async function controlSchedule(write: {
   run_now?: boolean;
 }): Promise<void> {
   const response = await fetch("/api/v1/schedules/control", {
-    body: JSON.stringify(write),
+    body: JSON.stringify({
+      schema: "rey.scheduler-control.v1",
+      ...write,
+    }),
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",

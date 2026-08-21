@@ -1,5 +1,7 @@
+import { KineticBinaryControl } from "@hifi/kinetic";
 import { Link } from "@tanstack/react-router";
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -185,60 +187,53 @@ function ScheduleCard({
   schedule: CadenceSchedule;
   onToggle?: (schedule: CadenceSchedule, enabled: boolean) => Promise<void>;
 }) {
-  const enabled = schedule.enabled !== false;
+  const projectedEnabled = schedule.enabled !== false;
+  const [enabled, setEnabled] = useState(projectedEnabled);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  useEffect(() => setEnabled(projectedEnabled), [projectedEnabled]);
   const toggle = () => {
     if (!onToggle || pending) return;
+    const requestedEnabled = !enabled;
+    setEnabled(requestedEnabled);
     setPending(true);
     setError(null);
-    void onToggle(schedule, !enabled)
-      .catch((cause) =>
-        setError(cause instanceof Error ? cause : new Error(String(cause))),
-      )
+    void onToggle(schedule, requestedEnabled)
+      .catch((cause) => {
+        setEnabled(projectedEnabled);
+        setError(cause instanceof Error ? cause : new Error(String(cause)));
+      })
       .finally(() => setPending(false));
   };
 
   return (
     <article className={sx(styles.scheduleCard)}>
       <div className={sx(styles.scheduleIdentity)}>
-        <h3>{schedule.label}</h3>
-        <code>{schedule.id}</code>
+        <h3 className={sx(styles.scheduleName)}>{schedule.label}</h3>
+        <code className={sx(styles.scheduleId)}>{schedule.id}</code>
       </div>
       <div className={sx(styles.scheduleDatum)}>
-        <span>CADENCE</span>
-        <strong>{formatInterval(schedule.interval_ms)}</strong>
+        <span className={sx(styles.scheduleDatumLabel)}>INTERVAL</span>
+        <strong className={sx(styles.scheduleDatumValue)}>
+          {formatInterval(schedule.interval_ms)}
+        </strong>
       </div>
       <div className={sx(styles.scheduleDatum)}>
-        <span>LAST SUCCESS</span>
-        <strong>{formatScheduleTime(schedule.last_success_unix)}</strong>
-      </div>
-      <div className={sx(styles.scheduleState)}>
-        <i className={sx(enabled && styles.scheduleStateEnabled)} />
-        <span>{pending ? "updating" : enabled ? "enabled" : "disabled"}</span>
+        <span className={sx(styles.scheduleDatumLabel)}>LAST SUCCESS</span>
+        <strong className={sx(styles.scheduleDatumValue)}>
+          {formatScheduleTime(schedule.last_success_unix)}
+        </strong>
       </div>
       {onToggle ? (
-        <KineticButton
-          aria-checked={enabled}
-          aria-label={`${enabled ? "Disable" : "Enable"} ${schedule.label}`}
+        <KineticBinaryControl
+          aria-busy={pending}
+          ariaLabel={"Toggle " + schedule.label}
+          checked={enabled}
           className={sx(styles.scheduleToggle)}
           disabled={pending}
-          onClick={toggle}
-          role="switch"
+          onCheckedChange={() => toggle()}
           theme="precision"
-          type="button"
-        >
-          <span
-            aria-hidden="true"
-            className={sx(
-              styles.scheduleToggleTrack,
-              enabled && styles.scheduleToggleTrackEnabled,
-            )}
-          >
-            <i />
-          </span>
-          <span>{enabled ? "ON" : "OFF"}</span>
-        </KineticButton>
+        />
       ) : null}
       {schedule.last_error || error ? (
         <p className={sx(styles.scheduleError)}>
@@ -793,4 +788,3 @@ function formatInterval(intervalMs: number): string {
     ? `${intervalMs / 1_000}s`
     : `${intervalMs}ms`;
 }
-import { KineticButton } from "@hifi/kinetic";

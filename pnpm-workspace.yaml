@@ -3,5 +3,5 @@ packages:
   - "packages/*"
 
 allowBuilds:
-  "@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/2541de2a480923b9101b6e8f9da11025253507ed#path:packages/core": true
-  "@hifi/kinetic@https://codeload.github.com/rupurt/hifi/tar.gz/2541de2a480923b9101b6e8f9da11025253507ed#path:packages/kinetic": true
+  "@hifi/core@https://codeload.github.com/rupurt/hifi/tar.gz/54aae3b4f75b1bf4b163a21ab18d0af9641d09f6#path:packages/core": true
+  "@hifi/kinetic@https://codeload.github.com/rupurt/hifi/tar.gz/54aae3b4f75b1bf4b163a21ab18d0af9641d09f6#path:packages/kinetic": true
