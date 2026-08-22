@@ -806,24 +806,24 @@ when the admitted spacing cannot support the comparison scale.
 
 #### 8.5 Compose a coherent terrain map
 
-- [ ] Implement dual-tone cartographic chromatic lighting: blend warm direct
+- [x] Implement dual-tone cartographic chromatic lighting: blend warm direct
       sunlit highlights on illuminated slopes with cool, ambient-sky-tinted
       diffuse fill in shadowed aspects, replacing desaturating grayscale scalar
       multiplication (`tint * hillshade * occlusion`).
-- [ ] Replace discrete flat palettes with continuous elevation- and slope-graded
+- [x] Replace discrete flat palettes with continuous elevation- and slope-graded
       hypsometric color ramps (lush valley greens → warm mid-elevation montane
       grasslands → slate/grey alpine crests) with slope-triggered rock/cliff
       exposure on steep grades.
-- [ ] Render terrain-bound water areas with crisp high-contrast polygon fills
+- [x] Render terrain-bound water areas with crisp high-contrast polygon fills
       and distinct shorelines (e.g. alpine tarns, glacial lakes, and river
       corridors) draped seamlessly over the relief.
-- [ ] Drive contour interval, weight, and opacity from semantic LOD and metric
+- [x] Drive contour interval, weight, and opacity from semantic LOD and metric
       elevation range. Contours remain thin, crisp, and subordinate to relief,
       never concealing hillshade defects.
-- [ ] Add terrain-bound roads, rail, structures, boundaries, and labels only
+- [x] Add terrain-bound roads, rail, structures, boundaries, and labels only
       from their exact admitted companions, with independent visibility and
       invalidation revisions.
-- [ ] Keep selection and evidence overlays readable without changing the base
+- [x] Keep selection and evidence overlays readable without changing the base
       relief assessment. Preserve the deterministic accessible reference path
       under backend loss.
 

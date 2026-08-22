@@ -250,7 +250,7 @@ export function projectTerrainTilePyramid(
             cpu_bytes: Math.ceil(
               (field.field_bytes / field.field_cells) * fieldCells,
             ),
-            gpu_bytes: fieldCells * 56 + triangles.byteLength,
+            gpu_bytes: fieldCells * 68 + triangles.byteLength,
           }),
         );
       }
@@ -388,7 +388,7 @@ export function projectMaterializedLandscapeTilePyramid(
             field.field_cells) *
             cells,
         ),
-        gpu_bytes: cells * 56 + triangles.byteLength,
+        gpu_bytes: cells * 68 + triangles.byteLength,
       };
     });
   });

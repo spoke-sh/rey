@@ -25,6 +25,7 @@ describe("terrain tile residency", () => {
       tile.mesh.positions.byteLength +
       tile.mesh.normals.byteLength +
       tile.mesh.tint.byteLength +
+      tile.mesh.cartographic_color.byteLength +
       tile.mesh.occlusion.byteLength +
       tile.mesh.roughness.byteLength +
       tile.mesh.curvature.byteLength +

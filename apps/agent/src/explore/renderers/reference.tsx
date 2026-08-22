@@ -29,6 +29,7 @@ import {
   type PlanarPresentationSample,
 } from "@rey/explorer/globe-samples";
 import {
+  composeCartographicTerrainColor,
   deriveLandscapeReliefField,
   GLOBE_ATLAS_REPEAT_DISSOLVE_START,
   globeAtlasRegionMarkerSceneRadius,
@@ -42,6 +43,7 @@ import {
   LANDSCAPE_RELIEF_ENGINE_REVISION,
   LANDSCAPE_TERRAIN_FABRIC_REVISION,
   landscapeTerrainFabricSamples,
+  linearTerrainColorToCss,
   type LandscapeTerrainFabricSample,
 } from "@rey/explorer";
 import { terrainTriangleIndices } from "@rey/explorer";
@@ -549,6 +551,10 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
       </desc>
       {renderedFields.flatMap(({ field, relief }) => {
         const indices = terrainTriangleIndices(field);
+        const cartographicColor = composeCartographicTerrainColor(
+          field,
+          relief,
+        );
         const point = (index: number) => {
           const column = index % field.grid.columns;
           const row = Math.floor(index / field.grid.columns);
@@ -568,42 +574,15 @@ function AdmittedTerrainFieldLayer({ scene }: { scene: TopologyScene }) {
             indices[triangle * 3 + 2]!,
           ] as const;
           const vertices = vertexIndexes.map(point);
-          const tint = [0, 1, 2].map(
+          const color = [0, 1, 2].map(
             (component) =>
               vertexIndexes.reduce(
                 (total, index) =>
-                  total + field.material.tint[index * 3 + component]!,
+                  total + cartographicColor[index * 3 + component]!,
                 0,
               ) / 3,
           );
-          const shade =
-            vertexIndexes.reduce(
-              (total, index) => total + relief.hillshade[index]!,
-              0,
-            ) / 3;
-          const ambient =
-            0.76 +
-            (vertexIndexes.reduce(
-              (total, index) => total + field.material.occlusion[index]!,
-              0,
-            ) /
-              3) *
-              0.24;
-          const luminance =
-            tint[0]! * 0.2126 + tint[1]! * 0.7152 + tint[2]! * 0.0722;
-          const fill = `rgb(${tint
-            .map((value) =>
-              Math.round(
-                Math.max(
-                  0,
-                  Math.min(
-                    1,
-                    (value * 0.72 + luminance * 0.28) * shade * ambient,
-                  ),
-                ) * 255,
-              ),
-            )
-            .join(" ")})`;
+          const fill = linearTerrainColorToCss(color);
           return (
             <polygon
               data-field-set-id={field.field_set_id}

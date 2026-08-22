@@ -39,7 +39,7 @@ describe("accelerated continuous terrain compiler", () => {
       vertices: fieldSet.field_cells,
       field_bytes: fieldSet.field_bytes,
       gpu_budget_bytes: 64 * 1024 * 1024,
-      parity_revision: "rey.terrain.cpu-mesh-upload-parity@2",
+      parity_revision: "rey.terrain.cpu-mesh-upload-parity@3",
       parity_samples: fieldSet.field_cells,
     });
     expect(compiled.statistics.triangles).toBeGreaterThan(0);
@@ -144,7 +144,7 @@ describe("accelerated continuous terrain compiler", () => {
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
     expect(material.name).toBe(
-      "rey.terrain.tsl-cartographic-relief@4:rey.landscape-relief-engine@4",
+      "rey.terrain.tsl-cartographic-relief@5:rey.landscape-relief-engine@4:rey.landscape.chromatic-relief@1",
     );
     expect(material.colorNode).not.toBeNull();
     material.dispose();
@@ -191,6 +191,13 @@ describe("accelerated continuous terrain compiler", () => {
     const mesh = buildTerrainMeshData(fieldSet);
     mesh.tint[6] = Math.fround(mesh.tint[6]! + 0.01);
     expect(() => verifyTerrainMeshParity(fieldSet, mesh)).toThrow(
+      "diverges from CPU fields at sample 2",
+    );
+    const replay = buildTerrainMeshData(fieldSet);
+    replay.cartographic_color[6] = Math.fround(
+      replay.cartographic_color[6]! + 0.01,
+    );
+    expect(() => verifyTerrainMeshParity(fieldSet, replay)).toThrow(
       "diverges from CPU fields at sample 2",
     );
   });

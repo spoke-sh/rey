@@ -38,12 +38,13 @@ describe("regional terrain geography", () => {
       expect.arrayContaining([
         "derived_drainage",
         "derived_land_cover",
+        "derived_continuous_hypsometry",
         "derived_multiscale_relief",
       ]),
     );
     expect(geography.detail_authority).toContain("not observed hydrology");
     expect(geography.detail_authority).toContain(
-      "support-conservative multiscale topographic tone",
+      "validity-bounded continuous hypsometry",
     );
     expect(geography.validity.values).toEqual(refined.validity.values);
     expect(geography.validity_classification?.values).toEqual(
@@ -69,11 +70,21 @@ describe("regional terrain geography", () => {
     const supportedOcclusion = [...geography.material.occlusion].filter(
       (_, index) => geography.validity.values[index] !== 0,
     );
-    expect(Math.min(...supportedOcclusion)).toBeLessThan(0.8);
+    expect(Math.min(...supportedOcclusion)).toBeGreaterThanOrEqual(0.82);
     expect(Math.max(...supportedOcclusion)).toBeGreaterThan(0.9);
     expect(
       Math.max(...supportedOcclusion) - Math.min(...supportedOcclusion),
-    ).toBeGreaterThan(0.18);
+    ).toBeGreaterThan(0.04);
+    const distinctTints = new Set(
+      Array.from({ length: geography.field_cells }, (_, index) =>
+        [0, 1, 2]
+          .map((component) =>
+            geography.material.tint[index * 3 + component]!.toFixed(4),
+          )
+          .join(":"),
+      ).filter((_, index) => geography.validity.values[index] !== 0),
+    );
+    expect(distinctTints.size).toBeGreaterThan(32);
 
     for (let row = 0; row < source.grid.rows; row += 1) {
       for (let column = 0; column < source.grid.columns; column += 1) {
@@ -120,6 +131,11 @@ describe("regional terrain geography", () => {
     expect(
       landscapeLines.filter(({ kind }) => kind === "derived_contour").length,
     ).toBe(9);
+    expect(
+      landscapeLines
+        .filter(({ kind }) => kind === "derived_contour")
+        .some(({ width }) => width === 1.25),
+    ).toBe(true);
     expect(landscapeLines.some(({ kind }) => kind.startsWith("derived_"))).toBe(
       true,
     );

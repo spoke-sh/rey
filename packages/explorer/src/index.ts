@@ -11,6 +11,11 @@ export {
 } from "./globe-samples";
 export type { GlobePole, GlobePolePattern } from "./globe-samples";
 export {
+  composeCartographicTerrainColor,
+  LANDSCAPE_CARTOGRAPHIC_COLOR_REVISION,
+  linearTerrainColorToCss,
+} from "./cartographic-terrain";
+export {
   compileLandscapePatchSet,
   deriveLandscapeReliefField,
   LANDSCAPE_PATCH_SET_REVISION,

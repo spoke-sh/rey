@@ -18,7 +18,7 @@ import {
 } from "./render-graph";
 
 export const TERRAIN_RENDER_PASS_COMPILER_REVISION =
-  "rey.explorer.terrain-render-passes@3" as const;
+  "rey.explorer.terrain-render-passes@4" as const;
 
 export function compileTerrainRenderPasses(
   scene: TopologyScene,
@@ -85,6 +85,7 @@ export function compileTerrainRenderPasses(
           positions: Float32Array.from(positions),
           color: feature.color,
           opacity: feature.opacity,
+          width: feature.width,
         }),
       );
     if (admitted === 0 && polylines.length > 0)
@@ -109,6 +110,7 @@ export function compileTerrainRenderPasses(
           path: contour.path,
           color: 0x756d54,
           opacity: 0.28,
+          width: contour.level % 5 === 0 ? 1.25 : 0.65,
         });
   }
 
@@ -137,6 +139,7 @@ export function compileTerrainRenderPasses(
                 ? 0x89c6da
                 : 0xe1b66d,
           opacity: feature.kind === "weather_front" ? 0.52 : 0.78,
+          width: feature.kind === "river" ? 1.8 : 1.15,
         });
     if (scene.county_footprint)
       appendPath({
@@ -182,7 +185,7 @@ export function compileTerrainRenderPasses(
               authority: `${feature.authority}; surface edge is clipped to the exact admitted polygon within fully valid terrain triangles`,
               positions,
               color: 0x4f93a0,
-              opacity: 0.48,
+              opacity: 0.82,
             }),
           );
         else
@@ -193,12 +196,26 @@ export function compileTerrainRenderPasses(
       appendPath({
         id: node.id,
         pass_id: "water_weather_boundary",
-        kind: feature.layer,
+        kind:
+          feature.geometry_kind.toLowerCase() === "polygon"
+            ? "water_shoreline"
+            : feature.layer,
         source_revision: `${node.id}:${feature.layer}:${feature.geometry_path}:${feature.geometry_representation}:${node.focus_id === scene.focus_id ? "selected" : "unselected"}`,
         authority: feature.authority,
         path: feature.geometry_path,
         color: featureColor(feature.layer, node.focus_id === scene.focus_id),
-        opacity: node.focus_id === scene.focus_id ? 0.72 : 0.42,
+        opacity:
+          feature.geometry_kind.toLowerCase() === "polygon"
+            ? 0.86
+            : node.focus_id === scene.focus_id
+              ? 0.72
+              : 0.42,
+        width:
+          feature.geometry_kind.toLowerCase() === "polygon"
+            ? 1.6
+            : node.focus_id === scene.focus_id
+              ? 2
+              : 1.35,
       });
     }
   }
@@ -295,7 +312,10 @@ export function compileTerrainRenderPasses(
           `${pass.id}:${pass.implementation_revision}:${pass.input_revision}`,
       ),
       ...areas.map(({ id, source_revision }) => `${id}:${source_revision}`),
-      ...lines.map(({ id, source_revision }) => `${id}:${source_revision}`),
+      ...lines.map(
+        ({ id, source_revision, color, opacity, width }) =>
+          `${id}:${source_revision}:${color}:${opacity}:${width ?? 1}`,
+      ),
       ...points.map(({ id, source_revision }) => `${id}:${source_revision}`),
       ...omissions,
     ],

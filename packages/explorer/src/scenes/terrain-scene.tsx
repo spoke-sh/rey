@@ -183,10 +183,11 @@ function TerrainPassLine({
     () =>
       new LineBasicNodeMaterial({
         color: line.color,
+        linewidth: line.width ?? 1,
         opacity: line.opacity,
         transparent: line.opacity < 1,
       }),
-    [line.color, line.opacity],
+    [line.color, line.opacity, line.width],
   );
   const object = useMemo(() => {
     const geometry = new BufferGeometry();
@@ -225,6 +226,10 @@ function TerrainMesh({
         />
         <bufferAttribute args={[data.normals, 3]} attach="attributes-normal" />
         <bufferAttribute args={[data.tint, 3]} attach="attributes-reyTint" />
+        <bufferAttribute
+          args={[data.cartographic_color, 3]}
+          attach="attributes-reyCartographicColor"
+        />
         <bufferAttribute
           args={[data.occlusion, 1]}
           attach="attributes-reyOcclusion"

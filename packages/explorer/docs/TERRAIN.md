@@ -192,14 +192,16 @@ bag of independent visual channels. A priority-flood pass resolves local
 depressions without crossing no-data, every valid cell receives one bounded
 downstream receiver, and a height-ordered accumulation pass carries rainfall
 through the complete admitted basin. The raw accumulation channel retains that
-topology; a validity-bounded smoothed copy drives moisture and occlusion so D8
-paths do not become visible material bands. Non-displacing erosion potential
+topology; a validity-bounded smoothed copy drives moisture so D8 paths do not
+become visible material bands. Non-displacing erosion potential
 remains a separate derived channel, while the authored elevation and its
-normals/curvature stay intact. Moisture, slope, height, exposure, and smoothed
-accumulation derive the coherent land-cover material. Metric contour intervals
-tighten by semantic lens. Supplemental synthetic stream and river linework is
-reserved for closer lenses and remains distinctly qualified from exact
-admitted hydrology.
+normals/curvature stay intact. Continuous elevation, moisture, and forest
+support grade lush valley greens through warm montane grassland into slate
+alpine crests; metric slope exposes rock without a discrete height palette.
+Metric contour intervals tighten by semantic lens, with index weights and
+opacity remaining subordinate to relief. Supplemental synthetic stream and
+river linework is reserved for closer lenses and remains distinctly qualified
+from exact admitted hydrology.
 
 ## Validity-Safe Mesh Compilation
 
@@ -211,32 +213,35 @@ This lets a supported half-cell survive next to no-data without bridging the
 invalid vertex. The reference renderer uses the same exported index function,
 so fallback cannot fill a hole that the GPU path omits.
 
-Compilation creates separate upload arrays for positions, normals, tint,
-occlusion, roughness, curvature, and indices. Upload storage is disposable and
-cannot mutate the authoritative CPU fields.
+Compilation creates separate upload arrays for positions, normals, base tint,
+the final cartographic linear color, occlusion, roughness, curvature, relief,
+and indices. Upload storage is disposable and cannot mutate the authoritative
+CPU fields.
 
 `verifyTerrainMeshParity` checks every uploaded field sample after the
 coordinate transform, checks the supplied relief channels, and rejects any
 index touching invalid support. The current parity identity is
-`rey.terrain.cpu-mesh-upload-parity@2`.
+`rey.terrain.cpu-mesh-upload-parity@3`.
 
 ## Material And Lighting
 
 `createContinuousReliefMaterial` produces a `MeshBasicNodeMaterial` with TSL.
-The renderer-neutral relief engine owns illumination; the material therefore
-does not apply a second physical light response. Its separately revisioned pass
-inputs gate:
+The renderer-neutral relief engine and
+`rey.landscape.chromatic-relief@1` own illumination and final linear color; the
+material therefore does not apply a second physical light response. Warm
+direct light and cool sky ambient remain chromatic while final luminance stays
+bound to the tone-mapped relief. Its separately revisioned pass inputs gate:
 
 - source tint;
 - field-wide multidirectional hillshade;
 - explicit occlusion;
-- and a restrained cartographic tint composition.
+- and the exact retained cartographic-color array.
 
 `ContinuousReliefScene` shares the material across compiled meshes without
-adding another lighting owner. Regional geography blends the admitted material
-class with deterministic moisture, elevation, slope, exposure, and
-validity-bounded drainage fields; a bounded fine land-cover modulation breaks
-up flat color washes without changing elevation or source support. Its
+adding another lighting owner. Regional geography continuously blends the
+admitted material class with deterministic moisture, elevation, slope,
+exposure, and validity-bounded drainage fields without changing elevation or
+source support. Its
 orthographic camera is a bounded target/orbit view: the application supplies a
 near-north-up,
 mostly-overhead cartographic entry, pitch and yaw are clamped, screen-axis pan
@@ -278,14 +283,13 @@ already bounded inputs:
 | Features/labels/selection | Draped exact vectors, disclosed bounds fallbacks, and point/selection anchors. | Interface over retained identity.   |
 | Evidence/accessibility    | Mounted application reference overlay; no accelerated replica.                 | Exact links and accessible meaning. |
 
-Before tile projection, regional geography derives a local, midslope, and
-regional topographic tone from the admitted elevation. A scale contributes
-only when its complete sampling window is valid, so an internal hole or
-no-data edge cannot cast presentation relief into supported terrain. The tone
-modulates land-cover tint and ambient occlusion; it never changes elevation,
-validity, source material identity, or geographic authority. The accelerated
-material preserves stronger northwest/southeast directional separation so
-fine admitted form remains legible at map posture.
+Before tile projection, the shared relief field derives local, midslope, and
+regional light/openness from admitted elevation. A scale contributes only when
+its complete sampling window is valid, so an internal hole or no-data edge
+cannot cast presentation relief into supported terrain. The chromatic
+composition never changes elevation, validity, source material identity, or
+geographic authority, and the reference renderer converts that same linear
+array to CSS sRGB rather than reconstructing a separate lighting formula.
 
 Every pass binds an implementation revision, input revision, and dependency.
 The scene identity includes the compiled pass-set identity, while the shared
@@ -306,9 +310,10 @@ application also projects an exact admitted hydrology Polygon into a
 terrain-following water surface by selecting only supported terrain triangles
 and clipping each boundary triangle to the exact even-odd rings. Every clipped
 vertex receives a barycentric height from that same fully valid terrain
-triangle. The filled surface therefore retains the exact admitted shoreline
-without extending support; no triangle touching a no-data vertex can enter the surface. The surface,
-areas, lines, and point anchors share one R3F terrain group and one
+triangle. A high-contrast fill and separately styled shoreline therefore
+retain the exact admitted water boundary without extending support; no
+triangle touching a no-data vertex can enter the surface. The surface, areas,
+lines, and point anchors share one R3F terrain group and one
 Atlas-to-Landscape model transform. Validity is represented by missing
 triangles over the canvas background, not by a rectangular mesh that can read
 as geographic support. Disconnected valid line intervals remain independent

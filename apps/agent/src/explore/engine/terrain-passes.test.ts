@@ -78,12 +78,19 @@ describe("executable terrain render passes", () => {
     ).toBe("county-source:one");
     const water = compiled?.areas.find(({ kind }) => kind === "water_area");
     expect(water?.positions).toHaveLength(18);
+    expect(water?.opacity).toBe(0.82);
     expect(
       Array.from(water?.positions ?? [])
         .filter((_, component) => component % 3 === 1)
         .every((height) => Number.isFinite(height) && height > 1),
     ).toBe(true);
     expect(water?.authority).toContain("fully valid terrain triangles");
+    expect(
+      compiled?.lines.find(({ kind }) => kind === "water_shoreline"),
+    ).toMatchObject({
+      width: 1.6,
+      opacity: 0.86,
+    });
     expect(compiled?.pass_set_id).toMatch(
       /^rey\.terrain-render-pass-set\.v1:presentation-hash64:/,
     );

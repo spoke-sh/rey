@@ -178,6 +178,7 @@ export interface TerrainLineFeatureInput {
   positions: Float32Array;
   color: number;
   opacity: number;
+  width?: number;
 }
 
 export interface TerrainAreaFeatureInput {
