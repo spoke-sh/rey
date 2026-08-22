@@ -5,7 +5,7 @@ import {
 } from "./compile";
 import { proceduralProjection } from "./compile.test-fixture";
 
-export function admittedField(): TerrainFieldSet {
+export function admittedField(columns = 129, rows = 65): TerrainFieldSet {
   const program = compileTerrainProgram({
     source_id: "terrain:regional",
     source_revision: "topography:one",
@@ -21,8 +21,8 @@ export function admittedField(): TerrainFieldSet {
   const field = materializeTerrainWorkingSet(program, {
     working_set_id: "admitted:grid",
     bounds: program.bounds,
-    columns: 129,
-    rows: 65,
+    columns,
+    rows,
     detail_authority: "admitted fixture grid",
   });
   field.validity.values.fill(1);
@@ -32,8 +32,8 @@ export function admittedField(): TerrainFieldSet {
   );
   return Object.freeze({
     ...field,
-    field_set_id: "admitted:grid:129x65",
-    working_set_id: "admitted:grid:129x65",
+    field_set_id: `admitted:grid:${columns}x${rows}`,
+    working_set_id: `admitted:grid:${columns}x${rows}`,
     active_band_ids: Object.freeze(["admitted_dem"]),
     source_summary: Object.freeze({
       columns: field.grid.columns,

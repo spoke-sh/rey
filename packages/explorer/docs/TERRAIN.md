@@ -101,6 +101,14 @@ in 8.3. The scene-admission CLI continues to report the truthful earlier
 boundary: contracts are defined but runtime pyramids are not materialized by
 scene admission itself.
 
+The application-side `rey.terrain.height-hierarchy@2` prototype does
+materialize conservative height and validity levels before camera tiling. It
+uses explicit bounded child windows for dyadic, non-dyadic, square, and
+rectangular grids, retains the canonical contributing source set for every
+sample, and reaches a 2×2 root within the declared level bound. Those arrays
+remain outside the shared envelope and renderer selection until the haloed
+relief hierarchy is complete, so their existence does not yet close 8.3.
+
 Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common
 coordinate reference, vertical reference, projected sample spacing, elevation

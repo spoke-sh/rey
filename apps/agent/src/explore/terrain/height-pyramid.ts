@@ -8,7 +8,7 @@ import {
 import type { TerrainFieldSet } from "./compile";
 
 export const LANDSCAPE_HEIGHT_HIERARCHY_REVISION =
-  "rey.terrain.height-hierarchy@1" as const;
+  "rey.terrain.height-hierarchy@2" as const;
 export const MAXIMUM_LANDSCAPE_HEIGHT_HIERARCHY_LEVELS = 12;
 
 export interface MaterializedLandscapeHeightLevel {
@@ -90,7 +90,7 @@ export function compileLandscapeHeightHierarchy(
     descending.push(downsampleHeightLevel(descending.at(-1)!));
 
   const complete =
-    Math.min(descending.at(-1)!.columns, descending.at(-1)!.rows) <= 2;
+    Math.max(descending.at(-1)!.columns, descending.at(-1)!.rows) <= 2;
   const ordered = descending.reverse();
   const levels = Object.freeze(
     ordered.map((source, level) =>
@@ -129,7 +129,7 @@ export function compileLandscapeHeightHierarchy(
       complete
         ? []
         : [
-            `height hierarchy stopped at ${levels[0]!.columns}x${levels[0]!.rows} after ${MAXIMUM_LANDSCAPE_HEIGHT_HIERARCHY_LEVELS} bounded levels or a non-dyadic source extent`,
+            `height hierarchy stopped at ${levels[0]!.columns}x${levels[0]!.rows} after ${MAXIMUM_LANDSCAPE_HEIGHT_HIERARCHY_LEVELS} bounded levels`,
           ],
     ),
   });
@@ -173,17 +173,12 @@ function sourceSetsForField(
 }
 
 function canDownsample(level: MutableHeightLevel): boolean {
-  return (
-    level.columns > 2 &&
-    level.rows > 2 &&
-    level.columns % 2 === 1 &&
-    level.rows % 2 === 1
-  );
+  return level.columns > 2 || level.rows > 2;
 }
 
 function downsampleHeightLevel(child: MutableHeightLevel): MutableHeightLevel {
-  const columns = (child.columns + 1) / 2;
-  const rows = (child.rows + 1) / 2;
+  const columns = Math.max(2, Math.ceil(child.columns / 2));
+  const rows = Math.max(2, Math.ceil(child.rows / 2));
   const cells = columns * rows;
   const elevation = new Float32Array(cells);
   const classification = new Uint8Array(cells);
@@ -191,21 +186,25 @@ function downsampleHeightLevel(child: MutableHeightLevel): MutableHeightLevel {
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
       const targetIndex = row * columns + column;
-      const centerRow = row * 2;
-      const centerColumn = column * 2;
+      const rowWindow = conservativeChildWindow(row, rows, child.rows);
+      const columnWindow = conservativeChildWindow(
+        column,
+        columns,
+        child.columns,
+      );
       let elevationTotal = 0;
       let samples = 0;
       let allValid = true;
       let unsupported = false;
       const sources = new Set<number>();
       for (
-        let childRow = Math.max(0, centerRow - 1);
-        childRow <= Math.min(child.rows - 1, centerRow + 1);
+        let childRow = rowWindow.start;
+        childRow <= rowWindow.end;
         childRow += 1
       ) {
         for (
-          let childColumn = Math.max(0, centerColumn - 1);
-          childColumn <= Math.min(child.columns - 1, centerColumn + 1);
+          let childColumn = columnWindow.start;
+          childColumn <= columnWindow.end;
           childColumn += 1
         ) {
           const childIndex = childRow * child.columns + childColumn;
@@ -240,6 +239,30 @@ function downsampleHeightLevel(child: MutableHeightLevel): MutableHeightLevel {
     source_sets: Object.freeze(sourceSets),
   };
 }
+
+export function conservativeLandscapeHeightChildWindow(
+  parentIndex: number,
+  parentSize: number,
+  childSize: number,
+): Readonly<{ start: number; end: number }> {
+  if (
+    !Number.isSafeInteger(parentIndex) ||
+    !Number.isSafeInteger(parentSize) ||
+    !Number.isSafeInteger(childSize) ||
+    parentSize < 2 ||
+    childSize < parentSize ||
+    parentIndex < 0 ||
+    parentIndex >= parentSize
+  )
+    throw new Error("landscape height hierarchy child window is invalid");
+  const stride = (childSize - 1) / (parentSize - 1);
+  return Object.freeze({
+    start: Math.max(0, Math.floor((parentIndex - 0.5) * stride)),
+    end: Math.min(childSize - 1, Math.ceil((parentIndex + 0.5) * stride)),
+  });
+}
+
+const conservativeChildWindow = conservativeLandscapeHeightChildWindow;
 
 function finalizeHeightLevel(
   source: MutableHeightLevel,

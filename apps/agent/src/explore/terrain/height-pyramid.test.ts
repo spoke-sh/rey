@@ -4,7 +4,10 @@ import {
   TERRAIN_VALIDITY_VALID,
 } from "@rey/explorer";
 import { describe, expect, it } from "vitest";
-import { compileLandscapeHeightHierarchy } from "./height-pyramid";
+import {
+  compileLandscapeHeightHierarchy,
+  conservativeLandscapeHeightChildWindow,
+} from "./height-pyramid";
 import { admittedField } from "./tiles.fixture";
 
 describe("landscape height hierarchy", () => {
@@ -87,6 +90,29 @@ describe("landscape height hierarchy", () => {
       replay.levels.map(({ level_id }) => level_id),
     );
   });
+
+  it("completes conservative levels for non-dyadic rectangular grids", () => {
+    const field = admittedField(126, 94);
+    const noDataIndex = 37 * field.grid.columns + 51;
+    field.validity.values[noDataIndex] = 0;
+    field.validity_classification!.values[noDataIndex] =
+      TERRAIN_VALIDITY_NO_DATA;
+
+    const hierarchy = compileLandscapeHeightHierarchy(field);
+
+    expect(hierarchy.complete).toBe(true);
+    expect(hierarchy.omissions).toEqual([]);
+    expect(hierarchy.levels[0]).toMatchObject({ columns: 2, rows: 2 });
+    expect(hierarchy.levels.at(-1)).toMatchObject({
+      columns: 126,
+      rows: 94,
+    });
+    for (let level = 0; level < hierarchy.levels.length - 1; level += 1)
+      expectValidParentsHaveCompleteChildSupport(
+        hierarchy.levels[level]!,
+        hierarchy.levels[level + 1]!,
+      );
+  });
 });
 
 function expectValidParentsHaveCompleteChildSupport(
@@ -100,14 +126,24 @@ function expectValidParentsHaveCompleteChildSupport(
         parent.validity_classification[parentIndex] !== TERRAIN_VALIDITY_VALID
       )
         continue;
+      const rowWindow = conservativeLandscapeHeightChildWindow(
+        row,
+        parent.rows,
+        child.rows,
+      );
+      const columnWindow = conservativeLandscapeHeightChildWindow(
+        column,
+        parent.columns,
+        child.columns,
+      );
       for (
-        let childRow = Math.max(0, row * 2 - 1);
-        childRow <= Math.min(child.rows - 1, row * 2 + 1);
+        let childRow = rowWindow.start;
+        childRow <= rowWindow.end;
         childRow += 1
       )
         for (
-          let childColumn = Math.max(0, column * 2 - 1);
-          childColumn <= Math.min(child.columns - 1, column * 2 + 1);
+          let childColumn = columnWindow.start;
+          childColumn <= columnWindow.end;
           childColumn += 1
         )
           expect(
