@@ -230,6 +230,9 @@ export function ReferenceRenderer({
       data-landscape-overview-policy={
         scene.atlas_landscape_transition?.overview_policy
       }
+      data-landscape-companion-attribution-id={
+        scene.atlas_landscape_transition?.companion_attribution_id
+      }
       data-landscape-patch-set={scene.atlas_landscape_transition?.patch_set_id}
       data-landscape-primary-patch={
         scene.atlas_landscape_transition?.primary_patch_id

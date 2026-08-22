@@ -141,6 +141,7 @@ export interface TerrainFieldSetInput {
     overview_coverage_id?: string;
     overview_covered_vertices?: number;
     overview_policy?: "separately_admitted_compatible_overview_only";
+    companion_attribution_id?: string;
     gap_policy: "unsupported_remains_transparent";
   };
 }

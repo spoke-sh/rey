@@ -1108,6 +1108,9 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-overview-policy={
             terrainRenderer.landscape_overview_policy
           }
+          data-renderer-landscape-companion-attribution-id={
+            terrainRenderer.landscape_companion_attribution_id
+          }
           data-renderer-landscape-patch-count={
             terrainRenderer.landscape_patch_count
           }

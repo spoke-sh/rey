@@ -344,6 +344,7 @@ export interface TopologyAtlasLandscapeTransition {
   overview_coverage_id: string;
   overview_covered_vertices: number;
   overview_policy: "separately_admitted_compatible_overview_only";
+  companion_attribution_id: string;
   gap_policy: "unsupported_remains_transparent";
   projection_revision: typeof ATLAS_LANDSCAPE_PROJECTION_REVISION;
   source_frame: { x: number; y: number; width: number; height: number };
@@ -734,12 +735,14 @@ function buildAtlasLandscapeTransition(
       overview_covered_vertices:
         terrain.manifest.overview_coverage.covered_vertices,
       overview_policy: terrain.manifest.overview_coverage.policy,
+      companion_attribution_id:
+        terrain.manifest.companion_attribution.content_id,
       gap_policy: patchSet.gap_policy,
       projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
       source_frame: sourceFrame,
       target_frame: targetFrame,
       authority:
-        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, overlap decisions retain validity, detail no-data boundaries, declared authority, nominal spacing, stable source identity, final contribution, conflicts, mutually-valid height-feather weights, and separately admitted overview coverage, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
+        "reversible presentation mapping from one exact admitted synthetic Atlas sector to the primary source patch in a shared-frame validity-bounded regional mosaic; only connected terrain-qualified edges enter the mosaic, overlap decisions retain validity, detail no-data boundaries, declared authority, nominal spacing, stable source identity, final contribution, conflicts, mutually-valid height-feather weights, separately admitted overview coverage, and independent companion attribution, unsupported gaps remain transparent, and the mapping grants no geographic relationship between coordinate spaces",
     }),
     terrain,
   });

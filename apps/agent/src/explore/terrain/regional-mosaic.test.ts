@@ -70,6 +70,44 @@ describe("regional terrain mosaic", () => {
     expect(compiled.field.landscape_mosaic?.mosaic_id).toBe(
       compiled.manifest.mosaic_id,
     );
+    expect(compiled.manifest.companion_attribution).toMatchObject({
+      policy: "height_cannot_mint_companion_authority",
+      land_cover: {
+        status: "independently_attributed_patch_channel",
+        sources: [
+          {
+            patch_id: left.field_set_id,
+            source_revision: left.source_revision,
+            channel_revision: left.material.implementation_revision,
+          },
+          {
+            patch_id: right.field_set_id,
+            source_revision: right.source_revision,
+            channel_revision: right.material.implementation_revision,
+          },
+        ],
+      },
+      contours: {
+        status: "derived_after_mosaic_from_height_and_validity",
+      },
+      water: { status: "not_composed_by_height_mosaic" },
+      vectors: { status: "not_composed_by_height_mosaic" },
+    });
+    expect(compiled.manifest.companion_attribution.content_id).toMatch(
+      /^blake3:[0-9a-f]{64}$/,
+    );
+    expect(
+      compiled.manifest.companion_attribution.land_cover.content_id,
+    ).not.toBe(compiled.manifest.source_contribution.content_id);
+    expect(
+      compiled.manifest.companion_attribution.land_cover.owner_indices,
+    ).toEqual(compiled.manifest.source_contribution.owner_indices);
+    expect(
+      compiled.manifest.companion_attribution.land_cover.owner_indices,
+    ).not.toBe(compiled.manifest.source_contribution.owner_indices);
+    expect(compiled.field.landscape_mosaic?.companion_attribution_id).toBe(
+      compiled.manifest.companion_attribution.content_id,
+    );
     expect(compileLandscapePatchSet([compiled.field])).toMatchObject({
       patch_ids: [left.field_set_id, right.field_set_id],
       overlap_policy: "validity_authority_resolution_then_stable_identity",

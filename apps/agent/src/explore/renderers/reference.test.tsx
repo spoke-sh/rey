@@ -611,6 +611,7 @@ describe("reference renderer", () => {
         overview_coverage_id: "blake3:fixture-overview",
         overview_covered_vertices: 0,
         overview_policy: "separately_admitted_compatible_overview_only",
+        companion_attribution_id: "blake3:fixture-companions",
         gap_policy: "unsupported_remains_transparent",
         projection_revision: ATLAS_LANDSCAPE_PROJECTION_REVISION,
         source_frame: { x: 0, y: 0, width: 1500, height: 1000 },

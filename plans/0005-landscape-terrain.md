@@ -498,6 +498,14 @@ source patch set, and covered count through the Atlas/Landscape transition and
 both renderer diagnostics. An absent, invalid, or incompatible overview source
 leaves the existing unsupported hole unchanged.
 
+`rey.terrain.regional-mosaic@5` closes companion attribution without treating
+the height result as evidence for another layer. It retains land-cover owners
+in a separate BLAKE3-identified raster bound to every exact source and material
+channel revision. Contours explicitly name the composed height and validity
+content they derive from; water and semantic vectors remain outside the height
+mosaic and keep their feature-level source revisions and authority. The shared
+transition and renderer diagnostics expose the companion-attribution identity.
+
 ## Geographic Synthesis Boundary
 
 Rey County is fictional semantic geography that an agent may generate and
@@ -716,7 +724,7 @@ and which implementation revisions produced each derived channel.
 - [x] Fill space between detailed patches only when a separately admitted,
       compatible overview DEM covers that space. Without that evidence, retain
       an explicit hole through the mosaic, pyramid, mesh, and shading paths.
-- [ ] Keep land cover, water, contours, and vectors as independently
+- [x] Keep land cover, water, contours, and vectors as independently
       attributed companions. A height mosaic cannot manufacture their source
       authority.
 

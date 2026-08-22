@@ -23,7 +23,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@4" as const;
+  "rey.terrain.regional-mosaic@5" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
@@ -107,6 +107,29 @@ export interface RegionalTerrainMosaicManifest {
     patch_ids: readonly string[];
     values: Uint8Array;
     covered_vertices: number;
+  };
+  companion_attribution: {
+    schema: "rey.landscape-companion-attribution.v1";
+    content_id: string;
+    policy: "height_cannot_mint_companion_authority";
+    land_cover: {
+      status: "independently_attributed_patch_channel";
+      content_id: string;
+      unsupported_index: number;
+      owner_indices: Uint32Array;
+      sources: readonly {
+        patch_id: string;
+        source_revision: string;
+        channel_revision: string;
+        authority: string;
+      }[];
+    };
+    contours: {
+      status: "derived_after_mosaic_from_height_and_validity";
+      source_content_ids: readonly string[];
+    };
+    water: { status: "not_composed_by_height_mosaic" };
+    vectors: { status: "not_composed_by_height_mosaic" };
   };
   overlap_decisions: readonly {
     reason: RegionalTerrainOverlapDecisionReason;
@@ -479,6 +502,31 @@ export function compileRegionalTerrainMosaic(
     overviewCoverageValues,
   ]);
   const heightId = mosaicContentId("height", [elevationValues]);
+  const landCoverOwnerIndices = occupancy.slice();
+  const landCoverSources = Object.freeze(
+    ordered.map(({ field }) =>
+      Object.freeze({
+        patch_id: field.field_set_id,
+        source_revision: field.source_revision,
+        channel_revision: field.material.implementation_revision,
+        authority: field.detail_authority,
+      }),
+    ),
+  );
+  const landCoverId = mosaicContentId(
+    `land-cover:${landCoverSources
+      .flatMap(({ patch_id, source_revision, channel_revision }) => [
+        patch_id,
+        source_revision,
+        channel_revision,
+      ])
+      .join("|")}`,
+    [landCoverOwnerIndices],
+  );
+  const companionAttributionId = mosaicContentId(
+    `companion-attribution:${landCoverId}:${heightId}:${validitySummary.validity_id}:height_cannot_mint_companion_authority`,
+    [],
+  );
   const mosaicId = [
     REGIONAL_TERRAIN_MOSAIC_SCHEMA,
     REGIONAL_TERRAIN_MOSAIC_REVISION,
@@ -501,6 +549,7 @@ export function compileRegionalTerrainMosaic(
     conflictId,
     featherId,
     overviewCoverageId,
+    companionAttributionId,
     `${columns}x${rows}`,
   ].join("|");
   const {
@@ -552,6 +601,7 @@ export function compileRegionalTerrainMosaic(
     overview_coverage_id: overviewCoverageId,
     overview_covered_vertices: overviewCoveredVertices,
     overview_policy: "separately_admitted_compatible_overview_only" as const,
+    companion_attribution_id: companionAttributionId,
   }) satisfies NonNullable<TerrainFieldSetInput["landscape_mosaic"]>;
   const manifest = Object.freeze({
     schema: REGIONAL_TERRAIN_MOSAIC_SCHEMA,
@@ -606,6 +656,31 @@ export function compileRegionalTerrainMosaic(
       patch_ids: overviewPatchIds,
       values: overviewCoverageValues,
       covered_vertices: overviewCoveredVertices,
+    }),
+    companion_attribution: Object.freeze({
+      schema: "rey.landscape-companion-attribution.v1" as const,
+      content_id: companionAttributionId,
+      policy: "height_cannot_mint_companion_authority" as const,
+      land_cover: Object.freeze({
+        status: "independently_attributed_patch_channel" as const,
+        content_id: landCoverId,
+        unsupported_index: unsupportedOwner,
+        owner_indices: landCoverOwnerIndices,
+        sources: landCoverSources,
+      }),
+      contours: Object.freeze({
+        status: "derived_after_mosaic_from_height_and_validity" as const,
+        source_content_ids: Object.freeze([
+          heightId,
+          validitySummary.validity_id,
+        ]),
+      }),
+      water: Object.freeze({
+        status: "not_composed_by_height_mosaic" as const,
+      }),
+      vectors: Object.freeze({
+        status: "not_composed_by_height_mosaic" as const,
+      }),
     }),
     overlap_decisions: overlapDecisions,
     limits: Object.freeze({ maximum_cells: maximumCells }),
@@ -666,7 +741,7 @@ export function compileRegionalTerrainMosaic(
       "admitted_multi_region_mosaic",
     ]),
     detail_authority:
-      "shared-frame mosaic of a connected terrain-qualified regional set; detail support and explicit detail no-data boundaries take precedence over supplemental overview DEMs, which may cover only otherwise unsupported space; overlap selection is then validity-first, declared-authority, nominal-spacing, and stable-source identity; height feathering is limited to two-source valid/valid overlap at equal authority and nominal spacing, with exact primary/secondary weights retained; every source conflict and final contribution is retained, while source no-data and unsupported gaps retain zero geometry validity",
+      "shared-frame mosaic of a connected terrain-qualified regional set; detail support and explicit detail no-data boundaries take precedence over supplemental overview DEMs, which may cover only otherwise unsupported space; overlap selection is then validity-first, declared-authority, nominal-spacing, and stable-source identity; height feathering is limited to two-source valid/valid overlap at equal authority and nominal spacing, with exact primary/secondary weights retained; land-cover ownership and channel revisions are independently retained, contours name height and validity as derivation inputs, and water/vector features remain outside the height mosaic; every source conflict and final contribution is retained, while source no-data and unsupported gaps retain zero geometry validity",
     source_revision: mosaicId,
     source_summary: Object.freeze({
       columns,
@@ -704,7 +779,8 @@ export function compileRegionalTerrainMosaic(
         conflictValues.byteLength +
         featherSecondaryOwners.byteLength +
         featherPrimaryWeights.byteLength +
-        overviewCoverageValues.byteLength,
+        overviewCoverageValues.byteLength +
+        landCoverOwnerIndices.byteLength,
     ),
     landscape_mosaic: binding,
   }) satisfies TerrainFieldSet;
