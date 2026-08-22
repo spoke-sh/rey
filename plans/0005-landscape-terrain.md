@@ -515,7 +515,8 @@ source patch set, and covered count through the Atlas/Landscape transition and
 both renderer diagnostics. An absent, invalid, or incompatible overview source
 leaves the existing unsupported hole unchanged.
 
-`rey.terrain.regional-mosaic@5` closes companion attribution without treating
+`rey.terrain.regional-mosaic@6` closes companion attribution and rejects
+incompatible horizontal or vertical datum bindings without treating
 the height result as evidence for another layer. It retains land-cover owners
 in a separate BLAKE3-identified raster bound to every exact source and material
 channel revision. Contours explicitly name the composed height and validity
@@ -856,11 +857,11 @@ entry viewport.
 
 #### 8.7 Retain the qualification matrix and close the fidelity bar
 
-- [ ] Add deterministic fixtures for one patch with holes, touching patches,
+- [x] Add deterministic fixtures for one patch with holes, touching patches,
       partial overlap, nested resolutions, a rejected datum, a gap, an admitted
       overview gap fill, steep relief, low relief, water/coastline, dense
       vectors, stale input, and backend loss.
-- [ ] Assert no validity gain, whole-field/tile derivation equivalence, border
+- [x] Assert no validity gain, whole-field/tile derivation equivalence, border
       digest agreement, deterministic overlap decisions, zero unsupported
       triangles, zero tile-boundary seam mismatches (`relief_seam_mismatches == 0`),
       bounded resident/working bytes, stable picking, and exact revision lineage

@@ -1,8 +1,137 @@
 {
-  "schema": "rey.explorer-landscape-workloads.v2",
-  "suite_id": "rey.explorer.landscape-fidelity@3",
+  "schema": "rey.explorer-landscape-workloads.v3",
+  "suite_id": "rey.explorer.landscape-fidelity@4",
   "authority": "source-controlled browser qualification requirements for separately admitted named fixtures; not terrain evidence, permission to synthesize inputs, or proof authority",
+  "required_backends": ["reference", "webgl2", "webgpu"],
   "target_viewports": ["1920x1080", "3840x2160"],
+  "fixture_matrix": [
+    {
+      "id": "one-patch-holes",
+      "proof": "apps/agent/src/explore/projection/regional-scene-topology.test.ts",
+      "assertion": "renders a qualified regional grid while retaining an explicit no-data hole"
+    },
+    {
+      "id": "touching-patches",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "compiles qualified adjacent patches into one validity-safe field"
+    },
+    {
+      "id": "partial-overlap",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "retains conflicts and resolves partial overlap independently from input order"
+    },
+    {
+      "id": "nested-resolutions",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "uses nominal metric spacing before stable identity"
+    },
+    {
+      "id": "rejected-datum",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "rejects a patch whose declared horizontal or vertical datum changed"
+    },
+    {
+      "id": "unsupported-gap",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "retains unsupported space between disjoint patches as invalid"
+    },
+    {
+      "id": "admitted-overview-gap-fill",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "fills only otherwise unsupported space from an admitted overview DEM"
+    },
+    {
+      "id": "steep-relief",
+      "proof": "packages/explorer/src/landscape-relief.test.ts",
+      "assertion": "separates steep ridges from low relief without black MDOW shadows"
+    },
+    {
+      "id": "low-relief",
+      "proof": "packages/explorer/src/landscape-relief.test.ts",
+      "assertion": "separates steep ridges from low relief without black MDOW shadows"
+    },
+    {
+      "id": "water-coastline",
+      "proof": "apps/agent/src/explore/engine/terrain-passes.test.ts",
+      "assertion": "clips a draped water surface to its exact admitted polygon edge"
+    },
+    {
+      "id": "dense-vectors",
+      "proof": "apps/agent/src/explore/engine/terrain-passes.test.ts",
+      "assertion": "retains a deterministic dense-vector fixture under one terrain transform"
+    },
+    {
+      "id": "stale-input",
+      "proof": "apps/agent/src/explore/engine/scene.test.ts",
+      "assertion": "retains the last-good immutable scene when a later projection fails"
+    },
+    {
+      "id": "backend-loss",
+      "proof": "packages/explorer/src/three-webgpu.test.ts",
+      "assertion": "reports WebGPU device loss as a visible reference fallback"
+    }
+  ],
+  "invariant_matrix": [
+    {
+      "id": "no-validity-gain",
+      "proof": "apps/agent/src/explore/terrain/height-pyramid.test.ts",
+      "assertion": "downsamples validity conservatively without gaining support"
+    },
+    {
+      "id": "whole-field-tile-equivalence",
+      "proof": "apps/agent/src/explore/terrain/relief-pyramid.test.ts",
+      "assertion": "derives every level from haloed tiles with exact borders and partitions"
+    },
+    {
+      "id": "border-digest-agreement",
+      "proof": "apps/agent/src/explore/terrain/relief-pyramid.test.ts",
+      "assertion": "derives every level from haloed tiles with exact borders and partitions"
+    },
+    {
+      "id": "deterministic-overlap",
+      "proof": "apps/agent/src/explore/terrain/regional-mosaic.test.ts",
+      "assertion": "retains conflicts and resolves partial overlap independently from input order"
+    },
+    {
+      "id": "zero-unsupported-triangles",
+      "proof": "apps/agent/src/explore/terrain/tiles.test.ts",
+      "assertion": "retains stable parentage and identical shared validity borders"
+    },
+    {
+      "id": "zero-relief-seams",
+      "proof": "apps/agent/src/explore/terrain/worker.test.ts",
+      "assertion": "projects, resamples, and prepares a named tile workload"
+    },
+    {
+      "id": "bounded-residency",
+      "proof": "apps/agent/src/explore/terrain/residency.test.ts",
+      "assertion": "rejects an active set larger than either retained budget"
+    },
+    {
+      "id": "stable-picking",
+      "proof": "apps/agent/src/explore/engine/picking.test.ts",
+      "assertion": "binds every chart copy to one immutable semantic identity"
+    },
+    {
+      "id": "exact-revision-lineage",
+      "proof": "apps/agent/scripts/explorer-landscape-qualification.test.mjs",
+      "assertion": "requires exact lineage, bounded resources, and zero no-data leakage"
+    }
+  ],
+  "perceptual_criteria": [
+    "composition",
+    "multiscale_mdow",
+    "hillshade_continuity",
+    "sky_view_valley_depth",
+    "dual_tone_chromatic_lighting",
+    "hypsometric_land_cover",
+    "terrain_bound_hydrology",
+    "contour_hierarchy",
+    "vector_hierarchy",
+    "no_crosshatch_grid",
+    "no_flat_scalar_mud",
+    "no_plastic_smoothing"
+  ],
   "workloads": [
     {
       "id": "steep-relief",

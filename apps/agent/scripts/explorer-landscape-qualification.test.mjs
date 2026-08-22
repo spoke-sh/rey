@@ -3,13 +3,27 @@ import { readFile } from "node:fs/promises";
 import {
   evaluateLandscapeCapture,
   landscapeWorkload,
+  REQUIRED_LANDSCAPE_FIXTURES,
+  REQUIRED_LANDSCAPE_INVARIANTS,
   validateLandscapeWorkloadSuite,
 } from "./explorer-landscape-qualification.mjs";
 
 const suite = {
-  schema: "rey.explorer-landscape-workloads.v2",
+  schema: "rey.explorer-landscape-workloads.v3",
   suite_id: "suite:fixture",
+  required_backends: ["reference", "webgl2", "webgpu"],
   target_viewports: ["1920x1080"],
+  fixture_matrix: REQUIRED_LANDSCAPE_FIXTURES.map((id) => ({
+    id,
+    proof: "fixture.test.ts",
+    assertion: `proves ${id}`,
+  })),
+  invariant_matrix: REQUIRED_LANDSCAPE_INVARIANTS.map((id) => ({
+    id,
+    proof: "fixture.test.ts",
+    assertion: `proves ${id}`,
+  })),
+  perceptual_criteria: ["composition"],
   workloads: [
     {
       id: "holes",
@@ -41,6 +55,15 @@ const capture = {
     landscape_mosaic_id: "mosaic:fixture",
     landscape_composition_revision: "composition:fixture",
     landscape_primary_patch_id: "patch:fixture",
+    terrain_source_key: "source-key:fixture",
+    landscape_relief_revision: "rey.landscape-relief-engine@4",
+    landscape_pyramid_envelopes: "envelope:fixture",
+    landscape_height_hierarchies: "height-hierarchy:fixture",
+    landscape_height_hierarchy_complete: "true",
+    landscape_relief_pyramids: "relief-pyramid:fixture",
+    landscape_relief_border_digests: "border:fixture",
+    landscape_relief_border_digest_mismatches: "0",
+    landscape_pyramid_complete: "true",
     render_pass_kinds: "admitted_boundary,river",
     render_pass_area_count: "1",
     render_pass_line_count: "2",
@@ -53,6 +76,7 @@ const capture = {
     source_elevation_span: "80",
     terrain_maximum_screen_error_pixels: "1.25",
     terrain_relief_partition_mismatches: "0",
+    terrain_relief_seam_mismatches: "0",
     terrain_tile_seam_mismatches: "0",
     terrain_no_data_leak_triangles: "0",
   },
@@ -61,6 +85,34 @@ const capture = {
 };
 
 describe("Landscape browser workload qualification", () => {
+  it("binds every required fixture row to a source-controlled executable assertion", async () => {
+    const document = JSON.parse(
+      await readFile(
+        new URL(
+          "../qualification/explorer-landscape-workloads.json",
+          import.meta.url,
+        ),
+      ),
+    );
+    const validated = validateLandscapeWorkloadSuite(document);
+    expect(validated.fixture_matrix.map(({ id }) => id).sort()).toEqual(
+      [...REQUIRED_LANDSCAPE_FIXTURES].sort(),
+    );
+    expect(validated.invariant_matrix.map(({ id }) => id).sort()).toEqual(
+      [...REQUIRED_LANDSCAPE_INVARIANTS].sort(),
+    );
+    for (const row of [
+      ...validated.fixture_matrix,
+      ...validated.invariant_matrix,
+    ]) {
+      const proof = await readFile(
+        new URL(`../../../${row.proof}`, import.meta.url),
+        "utf8",
+      );
+      expect(proof).toContain(`it(\"${row.assertion}\"`);
+    }
+  });
+
   it("retains a reproducible row-major explicit-hole source fixture", async () => {
     const document = JSON.parse(
       await readFile(
@@ -119,9 +171,11 @@ describe("Landscape browser workload qualification", () => {
       passed: true,
       checks: {
         exact_scene_lineage: true,
+        exact_terrain_lineage: true,
         landscape_mosaic_bound: true,
         no_data_leakage_respected: true,
         relief_partition_respected: true,
+        relief_seams_respected: true,
         tile_seams_respected: true,
       },
     });

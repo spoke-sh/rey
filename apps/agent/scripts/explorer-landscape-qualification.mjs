@@ -1,4 +1,32 @@
-export const LANDSCAPE_WORKLOAD_SCHEMA = "rey.explorer-landscape-workloads.v2";
+export const LANDSCAPE_WORKLOAD_SCHEMA = "rey.explorer-landscape-workloads.v3";
+
+export const REQUIRED_LANDSCAPE_FIXTURES = Object.freeze([
+  "one-patch-holes",
+  "touching-patches",
+  "partial-overlap",
+  "nested-resolutions",
+  "rejected-datum",
+  "unsupported-gap",
+  "admitted-overview-gap-fill",
+  "steep-relief",
+  "low-relief",
+  "water-coastline",
+  "dense-vectors",
+  "stale-input",
+  "backend-loss",
+]);
+
+export const REQUIRED_LANDSCAPE_INVARIANTS = Object.freeze([
+  "no-validity-gain",
+  "whole-field-tile-equivalence",
+  "border-digest-agreement",
+  "deterministic-overlap",
+  "zero-unsupported-triangles",
+  "zero-relief-seams",
+  "bounded-residency",
+  "stable-picking",
+  "exact-revision-lineage",
+]);
 
 export function validateLandscapeWorkloadSuite(document) {
   if (document?.schema !== LANDSCAPE_WORKLOAD_SCHEMA)
@@ -6,13 +34,48 @@ export function validateLandscapeWorkloadSuite(document) {
   if (
     typeof document.suite_id !== "string" ||
     document.suite_id.length === 0 ||
+    !Array.isArray(document.required_backends) ||
+    document.required_backends.join(",") !== "reference,webgl2,webgpu" ||
     !Array.isArray(document.target_viewports) ||
     document.target_viewports.length === 0 ||
     document.target_viewports.some((viewport) => !/^\d+x\d+$/.test(viewport)) ||
     !Array.isArray(document.workloads) ||
-    document.workloads.length === 0
+    document.workloads.length === 0 ||
+    !Array.isArray(document.fixture_matrix) ||
+    !Array.isArray(document.invariant_matrix) ||
+    !Array.isArray(document.perceptual_criteria) ||
+    document.perceptual_criteria.length === 0
   )
     throw new Error("Landscape workload suite is malformed");
+  const verifyMatrix = (rows, required, label) => {
+    if (
+      rows.some(
+        (row) =>
+          typeof row?.id !== "string" ||
+          typeof row?.proof !== "string" ||
+          row.proof.length === 0 ||
+          typeof row?.assertion !== "string" ||
+          row.assertion.length === 0,
+      ) ||
+      new Set(rows.map(({ id }) => id)).size !== rows.length ||
+      required.some((id) => !rows.some((row) => row.id === id))
+    )
+      throw new Error(`Landscape ${label} matrix is incomplete`);
+  };
+  verifyMatrix(document.fixture_matrix, REQUIRED_LANDSCAPE_FIXTURES, "fixture");
+  verifyMatrix(
+    document.invariant_matrix,
+    REQUIRED_LANDSCAPE_INVARIANTS,
+    "invariant",
+  );
+  if (
+    new Set(document.perceptual_criteria).size !==
+      document.perceptual_criteria.length ||
+    document.perceptual_criteria.some(
+      (criterion) => typeof criterion !== "string" || criterion.length === 0,
+    )
+  )
+    throw new Error("Landscape perceptual or fixture contract is malformed");
   const ids = new Set();
   for (const workload of document.workloads) {
     if (
@@ -62,6 +125,15 @@ export function evaluateLandscapeCapture(
   const omissions = (capture?.scene_omissions ?? []).map((omission) =>
     String(omission).toLowerCase(),
   );
+  const isBound = (name) => {
+    const value = renderer[name];
+    return (
+      typeof value === "string" &&
+      value.length > 0 &&
+      value !== "unbound" &&
+      value !== "unbound-mosaic"
+    );
+  };
   const checks = {
     landscape_stage: capture?.stage === "landscape",
     exact_scene_lineage:
@@ -72,6 +144,15 @@ export function evaluateLandscapeCapture(
       typeof capture?.compilers === "string" &&
       capture.compilers.length > 0,
     terrain_field_present: number("source_valid_vertices") > 0,
+    exact_terrain_lineage:
+      isBound("terrain_source_key") &&
+      isBound("landscape_relief_revision") &&
+      isBound("landscape_pyramid_envelopes") &&
+      isBound("landscape_height_hierarchies") &&
+      isBound("landscape_relief_pyramids") &&
+      isBound("landscape_relief_border_digests") &&
+      renderer.landscape_height_hierarchy_complete === "true" &&
+      renderer.landscape_pyramid_complete === "true",
     render_pass_set_bound:
       typeof renderer.render_pass_set_id === "string" &&
       renderer.render_pass_set_id !== "unbound",
@@ -99,6 +180,9 @@ export function evaluateLandscapeCapture(
       requirements.maximum_relief_partition_mismatches === undefined ||
       number("terrain_relief_partition_mismatches") <=
         requirements.maximum_relief_partition_mismatches,
+    relief_seams_respected:
+      number("terrain_relief_seam_mismatches") === 0 &&
+      number("landscape_relief_border_digest_mismatches") === 0,
     no_data_leakage_respected:
       requirements.maximum_no_data_leak_triangles === undefined ||
       number("terrain_no_data_leak_triangles") <=
@@ -155,6 +239,10 @@ export function evaluateLandscapeCapture(
       landscape_composition_revision:
         renderer.landscape_composition_revision ?? null,
       landscape_primary_patch_id: renderer.landscape_primary_patch_id ?? null,
+      terrain_source_key: renderer.terrain_source_key ?? null,
+      landscape_height_hierarchies:
+        renderer.landscape_height_hierarchies ?? null,
+      landscape_relief_pyramids: renderer.landscape_relief_pyramids ?? null,
       no_data_leak_triangles: number("terrain_no_data_leak_triangles"),
       no_data_vertices: number("source_no_data_vertices"),
       render_pass_kinds: [...renderPassKinds],

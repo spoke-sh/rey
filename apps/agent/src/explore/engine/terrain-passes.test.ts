@@ -154,6 +154,37 @@ describe("executable terrain render passes", () => {
     expect(Math.min(...y)).toBeCloseTo(0.8, 5);
     expect(Math.max(...y)).toBeCloseTo(4.3, 5);
   });
+
+  it("retains a deterministic dense-vector fixture under one terrain transform", () => {
+    const source = sceneFixture();
+    const roads = Array.from({ length: 40 }, (_, index) => {
+      const y = 0.25 + (index / 39) * 9.5;
+      return {
+        ...source.nodes[0]!,
+        id: `node:dense-road:${index}`,
+        focus_id: `node:dense-road:${index}`,
+        label: `ROAD ${index}`,
+        evidence_uri: `rey://fixture/dense-road/${index}`,
+        spatial_feature: {
+          ...source.nodes[0]!.spatial_feature!,
+          envelope_path: `M15,${y} L20,${y}`,
+          geometry_path: `M15,${y} L20,${y}`,
+        },
+      };
+    });
+    const scene = { ...source, nodes: roads };
+    const compiled = compileTerrainRenderPasses(
+      scene,
+      compileExplorerRenderGraph(scene),
+      visible(),
+    )!;
+    const roadLines = compiled.lines.filter(({ kind }) => kind === "road");
+    expect(roadLines).toHaveLength(40);
+    expect(new Set(roadLines.map(({ id }) => id)).size).toBe(40);
+    expect(roadLines.every(({ positions }) => positions.length >= 6)).toBe(
+      true,
+    );
+  });
 });
 
 function visible() {

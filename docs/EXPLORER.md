@@ -458,11 +458,21 @@ A rendering change is incomplete until its human journey is qualified.
   coastline/water, dense vectors, explicit holes, stale data, and backend loss
   at both target viewports. A capture binds a real admitted fixture; the harness
   never fabricates one.
+- `rey.explorer-landscape-workloads.v3` binds every required deterministic
+  fixture and invariant to the exact source-controlled test assertion that
+  proves it. The matrix rejects missing datum, overlap, gap, validity, seam,
+  residency, picking, or lineage rows instead of letting a capture suite imply
+  that untested mechanics passed.
 - Landscape manifests retain source validity and relief, selected mosaic,
   composition and primary-patch identities, screen-space error, tile and relief
   partition seams, no-data leakage, pass identity, labels, resident budgets,
   picking continuity, interaction convergence, backend, and exact scene
   lineage.
+- Exact terrain qualification additionally requires the source key, height and
+  relief hierarchy identities, border digests, complete pyramid flags, zero
+  relief/border mismatches, and bounded CPU/GPU residency. Perceptual criteria
+  are retained separately as explicit pass/minor/major judgments; numeric
+  invariants cannot silently stand in for visual review.
 - WebGPU, WebGL2 compatibility, and the deterministic reference renderer keep
   semantic parity; unsupported visual fidelity is disclosed rather than
   hidden.

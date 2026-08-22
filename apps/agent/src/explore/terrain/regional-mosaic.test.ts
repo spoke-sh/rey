@@ -422,6 +422,21 @@ describe("regional terrain mosaic", () => {
     });
     expect(compiled.manifest.feather.feathered_vertices).toBe(0);
   });
+
+  it("rejects a patch whose declared horizontal or vertical datum changed", () => {
+    const left = regionalPatch("field:left", 100);
+    const right = regionalPatch(
+      "field:right",
+      left.grid.bounds.x + left.grid.bounds.width,
+    );
+    right.landscape_reference = {
+      ...right.landscape_reference!,
+      vertical_reference: "unqualified-ellipsoidal-height",
+    };
+    expect(() => compilePair(left, right, "rejected-datum")).toThrow(
+      "patch horizontal or vertical datum is incompatible",
+    );
+  });
 });
 
 function compilePair(

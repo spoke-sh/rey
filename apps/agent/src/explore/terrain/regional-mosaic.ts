@@ -23,7 +23,7 @@ import { deriveTerrainNormals } from "./normals";
 export const REGIONAL_TERRAIN_MOSAIC_SCHEMA =
   "rey.landscape-mosaic.v1" as const;
 export const REGIONAL_TERRAIN_MOSAIC_REVISION =
-  "rey.terrain.regional-mosaic@5" as const;
+  "rey.terrain.regional-mosaic@6" as const;
 export const MAXIMUM_REGIONAL_TERRAIN_MOSAIC_CELLS = 2_000_000;
 
 export interface RegionalTerrainMosaicPatch {
@@ -202,6 +202,21 @@ export function compileRegionalTerrainMosaic(
     throw new Error("regional terrain mosaic patch identity is invalid");
 
   const bounds = unionBounds(ordered.map(({ field }) => field.grid.bounds));
+  const reference = ordered[0]!.field.landscape_reference;
+  if (
+    !reference ||
+    ordered.some(
+      ({ field }) =>
+        !field.landscape_reference ||
+        field.landscape_reference.coordinate_reference !==
+          reference.coordinate_reference ||
+        field.landscape_reference.vertical_reference !==
+          reference.vertical_reference,
+    )
+  )
+    throw new Error(
+      "regional terrain mosaic patch horizontal or vertical datum is incompatible",
+    );
   const spacingX = sampleSpacing(ordered[0]!.field, "x");
   const spacingY = sampleSpacing(ordered[0]!.field, "y");
   const elevationScale = ordered[0]!.field.elevation_scale;

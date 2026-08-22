@@ -1263,6 +1263,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-terrain-tile-projection-ms={
             terrainRenderer.terrain_tile_projection_ms
           }
+          data-renderer-terrain-source-key={terrainRenderer.terrain_source_key}
           data-renderer-terrain-update-ms={terrainRenderer.terrain_update_ms}
           data-renderer-terrain-worker-execution={
             terrainRenderer.terrain_worker_execution
