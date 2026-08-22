@@ -495,6 +495,13 @@ A rendering change is incomplete until its human journey is qualified.
   The review must rate every suite criterion with a non-empty note. The command
   retains missing rows and minor results, and cannot report `PASS` while a row
   is absent, a digest or lineage differs, or any result is `major`.
+- Rendered parity resets the camera to one canonical Atlas fit posture after
+  the bidirectional stress traversal. Its semantic comparison binds exact
+  scene, source, mosaic, hierarchy, relief, validity, omission, and evidence
+  identity; it deliberately excludes backend names, label placement
+  disposition, and view-dependent vector batch counts. WebGL2 and WebGPU
+  pixels must still remain within the separately retained normalized-RMSE
+  limit.
 - WebGPU, WebGL2 compatibility, and the deterministic reference renderer keep
   semantic parity; unsupported visual fidelity is disclosed rather than
   hidden.

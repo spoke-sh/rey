@@ -81,7 +81,6 @@ function stableEvidence(capture) {
       .map(({ uri }) => uri)
       .sort((left, right) => left.localeCompare(right)),
     focus_id: capture.focus_id,
-    labels: capture.labels,
     projection: {
       regime: capture.projection.regime,
       render_graph_id: capture.projection.render_graph_id,
@@ -96,14 +95,12 @@ function stableEvidence(capture) {
         capture.renderer?.landscape_composition_revision,
       landscape_mosaic_id: capture.renderer?.landscape_mosaic_id,
       landscape_primary_patch_id: capture.renderer?.landscape_primary_patch_id,
+      height_hierarchies: capture.renderer?.landscape_height_hierarchies,
+      pyramid_envelopes: capture.renderer?.landscape_pyramid_envelopes,
+      relief_pyramids: capture.renderer?.landscape_relief_pyramids,
+      relief_revision: capture.renderer?.landscape_relief_revision,
+      terrain_source_key: capture.renderer?.terrain_source_key,
       no_data_leak_triangles: capture.renderer?.terrain_no_data_leak_triangles,
-      render_pass_kinds: capture.renderer?.render_pass_kinds,
-      render_pass_area_count: capture.renderer?.render_pass_area_count,
-      render_pass_line_batch_count:
-        capture.renderer?.render_pass_line_batch_count,
-      render_pass_line_count: capture.renderer?.render_pass_line_count,
-      render_pass_point_count: capture.renderer?.render_pass_point_count,
-      render_pass_set_id: capture.renderer?.render_pass_set_id,
       source_elevation_maximum: capture.renderer?.source_elevation_maximum,
       source_elevation_minimum: capture.renderer?.source_elevation_minimum,
       source_elevation_span: capture.renderer?.source_elevation_span,

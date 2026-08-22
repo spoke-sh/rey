@@ -1766,6 +1766,18 @@ async function runVoyage(options) {
       throw new Error(
         "rotated World-to-Atlas wheel input did not retain a view-aligned unfurl",
       );
+    await dispatchClick(
+      connection,
+      `[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "FIT")`,
+      "canonical Atlas fit control",
+      options.timeoutMs,
+    );
+    await waitFor(
+      connection,
+      `${regimeExpression("atlas")} && Number(document.querySelector('[role="application"]')?.getAttribute('data-camera-zoom')) === 0.26`,
+      "canonical Atlas capture posture",
+      options.timeoutMs,
+    );
     process.stdout.write("READY atlas\n");
     firstInteractionDismissalObserved = await connection.evaluate(`(() => {
       const footer = document.querySelector('[data-explorer-footer]');
