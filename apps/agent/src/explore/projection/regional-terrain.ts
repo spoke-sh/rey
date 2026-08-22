@@ -21,7 +21,7 @@ import type {
 import { nativePositionToCountyLocal } from "./county-frame";
 
 export const REGIONAL_TERRAIN_SCENE_COMPILER_REVISION =
-  "rey.explorer.regional-terrain-grid@3";
+  "rey.explorer.regional-terrain-grid@4";
 
 export interface RegionalTerrainLandscapeFrame {
   frame_id: string;
@@ -244,11 +244,53 @@ function compileRegionalTerrainFieldUncached(
     normal: relief.normal,
     curvature: relief.curvature,
     material,
+    relief_metrics: regionalTerrainReliefMetrics(
+      dataset.native_bounds,
+      dataset.columns,
+      dataset.rows,
+      elevationRange,
+    ),
     field_cells: cells,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),
       0,
     ),
+  });
+}
+
+function regionalTerrainReliefMetrics(
+  bounds: RegionalBounds,
+  columns: number,
+  rows: number,
+  elevationRangeMeters: number,
+) {
+  const centerLatitudeRadians =
+    (((bounds.south_microdegrees + bounds.north_microdegrees) / 2) * Math.PI) /
+    180_000_000;
+  const longitudeSpanDegrees =
+    (bounds.east_microdegrees - bounds.west_microdegrees) / 1_000_000;
+  const latitudeSpanDegrees =
+    (bounds.north_microdegrees - bounds.south_microdegrees) / 1_000_000;
+  const sampleSpacingX =
+    (longitudeSpanDegrees *
+      111_320 *
+      Math.max(0.01, Math.cos(centerLatitudeRadians))) /
+    (columns - 1);
+  const sampleSpacingY = (latitudeSpanDegrees * 110_574) / (rows - 1);
+  if (
+    !Number.isFinite(sampleSpacingX) ||
+    sampleSpacingX <= 0 ||
+    !Number.isFinite(sampleSpacingY) ||
+    sampleSpacingY <= 0
+  )
+    throw new Error("regional terrain metric sample spacing is invalid");
+  return Object.freeze({
+    schema: "rey.terrain-relief-metrics.v1" as const,
+    sample_spacing_x_meters: sampleSpacingX,
+    sample_spacing_y_meters: sampleSpacingY,
+    elevation_range_meters: elevationRangeMeters,
+    authority:
+      "local metric relief scale derived from the exact CRS84 grid bounds, dimensions, center latitude, and admitted elevation range; presentation only and not a geodetic transform",
   });
 }
 

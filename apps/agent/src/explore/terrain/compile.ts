@@ -72,6 +72,7 @@ export interface TerrainFieldSet {
   material: MaterialField2D;
   field_cells: number;
   field_bytes: number;
+  relief_metrics?: TerrainFieldSetInput["relief_metrics"];
   landscape_mosaic?: TerrainFieldSetInput["landscape_mosaic"];
 }
 

@@ -144,7 +144,7 @@ describe("accelerated continuous terrain compiler", () => {
     const passes = terrainRenderPassFixture();
     const material = createContinuousReliefMaterial(passes);
     expect(material.name).toBe(
-      "rey.terrain.tsl-cartographic-relief@4:rey.landscape-relief-engine@2",
+      "rey.terrain.tsl-cartographic-relief@4:rey.landscape-relief-engine@3",
     );
     expect(material.colorNode).not.toBeNull();
     material.dispose();

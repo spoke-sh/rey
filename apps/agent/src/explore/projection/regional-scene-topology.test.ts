@@ -1038,7 +1038,7 @@ describe("regional scene topology projection", () => {
     );
     expect(snapshot.source_revisions).toContain("terrain-dataset:grid");
     expect(snapshot.compiler_revisions).toContain(
-      "rey.explorer.regional-terrain-grid@3",
+      "rey.explorer.regional-terrain-grid@4",
     );
     expect(snapshot.compiler_revisions).toContain(
       "rey.terrain.regional-mosaic@1",

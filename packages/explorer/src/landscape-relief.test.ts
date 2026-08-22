@@ -52,12 +52,13 @@ describe("landscape relief engine", () => {
     const first = deriveLandscapeReliefField(field);
     const replay = deriveLandscapeReliefField(field);
     expect(first).toMatchObject({
-      schema: "rey.landscape-relief-field.v2",
+      schema: "rey.landscape-relief-field.v3",
       field_set_id: field.field_set_id,
       source_field_set_id: field.field_set_id,
       source_relief_field_id: null,
       derivation_scope: "complete_field",
       maximum_support_radius_cells: 8,
+      scale_basis: "presentation_grid_spacing",
     });
     expect(first.hillshade).toEqual(replay.hillshade);
     expect(first.salience).toEqual(replay.salience);
@@ -90,7 +91,7 @@ describe("landscape relief engine", () => {
     );
 
     expect(tile).toMatchObject({
-      schema: "rey.landscape-relief-field.v2",
+      schema: "rey.landscape-relief-field.v3",
       field_set_id: "terrain:fixture:tile",
       source_field_set_id: field.field_set_id,
       source_relief_field_id: complete.relief_field_id,
@@ -117,6 +118,55 @@ describe("landscape relief engine", () => {
         rows,
       ),
     ).toThrow("complete source field");
+  });
+
+  it("derives declared metric relief scales from elevation rather than screen-grid normals", () => {
+    const field = terrainFieldFixture();
+    field.relief_metrics = {
+      schema: "rey.terrain-relief-metrics.v1",
+      sample_spacing_x_meters: 300,
+      sample_spacing_y_meters: 300,
+      elevation_range_meters: 1_800,
+      authority: "fixture exact metric grid",
+    };
+    field.normal.values.fill(0);
+    for (let index = 2; index < field.normal.values.length; index += 3)
+      field.normal.values[index] = 1;
+
+    const relief = deriveLandscapeReliefField(field);
+
+    expect(relief.scale_basis).toBe("metric_source_spacing");
+    expect(relief.maximum_support_radius_cells).toBe(1);
+    expect(relief.scales).toMatchObject([
+      {
+        id: "local",
+        target_radius_meters: 350,
+        support_radius_cells: 1,
+        supported: true,
+      },
+      { id: "midslope", support_radius_cells: 5, supported: false },
+      { id: "regional", support_radius_cells: 19, supported: false },
+    ]);
+    expect(relief.hillshade.some((value) => value !== 1)).toBe(true);
+  });
+
+  it("discloses and skips metric scales that the admitted grid cannot support", () => {
+    const field = terrainFieldFixture();
+    field.relief_metrics = {
+      schema: "rey.terrain-relief-metrics.v1",
+      sample_spacing_x_meters: 10_000,
+      sample_spacing_y_meters: 10_000,
+      elevation_range_meters: 1_800,
+      authority: "fixture too-coarse metric grid",
+    };
+
+    const relief = deriveLandscapeReliefField(field);
+
+    expect(relief.maximum_support_radius_cells).toBe(0);
+    expect(relief.scales.every(({ supported }) => !supported)).toBe(true);
+    expect([...relief.hillshade]).toEqual(
+      [...field.validity.values].map((valid) => (valid === 0 ? 0 : 1)),
+    );
   });
 
   it("does not derive fabric samples or multiscale spill inside no-data", () => {

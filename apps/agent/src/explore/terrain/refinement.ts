@@ -181,6 +181,16 @@ export function refineRegionalTerrainField(
     normal: relief.normal,
     curvature: relief.curvature,
     material,
+    relief_metrics: source.relief_metrics
+      ? Object.freeze({
+          ...source.relief_metrics,
+          sample_spacing_x_meters:
+            source.relief_metrics.sample_spacing_x_meters / factor,
+          sample_spacing_y_meters:
+            source.relief_metrics.sample_spacing_y_meters / factor,
+          authority: `${source.relief_metrics.authority}; refinement spacing includes disclosed presentation-only interpolation and microrelief`,
+        })
+      : undefined,
     field_cells: cells,
     field_bytes: fields.reduce(
       (total, field) => total + fieldByteLength(field),

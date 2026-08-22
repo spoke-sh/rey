@@ -50,7 +50,16 @@ describe("admitted terrain tile projection", () => {
   });
 
   it("samples relief from complete-field support across render-tile seams", () => {
-    const source = admittedField();
+    const source = {
+      ...admittedField(),
+      relief_metrics: {
+        schema: "rey.terrain-relief-metrics.v1" as const,
+        sample_spacing_x_meters: 300,
+        sample_spacing_y_meters: 300,
+        elevation_range_meters: 1_800,
+        authority: "fixture metric terrain grid",
+      },
+    };
     const pyramid = projectTerrainTilePyramid(source);
     const descriptors = [tileAt(pyramid, 2, 0, 0), tileAt(pyramid, 2, 1, 0)];
     const completeRelief = deriveLandscapeReliefField(source);

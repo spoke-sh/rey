@@ -34,14 +34,25 @@ Each `TerrainFieldSetInput` supplies one bounded regular grid:
 | Occlusion | `Float32Array`                  | Darkens bounded valleys and ambient support.        |
 | Roughness | `Float32Array`                  | Controls the TSL surface response.                  |
 
-`rey.landscape-relief-field.v2` separately binds renderer-neutral hillshade,
-salience, and tangent arrays to the exact field identity. Regional terrain
-derives those arrays once over the complete refined field before camera tile
-materialization. Each render tile samples that field-wide result by original
-row/column identity. Relief is never re-evaluated on a cropped tile, so a
-kernel cannot lose neighbors or renormalize merely because the camera selected
-a different tile partition. The worker retains both shared-border equality and
+`rey.landscape-relief-field.v3` separately binds renderer-neutral hillshade,
+salience, tangent, metric-scale basis, and operator-support metadata to the
+exact field identity. `rey.terrain-relief-metrics.v1`, when present, binds
+source sample spacing in both axes, admitted elevation range, and the authority
+of that presentation transform. Regional terrain derives the relief arrays
+once over the complete refined field before camera tile materialization. Each
+render tile samples that field-wide result by original row/column identity.
+Relief is never re-evaluated on a cropped tile, so a kernel cannot lose
+neighbors or renormalize merely because the camera selected a different tile
+partition. A target scale that is finer than the admitted spacing, larger than
+the bounded kernel, or wider than the complete grid is marked unsupported and
+does not contribute. Renderer diagnostics expose the scale basis and exact
+support decisions. The worker retains both shared-border equality and
 complete-field/partition equality as distinct zero-mismatch diagnostics.
+
+This field-wide metric relief is an enabling prototype, not the accepted
+relief hierarchy. It does not yet provide haloed height/relief pyramids,
+slope-adaptive MDOW, SVF/openness, high-pass curvature, or the qualified linear
+tone and chromatic composition required by Plan 0005.
 
 Several admitted regional fields may first enter
 `rey.landscape-mosaic.v1`. The application-owned compiler requires a common
@@ -236,13 +247,14 @@ remove coarse support but cannot become a valid coarse vertex. Camera
 selection chooses a uniform level from measured geometric error, preventing
 mixed-level edge cracks while retaining screen-space control.
 
-`rey.terrain.compilation-worker@2` runs tile projection, resampling, relief
-derivation, procedural field evaluation, parity checking, and mesh preparation
-in a cancellable dedicated worker. The deterministic reference field remains
-visible while work is pending or after failure. A disclosed main-thread
-fallback exists where `Worker` is unavailable. `rey.terrain.tile-residency@1`
-retains compiled tiles under independent 48 MiB CPU and 64 MiB GPU budgets and
-evicts the oldest unrequested identity first.
+`rey.terrain.compilation-worker@4` runs tile projection, complete-field relief
+derivation, exact relief sampling, procedural field evaluation, partition and
+border parity checking, and mesh preparation in a cancellable dedicated
+worker. The deterministic reference field remains visible while work is
+pending or after failure. A disclosed main-thread fallback exists where
+`Worker` is unavailable. `rey.terrain.tile-residency@1` retains compiled tiles
+under independent 48 MiB CPU and 64 MiB GPU budgets and evicts the oldest
+unrequested identity first.
 
 When an Atlas contains exactly one admitted regional terrain field, the
 application may mount an invisible `rey.explorer.atlas-terrain-prewarm@1`

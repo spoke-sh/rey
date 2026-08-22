@@ -97,6 +97,13 @@ export interface TerrainFieldSetInput {
     occlusion: Float32Array;
     roughness: Float32Array;
   };
+  relief_metrics?: {
+    schema: "rey.terrain-relief-metrics.v1";
+    sample_spacing_x_meters: number;
+    sample_spacing_y_meters: number;
+    elevation_range_meters: number;
+    authority: string;
+  };
   landscape_mosaic?: {
     schema: "rey.landscape-mosaic-binding.v1";
     mosaic_id: string;

@@ -40,6 +40,9 @@ export interface AcceleratedTerrainReport {
   content_kind: "globe" | "terrain" | "none";
   terrain_source_key: string;
   landscape_relief_revision: string;
+  landscape_relief_scale_basis:
+    "metric_source_spacing" | "presentation_grid_spacing" | "mixed" | "unbound";
+  landscape_relief_scale_support: readonly string[];
   landscape_patch_set_id: string;
   landscape_mosaic_id: string;
   landscape_composition_revision: string;
@@ -117,6 +120,8 @@ export const REFERENCE_TERRAIN_REPORT: AcceleratedTerrainReport = Object.freeze(
     content_kind: "none",
     terrain_source_key: "unbound",
     landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
+    landscape_relief_scale_basis: "unbound",
+    landscape_relief_scale_support: Object.freeze([]),
     landscape_patch_set_id: "unbound",
     landscape_mosaic_id: "unbound",
     landscape_composition_revision: "unbound",
@@ -573,6 +578,37 @@ export function AcceleratedTerrainSurface({
       ),
     ].sort((left, right) => left - right),
   );
+  const landscapeReliefScaleSummary = useMemo(() => {
+    const reliefFields =
+      activeTerrain?.result.compiled_tiles.map(({ relief }) => relief) ?? [];
+    const scaleBases = new Set(
+      reliefFields.map(({ scale_basis }) => scale_basis),
+    );
+    const scaleSupport = [
+      ...new Set(
+        reliefFields.flatMap(({ scales }) =>
+          scales.map((scale) =>
+            [
+              scale.id,
+              `target_m=${scale.target_radius_meters ?? "unbound"}`,
+              `radius_cells=${scale.support_radius_cells}`,
+              `radius_m=${scale.support_radius_meters ?? "unbound"}`,
+              scale.supported ? "supported" : "unsupported",
+            ].join(","),
+          ),
+        ),
+      ),
+    ].sort((left, right) => left.localeCompare(right));
+    return Object.freeze({
+      scale_basis:
+        scaleBases.size === 0
+          ? ("unbound" as const)
+          : scaleBases.size > 1
+            ? ("mixed" as const)
+            : [...scaleBases][0]!,
+      scale_support: Object.freeze(scaleSupport),
+    });
+  }, [activeTerrain]);
   const statistics = globeCompilation?.statistics ??
     terrainCompilation?.statistics ?? {
       field_sets: 0,
@@ -643,6 +679,8 @@ export function AcceleratedTerrainSurface({
           : "none",
       terrain_source_key: terrainSourceKey || "unbound",
       landscape_relief_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
+      landscape_relief_scale_basis: landscapeReliefScaleSummary.scale_basis,
+      landscape_relief_scale_support: landscapeReliefScaleSummary.scale_support,
       landscape_patch_set_id:
         terrainCompilation?.patch_set.patch_set_id ?? "unbound",
       landscape_mosaic_id:

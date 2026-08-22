@@ -379,14 +379,14 @@ The comparison proves that while Rey's accelerated pipeline executes
 interactive continuous terrain, it fails the cartographic acceptance bar on six
 fundamental dimensions:
 
-| Dimension | Visual acceptance target | Rey County Landscape (7:13 PM Capture) | Gap |
-| --- | --- | --- | --- |
-| **Geomorphic Resolution** | Knife-edge aretes, crags, cirques, couloirs, dendritic avalanche chutes, talus slopes, and incised ravines. | Soft, rounded "puffy dough" mounds; sub-100m features are absent due to ~180m source grid spacing. | Major |
-| **Multi-Scale Hillshade** | Crisp, aspect-balanced relief remains legible across slope directions and scales without blacking out steep faces. Rey will pursue an MDOW-style operator to meet this target. | Fixed 3-point scalar illumination clamped to `[0.42, 1.14]`, producing flat, low-contrast, plastic-looking slopes. | Major |
-| **Topographic Openness** | Deep valleys, ravines, and hollows retain ambient depth. Rey will pursue SVF / positive-negative topographic openness to meet this target. | Weak low-frequency elevation difference; valley bottoms lack ambient occlusion depth. | Major |
-| **Color & Hypsometric Tinting** | Continuous elevation- and slope-graded hypsometric tinting (lush valley greens → warm mid-slopes → slate/grey alpine summits → cliff rock). | Five discrete palette classes mix into a uniform, desaturated olive-grey wash across all elevations. | Major |
-| **Chromatic Lighting** | Two-tone cartographic lighting: warm sunlit highlights on illuminated faces vs. cool ambient sky-fill in shadows. | Monochromatic scalar multiplication (`tint * hillshade * occlusion`) creating dirty grey shadows and washed-out highlights. | Major |
-| **Surface Continuity & Seams** | Seamless, homogeneous terrain field across all viewports and zoom levels without visible tiling artifacts. | Regular horizontal and vertical tonal discontinuities / crosshatch grid lines crossing the entire terrain surface. | Major |
+| Dimension                       | Visual acceptance target                                                                                                                                                       | Rey County Landscape (7:13 PM Capture)                                                                                      | Gap   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **Geomorphic Resolution**       | Knife-edge aretes, crags, cirques, couloirs, dendritic avalanche chutes, talus slopes, and incised ravines.                                                                    | Soft, rounded "puffy dough" mounds; sub-100m features are absent due to ~180m source grid spacing.                          | Major |
+| **Multi-Scale Hillshade**       | Crisp, aspect-balanced relief remains legible across slope directions and scales without blacking out steep faces. Rey will pursue an MDOW-style operator to meet this target. | Fixed 3-point scalar illumination clamped to `[0.42, 1.14]`, producing flat, low-contrast, plastic-looking slopes.          | Major |
+| **Topographic Openness**        | Deep valleys, ravines, and hollows retain ambient depth. Rey will pursue SVF / positive-negative topographic openness to meet this target.                                     | Weak low-frequency elevation difference; valley bottoms lack ambient occlusion depth.                                       | Major |
+| **Color & Hypsometric Tinting** | Continuous elevation- and slope-graded hypsometric tinting (lush valley greens → warm mid-slopes → slate/grey alpine summits → cliff rock).                                    | Five discrete palette classes mix into a uniform, desaturated olive-grey wash across all elevations.                        | Major |
+| **Chromatic Lighting**          | Two-tone cartographic lighting: warm sunlit highlights on illuminated faces vs. cool ambient sky-fill in shadows.                                                              | Monochromatic scalar multiplication (`tint * hillshade * occlusion`) creating dirty grey shadows and washed-out highlights. | Major |
+| **Surface Continuity & Seams**  | Seamless, homogeneous terrain field across all viewports and zoom levels without visible tiling artifacts.                                                                     | Regular horizontal and vertical tonal discontinuities / crosshatch grid lines crossing the entire terrain surface.          | Major |
 
 The visual discontinuities and fidelity shortcomings have concrete architectural causes across the pipeline:
 
@@ -432,6 +432,16 @@ fidelity suite requires the latter to remain zero. Residency and worker CPU
 budgets now include those sampled derived arrays. This is seam-safe for one
 complete regional field. The following regional-mosaic slice now supplies the
 shared horizontal frame; a metric relief pyramid remains open below.
+
+`rey.landscape-relief-engine@3` extends that prototype with
+`rey.terrain-relief-metrics.v1` source-spacing and elevation-range metadata.
+It derives local, midslope, and regional target radii in meters, explicitly
+marks scales that the admitted grid cannot support, excludes unsupported
+scales from composition, and exposes the exact scale basis and support through
+renderer diagnostics. Its multi-azimuth light and validity-bounded local tone
+are still a prototype: they are not the slope-adaptive MDOW, SVF/openness,
+curvature, haloed relief-pyramid, or linear composition contracts required by
+8.3–8.5.
 
 `rey.terrain.regional-mosaic@1` now establishes and executes the next
 renderer-neutral contract. It compiles integer-aligned, common-scale regional fields
@@ -636,7 +646,7 @@ and CLI evidence are complete.
       spacing, dimensions, bounds, validity, source lineage, operator support,
       implementation revision, and exact parent/child identity.
 - [ ] Hard-cut the accelerated and reference paths to those shared contracts
-      once parity is proved. Keep `rey.landscape-relief-field.v2` labeled as an
+      once parity is proved. Keep `rey.landscape-relief-field.v3` labeled as an
       enabling field-wide prototype until that cutover.
 - [ ] Extend the existing verbose `rey workloads run scene-admission` result
       and structured JSON with patch-set, mosaic, pyramid, conflict, omission,

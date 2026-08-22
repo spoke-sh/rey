@@ -354,6 +354,9 @@ validity, geometric error, and byte cost. A camera may select and retain tiles
 under explicit budgets, but coarse detail can only remove valid support; it
 cannot bridge a hole. Relief is derived over the complete field before camera
 tile cropping, and partitioned results must equal that complete-field result.
+When source metric spacing is bound, renderer diagnostics disclose which
+local, midslope, and regional target radii are supported; unsupported scales
+do not silently fall back to screen-grid detail.
 Tile evaluation and mesh preparation belong in cancellable workers so
 interaction does not turn React reconciliation into a terrain compute loop.
 Worker loss or budget failure reveals the deterministic reference surface.

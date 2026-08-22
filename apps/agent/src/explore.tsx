@@ -1051,6 +1051,12 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           data-renderer-landscape-relief-revision={
             terrainRenderer.landscape_relief_revision
           }
+          data-renderer-landscape-relief-scale-basis={
+            terrainRenderer.landscape_relief_scale_basis
+          }
+          data-renderer-landscape-relief-scale-support={terrainRenderer.landscape_relief_scale_support.join(
+            "|",
+          )}
           data-renderer-landscape-patch-set-id={
             terrainRenderer.landscape_patch_set_id
           }
@@ -1114,6 +1120,7 @@ export function ContextCanvas({ portfolio, coordinate }: ContextCanvasProps) {
           )}
           data-renderer-render-pass-set-id={terrainRenderer.render_pass_set_id}
           data-renderer-revision={terrainRenderer.status.renderer_revision}
+          data-renderer-status-detail={terrainRenderer.status.detail}
           data-renderer-source-elevation-maximum={
             terrainRenderer.source_elevation_maximum
           }

@@ -5,14 +5,14 @@ import {
 import type { TerrainFieldSetInput } from "./types";
 
 export const LANDSCAPE_RELIEF_ENGINE_REVISION =
-  "rey.landscape-relief-engine@2" as const;
+  "rey.landscape-relief-engine@3" as const;
 export const LANDSCAPE_TERRAIN_FABRIC_REVISION =
   "rey.landscape-terrain-fabric@1" as const;
 export const LANDSCAPE_PATCH_SET_REVISION =
   "rey.landscape-patch-set@1" as const;
 
 export interface LandscapeReliefField {
-  schema: "rey.landscape-relief-field.v2";
+  schema: "rey.landscape-relief-field.v3";
   implementation_revision: typeof LANDSCAPE_RELIEF_ENGINE_REVISION;
   relief_field_id: string;
   field_set_id: string;
@@ -20,6 +20,15 @@ export interface LandscapeReliefField {
   source_relief_field_id: string | null;
   derivation_scope: "complete_field" | "sampled_from_complete_field";
   maximum_support_radius_cells: number;
+  scale_basis: "metric_source_spacing" | "presentation_grid_spacing";
+  scales: readonly {
+    id: "local" | "midslope" | "regional";
+    target_radius_meters: number | null;
+    support_radius_cells: number;
+    support_radius_meters: number | null;
+    weight: number;
+    supported: boolean;
+  }[];
   columns: number;
   rows: number;
   hillshade: Float32Array;
@@ -58,12 +67,17 @@ export function landscapeReliefFieldByteLength(
   );
 }
 
-const RELIEF_RADII = Object.freeze([0, 2, 8] as const);
-const RELIEF_WEIGHTS = Object.freeze([0.56, 0.29, 0.15] as const);
-export const LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS =
-  RELIEF_RADII.at(-1)!;
-const KEY_LIGHT = normalize3(-0.48, -0.44, 0.76);
-const FILL_LIGHT = normalize3(0.36, 0.28, 0.89);
+const FALLBACK_RELIEF_RADII = Object.freeze([0, 2, 8] as const);
+const RELIEF_SCALE_TARGETS = Object.freeze([
+  { id: "local", radius_meters: 350, weight: 0.68 },
+  { id: "midslope", radius_meters: 1_400, weight: 0.22 },
+  { id: "regional", radius_meters: 5_600, weight: 0.1 },
+] as const);
+export const LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS = 64;
+const KEY_LIGHT = normalize3(-0.56, -0.48, 0.68);
+const FILL_LIGHT = normalize3(0.46, -0.18, 0.87);
+const BACK_LIGHT = normalize3(0.42, 0.5, 0.76);
+const CARTOGRAPHIC_RELIEF_VERTICAL_EXAGGERATION = 5;
 
 /**
  * Binds one ordered landscape from zero or more admitted terrain patches.
@@ -177,9 +191,11 @@ export function deriveLandscapeReliefField(
   const elevationPrefix = prefixSum(columns, rows, (index) =>
     field.validity.values[index] === 0 ? 0 : field.elevation.values[index]!,
   );
-  const normalXPrefix = prefixSum(columns, rows, (index) => normalX[index]!);
-  const normalYPrefix = prefixSum(columns, rows, (index) => normalY[index]!);
-  const normalUpPrefix = prefixSum(columns, rows, (index) => normalUp[index]!);
+  const elevationSquarePrefix = prefixSum(columns, rows, (index) =>
+    field.validity.values[index] === 0
+      ? 0
+      : field.elevation.values[index]! ** 2,
+  );
   const elevationSpan = Math.max(
     0.000_001,
     maximumSupported(field.elevation.values, field.validity.values) -
@@ -188,6 +204,16 @@ export function deriveLandscapeReliefField(
   const hillshade = new Float32Array(cells);
   const salience = new Float32Array(cells);
   const tangent = new Float32Array(cells * 2);
+  const scaleContract = landscapeReliefScales(field);
+  const maximumSupportRadius = maximumSupportedScaleRadius(scaleContract);
+  const spacingX =
+    field.relief_metrics?.sample_spacing_x_meters ??
+    field.grid.bounds.width / (columns - 1);
+  const spacingY =
+    field.relief_metrics?.sample_spacing_y_meters ??
+    field.grid.bounds.height / (rows - 1);
+  const verticalScale =
+    field.relief_metrics?.elevation_range_meters ?? field.elevation_scale;
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
@@ -200,9 +226,10 @@ export function deriveLandscapeReliefField(
       let directionX = normalX[index]!;
       let directionY = normalY[index]!;
 
-      for (let scale = 0; scale < RELIEF_RADII.length; scale += 1) {
-        const radius = RELIEF_RADII[scale]!;
-        const weight = RELIEF_WEIGHTS[scale]!;
+      for (const scale of scaleContract) {
+        if (!scale.supported) continue;
+        const radius = scale.support_radius_cells;
+        const weight = scale.weight;
         const window = completeWindow(
           supportPrefix,
           columns,
@@ -213,17 +240,36 @@ export function deriveLandscapeReliefField(
         );
         if (!window) continue;
         const inverseArea = 1 / window.area;
-        const nx = rectangleSum(normalXPrefix, columns, window) * inverseArea;
-        const ny = rectangleSum(normalYPrefix, columns, window) * inverseArea;
-        const up = rectangleSum(normalUpPrefix, columns, window) * inverseArea;
-        const normal = normalize3(nx, ny, up);
+        const normal =
+          radius === 0
+            ? normalize3(normalX[index]!, normalY[index]!, normalUp[index]!)
+            : elevationNormal(
+                field.elevation.values,
+                columns,
+                column,
+                row,
+                radius,
+                spacingX,
+                spacingY,
+                verticalScale,
+              );
         const key = Math.max(0, dot3(normal, KEY_LIGHT));
         const fill = Math.max(0, dot3(normal, FILL_LIGHT));
-        illumination += (0.4 + key * 0.52 + fill * 0.09) * weight;
+        const back = Math.max(0, dot3(normal, BACK_LIGHT));
+        illumination +=
+          (0.18 + key * 0.74 + fill * 0.07 + back * 0.03) * weight;
         reliefStrength += Math.hypot(normal[0], normal[1]) * weight;
         const meanElevation =
           rectangleSum(elevationPrefix, columns, window) * inverseArea;
-        const scaleRange = elevationSpan * (0.012 + radius * 0.0035);
+        const meanElevationSquare =
+          rectangleSum(elevationSquarePrefix, columns, window) * inverseArea;
+        const localDeviation = Math.sqrt(
+          Math.max(0, meanElevationSquare - meanElevation ** 2),
+        );
+        const scaleRange = Math.max(
+          elevationSpan * 0.003,
+          localDeviation * 2.2,
+        );
         position +=
           clamp(
             (field.elevation.values[index]! - meanElevation) / scaleRange,
@@ -235,22 +281,34 @@ export function deriveLandscapeReliefField(
         weightTotal += weight;
       }
 
-      const inverseWeight = weightTotal > 0 ? 1 / weightTotal : 1;
-      illumination *= inverseWeight;
-      reliefStrength *= inverseWeight;
-      position *= inverseWeight;
       const curvature = clamp(
         Math.abs(field.curvature.values[index]!) /
           Math.max(elevationSpan * 0.004, 0.000_01),
         0,
         1,
       );
+      if (weightTotal === 0) {
+        hillshade[index] = 1;
+        salience[index] = Math.fround(curvature * 0.16);
+        const tangentLength = Math.hypot(directionX, directionY);
+        tangent[index * 2] = Math.fround(
+          tangentLength > 0.000_01 ? -directionY / tangentLength : 1,
+        );
+        tangent[index * 2 + 1] = Math.fround(
+          tangentLength > 0.000_01 ? directionX / tangentLength : 0,
+        );
+        continue;
+      }
+      const inverseWeight = 1 / weightTotal;
+      illumination *= inverseWeight;
+      reliefStrength *= inverseWeight;
+      position *= inverseWeight;
       hillshade[index] = Math.fround(
-        clamp(illumination + position * 0.075, 0.48, 1.08),
+        clamp(0.92 + (illumination - 0.77) * 1.8 + position * 0.26, 0.25, 1.18),
       );
       salience[index] = Math.fround(
         clamp(
-          reliefStrength * 1.55 + Math.abs(position) * 0.24 + curvature * 0.13,
+          reliefStrength * 1.7 + Math.abs(position) * 0.28 + curvature * 0.16,
           0,
           1,
         ),
@@ -266,7 +324,7 @@ export function deriveLandscapeReliefField(
   }
 
   return Object.freeze({
-    schema: "rey.landscape-relief-field.v2",
+    schema: "rey.landscape-relief-field.v3",
     implementation_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     relief_field_id: [
       LANDSCAPE_RELIEF_ENGINE_REVISION,
@@ -278,7 +336,11 @@ export function deriveLandscapeReliefField(
     source_field_set_id: field.field_set_id,
     source_relief_field_id: null,
     derivation_scope: "complete_field",
-    maximum_support_radius_cells: LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS,
+    maximum_support_radius_cells: maximumSupportRadius,
+    scale_basis: field.relief_metrics
+      ? "metric_source_spacing"
+      : "presentation_grid_spacing",
+    scales: scaleContract,
     columns,
     rows,
     hillshade,
@@ -308,7 +370,7 @@ export function sampleLandscapeReliefField(
   verifySampleIndices(rowIndices, source.grid.rows, "row");
   const cells = columnIndices.length * rowIndices.length;
   const result = Object.freeze({
-    schema: "rey.landscape-relief-field.v2" as const,
+    schema: "rey.landscape-relief-field.v3" as const,
     implementation_revision: LANDSCAPE_RELIEF_ENGINE_REVISION,
     relief_field_id: `${relief.relief_field_id}|sample:${targetFieldSetId}`,
     field_set_id: targetFieldSetId,
@@ -316,6 +378,8 @@ export function sampleLandscapeReliefField(
     source_relief_field_id: relief.relief_field_id,
     derivation_scope: "sampled_from_complete_field" as const,
     maximum_support_radius_cells: relief.maximum_support_radius_cells,
+    scale_basis: relief.scale_basis,
+    scales: relief.scales,
     columns: columnIndices.length,
     rows: rowIndices.length,
     hillshade: sampleReliefComponents(
@@ -354,12 +418,27 @@ export function verifyLandscapeReliefField(
   relief: LandscapeReliefField,
 ): void {
   verifyTerrainFieldShape(field);
+  const expectedScales = landscapeReliefScales(field);
+  const scaleContractMatches =
+    relief.derivation_scope === "complete_field"
+      ? JSON.stringify(relief.scales) === JSON.stringify(expectedScales)
+      : relief.derivation_scope === "sampled_from_complete_field" &&
+        JSON.stringify(relief.scales.map(scaleGeometry)) ===
+          JSON.stringify(expectedScales.map(scaleGeometry));
+  const expectedMaximumSupportRadius =
+    relief.derivation_scope === "complete_field"
+      ? maximumSupportedScaleRadius(expectedScales)
+      : maximumSupportedScaleRadius(relief.scales);
   if (
-    relief.schema !== "rey.landscape-relief-field.v2" ||
+    relief.schema !== "rey.landscape-relief-field.v3" ||
     relief.implementation_revision !== LANDSCAPE_RELIEF_ENGINE_REVISION ||
     relief.field_set_id !== field.field_set_id ||
-    relief.maximum_support_radius_cells !==
-      LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS ||
+    relief.maximum_support_radius_cells !== expectedMaximumSupportRadius ||
+    relief.scale_basis !==
+      (field.relief_metrics
+        ? "metric_source_spacing"
+        : "presentation_grid_spacing") ||
+    !scaleContractMatches ||
     relief.columns !== field.grid.columns ||
     relief.rows !== field.grid.rows ||
     relief.hillshade.length !== field.field_cells ||
@@ -367,6 +446,24 @@ export function verifyLandscapeReliefField(
     relief.tangent.length !== field.field_cells * 2
   )
     throw new Error("landscape relief field does not match terrain input");
+}
+
+function scaleGeometry(
+  scale: LandscapeReliefField["scales"][number],
+): Omit<LandscapeReliefField["scales"][number], "supported"> {
+  const { supported: _supported, ...geometry } = scale;
+  return geometry;
+}
+
+function maximumSupportedScaleRadius(
+  scales: LandscapeReliefField["scales"],
+): number {
+  return Math.max(
+    0,
+    ...scales
+      .filter(({ supported }) => supported)
+      .map(({ support_radius_cells }) => support_radius_cells),
+  );
 }
 
 /**
@@ -421,6 +518,77 @@ export function landscapeTerrainFabricSamples(
         left.u - right.u,
     );
   return Object.freeze(samples.map((sample) => Object.freeze(sample)));
+}
+
+function landscapeReliefScales(
+  field: TerrainFieldSetInput,
+): LandscapeReliefField["scales"] {
+  const metrics = field.relief_metrics;
+  if (!metrics)
+    return Object.freeze(
+      FALLBACK_RELIEF_RADII.map((radius, index) =>
+        Object.freeze({
+          id: RELIEF_SCALE_TARGETS[index]!.id,
+          target_radius_meters: null,
+          support_radius_cells: radius,
+          support_radius_meters: null,
+          weight: RELIEF_SCALE_TARGETS[index]!.weight,
+          supported: true,
+        }),
+      ),
+    );
+  const representativeSpacing = Math.sqrt(
+    metrics.sample_spacing_x_meters * metrics.sample_spacing_y_meters,
+  );
+  return Object.freeze(
+    RELIEF_SCALE_TARGETS.map((target) => {
+      const requested = target.radius_meters / representativeSpacing;
+      const radius = clamp(
+        Math.round(requested),
+        1,
+        LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS,
+      );
+      const supportRadiusMeters = radius * representativeSpacing;
+      return Object.freeze({
+        id: target.id,
+        target_radius_meters: target.radius_meters,
+        support_radius_cells: radius,
+        support_radius_meters: supportRadiusMeters,
+        weight: target.weight,
+        supported:
+          target.radius_meters >= representativeSpacing &&
+          requested <= LANDSCAPE_RELIEF_MAXIMUM_SUPPORT_RADIUS_CELLS &&
+          radius * 2 + 1 <= Math.min(field.grid.columns, field.grid.rows),
+      });
+    }),
+  );
+}
+
+function elevationNormal(
+  elevation: Float32Array,
+  columns: number,
+  column: number,
+  row: number,
+  radius: number,
+  spacingX: number,
+  spacingY: number,
+  verticalScale: number,
+): readonly [number, number, number] {
+  const left = elevation[row * columns + column - radius]!;
+  const right = elevation[row * columns + column + radius]!;
+  const top = elevation[(row - radius) * columns + column]!;
+  const bottom = elevation[(row + radius) * columns + column]!;
+  const derivativeX =
+    ((right - left) *
+      verticalScale *
+      CARTOGRAPHIC_RELIEF_VERTICAL_EXAGGERATION) /
+    (2 * radius * spacingX);
+  const derivativeY =
+    ((bottom - top) *
+      verticalScale *
+      CARTOGRAPHIC_RELIEF_VERTICAL_EXAGGERATION) /
+    (2 * radius * spacingY);
+  return normalize3(-derivativeX, -derivativeY, 1);
 }
 
 interface PrefixWindow {
@@ -482,12 +650,22 @@ function rectangleSum(
 
 function verifyTerrainFieldShape(field: TerrainFieldSetInput): void {
   const cells = field.grid.columns * field.grid.rows;
+  const metrics = field.relief_metrics;
   if (
     field.field_cells !== cells ||
     field.validity.values.length !== cells ||
     field.elevation.values.length !== cells ||
     field.normal.values.length !== cells * 3 ||
-    field.curvature.values.length !== cells
+    field.curvature.values.length !== cells ||
+    (metrics !== undefined &&
+      (metrics.schema !== "rey.terrain-relief-metrics.v1" ||
+        !Number.isFinite(metrics.sample_spacing_x_meters) ||
+        metrics.sample_spacing_x_meters <= 0 ||
+        !Number.isFinite(metrics.sample_spacing_y_meters) ||
+        metrics.sample_spacing_y_meters <= 0 ||
+        !Number.isFinite(metrics.elevation_range_meters) ||
+        metrics.elevation_range_meters <= 0 ||
+        !metrics.authority))
   )
     throw new Error("landscape relief input shape is invalid");
 }

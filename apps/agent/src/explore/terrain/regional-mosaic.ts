@@ -35,6 +35,7 @@ export interface RegionalTerrainMosaicManifest {
   member_ids: readonly string[];
   coordinate_reference: string;
   vertical_reference: string;
+  relief_metrics: TerrainFieldSetInput["relief_metrics"] | null;
   bounds: { x: number; y: number; width: number; height: number };
   columns: number;
   rows: number;
@@ -282,6 +283,7 @@ export function compileRegionalTerrainMosaic(
       .sort((left, right) => left.localeCompare(right))
       .map((pair) => Object.freeze(pair.split("\u0000") as [string, string])),
   );
+  const reliefMetrics = regionalMosaicReliefMetrics(ordered);
   const binding = Object.freeze({
     schema: "rey.landscape-mosaic-binding.v1" as const,
     mosaic_id: mosaicId,
@@ -306,6 +308,7 @@ export function compileRegionalTerrainMosaic(
     member_ids: memberIds,
     coordinate_reference: coordinateReference,
     vertical_reference: verticalReference,
+    relief_metrics: reliefMetrics,
     bounds,
     columns,
     rows,
@@ -391,6 +394,7 @@ export function compileRegionalTerrainMosaic(
     normal: relief.normal,
     curvature: relief.curvature,
     material,
+    relief_metrics: reliefMetrics ?? undefined,
     field_cells: fieldCellCount(grid),
     field_bytes: fields.reduce(
       (total, channel) => total + fieldByteLength(channel),
@@ -399,6 +403,38 @@ export function compileRegionalTerrainMosaic(
     landscape_mosaic: binding,
   }) satisfies TerrainFieldSet;
   return Object.freeze({ manifest, field });
+}
+
+function regionalMosaicReliefMetrics(
+  patches: readonly RegionalTerrainMosaicPatch[],
+): TerrainFieldSetInput["relief_metrics"] | null {
+  const metrics = patches.flatMap(({ field }) =>
+    field.relief_metrics ? [field.relief_metrics] : [],
+  );
+  if (metrics.length !== patches.length) return null;
+  const elevationRange = metrics[0]!.elevation_range_meters;
+  if (
+    metrics.some(
+      (metric) => !sameNumber(metric.elevation_range_meters, elevationRange),
+    )
+  )
+    throw new Error("regional terrain mosaic relief elevation scale conflicts");
+  return Object.freeze({
+    schema: "rey.terrain-relief-metrics.v1" as const,
+    sample_spacing_x_meters:
+      metrics.reduce(
+        (total, metric) => total + metric.sample_spacing_x_meters,
+        0,
+      ) / metrics.length,
+    sample_spacing_y_meters:
+      metrics.reduce(
+        (total, metric) => total + metric.sample_spacing_y_meters,
+        0,
+      ) / metrics.length,
+    elevation_range_meters: elevationRange,
+    authority:
+      "component-average local metric relief scale from every exact admitted CRS84 member grid; presentation only and not a geodetic transform",
+  });
 }
 
 function sampleSpacing(field: TerrainFieldSet, axis: "x" | "y"): number {
